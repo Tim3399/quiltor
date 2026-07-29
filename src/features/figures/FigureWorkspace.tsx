@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactFlow, Background, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
+import { ReactFlow, ReactFlowProvider, Background, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
 import { Clock3, Download, Link2, Pause, Play, Plus, Redo2, Skull, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, FigureKind, Profile, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 
 type CardData = { figure: FigureNode; deceased: boolean };
 const nodeTypes = { story: StoryNode };
+const EMPTY_TIMELINE: TimelineMoment[] = [];
 const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: string; nodeLabel: string; quick: boolean }> = [
   { kind: 'person', label: 'Figur', initialName: 'Neue Figur', nodeLabel: 'Rolle', quick: true },
   { kind: 'ort', label: 'Ort', initialName: 'Neuer Ort', nodeLabel: 'Ort', quick: true },
@@ -26,7 +27,13 @@ function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
   </div>;
 }
 
-export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, canUndo = false, canRedo = false }: { state: FigureState; onChange: (value: FigureState) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean }) {
+type FigureWorkspaceProps = { state: FigureState; onChange: (value: FigureState) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean };
+
+export function FigureWorkspace(props: FigureWorkspaceProps) {
+  return <ReactFlowProvider><FigureWorkspaceInner {...props} /></ReactFlowProvider>;
+}
+
+function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUndo = false, canRedo = false }: FigureWorkspaceProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -40,10 +47,11 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   const [connectionError, setConnectionError] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const flow = useRef<ReactFlowInstance<Node<CardData>, Edge> | null>(null);
+  const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
   latestState.current = state;
   const selected = state.nodes.find(node => node.id === selectedId) ?? null;
-  const timeline = state.timeline || [];
+  const timeline = state.timeline ?? EMPTY_TIMELINE;
   useEffect(() => { if (targetId && state.nodes.some(node => node.id === targetId)) { setSelectedId(targetId); const item = state.nodes.find(node => node.id === targetId); if (item) setTimeout(() => flow.current?.setCenter(item.x, item.y, { zoom: 1, duration: 350 }), 0); } }, [targetId, state.nodes]);
   useEffect(() => {
     if (!playing || !timeline.length) return;
@@ -52,7 +60,9 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
     const timer = window.setTimeout(() => setActiveMomentId(timeline[index + 1].id), 1500);
     return () => window.clearTimeout(timer);
   }, [playing, activeMomentId, timeline]);
-  const nodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId) } })), [state.nodes, timeline, activeMomentId]);
+  const derivedNodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId) } })), [state.nodes, timeline, activeMomentId]);
+  const [nodes, setFlowNodes] = useState<Node<CardData>[]>(derivedNodes);
+  useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
   const visibleEdges = useMemo(() => state.edges.map(edge => activeMomentId ? resolveRelationship(edge, timeline, activeMomentId) : resolveRelationshipOverview(edge, timeline)).filter(edge => edge.active), [state.edges, timeline, activeMomentId]);
   const edges = useMemo<Edge[]>(() => visibleEdges.map(edge => { const handles = relationshipHandles(edge, state.nodes); return ({ id: edge.id, source: edge.from, target: edge.to, sourceHandle: handles.from, targetHandle: handles.to, label: edge.label, labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' }, animated: edge.style === 'blood', className: `edge-${edge.style || 'solid'} ${edge.gerichtet ? 'edge-directed' : 'edge-undirected'} ${!activeMomentId && edge.versions?.length ? 'edge-temporal' : ''}`, markerEnd: edge.gerichtet ? { type: 'arrowclosed' as const } : undefined }); }), [visibleEdges, activeMomentId, state.nodes]);
 
@@ -75,16 +85,16 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
     setConnecting(false); setConnectionError('');
   }, [activeMomentId, edges, onChange, state]);
   const moveNodes = useCallback((changes: NodeChange<Node<CardData>>[]) => {
-    const positions = new Map(changes.flatMap(change => change.type === 'position' && change.position ? [[change.id, change.position] as const] : []));
-    if (!positions.size) return;
+    setFlowNodes(current => applyNodeChanges(changes, current));
+  }, []);
+  const commitNodePosition = useCallback((id: string, position: { x: number; y: number }) => {
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
     const current = latestState.current;
-    const next = { ...current, nodes: current.nodes.map(node => {
-      const position = positions.get(node.id);
-      return position && Number.isFinite(position.x) && Number.isFinite(position.y) ? { ...node, x: position.x, y: position.y } : node;
-    }) };
+    const next = { ...current, nodes: current.nodes.map(node => node.id === id ? { ...node, x: position.x, y: position.y } : node) };
     latestState.current = next;
     onChange(next);
-  }, [onChange]);
+    window.requestAnimationFrame(() => updateNodeInternals(current.nodes.map(node => node.id)));
+  }, [onChange, updateNodeInternals]);
   const remove = () => {
     if (!selected) return;
     onChange({ ...state, nodes: state.nodes.filter(node => node.id !== selected.id), edges: state.edges.filter(edge => edge.from !== selected.id && edge.to !== selected.id) }); setSelectedId(null);
@@ -120,7 +130,7 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
         {connecting && <div className="mode-banner"><Link2 />Rechts → links: gerichtet · Mitte ↔ Mitte: ungerichtet <button onClick={() => setConnecting(false)}><X /><span className="sr-only">Abbrechen</span></button></div>}
         <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; }}
           onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
-          onNodesChange={moveNodes}
+          onNodesChange={moveNodes} onNodeDragStop={(_, node) => commitNodePosition(node.id, node.position)}
           onConnect={connect} nodesConnectable={connecting} fitView minZoom={0.2} maxZoom={2.2} deleteKeyCode={null}>
           <Background gap={24} size={1} color="var(--line-strong)" /><Controls position="bottom-left" /><MiniMap pannable zoomable nodeColor="var(--minimap-node)" maskColor="var(--minimap-mask)" />
         </ReactFlow>
