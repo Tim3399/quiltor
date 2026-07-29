@@ -48,8 +48,8 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
     return () => window.clearTimeout(timer);
   }, [playing, activeMomentId, timeline]);
   const nodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId) } })), [state.nodes, timeline, activeMomentId]);
-  const visibleEdges = useMemo(() => state.edges.map(edge => resolveRelationship(edge, timeline, activeMomentId)).filter(edge => edge.active), [state.edges, timeline, activeMomentId]);
-  const edges = useMemo<Edge[]>(() => visibleEdges.map(edge => ({ id: edge.id, source: edge.from, target: edge.to, label: edge.label, labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' }, animated: edge.style === 'blood', className: `edge-${edge.style || 'solid'}`, markerEnd: edge.gerichtet ? { type: 'arrowclosed' as const } : undefined })), [visibleEdges]);
+  const visibleEdges = useMemo(() => state.edges.map(edge => activeMomentId ? resolveRelationship(edge, timeline, activeMomentId) : resolveRelationshipOverview(edge, timeline)).filter(edge => edge.active), [state.edges, timeline, activeMomentId]);
+  const edges = useMemo<Edge[]>(() => visibleEdges.map(edge => ({ id: edge.id, source: edge.from, target: edge.to, label: edge.label, labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' }, animated: edge.style === 'blood', className: `edge-${edge.style || 'solid'} ${!activeMomentId && edge.versions?.length ? 'edge-temporal' : ''}`, markerEnd: edge.gerichtet ? { type: 'arrowclosed' as const } : undefined })), [visibleEdges, activeMomentId]);
 
   const patchNode = (id: string, patch: Partial<FigureNode>) => onChange({ ...state, nodes: state.nodes.map(node => node.id === id ? { ...node, ...patch } : node) });
   const addNode = (kind: FigureKind) => {
@@ -179,6 +179,14 @@ export function resolveRelationship(edge: FigureEdge, timeline: TimelineMoment[]
     return index >= 0 && index <= activeIndex;
   }).sort((a, b) => timeline.findIndex(moment => moment.id === a.momentId) - timeline.findIndex(moment => moment.id === b.momentId)).at(-1);
   return version ? { ...base, ...version, id: edge.id, from: edge.from, to: edge.to, active: version.active } : base;
+}
+
+export function resolveRelationshipOverview(edge: FigureEdge, timeline: TimelineMoment[]): FigureEdge & { active: boolean } {
+  const ordered = [...(edge.versions || [])].sort((a, b) => timeline.findIndex(moment => moment.id === a.momentId) - timeline.findIndex(moment => moment.id === b.momentId));
+  const labels = [edge.label, ...ordered.filter(version => version.active).map(version => version.label)].filter((label): label is string => !!label?.trim());
+  const distinctLabels = labels.filter((label, index) => labels.indexOf(label) === index);
+  const latestActive = [...ordered].reverse().find(version => version.active);
+  return { ...edge, ...(latestActive || {}), id: edge.id, from: edge.from, to: edge.to, label: distinctLabels.join(' → '), active: edge.active !== false || ordered.some(version => version.active) };
 }
 
 export function patchRelationship(edge: FigureEdge, timeline: TimelineMoment[], activeId: string | null, patch: Partial<FigureEdge>): FigureEdge {
