@@ -37,6 +37,7 @@ test('Shortcuts unterscheiden Speichern und Git', async ({ page }) => {
   await openBlankWorld(page);
   await page.keyboard.press('Control+Shift+S');
   await expect(page.getByRole('dialog', { name: /Git/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Committen & pushen' })).toBeEnabled();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+S');
   await expect(page.getByRole('dialog')).toHaveCount(0);
