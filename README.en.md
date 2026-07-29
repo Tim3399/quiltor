@@ -2,132 +2,149 @@
 
 [Deutsch](README.md) · [English](README.en.md)
 
-Quiltor is a local-first writing workspace for manuscripts, characters, places,
-concepts, and their relationships. It runs in the browser while keeping every
-world in a separate SQLite database on your own computer.
+> A local writing workspace for manuscripts, world knowledge, and relationships that change over time — built to make writing easier, not to replace it.
 
-## Features
+![Quiltor manuscript workspace](docs/screenshots/manuscript.png)
 
-- Chapter-based manuscript editor with focus mode and discreet writing aids
-- Visual character and world board with draggable nodes and relationships
-- Undo and redo for manuscripts and diagrams
-- Chapter versions, Git history, and readable diffs
-- Light and dark themes
-- German and English interface
-- Book-style PDF export in a readable 6 × 9 inch format
-- Local SQLite storage with revision checks and backups
-- Multiple independent worlds from a neutral start screen
-- Local RAG assistant with cited chapter, note, profile, relationship, and timeline retrieval
-- Confirmation-only proposals for worldbuilding changes, plus a bundled MCP server
+Quiltor combines a calm chapter editor with a visual world graph, a proper timeline, and a local research assistant. Every world stays in its own SQLite database on your computer. Git backups are optional, but recommended.
 
-Quiltor starts without bundled example content. Your manuscripts, character
-profiles, databases, mirrors, and backups are ignored by Git.
+## What Quiltor does
 
-## Local assistant
+| Writing | Worldbuilding | Time |
+| --- | --- | --- |
+| Chapter editor and focus mode | Characters, animals, places, organizations, objects, and concepts | Dedicated timeline workspace |
+| Discreet writing aids and one-word autocomplete | Directed and undirected relationships | Relationship state per moment |
+| Chapter notes, versions, and undo/redo | Grid, minimap, and semantic zoom | Change direction, label, and activity |
+| Readable 6 × 9 inch book PDF | Profiles, custom fields, and important elements | Death markers and animated playback |
 
-Quiltor's assistant is designed to make research and structured world
-maintenance easier without replacing the author's writing. It may read
-manuscript prose as local RAG context, but it has no proposal or tool capable of
-writing, continuing, or changing prose. Character, relationship, and timeline
-changes are returned as cited proposals, require explicit confirmation, and
-enter the normal undo/redo history as one operation.
+### One world graph instead of scattered notes
 
-Release packages can include a local `llama.cpp` runtime and an Apache-2.0
-Qwen3-4B GGUF model. Difficult lawful fictional material remains valid analysis
-context; violence, sex, crime, horror, abuse, politics, religion, and moral
-complexity are not refusal reasons. The model remains replaceable and all
-inference stays on loopback.
+Elements keep stable positions while relationships may appear, disappear, or change meaning over time. The board provides a subtle grid, free positioning, automatic alignment, a minimap, and a reduced overview zoom.
 
-The bundled `mcp/quiltor_server.py` exposes the same local retrieval and
-proposal capabilities to MCP clients. It intentionally provides no apply,
-delete, filesystem, Git, database-write, or manuscript-writing tool.
+![Quiltor world graph](docs/screenshots/world-graph.png)
 
-## Quick start
+### Timeline playback inside the board
 
-The production build only requires Python 3:
+The timeline strip plays the world's development without moving elements or the camera. Earlier relationship values remain inherited until a moment explicitly overrides them.
+
+![Animated timeline inside the world board](docs/screenshots/timeline-playback.png)
+
+### A workspace made for timeline maintenance
+
+The dedicated timeline page is optimized for editing rather than visualization: order moments, add notes, activate, rename, or reverse relationships, and mark life events. The board and timeline use the same state, so there is no duplicated source of truth.
+
+![Timeline manager](docs/screenshots/timeline-manager.png)
+
+## Local assistant and RAG
+
+The assistant searches chapters, notes, profiles, elements, relationships, and every timeline state as one local knowledge corpus. Answers cite clickable sources. Manuscript prose is readable context; the assistant deliberately has no tool for writing, continuing, or changing prose.
+
+Element, relationship, and timeline changes are returned only as structured proposals. Explicit confirmation applies them as one undoable history step.
+
+The model runtime uses `llama.cpp`. A runtime and GGUF model can be bundled locally or configured:
 
 ```bash
+QUILTOR_AI_BINARY=/path/to/llama-server \
+QUILTOR_AI_MODEL=/path/to/model.gguf \
 python3 server.py
 ```
 
-Quiltor opens at `http://localhost:8000`. To choose another port or prevent the
-browser from opening automatically:
+An existing local endpoint can be selected with `QUILTOR_AI_URL`. All requests stay on loopback.
+
+### MCP included
+
+`mcp/quiltor_server.py` exposes retrieval and world maintenance to MCP clients. Mutation-like tools only create proposals that require confirmation. There are intentionally no direct apply, delete, Git, filesystem, or manuscript-writing tools.
+
+The bundled `.mcp.json` configures the server for clients that support project-level MCP configuration.
+
+## Quick start
+
+The built client lives in `dist/`; Python 3 is enough for the editor and local storage:
+
+```bash
+git clone https://github.com/Tim3399/quiltor.git
+cd quiltor
+python3 server.py
+```
+
+Quiltor opens [http://localhost:8000](http://localhost:8000). Alternatively:
 
 ```bash
 python3 server.py 8080 --no-open
 ```
 
-Create your first world on the start screen. You can optionally connect a
-dedicated repository on GitHub, GitLab, Gitea, or another Git provider; doing so
-is strongly recommended. Its manuscript, character board, and backups remain separate
-from every other world and from the Quiltor source repository.
+Create an empty world on first launch. A repository on GitHub, GitLab, Gitea, or another Git provider is optional. Quiltor never stores credentials; it uses your locally configured Git authentication.
 
-## Development
+Development and PDF export require Node.js and the project dependencies:
 
 ```bash
 npm install
 npm run dev
+```
+
+Run `python3 server.py --no-open` alongside Vite; API requests are forwarded to port 8000.
+
+## Local means local
+
+- Every world has a separate SQLite file under `data/worlds/`.
+- SQLite is the only authoritative data source.
+- Markdown mirrors keep manuscripts and profiles readable outside the app.
+- Automatic SQLite backups can be restored locally.
+- Revision checks prevent stale browser tabs from overwriting newer changes.
+- Git backups are fully separated from the Quiltor source repository.
+- World content, models, backups, and repositories are excluded from public version control.
+
+## Keyboard controls
+
+| Shortcut | Action |
+| --- | --- |
+| `Cmd/Ctrl + S` | Save immediately |
+| `Cmd/Ctrl + Shift + S` | Open Git |
+| `Cmd/Ctrl + F` | Search chapters, elements, and moments |
+| `Cmd/Ctrl + K` | Open the command palette |
+| `Cmd/Ctrl + Z` | Undo |
+| `Cmd/Ctrl + Shift + Z` | Redo |
+| `Esc` | Leave focus or a temporary mode |
+| `Option/Alt` while dragging | Temporarily release the grid |
+
+## Development and quality
+
+```bash
 npm test
 npm run build
 python3 -m unittest discover -s tests/backend -v
 npm run test:e2e
 ```
 
-Run `python3 server.py --no-open` alongside `npm run dev`; Vite forwards API
-requests to the Python server on port 8000. End-to-end tests also require a
-running server.
+The build checks TypeScript and rejects color literals outside `src/design/colors.css`. Browser tests cover desktop and compact layouts, light and dark themes, autosave, conflicts, and WCAG A/AA checks for the core workspaces.
 
-## Data and privacy
+Demo screenshots can be reproduced against a separate test server:
 
-SQLite is the authoritative data source. Each world is stored under
-`data/worlds/`. Quiltor also creates readable Markdown mirrors and local
-database backups:
-
-- `data/manuscripts/*.md` — readable manuscript mirror
-- `data/profiles/*.md` — readable character profiles
-- `data/backups/` — automatic SQLite backups
-
-All of these world-specific files are excluded from the public repository.
-Writes use revision checks, so an older browser tab cannot silently overwrite a
-newer version. Restoring a backup first preserves the current state as another
-backup.
-
-Git backups are handled by a dedicated backend service. Each world has an
-isolated working repository under `data/repositories/` containing a consistent
-SQLite snapshot plus readable manuscript and profile mirrors. Quiltor never
-stores provider credentials; it uses the Git authentication configured locally.
-
-## Project structure
-
-```text
-.
-├── backend/                  storage, retrieval, local assistant, and validation
-├── mcp/                      read-only and proposal-only MCP server
-├── src/
-│   ├── app/                  application shell and navigation
-│   ├── config/               product configuration
-│   ├── design/colors.css     all light and dark color tokens
-│   ├── features/
-│   │   ├── manuscript/       editor, chapter binder, writing aids
-│   │   ├── figures/          world graph and profile inspector
-│   │   ├── assistant/        local chat, citations, and proposal review
-│   │   ├── tools/            search, history, Git, and backups
-│   │   └── worlds/           world selection and creation
-│   ├── hooks/                autosave, theme, and undo/redo state
-│   ├── i18n/                 German and English interface strings
-│   ├── lib/                  API client and file exports
-│   └── shared/ui/            reusable accessible UI components
-├── scripts/                  book PDF renderer
-├── tests/                    backend and browser tests
-├── server.py                 local HTTP server and API
-└── package.json              frontend build and test commands
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ```
 
-Feature modules may depend on shared UI, hooks, libraries, and domain types,
-but should not import other feature modules directly. The backend does not
-depend on frontend code.
+## Architecture
 
-## License
+```text
+backend/                    SQLite, backups, retrieval, assistant, Git
+mcp/                        read-only and proposal-only MCP server
+src/
+├── app/                    application shell and navigation
+├── design/colors.css       every light and dark color token
+├── features/
+│   ├── manuscript/         editor, focus mode, writing aids
+│   ├── figures/            world graph and relationship logic
+│   ├── timeline/           timeline management
+│   ├── assistant/          local chat, citations, proposals
+│   ├── tools/              search, history, Git, backups
+│   └── worlds/             world selection and creation
+├── hooks/                  autosave, theme, undo/redo
+├── i18n/                   German and English interface
+├── lib/                    API and exports
+└── shared/ui/              reusable UI components
+```
 
-No license has been selected yet. Until one is added, the source remains
-copyrighted and is available for inspection only.
+## Status and license
+
+Quiltor is under active development. No open-source license has been selected yet; until one is added, the source remains copyrighted and is available for inspection and private evaluation only.
