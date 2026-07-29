@@ -5,6 +5,28 @@
 Lokale Autorenwerkstatt für Manuskripte, Figuren, Orte und Beziehungen. Die App
 läuft im Browser, speichert aber ausschließlich auf dem eigenen Rechner.
 
+## Lokaler Assistent und RAG
+
+Der integrierte Assistent dient der Recherche und Weltpflege: Er durchsucht
+Kapitel, Kapitelnotizen, Profile, Orte, Konzepte, Beziehungen und sämtliche
+Timeline-Stände als einen lokalen, weltbezogenen Wissenskorpus. Antworten
+verweisen auf anklickbare Quellen. Manuskripttext ist ausschließlich lesbarer
+Kontext; der Assistent besitzt kein Werkzeug zum Schreiben oder Verändern von
+Prosa.
+
+Figuren-, Beziehungs- und Timeline-Änderungen werden als strukturierte
+Vorschläge dargestellt. Sie verändern erst nach einer ausdrücklichen
+Bestätigung den normalen Figuren-State und sind anschließend über Undo/Redo
+rückgängig zu machen. Die lokale Modell-Runtime wird über `llama.cpp`
+angesprochen. Ein Release kann `runtime/llama-server` und eine GGUF-Datei unter
+`models/` mitliefern; alternativ lassen sich die Pfade über
+`QUILTOR_AI_BINARY`, `QUILTOR_AI_MODEL` und `QUILTOR_AI_URL` konfigurieren.
+
+Unter `mcp/quiltor_server.py` steht derselbe Wissenszugriff zusätzlich als
+MCP-Server bereit. Seine mutationsähnlichen Tools erzeugen ebenfalls nur
+Vorschläge und bieten absichtlich kein direktes Apply-, Delete-, Datei- oder
+Manuskript-Schreibwerkzeug an.
+
 ## Start
 
 Für die tägliche Nutzung genügt Python 3, weil der gebaute Client in `dist/`
@@ -69,6 +91,8 @@ gespeichert. Markdown-Dateien sind keine zweite Datenquelle.
 .
 ├── backend/
 │   ├── storage.py              Schema, Migration, Revisionen und Backups
+│   ├── knowledge.py            lokaler Weltindex und Hybrid-Retrieval
+│   ├── assistant.py            Modell-Runtime und sichere Vorschläge
 │   ├── git_backup.py           isolierte Git-Sicherung je Welt
 │   └── validation.py           Prüfung eingehender API-Daten
 ├── src/
@@ -76,6 +100,7 @@ gespeichert. Markdown-Dateien sind keine zweite Datenquelle.
 │   ├── features/
 │   │   ├── manuscript/         Editor, Binder und Schreibhelfer
 │   │   ├── figures/            Diagramm und Figuren-Inspector
+│   │   ├── assistant/          lokaler Chat, Quellen und Vorschlagskarten
 │   │   └── tools/              Suche, Verlauf, Git und Backups
 │   ├── hooks/                  Autosave sowie Undo/Redo-Zustand
 │   ├── design/colors.css       alle Farb-Tokens für Hell- und Dunkelmodus
@@ -83,6 +108,7 @@ gespeichert. Markdown-Dateien sind keine zweite Datenquelle.
 │   ├── shared/ui/              zugängliche UI-Grundbausteine
 │   └── types.ts                gemeinsame Domänenmodelle
 ├── tests/backend/              SQLite- und Migrationstests
+├── mcp/                        mitgelieferter Vorschlags- und Retrieval-Server
 ├── data/                       Datenbanken, Spiegel und Backups
 ├── dist/                       gebauter Produktionsclient
 ├── server.py                   kompatibler Startpunkt und HTTP-API

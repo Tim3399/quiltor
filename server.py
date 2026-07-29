@@ -35,7 +35,9 @@ from datetime import datetime
 from pathlib import Path
 
 from backend import storage
+from backend.assistant import AssistantRuntime
 from backend.git_backup import GitBackup
+from backend.knowledge import build_knowledge
 from backend.validation import valid_figures, valid_manuscript
 
 BASE = Path(__file__).resolve().parent
@@ -45,6 +47,7 @@ BACKUPS = DATA / "backups"
 MANUSCRIPT_DIR = DATA / "manuscripts"
 PROFILE_DIR = DATA / "profiles"
 WORLD_BACKUPS = GitBackup(DATA / "repositories")
+ASSISTANT = AssistantRuntime(BASE, DATA)
 
 MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
 
@@ -406,6 +409,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             with _lock:
                 return self.send_json({"ok": True, "backups": storage.list_backups()})
 
+        if route == "/api/assistant/status":
+            with _lock:
+                manuscript, figures = storage.load_manuscript(), storage.load_figures()
+            return self.send_json({"ok": True, **ASSISTANT.status(), "chunks": len(build_knowledge(manuscript, figures))})
+
         if route == "/api/diff":
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
@@ -506,6 +514,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
 
+        if route == "/api/assistant/chat":
+            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                request = json.loads(self.rfile.read(length).decode("utf-8"))
+                question = str(request.get("question", "")).strip()
+                if not question or len(question) > 4000:
+                    raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
+                with _lock:
+                    manuscript, figures = storage.load_manuscript(), storage.load_figures()
+                return self.send_json({"ok": True, **ASSISTANT.complete(question, manuscript, figures)})
+            except Exception as exc:
+                return self.send_json({"ok": False, "fehler": str(exc)}, 503)
+
         if route not in ROUTES:
             return self.send_error(404)
         validate, after = ROUTES[route]
@@ -591,6 +612,8 @@ def main() -> None:
         sys.exit(1)
     except KeyboardInterrupt:
         print("\n  Stopped. Your work is stored in data/\n")
+    finally:
+        ASSISTANT.close()
 
 
 if __name__ == "__main__":

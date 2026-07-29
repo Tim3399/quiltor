@@ -17,9 +17,30 @@ world in a separate SQLite database on your own computer.
 - Book-style PDF export in a readable 6 × 9 inch format
 - Local SQLite storage with revision checks and backups
 - Multiple independent worlds from a neutral start screen
+- Local RAG assistant with cited chapter, note, profile, relationship, and timeline retrieval
+- Confirmation-only proposals for worldbuilding changes, plus a bundled MCP server
 
 Quiltor starts without bundled example content. Your manuscripts, character
 profiles, databases, mirrors, and backups are ignored by Git.
+
+## Local assistant
+
+Quiltor's assistant is designed to make research and structured world
+maintenance easier without replacing the author's writing. It may read
+manuscript prose as local RAG context, but it has no proposal or tool capable of
+writing, continuing, or changing prose. Character, relationship, and timeline
+changes are returned as cited proposals, require explicit confirmation, and
+enter the normal undo/redo history as one operation.
+
+Release packages can include a local `llama.cpp` runtime and an Apache-2.0
+Qwen3-4B GGUF model. Difficult lawful fictional material remains valid analysis
+context; violence, sex, crime, horror, abuse, politics, religion, and moral
+complexity are not refusal reasons. The model remains replaceable and all
+inference stays on loopback.
+
+The bundled `mcp/quiltor_server.py` exposes the same local retrieval and
+proposal capabilities to MCP clients. It intentionally provides no apply,
+delete, filesystem, Git, database-write, or manuscript-writing tool.
 
 ## Quick start
 
@@ -80,7 +101,8 @@ stores provider credentials; it uses the Git authentication configured locally.
 
 ```text
 .
-├── backend/                  SQLite storage, Git backup, and validation
+├── backend/                  storage, retrieval, local assistant, and validation
+├── mcp/                      read-only and proposal-only MCP server
 ├── src/
 │   ├── app/                  application shell and navigation
 │   ├── config/               product configuration
@@ -88,6 +110,7 @@ stores provider credentials; it uses the Git authentication configured locally.
 │   ├── features/
 │   │   ├── manuscript/       editor, chapter binder, writing aids
 │   │   ├── figures/          world graph and profile inspector
+│   │   ├── assistant/        local chat, citations, and proposal review
 │   │   ├── tools/            search, history, Git, and backups
 │   │   └── worlds/           world selection and creation
 │   ├── hooks/                autosave, theme, and undo/redo state

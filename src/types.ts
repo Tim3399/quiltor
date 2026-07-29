@@ -98,6 +98,16 @@ export interface GitStatus {
 export interface CommitInfo { hash: string; kurz: string; datum: string; betreff: string }
 export interface WorldInfo { id: string; title: string; gitUrl: string; updated: string }
 
+export interface AssistantSource { id: string; kind: string; title: string; text: string; target: { workspace: Workspace; id: string } }
+export type AssistantProposal =
+  | { kind: 'create_element'; tempId: string; element: { type?: FigureKind; name?: string; label?: string; sub?: string; profile?: Profile } }
+  | { kind: 'update_element'; elementId: string; patch: Partial<Pick<FigureNode, 'name' | 'label' | 'sub' | 'profile'>> }
+  | { kind: 'create_timeline_moment'; tempId: string; moment: Partial<Pick<TimelineMoment, 'title' | 'date' | 'note'>> }
+  | { kind: 'create_relationship'; relationship: { from: string; to: string; label?: string; directed?: boolean; style?: FigureEdge['style'] } }
+  | { kind: 'set_relationship_at_moment'; relationshipId: string; momentId: string; patch: { label?: string; active?: boolean; directed?: boolean; style?: FigureEdge['style'] } }
+  | { kind: 'mark_deceased'; elementId: string; momentId: string };
+export interface AssistantReply { ok: boolean; message: string; proposals: AssistantProposal[]; sources: AssistantSource[] }
+
 export const PROFILE_FIELDS: Array<[keyof Profile, string, 'short' | 'long']> = [
   ['alter', 'Alter', 'short'],
   ['rolle', 'Rolle in der Geschichte', 'long'],

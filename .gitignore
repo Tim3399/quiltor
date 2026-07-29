@@ -26,3 +26,8 @@ data/backups/*
 # Betriebssystem-Kram
 .DS_Store
 Thumbs.db
+
+# Platform runtimes and model weights are attached to release packages, not Git.
+runtime/*
+!runtime/README.md
+models/*.gguf

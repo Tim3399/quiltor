@@ -1,4 +1,4 @@
-import type { FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
+import type { AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init });
@@ -42,6 +42,8 @@ export const api = {
   textVersion: (ref: string, chapter: number, title: string) => json<{ ok: boolean; neu?: boolean; text: string }>(`/api/textfassung?ref=${encodeURIComponent(ref)}&kapitel=${chapter}&titel=${encodeURIComponent(title)}`),
   backups: () => json<{ ok: boolean; backups: Array<{ name: string; created: string; size: number }> }>('/api/backups'),
   restore: (name: string) => json<{ ok: boolean }>('/api/backups/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
+  assistantStatus: () => json<{ ok: boolean; available: boolean; mode: string; reason: string; chunks: number }>('/api/assistant/status'),
+  assistantChat: (question: string) => json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) }),
   bookPdf: async () => {
     const response = await fetch('/api/book.pdf', { method: 'POST' });
     if (!response.ok) { const error = await response.json().catch(() => null); throw new Error(error?.fehler || `HTTP ${response.status}`); }

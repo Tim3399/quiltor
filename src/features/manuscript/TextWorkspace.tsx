@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Printer, Redo2, Sparkles, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pilcrow, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
 import type { Chapter, FigureState, Manuscript } from '../../types';
 import { uid, wordCount } from '../../types';
 import { download } from '../../lib/api';
@@ -118,7 +118,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
     </div>
     {focus && <aside className={`focus-helper ${focusHelpers ? 'is-open' : ''}`} aria-label="Schreibhilfe im Fokusmodus">
       <button className="focus-helper-toggle" aria-expanded={focusHelpers} onClick={() => setFocusHelpers(!focusHelpers)} title="Schreibhilfe">
-        {focusHelpers ? <X /> : <Sparkles />}<span className="sr-only">{focusHelpers ? 'Schreibhilfe schließen' : 'Schreibhilfe öffnen'}</span>
+        {focusHelpers ? <X /> : <Pilcrow />}<span className="sr-only">{focusHelpers ? 'Schreibhilfe schließen' : 'Schreibhilfe öffnen'}</span>
       </button>
       {focusHelpers && <div className="focus-helper-panel">
         <section><h3>Figuren & Orte</h3><div className="focus-helper-chips">{figures.nodes.map(node => <button key={node.id} onClick={() => insert(node.name)}>{node.name}</button>)}</div></section>

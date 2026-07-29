@@ -43,6 +43,32 @@ test('Shortcuts unterscheiden Speichern und Git', async ({ page }) => {
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
+test('Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-Schritt', async ({ page }) => {
+  await page.route('**/api/assistant/status', route => route.fulfill({ json: { ok: true, available: true, mode: 'local', reason: '', chunks: 7 } }));
+  await page.route('**/api/assistant/chat', route => route.fulfill({ json: {
+    ok: true,
+    message: 'Ich habe Ada, Bela und ihre Beziehung als Vorschläge vorbereitet.',
+    sources: [{ id: 'chapter:c1:0', kind: 'chapter', title: 'Erstes Kapitel', text: 'Ada begegnet Bela.', target: { workspace: 'text', id: 'c1' } }],
+    proposals: [
+      { kind: 'create_element', tempId: 'new:ada', element: { type: 'person', name: 'Ada', label: 'Archivarin' } },
+      { kind: 'create_element', tempId: 'new:bela', element: { type: 'person', name: 'Bela', label: 'Regent' } },
+      { kind: 'create_relationship', relationship: { from: 'new:ada', to: 'new:bela', label: 'Misstrauen', directed: false } },
+    ],
+  } }));
+  await openBlankWorld(page);
+  await page.getByRole('button', { name: 'Lokalen Assistenten öffnen' }).click();
+  const drawer = page.getByRole('complementary', { name: 'Lokaler Assistent' });
+  await expect(drawer).toContainText('7 Quellen indexiert');
+  await drawer.getByRole('textbox', { name: 'Nachricht an den lokalen Assistenten' }).fill('Lege Ada und Bela mit ihrer Beziehung an.');
+  await drawer.getByRole('button', { name: 'Nachricht senden' }).click();
+  await expect(drawer).toContainText('Erstes Kapitel');
+  await drawer.getByRole('button', { name: 'Alle übernehmen' }).click();
+  await expect(page.locator('.story-node')).toHaveCount(2);
+  await expect(page.locator('.react-flow__edge')).toHaveCount(1);
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('.story-node')).toHaveCount(0);
+});
+
 test('Figuren folgen dem Zeiger bereits während des Ziehens', async ({ page }) => {
   await page.route('**/api/manuscript', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
   await page.route('**/api/state', route => route.request().method() === 'GET'

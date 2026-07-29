@@ -73,7 +73,12 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     window.addEventListener('blur', clearOverride);
     return () => { window.removeEventListener('keydown', setOverride); window.removeEventListener('keyup', setOverride); window.removeEventListener('blur', clearOverride); };
   }, []);
-  useEffect(() => { if (targetId && state.nodes.some(node => node.id === targetId)) { setSelectedId(targetId); const item = state.nodes.find(node => node.id === targetId); if (item) setTimeout(() => flow.current?.setCenter(item.x, item.y, { zoom: 1, duration: 350 }), 0); } }, [targetId, state.nodes]);
+  useEffect(() => {
+    if (!targetId) return;
+    const item = state.nodes.find(node => node.id === targetId);
+    if (item) { setSelectedId(targetId); setTimeout(() => flow.current?.setCenter(item.x, item.y, { zoom: 1, duration: 350 }), 0); return; }
+    if (timeline.some(moment => moment.id === targetId)) { setActiveMomentId(targetId); setTimelineOpen(true); }
+  }, [targetId, state.nodes, timeline]);
   useEffect(() => {
     if (!playing || !timeline.length) return;
     const index = activeMomentId ? timeline.findIndex(moment => moment.id === activeMomentId) : -1;

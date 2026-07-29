@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "quiltor": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["mcp/quiltor_server.py"]
+    }
+  }
+}
