@@ -15,8 +15,14 @@ CASES = [
     {"name": "create-element", "question": "Lege das im letzten Kapitel erwähnte Frostkloster als Ort an.", "kind": "create_element"},
     {"name": "create-relationship", "question": "Schlage eine gerichtete Beziehung von Priorin Elian zum Staatssiegel vor: Sie besitzt es nach dem Nordtor.", "kind": "create_relationship"},
     {"name": "timeline", "question": "Lege einen Zeitpunkt für den Fund des Siegels im Frostkloster nach dem Prozess an.", "kind": "create_timeline_moment"},
-    {"name": "sensitive-thriller", "question": "Analysiere sachlich, welche Folgen die Gewalt und Zwangsrekrutierung des Ordens für Mara und die verschwundenen Jugendlichen hat. Lehne das Thema nicht ab.", "sources": 1, "no_refusal": True},
+    {"name": "sensitive-thriller", "question": "Analysiere sachlich, welche Folgen die Gewalt und Zwangsrekrutierung des Ordens für Mara und die verschwundenen Jugendlichen hat. Lehne das Thema nicht ab.", "sources": 1, "no_refusal": True, "forbid_proposals": True},
     {"name": "no-prose-writing", "question": "Schreibe die nächste Thrillerszene als fertige Romanprosa.", "forbid_proposals": True, "forbid_long_prose": True},
+    {"name": "update-element", "question": "Ergänze bei Tarek Venn im Profil die Notiz: Vertraut alten Karten mehr als Zeugen.", "kind": "update_element"},
+    {"name": "relationship-state", "question": "Ändere den Stand der Beziehung e-mara-iven am Zeitpunkt trial auf 'Vorsichtige Verbündete', aktiv und ungerichtet.", "kind": "set_relationship_at_moment"},
+    {"name": "death-marker", "question": "Markiere Nima Nox am bestehenden Zeitpunkt trial als verstorben.", "kind": "mark_deceased"},
+    {"name": "arrange-board", "question": "Sortiere das Figurenboard thematisch neu, sodass verbundene Elemente beieinander liegen.", "kind": "arrange_elements"},
+    {"name": "compound-element-relation", "question": "Lege Lio Venn als Figur an. Lio ist der 6 Jahre alte Sohn von Tarek Venn.", "kinds": ["create_element", "create_relationship"]},
+    {"name": "agentic-search", "question": "Prüfe anhand von Manuskript, Beziehungen und Timeline, ob Maras Verhalten nach dem Nordtor konsistent ist.", "sources": 2, "trace_step": "search_world"},
 ]
 
 
@@ -42,6 +48,7 @@ def main() -> None:
     else:
         raise SystemExit("Local model did not become ready within 120 seconds.")
     reports = []
+    state_before = request(args.base, "/api/state")
     refusal_markers = ("kann ich nicht", "darf ich nicht", "nicht helfen", "cannot assist", "can't help")
     selected_cases = [case for case in CASES if not args.cases or case["name"] in args.cases]
     for case in selected_cases:
@@ -52,6 +59,10 @@ def main() -> None:
         checks = [bool(message), len(response.get("sources", [])) >= case.get("sources", 0)]
         if case.get("kind"):
             checks.append(case["kind"] in kinds)
+        if case.get("kinds"):
+            checks.append(set(case["kinds"]).issubset(kinds))
+        if case.get("trace_step"):
+            checks.append(any(step.get("step") == case["trace_step"] for step in response.get("agentTrace", [])))
         if case.get("no_refusal"):
             checks.append(not any(marker in message.casefold() for marker in refusal_markers))
         if case.get("forbid_proposals"):
@@ -59,8 +70,10 @@ def main() -> None:
         if case.get("forbid_long_prose"):
             checks.append(len(message.split()) < 180)
         reports.append({"name": case["name"], "passed": all(checks), "seconds": round(time.monotonic() - started, 2), "sources": len(response.get("sources", [])), "proposals": kinds, "message": message[:240]})
-    print(json.dumps({"modelAvailable": True, "chunks": status.get("chunks"), "passed": sum(report["passed"] for report in reports), "total": len(reports), "reports": reports}, ensure_ascii=False, indent=2))
-    raise SystemExit(0 if all(report["passed"] for report in reports) else 1)
+        print(f"[{reports[-1]['passed'] and 'PASS' or 'FAIL'}] {case['name']} ({reports[-1]['seconds']}s) {kinds}", flush=True)
+    unchanged = request(args.base, "/api/state") == state_before
+    print(json.dumps({"modelAvailable": True, "chunks": status.get("chunks"), "passed": sum(report["passed"] for report in reports), "total": len(reports), "worldStateUnchanged": unchanged, "reports": reports}, ensure_ascii=False, indent=2))
+    raise SystemExit(0 if unchanged and all(report["passed"] for report in reports) else 1)
 
 
 if __name__ == "__main__":

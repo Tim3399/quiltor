@@ -23,6 +23,18 @@ class AssistantPlanningTests(unittest.TestCase):
         self.assertEqual(completed[0]["element"]["profile"]["alter"], "4")
         self.assertEqual(completed[1]["relationship"]["to"], "tarek")
 
+    def test_tool_intents_are_classified_without_planner_guessing(self):
+        cases = {
+            "Ergänze bei Tarek im Profil die Notiz: vorsichtig.": {"update_element"},
+            "Ändere den Stand der Beziehung e1 am Zeitpunkt trial.": {"set_relationship_at_moment"},
+            "Markiere Nima am Zeitpunkt trial als verstorben.": {"mark_deceased"},
+            "Lege einen Zeitpunkt für den Fund an.": {"create_timeline_moment"},
+            "Schlage eine Beziehung von Mara zu Tarek vor.": {"create_relationship"},
+        }
+        for question, expected in cases.items():
+            with self.subTest(question=question):
+                self.assertEqual(required_proposal_kinds(question), expected)
+
 
 if __name__ == "__main__":
     unittest.main()

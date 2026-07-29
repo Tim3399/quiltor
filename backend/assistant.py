@@ -36,7 +36,7 @@ For compound requests, emit every operation needed to fulfil the task. "Igor is 
 For arranging or sorting the board, use arrange_elements. Never invent timeline changes as a substitute for an unavailable operation.
 Do not emit unknown keys or any proposal for manuscript text."""
 
-MUTATION_REQUEST = re.compile(r"\b(anlegen|lege|erstelle?n?|hinzufügen|schlag\w*|vorschlag|create|add|propose)\b", re.IGNORECASE)
+MUTATION_REQUEST = re.compile(r"\b(anlegen|lege|erstelle?n?|hinzufügen|ergänz\w*|aktualisier\w*|änder\w*|setz\w*|markier\w*|sortier\w*|anordnen|verschieb\w*|schlag\w*|vorschlag|create|add|update|change|set|mark|arrange|propose)\b", re.IGNORECASE)
 PROSE_REQUEST = re.compile(r"\b(schreib\w*|fortsetzen|umschreib\w*|write|continue|rewrite)\b.*(szene|kapitel|roman|prosa|geschichte|scene|chapter|novel|prose|story)", re.IGNORECASE | re.DOTALL)
 
 
@@ -97,11 +97,14 @@ class AssistantRuntime:
         supported = {"create_element", "update_element", "create_timeline_moment", "create_relationship", "set_relationship_at_moment", "mark_deceased", "arrange_elements"}
         explicit_required = required_proposal_kinds(question)
         planned_required = {kind for kind in plan.get("requiredKinds", []) if kind in supported}
-        required = explicit_required or planned_required
+        mutation_requested = bool(MUTATION_REQUEST.search(question))
+        required = explicit_required or (planned_required if mutation_requested else set())
         if required:
             payload["messages"][1]["content"] += "\n\nTASK REQUIREMENTS: The structured proposals must include: " + ", ".join(sorted(required)) + "."
         parsed = self._invoke(payload)
         parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
+        if not mutation_requested:
+            parsed["proposals"] = []
         parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
         trace.append({"step": "propose", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
         if required - {item.get("kind") for item in parsed["proposals"]}:
@@ -110,6 +113,8 @@ class AssistantRuntime:
             retry = {**payload, "response_format": {"type": "json_schema", "schema": retry_schema}, "messages": [*payload["messages"], {"role": "assistant", "content": json.dumps(parsed, ensure_ascii=False)}, {"role": "user", "content": "The request requires a structured world-data proposal, but proposals was empty or invalid. Correct the response and emit at least one matching allowed proposal using IDs from CONTEXT. Do not claim it was applied. /no_think"}]}
             parsed = self._invoke(retry)
             parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
+            if not mutation_requested:
+                parsed["proposals"] = []
             parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
             trace.append({"step": "repair", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
         if MUTATION_REQUEST.search(question) and not parsed["proposals"]:
@@ -198,6 +203,16 @@ def required_proposal_kinds(question: str) -> set[str]:
     folded = question.casefold()
     if re.search(r"\b(sortier\w*|anordnen|anordnung|arrange|layout|platzier\w*|verschieb\w*)\b", folded):
         return {"arrange_elements"}
+    if re.search(r"\b(markier\w*|setz\w*)\b.*\b(verstorben|gestorben|tot|todeszeitpunkt)\b", folded):
+        return {"mark_deceased"}
+    if "beziehung" in folded and re.search(r"\b(zeitpunkt|moment|stand|status)\b", folded) and re.search(r"\b(änder\w*|setz\w*|aktualisier\w*)\b", folded):
+        return {"set_relationship_at_moment"}
+    if re.search(r"\b(lege|anlegen|erstelle?n?|hinzufügen|create|add)\b", folded) and re.search(r"\b(zeitpunkt|timeline|moment|ereignis)\b", folded):
+        return {"create_timeline_moment"}
+    if "beziehung" in folded and re.search(r"\b(schlag\w*|vorschlag|lege|anlegen|erstelle?n?|create|propose)\b", folded):
+        return {"create_relationship"}
+    if re.search(r"\b(ergänz\w*|aktualisier\w*|änder\w*|update)\b", folded):
+        return {"update_element"}
     required: set[str] = set()
     if re.search(r"\b(anlegen|lege|erstelle?n?|hinzufügen|create|add)\b", folded):
         required.add("create_element")
@@ -232,10 +247,13 @@ def validate_proposals(value: Any, figures: dict[str, Any], question: str = "") 
     temporary = {proposal.get("tempId") for proposal in value if isinstance(proposal, dict) and proposal.get("kind") in {"create_element", "create_timeline_moment"} and isinstance(proposal.get("tempId"), str) and proposal["tempId"].startswith("new:")}
     seen_temporary: set[str] = set()
     result = []
+    required = required_proposal_kinds(question)
     for proposal in value[:20]:
         if not isinstance(proposal, dict) or proposal.get("kind") not in allowed:
             continue
         kind = proposal["kind"]
+        if required and kind not in required:
+            continue
         if required_proposal_kinds(question) == {"arrange_elements"} and kind != "arrange_elements":
             continue
         if kind == "arrange_elements":
