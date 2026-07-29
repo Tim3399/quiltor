@@ -121,6 +121,7 @@ class AssistantRuntime:
                 parsed["message"] = "Ich habe die gewünschte Änderung als prüfbaren Vorschlag vorbereitet."
         if parsed["proposals"]:
             parsed["message"] = re.sub(r"\b(?:wurde|wird|ist)(?: als [^.!\n]+)? (?:hinzugefügt|angelegt|erstellt|aufgenommen)\b", "ist als Vorschlag vorbereitet", str(parsed.get("message", "")), flags=re.IGNORECASE)
+            parsed["message"] = re.sub(r"\b(hinzugefügt|angelegt|erstellt|aufgenommen)\b", "als Vorschlag vorbereitet", parsed["message"], flags=re.IGNORECASE)
         known = {chunk.id: chunk.public() for chunk in context}
         parsed["sources"] = [known[source] for source in parsed.get("citations", []) if source in known]
         present = {item.get("kind") for item in parsed["proposals"]}
@@ -148,9 +149,10 @@ class AssistantRuntime:
             queries = result.get("searchQueries", [])
             if not queries:
                 operations = [*(result.get("operations") or []), *(result.get("additional_searches") or [])]
-                queries = [item.get("description", "") for item in operations if isinstance(item, dict) and "search" in str(item.get("type", "")).casefold()]
+                queries = [" ".join(str(item.get(key, "")) for key in ("target", "description", "purpose")).strip()
+                           for item in operations if isinstance(item, dict) and "search" in str(item.get("type", "")).casefold()]
             result["goal"] = str(result.get("goal") or result.get("task") or question)
-            result["steps"] = result.get("steps") or [item.get("description", "") for item in result.get("operations", []) if isinstance(item, dict)]
+            result["steps"] = result.get("steps") or [str(item.get("description") or item.get("purpose") or item.get("target") or "") for item in result.get("operations", []) if isinstance(item, dict)]
             result["searchQueries"] = [str(item)[:300] for item in queries if str(item).strip()][:4]
             result["requiredKinds"] = [str(item) for item in result.get("requiredKinds", [])]
             return result
