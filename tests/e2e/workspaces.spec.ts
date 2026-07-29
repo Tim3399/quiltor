@@ -84,6 +84,30 @@ test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekun
   await page.mouse.up();
 });
 
+test('Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Die Timeline wird im breiten Figurenboard geprüft.');
+  await page.route('**/api/manuscript', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
+  await page.route('**/api/state', route => route.request().method() === 'GET'
+    ? route.fulfill({ json: { nodes: [{ id: 'n1', x: 120, y: 140, type: 'person', name: 'Ada' }, { id: 'n2', x: 520, y: 140, type: 'person', name: 'Bela' }], edges: [{ id: 'e1', from: 'n1', to: 'n2', label: 'Verbündete' }] }, headers: { ETag: '"0"' } })
+    : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }));
+  await openBlankWorld(page);
+  await page.getByRole('button', { name: 'Figuren', exact: true }).click();
+  await page.getByRole('button', { name: 'Zeit', exact: true }).click();
+
+  await page.getByLabel('Neuer Zeitpunkt').fill('Vor der Schlacht');
+  await page.getByLabel('Datum des neuen Zeitpunkts').fill('1420-03-12');
+  await page.getByRole('button', { name: 'Zeitpunkt hinzufügen' }).click();
+  await page.locator('.story-node').filter({ hasText: 'Ada' }).click();
+  await page.getByRole('button', { name: 'Stirbt hier' }).click();
+  await expect(page.locator('.story-node').filter({ hasText: 'Ada' })).toHaveClass(/is-deceased/);
+
+  await page.getByLabel('Neuer Zeitpunkt').fill('Nach der Schlacht');
+  await page.getByRole('button', { name: 'Zeitpunkt hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Zeitreise abspielen' }).click();
+  await expect(page.getByRole('button', { name: 'Zeitreise pausieren' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Vor der Schlacht' })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('Fokusmodus bietet eine diskrete Schreibhilfe', async ({ page }, testInfo) => {
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Fokus' }).click();

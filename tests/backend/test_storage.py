@@ -27,8 +27,11 @@ class StorageTest(unittest.TestCase):
         }
         figures_input = {
             "nodes": [{"id": "n1", "x": 1, "y": 2, "type": "person", "name": "A", "future": 7,
-                       "profile": {"rolle": "Held", "extra": [{"k": "Motiv", "v": "Heimkehr"}], "future": "yes"}}],
-            "edges": [], "canvasSize": {"w": 900, "h": 700}, "future": "kept",
+                       "diedMomentId": "t2", "profile": {"rolle": "Held", "extra": [{"k": "Motiv", "v": "Heimkehr"}], "future": "yes"}},
+                      {"id": "n2", "x": 3, "y": 4, "type": "person", "name": "B"}],
+            "edges": [{"id": "e1", "from": "n1", "to": "n2", "label": "Freunde", "versions": [{"momentId": "t2", "label": "Feinde", "active": True}]}],
+            "timeline": [{"id": "t1", "title": "Vorher"}, {"id": "t2", "title": "Verrat", "date": "1420-03-12"}],
+            "canvasSize": {"w": 900, "h": 700}, "future": "kept",
         }
         storage.initialize()
         storage.save_manuscript(manuscript_input)
@@ -38,6 +41,9 @@ class StorageTest(unittest.TestCase):
         self.assertTrue(manuscript["future"])
         self.assertEqual(figures["nodes"][0]["profile"]["extra"][0]["k"], "Motiv")
         self.assertEqual(figures["nodes"][0]["future"], 7)
+        self.assertEqual(figures["nodes"][0]["diedMomentId"], "t2")
+        self.assertEqual(figures["edges"][0]["versions"][0]["label"], "Feinde")
+        self.assertEqual(figures["timeline"][1]["date"], "1420-03-12")
         self.assertEqual(figures["future"], "kept")
         self.assertEqual(storage.connect().execute("PRAGMA integrity_check").fetchone()[0], "ok")
 

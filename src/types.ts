@@ -40,6 +40,7 @@ export interface FigureNode {
   accent?: 'ink' | 'gold' | 'rose' | 'moss';
   dash?: boolean;
   pinned?: boolean;
+  diedMomentId?: string;
   profile?: Profile;
   [key: string]: unknown;
 }
@@ -51,12 +52,30 @@ export interface FigureEdge {
   label?: string;
   style?: 'solid' | 'dashed' | 'blood' | 'gold';
   gerichtet?: boolean;
+  active?: boolean;
+  versions?: RelationshipVersion[];
   [key: string]: unknown;
+}
+
+export interface RelationshipVersion {
+  momentId: string;
+  label?: string;
+  style?: 'solid' | 'dashed' | 'blood' | 'gold';
+  gerichtet?: boolean;
+  active: boolean;
+}
+
+export interface TimelineMoment {
+  id: string;
+  title: string;
+  date?: string;
+  note?: string;
 }
 
 export interface FigureState {
   nodes: FigureNode[];
   edges: FigureEdge[];
+  timeline?: TimelineMoment[];
   canvasSize?: { w: number; h: number };
   [key: string]: unknown;
 }
