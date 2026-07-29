@@ -86,5 +86,30 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(gitlab["gitUrl"], "https://gitlab.com/example/world.git")
         self.assertEqual(gitea["gitUrl"], "git@git.example.org:author/world.git")
 
+    def test_world_deletion_removes_local_data_but_not_other_worlds(self):
+        doomed = storage.create_world("Delete me", "https://gitlab.com/example/remote.git")
+        survivor = storage.create_world("Keep me")
+        backup = storage.DATA / "backups" / doomed["id"]
+        repository = storage.DATA / "repositories" / doomed["id"]
+        backup.mkdir(parents=True)
+        repository.mkdir(parents=True)
+        (backup / "snapshot.sqlite3").write_text("backup")
+        (repository / "README.md").write_text("local checkout")
+
+        storage.delete_world(doomed["id"])
+
+        self.assertFalse((storage.WORLDS / f"{doomed['id']}.sqlite3").exists())
+        self.assertFalse(backup.exists())
+        self.assertFalse(repository.exists())
+        self.assertTrue((storage.WORLDS / f"{survivor['id']}.sqlite3").exists())
+        self.assertEqual([world["title"] for world in storage.list_worlds()], ["Keep me"])
+
+    def test_active_world_cannot_be_deleted(self):
+        world = storage.create_world("Active")
+        storage.activate_world(world["id"])
+        with self.assertRaises(ValueError):
+            storage.delete_world(world["id"])
+        self.assertTrue((storage.WORLDS / f"{world['id']}.sqlite3").exists())
+
 if __name__ == "__main__":
     unittest.main()

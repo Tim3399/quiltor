@@ -437,11 +437,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def _save(self):
         route = self.path.split("?")[0]
 
-        if route in ("/api/worlds/open", "/api/worlds/create"):
+        if route in ("/api/worlds/open", "/api/worlds/create", "/api/worlds/delete"):
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 payload = json.loads(self.rfile.read(length).decode("utf-8"))
                 with _lock:
+                    if route.endswith("/delete"):
+                        storage.delete_world(str(payload.get("id", "")))
+                        return self.send_json({"ok": True})
                     if route.endswith("/create"):
                         created = storage.create_world(str(payload.get("title", "")), str(payload.get("gitUrl", "")))
                         world = storage.activate_world(created["id"])

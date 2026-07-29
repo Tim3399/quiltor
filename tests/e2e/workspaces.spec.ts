@@ -173,6 +173,23 @@ test('Startseite lädt eine Welt und übernimmt ihren variablen Titel', async ({
   await expect(page.getByLabel('Kapiteltext')).toBeVisible();
 });
 
+test('Welt lässt sich erst nach fünf Sekunden Halten lokal löschen', async ({ page }) => {
+  const title = `Löschtest ${crypto.randomUUID()}`;
+  await page.request.post('/api/worlds/create', { data: { title, gitUrl: 'https://gitlab.com/example/remote-remains.git' } });
+  await page.request.post('/api/worlds/create', { data: { title: `Aktive Testwelt ${crypto.randomUUID()}` } });
+  await page.goto('/');
+  await page.getByRole('button', { name: `${title} – Welt löschen` }).click();
+  await expect(page.getByRole('heading', { name: 'Welt lokal löschen' })).toBeVisible();
+  await expect(page.getByText('Ein verbundenes Remote-Repository bleibt erhalten.')).toBeVisible();
+
+  const confirm = page.getByRole('button', { name: 'Welt löschen – 5 Sekunden halten' });
+  await confirm.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'mouse' });
+  await page.waitForTimeout(5200);
+
+  await expect(page.getByRole('heading', { name: 'Welt lokal löschen' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: new RegExp(title) })).toHaveCount(0);
+});
+
 test('Sprachwahl erfolgt ausschließlich in der Welt-Auswahl', async ({ page }) => {
   await page.request.post('/api/worlds/create', { data: { title: 'Language Test World', gitUrl: 'git@git.example.com:example/language-test.git' } });
   await page.goto('/');

@@ -5,6 +5,7 @@ import os
 import sqlite3
 import uuid
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -174,6 +175,21 @@ def activate_world(world_id: str) -> dict[str, str]:
     if not world:
         raise ValueError("Diese Welt ist nicht lesbar.")
     return world
+
+
+def delete_world(world_id: str) -> None:
+    """Delete one local world without touching its configured remote repository."""
+    if not re.fullmatch(r"[0-9a-f]{32}", world_id):
+        raise ValueError("Invalid world identifier.")
+    if world_id == ACTIVE_WORLD_ID:
+        raise ValueError("The active world cannot be deleted.")
+    path = WORLDS / f"{world_id}.sqlite3"
+    if not path.exists():
+        raise FileNotFoundError("This world does not exist.")
+    for database_file in (path, Path(f"{path}-wal"), Path(f"{path}-shm")):
+        database_file.unlink(missing_ok=True)
+    shutil.rmtree(DATA / "backups" / world_id, ignore_errors=True)
+    shutil.rmtree(DATA / "repositories" / world_id, ignore_errors=True)
 
 
 def migrate(conn: sqlite3.Connection, version: int) -> None:
