@@ -84,6 +84,7 @@ test('Minimap unterscheidet Elementarten und das Raster lässt sich lösen', asy
   await expect(raster).toHaveAttribute('aria-pressed', 'true');
   await raster.click();
   await expect(raster).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.react-flow__background')).toHaveCount(0);
 });
 
 test('Verschieben erhält alle Elemente auch nach Autosave und Neuladen', async ({ page }) => {
