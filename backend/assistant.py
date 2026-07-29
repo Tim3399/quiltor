@@ -145,7 +145,14 @@ class AssistantRuntime:
                    "response_format": {"type": "json_schema", "schema": schema}}
         try:
             result = self._invoke(payload)
-            result["searchQueries"] = [str(item)[:300] for item in result.get("searchQueries", []) if str(item).strip()]
+            queries = result.get("searchQueries", [])
+            if not queries:
+                operations = [*(result.get("operations") or []), *(result.get("additional_searches") or [])]
+                queries = [item.get("description", "") for item in operations if isinstance(item, dict) and "search" in str(item.get("type", "")).casefold()]
+            result["goal"] = str(result.get("goal") or result.get("task") or question)
+            result["steps"] = result.get("steps") or [item.get("description", "") for item in result.get("operations", []) if isinstance(item, dict)]
+            result["searchQueries"] = [str(item)[:300] for item in queries if str(item).strip()][:4]
+            result["requiredKinds"] = [str(item) for item in result.get("requiredKinds", [])]
             return result
         except RuntimeError:
             return {"goal": question, "steps": ["Search relevant world data", "Prepare and verify the response"], "searchQueries": [], "requiredKinds": sorted(required_proposal_kinds(question))}
