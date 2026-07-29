@@ -61,6 +61,26 @@ test('Figuren folgen dem Zeiger bereits während des Ziehens', async ({ page }) 
   await page.mouse.up();
 });
 
+test('Minimap unterscheidet Elementarten und das Raster lässt sich lösen', async ({ page }) => {
+  await page.route('**/api/manuscript', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
+  await page.route('**/api/state', route => route.request().method() === 'GET'
+    ? route.fulfill({ json: { nodes: [
+      { id: 'n1', x: 101, y: 101, type: 'person', name: 'Figur' },
+      { id: 'n2', x: 401, y: 101, type: 'ort', name: 'Ort' },
+      { id: 'n3', x: 701, y: 101, type: 'konzept', name: 'Konzept' },
+    ], edges: [] }, headers: { ETag: '"0"' } })
+    : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }));
+  await openBlankWorld(page);
+  await page.getByRole('button', { name: 'Figuren', exact: true }).click();
+
+  const fills = await page.locator('.react-flow__minimap-node').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).fill));
+  expect(new Set(fills).size).toBe(3);
+  const raster = page.getByRole('button', { name: 'Raster', exact: true });
+  await expect(raster).toHaveAttribute('aria-pressed', 'true');
+  await raster.click();
+  await expect(raster).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('Verschieben erhält alle Elemente auch nach Autosave und Neuladen', async ({ page }) => {
   const response = await page.request.post('/api/worlds/create', { data: { title: `Drag Regression ${crypto.randomUUID()}` } });
   const created = await response.json();

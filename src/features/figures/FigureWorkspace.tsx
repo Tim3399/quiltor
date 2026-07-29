@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlow, ReactFlowProvider, Background, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
-import { Clock3, Download, Link2, Pause, Play, Plus, Redo2, Skull, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
+import { Clock3, Download, Grid3X3, Link2, Pause, Play, Plus, Redo2, Skull, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, FigureKind, Profile, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
 import { download } from '../../lib/api';
@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 type CardData = { figure: FigureNode; deceased: boolean };
 const nodeTypes = { story: StoryNode };
 const EMPTY_TIMELINE: TimelineMoment[] = [];
+const GRID_SIZE = 24;
 const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: string; nodeLabel: string; quick: boolean }> = [
   { kind: 'person', label: 'Figur', initialName: 'Neue Figur', nodeLabel: 'Rolle', quick: true },
   { kind: 'ort', label: 'Ort', initialName: 'Neuer Ort', nodeLabel: 'Ort', quick: true },
@@ -27,6 +28,12 @@ function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
   </div>;
 }
 
+export function minimapColorForKind(kind?: FigureKind) {
+  if (kind === 'ort') return 'var(--minimap-place)';
+  if (kind === 'konzept') return 'var(--minimap-concept)';
+  return 'var(--minimap-person)';
+}
+
 type FigureWorkspaceProps = { state: FigureState; onChange: (value: FigureState) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean };
 
 export function FigureWorkspace(props: FigureWorkspaceProps) {
@@ -36,6 +43,8 @@ export function FigureWorkspace(props: FigureWorkspaceProps) {
 function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUndo = false, canRedo = false }: FigureWorkspaceProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [gridOverride, setGridOverride] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingImport, setPendingImport] = useState<FigureState | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -52,6 +61,14 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   latestState.current = state;
   const selected = state.nodes.find(node => node.id === selectedId) ?? null;
   const timeline = state.timeline ?? EMPTY_TIMELINE;
+  useEffect(() => {
+    const setOverride = (event: KeyboardEvent) => { if (event.key === 'Alt') setGridOverride(event.type === 'keydown'); };
+    const clearOverride = () => setGridOverride(false);
+    window.addEventListener('keydown', setOverride);
+    window.addEventListener('keyup', setOverride);
+    window.addEventListener('blur', clearOverride);
+    return () => { window.removeEventListener('keydown', setOverride); window.removeEventListener('keyup', setOverride); window.removeEventListener('blur', clearOverride); };
+  }, []);
   useEffect(() => { if (targetId && state.nodes.some(node => node.id === targetId)) { setSelectedId(targetId); const item = state.nodes.find(node => node.id === targetId); if (item) setTimeout(() => flow.current?.setCenter(item.x, item.y, { zoom: 1, duration: 350 }), 0); } }, [targetId, state.nodes]);
   useEffect(() => {
     if (!playing || !timeline.length) return;
@@ -69,8 +86,9 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const patchNode = (id: string, patch: Partial<FigureNode>) => onChange({ ...state, nodes: state.nodes.map(node => node.id === id ? { ...node, ...patch } : node) });
   const addNode = (kind: FigureKind) => {
     const center = flow.current?.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }) ?? { x: 300, y: 250 };
+    const position = snapToGrid ? { x: Math.round(center.x / GRID_SIZE) * GRID_SIZE, y: Math.round(center.y / GRID_SIZE) * GRID_SIZE } : center;
     const definition = ELEMENT_TYPES.find(item => item.kind === kind) ?? ELEMENT_TYPES[0];
-    const node: FigureNode = { id: uid('n'), x: center.x, y: center.y, type: kind, label: definition.nodeLabel, name: definition.initialName, sub: '', accent: 'ink', profile: { extra: [] } };
+    const node: FigureNode = { id: uid('n'), x: position.x, y: position.y, type: kind, label: definition.nodeLabel, name: definition.initialName, sub: '', accent: 'ink', profile: { extra: [] } };
     onChange({ ...state, nodes: [...state.nodes, node] }); setSelectedId(node.id); setCreateMenuOpen(false);
   };
   const connect = useCallback((connection: Connection) => {
@@ -121,6 +139,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
       <div className="context-title"><strong>Figuren & Welt</strong><span>{state.nodes.length} Elemente · {state.edges.length} Verbindungen</span></div>
       <div className="tool-group create-group"><div className="element-create"><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />Element</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>
       <div className="tool-group"><button aria-pressed={connecting} className={connecting ? 'active' : ''} onClick={() => setConnecting(!connecting)}><Link2 />Verbinden</button></div>
+      <div className="tool-group"><button aria-pressed={snapToGrid} className={snapToGrid ? 'active' : ''} title="Am Raster ausrichten · Alt/Option halten für freies Verschieben" onClick={() => setSnapToGrid(value => !value)}><Grid3X3 />Raster</button></div>
       <div className="tool-group"><button aria-pressed={timelineOpen} className={timelineOpen ? 'active' : ''} onClick={() => setTimelineOpen(value => !value)}><Clock3 />Zeit</button></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label="Diagramm rückgängig"><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label="Diagramm wiederholen"><Redo2 /></button></div>
       <div className="tool-group"><button onClick={exportProfiles}><Download />Steckbriefe</button><button onClick={exportState}><Download />JSON</button><button onClick={() => input.current?.click()}><Upload />Import</button><input ref={input} hidden type="file" accept="application/json" onChange={event => void importState(event.target.files?.[0])} /></div>
@@ -131,8 +150,8 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
         <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; }}
           onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
           onNodesChange={moveNodes} onNodeDragStop={(_, node) => commitNodePosition(node.id, node.position)}
-          onConnect={connect} nodesConnectable={connecting} fitView minZoom={0.2} maxZoom={2.2} deleteKeyCode={null}>
-          <Background gap={24} size={1} color="var(--line-strong)" /><Controls position="bottom-left" /><MiniMap pannable zoomable nodeColor="var(--minimap-node)" maskColor="var(--minimap-mask)" />
+          onConnect={connect} nodesConnectable={connecting} snapToGrid={snapToGrid && !gridOverride} snapGrid={[GRID_SIZE, GRID_SIZE]} fitView minZoom={0.2} maxZoom={2.2} deleteKeyCode={null}>
+          <Background gap={GRID_SIZE} size={1} color="var(--line-strong)" /><Controls position="bottom-left" /><MiniMap pannable zoomable nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
         </ReactFlow>
         {timelineOpen && <TimelineStrip timeline={timeline} activeId={activeMomentId} playing={playing} onPlay={() => { if (!timeline.length) return; if (playing) { setPlaying(false); return; } if (!activeMomentId || activeMomentId === timeline.at(-1)?.id) setActiveMomentId(timeline[0].id); setPlaying(true); }} onSelect={id => { setPlaying(false); setActiveMomentId(id); }} onAdd={(title, date) => { const moment = { id: uid('t'), title, ...(date ? { date } : {}) }; onChange({ ...state, timeline: [...timeline, moment] }); setActiveMomentId(moment.id); }} onPatch={(id, patch) => onChange({ ...state, timeline: timeline.map(moment => moment.id === id ? { ...moment, ...patch } : moment) })} onDelete={moment => setDeleteMoment(moment)} />}
       </div>
