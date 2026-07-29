@@ -88,6 +88,15 @@ CREATE TABLE IF NOT EXISTS connections (
 );
 CREATE INDEX IF NOT EXISTS connections_source ON connections(source_id);
 CREATE INDEX IF NOT EXISTS connections_target ON connections(target_id);
+CREATE TABLE IF NOT EXISTS assistant_interactions (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  question TEXT NOT NULL,
+  response_json TEXT,
+  status TEXT NOT NULL CHECK (status IN ('completed','failed')),
+  error TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS assistant_interactions_created ON assistant_interactions(created_at DESC);
 """
 
 
@@ -167,6 +176,7 @@ def activate_world(world_id: str) -> dict[str, str]:
         raise ValueError("Ungültige Welt.")
     if not path.exists():
         raise FileNotFoundError("Diese Welt existiert nicht.")
+    initialize(path)
     DB = path
     ACTIVE_WORLD_ID = world_id
     BACKUPS = DATA / "backups" / world_id
@@ -175,6 +185,31 @@ def activate_world(world_id: str) -> dict[str, str]:
     if not world:
         raise ValueError("Diese Welt ist nicht lesbar.")
     return world
+
+
+def log_assistant_interaction(question: str, response: dict[str, Any] | None = None, error: str = "") -> str:
+    interaction_id = uuid.uuid4().hex
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO assistant_interactions(id,created_at,question,response_json,status,error) VALUES(?,?,?,?,?,?)",
+            (interaction_id, datetime.now().isoformat(), question,
+             json.dumps(response, ensure_ascii=False) if response is not None else None,
+             "failed" if error else "completed", error),
+        )
+    return interaction_id
+
+
+def list_assistant_interactions(limit: int = 50) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id,created_at,question,response_json,status,error FROM assistant_interactions ORDER BY created_at DESC LIMIT ?",
+            (max(1, min(limit, 200)),),
+        ).fetchall()
+    return [{
+        "id": row["id"], "createdAt": row["created_at"], "question": row["question"],
+        "response": json.loads(row["response_json"]) if row["response_json"] else None,
+        "status": row["status"], "error": row["error"],
+    } for row in rows]
 
 
 def delete_world(world_id: str) -> None:

@@ -414,6 +414,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 manuscript, figures = storage.load_manuscript(), storage.load_figures()
             return self.send_json({"ok": True, **ASSISTANT.status(), "chunks": len(build_knowledge(manuscript, figures))})
 
+        if route == "/api/assistant/logs":
+            with _lock:
+                return self.send_json({"ok": True, "interactions": storage.list_assistant_interactions()})
+
         if route == "/api/diff":
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
@@ -523,8 +527,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
                 with _lock:
                     manuscript, figures = storage.load_manuscript(), storage.load_figures()
-                return self.send_json({"ok": True, **ASSISTANT.complete(question, manuscript, figures)})
+                result = ASSISTANT.complete(question, manuscript, figures)
+                with _lock:
+                    interaction_id = storage.log_assistant_interaction(question, result)
+                print(f"  · {datetime.now():%H:%M:%S}  AI request {interaction_id} — {len(result.get('sources', []))} sources, {len(result.get('proposals', []))} proposals", flush=True)
+                return self.send_json({"ok": True, "interactionId": interaction_id, **result})
             except Exception as exc:
+                if "question" in locals() and question:
+                    with _lock:
+                        interaction_id = storage.log_assistant_interaction(question, error=str(exc))
+                    print(f"  ! {datetime.now():%H:%M:%S}  AI request {interaction_id} failed — {exc}", flush=True)
                 return self.send_json({"ok": False, "fehler": str(exc)}, 503)
 
         if route not in ROUTES:
