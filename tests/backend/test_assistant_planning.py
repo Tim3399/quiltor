@@ -1,6 +1,6 @@
 import unittest
 
-from backend.assistant import complete_compound_proposals, required_proposal_kinds, validate_proposals
+from backend.assistant import AssistantRuntime, complete_compound_proposals, required_proposal_kinds, validate_proposals
 
 
 FIGURES = {"nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}], "edges": [], "timeline": []}
@@ -34,6 +34,18 @@ class AssistantPlanningTests(unittest.TestCase):
         for question, expected in cases.items():
             with self.subTest(question=question):
                 self.assertEqual(required_proposal_kinds(question), expected)
+
+    def test_fallback_uses_the_exact_required_tool(self):
+        runtime = AssistantRuntime.__new__(AssistantRuntime)
+        figures = {"nodes": [{"id": "tarek", "name": "Tarek Venn"}, {"id": "nima", "name": "Nima Nox"}],
+                   "edges": [{"id": "e-mara-iven", "label": "Misstrauen"}], "timeline": [{"id": "trial", "title": "Der Prozess"}]}
+        update = runtime._forced_proposal("Ergänze bei Tarek Venn im Profil die Notiz: Vorsichtig.", "[]", figures)
+        state = runtime._forced_proposal("Ändere den Stand der Beziehung e-mara-iven am Zeitpunkt trial auf 'Verbündet', aktiv und ungerichtet.", "[]", figures)
+        death = runtime._forced_proposal("Markiere Nima Nox am Zeitpunkt trial als verstorben.", "[]", figures)
+        self.assertEqual(update["kind"], "update_element")
+        self.assertEqual(state["kind"], "set_relationship_at_moment")
+        self.assertFalse(state["patch"]["directed"])
+        self.assertEqual(death, {"kind": "mark_deceased", "elementId": "nima", "momentId": "trial"})
 
 
 if __name__ == "__main__":

@@ -118,10 +118,10 @@ class AssistantRuntime:
             parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
             trace.append({"step": "repair", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
         if MUTATION_REQUEST.search(question) and not parsed["proposals"]:
-            forced = self._forced_proposal(question, context_json)
+            forced = self._forced_proposal(question, context_json, figures)
             if os.environ.get("QUILTOR_AI_DEBUG"):
                 print(f"  · AI forced proposal: {json.dumps(forced, ensure_ascii=False)}", flush=True)
-            parsed["proposals"] = validate_proposals([forced] if forced else [], figures)
+            parsed["proposals"] = validate_proposals([forced] if forced else [], figures, question)
             if parsed["proposals"] and not parsed.get("message"):
                 parsed["message"] = "Ich habe die gewünschte Änderung als prüfbaren Vorschlag vorbereitet."
         if parsed["proposals"]:
@@ -164,8 +164,25 @@ class AssistantRuntime:
         except RuntimeError:
             return {"goal": question, "steps": ["Search relevant world data", "Prepare and verify the response"], "searchQueries": [], "requiredKinds": sorted(required_proposal_kinds(question))}
 
-    def _forced_proposal(self, question: str, context_json: str) -> dict[str, Any] | None:
+    def _forced_proposal(self, question: str, context_json: str, figures: dict[str, Any]) -> dict[str, Any] | None:
         folded = question.casefold()
+        required = required_proposal_kinds(question)
+        nodes = figures.get("nodes") or []
+        edges = figures.get("edges") or []
+        moments = figures.get("timeline") or []
+        node = next((item for item in nodes if str(item.get("id", "")).casefold() in folded or str(item.get("name", "")).casefold() in folded), None)
+        moment = next((item for item in moments if re.search(rf"\b{re.escape(str(item.get('id', '')).casefold())}\b", folded) or str(item.get("title", "")).casefold() in folded), None)
+        if required == {"update_element"} and node:
+            note = re.search(r"(?:notiz|notes?)\s*:\s*(.+)$", question, re.IGNORECASE)
+            patch = {"profile": {"notizen": (note.group(1).strip().rstrip(".") if note else question)}}
+            return {"kind": "update_element", "elementId": node["id"], "patch": patch}
+        if required == {"set_relationship_at_moment"}:
+            edge = next((item for item in edges if str(item.get("id", "")).casefold() in folded), None)
+            if edge and moment:
+                label = re.search(r"(?:auf|to)\s+['\"]([^'\"]+)['\"]", question, re.IGNORECASE)
+                return {"kind": "set_relationship_at_moment", "relationshipId": edge["id"], "momentId": moment["id"], "patch": {"label": label.group(1) if label else edge.get("label", ""), "active": "inaktiv" not in folded and "inactive" not in folded, "directed": not ("ungerichtet" in folded or "undirected" in folded), "style": "solid"}}
+        if required == {"mark_deceased"} and node and moment:
+            return {"kind": "mark_deceased", "elementId": node["id"], "momentId": moment["id"]}
         if "beziehung" in folded or "relationship" in folded:
             shape = {"type": "object", "required": ["from", "to", "label", "directed", "style"], "additionalProperties": False, "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "directed": {"type": "boolean"}, "style": {"enum": ["solid", "dashed", "blood", "gold"]}}}
             result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 300, "messages": [{"role": "system", "content": "Extract one requested relationship proposal. Use exact existing element IDs from context, not names. Return JSON only."}, {"role": "user", "content": f"CONTEXT:\n{context_json}\nREQUEST:\n{question}\n/no_think"}], "response_format": {"type": "json_schema", "schema": shape}})
