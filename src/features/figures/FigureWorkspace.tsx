@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlow, Background, Controls, Handle, MiniMap, Position, addEdge, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
-import { Download, Link2, MapPin, Network, Plus, Redo2, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
+import { Download, Link2, Plus, Redo2, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
 import type { FigureNode, FigureState, FigureKind, Profile } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
 import { download } from '../../lib/api';
@@ -8,6 +8,11 @@ import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 
 type CardData = { figure: FigureNode };
 const nodeTypes = { story: StoryNode };
+const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: string; nodeLabel: string; quick: boolean }> = [
+  { kind: 'person', label: 'Figur', initialName: 'Neue Figur', nodeLabel: 'Rolle', quick: true },
+  { kind: 'ort', label: 'Ort', initialName: 'Neuer Ort', nodeLabel: 'Ort', quick: true },
+  { kind: 'konzept', label: 'Konzept', initialName: 'Neues Konzept', nodeLabel: 'Konzept', quick: true },
+];
 
 function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
   const item = data.figure;
@@ -24,6 +29,7 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   const [connecting, setConnecting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingImport, setPendingImport] = useState<FigureState | null>(null);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [importError, setImportError] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const flow = useRef<ReactFlowInstance<Node<CardData>, Edge> | null>(null);
@@ -35,9 +41,9 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   const patchNode = (id: string, patch: Partial<FigureNode>) => onChange({ ...state, nodes: state.nodes.map(node => node.id === id ? { ...node, ...patch } : node) });
   const addNode = (kind: FigureKind) => {
     const center = flow.current?.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }) ?? { x: 300, y: 250 };
-    const names = { person: 'Neue Figur', ort: 'Neuer Ort', konzept: 'Neues Konzept' };
-    const node: FigureNode = { id: uid('n'), x: center.x, y: center.y, type: kind, label: kind === 'person' ? 'Rolle' : kind === 'ort' ? 'Ort' : 'Konzept', name: names[kind], sub: '', accent: 'ink', profile: { extra: [] } };
-    onChange({ ...state, nodes: [...state.nodes, node] }); setSelectedId(node.id);
+    const definition = ELEMENT_TYPES.find(item => item.kind === kind) ?? ELEMENT_TYPES[0];
+    const node: FigureNode = { id: uid('n'), x: center.x, y: center.y, type: kind, label: definition.nodeLabel, name: definition.initialName, sub: '', accent: 'ink', profile: { extra: [] } };
+    onChange({ ...state, nodes: [...state.nodes, node] }); setSelectedId(node.id); setCreateMenuOpen(false);
   };
   const connect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target) return;
@@ -77,7 +83,7 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   return <section className="figure-workspace" aria-label="Figuren und Beziehungen">
     <div className="context-bar">
       <div className="context-title"><strong>Figuren & Welt</strong><span>{state.nodes.length} Elemente · {state.edges.length} Verbindungen</span></div>
-      <div className="tool-group create-group"><button className="primary" onClick={() => addNode('person')}><Plus />Figur</button><button onClick={() => addNode('ort')}><MapPin />Ort</button><button onClick={() => addNode('konzept')}><Network />Konzept</button></div>
+      <div className="tool-group create-group"><div className="element-create"><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />Element</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>
       <div className="tool-group"><button aria-pressed={connecting} className={connecting ? 'active' : ''} onClick={() => setConnecting(!connecting)}><Link2 />Verbinden</button></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label="Diagramm rückgängig"><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label="Diagramm wiederholen"><Redo2 /></button></div>
       <div className="tool-group"><button onClick={exportProfiles}><Download />Steckbriefe</button><button onClick={exportState}><Download />JSON</button><button onClick={() => input.current?.click()}><Upload />Import</button><input ref={input} hidden type="file" accept="application/json" onChange={event => void importState(event.target.files?.[0])} /></div>
@@ -99,7 +105,7 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
       </aside>
     </div>
     {importError && <div className="toast error-box" role="alert">{importError}<button onClick={() => setImportError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
-    {selected && confirmDelete && <ConfirmDialog title="Element löschen" description={`„${selected.name}“ und alle zugehörigen Verbindungen werden entfernt. Eine automatische Sicherung bleibt erhalten.`} confirmLabel="Element löschen" onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
+    {selected && confirmDelete && <ConfirmDialog title="Element löschen" description={`„${selected.name}“ und alle zugehörigen Verbindungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Element löschen" holdDurationMs={5000} onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
     {pendingImport && <ConfirmDialog title="Diagramm importieren" description={`${pendingImport.nodes.length} Elemente und ${pendingImport.edges.length} Verbindungen ersetzen den aktuellen Stand. Vorher wird automatisch gesichert.`} confirmLabel="Importieren" onConfirm={() => { onChange(pendingImport); setSelectedId(null); setPendingImport(null); }} onClose={() => setPendingImport(null)} />}
   </section>;
 }

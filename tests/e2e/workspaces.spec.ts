@@ -61,6 +61,29 @@ test('Figuren folgen dem Zeiger bereits während des Ziehens', async ({ page }) 
   await page.mouse.up();
 });
 
+test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekunden Halten', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Die zeitbasierte Sicherheitsinteraktion muss nur einmal geprüft werden.');
+  await openBlankWorld(page);
+  await page.getByRole('button', { name: 'Figuren', exact: true }).click();
+  for (const label of ['Element', 'Figur', 'Ort', 'Konzept']) await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Element', exact: true }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await expect(page.getByRole('menuitem')).toHaveCount(3);
+  await page.getByRole('menuitem', { name: 'Figur', exact: true }).click();
+  await expect(page.locator('.story-node')).toHaveCount(1);
+  await page.locator('.story-node').click();
+  await page.getByRole('button', { name: 'Figur löschen' }).click();
+  const hold = page.getByRole('button', { name: /Element löschen – 5 Sekunden halten/ });
+  const box = await hold.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down(); await page.waitForTimeout(800); await page.mouse.up();
+  await expect(page.locator('.story-node')).toHaveCount(1);
+  await page.mouse.down(); await page.waitForTimeout(5200);
+  await expect(page.locator('.story-node')).toHaveCount(0);
+  await page.mouse.up();
+});
+
 test('Fokusmodus bietet eine diskrete Schreibhilfe', async ({ page }, testInfo) => {
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Fokus' }).click();

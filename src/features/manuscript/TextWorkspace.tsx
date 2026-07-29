@@ -131,7 +131,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
       <section className="book-title-page"><div><span>Roman</span><h1>{worldTitle || 'Unbenannte Welt'}</h1><i aria-hidden="true">◆</i></div><footer>Manuskriptfassung · {new Date().toLocaleDateString('de-DE')}</footer></section>
       {manuscript.chapters.map((chapter, chapterIndex) => <section className="book-chapter" key={chapter.id}><header><span>{String(chapterIndex + 1).padStart(2, '0')}</span><h2>{chapter.title || 'Ohne Titel'}</h2></header>{chapter.body.trim().split(/\n{2,}/).filter(Boolean).map((paragraph, index) => /^\s*([*⁂◆]|\*\s*\*\s*\*)\s*$/.test(paragraph) ? <div className="scene-break" key={index}>⁂</div> : <p key={index}>{paragraph.replace(/\n/g, ' ')}</p>)}</section>)}
     </article>
-    {deleteOpen && current && <ConfirmDialog title="Kapitel löschen" description={`„${current.title || 'Ohne Titel'}“ wird aus dem Manuskript entfernt. Eine automatische Sicherung bleibt erhalten.`} confirmLabel="Kapitel löschen" onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
+    {deleteOpen && current && <ConfirmDialog title="Kapitel löschen" description={`„${current.title || 'Ohne Titel'}“ wird aus dem Manuskript entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Kapitel löschen" holdDurationMs={5000} onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
     {pdfState === 'error' && <div className="toast error-box" role="alert">Das Buch-PDF konnte nicht erzeugt werden.<button onClick={() => setPdfState('idle')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
   </section>;
 }
