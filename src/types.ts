@@ -52,6 +52,8 @@ export interface FigureEdge {
   label?: string;
   style?: 'solid' | 'dashed' | 'blood' | 'gold';
   gerichtet?: boolean;
+  fromHandle?: string;
+  toHandle?: string;
   active?: boolean;
   versions?: RelationshipVersion[];
   [key: string]: unknown;

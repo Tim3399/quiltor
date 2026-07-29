@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactFlow, Background, Controls, Handle, MiniMap, Position, addEdge, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
+import { ReactFlow, Background, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
 import { Clock3, Download, Link2, Pause, Play, Plus, Redo2, Skull, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, FigureKind, Profile, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
@@ -17,10 +17,12 @@ const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: strin
 function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
   const item = data.figure;
   return <div className={`story-node type-${item.type || 'person'} accent-${item.accent || 'ink'} ${item.dash ? 'dashed' : ''} ${data.deceased ? 'is-deceased' : ''} ${selected ? 'selected' : ''}`}>
-    <Handle type="target" position={Position.Left} />
+    <Handle id="in" className="directed-handle incoming-handle" type="target" position={Position.Left} />
+    <Handle id="neutral-top" className="neutral-handle" type="source" position={Position.Top} />
     <span className="node-kind">{item.type === 'ort' ? 'Ort' : item.type === 'konzept' ? 'Konzept' : item.label || 'Figur'}</span>
     <strong>{item.name}{data.deceased && <Skull aria-label="Verstorben" />}</strong>{item.sub && <small>{item.sub}</small>}
-    <Handle type="source" position={Position.Right} />
+    <Handle id="out" className="directed-handle outgoing-handle" type="source" position={Position.Right} />
+    <Handle id="neutral-bottom" className="neutral-handle" type="source" position={Position.Bottom} />
   </div>;
 }
 
@@ -35,6 +37,7 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   const [playing, setPlaying] = useState(false);
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
   const [importError, setImportError] = useState('');
+  const [connectionError, setConnectionError] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const flow = useRef<ReactFlowInstance<Node<CardData>, Edge> | null>(null);
   const selected = state.nodes.find(node => node.id === selectedId) ?? null;
@@ -49,7 +52,7 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   }, [playing, activeMomentId, timeline]);
   const nodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId) } })), [state.nodes, timeline, activeMomentId]);
   const visibleEdges = useMemo(() => state.edges.map(edge => activeMomentId ? resolveRelationship(edge, timeline, activeMomentId) : resolveRelationshipOverview(edge, timeline)).filter(edge => edge.active), [state.edges, timeline, activeMomentId]);
-  const edges = useMemo<Edge[]>(() => visibleEdges.map(edge => ({ id: edge.id, source: edge.from, target: edge.to, label: edge.label, labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' }, animated: edge.style === 'blood', className: `edge-${edge.style || 'solid'} ${!activeMomentId && edge.versions?.length ? 'edge-temporal' : ''}`, markerEnd: edge.gerichtet ? { type: 'arrowclosed' as const } : undefined })), [visibleEdges, activeMomentId]);
+  const edges = useMemo<Edge[]>(() => visibleEdges.map(edge => { const handles = relationshipHandles(edge, state.nodes); return ({ id: edge.id, source: edge.from, target: edge.to, sourceHandle: handles.from, targetHandle: handles.to, label: edge.label, labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' }, animated: edge.style === 'blood', className: `edge-${edge.style || 'solid'} ${edge.gerichtet ? 'edge-directed' : 'edge-undirected'} ${!activeMomentId && edge.versions?.length ? 'edge-temporal' : ''}`, markerEnd: edge.gerichtet ? { type: 'arrowclosed' as const } : undefined }); }), [visibleEdges, activeMomentId, state.nodes]);
 
   const patchNode = (id: string, patch: Partial<FigureNode>) => onChange({ ...state, nodes: state.nodes.map(node => node.id === id ? { ...node, ...patch } : node) });
   const addNode = (kind: FigureKind) => {
@@ -60,10 +63,14 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   };
   const connect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target) return;
+    const kind = connectionKind(connection.sourceHandle, connection.targetHandle);
+    if (!kind) { setConnectionError('Verbinde rechts mit links für eine gerichtete Beziehung oder Mitte mit Mitte für eine ungerichtete.'); return; }
+    const duplicate = state.edges.find(edge => relationshipKey(edge.from, edge.to, !!edge.gerichtet) === relationshipKey(connection.source!, connection.target!, kind === 'directed'));
+    if (duplicate) { setSelectedId(duplicate.from); setConnecting(false); setConnectionError('Diese Beziehung existiert bereits und wurde im Inspector geöffnet.'); return; }
     const uiEdge = addEdge(connection, edges).at(-1);
-    const edge: FigureEdge = { id: uiEdge?.id || uid('e'), from: connection.source, to: connection.target, label: '', style: 'solid', ...(activeMomentId ? { active: false, versions: [{ momentId: activeMomentId, label: '', style: 'solid', active: true }] } : {}) };
+    const edge: FigureEdge = { id: uiEdge?.id || uid('e'), from: connection.source, to: connection.target, fromHandle: connection.sourceHandle || undefined, toHandle: connection.targetHandle || undefined, gerichtet: kind === 'directed', label: '', style: 'solid', ...(activeMomentId ? { active: false, versions: [{ momentId: activeMomentId, label: '', style: 'solid', gerichtet: kind === 'directed', active: true }] } : {}) };
     onChange({ ...state, edges: [...state.edges, edge] });
-    setConnecting(false);
+    setConnecting(false); setConnectionError('');
   }, [activeMomentId, edges, onChange, state]);
   const moveNodes = useCallback((changes: NodeChange<Node<CardData>>[]) => {
     const positions = new Map(changes.flatMap(change => change.type === 'position' && change.position ? [[change.id, change.position] as const] : []));
@@ -105,8 +112,8 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
     </div>
     <div className="figure-layout">
       <div className={`flow-area ${connecting ? 'is-connecting' : ''} ${playing ? 'timeline-playing' : ''}`}>
-        {connecting && <div className="mode-banner"><Link2 />Vom Ausgangspunkt zum Ziel ziehen <button onClick={() => setConnecting(false)}><X /><span className="sr-only">Abbrechen</span></button></div>}
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onInit={instance => { flow.current = instance; }}
+        {connecting && <div className="mode-banner"><Link2 />Rechts → links: gerichtet · Mitte ↔ Mitte: ungerichtet <button onClick={() => setConnecting(false)}><X /><span className="sr-only">Abbrechen</span></button></div>}
+        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; }}
           onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
           onNodesChange={moveNodes}
           onConnect={connect} nodesConnectable={connecting} fitView minZoom={0.2} maxZoom={2.2} deleteKeyCode={null}>
@@ -121,6 +128,7 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
       </aside>
     </div>
     {importError && <div className="toast error-box" role="alert">{importError}<button onClick={() => setImportError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
+    {connectionError && <div className="toast error-box" role="status">{connectionError}<button onClick={() => setConnectionError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
     {selected && confirmDelete && <ConfirmDialog title="Element löschen" description={`„${selected.name}“ und alle zugehörigen Verbindungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Element löschen" holdDurationMs={5000} onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
     {pendingImport && <ConfirmDialog title="Diagramm importieren" description={`${pendingImport.nodes.length} Elemente und ${pendingImport.edges.length} Verbindungen ersetzen den aktuellen Stand. Vorher wird automatisch gesichert.`} confirmLabel="Importieren" onConfirm={() => { onChange(pendingImport); setSelectedId(null); setPendingImport(null); }} onClose={() => setPendingImport(null)} />}
     {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ wird aus dem Zeitstreifen entfernt. Beziehungsänderungen an diesem Zeitpunkt fallen auf den vorherigen Stand zurück.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={5000} onConfirm={() => { onChange({ ...state, timeline: timeline.filter(moment => moment.id !== deleteMoment.id), edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })) }); if (activeMomentId === deleteMoment.id) setActiveMomentId(null); }} onClose={() => setDeleteMoment(null)} />}
@@ -204,4 +212,21 @@ export function figureIsDeceased(figure: FigureNode, timeline: TimelineMoment[],
   const death = timeline.findIndex(moment => moment.id === figure.diedMomentId);
   const active = timeline.findIndex(moment => moment.id === activeId);
   return death >= 0 && active >= death;
+}
+
+export function connectionKind(sourceHandle?: string | null, targetHandle?: string | null): 'directed' | 'undirected' | null {
+  if (sourceHandle === 'out' && targetHandle === 'in') return 'directed';
+  if (sourceHandle?.startsWith('neutral-') && targetHandle?.startsWith('neutral-')) return 'undirected';
+  return null;
+}
+
+export function relationshipKey(from: string, to: string, directed: boolean) {
+  return directed ? `directed:${from}:${to}` : `undirected:${[from, to].sort().join(':')}`;
+}
+
+function relationshipHandles(edge: FigureEdge, nodes: FigureNode[]) {
+  if (edge.gerichtet) return { from: 'out', to: 'in' };
+  if (edge.fromHandle?.startsWith('neutral-') && edge.toHandle?.startsWith('neutral-')) return { from: edge.fromHandle, to: edge.toHandle };
+  const from = nodes.find(node => node.id === edge.from), to = nodes.find(node => node.id === edge.to);
+  return (from?.y || 0) <= (to?.y || 0) ? { from: 'neutral-bottom', to: 'neutral-top' } : { from: 'neutral-top', to: 'neutral-bottom' };
 }

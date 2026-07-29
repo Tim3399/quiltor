@@ -88,10 +88,15 @@ test('Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab', async ({ pa
   test.skip(testInfo.project.name !== 'desktop', 'Die Timeline wird im breiten Figurenboard geprüft.');
   await page.route('**/api/manuscript', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
   await page.route('**/api/state', route => route.request().method() === 'GET'
-    ? route.fulfill({ json: { nodes: [{ id: 'n1', x: 120, y: 140, type: 'person', name: 'Ada' }, { id: 'n2', x: 520, y: 140, type: 'person', name: 'Bela' }], edges: [{ id: 'e1', from: 'n1', to: 'n2', label: 'Verbündete' }] }, headers: { ETag: '"0"' } })
+    ? route.fulfill({ json: { nodes: [{ id: 'n1', x: 120, y: 140, type: 'person', name: 'Ada' }, { id: 'n2', x: 520, y: 140, type: 'person', name: 'Bela' }], edges: [{ id: 'e1', from: 'n1', to: 'n2', label: 'Verbündete' }, { id: 'e2', from: 'n2', to: 'n1', label: 'Bewundert', gerichtet: true }] }, headers: { ETag: '"0"' } })
     : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }));
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
+  await expect(page.locator('.neutral-handle')).toHaveCount(4);
+  await expect(page.locator('.incoming-handle')).toHaveCount(2);
+  await expect(page.locator('.outgoing-handle')).toHaveCount(2);
+  await expect(page.locator('.react-flow__edge.edge-undirected')).toHaveCount(1);
+  await expect(page.locator('.react-flow__edge.edge-directed')).toHaveCount(1);
   await page.getByRole('button', { name: 'Zeit', exact: true }).click();
 
   await page.getByLabel('Neuer Zeitpunkt').fill('Vor der Schlacht');

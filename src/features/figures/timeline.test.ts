@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FigureEdge, FigureNode, TimelineMoment } from '../../types';
-import { figureIsDeceased, patchRelationship, resolveRelationship, resolveRelationshipOverview } from './FigureWorkspace';
+import { connectionKind, figureIsDeceased, patchRelationship, relationshipKey, resolveRelationship, resolveRelationshipOverview } from './FigureWorkspace';
 
 const timeline: TimelineMoment[] = [
   { id: 'before', title: 'Vorher' },
@@ -9,6 +9,13 @@ const timeline: TimelineMoment[] = [
 ];
 
 describe('relationship timeline', () => {
+  it('distinguishes directed and centered undirected connectors', () => {
+    expect(connectionKind('out', 'in')).toBe('directed');
+    expect(connectionKind('neutral-top', 'neutral-bottom')).toBe('undirected');
+    expect(connectionKind('out', 'neutral-top')).toBeNull();
+    expect(relationshipKey('a', 'b', true)).not.toBe(relationshipKey('b', 'a', true));
+    expect(relationshipKey('a', 'b', false)).toBe(relationshipKey('b', 'a', false));
+  });
   it('uses the latest relationship version at a selected moment', () => {
     const edge: FigureEdge = { id: 'e1', from: 'a', to: 'b', label: 'Freunde', versions: [
       { momentId: 'betrayal', label: 'Feinde', active: true },
