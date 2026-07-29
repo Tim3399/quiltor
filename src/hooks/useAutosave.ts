@@ -1,0 +1,49 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SavePhase } from '../types';
+
+export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unknown>, delay = 800) {
+  const [phase, setPhase] = useState<SavePhase>('idle');
+  const [error, setError] = useState('');
+  const timer = useRef<number | undefined>(undefined);
+  const latest = useRef(value);
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const dirty = useRef(false);
+  const initialized = useRef(false);
+  latest.current = value;
+
+  const flush = useCallback(async () => {
+    if (!latest.current || !dirty.current) return;
+    clearTimeout(timer.current);
+    const snapshot = latest.current;
+    setPhase('saving'); setError('');
+    chain.current = chain.current.then(() => save(snapshot));
+    try {
+      await chain.current;
+      if (latest.current === snapshot) { dirty.current = false; setPhase('saved'); }
+      else setPhase('dirty');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Speichern fehlgeschlagen');
+      setPhase('error');
+    }
+  }, [save]);
+
+  useEffect(() => {
+    if (!value) return;
+    if (!initialized.current) { initialized.current = true; return; }
+    dirty.current = true;
+    setPhase('dirty');
+    clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => void flush(), delay);
+    return () => clearTimeout(timer.current);
+  }, [value, delay]); // flush intentionally reads latest via ref
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (phase === 'dirty' || phase === 'saving' || phase === 'error') event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [phase]);
+
+  return { phase, error, flush, retry: flush };
+}

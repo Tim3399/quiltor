@@ -1,0 +1,28 @@
+node_modules/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+
+# Private world data never belongs in the public application repository.
+data/**/*.sqlite3
+data/**/*.sqlite3-shm
+data/**/*.sqlite3-wal
+data/worlds/*
+data/repositories/*
+data/manuscripts/*
+data/profiles/*
+!data/worlds/.gitkeep
+!data/repositories/.gitkeep
+!data/manuscripts/.gitkeep
+!data/profiles/.gitkeep
+test-results/
+playwright-report/
+
+# Automatische Sicherungen — bei Bedarf auskommentieren, wenn du sie
+# doch mitversionieren willst
+data/backups/*
+!data/backups/.gitkeep
+
+# Betriebssystem-Kram
+.DS_Store
+Thumbs.db
