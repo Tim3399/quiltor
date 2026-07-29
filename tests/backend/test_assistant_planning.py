@@ -1,6 +1,7 @@
 import unittest
 
-from backend.assistant import AssistantRuntime, complete_compound_proposals, required_proposal_kinds, validate_proposals
+from backend.assistant import (AssistantRuntime, complete_compound_proposals, required_proposal_kinds,
+                               existing_creation_target, task_contract, validate_proposals, validate_world, verify_task_contract)
 
 
 FIGURES = {"nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}], "edges": [], "timeline": []}
@@ -22,6 +23,38 @@ class AssistantPlanningTests(unittest.TestCase):
         self.assertEqual({item["kind"] for item in completed}, {"create_element", "create_relationship"})
         self.assertEqual(completed[0]["element"]["profile"]["alter"], "4")
         self.assertEqual(completed[1]["relationship"]["to"], "tarek")
+
+    def test_owned_animal_is_an_atomic_compound_task(self):
+        question = "Lege ein neues Tier an. Tarek Venn hat einen kleinen Corgi."
+        raw = [{"kind": "create_element", "tempId": "new:corgi", "element": {"type": "tier", "name": "Corgi", "profile": {"notizen": "klein"}}}]
+        completed = complete_compound_proposals(question, validate_proposals(raw, FIGURES, question), FIGURES)
+        self.assertEqual(required_proposal_kinds(question), {"create_element", "create_relationship"})
+        self.assertEqual(completed[1]["relationship"], {"from": "tarek", "to": "new:corgi", "label": "Besitzt", "directed": True, "style": "solid"})
+        verification = verify_task_contract(task_contract(question, FIGURES), completed, FIGURES)
+        self.assertTrue(verification["complete"])
+
+    def test_relationship_and_timeline_request_requires_both_operations(self):
+        self.assertEqual(required_proposal_kinds("Lege passende Beziehungen an und ergänze ggf. die Timeline."), {"create_relationship", "create_timeline_moment"})
+
+    def test_existing_timeline_moment_is_not_proposed_twice(self):
+        figures = {**FIGURES, "timeline": [{"id": "coronation", "title": "Die Krönung", "date": "1421-03-14"}]}
+        raw = [{"kind": "create_timeline_moment", "tempId": "new:moment:coronation", "moment": {"title": "Die Krönung", "date": "1421-03-14"}}]
+        self.assertEqual(validate_proposals(raw, figures, "Lege einen Timeline-Zeitpunkt an."), [])
+
+    def test_named_existing_animal_is_detected_before_model_call(self):
+        figures = {"nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}, {"id": "corgi", "name": "Corgi", "type": "tier"}], "edges": [], "timeline": []}
+        question = "Lege ein Tier an. Tarek Venn hat einen kleinen Corgi."
+        self.assertEqual(existing_creation_target(question, figures, task_contract(question, figures))["id"], "corgi")
+
+    def test_full_world_audit_counts_every_relationship_and_detects_bad_references(self):
+        figures = {"nodes": [{"id": "a"}, {"id": "b"}], "timeline": [{"id": "m1"}], "edges": [
+            {"id": "e1", "from": "a", "to": "b", "gerichtet": True, "versions": [{"momentId": "m1"}]},
+            {"id": "e2", "from": "a", "to": "missing", "gerichtet": True, "versions": [{"momentId": "missing"}]},
+        ]}
+        audit = validate_world(figures)
+        self.assertEqual(audit["inspected"]["relationships"], 2)
+        self.assertEqual(audit["inspected"]["relationshipStates"], 2)
+        self.assertEqual(len(audit["issues"]), 2)
 
     def test_tool_intents_are_classified_without_planner_guessing(self):
         cases = {

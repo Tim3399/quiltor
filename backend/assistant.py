@@ -66,19 +66,34 @@ class AssistantRuntime:
         except Exception:
             return {"available": False, "mode": "local", "reason": "Lokales Modell ist noch nicht installiert oder gestartet."}
 
-    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any]) -> dict[str, Any]:
+    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None) -> dict[str, Any]:
         chunks = build_knowledge(manuscript, figures)
+        contract = task_contract(question, figures)
         context = retrieve(chunks, question)
         trace: list[dict[str, Any]] = [{"step": "initial_search", "query": question, "sources": [item.id for item in context]}]
-        plan = self._plan(question, context)
+        trace.append({"step": "contract", **contract})
+        if contract["audit"]:
+            audit = validate_world(figures)
+            evidence = [chunk.public() for chunk in chunks if chunk.kind == "relationship"][:12]
+            trace.append({"step": "verify", "complete": True, "missing": [], "issues": audit["issues"], "inspected": audit["inspected"]})
+            return {"message": audit_message(audit, contract), "citations": [item["id"] for item in evidence], "sources": evidence, "proposals": [], "agentTrace": trace}
+        duplicate = existing_creation_target(question, figures, contract)
+        if duplicate:
+            source_id = f"element:{duplicate['id']}"
+            source = next((chunk.public() for chunk in chunks if chunk.id == source_id), None)
+            trace.append({"step": "preflight", "complete": False, "reason": "existing element", "elementId": duplicate["id"]})
+            return {"message": f"„{duplicate.get('name', 'Dieses Element')}“ existiert bereits. Deshalb habe ich kein doppeltes Element vorgeschlagen. Du kannst stattdessen den vorhandenen Steckbrief oder seine Beziehungen ergänzen.", "citations": [source_id], "sources": [source] if source else [], "proposals": [], "agentTrace": trace}
+        plan = ({"goal": question, "steps": contract["expected"], "searchQueries": [], "requiredKinds": contract["requiredKinds"], "planner": "deterministic"}
+                if contract["requiredKinds"] else self._plan(question, context))
         trace.append({"step": "plan", **plan})
         known_context = {item.id: item for item in context}
         for query in plan.get("searchQueries", [])[:4]:
             found = retrieve(chunks, str(query))
             trace.append({"step": "search_world", "query": query, "sources": [item.id for item in found]})
             known_context.update((item.id, item) for item in found)
-        context = list(known_context.values())[:24]
+        context = list(known_context.values())[:10 if contract["requiredKinds"] else 16]
         context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
+        world_json = json.dumps(structured_world_state(figures, contract), ensure_ascii=False)
         if PROSE_REQUEST.search(question):
             return {"message": "Ich schreibe oder vervollständige keine Romanprosa. Ich kann die geplante Szene aber anhand deiner Welt analysieren, Widersprüche finden, beteiligte Figuren und Beziehungen ordnen oder ihre Konsequenzen als Notizen vorbereiten.", "citations": [], "sources": [], "proposals": []}
         schema = {
@@ -90,12 +105,12 @@ class AssistantRuntime:
             },
         }
         payload = {
-            "model": "local", "stream": False, "temperature": 0.25, "max_tokens": 1400,
-            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": f"CONTEXT:\n{context_json}\n\nREQUEST:\n{question}\n/no_think"}],
+            "model": "local", "stream": False, "temperature": 0.2, "max_tokens": 900,
+            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *conversation_messages(history), {"role": "user", "content": f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{context_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"}],
             "response_format": {"type": "json_schema", "schema": schema},
         }
         supported = {"create_element", "update_element", "create_timeline_moment", "create_relationship", "set_relationship_at_moment", "mark_deceased", "arrange_elements"}
-        explicit_required = required_proposal_kinds(question)
+        explicit_required = set(contract["requiredKinds"])
         planned_required = {kind for kind in plan.get("requiredKinds", []) if kind in supported}
         mutation_requested = bool(MUTATION_REQUEST.search(question))
         required = explicit_required or (planned_required if mutation_requested else set())
@@ -124,13 +139,25 @@ class AssistantRuntime:
             parsed["proposals"] = validate_proposals([forced] if forced else [], figures, question)
             if parsed["proposals"] and not parsed.get("message"):
                 parsed["message"] = "Ich habe die gewünschte Änderung als prüfbaren Vorschlag vorbereitet."
+        verification = verify_task_contract(contract, parsed["proposals"], figures)
         if parsed["proposals"]:
             parsed["message"] = re.sub(r"\b(?:wurde|wird|ist)(?: als [^.!\n]+)? (?:hinzugefügt|angelegt|erstellt|aufgenommen)\b", "ist als Vorschlag vorbereitet", str(parsed.get("message", "")), flags=re.IGNORECASE)
             parsed["message"] = re.sub(r"\b(hinzugefügt|angelegt|erstellt|aufgenommen)\b", "als Vorschlag vorbereitet", parsed["message"], flags=re.IGNORECASE)
         known = {chunk.id: chunk.public() for chunk in context}
         parsed["sources"] = [known[source] for source in parsed.get("citations", []) if source in known]
-        present = {item.get("kind") for item in parsed["proposals"]}
-        trace.append({"step": "verify", "requiredKinds": sorted(required), "presentKinds": sorted(present), "complete": not bool(required - present)})
+        if contract["audit"]:
+            audit = validate_world(figures)
+            parsed["message"] = audit_message(audit, contract)
+            parsed["proposals"] = []
+            parsed["citations"] = [chunk.id for chunk in context if chunk.kind == "relationship"][:12]
+            parsed["sources"] = [known[source] for source in parsed["citations"] if source in known]
+            verification = {"complete": True, "missing": [], "issues": audit["issues"], "inspected": audit["inspected"]}
+        elif not verification["complete"]:
+            parsed["message"] = "Ich konnte die Aufgabe noch nicht vollständig als sicheren Vorschlag vorbereiten. Es fehlen: " + ", ".join(verification["missing"]) + ". Es wurde nichts angewendet."
+        elif parsed["proposals"]:
+            parsed["proposalGroup"] = {"id": "task", "title": proposal_group_title(question), "proposalIndexes": list(range(len(parsed["proposals"])))}
+            parsed["message"] = f"{len(parsed['proposals'])} zusammengehörige Änderung{'en' if len(parsed['proposals']) != 1 else ''} als prüfbarer Vorschlag vorbereitet. Es wurde noch nichts angewendet."
+        trace.append({"step": "verify", **verification})
         parsed["agentTrace"] = trace
         return parsed
 
@@ -224,18 +251,164 @@ def required_proposal_kinds(question: str) -> set[str]:
         return {"mark_deceased"}
     if "beziehung" in folded and re.search(r"\b(zeitpunkt|moment|stand|status)\b", folded) and re.search(r"\b(änder\w*|setz\w*|aktualisier\w*)\b", folded):
         return {"set_relationship_at_moment"}
-    if re.search(r"\b(lege|anlegen|erstelle?n?|hinzufügen|create|add)\b", folded) and re.search(r"\b(zeitpunkt|timeline|moment|ereignis)\b", folded):
-        return {"create_timeline_moment"}
-    if "beziehung" in folded and re.search(r"\b(schlag\w*|vorschlag|lege|anlegen|erstelle?n?|create|propose)\b", folded):
-        return {"create_relationship"}
+    creation = bool(re.search(r"\b(lege|anlegen|erstelle?n?|hinzufügen|create|add)\b", folded))
+    requested: set[str] = set()
+    if creation and re.search(r"\b(zeitpunkt|timeline|moment|ereignis)\w*\b", folded):
+        requested.add("create_timeline_moment")
+    if ("beziehung" in folded or "relationship" in folded) and re.search(r"\b(schlag\w*|vorschlag|lege|anlegen|erstelle?n?|create|propose)\b", folded):
+        requested.add("create_relationship")
+    if requested:
+        return requested
     if re.search(r"\b(ergänz\w*|aktualisier\w*|änder\w*|update)\b", folded):
         return {"update_element"}
     required: set[str] = set()
-    if re.search(r"\b(anlegen|lege|erstelle?n?|hinzufügen|create|add)\b", folded):
+    if creation:
         required.add("create_element")
-        if re.search(r"\b(sohn|tochter|vater|mutter|bruder|schwester|ehefrau|ehemann|partner(?:in)?)\b", folded):
+        if re.search(r"\b(sohn|tochter|vater|mutter|bruder|schwester|ehefrau|ehemann|partner(?:in)?|gehört|besitzt)\b", folded) or re.search(r"\bhat\s+(?:einen?|eine)\b", folded):
             required.add("create_relationship")
     return required
+
+
+def task_contract(question: str, figures: dict[str, Any]) -> dict[str, Any]:
+    """Build a deterministic contract before asking the model to reason."""
+    folded = question.casefold()
+    asks_for_audit = bool(re.search(r"\b(prüf\w*|validier\w*|konsistent|widerspruch|check)\b", folded))
+    content_audit = bool(re.search(r"\b(manuskript|kapitel|text|verhalten|motiv\w*|handlung)\b", folded))
+    structural_target = bool(re.search(r"\b(beziehung\w*|relationship\w*|timeline\w*|direction|richtung\w*|zeitst(?:and|ände))\b", folded))
+    audit = asks_for_audit and structural_target and not content_audit
+    scopes: list[str] = []
+    if "beziehung" in folded or "relationship" in folded or audit:
+        scopes.append("relationships")
+    if "timeline" in folded or "zeit" in folded or audit:
+        scopes.append("timeline")
+    if re.search(r"\b(element|figur|tier|ort|konzept|board|page)\w*\b", folded) or not scopes:
+        scopes.append("elements")
+    required = sorted(required_proposal_kinds(question))
+    return {
+        "goal": question,
+        "audit": audit,
+        "readScopes": list(dict.fromkeys(scopes)),
+        "requiredKinds": required,
+        "expected": contract_expectations(question, required),
+        "counts": {"elements": len(figures.get("nodes") or []), "relationships": len(figures.get("edges") or []), "timeline": len(figures.get("timeline") or [])},
+    }
+
+
+def contract_expectations(question: str, required: list[str]) -> list[str]:
+    expectations = [f"valid {kind}" for kind in required]
+    folded = question.casefold()
+    if "create_element" in required:
+        expectations.extend(["new element has a non-empty name", "new element does not duplicate an existing element"])
+    if "create_relationship" in required:
+        expectations.extend(["both endpoints resolve", "relationship is not a duplicate"])
+    if re.search(r"\bhat\s+(?:einen?|eine)\b|\b(?:besitzt|gehört)\b", folded):
+        expectations.append("created element is connected to its stated owner")
+    return expectations
+
+
+def existing_creation_target(question: str, figures: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any] | None:
+    if "create_element" not in contract["requiredKinds"]:
+        return None
+    folded = question.casefold()
+    requested_type = next((kind for kind, words in {
+        "tier": ("tier", "animal"), "person": ("figur", "person", "character"), "ort": ("ort", "place"),
+        "konzept": ("konzept", "concept"), "organisation": ("organisation", "organization"), "objekt": ("objekt", "object"),
+    }.items() if any(re.search(rf"\b{word}\w*\b", folded) for word in words)), None)
+    candidates = [node for node in figures.get("nodes") or [] if not requested_type or node.get("type", "person") == requested_type]
+    candidates.sort(key=lambda node: len(str(node.get("name", ""))), reverse=True)
+    return next((node for node in candidates if len(_normal(node.get("name"))) >= 3 and re.search(rf"\b{re.escape(_normal(node.get('name')))}\b", _normal(question))), None)
+
+
+def structured_context(chunks: list[Any], contract: dict[str, Any]) -> list[Any]:
+    kind_for_scope = {"elements": "element", "relationships": "relationship", "timeline": "timeline"}
+    kinds = {kind_for_scope[scope] for scope in contract["readScopes"] if scope in kind_for_scope}
+    if not kinds:
+        return []
+    # Operational reads are exhaustive. RAG is only used later for manuscript evidence.
+    return [chunk for chunk in chunks if chunk.kind in kinds]
+
+
+def structured_world_state(figures: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
+    state: dict[str, Any] = {}
+    scopes = set(contract["readScopes"])
+    if "elements" in scopes:
+        state["elements"] = [{key: node.get(key) for key in ("id", "type", "name", "label", "sub", "profile", "diedMomentId") if node.get(key) not in (None, "", [], {})} for node in figures.get("nodes") or []]
+    if "relationships" in scopes:
+        state["relationships"] = [{key: edge.get(key) for key in ("id", "from", "to", "label", "gerichtet", "style", "versions") if edge.get(key) not in (None, "", [], {})} for edge in figures.get("edges") or []]
+    if "timeline" in scopes:
+        state["timeline"] = [{key: moment.get(key) for key in ("id", "title", "date", "note") if moment.get(key) not in (None, "", [], {})} for moment in figures.get("timeline") or []]
+    return state
+
+
+def conversation_messages(history: list[dict[str, str]] | None) -> list[dict[str, str]]:
+    result = []
+    for item in (history or [])[-6:]:
+        role, content = item.get("role"), str(item.get("content", ""))[:2000]
+        if role in {"user", "assistant"} and content:
+            result.append({"role": role, "content": content})
+    return result
+
+
+def _normal(value: Any) -> str:
+    return re.sub(r"[^\wäöüß]+", " ", str(value or "").casefold()).strip()
+
+
+def verify_task_contract(contract: dict[str, Any], proposals: list[dict[str, Any]], figures: dict[str, Any]) -> dict[str, Any]:
+    present = {item.get("kind") for item in proposals}
+    missing = [kind for kind in contract["requiredKinds"] if kind not in present]
+    issues: list[str] = []
+    nodes = {_normal(node.get("name")) for node in figures.get("nodes") or []}
+    moments = {(_normal(moment.get("title")), _normal(moment.get("date"))) for moment in figures.get("timeline") or []}
+    for proposal in proposals:
+        if proposal.get("kind") == "create_element" and _normal((proposal.get("element") or {}).get("name")) in nodes:
+            issues.append("duplicate element")
+        if proposal.get("kind") == "create_timeline_moment":
+            moment = proposal.get("moment") or {}
+            if (_normal(moment.get("title")), _normal(moment.get("date"))) in moments:
+                issues.append("duplicate timeline moment")
+    if issues:
+        missing.extend(issues)
+    return {"requiredKinds": contract["requiredKinds"], "presentKinds": sorted(str(item) for item in present if item), "complete": not missing, "missing": missing, "issues": issues}
+
+
+def validate_world(figures: dict[str, Any]) -> dict[str, Any]:
+    nodes = {node.get("id") for node in figures.get("nodes") or []}
+    moments = {moment.get("id") for moment in figures.get("timeline") or []}
+    edges = figures.get("edges") or []
+    issues: list[str] = []
+    seen: set[tuple[Any, ...]] = set()
+    for edge in edges:
+        if edge.get("from") not in nodes or edge.get("to") not in nodes:
+            issues.append(f"Beziehung {edge.get('id')} hat einen fehlenden Endpunkt")
+        key = (edge.get("from"), edge.get("to")) if edge.get("gerichtet") else tuple(sorted((edge.get("from"), edge.get("to"))))
+        duplicate_key = (bool(edge.get("gerichtet")), *key)
+        if duplicate_key in seen:
+            issues.append(f"Beziehung {edge.get('id')} ist strukturell doppelt")
+        seen.add(duplicate_key)
+        version_moments: set[Any] = set()
+        for version in edge.get("versions") or []:
+            moment_id = version.get("momentId")
+            if moment_id not in moments:
+                issues.append(f"Beziehung {edge.get('id')} verweist auf einen fehlenden Zeitpunkt {moment_id}")
+            if moment_id in version_moments:
+                issues.append(f"Beziehung {edge.get('id')} hat mehrere Stände am selben Zeitpunkt {moment_id}")
+            version_moments.add(moment_id)
+    return {"issues": issues, "inspected": {"elements": len(nodes), "relationships": len(edges), "timelineMoments": len(moments), "relationshipStates": sum(len(edge.get("versions") or []) for edge in edges)}}
+
+
+def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
+    inspected = audit["inspected"]
+    prefix = (f"Strukturell vollständig geprüft: {inspected['relationships']} Beziehungen mit "
+              f"{inspected['relationshipStates']} Zeitständen, {inspected['elements']} Elemente und "
+              f"{inspected['timelineMoments']} Timeline-Zeitpunkte.")
+    if audit["issues"]:
+        return prefix + " Gefunden: " + "; ".join(audit["issues"]) + ". Es wurde nichts geändert."
+    return prefix + " Keine technischen Widersprüche gefunden. Ob Richtung und Beschriftung inhaltlich zur Geschichte passen, ist damit nicht automatisch bewiesen; dafür müssen konkrete Manuskriptstellen als Belege ausgewertet werden."
+
+
+def proposal_group_title(question: str) -> str:
+    compact = " ".join(question.split())
+    return compact[:80] + ("…" if len(compact) > 80 else "")
 
 
 def complete_compound_proposals(question: str, proposals: list[dict[str, Any]], figures: dict[str, Any]) -> list[dict[str, Any]]:
@@ -248,8 +421,11 @@ def complete_compound_proposals(question: str, proposals: list[dict[str, Any]], 
         matches = [node for node in figures.get("nodes") or [] if str(node.get("name", "")).casefold() in folded]
         if matches:
             labels = {"sohn": "Sohn von", "tochter": "Tochter von", "vater": "Vater von", "mutter": "Mutter von", "bruder": "Bruder von", "schwester": "Schwester von", "ehefrau": "Ehefrau von", "ehemann": "Ehemann von", "partner": "Partner von", "partnerin": "Partnerin von"}
-            key = next((key for key in labels if key in folded), "Verwandt mit")
-            proposals.append({"kind": "create_relationship", "relationship": {"from": created["tempId"], "to": matches[0]["id"], "label": labels.get(key, key), "directed": True, "style": "solid"}})
+            key = next((key for key in labels if key in folded), None)
+            ownership = key is None and (re.search(r"\bhat\s+(?:einen?|eine)\b", folded) or "besitzt" in folded or "gehört" in folded)
+            relationship = ({"from": matches[0]["id"], "to": created["tempId"], "label": "Besitzt", "directed": True, "style": "solid"}
+                            if ownership else {"from": created["tempId"], "to": matches[0]["id"], "label": labels.get(key or "", "Verwandt mit"), "directed": True, "style": "solid"})
+            proposals.append({"kind": "create_relationship", "relationship": relationship})
     return proposals
 
 
@@ -261,6 +437,8 @@ def validate_proposals(value: Any, figures: dict[str, Any], question: str = "") 
     element_aliases = {str(node.get("name", "")).casefold(): node.get("id") for node in figures.get("nodes") or []}
     known_moments = {moment.get("id") for moment in figures.get("timeline") or []}
     known_relationships = {edge.get("id") for edge in figures.get("edges") or []}
+    existing_names = {_normal(node.get("name")) for node in figures.get("nodes") or []}
+    existing_moments = {(_normal(moment.get("title")), _normal(moment.get("date"))) for moment in figures.get("timeline") or []}
     temporary = {proposal.get("tempId") for proposal in value if isinstance(proposal, dict) and proposal.get("kind") in {"create_element", "create_timeline_moment"} and isinstance(proposal.get("tempId"), str) and proposal["tempId"].startswith("new:")}
     seen_temporary: set[str] = set()
     result = []
@@ -284,11 +462,15 @@ def validate_proposals(value: Any, figures: dict[str, Any], question: str = "") 
                 element = proposal.get("element")
                 if not isinstance(element, dict) or not str(element.get("name", "")).strip():
                     continue
+                if _normal(element.get("name")) in existing_names:
+                    continue
                 if not isinstance(element.get("profile"), dict):
                     element["profile"] = {"notizen": str(element.get("profile") or "")}
                 age = re.search(r"\b(\d{1,3})\s*(?:jahre?|years?)\b", question, re.IGNORECASE)
                 if age and not element["profile"].get("alter"):
                     element["profile"]["alter"] = age.group(1)
+            elif (_normal((proposal.get("moment") or {}).get("title")), _normal((proposal.get("moment") or {}).get("date"))) in existing_moments:
+                continue
         elif kind == "update_element" and proposal.get("elementId") not in known_elements:
             continue
         elif kind == "set_relationship_at_moment" and (proposal.get("relationshipId") not in known_relationships or proposal.get("momentId") not in known_moments | temporary):
@@ -302,6 +484,15 @@ def validate_proposals(value: Any, figures: dict[str, Any], question: str = "") 
                 if endpoint_value not in known_elements and isinstance(endpoint_value, str) and endpoint_value.casefold() in element_aliases:
                     relation[endpoint] = element_aliases[endpoint_value.casefold()]
             if relation.get("from") not in known_elements | temporary or relation.get("to") not in known_elements | temporary:
+                continue
+            directed = bool(relation.get("directed"))
+            duplicate = any(
+                (bool(edge.get("gerichtet")) == directed and
+                 ((directed and edge.get("from") == relation.get("from") and edge.get("to") == relation.get("to")) or
+                  (not directed and {edge.get("from"), edge.get("to")} == {relation.get("from"), relation.get("to")})))
+                for edge in figures.get("edges") or []
+            )
+            if duplicate:
                 continue
         result.append(proposal)
     return result

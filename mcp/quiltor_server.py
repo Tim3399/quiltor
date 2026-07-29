@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend import storage  # noqa: E402
+from backend.assistant import validate_world  # noqa: E402
 from backend.knowledge import build_knowledge, retrieve  # noqa: E402
 
 
@@ -19,6 +20,12 @@ TOOLS = [
     {"name": "list_worlds", "description": "List local Quiltor worlds. This never changes data.", "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}},
     {"name": "search_world", "description": "Retrieve cited manuscript, note, element, relationship, and timeline context from one world.", "inputSchema": {"type": "object", "required": ["worldId", "query"], "properties": {"worldId": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 30}}, "additionalProperties": False}},
     {"name": "get_world_structure", "description": "Read all elements, relationships, and timeline moments without manuscript prose.", "inputSchema": {"type": "object", "required": ["worldId"], "properties": {"worldId": {"type": "string"}}, "additionalProperties": False}},
+    {"name": "list_elements", "description": "Read every world element. Use this instead of RAG when completeness matters.", "inputSchema": {"type": "object", "required": ["worldId"], "properties": {"worldId": {"type": "string"}}, "additionalProperties": False}},
+    {"name": "list_relationships", "description": "Read every relationship including all timeline versions.", "inputSchema": {"type": "object", "required": ["worldId"], "properties": {"worldId": {"type": "string"}}, "additionalProperties": False}},
+    {"name": "get_relationship_history", "description": "Read one relationship and all of its timeline versions.", "inputSchema": {"type": "object", "required": ["worldId", "relationshipId"], "properties": {"worldId": {"type": "string"}, "relationshipId": {"type": "string"}}, "additionalProperties": False}},
+    {"name": "list_timeline_moments", "description": "Read every timeline moment in stored order.", "inputSchema": {"type": "object", "required": ["worldId"], "properties": {"worldId": {"type": "string"}}, "additionalProperties": False}},
+    {"name": "get_board_layout", "description": "Read element positions, dimensions and importance markers on the board.", "inputSchema": {"type": "object", "required": ["worldId"], "properties": {"worldId": {"type": "string"}}, "additionalProperties": False}},
+    {"name": "validate_world", "description": "Deterministically validate all endpoints, relationship duplicates and timeline references.", "inputSchema": {"type": "object", "required": ["worldId"], "properties": {"worldId": {"type": "string"}}, "additionalProperties": False}},
     {"name": "propose_create_element", "description": "Create a non-destructive proposal for a character, animal, place, organization, object, or concept. The proposal must still be confirmed in Quiltor.", "inputSchema": {"type": "object", "required": ["worldId", "name"], "properties": {"worldId": {"type": "string"}, "name": {"type": "string"}, "type": {"enum": ["person", "tier", "ort", "organisation", "objekt", "konzept"]}, "label": {"type": "string"}, "sub": {"type": "string"}, "profile": {"type": "object"}}, "additionalProperties": False}},
     {"name": "propose_update_element", "description": "Create a non-destructive proposal to update an existing element profile or summary.", "inputSchema": {"type": "object", "required": ["worldId", "elementId"], "properties": {"worldId": {"type": "string"}, "elementId": {"type": "string"}, "name": {"type": "string"}, "label": {"type": "string"}, "sub": {"type": "string"}, "profile": {"type": "object"}}, "additionalProperties": False}},
     {"name": "propose_create_relationship", "description": "Create a non-destructive relationship proposal between existing element IDs.", "inputSchema": {"type": "object", "required": ["worldId", "from", "to", "label"], "properties": {"worldId": {"type": "string"}, "from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "directed": {"type": "boolean"}, "style": {"enum": ["solid", "dashed", "blood", "gold"]}}, "additionalProperties": False}},
@@ -70,6 +77,22 @@ def call_tool(name: str, arguments: dict[str, Any]) -> Any:
         return {"sources": [chunk.public() for chunk in chunks]}
     if name == "get_world_structure":
         return {"nodes": figures.get("nodes", []), "edges": figures.get("edges", []), "timeline": figures.get("timeline", [])}
+    if name == "list_elements":
+        return {"elements": figures.get("nodes", []), "count": len(figures.get("nodes", []))}
+    if name == "list_relationships":
+        return {"relationships": figures.get("edges", []), "count": len(figures.get("edges", []))}
+    if name == "get_relationship_history":
+        relationship = next((edge for edge in figures.get("edges", []) if edge.get("id") == arguments.get("relationshipId")), None)
+        if not relationship:
+            raise ValueError("The relationship does not exist.")
+        return {"relationship": relationship, "versions": relationship.get("versions", [])}
+    if name == "list_timeline_moments":
+        return {"timeline": figures.get("timeline", []), "count": len(figures.get("timeline", []))}
+    if name == "get_board_layout":
+        fields = ("id", "x", "y", "width", "height", "important", "pinned")
+        return {"elements": [{key: node.get(key) for key in fields if key in node} for node in figures.get("nodes", [])]}
+    if name == "validate_world":
+        return validate_world(figures)
     mapping = {
         "propose_create_element": "create_element", "propose_create_relationship": "create_relationship",
         "propose_timeline_moment": "create_timeline_moment", "propose_relationship_state": "set_relationship_at_moment",

@@ -59,6 +59,8 @@ test('Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
   await page.getByRole('button', { name: 'Lokalen Assistenten öffnen' }).click();
   const drawer = page.getByRole('complementary', { name: 'Lokaler Assistent' });
   await expect(drawer).toContainText('7 Quellen indexiert');
+  const drawerBox = await drawer.boundingBox(), composerBox = await drawer.locator('footer').boundingBox();
+  expect(drawerBox && composerBox && composerBox.height < 120 && Math.abs(composerBox.y + composerBox.height - (drawerBox.y + drawerBox.height)) < 1).toBeTruthy();
   await drawer.getByRole('textbox', { name: 'Nachricht an den lokalen Assistenten' }).fill('Lege Ada und Bela mit ihrer Beziehung an.');
   await drawer.getByRole('button', { name: 'Nachricht senden' }).click();
   await expect(drawer).toContainText('Erstes Kapitel');

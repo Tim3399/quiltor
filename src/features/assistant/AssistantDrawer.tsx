@@ -23,7 +23,11 @@ export function AssistantDrawer({ worldId, figures, onApply, onNavigate, onClose
     const id = crypto.randomUUID();
     setDraft(''); setSending(true); setEntries(current => [...current, { id, question, applied: [] }]);
     try {
-      const response = await api.assistantChat(question);
+      const history = entries.slice(-6).flatMap(entry => [
+        { role: 'user' as const, content: entry.question },
+        ...(entry.reply ? [{ role: 'assistant' as const, content: entry.reply.message }] : []),
+      ]);
+      const response = await api.assistantChat(question, history);
       const reply = { ...response, proposals: scopeAssistantProposals(response.proposals || [], id) };
       setEntries(current => current.map(entry => entry.id === id ? { ...entry, reply } : entry));
     } catch (error) {
@@ -34,7 +38,7 @@ export function AssistantDrawer({ worldId, figures, onApply, onNavigate, onClose
     onApply(proposals);
     setEntries(current => current.map(entry => entry.id === entryId ? { ...entry, applied: [...new Set([...entry.applied, ...indices])] } : entry));
   };
-  return <aside className="assistant-drawer" aria-label="Lokaler Assistent">
+  return <aside className={`assistant-drawer ${status && !status.available ? 'has-offline' : ''}`} aria-label="Lokaler Assistent">
     <header><div><Sparkles /><span><strong>Assistent</strong><small>Lokal · nur Vorschläge</small></span></div><button className="icon-button" aria-label="Assistent schließen" onClick={onClose}><X /></button></header>
     <div className="assistant-scope"><Database /><span><strong>{status?.chunks ?? '…'} Quellen indexiert</strong><small>Welt, Manuskript, Profile, Beziehungen und Timeline</small></span></div>
     {status && !status.available && <div className="assistant-offline"><Bot /><div><strong>Lokales Modell nicht verfügbar</strong><p>{status.reason}</p><small>Quiltor selbst bleibt vollständig nutzbar.</small></div></div>}
@@ -46,7 +50,7 @@ export function AssistantDrawer({ worldId, figures, onApply, onNavigate, onClose
         {entry.reply && <div className="assistant-answer"><p>{entry.reply.message}</p>
           {!!entry.reply.sources?.length && <SourceList sources={entry.reply.sources} onNavigate={onNavigate} />}
           {!!entry.reply.proposals?.length && <div className="assistant-proposals"><div className="assistant-proposal-heading"><strong>{entry.reply.proposals.length} Vorschläge</strong><button disabled={entry.applied.length === entry.reply.proposals.length} onClick={() => { const pending = entry.reply!.proposals.map((proposal, index) => ({ proposal, index })).filter(item => !entry.applied.includes(item.index)); apply(entry.id, pending.map(item => item.proposal), pending.map(item => item.index)); }}><Check />Alle übernehmen</button></div>
-            {entry.reply.proposals.map((proposal, index) => <div className={`assistant-proposal ${entry.applied.includes(index) ? 'is-applied' : ''}`} key={index}><span>{proposalLabel(proposal, figures)}</span><button disabled={entry.applied.includes(index)} onClick={() => apply(entry.id, [proposal], [index])}>{entry.applied.includes(index) ? <><Check />Übernommen</> : 'Übernehmen'}</button></div>)}
+            {entry.reply.proposals.map((proposal, index) => { const grouped = (entry.reply?.proposalGroup?.proposalIndexes.length || 0) > 1; return <div className={`assistant-proposal ${entry.applied.includes(index) ? 'is-applied' : ''}`} key={index}><span>{proposalLabel(proposal, figures)}</span><button disabled={entry.applied.includes(index) || grouped} title={grouped ? 'Dieser Vorschlag gehört zu einem atomaren Paket und wird nur gemeinsam übernommen.' : undefined} onClick={() => apply(entry.id, [proposal], [index])}>{entry.applied.includes(index) ? <><Check />Übernommen</> : grouped ? 'Im Paket' : 'Übernehmen'}</button></div>; })}
           </div>}
         </div>}
       </article>)}
