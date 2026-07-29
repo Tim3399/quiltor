@@ -40,6 +40,8 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   const [connectionError, setConnectionError] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const flow = useRef<ReactFlowInstance<Node<CardData>, Edge> | null>(null);
+  const latestState = useRef(state);
+  latestState.current = state;
   const selected = state.nodes.find(node => node.id === selectedId) ?? null;
   const timeline = state.timeline || [];
   useEffect(() => { if (targetId && state.nodes.some(node => node.id === targetId)) { setSelectedId(targetId); const item = state.nodes.find(node => node.id === targetId); if (item) setTimeout(() => flow.current?.setCenter(item.x, item.y, { zoom: 1, duration: 350 }), 0); } }, [targetId, state.nodes]);
@@ -75,11 +77,14 @@ export function FigureWorkspace({ state, onChange, targetId, onUndo, onRedo, can
   const moveNodes = useCallback((changes: NodeChange<Node<CardData>>[]) => {
     const positions = new Map(changes.flatMap(change => change.type === 'position' && change.position ? [[change.id, change.position] as const] : []));
     if (!positions.size) return;
-    onChange({ ...state, nodes: state.nodes.map(node => {
+    const current = latestState.current;
+    const next = { ...current, nodes: current.nodes.map(node => {
       const position = positions.get(node.id);
-      return position ? { ...node, x: position.x, y: position.y } : node;
-    }) });
-  }, [onChange, state]);
+      return position && Number.isFinite(position.x) && Number.isFinite(position.y) ? { ...node, x: position.x, y: position.y } : node;
+    }) };
+    latestState.current = next;
+    onChange(next);
+  }, [onChange]);
   const remove = () => {
     if (!selected) return;
     onChange({ ...state, nodes: state.nodes.filter(node => node.id !== selected.id), edges: state.edges.filter(edge => edge.from !== selected.id && edge.to !== selected.id) }); setSelectedId(null);

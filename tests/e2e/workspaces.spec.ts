@@ -61,6 +61,32 @@ test('Figuren folgen dem Zeiger bereits während des Ziehens', async ({ page }) 
   await page.mouse.up();
 });
 
+test('Verschieben erhält alle Elemente auch nach Autosave und Neuladen', async ({ page }) => {
+  const response = await page.request.post('/api/worlds/create', { data: { title: `Drag Regression ${crypto.randomUUID()}` } });
+  const created = await response.json();
+  const initial = await page.request.get('/api/state');
+  const revision = initial.headers()['etag'] || '"0"';
+  const nodes = Array.from({ length: 12 }, (_, index) => ({ id: `n${index}`, x: 100 + (index % 4) * 240, y: 100 + Math.floor(index / 4) * 150, type: 'person', name: `Figur ${index}` }));
+  const edges = Array.from({ length: 11 }, (_, index) => ({ id: `e${index}`, from: `n${index}`, to: `n${index + 1}`, label: `Beziehung ${index}`, gerichtet: index % 2 === 0 }));
+  await page.request.put('/api/state', { headers: { 'If-Match': revision }, data: { nodes, edges } });
+  await page.goto(`/?world=${created.world.id}`);
+  await page.getByRole('button', { name: 'Figuren', exact: true }).click();
+  await expect(page.locator('.story-node')).toHaveCount(12);
+  const node = page.locator('.react-flow__node').first();
+  const box = await node.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 + 100, box!.y + box!.height / 2 + 70, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('.story-node')).toHaveCount(12);
+  await expect(page.locator('.react-flow__edge')).toHaveCount(11);
+  await page.waitForTimeout(1100);
+  await page.reload();
+  await page.getByRole('button', { name: 'Figuren', exact: true }).click();
+  await expect(page.locator('.story-node')).toHaveCount(12);
+});
+
 test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekunden Halten', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Die zeitbasierte Sicherheitsinteraktion muss nur einmal geprüft werden.');
   await openBlankWorld(page);
