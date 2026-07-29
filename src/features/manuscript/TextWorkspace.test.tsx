@@ -25,9 +25,10 @@ describe('TextWorkspace', () => {
     ] };
     const view = render(<TextWorkspace manuscript={twoChapters} figures={figures} onChange={vi.fn()} focus onFocus={vi.fn()} />);
     const rendered = within(view.container);
-    const picker = rendered.getByRole('combobox', { name: 'Kapitel im Fokusmodus auswählen' });
-    expect(picker).toHaveValue('c1');
-    fireEvent.change(picker, { target: { value: 'c2' } });
+    fireEvent.click(rendered.getByRole('button', { name: 'Kapitelauswahl öffnen' }));
+    const picker = rendered.getByRole('complementary', { name: 'Kapitelauswahl im Fokusmodus' });
+    expect(within(picker).getByRole('button', { name: /Prolog/ })).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(within(picker).getByRole('button', { name: /Aufbruch/ }));
     expect(rendered.getByLabelText('Kapiteltitel')).toHaveValue('Aufbruch');
     expect(rendered.getByLabelText('Kapiteltext')).toHaveValue('Der Weg beginnt.');
   });

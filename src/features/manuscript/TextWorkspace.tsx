@@ -20,6 +20,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [symbolPicker, setSymbolPicker] = useState(false);
   const [focusHelpers, setFocusHelpers] = useState(false);
+  const [focusChapters, setFocusChapters] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [historyRef, setHistoryRef] = useState('');
@@ -117,16 +118,12 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
         </div>}
       </aside>}
     </div>
-    {focus && manuscript.chapters.length > 1 && <label className="focus-chapter-picker">
-      <span className="sr-only">Kapitel im Fokusmodus auswählen</span>
-      <select aria-label="Kapitel im Fokusmodus auswählen" value={current?.id ?? ''} onChange={event => {
-        setCurrentId(event.target.value);
-        requestAnimationFrame(() => area.current?.focus());
-      }}>
-        {manuscript.chapters.map((chapter, index) => <option key={chapter.id} value={chapter.id}>{String(index + 1).padStart(2, '0')} · {chapter.title || 'Ohne Titel'}</option>)}
-      </select>
-      <ChevronDown aria-hidden="true" />
-    </label>}
+    {focus && manuscript.chapters.length > 1 && <aside className={`focus-chapters ${focusChapters ? 'is-open' : ''}`} aria-label="Kapitelauswahl im Fokusmodus">
+      <button className="focus-side-toggle" aria-expanded={focusChapters} onClick={() => setFocusChapters(!focusChapters)} title="Kapitel auswählen">
+        {focusChapters ? <X /> : <PanelLeft />}<span className="sr-only">{focusChapters ? 'Kapitelauswahl schließen' : 'Kapitelauswahl öffnen'}</span>
+      </button>
+      {focusChapters && <nav className="focus-chapter-list">{manuscript.chapters.map((chapter, index) => <button key={chapter.id} className={chapter.id === current?.id ? 'active' : ''} aria-current={chapter.id === current?.id ? 'page' : undefined} onClick={() => { setCurrentId(chapter.id); requestAnimationFrame(() => area.current?.focus()); }}><span>{String(index + 1).padStart(2, '0')}</span><strong>{chapter.title || 'Ohne Titel'}</strong><small>{wordCount(chapter.body)} Wörter</small></button>)}</nav>}
+    </aside>}
     {focus && <aside className={`focus-helper ${focusHelpers ? 'is-open' : ''}`} aria-label="Schreibhilfe im Fokusmodus">
       <button className="focus-helper-toggle" aria-expanded={focusHelpers} onClick={() => setFocusHelpers(!focusHelpers)} title="Schreibhilfe">
         {focusHelpers ? <X /> : <Pilcrow />}<span className="sr-only">{focusHelpers ? 'Schreibhilfe schließen' : 'Schreibhilfe öffnen'}</span>
