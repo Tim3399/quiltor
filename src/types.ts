@@ -105,7 +105,8 @@ export type AssistantProposal =
   | { kind: 'create_timeline_moment'; tempId: string; moment: Partial<Pick<TimelineMoment, 'title' | 'date' | 'note'>> }
   | { kind: 'create_relationship'; relationship: { from: string; to: string; label?: string; directed?: boolean; style?: FigureEdge['style'] } }
   | { kind: 'set_relationship_at_moment'; relationshipId: string; momentId: string; patch: { label?: string; active?: boolean; directed?: boolean; style?: FigureEdge['style'] } }
-  | { kind: 'mark_deceased'; elementId: string; momentId: string };
+  | { kind: 'mark_deceased'; elementId: string; momentId: string }
+  | { kind: 'arrange_elements'; strategy: 'thematic' | 'grid' };
 export interface AssistantReply { ok: boolean; message: string; proposals: AssistantProposal[]; sources: AssistantSource[] }
 
 export const PROFILE_FIELDS: Array<[keyof Profile, string, 'short' | 'long']> = [

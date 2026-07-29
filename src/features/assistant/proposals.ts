@@ -57,6 +57,8 @@ export function applyAssistantProposals(state: FigureState, proposals: Assistant
     } else if (proposal.kind === 'mark_deceased') {
       const elementId = resolve(proposal.elementId), momentId = resolve(proposal.momentId);
       if (next.timeline.some(moment => moment.id === momentId)) next.nodes = next.nodes.map(node => node.id === elementId ? { ...node, diedMomentId: momentId } : node);
+    } else if (proposal.kind === 'arrange_elements') {
+      next.nodes = arrangeNodes(next.nodes, next.edges, proposal.strategy);
     }
   }
   return next;
@@ -89,6 +91,29 @@ function safeStyle(style?: FigureEdge['style']): FigureEdge['style'] {
   return style === 'dashed' || style === 'blood' || style === 'gold' ? style : 'solid';
 }
 
+function arrangeNodes(nodes: FigureNode[], edges: FigureEdge[], strategy: 'thematic' | 'grid') {
+  if (strategy === 'grid') return nodes.map((node, index) => ({ ...node, x: 96 + (index % 4) * GRID_X, y: 96 + Math.floor(index / 4) * GRID_Y }));
+  const remaining = new Set(nodes.map(node => node.id));
+  const neighbours = new Map(nodes.map(node => [node.id, new Set<string>()]));
+  for (const edge of edges) { neighbours.get(edge.from)?.add(edge.to); neighbours.get(edge.to)?.add(edge.from); }
+  const groups: FigureNode[][] = [];
+  while (remaining.size) {
+    const first = remaining.values().next().value as string, queue = [first], ids: string[] = [];
+    remaining.delete(first);
+    while (queue.length) { const id = queue.shift()!; ids.push(id); for (const neighbour of neighbours.get(id) || []) if (remaining.delete(neighbour)) queue.push(neighbour); }
+    groups.push(ids.map(id => nodes.find(node => node.id === id)!).sort((a, b) => (b.type === 'person' ? 1 : 0) - (a.type === 'person' ? 1 : 0) || a.name.localeCompare(b.name)));
+  }
+  groups.sort((a, b) => b.length - a.length);
+  const positioned = new Map<string, { x: number; y: number }>(); let originX = 96, originY = 96, rowHeight = 0;
+  for (const group of groups) {
+    const columns = Math.min(3, group.length), width = Math.max(1, columns) * GRID_X, rows = Math.ceil(group.length / columns), height = rows * GRID_Y;
+    if (originX > 96 && originX + width > 1248) { originX = 96; originY += rowHeight + GRID_Y; rowHeight = 0; }
+    group.forEach((node, index) => positioned.set(node.id, { x: originX + (index % columns) * GRID_X, y: originY + Math.floor(index / columns) * GRID_Y }));
+    originX += width + GRID_X; rowHeight = Math.max(rowHeight, height);
+  }
+  return nodes.map(node => ({ ...node, ...positioned.get(node.id)! }));
+}
+
 export function proposalLabel(proposal: AssistantProposal, state: FigureState) {
   const nodeName = (id: string) => state.nodes.find(node => node.id === id)?.name || id.replace('new:', 'Neu: ');
   if (proposal.kind === 'create_element') return `Element anlegen · ${proposal.element.name || 'Ohne Namen'}`;
@@ -96,5 +121,6 @@ export function proposalLabel(proposal: AssistantProposal, state: FigureState) {
   if (proposal.kind === 'create_timeline_moment') return `Zeitpunkt anlegen · ${proposal.moment.title || 'Ohne Titel'}`;
   if (proposal.kind === 'create_relationship') return `Beziehung anlegen · ${nodeName(proposal.relationship.from)} ↔ ${nodeName(proposal.relationship.to)}`;
   if (proposal.kind === 'set_relationship_at_moment') return `Beziehungsstand ändern · ${proposal.patch.label || 'Status'}`;
+  if (proposal.kind === 'arrange_elements') return `Elemente thematisch neu anordnen`;
   return `Todeszeitpunkt setzen · ${nodeName(proposal.elementId)}`;
 }

@@ -14,4 +14,16 @@ describe('assistant proposals', () => {
     expect(result.edges[0]).toMatchObject({ label: 'Misstrauen', gerichtet: false });
     expect(result.nodes[1].diedMomentId).toBe(result.timeline?.[0].id);
   });
+
+  it('arranges connected thematic groups without losing elements or relationships', () => {
+    const state = { nodes: [
+      { id: 'a', x: 700, y: 500, type: 'person' as const, name: 'Ada' },
+      { id: 'b', x: 720, y: 520, type: 'person' as const, name: 'Bela' },
+      { id: 'c', x: 740, y: 540, type: 'ort' as const, name: 'Cella' },
+    ], edges: [{ id: 'e', from: 'a', to: 'b', label: 'Verbündet' }] };
+    const result = applyAssistantProposals(state, [{ kind: 'arrange_elements', strategy: 'thematic' }]);
+    expect(result.nodes).toHaveLength(3);
+    expect(result.edges).toEqual(state.edges);
+    expect(new Set(result.nodes.map(node => `${node.x}:${node.y}`)).size).toBe(3);
+  });
 });
