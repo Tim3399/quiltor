@@ -1,0 +1,64 @@
+.focus-chapter-picker {
+  position: fixed;
+  z-index: 30;
+  top: 10px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  max-width: calc(100% - 96px);
+  transform: translateX(-50%);
+  color: var(--muted);
+  opacity: .22;
+  transition: opacity .15s ease;
+}
+
+.focus-chapter-picker:hover,
+.focus-chapter-picker:focus-within {
+  opacity: 1;
+}
+
+.focus-chapter-picker select {
+  max-width: min(320px, calc(100vw - 112px));
+  height: 30px;
+  appearance: none;
+  border: 1px solid var(--transparent);
+  border-radius: 16px;
+  background: var(--transparent);
+  padding: 0 29px 0 12px;
+  color: inherit;
+  font: 500 11px var(--ui);
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.focus-chapter-picker select:hover,
+.focus-chapter-picker select:focus-visible {
+  border-color: var(--line);
+  background: var(--chrome);
+  color: var(--ink);
+  outline: 0;
+}
+
+.focus-chapter-picker svg {
+  position: absolute;
+  right: 9px;
+  width: 13px;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .focus-chapter-picker {
+    top: 6px;
+    max-width: calc(100% - 72px);
+  }
+
+  .focus-chapter-picker select {
+    max-width: calc(100vw - 88px);
+  }
+}
+
+@media print {
+  .focus-chapter-picker {
+    display: none !important;
+  }
+}

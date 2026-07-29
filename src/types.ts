@@ -40,6 +40,7 @@ export interface FigureNode {
   accent?: 'ink' | 'gold' | 'rose' | 'moss';
   dash?: boolean;
   pinned?: boolean;
+  important?: boolean;
   diedMomentId?: string;
   profile?: Profile;
   [key: string]: unknown;

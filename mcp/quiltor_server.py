@@ -20,10 +20,12 @@ TOOLS = [
     {"name": "search_world", "description": "Retrieve cited manuscript, note, element, relationship, and timeline context from one world.", "inputSchema": {"type": "object", "required": ["worldId", "query"], "properties": {"worldId": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 30}}, "additionalProperties": False}},
     {"name": "get_world_structure", "description": "Read all elements, relationships, and timeline moments without manuscript prose.", "inputSchema": {"type": "object", "required": ["worldId"], "properties": {"worldId": {"type": "string"}}, "additionalProperties": False}},
     {"name": "propose_create_element", "description": "Create a non-destructive proposal for a character, place, or concept. The proposal must still be confirmed in Quiltor.", "inputSchema": {"type": "object", "required": ["worldId", "name"], "properties": {"worldId": {"type": "string"}, "name": {"type": "string"}, "type": {"enum": ["person", "ort", "konzept"]}, "label": {"type": "string"}, "sub": {"type": "string"}, "profile": {"type": "object"}}, "additionalProperties": False}},
+    {"name": "propose_update_element", "description": "Create a non-destructive proposal to update an existing element profile or summary.", "inputSchema": {"type": "object", "required": ["worldId", "elementId"], "properties": {"worldId": {"type": "string"}, "elementId": {"type": "string"}, "name": {"type": "string"}, "label": {"type": "string"}, "sub": {"type": "string"}, "profile": {"type": "object"}}, "additionalProperties": False}},
     {"name": "propose_create_relationship", "description": "Create a non-destructive relationship proposal between existing element IDs.", "inputSchema": {"type": "object", "required": ["worldId", "from", "to", "label"], "properties": {"worldId": {"type": "string"}, "from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "directed": {"type": "boolean"}, "style": {"enum": ["solid", "dashed", "blood", "gold"]}}, "additionalProperties": False}},
     {"name": "propose_timeline_moment", "description": "Create a non-destructive timeline moment proposal.", "inputSchema": {"type": "object", "required": ["worldId", "title"], "properties": {"worldId": {"type": "string"}, "title": {"type": "string"}, "date": {"type": "string"}, "note": {"type": "string"}}, "additionalProperties": False}},
     {"name": "propose_relationship_state", "description": "Propose a relationship label or active state at an existing timeline moment.", "inputSchema": {"type": "object", "required": ["worldId", "relationshipId", "momentId"], "properties": {"worldId": {"type": "string"}, "relationshipId": {"type": "string"}, "momentId": {"type": "string"}, "label": {"type": "string"}, "active": {"type": "boolean"}, "directed": {"type": "boolean"}, "style": {"enum": ["solid", "dashed", "blood", "gold"]}}, "additionalProperties": False}},
     {"name": "propose_death_marker", "description": "Propose marking an existing character deceased at an existing timeline moment.", "inputSchema": {"type": "object", "required": ["worldId", "elementId", "momentId"], "properties": {"worldId": {"type": "string"}, "elementId": {"type": "string"}, "momentId": {"type": "string"}}, "additionalProperties": False}},
+    {"name": "propose_arrange_elements", "description": "Propose arranging the figure board as a grid or by connected thematic groups.", "inputSchema": {"type": "object", "required": ["worldId", "strategy"], "properties": {"worldId": {"type": "string"}, "strategy": {"enum": ["thematic", "grid"]}}, "additionalProperties": False}},
 ]
 
 
@@ -38,6 +40,12 @@ def _proposal(arguments: dict[str, Any], figures: dict[str, Any], kind: str) -> 
     moments = {moment["id"] for moment in figures.get("timeline", [])}
     if kind == "create_element":
         return {"kind": kind, "tempId": "new:mcp-element", "element": {key: arguments[key] for key in ("type", "name", "label", "sub", "profile") if key in arguments}}
+    if kind == "update_element":
+        if arguments["elementId"] not in nodes:
+            raise ValueError("The element must already exist.")
+        return {"kind": kind, "elementId": arguments["elementId"], "patch": {key: arguments[key] for key in ("name", "label", "sub", "profile") if key in arguments}}
+    if kind == "arrange_elements":
+        return {"kind": kind, "strategy": arguments.get("strategy", "thematic")}
     if kind == "create_relationship":
         if arguments["from"] not in nodes or arguments["to"] not in nodes or arguments["from"] == arguments["to"]:
             raise ValueError("Both endpoints must be different existing element IDs.")
@@ -66,6 +74,7 @@ def call_tool(name: str, arguments: dict[str, Any]) -> Any:
         "propose_create_element": "create_element", "propose_create_relationship": "create_relationship",
         "propose_timeline_moment": "create_timeline_moment", "propose_relationship_state": "set_relationship_at_moment",
         "propose_death_marker": "mark_deceased",
+        "propose_update_element": "update_element", "propose_arrange_elements": "arrange_elements",
     }
     if name not in mapping:
         raise ValueError(f"Unknown tool: {name}")

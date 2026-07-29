@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
-import { Clock3, Download, Grid3X3, LayoutGrid, Link2, Pause, Play, Plus, Redo2, Skull, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
+import { Clock3, Download, Grid3X3, LayoutGrid, Link2, Pause, Pin, Play, Plus, Redo2, Skull, Star, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, FigureKind, Profile, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
 import { download } from '../../lib/api';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 
-type CardData = { figure: FigureNode; deceased: boolean };
+export type SemanticZoomTier = 'detail' | 'compact' | 'overview';
+type CardData = { figure: FigureNode; deceased: boolean; zoomTier: SemanticZoomTier };
 const nodeTypes = { story: StoryNode };
 const EMPTY_TIMELINE: TimelineMoment[] = [];
 const GRID_SIZE = 48;
@@ -18,11 +19,11 @@ const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: strin
 
 function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
   const item = data.figure;
-  return <div className={`story-node type-${item.type || 'person'} accent-${item.accent || 'ink'} ${item.dash ? 'dashed' : ''} ${data.deceased ? 'is-deceased' : ''} ${selected ? 'selected' : ''}`}>
+  return <div className={`story-node zoom-${data.zoomTier} type-${item.type || 'person'} accent-${item.accent || 'ink'} ${item.important ? 'is-important' : ''} ${item.dash ? 'dashed' : ''} ${data.deceased ? 'is-deceased' : ''} ${selected ? 'selected' : ''}`}>
     <Handle id="in" className="directed-handle incoming-handle" type="target" position={Position.Left} />
     <Handle id="neutral-top" className="neutral-handle" type="source" position={Position.Top} />
     <span className="node-kind">{item.type === 'ort' ? 'Ort' : item.type === 'konzept' ? 'Konzept' : item.label || 'Figur'}</span>
-    <strong>{item.name}{data.deceased && <Skull aria-label="Verstorben" />}</strong>{item.sub && <small>{item.sub}</small>}
+    <strong>{item.important && <Star className="importance-mark" aria-label="Wichtig" />}{item.name}{data.deceased && <Skull aria-label="Verstorben" />}</strong>{item.sub && <small>{item.sub}</small>}
     <Handle id="out" className="directed-handle outgoing-handle" type="source" position={Position.Right} />
     <Handle id="neutral-bottom" className="neutral-handle" type="source" position={Position.Bottom} />
   </div>;
@@ -36,6 +37,12 @@ export function minimapColorForKind(kind?: FigureKind) {
 
 export function alignNodesToGrid(nodes: FigureNode[]) {
   return nodes.map(node => ({ ...node, x: Math.round(node.x / GRID_SIZE) * GRID_SIZE, y: Math.round(node.y / GRID_SIZE) * GRID_SIZE }));
+}
+
+export function semanticZoomTier(zoom: number): SemanticZoomTier {
+  if (zoom < 0.34) return 'overview';
+  if (zoom < 0.68) return 'compact';
+  return 'detail';
 }
 
 type FigureWorkspaceProps = { state: FigureState; onChange: (value: FigureState) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean };
@@ -58,6 +65,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
   const [importError, setImportError] = useState('');
   const [connectionError, setConnectionError] = useState('');
+  const [zoomTier, setZoomTier] = useState<SemanticZoomTier>('detail');
   const input = useRef<HTMLInputElement>(null);
   const flow = useRef<ReactFlowInstance<Node<CardData>, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
@@ -86,7 +94,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     const timer = window.setTimeout(() => setActiveMomentId(timeline[index + 1].id), 1500);
     return () => window.clearTimeout(timer);
   }, [playing, activeMomentId, timeline]);
-  const derivedNodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId) } })), [state.nodes, timeline, activeMomentId]);
+  const derivedNodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, draggable: !item.pinned, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId), zoomTier } })), [state.nodes, timeline, activeMomentId, zoomTier]);
   const [nodes, setFlowNodes] = useState<Node<CardData>[]>(derivedNodes);
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
   const visibleEdges = useMemo(() => state.edges.map(edge => activeMomentId ? resolveRelationship(edge, timeline, activeMomentId) : resolveRelationshipOverview(edge, timeline)).filter(edge => edge.active), [state.edges, timeline, activeMomentId]);
@@ -163,10 +171,10 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     <div className="figure-layout">
       <div className={`flow-area ${connecting ? 'is-connecting' : ''} ${playing ? 'timeline-playing' : ''}`}>
         {connecting && <div className="mode-banner"><Link2 />Rechts → links: gerichtet · Mitte ↔ Mitte: ungerichtet <button onClick={() => setConnecting(false)}><X /><span className="sr-only">Abbrechen</span></button></div>}
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; }}
+        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; setZoomTier(semanticZoomTier(instance.getZoom())); }} onMove={(_, viewport) => setZoomTier(current => { const next = semanticZoomTier(viewport.zoom); return current === next ? current : next; })}
           onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
           onNodesChange={moveNodes} onNodeDragStop={(_, node) => commitNodePosition(node.id, node.position)}
-          onConnect={connect} nodesConnectable={connecting} snapToGrid={snapToGrid && !gridOverride} snapGrid={[GRID_SIZE, GRID_SIZE]} fitView minZoom={0.2} maxZoom={2.2} deleteKeyCode={null}>
+          onConnect={connect} nodesConnectable={connecting} snapToGrid={snapToGrid && !gridOverride} snapGrid={[GRID_SIZE, GRID_SIZE]} fitView minZoom={0.08} maxZoom={2.2} deleteKeyCode={null}>
           {snapToGrid && <Background variant={BackgroundVariant.Lines} gap={GRID_SIZE} size={1} color="var(--line-strong)" />}<Controls position="bottom-left" /><MiniMap pannable zoomable nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
         </ReactFlow>
         {timelineOpen && <TimelineStrip timeline={timeline} activeId={activeMomentId} playing={playing} onPlay={() => { if (!timeline.length) return; if (playing) { setPlaying(false); return; } if (!activeMomentId || activeMomentId === timeline.at(-1)?.id) setActiveMomentId(timeline[0].id); setPlaying(true); }} onSelect={id => { setPlaying(false); setActiveMomentId(id); }} onAdd={(title, date) => { const moment = { id: uid('t'), title, ...(date ? { date } : {}) }; onChange({ ...state, timeline: [...timeline, moment] }); setActiveMomentId(moment.id); }} onPatch={(id, patch) => onChange({ ...state, timeline: timeline.map(moment => moment.id === id ? { ...moment, ...patch } : moment) })} onDelete={moment => setDeleteMoment(moment)} />}
@@ -199,6 +207,10 @@ function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDe
         <label className="field"><span>Rolle / Kategorie</span><input value={figure.label || ''} onChange={event => onPatch({ label: event.target.value })} /></label>
         <label className="field"><span>Kurzbeschreibung</span><textarea value={figure.sub || ''} onChange={event => onPatch({ sub: event.target.value })} /></label>
         <label className="field"><span>Akzent</span><select value={figure.accent || 'ink'} onChange={event => onPatch({ accent: event.target.value as FigureNode['accent'] })}><option value="ink">Neutral</option><option value="gold">Gold</option><option value="rose">Rosa</option><option value="moss">Grün</option></select></label>
+        <div className="node-priority-actions">
+          <button className={figure.important ? 'active' : ''} aria-pressed={!!figure.important} onClick={() => onPatch({ important: !figure.important })}><Star />{figure.important ? 'Nicht mehr wichtig' : 'Als wichtig markieren'}</button>
+          <button className={figure.pinned ? 'active' : ''} aria-pressed={!!figure.pinned} onClick={() => onPatch({ pinned: !figure.pinned })}><Pin />{figure.pinned ? 'Position lösen' : 'Position fixieren'}</button>
+        </div>
         {activeMomentId && figure.type !== 'ort' && figure.type !== 'konzept' && <button className={`timeline-life-action ${figure.diedMomentId === activeMomentId ? 'active' : ''}`} onClick={() => onPatch({ diedMomentId: figure.diedMomentId === activeMomentId ? undefined : activeMomentId })}><Skull />{figure.diedMomentId === activeMomentId ? 'Todesmarkierung entfernen' : 'Stirbt hier'}</button>}
       </>}
       {tab === 'profile' && <>{PROFILE_FIELDS.map(([key, label, size]) => <label className="field" key={key as string}><span>{label}</span>{size === 'short' ? <input value={String(profile[key] || '')} onChange={event => patchProfile({ [key]: event.target.value })} /> : <textarea value={String(profile[key] || '')} onChange={event => patchProfile({ [key]: event.target.value })} />}</label>)}

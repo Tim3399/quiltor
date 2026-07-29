@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FigureEdge, FigureNode, TimelineMoment } from '../../types';
-import { alignNodesToGrid, connectionKind, figureIsDeceased, patchRelationship, relationshipHandles, relationshipKey, resolveRelationship, resolveRelationshipOverview } from './FigureWorkspace';
+import { alignNodesToGrid, connectionKind, figureIsDeceased, patchRelationship, relationshipHandles, relationshipKey, resolveRelationship, resolveRelationshipOverview, semanticZoomTier } from './FigureWorkspace';
 
 const timeline: TimelineMoment[] = [
   { id: 'before', title: 'Vorher' },
@@ -9,6 +9,11 @@ const timeline: TimelineMoment[] = [
 ];
 
 describe('relationship timeline', () => {
+  it('reduces detail in stable semantic zoom stages', () => {
+    expect(semanticZoomTier(1)).toBe('detail');
+    expect(semanticZoomTier(0.5)).toBe('compact');
+    expect(semanticZoomTier(0.2)).toBe('overview');
+  });
   it('aligns all elements to the coarse grid without changing their content', () => {
     const nodes: FigureNode[] = [{ id: 'n1', x: 73, y: -70, name: 'A' }, { id: 'n2', x: 121, y: 167, name: 'B' }];
     expect(alignNodesToGrid(nodes)).toEqual([{ id: 'n1', x: 96, y: -48, name: 'A' }, { id: 'n2', x: 144, y: 144, name: 'B' }]);

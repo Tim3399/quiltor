@@ -1,6 +1,8 @@
 import unittest
 
-from mcp.quiltor_server import TOOLS, _proposal, respond
+from unittest.mock import patch
+
+from mcp.quiltor_server import TOOLS, _proposal, call_tool, respond
 
 
 class McpTest(unittest.TestCase):
@@ -19,6 +21,25 @@ class McpTest(unittest.TestCase):
     def test_initialize_explains_confirmation_boundary(self):
         result = respond({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
         self.assertIn("Confirm proposals", result["result"]["instructions"])
+
+    def test_every_proposal_tool_returns_only_a_confirmable_proposal(self):
+        figures = {"nodes": [{"id": "a"}, {"id": "b"}], "edges": [{"id": "e1"}], "timeline": [{"id": "t1"}]}
+        cases = {
+            "propose_create_element": {"name": "Ada"},
+            "propose_update_element": {"elementId": "a", "sub": "Archivarin"},
+            "propose_create_relationship": {"from": "a", "to": "b", "label": "Verbündet"},
+            "propose_timeline_moment": {"title": "Prozess"},
+            "propose_relationship_state": {"relationshipId": "e1", "momentId": "t1", "label": "Misstrauen"},
+            "propose_death_marker": {"elementId": "a", "momentId": "t1"},
+            "propose_arrange_elements": {"strategy": "thematic"},
+        }
+        with patch("mcp.quiltor_server._world", return_value=({}, figures)):
+            for name, arguments in cases.items():
+                with self.subTest(name=name):
+                    result = call_tool(name, {"worldId": "world", **arguments})
+                    self.assertIn("kind", result["proposal"])
+                    self.assertTrue(result["requiresConfirmation"])
+                    self.assertFalse(result["applied"])
 
 
 if __name__ == "__main__":

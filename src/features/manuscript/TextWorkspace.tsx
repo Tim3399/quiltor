@@ -6,6 +6,7 @@ import { download } from '../../lib/api';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 import { api } from '../../lib/api';
 import type { CommitInfo } from '../../types';
+import './TextWorkspace.css';
 
 export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave }: {
   worldTitle?: string; manuscript: Manuscript; figures: FigureState; onChange: (value: Manuscript) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>;
@@ -116,6 +117,16 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
         </div>}
       </aside>}
     </div>
+    {focus && manuscript.chapters.length > 1 && <label className="focus-chapter-picker">
+      <span className="sr-only">Kapitel im Fokusmodus auswählen</span>
+      <select aria-label="Kapitel im Fokusmodus auswählen" value={current?.id ?? ''} onChange={event => {
+        setCurrentId(event.target.value);
+        requestAnimationFrame(() => area.current?.focus());
+      }}>
+        {manuscript.chapters.map((chapter, index) => <option key={chapter.id} value={chapter.id}>{String(index + 1).padStart(2, '0')} · {chapter.title || 'Ohne Titel'}</option>)}
+      </select>
+      <ChevronDown aria-hidden="true" />
+    </label>}
     {focus && <aside className={`focus-helper ${focusHelpers ? 'is-open' : ''}`} aria-label="Schreibhilfe im Fokusmodus">
       <button className="focus-helper-toggle" aria-expanded={focusHelpers} onClick={() => setFocusHelpers(!focusHelpers)} title="Schreibhilfe">
         {focusHelpers ? <X /> : <Pilcrow />}<span className="sr-only">{focusHelpers ? 'Schreibhilfe schließen' : 'Schreibhilfe öffnen'}</span>
