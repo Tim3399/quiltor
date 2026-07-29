@@ -17,7 +17,7 @@ export function applyAssistantProposals(state: FigureState, proposals: Assistant
       const element = proposal.element;
       const node: FigureNode = {
         id, x: 96 + (index % 4) * GRID_X, y: 96 + Math.floor(index / 4) * GRID_Y,
-        type: element.type === 'ort' || element.type === 'konzept' ? element.type : 'person',
+        type: ['ort', 'konzept', 'tier', 'organisation', 'objekt'].includes(element.type || '') ? element.type : 'person',
         name: String(element.name || 'Neues Element').slice(0, 160), label: String(element.label || '').slice(0, 160),
         sub: String(element.sub || '').slice(0, 1000), accent: 'ink', profile: sanitizeProfile(element.profile),
       };

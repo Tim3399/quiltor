@@ -23,7 +23,7 @@ test('Text, Suche und Figurenboard laden ohne Laufzeitfehler', async ({ page }, 
   await page.screenshot({ path: testInfo.outputPath('text.png'), fullPage: true });
 
   await page.getByRole('button', { name: /Suche öffnen/ }).click();
-  await page.getByPlaceholder('Kapitel, Text, Figuren, Orte …').fill('Test');
+  await page.getByPlaceholder('Kapitel, Text, Elemente, Zeitpunkte …').fill('Test');
   await page.keyboard.press('Escape');
 
   await page.getByRole('button', { name: 'Figuren' }).click();
@@ -67,6 +67,45 @@ test('Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
   await expect(page.locator('.react-flow__edge')).toHaveCount(1);
   await page.keyboard.press('Control+z');
   await expect(page.locator('.story-node')).toHaveCount(0);
+});
+
+test('Befehlspalette führt alle sichtbaren Aktionen atomar aus', async ({ page }) => {
+  await openBlankWorld(page);
+  const open = async () => { await page.keyboard.press('Control+KeyK'); await expect(page.getByRole('heading', { name: 'Befehlspalette' })).toBeVisible(); };
+  await page.getByRole('button', { name: 'Figuren', exact: true }).click();
+  await open(); await page.getByRole('dialog').getByRole('button', { name: /Zum Manuskript wechseln/ }).click();
+  await expect(page.getByRole('button', { name: 'Text', exact: true })).toHaveAttribute('aria-current', 'page');
+  await open(); await page.getByRole('dialog').getByRole('button', { name: /Zum Figurenboard wechseln/ }).click();
+  await expect(page.getByRole('button', { name: 'Figuren', exact: true })).toHaveAttribute('aria-current', 'page');
+  await open(); await page.getByRole('dialog').getByRole('button', { name: /Fokusmodus umschalten/ }).click();
+  await expect(page.getByRole('button', { name: /Fokusmodus verlassen/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+  for (const command of ['Verlauf öffnen', 'Git öffnen', 'Sicherungen öffnen']) {
+    await open(); await page.getByRole('dialog').getByRole('button', { name: new RegExp(command) }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: /schließen/i }).click();
+  }
+});
+
+test('Inhaltssuche, Befehlspalette und Timeline sind getrennte Arbeitsbereiche', async ({ page }) => {
+  await openBlankWorld(page);
+  await page.keyboard.press('Control+KeyF');
+  await expect(page.getByRole('heading', { name: 'Inhalte durchsuchen' })).toBeVisible();
+  await expect(page.getByText('Zum Manuskript wechseln')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+KeyK');
+  await expect(page.getByRole('heading', { name: 'Befehlspalette' })).toBeVisible();
+  await expect(page.getByText('Zum Manuskript wechseln')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Figuren', exact: true }).click();
+  await page.getByRole('button', { name: 'Element', exact: true }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await page.getByText(/Elemente ·/).click();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Timeline', exact: true }).click();
+  await expect(page.getByLabel('Timeline verwalten')).toBeVisible();
+  await page.getByRole('button', { name: 'Zeitpunkt', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Neuer Zeitpunkt' })).toBeVisible();
 });
 
 test('Figuren folgen dem Zeiger bereits während des Ziehens', async ({ page }) => {
@@ -144,9 +183,11 @@ test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekun
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
   for (const label of ['Element', 'Figur', 'Ort', 'Konzept']) await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
+  for (const label of ['Tier', 'Organisation', 'Objekt']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Element', exact: true }).click();
   await expect(page.getByRole('menu')).toBeVisible();
-  await expect(page.getByRole('menuitem')).toHaveCount(3);
+  await expect(page.getByRole('menuitem')).toHaveCount(6);
+  for (const label of ['Tier', 'Organisation', 'Objekt']) await expect(page.getByRole('menuitem', { name: label, exact: true })).toBeVisible();
   await page.getByRole('menuitem', { name: 'Figur', exact: true }).click();
   await expect(page.locator('.story-node')).toHaveCount(1);
   await page.locator('.story-node').click();
@@ -175,20 +216,44 @@ test('Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab', async ({ pa
   await expect(page.locator('.outgoing-handle')).toHaveCount(2);
   await expect(page.locator('.react-flow__edge.edge-undirected')).toHaveCount(1);
   await expect(page.locator('.react-flow__edge.edge-directed')).toHaveCount(1);
+  const stableGeometry = async () => Promise.all((await page.locator('.story-node').all()).map(async node => {
+    const box = await node.boundingBox();
+    return box && { x: box.x, y: box.y, width: box.width, height: box.height };
+  }));
+  const geometryBeforeTimeline = await stableGeometry();
+  await page.locator('.story-node').filter({ hasText: 'Bela' }).click();
+  await page.getByRole('tab', { name: 'Beziehungen' }).click();
+  await expect(page.getByLabel('Ungerichtete Beziehung')).toBeVisible();
+  await page.getByRole('button', { name: 'Richtung umkehren: Bela nach Ada' }).click();
+  await expect(page.getByRole('button', { name: 'Richtung umkehren: Ada nach Bela' })).toBeVisible();
+  const controlsBeforeTimeline = await page.locator('.react-flow__controls').boundingBox();
+  const minimapBeforeTimeline = await page.locator('.react-flow__minimap').boundingBox();
   await page.getByRole('button', { name: 'Zeit', exact: true }).click();
+  const stripBox = await page.getByLabel('Beziehungs-Zeitstreifen').boundingBox();
+  const controlsBox = await page.locator('.react-flow__controls').boundingBox();
+  const minimapBox = await page.locator('.react-flow__minimap').boundingBox();
+  const overlap = (a: NonNullable<typeof stripBox>, b: NonNullable<typeof stripBox>) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+  expect(controlsBox).toEqual(controlsBeforeTimeline);
+  expect(minimapBox).toEqual(minimapBeforeTimeline);
+  expect(stripBox && controlsBox && overlap(stripBox, controlsBox)).toBeFalsy();
+  expect(stripBox && minimapBox && overlap(stripBox, minimapBox)).toBeFalsy();
 
   await page.getByLabel('Neuer Zeitpunkt').fill('Vor der Schlacht');
   await page.getByLabel('Datum des neuen Zeitpunkts').fill('1420-03-12');
   await page.getByRole('button', { name: 'Zeitpunkt hinzufügen' }).click();
+  expect(await stableGeometry()).toEqual(geometryBeforeTimeline);
   await page.locator('.story-node').filter({ hasText: 'Ada' }).click();
+  await page.getByRole('tab', { name: 'Karte' }).click();
   await page.getByRole('button', { name: 'Stirbt hier' }).click();
   await expect(page.locator('.story-node').filter({ hasText: 'Ada' })).toHaveClass(/is-deceased/);
 
   await page.getByLabel('Neuer Zeitpunkt').fill('Nach der Schlacht');
   await page.getByRole('button', { name: 'Zeitpunkt hinzufügen' }).click();
+  expect(await stableGeometry()).toEqual(geometryBeforeTimeline);
   await page.getByRole('button', { name: 'Zeitreise abspielen' }).click();
   await expect(page.getByRole('button', { name: 'Zeitreise pausieren' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Vor der Schlacht' })).toHaveAttribute('aria-pressed', 'true');
+  expect(await stableGeometry()).toEqual(geometryBeforeTimeline);
 });
 
 test('Fokusmodus bietet eine diskrete Schreibhilfe', async ({ page }, testInfo) => {
@@ -200,6 +265,37 @@ test('Fokusmodus bietet eine diskrete Schreibhilfe', async ({ page }, testInfo) 
   await expect(helper).toContainText('Figuren & Orte');
   await expect(helper).toContainText('Sonderzeichen');
   await page.screenshot({ path: testInfo.outputPath('focus-helper.png'), fullPage: true });
+});
+
+test('Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht', async ({ page }) => {
+  await page.route('**/api/manuscript', route => route.request().method() === 'GET'
+    ? route.fulfill({ json: { chapters: [
+      { id: 'c1', title: 'Prolog', body: 'Ein langer Absatz hält seinen Zeilenumbruch beim Öffnen der Randpanels stabil.', note: '' },
+      { id: 'c2', title: 'Aufbruch', body: 'Der Weg beginnt.', note: '' },
+    ] }, headers: { ETag: '"0"' } })
+    : route.continue());
+  await openBlankWorld(page);
+  await page.getByRole('button', { name: 'Fokus' }).click();
+
+  const editor = page.locator('.editor-page');
+  const initial = await editor.boundingBox();
+  expect(initial).not.toBeNull();
+
+  await page.getByRole('button', { name: 'Kapitelauswahl öffnen' }).click();
+  const withChapters = await editor.boundingBox();
+  expect(withChapters).toEqual(initial);
+  const chapters = await page.locator('.focus-chapter-list').boundingBox();
+  expect(chapters!.x + chapters!.width).toBeLessThanOrEqual(initial!.x);
+
+  await page.getByRole('button', { name: 'Schreibhilfe öffnen' }).click();
+  const withBoth = await editor.boundingBox();
+  expect(withBoth).toEqual(initial);
+  const helper = await page.locator('.focus-helper-panel').boundingBox();
+  expect(helper!.x).toBeGreaterThanOrEqual(initial!.x + initial!.width);
+
+  await page.getByRole('button', { name: 'Kapitelauswahl schließen' }).click();
+  await page.getByRole('button', { name: 'Schreibhilfe schließen' }).click();
+  expect(await editor.boundingBox()).toEqual(initial);
 });
 
 test('Kapitelversionen erscheinen direkt neben der Schreibfläche', async ({ page }, testInfo) => {
@@ -252,6 +348,9 @@ test('Kernansichten haben keine automatisiert erkennbaren WCAG-A/AA-Verstöße',
   await page.getByRole('button', { name: 'Figuren' }).click();
   const figureResults = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(figureResults.violations).toEqual([]);
+  await page.getByRole('button', { name: 'Timeline' }).click();
+  const timelineResults = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(timelineResults.violations).toEqual([]);
 });
 
 test('Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich', async ({ page }, testInfo) => {

@@ -1,4 +1,4 @@
-export type Workspace = 'text' | 'figures';
+export type Workspace = 'text' | 'figures' | 'timeline';
 export type SavePhase = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 export interface Chapter {
@@ -28,7 +28,7 @@ export interface Profile {
   [key: string]: unknown;
 }
 
-export type FigureKind = 'person' | 'ort' | 'konzept';
+export type FigureKind = 'person' | 'tier' | 'ort' | 'organisation' | 'objekt' | 'konzept';
 export interface FigureNode {
   id: string;
   x: number;
@@ -62,6 +62,8 @@ export interface FigureEdge {
 
 export interface RelationshipVersion {
   momentId: string;
+  from?: string;
+  to?: string;
   label?: string;
   style?: 'solid' | 'dashed' | 'blood' | 'gold';
   gerichtet?: boolean;

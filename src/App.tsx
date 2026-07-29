@@ -15,8 +15,9 @@ import { WorldGate } from './features/worlds/WorldGate';
 import { PRODUCT_MARK } from './config/branding';
 import { AssistantDrawer } from './features/assistant/AssistantDrawer';
 import { applyAssistantProposals } from './features/assistant/proposals';
+import { TimelineWorkspace } from './features/timeline/TimelineWorkspace';
 
-type Overlay = 'search' | 'history' | 'git' | 'backups' | null;
+type Overlay = 'search' | 'commands' | 'history' | 'git' | 'backups' | null;
 
 export function App() {
   const { theme, preference, setPreference, toggleTheme } = useTheme();
@@ -32,6 +33,12 @@ export function App() {
   const manuscriptSave = useAutosave(manuscript, saveManuscript), figureSave = useAutosave(figures, saveFigures);
   const activeSave = workspace === 'text' ? manuscriptSave : figureSave;
   const flushAll = useCallback(async () => { await Promise.all([manuscriptSave.flush(), figureSave.flush()]); }, [manuscriptSave.flush, figureSave.flush]);
+  const executeCommand = useCallback((command: string) => {
+    setOverlay(null);
+    if (command === 'text' || command === 'figures' || command === 'timeline') { setWorkspace(command); setFocus(false); return; }
+    if (command === 'focus') { setWorkspace('text'); setFocus(value => !value); return; }
+    if (command === 'history' || command === 'git' || command === 'backups') setOverlay(command);
+  }, []);
 
   const loadWorld = async (selected: Promise<{ ok: boolean; world: WorldInfo }>) => {
     setLoadError('');
@@ -46,7 +53,7 @@ export function App() {
       if (modifier && event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); setOverlay('git'); return; }
       if (modifier && event.key.toLowerCase() === 's') { event.preventDefault(); void flushAll(); return; }
       if (modifier && event.key.toLowerCase() === 'f') { event.preventDefault(); setOverlay('search'); return; }
-      if (modifier && event.key.toLowerCase() === 'k') { event.preventDefault(); setOverlay('search'); }
+      if (modifier && event.key.toLowerCase() === 'k') { event.preventDefault(); setOverlay('commands'); }
       const inField = /input|textarea|select/i.test((event.target as HTMLElement)?.tagName || '');
       if (modifier && !inField && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? (workspace === 'text' ? manuscriptHistory.redo() : figureHistory.redo()) : (workspace === 'text' ? manuscriptHistory.undo() : figureHistory.undo()); }
     };
@@ -59,11 +66,11 @@ export function App() {
   if (!manuscript || !figures) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>Werkstatt wird geöffnet …</p></main>;
   return <>
     <AppShell title={world.title} workspace={workspace} onWorkspace={value => { setWorkspace(value); setFocus(false); }} phase={activeSave.phase} error={activeSave.error} retry={activeSave.retry} theme={theme} onTheme={toggleTheme}
-      onSearch={() => setOverlay('search')} onHistory={() => setOverlay('history')} onGit={() => setOverlay('git')} onBackups={() => setOverlay('backups')} onAssistant={() => setAssistantOpen(value => !value)}>
-      {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} onChange={manuscriptHistory.change} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} /> : <FigureWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} />}
+      onSearch={() => setOverlay('search')} onCommands={() => setOverlay('commands')} onHistory={() => setOverlay('history')} onGit={() => setOverlay('git')} onBackups={() => setOverlay('backups')} onAssistant={() => setAssistantOpen(value => !value)}>
+      {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} onChange={manuscriptHistory.change} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} /> : workspace === 'figures' ? <FigureWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : <TimelineWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'timeline' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} />}
     </AppShell>
     {assistantOpen && <AssistantDrawer worldId={world.id} figures={figures} onClose={() => setAssistantOpen(false)} onApply={proposals => { figureHistory.change(applyAssistantProposals(figures, proposals)); setWorkspace('figures'); setFocus(false); }} onNavigate={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
-    {overlay === 'search' && <SearchDialog manuscript={manuscript} figures={figures} onClose={() => setOverlay(null)} onWorkspace={setWorkspace} onSelect={setTarget} onCommand={command => setTimeout(() => { if (command === 'text' || command === 'figures') setWorkspace(command); else if (command === 'focus') { setWorkspace('text'); setFocus(value => !value); } else setOverlay(command as Overlay); }, 0)} />}
+    {(overlay === 'search' || overlay === 'commands') && <SearchDialog mode={overlay} manuscript={manuscript} figures={figures} onClose={() => setOverlay(null)} onWorkspace={setWorkspace} onSelect={setTarget} onCommand={executeCommand} />}
     {overlay === 'git' && <GitDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'history' && <HistoryDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'backups' && <BackupDialog onClose={() => setOverlay(null)} flush={flushAll} />}

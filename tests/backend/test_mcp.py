@@ -22,6 +22,11 @@ class McpTest(unittest.TestCase):
         result = respond({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
         self.assertIn("Confirm proposals", result["result"]["instructions"])
 
+    def test_element_tool_supports_animals(self):
+        tool = next(tool for tool in TOOLS if tool["name"] == "propose_create_element")
+        kinds = tool["inputSchema"]["properties"]["type"]["enum"]
+        self.assertTrue({"tier", "organisation", "objekt"}.issubset(kinds))
+
     def test_every_proposal_tool_returns_only_a_confirmable_proposal(self):
         figures = {"nodes": [{"id": "a"}, {"id": "b"}], "edges": [{"id": "e1"}], "timeline": [{"id": "t1"}]}
         cases = {

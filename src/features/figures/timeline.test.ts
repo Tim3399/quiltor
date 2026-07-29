@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FigureEdge, FigureNode, TimelineMoment } from '../../types';
-import { alignNodesToGrid, connectionKind, figureIsDeceased, patchRelationship, relationshipHandles, relationshipKey, resolveRelationship, resolveRelationshipOverview, semanticZoomTier } from './FigureWorkspace';
+import { alignNodesToGrid, connectionKind, figureIsDeceased, patchRelationship, relationshipHandles, relationshipKey, relationshipLabelEditor, resolveRelationship, resolveRelationshipOverview, semanticZoomTier } from './FigureWorkspace';
 
 const timeline: TimelineMoment[] = [
   { id: 'before', title: 'Vorher' },
@@ -50,6 +50,36 @@ describe('relationship timeline', () => {
     const changed = patchRelationship(edge, timeline, 'betrayal', { label: 'Feinde' });
     expect(changed.label).toBe('Freunde');
     expect(resolveRelationship(changed, timeline, 'betrayal').label).toBe('Feinde');
+  });
+
+  it('inherits the previous label when the current timeline text is deleted', () => {
+    const edge: FigureEdge = { id: 'e1', from: 'a', to: 'b', label: 'Freunde', versions: [
+      { momentId: 'betrayal', label: 'Feinde', active: true },
+      { momentId: 'after', label: 'Versöhnt', active: true },
+    ] };
+    const changed = patchRelationship(edge, timeline, 'after', { label: '' });
+    expect(changed.versions?.find(version => version.momentId === 'after')).not.toHaveProperty('label');
+    expect(resolveRelationship(changed, timeline, 'after').label).toBe('Feinde');
+    expect(relationshipLabelEditor(changed, timeline, 'after')).toEqual({ value: '', inherited: 'Feinde' });
+    expect(resolveRelationship(changed, timeline, 'betrayal').label).toBe('Feinde');
+  });
+
+  it('reverses a directed relationship only from the selected moment onward', () => {
+    const edge: FigureEdge = { id: 'e1', from: 'a', to: 'b', label: 'Folgt', gerichtet: true };
+    const changed = patchRelationship(edge, timeline, 'betrayal', { from: 'b', to: 'a' });
+    expect(changed).toMatchObject({ from: 'a', to: 'b' });
+    expect(resolveRelationship(changed, timeline, 'before')).toMatchObject({ from: 'a', to: 'b' });
+    expect(resolveRelationship(changed, timeline, 'betrayal')).toMatchObject({ from: 'b', to: 'a' });
+    expect(resolveRelationship(changed, timeline, 'after')).toMatchObject({ from: 'b', to: 'a' });
+    expect(changed.versions).toHaveLength(1);
+  });
+
+  it('preserves a reversed direction through later partial versions', () => {
+    const edge: FigureEdge = { id: 'e1', from: 'a', to: 'b', label: 'Folgt', gerichtet: true, versions: [
+      { momentId: 'betrayal', from: 'b', to: 'a', label: 'Jagt', active: true },
+      { momentId: 'after', label: 'Meidet', active: true },
+    ] };
+    expect(resolveRelationship(edge, timeline, 'after')).toMatchObject({ from: 'b', to: 'a', label: 'Meidet' });
   });
 
   it('shows every relationship and its label changes in the complete overview', () => {

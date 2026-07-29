@@ -41,6 +41,9 @@
   --diff-word-delete: #e2b8bf;
   --minimap-node: #b5ac92;
   --minimap-person: var(--gold);
+  --minimap-animal: #58758a;
+  --minimap-organisation: #765b8f;
+  --minimap-object: #80684f;
   --minimap-place: var(--moss);
   --minimap-concept: var(--rose);
   --minimap-mask: rgb(233 231 223 / 0.72);
@@ -94,6 +97,9 @@
   --diff-word-delete: #63343d;
   --minimap-node: #8f866f;
   --minimap-person: var(--gold);
+  --minimap-animal: #89afc7;
+  --minimap-organisation: #b49ace;
+  --minimap-object: #c4a682;
   --minimap-place: var(--moss);
   --minimap-concept: var(--rose);
   --minimap-mask: rgb(21 22 19 / 0.74);

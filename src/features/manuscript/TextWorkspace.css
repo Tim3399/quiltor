@@ -34,7 +34,7 @@
 }
 
 .focus-chapter-list {
-  width: 238px;
+  width: min(238px, max(150px, calc((100vw - min(720px, 100vw - 80px)) / 2 - 46px)));
   max-height: 68vh;
   overflow: auto;
   margin-left: 7px;
@@ -89,13 +89,6 @@
   font-size: 9px;
 }
 
-.text-workspace:has(.focus-chapters.is-open) .editor-page {
-  width: calc(100% - 310px);
-  margin-left: 300px;
-  padding-right: 12px;
-  padding-left: 12px;
-}
-
 .text-workspace .focus-helper {
   right: 8px;
   left: auto;
@@ -103,37 +96,44 @@
 }
 
 .text-workspace .focus-helper-panel {
+  width: min(254px, max(150px, calc((100vw - min(720px, 100vw - 80px)) / 2 - 46px)));
   margin-right: 7px;
   margin-left: 0;
-}
-
-.text-workspace:has(.focus-helper.is-open) .editor-page {
-  width: calc(100% - 330px);
-  margin-right: 320px;
-  margin-left: 10px;
-  padding-right: 12px;
-  padding-left: 12px;
-}
-
-.text-workspace:has(.focus-chapters.is-open):has(.focus-helper.is-open) .editor-page {
-  width: calc(100% - 620px);
-  margin-right: 310px;
-  margin-left: 300px;
 }
 
 @media (max-width: 640px) {
   .focus-chapters { left: 4px; }
   .focus-chapter-list { width: 150px; max-height: calc(100dvh - var(--bar) - 16px); margin-left: 3px; padding: 3px; }
   .focus-chapter-list button { padding: 7px 5px; }
-  .text-workspace:has(.focus-chapters.is-open) .editor-page { width: calc(100% - 190px); margin-left: 184px; padding-right: 6px; padding-left: 6px; }
   .text-workspace .focus-helper { right: 4px; left: auto; }
   .text-workspace .focus-helper-panel { margin-right: 3px; margin-left: 0; }
-  .text-workspace:has(.focus-helper.is-open) .editor-page { width: calc(100% - 165px); margin-right: 159px; margin-left: 6px; padding-right: 6px; padding-left: 6px; }
-  .text-workspace:has(.focus-chapters.is-open):has(.focus-helper.is-open) .editor-page { width: calc(100% - 350px); margin-right: 159px; margin-left: 184px; }
 }
 
 @media print {
   .focus-chapters {
     display: none !important;
   }
+}
+
+.word-completion {
+  position: fixed;
+  z-index: 24;
+  bottom: 17px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transform: translateX(-50%);
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font: 500 11px var(--ui);
+  pointer-events: none;
+}
+
+.word-completion kbd {
+  color: var(--ink);
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
 import { Clock3, Download, Grid3X3, LayoutGrid, Link2, Pause, Pin, Play, Plus, Redo2, Skull, Star, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
-import type { FigureEdge, FigureNode, FigureState, FigureKind, Profile, TimelineMoment } from '../../types';
+import type { FigureEdge, FigureNode, FigureState, FigureKind, Profile, RelationshipVersion, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
 import { download } from '../../lib/api';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
@@ -15,6 +15,9 @@ const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: strin
   { kind: 'person', label: 'Figur', initialName: 'Neue Figur', nodeLabel: 'Rolle', quick: true },
   { kind: 'ort', label: 'Ort', initialName: 'Neuer Ort', nodeLabel: 'Ort', quick: true },
   { kind: 'konzept', label: 'Konzept', initialName: 'Neues Konzept', nodeLabel: 'Konzept', quick: true },
+  { kind: 'tier', label: 'Tier', initialName: 'Neues Tier', nodeLabel: 'Art / Rolle', quick: false },
+  { kind: 'organisation', label: 'Organisation', initialName: 'Neue Organisation', nodeLabel: 'Art / Funktion', quick: false },
+  { kind: 'objekt', label: 'Objekt', initialName: 'Neues Objekt', nodeLabel: 'Art / Bedeutung', quick: false },
 ];
 
 function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
@@ -23,7 +26,7 @@ function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
   return <div style={{ '--semantic-scale': semanticScale } as CSSProperties} className={`story-node zoom-${data.zoomTier} type-${item.type || 'person'} accent-${item.accent || 'ink'} ${item.important ? 'is-important' : ''} ${item.dash ? 'dashed' : ''} ${data.deceased ? 'is-deceased' : ''} ${selected ? 'selected' : ''}`}>
     <Handle id="in" className="directed-handle incoming-handle" type="target" position={Position.Left} />
     <Handle id="neutral-top" className="neutral-handle" type="source" position={Position.Top} />
-    <span className="node-kind">{item.type === 'ort' ? 'Ort' : item.type === 'konzept' ? 'Konzept' : item.label || 'Figur'}</span>
+    <span className="node-kind">{item.type === 'ort' ? 'Ort' : item.type === 'konzept' ? 'Konzept' : item.type === 'tier' ? 'Tier' : item.type === 'organisation' ? 'Organisation' : item.type === 'objekt' ? 'Objekt' : item.label || 'Figur'}</span>
     <strong>{item.important && <Star className="importance-mark" aria-label="Wichtig" />}{item.name}{data.deceased && <Skull aria-label="Verstorben" />}</strong>{item.sub && <small>{item.sub}</small>}
     <Handle id="out" className="directed-handle outgoing-handle" type="source" position={Position.Right} />
     <Handle id="neutral-bottom" className="neutral-handle" type="source" position={Position.Bottom} />
@@ -33,6 +36,9 @@ function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
 export function minimapColorForKind(kind?: FigureKind) {
   if (kind === 'ort') return 'var(--minimap-place)';
   if (kind === 'konzept') return 'var(--minimap-concept)';
+  if (kind === 'tier') return 'var(--minimap-animal)';
+  if (kind === 'organisation') return 'var(--minimap-organisation)';
+  if (kind === 'objekt') return 'var(--minimap-object)';
   return 'var(--minimap-person)';
 }
 
@@ -69,6 +75,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const [zoomTier, setZoomTier] = useState<SemanticZoomTier>('detail');
   const [viewportZoom, setViewportZoom] = useState(1);
   const input = useRef<HTMLInputElement>(null);
+  const createMenu = useRef<HTMLDivElement>(null);
   const flow = useRef<ReactFlowInstance<Node<CardData>, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
@@ -84,6 +91,14 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     return () => { window.removeEventListener('keydown', setOverride); window.removeEventListener('keyup', setOverride); window.removeEventListener('blur', clearOverride); };
   }, []);
   useEffect(() => {
+    if (!createMenuOpen) return;
+    const close = (event: PointerEvent) => { if (!createMenu.current?.contains(event.target as unknown as globalThis.Node)) setCreateMenuOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setCreateMenuOpen(false); };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); };
+  }, [createMenuOpen]);
+  useEffect(() => {
     if (!targetId) return;
     const item = state.nodes.find(node => node.id === targetId);
     if (item) { setSelectedId(targetId); setTimeout(() => flow.current?.setCenter(item.x, item.y, { zoom: 1, duration: 350 }), 0); return; }
@@ -96,9 +111,12 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     const timer = window.setTimeout(() => setActiveMomentId(timeline[index + 1].id), 1500);
     return () => window.clearTimeout(timer);
   }, [playing, activeMomentId, timeline]);
-  const derivedNodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, draggable: !item.pinned, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId), zoomTier, zoom: viewportZoom } })), [state.nodes, timeline, activeMomentId, zoomTier, viewportZoom]);
+  const derivedNodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, draggable: !item.pinned, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId), zoomTier, zoom: viewportZoom } })), [state.nodes, zoomTier, viewportZoom]);
   const [nodes, setFlowNodes] = useState<Node<CardData>[]>(derivedNodes);
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
+  useEffect(() => {
+    setFlowNodes(current => current.map(node => ({ ...node, data: { ...node.data, deceased: figureIsDeceased(node.data.figure, timeline, activeMomentId) } })));
+  }, [timeline, activeMomentId]);
   const visibleEdges = useMemo(() => state.edges.map(edge => activeMomentId ? resolveRelationship(edge, timeline, activeMomentId) : resolveRelationshipOverview(edge, timeline)).filter(edge => edge.active), [state.edges, timeline, activeMomentId]);
   const edges = useMemo<Edge[]>(() => visibleEdges.map(edge => { const handles = relationshipHandles(edge, state.nodes); return ({ id: edge.id, source: edge.from, target: edge.to, sourceHandle: handles.from, targetHandle: handles.to, label: edge.label, labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' }, animated: edge.style === 'blood', className: `edge-${edge.style || 'solid'} ${edge.gerichtet ? 'edge-directed' : 'edge-undirected'} ${!activeMomentId && edge.versions?.length ? 'edge-temporal' : ''}`, markerEnd: edge.gerichtet ? { type: 'arrowclosed' as const } : undefined }); }), [visibleEdges, activeMomentId, state.nodes]);
 
@@ -163,7 +181,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   return <section className="figure-workspace" aria-label="Figuren und Beziehungen">
     <div className="context-bar">
       <div className="context-title"><strong>Figuren & Welt</strong><span>{state.nodes.length} Elemente · {state.edges.length} Verbindungen</span></div>
-      <div className="tool-group create-group"><div className="element-create"><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />Element</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>
+      <div className="tool-group create-group"><div className="element-create" ref={createMenu}><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />Element</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>
       <div className="tool-group"><button aria-pressed={connecting} className={connecting ? 'active' : ''} onClick={() => setConnecting(!connecting)}><Link2 />Verbinden</button></div>
       <div className="tool-group"><button aria-pressed={snapToGrid} className={snapToGrid ? 'active' : ''} title={snapToGrid ? 'Raster ausblenden und frei verschieben · Alt/Option löst nur temporär' : 'Raster einblenden und Einrasten aktivieren'} onClick={() => setSnapToGrid(value => !value)}><Grid3X3 />Raster</button><button disabled={!state.nodes.length} title="Alle Elemente am Raster ausrichten" onClick={alignAllNodes}><LayoutGrid />Anordnen</button></div>
       <div className="tool-group"><button aria-pressed={timelineOpen} className={timelineOpen ? 'active' : ''} onClick={() => setTimelineOpen(value => !value)}><Clock3 />Zeit</button></div>
@@ -177,13 +195,13 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
           onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
           onNodesChange={moveNodes} onNodeDragStop={(_, node) => commitNodePosition(node.id, node.position)}
           onConnect={connect} nodesConnectable={connecting} snapToGrid={snapToGrid && !gridOverride} snapGrid={[GRID_SIZE, GRID_SIZE]} fitView minZoom={0.08} maxZoom={2.2} deleteKeyCode={null}>
-          {snapToGrid && zoomTier !== 'overview' && <Background variant={BackgroundVariant.Lines} gap={GRID_SIZE} size={1} color="var(--line-strong)" />}<Controls position="bottom-left" /><MiniMap pannable zoomable nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
+          {snapToGrid && zoomTier !== 'overview' && <Background className={`board-grid board-grid-${zoomTier}`} variant={BackgroundVariant.Lines} gap={GRID_SIZE} size={0.55} color="var(--line)" />}<Controls position="bottom-left" /><MiniMap position="bottom-right" pannable zoomable nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
         </ReactFlow>
         {timelineOpen && <TimelineStrip timeline={timeline} activeId={activeMomentId} playing={playing} onPlay={() => { if (!timeline.length) return; if (playing) { setPlaying(false); return; } if (!activeMomentId || activeMomentId === timeline.at(-1)?.id) setActiveMomentId(timeline[0].id); setPlaying(true); }} onSelect={id => { setPlaying(false); setActiveMomentId(id); }} onAdd={(title, date) => { const moment = { id: uid('t'), title, ...(date ? { date } : {}) }; onChange({ ...state, timeline: [...timeline, moment] }); setActiveMomentId(moment.id); }} onPatch={(id, patch) => onChange({ ...state, timeline: timeline.map(moment => moment.id === id ? { ...moment, ...patch } : moment) })} onDelete={moment => setDeleteMoment(moment)} />}
       </div>
       <aside className={`inspector figure-inspector ${selected ? 'has-selection' : ''}`} aria-label="Figuren-Inspector">
         <div className="panel-heading"><span>{selected ? 'Auswahl' : 'Inspector'}</span>{selected && <button className="icon-button" onClick={() => setSelectedId(null)} aria-label="Auswahl schließen"><X /></button>}</div>
-        {!selected ? <div className="empty-inspector"><UserRound /><h2>Element auswählen</h2><p>Wähle eine Figur, einen Ort oder ein Konzept, um Details und Beziehungen zu bearbeiten.</p></div>
+        {!selected ? <div className="empty-inspector"><UserRound /><h2>Element auswählen</h2><p>Wähle ein Element, um Details und Beziehungen zu bearbeiten.</p></div>
         : <FigureInspector figure={selected} state={state} activeMomentId={activeMomentId} onPatch={patch => patchNode(selected.id, patch)} onState={onChange} onDelete={() => setConfirmDelete(true)} />}
       </aside>
     </div>
@@ -204,7 +222,7 @@ function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDe
     <div className="panel-tabs three" role="tablist"><button role="tab" aria-selected={tab === 'card'} onClick={() => setTab('card')}>Karte</button><button role="tab" aria-selected={tab === 'profile'} onClick={() => setTab('profile')}>Steckbrief</button><button role="tab" aria-selected={tab === 'links'} onClick={() => setTab('links')}>Beziehungen</button></div>
     <div className="panel-body">
       {tab === 'card' && <>
-        <label className="field"><span>Art</span><select value={figure.type || 'person'} onChange={event => onPatch({ type: event.target.value as FigureKind })}><option value="person">Figur</option><option value="ort">Ort</option><option value="konzept">Konzept</option></select></label>
+        <label className="field"><span>Art</span><select value={figure.type || 'person'} onChange={event => onPatch({ type: event.target.value as FigureKind })}><option value="person">Figur</option><option value="tier">Tier</option><option value="ort">Ort</option><option value="organisation">Organisation</option><option value="objekt">Objekt</option><option value="konzept">Konzept</option></select></label>
         <label className="field"><span>Name</span><input value={figure.name} onChange={event => onPatch({ name: event.target.value })} /></label>
         <label className="field"><span>Rolle / Kategorie</span><input value={figure.label || ''} onChange={event => onPatch({ label: event.target.value })} /></label>
         <label className="field"><span>Kurzbeschreibung</span><textarea value={figure.sub || ''} onChange={event => onPatch({ sub: event.target.value })} /></label>
@@ -220,12 +238,14 @@ function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDe
         <button className="secondary-action" onClick={() => patchProfile({ extra: [...(profile.extra || []), { k: '', v: '' }] })}><Plus />Eigenes Feld</button>
       </>}
       {tab === 'links' && <div className="relation-list">{linked.length ? linked.map(edge => {
-        const otherId = edge.from === figure.id ? edge.to : edge.from; const other = state.nodes.find(node => node.id === otherId);
         const resolved = resolveRelationship(edge, state.timeline || [], activeMomentId);
+        const labelEditor = relationshipLabelEditor(edge, state.timeline || [], activeMomentId);
+        const otherId = resolved.from === figure.id ? resolved.to : resolved.from; const other = state.nodes.find(node => node.id === otherId);
         const patchEdge = (patch: Partial<FigureEdge>) => onState({ ...state, edges: state.edges.map(item => item.id === edge.id ? patchRelationship(item, state.timeline || [], activeMomentId, patch) : item) });
-        return <div key={edge.id} className={!resolved.active ? 'outside-moment' : ''}><div><span>{edge.from === figure.id ? '→' : '←'}</span><strong>{other?.name || 'Unbekannt'}</strong>{activeMomentId && <small>{resolved.active ? 'Gilt hier' : 'Hier nicht aktiv'}</small>}</div><input aria-label={`Beziehung zu ${other?.name}`} value={resolved.label || ''} placeholder="Beziehung benennen" disabled={!resolved.active} onChange={event => patchEdge({ label: event.target.value })} /><button className="icon-button danger-text" aria-label="Verbindung löschen" onClick={() => onState({ ...state, edges: state.edges.filter(item => item.id !== edge.id) })}><Trash2 /></button><select aria-label="Linienstil" value={resolved.style || 'solid'} disabled={!resolved.active} onChange={event => patchEdge({ style: event.target.value as (typeof edge.style) })}><option value="solid">Normal</option><option value="dashed">Gestrichelt</option><option value="blood">Lebenskette</option><option value="gold">Gold</option></select><label className="check-field"><input type="checkbox" checked={!!resolved.gerichtet} disabled={!resolved.active} onChange={event => patchEdge({ gerichtet: event.target.checked })} />Gerichtet</label>{activeMomentId && <button className="relation-toggle" onClick={() => patchEdge({ active: !resolved.active })}>{resolved.active ? 'Beziehung endet hier' : 'Ab hier beginnen'}</button>}</div>;
+        const directionLabel = `Richtung umkehren: ${state.nodes.find(node => node.id === resolved.from)?.name || 'Unbekannt'} nach ${state.nodes.find(node => node.id === resolved.to)?.name || 'Unbekannt'}`;
+        return <div key={edge.id} className={!resolved.active ? 'outside-moment' : ''}><div>{resolved.gerichtet ? <button type="button" className="relation-direction" aria-label={directionLabel} title={directionLabel} disabled={!resolved.active} onClick={() => patchEdge({ from: resolved.to, to: resolved.from })}>{resolved.from === figure.id ? '→' : '←'}</button> : <span className="relation-undirected" aria-label="Ungerichtete Beziehung" title="Ungerichtete Beziehung">↔</span>}<strong>{other?.name || 'Unbekannt'}</strong>{activeMomentId && <small>{resolved.active ? 'Gilt hier' : 'Hier nicht aktiv'}</small>}</div><label className="relationship-label-editor"><span className="sr-only">Beziehung zu {other?.name}</span><input aria-label={`Beziehung zu ${other?.name}`} value={labelEditor.value} placeholder={labelEditor.inherited || 'Beziehung benennen'} disabled={!resolved.active} onChange={event => patchEdge({ label: event.target.value })} /></label><button className="icon-button danger-text" aria-label="Verbindung löschen" onClick={() => onState({ ...state, edges: state.edges.filter(item => item.id !== edge.id) })}><Trash2 /></button><select aria-label="Linienstil" value={resolved.style || 'solid'} disabled={!resolved.active} onChange={event => patchEdge({ style: event.target.value as (typeof edge.style) })}><option value="solid">Normal</option><option value="dashed">Gestrichelt</option><option value="blood">Lebenskette</option><option value="gold">Gold</option></select><label className="check-field"><input type="checkbox" checked={!!resolved.gerichtet} disabled={!resolved.active} onChange={event => patchEdge({ gerichtet: event.target.checked })} />Gerichtet</label>{activeMomentId && <button className="relation-toggle" onClick={() => patchEdge({ active: !resolved.active })}>{resolved.active ? 'Beziehung endet hier' : 'Ab hier beginnen'}</button>}</div>;
       }) : <p className="muted">Noch keine Beziehungen.</p>}</div>}
-      <button className="danger-text inspector-delete" onClick={onDelete}><Trash2 />{figure.type === 'ort' ? 'Ort' : figure.type === 'konzept' ? 'Konzept' : 'Figur'} löschen</button>
+      <button className="danger-text inspector-delete" onClick={onDelete}><Trash2 />{figure.type === 'ort' ? 'Ort' : figure.type === 'konzept' ? 'Konzept' : figure.type === 'tier' ? 'Tier' : figure.type === 'organisation' ? 'Organisation' : figure.type === 'objekt' ? 'Objekt' : 'Figur'} löschen</button>
     </div>
   </>;
 }
@@ -246,11 +266,11 @@ export function resolveRelationship(edge: FigureEdge, timeline: TimelineMoment[]
   const base = { ...edge, active: edge.active !== false };
   if (!activeId) return base;
   const activeIndex = timeline.findIndex(moment => moment.id === activeId);
-  const version = (edge.versions || []).filter(item => {
+  const versions = (edge.versions || []).filter(item => {
     const index = timeline.findIndex(moment => moment.id === item.momentId);
     return index >= 0 && index <= activeIndex;
-  }).sort((a, b) => timeline.findIndex(moment => moment.id === a.momentId) - timeline.findIndex(moment => moment.id === b.momentId)).at(-1);
-  return version ? { ...base, ...version, id: edge.id, from: edge.from, to: edge.to, active: version.active } : base;
+  }).sort((a, b) => timeline.findIndex(moment => moment.id === a.momentId) - timeline.findIndex(moment => moment.id === b.momentId));
+  return versions.reduce<FigureEdge & { active: boolean }>((current, version) => ({ ...current, ...version, id: edge.id, active: version.active }), base);
 }
 
 export function resolveRelationshipOverview(edge: FigureEdge, timeline: TimelineMoment[]): FigureEdge & { active: boolean } {
@@ -264,11 +284,24 @@ export function resolveRelationshipOverview(edge: FigureEdge, timeline: Timeline
 export function patchRelationship(edge: FigureEdge, timeline: TimelineMoment[], activeId: string | null, patch: Partial<FigureEdge>): FigureEdge {
   if (!activeId) return { ...edge, ...patch };
   const current = resolveRelationship(edge, timeline, activeId);
-  const version = { momentId: activeId, label: current.label, style: current.style, gerichtet: current.gerichtet, active: patch.active ?? current.active };
-  if (patch.label !== undefined) version.label = patch.label;
+  const version: RelationshipVersion = { momentId: activeId, from: current.from, to: current.to, label: current.label, style: current.style, gerichtet: current.gerichtet, active: patch.active ?? current.active };
+  if (patch.from !== undefined) version.from = patch.from;
+  if (patch.to !== undefined) version.to = patch.to;
+  if (patch.label !== undefined) {
+    if (patch.label.trim()) version.label = patch.label;
+    else delete version.label;
+  }
   if (patch.style !== undefined) version.style = patch.style;
   if (patch.gerichtet !== undefined) version.gerichtet = patch.gerichtet;
   return { ...edge, versions: [...(edge.versions || []).filter(item => item.momentId !== activeId), version] };
+}
+
+export function relationshipLabelEditor(edge: FigureEdge, timeline: TimelineMoment[], activeId: string | null) {
+  if (!activeId) return { value: edge.label || '', inherited: '' };
+  const version = edge.versions?.find(item => item.momentId === activeId);
+  const index = timeline.findIndex(moment => moment.id === activeId);
+  const inherited = index > 0 ? resolveRelationship(edge, timeline, timeline[index - 1].id).label || '' : edge.label || '';
+  return { value: version?.label || '', inherited: version?.label ? '' : inherited };
 }
 
 export function figureIsDeceased(figure: FigureNode, timeline: TimelineMoment[], activeId: string | null) {

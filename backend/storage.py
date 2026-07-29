@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS figures (
   position INTEGER NOT NULL,
   x REAL NOT NULL,
   y REAL NOT NULL,
-  kind TEXT NOT NULL DEFAULT 'person' CHECK (kind IN ('person','ort','konzept')),
+  kind TEXT NOT NULL DEFAULT 'person' CHECK (kind IN ('person','tier','ort','organisation','objekt','konzept')),
   label TEXT NOT NULL DEFAULT '',
   name TEXT NOT NULL,
   subtitle TEXT NOT NULL DEFAULT '',
@@ -320,7 +320,8 @@ def load_figures() -> dict[str, Any]:
         nodes = []
         for row in conn.execute("SELECT * FROM figures ORDER BY position"):
             node = _decoded(row["extra_json"])
-            node.update(id=row["id"], x=row["x"], y=row["y"], type=row["kind"], label=row["label"],
+            persisted_kind = node.get("type", row["kind"])
+            node.update(id=row["id"], x=row["x"], y=row["y"], type=persisted_kind, label=row["label"],
                         name=row["name"], sub=row["subtitle"], accent=row["accent"],
                         dash=bool(row["dashed"]), pinned=bool(row["pinned"]))
             profile = conn.execute("SELECT * FROM profiles WHERE figure_id=?", (row["id"],)).fetchone()
@@ -349,14 +350,20 @@ def save_figures(state: dict[str, Any], conn: sqlite3.Connection | None = None) 
         with db:
             db.execute("DELETE FROM connections")
             db.execute("DELETE FROM figures")
+            schema = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='figures'").fetchone()[0]
+            supported_kinds = {kind for kind in ("person", "tier", "ort", "organisation", "objekt", "konzept") if f"'{kind}'" in schema}
             for position, node in enumerate(state.get("nodes", [])):
                 kind = node.get("type", "person")
-                if kind not in {"person", "ort", "konzept"}: kind = "person"
+                if kind not in {"person", "tier", "ort", "organisation", "objekt", "konzept"}: kind = "person"
+                database_kind = kind if kind in supported_kinds else "person"
+                extra_node = dict(node)
+                if database_kind != kind:
+                    extra_node["type"] = kind
                 db.execute("INSERT INTO figures VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (
-                    node["id"], position, float(node.get("x", 0)), float(node.get("y", 0)), kind,
+                    node["id"], position, float(node.get("x", 0)), float(node.get("y", 0)), database_kind,
                     node.get("label", ""), node.get("name", "Ohne Namen"), node.get("sub", ""),
                     node.get("accent", "ink"), int(bool(node.get("dash"))), int(bool(node.get("pinned"))),
-                    _extra(node, {"id", "x", "y", "type", "label", "name", "sub", "accent", "dash", "pinned", "profile"}),
+                    _extra(extra_node, {"id", "x", "y", "label", "name", "sub", "accent", "dash", "pinned", "profile"}),
                 ))
                 profile = node.get("profile") or {}
                 db.execute("INSERT INTO profiles VALUES(?,?,?,?,?,?,?,?)", (

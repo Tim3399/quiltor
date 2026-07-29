@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 import { api } from '../../lib/api';
 import type { CommitInfo } from '../../types';
 import './TextWorkspace.css';
+import { completeOneWord, writingVocabulary, type WordCompletion } from './autocomplete';
 
 export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave }: {
   worldTitle?: string; manuscript: Manuscript; figures: FigureState; onChange: (value: Manuscript) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>;
@@ -21,6 +22,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
   const [symbolPicker, setSymbolPicker] = useState(false);
   const [focusHelpers, setFocusHelpers] = useState(false);
   const [focusChapters, setFocusChapters] = useState(false);
+  const [completion, setCompletion] = useState<WordCompletion | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [historyRef, setHistoryRef] = useState('');
@@ -43,6 +45,16 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
     void api.textVersion(historyRef, currentIndex, current.title).then(result => { setHistoricalText(result.neu ? '' : result.text); setHistoryState('idle'); }).catch(() => setHistoryState('error'));
   }, [historyOpen, historyRef, current?.id, current?.title, currentIndex]);
   const total = useMemo(() => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0), [manuscript.chapters]);
+  const vocabulary = useMemo(() => writingVocabulary(manuscript, figures), [manuscript.words, figures.nodes]);
+  const refreshCompletion = (value: string, start: number | null, end: number | null) => setCompletion(start !== null && start === end ? completeOneWord(value, start, vocabulary) : null);
+  const acceptCompletion = () => {
+    if (!current || !completion) return;
+    const body = `${current.body.slice(0, completion.start)}${completion.word}${current.body.slice(completion.end)}`;
+    const caret = completion.start + completion.word.length;
+    update({ body }); setCompletion(null);
+    requestAnimationFrame(() => { area.current?.focus(); area.current?.setSelectionRange(caret, caret); });
+  };
+  useEffect(() => setCompletion(null), [currentId]);
 
   const setChapters = (chapters: Chapter[]) => onChange({ ...manuscript, chapters });
   const update = (patch: Partial<Chapter>) => current && setChapters(manuscript.chapters.map(chapter => chapter.id === current.id ? { ...chapter, ...patch } : chapter));
@@ -92,7 +104,8 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label="Kapiteltitel" value={current.title} onChange={event => update({ title: event.target.value })} placeholder="Kapiteltitel" />
-          <textarea ref={area} className="prose-editor" aria-label="Kapiteltext" value={current.body} onChange={event => update({ body: event.target.value })} placeholder="Schreib los …" spellCheck /></div>
+          <textarea ref={area} className="prose-editor" aria-label="Kapiteltext" value={current.body} onChange={event => { update({ body: event.target.value }); refreshCompletion(event.target.value, event.target.selectionStart, event.target.selectionEnd); }} onClick={event => refreshCompletion(event.currentTarget.value, event.currentTarget.selectionStart, event.currentTarget.selectionEnd)} onKeyUp={event => { if (event.key !== 'Tab') refreshCompletion(event.currentTarget.value, event.currentTarget.selectionStart, event.currentTarget.selectionEnd); }} onKeyDown={event => { if (event.key === 'Tab' && completion && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); acceptCompletion(); } }} placeholder="Schreib los …" spellCheck />
+          {completion && <div className="word-completion" role="status" aria-live="polite"><kbd>Tab</kbd><span>{completion.word}</span></div>}</div>
           {historyOpen && <aside className="chapter-history" aria-label="Kapitelversionen"><header><div><strong>Frühere Fassung</strong><span>Direkt neben dem aktuellen Text</span></div><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label="Kapitelversionen schließen"><X /></button></header>
             {commits.length ? <label className="field"><span>Stand</span><select value={historyRef} onChange={event => setHistoryRef(event.target.value)}>{commits.map(commit => <option key={commit.hash} value={commit.hash}>{commit.datum} · {commit.betreff}</option>)}</select></label> : historyState !== 'loading' && <p className="muted">Noch keine gespeicherte Fassung vorhanden.</p>}
             {historyState === 'loading' ? <p className="muted">Fassung wird geladen …</p> : historyState === 'error' ? <div className="error-box">Die Fassung konnte nicht geladen werden.</div> : commits.length > 0 && <div className="historical-prose">{historicalText || <em>Dieses Kapitel existierte in diesem Stand noch nicht.</em>}</div>}
