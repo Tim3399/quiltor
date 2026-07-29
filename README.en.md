@@ -36,8 +36,9 @@ browser from opening automatically:
 python3 server.py 8080 --no-open
 ```
 
-Create your first world on the start screen and provide its own GitHub
-repository URL. Its manuscript, character board, and backups remain separate
+Create your first world on the start screen. You can optionally connect a
+dedicated repository on GitHub, GitLab, Gitea, or another Git provider; doing so
+is strongly recommended. Its manuscript, character board, and backups remain separate
 from every other world and from the Quiltor source repository.
 
 ## Development
@@ -73,7 +74,7 @@ backup.
 Git backups are handled by a dedicated backend service. Each world has an
 isolated working repository under `data/repositories/` containing a consistent
 SQLite snapshot plus readable manuscript and profile mirrors. Quiltor never
-stores GitHub credentials; it uses the Git authentication configured locally.
+stores provider credentials; it uses the Git authentication configured locally.
 
 ## Project structure
 

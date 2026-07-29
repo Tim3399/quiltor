@@ -120,36 +120,42 @@ def list_worlds() -> list[dict[str, str]]:
         try:
             with connect(path) as conn:
                 row = conn.execute("SELECT value FROM meta WHERE key='world_title'").fetchone()
-                repository_row = conn.execute("SELECT value FROM meta WHERE key='github_repository'").fetchone()
+                repository_row = conn.execute("SELECT value FROM meta WHERE key='git_repository'").fetchone()
             title = row[0] if row else world_id
             repository = repository_row[0] if repository_row else ""
-            result.append({"id": world_id, "title": title, "githubUrl": repository, "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat()})
+            result.append({"id": world_id, "title": title, "gitUrl": repository, "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat()})
         except sqlite3.Error:
             continue
     return result
 
 
-def normalize_github_url(value: str) -> str:
+def normalize_git_url(value: str) -> str:
     url = value.strip().removesuffix("/")
-    if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?", url):
-        raise ValueError("Enter a valid GitHub repository URL.")
-    return url if url.endswith(".git") else f"{url}.git"
+    if not url:
+        return ""
+    web_url = re.fullmatch(r"https?://[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+(?:\.git)?", url)
+    ssh_url = re.fullmatch(r"ssh://[A-Za-z0-9_.-]+@[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+(?:\.git)?", url)
+    scp_url = re.fullmatch(r"[A-Za-z0-9_.-]+@[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+(?:\.git)?", url)
+    if not any((web_url, ssh_url, scp_url)):
+        raise ValueError("Enter a valid HTTPS or SSH Git repository URL.")
+    return url
 
 
-def create_world(title: str, github_url: str) -> dict[str, str]:
+def create_world(title: str, git_url: str = "") -> dict[str, str]:
     clean = " ".join(title.split()).strip()
     if not clean or len(clean) > 100:
         raise ValueError("Der Welttitel muss zwischen 1 und 100 Zeichen lang sein.")
-    repository = normalize_github_url(github_url)
+    repository = normalize_git_url(git_url)
     WORLDS.mkdir(exist_ok=True)
     world_id = uuid.uuid4().hex
     path = WORLDS / f"{world_id}.sqlite3"
     initialize(path)
     with connect(path) as conn:
         conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('world_title',?)", (clean,))
-        conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('github_repository',?)", (repository,))
+        if repository:
+            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('git_repository',?)", (repository,))
         conn.execute("INSERT INTO chapters(id,position,title,body,note) VALUES(?,0,'','','')", (uuid.uuid4().hex,))
-    return {"id": world_id, "title": clean, "githubUrl": repository, "updated": datetime.now().isoformat()}
+    return {"id": world_id, "title": clean, "gitUrl": repository, "updated": datetime.now().isoformat()}
 
 
 def activate_world(world_id: str) -> dict[str, str]:
@@ -167,8 +173,6 @@ def activate_world(world_id: str) -> dict[str, str]:
     world = next((item for item in list_worlds() if item["id"] == world_id), None)
     if not world:
         raise ValueError("Diese Welt ist nicht lesbar.")
-    if not world.get("githubUrl"):
-        raise ValueError("This world has no GitHub backup repository configured.")
     return world
 
 

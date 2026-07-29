@@ -443,11 +443,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 payload = json.loads(self.rfile.read(length).decode("utf-8"))
                 with _lock:
                     if route.endswith("/create"):
-                        created = storage.create_world(str(payload.get("title", "")), str(payload.get("githubUrl", "")))
+                        created = storage.create_world(str(payload.get("title", "")), str(payload.get("gitUrl", "")))
                         world = storage.activate_world(created["id"])
                     else:
                         world = storage.activate_world(str(payload.get("id", "")))
-                    WORLD_BACKUPS.activate(world["id"], world["githubUrl"], storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
+                    if world.get("gitUrl"):
+                        WORLD_BACKUPS.activate(world["id"], world["gitUrl"], storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
+                    else:
+                        WORLD_BACKUPS.deactivate()
                 return self.send_json({"ok": True, "world": world})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)

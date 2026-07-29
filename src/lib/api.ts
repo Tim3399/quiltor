@@ -27,7 +27,7 @@ async function saveDocument<T>(url: string, kind: keyof typeof revisions, data: 
 export const api = {
   worlds: () => json<{ ok: boolean; worlds: WorldInfo[] }>('/api/worlds'),
   openWorld: (id: string) => json<{ ok: boolean; world: WorldInfo }>('/api/worlds/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
-  createWorld: (title: string, githubUrl: string) => json<{ ok: boolean; world: WorldInfo }>('/api/worlds/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, githubUrl }) }),
+  createWorld: (title: string, gitUrl: string) => json<{ ok: boolean; world: WorldInfo }>('/api/worlds/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, gitUrl }) }),
   figures: () => loadDocument<FigureState>('/api/state', 'figures'),
   manuscript: () => loadDocument<Manuscript>('/api/manuscript', 'manuscript'),
   saveFigures: (data: FigureState) => saveDocument('/api/state', 'figures', data),

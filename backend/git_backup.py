@@ -33,6 +33,9 @@ class GitBackup:
         else:
             self.run("remote", "add", "origin", repository_url)
 
+    def deactivate(self) -> None:
+        self.root = self.database = self.manuscripts = self.profiles = None
+
     def run(self, *args: str, timeout: int = 90) -> subprocess.CompletedProcess[str]:
         if not self.root:
             raise RuntimeError("No world backup repository is active.")
@@ -60,7 +63,7 @@ class GitBackup:
             self.sync()
             probe = self.run("rev-parse", "--is-inside-work-tree", timeout=10)
         except (FileNotFoundError, RuntimeError) as exc:
-            return {"ok": False, "grund": str(exc)}
+            return {"ok": False, "grund": "No Git backup is configured for this world." if isinstance(exc, RuntimeError) else str(exc)}
         if probe.returncode != 0:
             return {"ok": False, "grund": "The world backup is not a Git repository."}
         def output(*args: str) -> str:

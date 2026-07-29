@@ -78,5 +78,13 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(len(storage.load_manuscript()["chapters"]), 1)
         self.assertEqual(storage.load_manuscript()["chapters"][0]["body"], "")
 
+    def test_git_remote_is_optional_and_provider_neutral(self):
+        local_only = storage.create_world("Nur lokal")
+        self.assertEqual(local_only["gitUrl"], "")
+        gitlab = storage.create_world("GitLab", "https://gitlab.com/example/world.git")
+        gitea = storage.create_world("Gitea", "git@git.example.org:author/world.git")
+        self.assertEqual(gitlab["gitUrl"], "https://gitlab.com/example/world.git")
+        self.assertEqual(gitea["gitUrl"], "git@git.example.org:author/world.git")
+
 if __name__ == "__main__":
     unittest.main()

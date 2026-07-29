@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 async function openBlankWorld(page: import('@playwright/test').Page, title = 'Testwelt') {
-  const response = await page.request.post('/api/worlds/create', { data: { title, githubUrl: `https://github.com/example/${crypto.randomUUID()}` } });
+  const response = await page.request.post('/api/worlds/create', { data: { title, gitUrl: `https://gitlab.com/example/${crypto.randomUUID()}.git` } });
   const payload = await response.json();
   await page.goto(`/?world=${payload.world.id}`);
 }
@@ -141,7 +141,7 @@ test('Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich', 
 
 
 test('Startseite lädt eine Welt und übernimmt ihren variablen Titel', async ({ page }) => {
-  await page.request.post('/api/worlds/create', { data: { title: 'Öffentliche Testwelt', githubUrl: 'https://github.com/example/public-test' } });
+  await page.request.post('/api/worlds/create', { data: { title: 'Öffentliche Testwelt' } });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welche Welt öffnest du?' })).toBeVisible();
   await page.getByRole('button', { name: /Öffentliche Testwelt/ }).click();
@@ -150,7 +150,7 @@ test('Startseite lädt eine Welt und übernimmt ihren variablen Titel', async ({
 });
 
 test('Sprachwahl erfolgt ausschließlich in der Welt-Auswahl', async ({ page }) => {
-  await page.request.post('/api/worlds/create', { data: { title: 'Language Test World', githubUrl: 'https://github.com/example/language-test' } });
+  await page.request.post('/api/worlds/create', { data: { title: 'Language Test World', gitUrl: 'git@git.example.com:example/language-test.git' } });
   await page.goto('/');
   await page.getByRole('button', { name: 'English' }).click();
   await expect(page.getByRole('heading', { name: 'Which world would you like to open?' })).toBeVisible();

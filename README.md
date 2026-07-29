@@ -36,8 +36,9 @@ Für `npm run dev` muss parallel `python3 server.py --no-open` laufen.
 
 ## Daten und Sicherungen
 
-Beim ersten Start ist noch keine Welt vorhanden. Beim Anlegen werden ein Titel
-und die URL eines eigenen GitHub-Repositories angegeben. Jede Welt erhält eine
+Beim ersten Start ist noch keine Welt vorhanden. Beim Anlegen wird ein Titel
+angegeben. Optional – aber dringend empfohlen – kann ein eigenes Repository bei
+GitHub, GitLab, Gitea oder einem anderen Git-Anbieter verbunden werden. Jede Welt erhält eine
 eigene SQLite-Datei unter `data/worlds/` und ein vollständig vom Quiltor-Code
 getrenntes Git-Arbeitsverzeichnis unter `data/repositories/`. Dadurch
 werden Manuskript, Figuren und Sicherungen nicht zwischen Projekten vermischt.

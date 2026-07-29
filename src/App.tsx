@@ -17,7 +17,7 @@ import { PRODUCT_MARK } from './config/branding';
 type Overlay = 'search' | 'history' | 'git' | 'backups' | null;
 
 export function App() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, preference, setPreference, toggleTheme } = useTheme();
   const [workspace, setWorkspace] = useState<Workspace>('text');
   const manuscriptHistory = useHistoryState<Manuscript>(), figureHistory = useHistoryState<FigureState>();
   const manuscript = manuscriptHistory.value, figures = figureHistory.value;
@@ -51,7 +51,7 @@ export function App() {
   }, [focus, flushAll, workspace, manuscriptHistory.undo, manuscriptHistory.redo, figureHistory.undo, figureHistory.redo]);
 
   if (worlds === null) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>Welten werden geladen …</p></main>;
-  if (!world) return <WorldGate worlds={worlds} error={loadError} onOpen={id => loadWorld(api.openWorld(id))} onCreate={(title, githubUrl) => loadWorld(api.createWorld(title, githubUrl))} />;
+  if (!world) return <WorldGate worlds={worlds} theme={preference} onTheme={setPreference} error={loadError} onOpen={id => loadWorld(api.openWorld(id))} onCreate={(title, gitUrl) => loadWorld(api.createWorld(title, gitUrl))} />;
   if (loadError) return <main className="fatal-state"><h1>Werkstatt nicht erreichbar</h1><p>{loadError}</p><p>Starte den lokalen Server mit <code>python3 server.py</code> und lade die Seite neu.</p></main>;
   if (!manuscript || !figures) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>Werkstatt wird geöffnet …</p></main>;
   return <>

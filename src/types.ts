@@ -75,7 +75,7 @@ export interface GitStatus {
 }
 
 export interface CommitInfo { hash: string; kurz: string; datum: string; betreff: string }
-export interface WorldInfo { id: string; title: string; githubUrl: string; updated: string }
+export interface WorldInfo { id: string; title: string; gitUrl: string; updated: string }
 
 export const PROFILE_FIELDS: Array<[keyof Profile, string, 'short' | 'long']> = [
   ['alter', 'Alter', 'short'],
