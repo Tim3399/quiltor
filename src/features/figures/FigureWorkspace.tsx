@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactFlow, ReactFlowProvider, Background, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
-import { Clock3, Download, Grid3X3, Link2, Pause, Play, Plus, Redo2, Skull, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
+import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
+import { Clock3, Download, Grid3X3, LayoutGrid, Link2, Pause, Play, Plus, Redo2, Skull, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, FigureKind, Profile, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
 import { download } from '../../lib/api';
@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 type CardData = { figure: FigureNode; deceased: boolean };
 const nodeTypes = { story: StoryNode };
 const EMPTY_TIMELINE: TimelineMoment[] = [];
-const GRID_SIZE = 24;
+const GRID_SIZE = 48;
 const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: string; nodeLabel: string; quick: boolean }> = [
   { kind: 'person', label: 'Figur', initialName: 'Neue Figur', nodeLabel: 'Rolle', quick: true },
   { kind: 'ort', label: 'Ort', initialName: 'Neuer Ort', nodeLabel: 'Ort', quick: true },
@@ -32,6 +32,10 @@ export function minimapColorForKind(kind?: FigureKind) {
   if (kind === 'ort') return 'var(--minimap-place)';
   if (kind === 'konzept') return 'var(--minimap-concept)';
   return 'var(--minimap-person)';
+}
+
+export function alignNodesToGrid(nodes: FigureNode[]) {
+  return nodes.map(node => ({ ...node, x: Math.round(node.x / GRID_SIZE) * GRID_SIZE, y: Math.round(node.y / GRID_SIZE) * GRID_SIZE }));
 }
 
 type FigureWorkspaceProps = { state: FigureState; onChange: (value: FigureState) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean };
@@ -113,6 +117,13 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     onChange(next);
     window.requestAnimationFrame(() => updateNodeInternals(current.nodes.map(node => node.id)));
   }, [onChange, updateNodeInternals]);
+  const alignAllNodes = useCallback(() => {
+    const current = latestState.current;
+    const next = { ...current, nodes: alignNodesToGrid(current.nodes) };
+    latestState.current = next;
+    onChange(next);
+    window.requestAnimationFrame(() => updateNodeInternals(next.nodes.map(node => node.id)));
+  }, [onChange, updateNodeInternals]);
   const remove = () => {
     if (!selected) return;
     onChange({ ...state, nodes: state.nodes.filter(node => node.id !== selected.id), edges: state.edges.filter(edge => edge.from !== selected.id && edge.to !== selected.id) }); setSelectedId(null);
@@ -139,7 +150,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
       <div className="context-title"><strong>Figuren & Welt</strong><span>{state.nodes.length} Elemente · {state.edges.length} Verbindungen</span></div>
       <div className="tool-group create-group"><div className="element-create"><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />Element</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>
       <div className="tool-group"><button aria-pressed={connecting} className={connecting ? 'active' : ''} onClick={() => setConnecting(!connecting)}><Link2 />Verbinden</button></div>
-      <div className="tool-group"><button aria-pressed={snapToGrid} className={snapToGrid ? 'active' : ''} title="Am Raster ausrichten · Alt/Option halten für freies Verschieben" onClick={() => setSnapToGrid(value => !value)}><Grid3X3 />Raster</button></div>
+      <div className="tool-group"><button aria-pressed={snapToGrid} className={snapToGrid ? 'active' : ''} title="Am Raster ausrichten · Alt/Option halten für freies Verschieben" onClick={() => setSnapToGrid(value => !value)}><Grid3X3 />Raster</button><button disabled={!state.nodes.length} title="Alle Elemente am Raster ausrichten" onClick={alignAllNodes}><LayoutGrid />Anordnen</button></div>
       <div className="tool-group"><button aria-pressed={timelineOpen} className={timelineOpen ? 'active' : ''} onClick={() => setTimelineOpen(value => !value)}><Clock3 />Zeit</button></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label="Diagramm rückgängig"><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label="Diagramm wiederholen"><Redo2 /></button></div>
       <div className="tool-group"><button onClick={exportProfiles}><Download />Steckbriefe</button><button onClick={exportState}><Download />JSON</button><button onClick={() => input.current?.click()}><Upload />Import</button><input ref={input} hidden type="file" accept="application/json" onChange={event => void importState(event.target.files?.[0])} /></div>
@@ -151,7 +162,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
           onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
           onNodesChange={moveNodes} onNodeDragStop={(_, node) => commitNodePosition(node.id, node.position)}
           onConnect={connect} nodesConnectable={connecting} snapToGrid={snapToGrid && !gridOverride} snapGrid={[GRID_SIZE, GRID_SIZE]} fitView minZoom={0.2} maxZoom={2.2} deleteKeyCode={null}>
-          <Background gap={GRID_SIZE} size={1} color="var(--line-strong)" /><Controls position="bottom-left" /><MiniMap pannable zoomable nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
+          <Background variant={BackgroundVariant.Lines} gap={GRID_SIZE} size={1} color="var(--line-strong)" /><Controls position="bottom-left" /><MiniMap pannable zoomable nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
         </ReactFlow>
         {timelineOpen && <TimelineStrip timeline={timeline} activeId={activeMomentId} playing={playing} onPlay={() => { if (!timeline.length) return; if (playing) { setPlaying(false); return; } if (!activeMomentId || activeMomentId === timeline.at(-1)?.id) setActiveMomentId(timeline[0].id); setPlaying(true); }} onSelect={id => { setPlaying(false); setActiveMomentId(id); }} onAdd={(title, date) => { const moment = { id: uid('t'), title, ...(date ? { date } : {}) }; onChange({ ...state, timeline: [...timeline, moment] }); setActiveMomentId(moment.id); }} onPatch={(id, patch) => onChange({ ...state, timeline: timeline.map(moment => moment.id === id ? { ...moment, ...patch } : moment) })} onDelete={moment => setDeleteMoment(moment)} />}
       </div>
@@ -258,9 +269,16 @@ export function relationshipKey(from: string, to: string, directed: boolean) {
   return directed ? `directed:${from}:${to}` : `undirected:${[from, to].sort().join(':')}`;
 }
 
-function relationshipHandles(edge: FigureEdge, nodes: FigureNode[]) {
+export function relationshipHandles(edge: FigureEdge, nodes: FigureNode[]) {
   if (edge.gerichtet) return { from: 'out', to: 'in' };
-  if (edge.fromHandle?.startsWith('neutral-') && edge.toHandle?.startsWith('neutral-')) return { from: edge.fromHandle, to: edge.toHandle };
   const from = nodes.find(node => node.id === edge.from), to = nodes.find(node => node.id === edge.to);
-  return (from?.y || 0) <= (to?.y || 0) ? { from: 'neutral-bottom', to: 'neutral-top' } : { from: 'neutral-top', to: 'neutral-bottom' };
+  if (!from || !to) return { from: 'neutral-bottom', to: 'neutral-top' };
+  const verticalDistance = to.y - from.y;
+  if (Math.abs(verticalDistance) >= GRID_SIZE) return verticalDistance > 0
+    ? { from: 'neutral-bottom', to: 'neutral-top' }
+    : { from: 'neutral-top', to: 'neutral-bottom' };
+  const graphCenterY = nodes.reduce((sum, node) => sum + node.y, 0) / Math.max(nodes.length, 1);
+  const pairCenterY = (from.y + to.y) / 2;
+  const handle = pairCenterY <= graphCenterY ? 'neutral-top' : 'neutral-bottom';
+  return { from: handle, to: handle };
 }

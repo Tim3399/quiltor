@@ -75,6 +75,11 @@ test('Minimap unterscheidet Elementarten und das Raster lässt sich lösen', asy
 
   const fills = await page.locator('.react-flow__minimap-node').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).fill));
   expect(new Set(fills).size).toBe(3);
+  const sizes = await page.locator('.story-node').evaluateAll(nodes => nodes.map(node => ({ width: getComputedStyle(node).width, height: getComputedStyle(node).height })));
+  expect(sizes).toEqual([{ width: '200px', height: '96px' }, { width: '200px', height: '96px' }, { width: '200px', height: '96px' }]);
+  await expect(page.locator('.react-flow__background path')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Anordnen', exact: true }).click();
+  await expect.poll(() => page.locator('.react-flow__node').first().getAttribute('style')).toContain('translate(96px, 96px)');
   const raster = page.getByRole('button', { name: 'Raster', exact: true });
   await expect(raster).toHaveAttribute('aria-pressed', 'true');
   await raster.click();

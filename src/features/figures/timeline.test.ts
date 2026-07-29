@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FigureEdge, FigureNode, TimelineMoment } from '../../types';
-import { connectionKind, figureIsDeceased, patchRelationship, relationshipKey, resolveRelationship, resolveRelationshipOverview } from './FigureWorkspace';
+import { alignNodesToGrid, connectionKind, figureIsDeceased, patchRelationship, relationshipHandles, relationshipKey, resolveRelationship, resolveRelationshipOverview } from './FigureWorkspace';
 
 const timeline: TimelineMoment[] = [
   { id: 'before', title: 'Vorher' },
@@ -9,12 +9,26 @@ const timeline: TimelineMoment[] = [
 ];
 
 describe('relationship timeline', () => {
+  it('aligns all elements to the coarse grid without changing their content', () => {
+    const nodes: FigureNode[] = [{ id: 'n1', x: 73, y: -70, name: 'A' }, { id: 'n2', x: 121, y: 167, name: 'B' }];
+    expect(alignNodesToGrid(nodes)).toEqual([{ id: 'n1', x: 96, y: -48, name: 'A' }, { id: 'n2', x: 144, y: 144, name: 'B' }]);
+    expect(nodes[0]).toMatchObject({ x: 73, y: -70 });
+  });
   it('distinguishes directed and centered undirected connectors', () => {
     expect(connectionKind('out', 'in')).toBe('directed');
     expect(connectionKind('neutral-top', 'neutral-bottom')).toBe('undirected');
     expect(connectionKind('out', 'neutral-top')).toBeNull();
     expect(relationshipKey('a', 'b', true)).not.toBe(relationshipKey('b', 'a', true));
     expect(relationshipKey('a', 'b', false)).toBe(relationshipKey('b', 'a', false));
+  });
+  it('adapts undirected handles to the shortest, outward-facing route', () => {
+    const nodes: FigureNode[] = [
+      { id: 'top-left', x: 0, y: 0, name: 'A' },
+      { id: 'top-right', x: 300, y: 10, name: 'B' },
+      { id: 'bottom', x: 150, y: 300, name: 'C' },
+    ];
+    expect(relationshipHandles({ id: 'e1', from: 'top-left', to: 'bottom', label: '' }, nodes)).toEqual({ from: 'neutral-bottom', to: 'neutral-top' });
+    expect(relationshipHandles({ id: 'e2', from: 'top-left', to: 'top-right', label: '', fromHandle: 'neutral-bottom', toHandle: 'neutral-bottom' }, nodes)).toEqual({ from: 'neutral-top', to: 'neutral-top' });
   });
   it('uses the latest relationship version at a selected moment', () => {
     const edge: FigureEdge = { id: 'e1', from: 'a', to: 'b', label: 'Freunde', versions: [
