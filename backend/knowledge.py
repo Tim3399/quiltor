@@ -22,6 +22,20 @@ def _clean(value: Any) -> str:
     return " ".join(str(value or "").split())
 
 
+def moment_order(timeline: list[dict[str, Any]], moment_id: Any) -> int:
+    """Mirrors src/features/figures/presence.ts's momentIndex: -1 for "no moment" (base
+    state, sorts first), the timeline position for a real moment, -2 for a dangling
+    reference to a moment that no longer exists (sorts before everything, surfacing the
+    inconsistency rather than hiding it).
+    """
+    if not moment_id:
+        return -1
+    for index, moment in enumerate(timeline):
+        if moment.get("id") == moment_id:
+            return index
+    return -2
+
+
 def _parts(text: str, limit: int = 1400) -> list[str]:
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text or "") if part.strip()]
     result: list[str] = []
@@ -74,6 +88,19 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
             moment = moments.get(version.get("momentId"), {})
             lines.append(f"Ab {_clean(moment.get('title')) or version.get('momentId')}: {_clean(version.get('label')) or 'ohne Bezeichnung'} ({'aktiv' if version.get('active') else 'beendet'})")
         chunks.append(KnowledgeChunk(f"relationship:{edge['id']}", "relationship", f"{names.get(edge.get('from'))} · {names.get(edge.get('to'))}", "\n".join(lines), {"workspace": "figures", "id": str(edge.get("from", "")), "from": str(edge.get("from", "")), "to": str(edge.get("to", ""))}))
+    by_element: dict[str, list[dict[str, Any]]] = {}
+    for entry in figures.get("presence") or []:
+        by_element.setdefault(entry.get("elementId"), []).append(entry)
+    for element_id, entries in by_element.items():
+        ordered = sorted(entries, key=lambda entry: moment_order(timeline, entry.get("momentId")))
+        lines = []
+        for entry in ordered:
+            place_name = names.get(entry.get("placeId"), "Unbekannter Ort")
+            moment = moments.get(entry.get("momentId"))
+            when = _clean(moment.get("title")) if moment else "Ausgangslage"
+            date = _clean(moment.get("date")) if moment else ""
+            lines.append(f"{when}{f' ({date})' if date else ''}: {place_name}")
+        chunks.append(KnowledgeChunk(f"presence:{element_id}", "presence", f"Aufenthalte · {names.get(element_id, 'Unbekannt')}", "\n".join(lines), {"workspace": "figures", "id": str(element_id)}))
     return chunks
 
 

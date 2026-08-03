@@ -16,6 +16,7 @@ import { PRODUCT_MARK } from './config/branding';
 import { AssistantDrawer } from './features/assistant/AssistantDrawer';
 import { applyAssistantProposals } from './features/assistant/proposals';
 import { TimelineWorkspace } from './features/timeline/TimelineWorkspace';
+import { PlacesWorkspace } from './features/places/PlacesWorkspace';
 
 type Overlay = 'search' | 'commands' | 'history' | 'git' | 'backups' | null;
 
@@ -35,7 +36,7 @@ export function App() {
   const flushAll = useCallback(async () => { await Promise.all([manuscriptSave.flush(), figureSave.flush()]); }, [manuscriptSave.flush, figureSave.flush]);
   const executeCommand = useCallback((command: string) => {
     setOverlay(null);
-    if (command === 'text' || command === 'figures' || command === 'timeline') { setWorkspace(command); setFocus(false); return; }
+    if (command === 'text' || command === 'figures' || command === 'timeline' || command === 'places') { setWorkspace(command); setFocus(false); return; }
     if (command === 'focus') { setWorkspace('text'); setFocus(value => !value); return; }
     if (command === 'history' || command === 'git' || command === 'backups') setOverlay(command);
   }, []);
@@ -67,9 +68,9 @@ export function App() {
   return <>
     <AppShell title={world.title} workspace={workspace} onWorkspace={value => { setWorkspace(value); setFocus(false); }} phase={activeSave.phase} error={activeSave.error} retry={activeSave.retry} theme={theme} onTheme={toggleTheme}
       onSearch={() => setOverlay('search')} onCommands={() => setOverlay('commands')} onHistory={() => setOverlay('history')} onGit={() => setOverlay('git')} onBackups={() => setOverlay('backups')} onAssistant={() => setAssistantOpen(value => !value)}>
-      {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} onChange={manuscriptHistory.change} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} /> : workspace === 'figures' ? <FigureWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : <TimelineWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'timeline' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} />}
+      {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} onChange={manuscriptHistory.change} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} /> : workspace === 'figures' ? <FigureWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : workspace === 'timeline' ? <TimelineWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'timeline' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : <PlacesWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'places' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} onOpen={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
     </AppShell>
-    {assistantOpen && <AssistantDrawer worldId={world.id} figures={figures} onClose={() => setAssistantOpen(false)} onApply={proposals => { figureHistory.change(applyAssistantProposals(figures, proposals)); setWorkspace('figures'); setFocus(false); }} onNavigate={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
+    {assistantOpen && <AssistantDrawer worldId={world.id} figures={figures} chapters={manuscript.chapters} onClose={() => setAssistantOpen(false)} onApply={proposals => { figureHistory.change(applyAssistantProposals(figures, proposals)); setWorkspace('figures'); setFocus(false); }} onNavigate={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
     {(overlay === 'search' || overlay === 'commands') && <SearchDialog mode={overlay} manuscript={manuscript} figures={figures} onClose={() => setOverlay(null)} onWorkspace={setWorkspace} onSelect={setTarget} onCommand={executeCommand} />}
     {overlay === 'git' && <GitDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'history' && <HistoryDialog onClose={() => setOverlay(null)} flush={flushAll} />}

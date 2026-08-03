@@ -1,4 +1,4 @@
-import { Clock3, DatabaseBackup, GitBranch, History, Search, Sparkles, Users, FileText, Command, Moon, Sun } from 'lucide-react';
+import { Clock3, DatabaseBackup, GitBranch, History, MapPin, Search, Sparkles, Users, FileText, Command, Moon, Sun } from 'lucide-react';
 import type { Theme } from '../hooks/useTheme';
 import type { SavePhase, Workspace } from '../types';
 import { SaveStatus } from '../shared/ui/SaveStatus';
@@ -15,6 +15,7 @@ export function AppShell({ title, workspace, onWorkspace, phase, error, retry, t
         <button aria-current={workspace === 'text' ? 'page' : undefined} onClick={() => onWorkspace('text')}><FileText />Text</button>
         <button aria-current={workspace === 'figures' ? 'page' : undefined} onClick={() => onWorkspace('figures')}><Users />Figuren</button>
         <button aria-current={workspace === 'timeline' ? 'page' : undefined} onClick={() => onWorkspace('timeline')}><Clock3 />Timeline</button>
+        <button aria-current={workspace === 'places' ? 'page' : undefined} onClick={() => onWorkspace('places')}><MapPin />Orte</button>
       </nav>
       <div className="global-actions" role="toolbar" aria-label="Globale Werkzeuge">
         <button onClick={onAssistant} aria-label="Lokalen Assistenten öffnen" title="Lokaler Assistent"><Sparkles /><span>Assistent</span></button>

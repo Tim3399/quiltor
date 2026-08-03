@@ -41,7 +41,13 @@ The assistant searches chapters, notes, profiles, elements, relationships, and e
 
 Element, relationship, and timeline changes are returned only as structured proposals. Explicit confirmation applies them as one undoable history step.
 
-The model runtime uses `llama.cpp`. A runtime and GGUF model can be bundled locally or configured:
+The model runtime uses `llama.cpp` (or MLX on Apple Silicon Macs, noticeably faster there). `python3 server.py` asks automatically on first launch if no runtime is set up yet, and downloads it into `runtime/` and `models/` if you agree — no separate command needed. To trigger this explicitly or unattended (e.g. from a script):
+
+```bash
+python3 -m backend.llm.installer
+```
+
+To use an existing runtime, a different GGUF model, or an existing local endpoint instead, force it with an environment variable:
 
 ```bash
 QUILTOR_AI_BINARY=/path/to/llama-server \
@@ -59,23 +65,44 @@ The bundled `.mcp.json` configures the server for clients that support project-l
 
 ## Quick start
 
-The built client lives in `dist/`; Python 3 is enough for the editor and local storage:
+Requires Python 3.9 or newer (usually callable as `python` on Windows, `python3` on macOS/Linux). The built client already lives in `dist/` — nothing else to install for the editor and local storage.
+
+#### 1. Get the repository
 
 ```bash
 git clone https://github.com/Tim3399/quiltor.git
 cd quiltor
+```
+
+#### 2. Start
+
+```bash
 python3 server.py
 ```
 
-Quiltor opens [http://localhost:8000](http://localhost:8000). Alternatively:
+Quiltor opens [http://localhost:8000](http://localhost:8000) automatically and creates an empty world on first launch. A repository on GitHub, GitLab, Gitea, or another Git provider is optional; Quiltor never stores credentials, it uses your locally configured Git authentication.
+
+If no local assistant is set up yet, the server asks once (`Set it up now? [y/N]`) before downloading anything — about 2.5GB for llama.cpp, about 2.4GB for MLX on Apple Silicon Macs. Answering no (or just pressing Enter) leaves Quiltor working exactly the same, just without the assistant panel; it asks again next launch until you agree once.
+
+Other start options:
 
 ```bash
-python3 server.py 8080 --no-open
+python3 server.py 8080            # custom port
+python3 server.py 8080 --no-open  # do not open a browser
 ```
 
-Create an empty world on first launch. A repository on GitHub, GitLab, Gitea, or another Git provider is optional. Quiltor never stores credentials; it uses your locally configured Git authentication.
+### Troubleshooting
 
-Development and PDF export require Node.js and the project dependencies:
+| Symptom | Fix |
+| --- | --- |
+| `python3: command not found` | On Windows the command is `python`, not `python3`. |
+| Assistant panel shows "Local model unavailable" | Run `python3 -m backend.llm.installer`, then restart `server.py`. Check that `runtime/llama-server` (or `llama-server.exe`) and a `.gguf` file exist under `models/`. |
+| Download stalls or is slow | Run `python3 -m backend.llm.installer` again — complete files are skipped, incomplete ones re-download from scratch. |
+| Firewall/antivirus flags `llama-server.exe` | It comes from the official [llama.cpp release](https://github.com/ggml-org/llama.cpp/releases) and only listens on `127.0.0.1`; allow it. |
+| Port 8000 is taken | Start on another port: `python3 server.py 8080`. |
+| Want a different runtime, model, or endpoint | Set `QUILTOR_AI_BINARY`, `QUILTOR_AI_MODEL`, or `QUILTOR_AI_URL` — see [Local assistant and RAG](#local-assistant-and-rag). |
+
+Development and PDF export additionally require Node.js and the project dependencies:
 
 ```bash
 npm install
@@ -147,4 +174,15 @@ src/
 
 ## Status and license
 
-Quiltor is under active development. No open-source license has been selected yet; until one is added, the source remains copyrighted and is available for inspection and private evaluation only.
+Quiltor is under active development.
+
+Quiltor is **source-available, not open source**: the source is public, modifiable and redistributable, but commercial use by larger organisations is restricted. It is offered under your choice of the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) or the [PolyForm Small Business License 1.0.0](https://polyformproject.org/licenses/small-business/1.0.0) — see [LICENSE](LICENSE).
+
+**Free, no need to ask:**
+
+- any noncommercial use — personal projects, hobby work, study, teaching, research, charities, and public institutions
+- commercial use by a small business as defined by the PolyForm Small Business License: fewer than 100 employees and independent contractors, and less than 1,000,000 USD total revenue in the prior tax year. Self-employed authors are essentially always covered.
+
+**Above that line, talk to us:** commercial use by larger organisations needs a separate, individually negotiated license. Write to [licensing@quiltor.app](mailto:licensing@quiltor.app) — details in [COMMERCIAL.md](COMMERCIAL.md).
+
+Release packages also contain third-party software and model weights under their own licenses, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

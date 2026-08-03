@@ -12,6 +12,10 @@ def valid_figures(payload: Any) -> bool:
             return False
         if not isinstance(node.get("name"), str) or not isinstance(node.get("x"), (int, float)) or not isinstance(node.get("y"), (int, float)):
             return False
+        if node.get("mapX") is not None and not isinstance(node.get("mapX"), (int, float)):
+            return False
+        if node.get("mapY") is not None and not isinstance(node.get("mapY"), (int, float)):
+            return False
         ids.append(node["id"])
     if len(ids) != len(set(ids)):
         return False
@@ -20,7 +24,23 @@ def valid_figures(payload: Any) -> bool:
         if not isinstance(edge, dict) or not isinstance(edge.get("id"), str) or edge.get("from") not in known or edge.get("to") not in known:
             return False
         edge_ids.append(edge["id"])
-    return len(edge_ids) == len(set(edge_ids))
+    if len(edge_ids) != len(set(edge_ids)):
+        return False
+    presence = payload.get("presence")
+    if presence is None:
+        return True
+    if not isinstance(presence, list):
+        return False
+    entry_ids = []
+    for entry in presence:
+        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not entry["id"]:
+            return False
+        if not isinstance(entry.get("elementId"), str) or not isinstance(entry.get("placeId"), str):
+            return False
+        if entry.get("momentId") is not None and not isinstance(entry.get("momentId"), str):
+            return False
+        entry_ids.append(entry["id"])
+    return len(entry_ids) == len(set(entry_ids))
 
 
 def valid_manuscript(payload: Any) -> bool:

@@ -1,6 +1,6 @@
 import unittest
 
-from backend.assistant import (AssistantRuntime, complete_compound_proposals, required_proposal_kinds,
+from backend.assistant import (AssistantRuntime, complete_compound_proposals, presence_consistency_issues, required_proposal_kinds,
                                existing_creation_target, task_contract, validate_proposals, validate_world, verify_task_contract)
 
 
@@ -67,6 +67,56 @@ class AssistantPlanningTests(unittest.TestCase):
         for question, expected in cases.items():
             with self.subTest(question=question):
                 self.assertEqual(required_proposal_kinds(question), expected)
+
+    def test_presence_flags_backward_travel_between_different_places(self):
+        figures = {
+            "nodes": [{"id": "mara", "name": "Mara"}],
+            "timeline": [{"id": "m1", "title": "Aufbruch", "date": "1421-03-10"}, {"id": "m2", "title": "Ankunft", "date": "1421-03-05"}],
+            "presence": [{"id": "p1", "elementId": "mara", "placeId": "hafen", "momentId": "m1"}, {"id": "p2", "elementId": "mara", "placeId": "frostkloster", "momentId": "m2"}],
+        }
+        issues = presence_consistency_issues(figures)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("Mara", issues[0])
+        self.assertIn("vor dem Ausgangsdatum", issues[0])
+
+    def test_presence_flags_same_day_travel_between_different_places(self):
+        figures = {
+            "nodes": [{"id": "mara", "name": "Mara"}],
+            "timeline": [{"id": "m1", "title": "Aufbruch", "date": "1421-03-10"}, {"id": "m2", "title": "Ankunft", "date": "1421-03-10"}],
+            "presence": [{"id": "p1", "elementId": "mara", "placeId": "hafen", "momentId": "m1"}, {"id": "p2", "elementId": "mara", "placeId": "frostkloster", "momentId": "m2"}],
+        }
+        self.assertEqual(presence_consistency_issues(figures), ["Mara wechselt laut Anwesenheit am selben Tag den Ort"])
+
+    def test_presence_is_silent_when_dates_are_plausible_or_missing(self):
+        plausible = {
+            "nodes": [{"id": "mara", "name": "Mara"}],
+            "timeline": [{"id": "m1", "date": "1421-03-01"}, {"id": "m2", "date": "1421-03-10"}],
+            "presence": [{"id": "p1", "elementId": "mara", "placeId": "hafen", "momentId": "m1"}, {"id": "p2", "elementId": "mara", "placeId": "frostkloster", "momentId": "m2"}],
+        }
+        self.assertEqual(presence_consistency_issues(plausible), [])
+        undated = {
+            "nodes": [{"id": "mara", "name": "Mara"}],
+            "timeline": [{"id": "m1"}, {"id": "m2"}],
+            "presence": [{"id": "p1", "elementId": "mara", "placeId": "hafen", "momentId": "m1"}, {"id": "p2", "elementId": "mara", "placeId": "frostkloster", "momentId": "m2"}],
+        }
+        self.assertEqual(presence_consistency_issues(undated), [])
+
+    def test_presence_ignores_staying_in_the_same_place(self):
+        figures = {
+            "nodes": [{"id": "mara", "name": "Mara"}],
+            "timeline": [{"id": "m1", "date": "1421-03-10"}, {"id": "m2", "date": "1421-03-10"}],
+            "presence": [{"id": "p1", "elementId": "mara", "placeId": "hafen", "momentId": "m1"}, {"id": "p2", "elementId": "mara", "placeId": "hafen", "momentId": "m2"}],
+        }
+        self.assertEqual(presence_consistency_issues(figures), [])
+
+    def test_world_audit_reports_presence_entries_inspected_and_folds_in_its_issues(self):
+        figures = {
+            "nodes": [{"id": "mara", "name": "Mara"}], "timeline": [{"id": "m1", "date": "1421-03-10"}, {"id": "m2", "date": "1421-03-05"}], "edges": [],
+            "presence": [{"id": "p1", "elementId": "mara", "placeId": "hafen", "momentId": "m1"}, {"id": "p2", "elementId": "mara", "placeId": "frostkloster", "momentId": "m2"}],
+        }
+        audit = validate_world(figures)
+        self.assertEqual(audit["inspected"]["presenceEntries"], 2)
+        self.assertEqual(len(audit["issues"]), 1)
 
     def test_fallback_uses_the_exact_required_tool(self):
         runtime = AssistantRuntime.__new__(AssistantRuntime)

@@ -17,6 +17,8 @@ data/profiles/*
 !data/profiles/.gitkeep
 test-results/
 playwright-report/
+data/llama-server.log
+data/mlx-server.log
 
 # Automatische Sicherungen — bei Bedarf auskommentieren, wenn du sie
 # doch mitversionieren willst
@@ -27,7 +29,12 @@ data/backups/*
 .DS_Store
 Thumbs.db
 
+# Local AI working notes/plans/memory — not part of the shipped project.
+/ai/
+
 # Platform runtimes and model weights are attached to release packages, not Git.
 runtime/*
 !runtime/README.md
 models/*.gguf
+models/mlx/*
+!models/mlx/.gitkeep

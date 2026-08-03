@@ -4,6 +4,8 @@ import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from '../../
 import { uid } from '../../types';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 import { patchRelationship, relationshipLabelEditor, resolveRelationship } from '../figures/FigureWorkspace';
+import { patchPresence } from '../figures/presence';
+import { PresenceBoard } from './PresenceBoard';
 import './TimelineWorkspace.css';
 
 export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, canUndo = false, canRedo = false }: {
@@ -35,7 +37,10 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
     onChange({ ...state, edges: state.edges.map(item => item.id === edge.id ? patchRelationship(item, timeline, selected.id, patch) : item) });
   };
   const lifeNodes = useMemo(() => state.nodes.filter(node => node.type === 'person' || node.type === 'tier'), [state.nodes]);
-  const changes = selected ? state.edges.filter(edge => edge.versions?.some(version => version.momentId === selected.id)).length + state.nodes.filter(node => node.diedMomentId === selected.id).length : 0;
+  const places = useMemo(() => state.nodes.filter(node => node.type === 'ort'), [state.nodes]);
+  const presence = state.presence ?? [];
+  const patchPresenceAt = (nodeId: string, placeId: string) => selected && onChange({ ...state, presence: patchPresence(presence, nodeId, selected.id, placeId || null) });
+  const changes = selected ? state.edges.filter(edge => edge.versions?.some(version => version.momentId === selected.id)).length + state.nodes.filter(node => node.diedMomentId === selected.id).length + presence.filter(entry => entry.momentId === selected.id).length : 0;
 
   return <section className="timeline-workspace" aria-label="Timeline verwalten">
     <div className="context-bar">
@@ -59,10 +64,13 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
           <ManagerSection title="Lebensereignisse" description="Markiere, welche Figuren oder Tiere an diesem Zeitpunkt sterben.">
             <div className="timeline-life-grid">{lifeNodes.map(node => <label key={node.id}><input type="checkbox" checked={node.diedMomentId === selected.id} onChange={event => onChange({ ...state, nodes: state.nodes.map(item => item.id === node.id ? { ...item, diedMomentId: event.target.checked ? selected.id : undefined } : item) })} /><Skull /><span><strong>{node.name}</strong><small>{node.type === 'tier' ? 'Tier' : 'Figur'}</small></span></label>)}{!lifeNodes.length && <p className="timeline-section-empty">Noch keine Figuren oder Tiere vorhanden.</p>}</div>
           </ManagerSection>
+          <ManagerSection title="Anwesenheit" description="Ziehe eine Figur oder ein Tier auf einen Ort, um die Anwesenheit an diesem Zeitpunkt zu setzen.">
+            <PresenceBoard nodes={lifeNodes} places={places} presence={presence} timeline={timeline} momentId={selected.id} onPatch={patchPresenceAt} />
+          </ManagerSection>
         </>}
       </main>
     </div>
-    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ und die dort gespeicherten Zustandsänderungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={5000} onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node) }); setSelectedId(remaining[0]?.id || null); setDeleteMoment(null); }} />}
+    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ und die dort gespeicherten Zustandsänderungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={5000} onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[0]?.id || null); setDeleteMoment(null); }} />}
   </section>;
 }
 

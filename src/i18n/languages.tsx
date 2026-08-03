@@ -4,7 +4,7 @@ export type Language = 'de' | 'en';
 
 export const languages = {
   de: {
-    workshop: 'Werkstatt', text: 'Text', figures: 'Figuren', search: 'Suche', history: 'Verlauf', backups: 'Sicherungen', ready: 'Bereit',
+    workshop: 'Werkstatt', text: 'Text', figures: 'Figuren', places: 'Orte', search: 'Suche', history: 'Verlauf', backups: 'Sicherungen', ready: 'Bereit',
     openSearch: 'Suche öffnen', openHistory: 'Verlauf öffnen', openGit: 'Git öffnen', openBackups: 'Sicherungen öffnen', openCommands: 'Befehlssuche öffnen', commandSearch: 'Befehlssuche',
     lightDesign: 'Helles Design', darkDesign: 'Dunkles Design', systemDesign: 'System', designChoice: 'Darstellung', enableLight: 'Helles Design aktivieren', enableDark: 'Dunkles Design aktivieren',
     authorWorkshop: 'Autorenwerkstatt', whichWorld: 'Welche Welt öffnest du?', worldIntro: 'Jede Welt besitzt ihr eigenes Manuskript, Figurenboard und Sicherungen.',
@@ -28,7 +28,7 @@ export const languages = {
     restore: 'Wiederherstellen', restoreBackup: 'Sicherung wiederherstellen', noBackup: 'Noch keine Sicherung vorhanden.', cancel: 'Abbrechen', closeDialog: 'Dialog schließen',
   },
   en: {
-    workshop: 'Workshop', text: 'Manuscript', figures: 'Characters', search: 'Search', history: 'History', backups: 'Backups', ready: 'Ready',
+    workshop: 'Workshop', text: 'Manuscript', figures: 'Characters', places: 'Places', search: 'Search', history: 'History', backups: 'Backups', ready: 'Ready',
     openSearch: 'Open search', openHistory: 'Open history', openGit: 'Open Git', openBackups: 'Open backups', openCommands: 'Open command palette', commandSearch: 'Command palette',
     lightDesign: 'Light', darkDesign: 'Dark', systemDesign: 'System', designChoice: 'Appearance', enableLight: 'Enable light design', enableDark: 'Enable dark design',
     authorWorkshop: 'Writer’s workshop', whichWorld: 'Which world would you like to open?', worldIntro: 'Each world has its own manuscript, character board, and backups.',

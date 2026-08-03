@@ -381,9 +381,14 @@ def save_figures(state: dict[str, Any], conn: sqlite3.Connection | None = None) 
                     int(bool(edge.get("gerichtet"))), _extra(edge, {"id", "from", "to", "label", "style", "gerichtet"}),
                 ))
             canvas = state.get("canvasSize") or {"w": 2400, "h": 1600}
+            moments = {m.get("id") for m in state.get("timeline") or [] if isinstance(m, dict)}
+            presence = [p for p in state.get("presence") or [] if isinstance(p, dict)
+                        and p.get("elementId") in ids and p.get("placeId") in ids
+                        and (not p.get("momentId") or p.get("momentId") in moments)]
+            saved_state = {**state, "presence": presence} if "presence" in state else state
             db.execute("INSERT OR REPLACE INTO figure_settings VALUES(1,?,?,?)", (
                 int(canvas.get("w", 2400)), int(canvas.get("h", 1600)),
-                _extra(state, {"nodes", "edges", "canvasSize"}),
+                _extra(saved_state, {"nodes", "edges", "canvasSize"}),
             ))
     finally:
         if own: db.close()

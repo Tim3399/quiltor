@@ -31,6 +31,7 @@ class StorageTest(unittest.TestCase):
                       {"id": "n2", "x": 3, "y": 4, "type": "person", "name": "B"}],
             "edges": [{"id": "e1", "from": "n1", "to": "n2", "label": "Freunde", "versions": [{"momentId": "t2", "label": "Feinde", "active": True}]}],
             "timeline": [{"id": "t1", "title": "Vorher"}, {"id": "t2", "title": "Verrat", "date": "1420-03-12"}],
+            "presence": [{"id": "p1", "elementId": "n1", "placeId": "n2", "momentId": "t2"}, {"id": "p0", "elementId": "n1", "placeId": "n2"}],
             "canvasSize": {"w": 900, "h": 700}, "future": "kept",
         }
         storage.initialize()
@@ -47,6 +48,9 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(figures["edges"][0]["versions"][0]["label"], "Feinde")
         self.assertEqual(figures["timeline"][1]["date"], "1420-03-12")
         self.assertEqual(figures["future"], "kept")
+        presence_by_id = {entry["id"]: entry for entry in figures["presence"]}
+        self.assertEqual(presence_by_id["p1"]["momentId"], "t2")
+        self.assertNotIn("momentId", presence_by_id["p0"])
         self.assertEqual(storage.connect().execute("PRAGMA integrity_check").fetchone()[0], "ok")
 
     def test_rejecting_orphan_is_enforced_by_database(self):
@@ -55,6 +59,19 @@ class StorageTest(unittest.TestCase):
                  "edges": [{"id": "e1", "from": "missing", "to": "n1"}]}
         storage.save_figures(state)
         self.assertEqual(storage.load_figures()["edges"], [])
+
+    def test_presence_entries_without_targets_are_dropped(self):
+        storage.initialize()
+        state = {"nodes": [{"id": "n1", "x": 0, "y": 0, "name": "A"}, {"id": "n2", "x": 0, "y": 0, "name": "Ort"}],
+                 "edges": [], "timeline": [{"id": "t1", "title": "Vorher"}],
+                 "presence": [
+                     {"id": "p1", "elementId": "n1", "placeId": "n2", "momentId": "t1"},
+                     {"id": "p2", "elementId": "missing", "placeId": "n2"},
+                     {"id": "p3", "elementId": "n1", "placeId": "missing"},
+                     {"id": "p4", "elementId": "n1", "placeId": "n2", "momentId": "missing-moment"},
+                 ]}
+        storage.save_figures(state)
+        self.assertEqual([entry["id"] for entry in storage.load_figures()["presence"]], ["p1"])
 
     def test_revision_conflicts_prevent_lost_updates(self):
         storage.initialize()

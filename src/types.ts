@@ -1,4 +1,4 @@
-export type Workspace = 'text' | 'figures' | 'timeline';
+export type Workspace = 'text' | 'figures' | 'timeline' | 'places';
 export type SavePhase = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 export interface Chapter {
@@ -43,6 +43,8 @@ export interface FigureNode {
   important?: boolean;
   diedMomentId?: string;
   profile?: Profile;
+  mapX?: number;
+  mapY?: number;
   [key: string]: unknown;
 }
 
@@ -77,11 +79,20 @@ export interface TimelineMoment {
   note?: string;
 }
 
+export interface PresenceEntry {
+  id: string;
+  elementId: string;
+  placeId: string;
+  momentId?: string;
+}
+
 export interface FigureState {
   nodes: FigureNode[];
   edges: FigureEdge[];
   timeline?: TimelineMoment[];
+  presence?: PresenceEntry[];
   canvasSize?: { w: number; h: number };
+  mapScale?: { unitsPer100px: number; unitLabel: string };
   [key: string]: unknown;
 }
 

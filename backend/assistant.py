@@ -4,12 +4,15 @@ import json
 import os
 import re
 import subprocess
-import urllib.error
-import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from backend.knowledge import build_knowledge, retrieve
+from backend.knowledge import build_knowledge, moment_order, retrieve
+from backend.llm import select
+from backend.llm.shared.contract import check_health, count_tokens, invoke_chat, json_schema_format
+
+CONVERSATION_HISTORY_TOKEN_BUDGET = 2000
 
 
 SYSTEM_PROMPT = """You are Quiltor's local worldbuilding assistant. Reply in the user's language.
@@ -44,34 +47,29 @@ class AssistantRuntime:
     def __init__(self, base: Path, data: Path):
         self.base, self.data = base, data
         self.url = os.environ.get("QUILTOR_AI_URL", "http://127.0.0.1:11435").rstrip("/")
-        self.process: subprocess.Popen[str] | None = None
-        self._start_bundled()
-
-    def _start_bundled(self) -> None:
-        explicit_binary = os.environ.get("QUILTOR_AI_BINARY")
-        explicit_model = os.environ.get("QUILTOR_AI_MODEL")
-        binary = Path(explicit_binary) if explicit_binary else self.base / "runtime" / "llama-server"
-        models = list((self.base / "models").glob("*.gguf")) if (self.base / "models").exists() else []
-        model = Path(explicit_model) if explicit_model else (models[0] if models else None)
-        if not binary.exists() or not model or not model.exists():
-            return
-        port = self.url.rsplit(":", 1)[-1]
-        self.process = subprocess.Popen([str(binary), "-m", str(model), "--host", "127.0.0.1", "--port", port, "-c", "8192", "--jinja"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
+        started = select.start_runtime(base, data, self.url)
+        self.process: subprocess.Popen[str] | None = started[0] if started else None
+        self.log_path: Path | None = started[1] if started else None
 
     def status(self) -> dict[str, Any]:
-        try:
-            with urllib.request.urlopen(f"{self.url}/health", timeout=0.7) as response:
-                ready = response.status == 200
-            return {"available": ready, "mode": "local", "reason": ""}
-        except Exception:
-            return {"available": False, "mode": "local", "reason": "Lokales Modell ist noch nicht installiert oder gestartet."}
+        if check_health(self.url):
+            return {"available": True, "mode": "local", "reason": ""}
+        exit_code = self.process.poll() if self.process is not None else None
+        if exit_code is not None:
+            reason = f"Lokaler Modell-Prozess ist beendet (Exit-Code {exit_code}). Details in {self.log_path}."
+        else:
+            reason = "Lokales Modell ist noch nicht installiert oder gestartet."
+        return {"available": False, "mode": "local", "reason": reason}
 
-    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None) -> dict[str, Any]:
+    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None, chapter_ids: list[str] | None = None) -> dict[str, Any]:
         chunks = build_knowledge(manuscript, figures)
         contract = task_contract(question, figures)
         context = retrieve(chunks, question)
         trace: list[dict[str, Any]] = [{"step": "initial_search", "query": question, "sources": [item.id for item in context]}]
         trace.append({"step": "contract", **contract})
+        forced = [chunk for chunk in chunks if chapter_ids and chunk.kind in {"chapter", "chapter-note"} and chunk.target.get("id") in set(chapter_ids)]
+        if forced:
+            trace.append({"step": "force_context", "chapterIds": chapter_ids, "sources": [item.id for item in forced]})
         if contract["audit"]:
             audit = validate_world(figures)
             evidence = [chunk.public() for chunk in chunks if chunk.kind == "relationship"][:12]
@@ -91,7 +89,11 @@ class AssistantRuntime:
             found = retrieve(chunks, str(query))
             trace.append({"step": "search_world", "query": query, "sources": [item.id for item in found]})
             known_context.update((item.id, item) for item in found)
-        context = list(known_context.values())[:10 if contract["requiredKinds"] else 16]
+        limit = 10 if contract["requiredKinds"] else 16
+        # Chapters the author explicitly picked always make it into context, even past the
+        # usual limit -- retrieve()'s lexical scoring is a best guess, an explicit pick isn't.
+        rest = [item for item in known_context.values() if item.id not in {chunk.id for chunk in forced}]
+        context = forced + rest[:max(0, limit - len(forced))]
         context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
         world_json = json.dumps(structured_world_state(figures, contract), ensure_ascii=False)
         if PROSE_REQUEST.search(question):
@@ -106,8 +108,8 @@ class AssistantRuntime:
         }
         payload = {
             "model": "local", "stream": False, "temperature": 0.2, "max_tokens": 900,
-            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *conversation_messages(history), {"role": "user", "content": f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{context_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"}],
-            "response_format": {"type": "json_schema", "schema": schema},
+            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *conversation_messages(history, self.url), {"role": "user", "content": f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{context_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"}],
+            "response_format": json_schema_format(schema),
         }
         supported = {"create_element", "update_element", "create_timeline_moment", "create_relationship", "set_relationship_at_moment", "mark_deceased", "arrange_elements"}
         explicit_required = set(contract["requiredKinds"])
@@ -125,7 +127,7 @@ class AssistantRuntime:
         if required - {item.get("kind") for item in parsed["proposals"]}:
             retry_schema = json.loads(json.dumps(schema))
             retry_schema["properties"]["proposals"]["minItems"] = 1
-            retry = {**payload, "response_format": {"type": "json_schema", "schema": retry_schema}, "messages": [*payload["messages"], {"role": "assistant", "content": json.dumps(parsed, ensure_ascii=False)}, {"role": "user", "content": "The request requires a structured world-data proposal, but proposals was empty or invalid. Correct the response and emit at least one matching allowed proposal using IDs from CONTEXT. Do not claim it was applied. /no_think"}]}
+            retry = {**payload, "response_format": json_schema_format(retry_schema), "messages": [*payload["messages"], {"role": "assistant", "content": json.dumps(parsed, ensure_ascii=False)}, {"role": "user", "content": "The request requires a structured world-data proposal, but proposals was empty or invalid. Correct the response and emit at least one matching allowed proposal using IDs from CONTEXT. Do not claim it was applied. /no_think"}]}
             parsed = self._invoke(retry)
             parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
             if not mutation_requested:
@@ -175,7 +177,7 @@ class AssistantRuntime:
         payload = {"model": "local", "stream": False, "temperature": 0.1, "max_tokens": 500,
                    "messages": [{"role": "system", "content": "Plan the user's world-management task before answering. Decompose compound tasks into every necessary operation. Decide which additional local world searches are needed. Never plan prose writing or direct mutations. Return JSON only."},
                                 {"role": "user", "content": f"REQUEST:\n{question}\nINITIAL MATCHES:\n{summary}\n/no_think"}],
-                   "response_format": {"type": "json_schema", "schema": schema}}
+                   "response_format": json_schema_format(schema)}
         try:
             result = self._invoke(payload)
             queries = result.get("searchQueries", [])
@@ -212,7 +214,7 @@ class AssistantRuntime:
             return {"kind": "mark_deceased", "elementId": node["id"], "momentId": moment["id"]}
         if "beziehung" in folded or "relationship" in folded:
             shape = {"type": "object", "required": ["from", "to", "label", "directed", "style"], "additionalProperties": False, "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "directed": {"type": "boolean"}, "style": {"enum": ["solid", "dashed", "blood", "gold"]}}}
-            result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 300, "messages": [{"role": "system", "content": "Extract one requested relationship proposal. Use exact existing element IDs from context, not names. Return JSON only."}, {"role": "user", "content": f"CONTEXT:\n{context_json}\nREQUEST:\n{question}\n/no_think"}], "response_format": {"type": "json_schema", "schema": shape}})
+            result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 300, "messages": [{"role": "system", "content": "Extract one requested relationship proposal. Use exact existing element IDs from context, not names. Return JSON only."}, {"role": "user", "content": f"CONTEXT:\n{context_json}\nREQUEST:\n{question}\n/no_think"}], "response_format": json_schema_format(shape)})
             if not result.get("from") and isinstance(result.get("target"), dict):
                 text = str(result.get("text", ""))
                 label = re.search(r"(?:Beziehung|Relationship):\s*([^\n]+)", text, re.IGNORECASE)
@@ -221,22 +223,12 @@ class AssistantRuntime:
             return {"kind": "create_relationship", "relationship": result}
         if "zeitpunkt" in folded or "timeline" in folded:
             shape = {"type": "object", "required": ["title"], "additionalProperties": False, "properties": {"title": {"type": "string"}, "date": {"type": "string"}, "note": {"type": "string"}}}
-            result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 300, "messages": [{"role": "system", "content": "Extract one requested timeline moment proposal. Return JSON only."}, {"role": "user", "content": f"CONTEXT:\n{context_json}\nREQUEST:\n{question}\n/no_think"}], "response_format": {"type": "json_schema", "schema": shape}})
+            result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 300, "messages": [{"role": "system", "content": "Extract one requested timeline moment proposal. Return JSON only."}, {"role": "user", "content": f"CONTEXT:\n{context_json}\nREQUEST:\n{question}\n/no_think"}], "response_format": json_schema_format(shape)})
             return {"kind": "create_timeline_moment", "tempId": "new:moment:assistant", "moment": result}
         return None
 
     def _invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
-        request = urllib.request.Request(f"{self.url}/v1/chat/completions", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(request, timeout=180) as response:
-                result = json.loads(response.read())
-            content = result["choices"][0]["message"]["content"]
-            parsed = json.loads(content)
-        except (urllib.error.URLError, TimeoutError) as exc:
-            raise RuntimeError("Das lokale Modell ist nicht erreichbar.") from exc
-        except (KeyError, ValueError, TypeError) as exc:
-            raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
-        return parsed
+        return invoke_chat(self.url, payload)
 
     def close(self) -> None:
         if self.process and self.process.poll() is None:
@@ -340,12 +332,27 @@ def structured_world_state(figures: dict[str, Any], contract: dict[str, Any]) ->
     return state
 
 
-def conversation_messages(history: list[dict[str, str]] | None) -> list[dict[str, str]]:
-    result = []
-    for item in (history or [])[-6:]:
-        role, content = item.get("role"), str(item.get("content", ""))[:2000]
+def conversation_messages(history: list[dict[str, str]] | None, url: str) -> list[dict[str, str]]:
+    """Keep as much recent history as fits a real token budget, newest-first until it doesn't.
+
+    Uses count_tokens (the runtime's own tokenizer) rather than a message-count
+    cap or a chars-per-token estimate: we host the model ourselves, so the
+    exact count is one local HTTP call away and there's no reason to guess.
+    """
+    candidates = []
+    for item in history or []:
+        role, content = item.get("role"), str(item.get("content", ""))[:8000]
         if role in {"user", "assistant"} and content:
-            result.append({"role": role, "content": content})
+            candidates.append({"role": role, "content": content})
+    result: list[dict[str, str]] = []
+    budget = CONVERSATION_HISTORY_TOKEN_BUDGET
+    for message in reversed(candidates):
+        tokens = count_tokens(url, message["content"])
+        if tokens > budget:
+            break
+        budget -= tokens
+        result.append(message)
+    result.reverse()
     return result
 
 
@@ -371,10 +378,68 @@ def verify_task_contract(contract: dict[str, Any], proposals: list[dict[str, Any
     return {"requiredKinds": contract["requiredKinds"], "presentKinds": sorted(str(item) for item in present if item), "complete": not missing, "missing": missing, "issues": issues}
 
 
+def _moment_date_diff_days(from_date: Any, to_date: Any) -> int | None:
+    """Port of src/features/figures/date.ts's momentDateDiffDays -- same ISO-date parsing,
+    same rounding. Kept as a small standalone duplicate rather than shared across the
+    JS/Python boundary (per the plan: ~10 lines, not worth a cross-language dependency)."""
+    if not from_date or not to_date:
+        return None
+    try:
+        start, end = datetime.strptime(str(from_date), "%Y-%m-%d"), datetime.strptime(str(to_date), "%Y-%m-%d")
+    except ValueError:
+        return None
+    return (end - start).days
+
+
+def _figure_journey_stops(figure: dict[str, Any], presence: list[dict[str, Any]], timeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Port of src/features/figures/presence.ts's figureJourney: this figure's presence
+    entries in timeline order, collapsed to only the stops where the place actually changes."""
+    died_id = figure.get("diedMomentId")
+    death_index = moment_order(timeline, died_id) if died_id else float("inf")
+    stops = []
+    for entry in presence:
+        if entry.get("elementId") != figure.get("id"):
+            continue
+        index = moment_order(timeline, entry.get("momentId"))
+        if index < -1 or index > death_index:
+            continue
+        stops.append({"placeId": entry.get("placeId"), "momentId": entry.get("momentId"), "index": index})
+    stops.sort(key=lambda stop: stop["index"])
+    return [stop for i, stop in enumerate(stops) if i == 0 or stop["placeId"] != stops[i - 1]["placeId"]]
+
+
+def presence_consistency_issues(figures: dict[str, Any]) -> list[str]:
+    """Near-term slice of plan item B.1: flag presence entries that imply a figure changed
+    places with a same-day or backward date jump -- pure data already structured today
+    (PresenceEntry + TimelineMoment.date), no prose-reading or LLM call involved. Silently
+    skips any figure/moment pair missing a date (most worlds don't date every moment; that's
+    "Dauer unbekannt", not an inconsistency, mirroring stopDateDiff's graceful-degrade)."""
+    nodes = figures.get("nodes") or []
+    presence = figures.get("presence") or []
+    timeline = figures.get("timeline") or []
+    moments_by_id = {moment.get("id"): moment for moment in timeline}
+    issues: list[str] = []
+    for figure in nodes:
+        name = figure.get("name") or figure.get("id")
+        stops = _figure_journey_stops(figure, presence, timeline)
+        for previous, current in zip(stops, stops[1:]):
+            from_date = moments_by_id.get(previous.get("momentId"), {}).get("date")
+            to_date = moments_by_id.get(current.get("momentId"), {}).get("date")
+            days = _moment_date_diff_days(from_date, to_date)
+            if days is None:
+                continue
+            if days < 0:
+                issues.append(f"{name} wechselt laut Anwesenheit den Ort, aber das Zieldatum liegt vor dem Ausgangsdatum")
+            elif days == 0:
+                issues.append(f"{name} wechselt laut Anwesenheit am selben Tag den Ort")
+    return issues
+
+
 def validate_world(figures: dict[str, Any]) -> dict[str, Any]:
     nodes = {node.get("id") for node in figures.get("nodes") or []}
     moments = {moment.get("id") for moment in figures.get("timeline") or []}
     edges = figures.get("edges") or []
+    presence = figures.get("presence") or []
     issues: list[str] = []
     seen: set[tuple[Any, ...]] = set()
     for edge in edges:
@@ -393,14 +458,15 @@ def validate_world(figures: dict[str, Any]) -> dict[str, Any]:
             if moment_id in version_moments:
                 issues.append(f"Beziehung {edge.get('id')} hat mehrere Stände am selben Zeitpunkt {moment_id}")
             version_moments.add(moment_id)
-    return {"issues": issues, "inspected": {"elements": len(nodes), "relationships": len(edges), "timelineMoments": len(moments), "relationshipStates": sum(len(edge.get("versions") or []) for edge in edges)}}
+    issues.extend(presence_consistency_issues(figures))
+    return {"issues": issues, "inspected": {"elements": len(nodes), "relationships": len(edges), "timelineMoments": len(moments), "relationshipStates": sum(len(edge.get("versions") or []) for edge in edges), "presenceEntries": len(presence)}}
 
 
 def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
     inspected = audit["inspected"]
     prefix = (f"Strukturell vollständig geprüft: {inspected['relationships']} Beziehungen mit "
-              f"{inspected['relationshipStates']} Zeitständen, {inspected['elements']} Elemente und "
-              f"{inspected['timelineMoments']} Timeline-Zeitpunkte.")
+              f"{inspected['relationshipStates']} Zeitständen, {inspected['elements']} Elemente, "
+              f"{inspected['timelineMoments']} Timeline-Zeitpunkte und {inspected['presenceEntries']} Anwesenheits-Einträge.")
     if audit["issues"]:
         return prefix + " Gefunden: " + "; ".join(audit["issues"]) + ". Es wurde nichts geändert."
     return prefix + " Keine technischen Widersprüche gefunden. Ob Richtung und Beschriftung inhaltlich zur Geschichte passen, ist damit nicht automatisch bewiesen; dafür müssen konkrete Manuskriptstellen als Belege ausgewertet werden."

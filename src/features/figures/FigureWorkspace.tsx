@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
-import { Clock3, Download, Grid3X3, LayoutGrid, Link2, Pause, Pin, Play, Plus, Redo2, Skull, Star, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
-import type { FigureEdge, FigureNode, FigureState, FigureKind, Profile, RelationshipVersion, TimelineMoment } from '../../types';
+import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type MiniMapNodeProps, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
+import { Clock3, Download, Grid3X3, LayoutGrid, Link2, MapPin, Pause, Pin, Play, Plus, Redo2, Skull, Star, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
+import type { FigureEdge, FigureNode, FigureState, FigureKind, PresenceEntry, Profile, RelationshipVersion, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
 import { download } from '../../lib/api';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { figureJourney, journeyHandles, journeyLegs, momentIndex, patchPresence, presenceByPlace, presenceFieldEditor, prunePresence, resolvePresence, stopDateDiff } from './presence';
+import { formatMomentDate } from './date';
 
 export type SemanticZoomTier = 'detail' | 'compact' | 'overview';
-type CardData = { figure: FigureNode; deceased: boolean; zoomTier: SemanticZoomTier; zoom: number };
+type CardData = { figure: FigureNode; deceased: boolean; guests: FigureNode[]; zoomTier: SemanticZoomTier; zoom: number };
 const nodeTypes = { story: StoryNode };
 const EMPTY_TIMELINE: TimelineMoment[] = [];
+const EMPTY_PRESENCE: PresenceEntry[] = [];
+const EMPTY_NODES: FigureNode[] = [];
 const GRID_SIZE = 48;
 const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: string; nodeLabel: string; quick: boolean }> = [
   { kind: 'person', label: 'Figur', initialName: 'Neue Figur', nodeLabel: 'Rolle', quick: true },
@@ -23,14 +27,28 @@ const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: strin
 function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
   const item = data.figure;
   const semanticScale = data.zoomTier === 'overview' ? 1 / Math.max(data.zoom, .08) : 1;
-  return <div style={{ '--semantic-scale': semanticScale } as CSSProperties} className={`story-node zoom-${data.zoomTier} type-${item.type || 'person'} accent-${item.accent || 'ink'} ${item.important ? 'is-important' : ''} ${item.dash ? 'dashed' : ''} ${data.deceased ? 'is-deceased' : ''} ${selected ? 'selected' : ''}`}>
+  return <div style={{ '--semantic-scale': semanticScale } as CSSProperties} className={`story-node zoom-${data.zoomTier} type-${item.type || 'person'} accent-${item.accent || 'ink'} ${item.important ? 'is-important' : ''} ${item.dash ? 'dashed' : ''} ${data.deceased ? 'is-deceased' : ''} ${data.guests.length ? 'has-guests' : ''} ${selected ? 'selected' : ''}`}>
     <Handle id="in" className="directed-handle incoming-handle" type="target" position={Position.Left} />
     <Handle id="neutral-top" className="neutral-handle" type="source" position={Position.Top} />
+    <Handle id="journey-top" className="journey-handle" type="source" position={Position.Top} isConnectable={false} />
+    <Handle id="journey-bottom" className="journey-handle" type="source" position={Position.Bottom} isConnectable={false} />
     <span className="node-kind">{item.type === 'ort' ? 'Ort' : item.type === 'konzept' ? 'Konzept' : item.type === 'tier' ? 'Tier' : item.type === 'organisation' ? 'Organisation' : item.type === 'objekt' ? 'Objekt' : item.label || 'Figur'}</span>
     <strong>{item.important && <Star className="importance-mark" aria-label="Wichtig" />}{item.name}{data.deceased && <Skull aria-label="Verstorben" />}</strong>{item.sub && <small>{item.sub}</small>}
+    {data.guests.length > 0 && <small className="node-guests">{data.guests.slice(0, 3).map(guest => guest.name).join(', ')}{data.guests.length > 3 ? ` +${data.guests.length - 3}` : ''}</small>}
     <Handle id="out" className="directed-handle outgoing-handle" type="source" position={Position.Right} />
     <Handle id="neutral-bottom" className="neutral-handle" type="source" position={Position.Bottom} />
   </div>;
+}
+
+const MINIMAP_NODE_SIZE = 40;
+
+function MiniMapDot({ x, y, width, height, color, strokeColor, strokeWidth, borderRadius, className, selected }: MiniMapNodeProps) {
+  return <rect
+    className={`react-flow__minimap-node ${selected ? 'selected' : ''} ${className ?? ''}`}
+    x={x + width / 2 - MINIMAP_NODE_SIZE / 2} y={y + height / 2 - MINIMAP_NODE_SIZE / 2}
+    width={MINIMAP_NODE_SIZE} height={MINIMAP_NODE_SIZE} rx={borderRadius} ry={borderRadius}
+    style={{ fill: color, stroke: strokeColor, strokeWidth }}
+  />;
 }
 
 export function minimapColorForKind(kind?: FigureKind) {
@@ -68,6 +86,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [activeMomentId, setActiveMomentId] = useState<string | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(() => !!state.timeline?.length);
+  const [journeyOverlayOpen, setJourneyOverlayOpen] = useState(() => !!state.presence?.length);
   const [playing, setPlaying] = useState(false);
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
   const [importError, setImportError] = useState('');
@@ -82,6 +101,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   latestState.current = state;
   const selected = state.nodes.find(node => node.id === selectedId) ?? null;
   const timeline = state.timeline ?? EMPTY_TIMELINE;
+  const presence = state.presence ?? EMPTY_PRESENCE;
   useEffect(() => {
     const setOverride = (event: KeyboardEvent) => { if (event.key === 'Alt') setGridOverride(event.type === 'keydown'); };
     const clearOverride = () => setGridOverride(false);
@@ -100,10 +120,10 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   }, [createMenuOpen]);
   useEffect(() => {
     if (!targetId) return;
-    const item = state.nodes.find(node => node.id === targetId);
+    const item = latestState.current.nodes.find(node => node.id === targetId);
     if (item) { setSelectedId(targetId); setTimeout(() => flow.current?.setCenter(item.x, item.y, { zoom: 1, duration: 350 }), 0); return; }
-    if (timeline.some(moment => moment.id === targetId)) { setActiveMomentId(targetId); setTimelineOpen(true); }
-  }, [targetId, state.nodes, timeline]);
+    if ((latestState.current.timeline ?? EMPTY_TIMELINE).some(moment => moment.id === targetId)) { setActiveMomentId(targetId); setTimelineOpen(true); }
+  }, [targetId]);
   useEffect(() => {
     if (!playing || !timeline.length) return;
     const index = activeMomentId ? timeline.findIndex(moment => moment.id === activeMomentId) : -1;
@@ -111,14 +131,43 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     const timer = window.setTimeout(() => setActiveMomentId(timeline[index + 1].id), 1500);
     return () => window.clearTimeout(timer);
   }, [playing, activeMomentId, timeline]);
-  const derivedNodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, draggable: !item.pinned, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId), zoomTier, zoom: viewportZoom } })), [state.nodes, zoomTier, viewportZoom]);
+  const guestsByPlace = useMemo(() => presenceByPlace(state.nodes, presence, timeline, activeMomentId), [state.nodes, presence, timeline, activeMomentId]);
+  const derivedNodes = useMemo<Node<CardData>[]>(() => state.nodes.map(item => ({ id: item.id, type: 'story', position: { x: item.x, y: item.y }, draggable: !item.pinned, data: { figure: item, deceased: figureIsDeceased(item, timeline, activeMomentId), guests: EMPTY_NODES, zoomTier, zoom: viewportZoom } })), [state.nodes, zoomTier, viewportZoom]);
   const [nodes, setFlowNodes] = useState<Node<CardData>[]>(derivedNodes);
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
   useEffect(() => {
-    setFlowNodes(current => current.map(node => ({ ...node, data: { ...node.data, deceased: figureIsDeceased(node.data.figure, timeline, activeMomentId) } })));
-  }, [timeline, activeMomentId]);
+    setFlowNodes(current => current.map(node => ({ ...node, data: { ...node.data, deceased: figureIsDeceased(node.data.figure, timeline, activeMomentId), guests: guestsByPlace.get(node.id) ?? EMPTY_NODES } })));
+  }, [timeline, activeMomentId, guestsByPlace]);
   const visibleEdges = useMemo(() => state.edges.map(edge => activeMomentId ? resolveRelationship(edge, timeline, activeMomentId) : resolveRelationshipOverview(edge, timeline)).filter(edge => edge.active), [state.edges, timeline, activeMomentId]);
   const edges = useMemo<Edge[]>(() => visibleEdges.map(edge => { const handles = relationshipHandles(edge, state.nodes); return ({ id: edge.id, source: edge.from, target: edge.to, sourceHandle: handles.from, targetHandle: handles.to, label: edge.label, labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' }, animated: edge.style === 'blood', className: `edge-${edge.style || 'solid'} ${edge.gerichtet ? 'edge-directed' : 'edge-undirected'} ${!activeMomentId && edge.versions?.length ? 'edge-temporal' : ''}`, markerEnd: edge.gerichtet ? { type: 'arrowclosed' as const } : undefined }); }), [visibleEdges, activeMomentId, state.nodes]);
+  const journeyEdges = useMemo<Edge[]>(() => {
+    if (!journeyOverlayOpen || !selected || (selected.type !== 'person' && selected.type !== 'tier')) return [];
+    const nodeById = new Map(state.nodes.map(node => [node.id, node]));
+    const stops = figureJourney(selected, presence, timeline);
+    const legs = journeyLegs(stops, timeline, activeMomentId);
+    const result: Edge[] = [];
+    legs.forEach((leg, index) => {
+      const fromNode = nodeById.get(leg.from.placeId), toNode = nodeById.get(leg.to.placeId);
+      if (!fromNode || !toNode) return;
+      const handles = journeyHandles(fromNode, toNode);
+      result.push({
+        id: `journey:${selected.id}:${index}`, source: leg.from.placeId, target: leg.to.placeId,
+        sourceHandle: handles.from, targetHandle: handles.to,
+        label: leg.to.momentId ? [timeline.find(moment => moment.id === leg.to.momentId)?.title, stopDateDiff(leg.from, leg.to, timeline).label].filter(Boolean).join(' · ') : undefined,
+        labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' },
+        markerEnd: { type: 'arrowclosed' as const }, animated: leg.current, zIndex: 5,
+        className: `journey-edge ${leg.walked ? 'journey-walked' : 'journey-ahead'} ${leg.current ? 'journey-current' : ''}`,
+      });
+    });
+    const currentPresence = resolvePresence(selected.id, presence, timeline, activeMomentId);
+    const placeNode = currentPresence ? nodeById.get(currentPresence.placeId) : undefined;
+    if (activeMomentId && placeNode && !figureIsDeceased(selected, timeline, activeMomentId)) {
+      const handles = journeyHandles(selected, placeNode);
+      result.push({ id: `presence:${selected.id}`, source: selected.id, target: placeNode.id, sourceHandle: handles.from, targetHandle: handles.to, zIndex: 5, className: 'presence-edge' });
+    }
+    return result;
+  }, [journeyOverlayOpen, selected, presence, timeline, activeMomentId, state.nodes]);
+  const allEdges = useMemo<Edge[]>(() => [...edges, ...journeyEdges], [edges, journeyEdges]);
 
   const patchNode = (id: string, patch: Partial<FigureNode>) => onChange({ ...state, nodes: state.nodes.map(node => node.id === id ? { ...node, ...patch } : node) });
   const addNode = (kind: FigureKind) => {
@@ -159,7 +208,8 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   }, [onChange, updateNodeInternals]);
   const remove = () => {
     if (!selected) return;
-    onChange({ ...state, nodes: state.nodes.filter(node => node.id !== selected.id), edges: state.edges.filter(edge => edge.from !== selected.id && edge.to !== selected.id) }); setSelectedId(null);
+    const remainingNodes = state.nodes.filter(node => node.id !== selected.id);
+    onChange({ ...state, nodes: remainingNodes, edges: state.edges.filter(edge => edge.from !== selected.id && edge.to !== selected.id), presence: prunePresence(presence, remainingNodes, timeline) }); setSelectedId(null);
   };
   const exportState = () => download(`quiltor-figuren-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2), 'application/json');
   const exportProfiles = () => download(`Quiltor-Steckbriefe-${new Date().toISOString().slice(0, 10)}.md`, state.nodes.map(node => {
@@ -184,36 +234,36 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
       <div className="tool-group create-group"><div className="element-create" ref={createMenu}><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />Element</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>
       <div className="tool-group"><button aria-pressed={connecting} className={connecting ? 'active' : ''} onClick={() => setConnecting(!connecting)}><Link2 />Verbinden</button></div>
       <div className="tool-group"><button aria-pressed={snapToGrid} className={snapToGrid ? 'active' : ''} title={snapToGrid ? 'Raster ausblenden und frei verschieben · Alt/Option löst nur temporär' : 'Raster einblenden und Einrasten aktivieren'} onClick={() => setSnapToGrid(value => !value)}><Grid3X3 />Raster</button><button disabled={!state.nodes.length} title="Alle Elemente am Raster ausrichten" onClick={alignAllNodes}><LayoutGrid />Anordnen</button></div>
-      <div className="tool-group"><button aria-pressed={timelineOpen} className={timelineOpen ? 'active' : ''} onClick={() => setTimelineOpen(value => !value)}><Clock3 />Zeit</button></div>
+      <div className="tool-group"><button aria-pressed={timelineOpen} className={timelineOpen ? 'active' : ''} onClick={() => setTimelineOpen(value => !value)}><Clock3 />Zeit</button><button aria-pressed={journeyOverlayOpen} className={journeyOverlayOpen ? 'active' : ''} onClick={() => setJourneyOverlayOpen(value => !value)}><MapPin />Wege</button></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label="Diagramm rückgängig"><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label="Diagramm wiederholen"><Redo2 /></button></div>
       <div className="tool-group"><button onClick={exportProfiles}><Download />Steckbriefe</button><button onClick={exportState}><Download />JSON</button><button onClick={() => input.current?.click()}><Upload />Import</button><input ref={input} hidden type="file" accept="application/json" onChange={event => void importState(event.target.files?.[0])} /></div>
     </div>
     <div className="figure-layout">
       <div className={`flow-area zoom-${zoomTier} ${connecting ? 'is-connecting' : ''} ${playing ? 'timeline-playing' : ''}`}>
-        {connecting && <div className="mode-banner"><Link2 />Rechts → links: gerichtet · Mitte ↔ Mitte: ungerichtet <button onClick={() => setConnecting(false)}><X /><span className="sr-only">Abbrechen</span></button></div>}
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; const zoom = instance.getZoom(); setViewportZoom(zoom); setZoomTier(semanticZoomTier(zoom)); }} onMove={(_, viewport) => { const zoom = Math.round(viewport.zoom * 100) / 100; setViewportZoom(current => current === zoom ? current : zoom); setZoomTier(current => { const next = semanticZoomTier(zoom); return current === next ? current : next; }); }}
+        {connecting && <div className="mode-banner"><Link2 /><span>Rechts → links: gerichtet · Mitte ↔ Mitte: ungerichtet</span><button onClick={() => setConnecting(false)}><X /><span className="sr-only">Abbrechen</span></button></div>}
+        <ReactFlow nodes={nodes} edges={allEdges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; const zoom = instance.getZoom(); setViewportZoom(zoom); setZoomTier(semanticZoomTier(zoom)); }} onMove={(_, viewport) => { const zoom = Math.round(viewport.zoom * 100) / 100; setViewportZoom(current => current === zoom ? current : zoom); setZoomTier(current => { const next = semanticZoomTier(zoom); return current === next ? current : next; }); }}
           onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
           onNodesChange={moveNodes} onNodeDragStop={(_, node) => commitNodePosition(node.id, node.position)}
           onConnect={connect} nodesConnectable={connecting} snapToGrid={snapToGrid && !gridOverride} snapGrid={[GRID_SIZE, GRID_SIZE]} fitView minZoom={0.08} maxZoom={2.2} deleteKeyCode={null}>
-          {snapToGrid && zoomTier !== 'overview' && <Background className={`board-grid board-grid-${zoomTier}`} variant={BackgroundVariant.Lines} gap={GRID_SIZE} size={0.55} color="var(--line)" />}<Controls position="bottom-left" /><MiniMap position="bottom-right" pannable zoomable nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
+          {snapToGrid && zoomTier !== 'overview' && <Background className={`board-grid board-grid-${zoomTier}`} variant={BackgroundVariant.Lines} gap={GRID_SIZE} size={0.55} color="var(--line)" />}<Controls position="bottom-left" /><MiniMap position="bottom-right" pannable zoomable nodeComponent={MiniMapDot} nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
         </ReactFlow>
         {timelineOpen && <TimelineStrip timeline={timeline} activeId={activeMomentId} playing={playing} onPlay={() => { if (!timeline.length) return; if (playing) { setPlaying(false); return; } if (!activeMomentId || activeMomentId === timeline.at(-1)?.id) setActiveMomentId(timeline[0].id); setPlaying(true); }} onSelect={id => { setPlaying(false); setActiveMomentId(id); }} onAdd={(title, date) => { const moment = { id: uid('t'), title, ...(date ? { date } : {}) }; onChange({ ...state, timeline: [...timeline, moment] }); setActiveMomentId(moment.id); }} onPatch={(id, patch) => onChange({ ...state, timeline: timeline.map(moment => moment.id === id ? { ...moment, ...patch } : moment) })} onDelete={moment => setDeleteMoment(moment)} />}
       </div>
       <aside className={`inspector figure-inspector ${selected ? 'has-selection' : ''}`} aria-label="Figuren-Inspector">
         <div className="panel-heading"><span>{selected ? 'Auswahl' : 'Inspector'}</span>{selected && <button className="icon-button" onClick={() => setSelectedId(null)} aria-label="Auswahl schließen"><X /></button>}</div>
         {!selected ? <div className="empty-inspector"><UserRound /><h2>Element auswählen</h2><p>Wähle ein Element, um Details und Beziehungen zu bearbeiten.</p></div>
-        : <FigureInspector figure={selected} state={state} activeMomentId={activeMomentId} onPatch={patch => patchNode(selected.id, patch)} onState={onChange} onDelete={() => setConfirmDelete(true)} />}
+        : <FigureInspector figure={selected} state={state} activeMomentId={activeMomentId} onPatch={patch => patchNode(selected.id, patch)} onState={onChange} onDelete={() => setConfirmDelete(true)} onSelectMoment={id => { setPlaying(false); setActiveMomentId(id); }} />}
       </aside>
     </div>
     {importError && <div className="toast error-box" role="alert">{importError}<button onClick={() => setImportError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
     {connectionError && <div className="toast error-box" role="status">{connectionError}<button onClick={() => setConnectionError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
     {selected && confirmDelete && <ConfirmDialog title="Element löschen" description={`„${selected.name}“ und alle zugehörigen Verbindungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Element löschen" holdDurationMs={5000} onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
     {pendingImport && <ConfirmDialog title="Diagramm importieren" description={`${pendingImport.nodes.length} Elemente und ${pendingImport.edges.length} Verbindungen ersetzen den aktuellen Stand. Vorher wird automatisch gesichert.`} confirmLabel="Importieren" onConfirm={() => { onChange(pendingImport); setSelectedId(null); setPendingImport(null); }} onClose={() => setPendingImport(null)} />}
-    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ wird aus dem Zeitstreifen entfernt. Beziehungsänderungen an diesem Zeitpunkt fallen auf den vorherigen Stand zurück.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={5000} onConfirm={() => { onChange({ ...state, timeline: timeline.filter(moment => moment.id !== deleteMoment.id), edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })) }); if (activeMomentId === deleteMoment.id) setActiveMomentId(null); }} onClose={() => setDeleteMoment(null)} />}
+    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ wird aus dem Zeitstreifen entfernt. Beziehungsänderungen an diesem Zeitpunkt fallen auf den vorherigen Stand zurück.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={5000} onConfirm={() => { onChange({ ...state, timeline: timeline.filter(moment => moment.id !== deleteMoment.id), edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); if (activeMomentId === deleteMoment.id) setActiveMomentId(null); }} onClose={() => setDeleteMoment(null)} />}
   </section>;
 }
 
-function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDelete }: { figure: FigureNode; state: FigureState; activeMomentId: string | null; onPatch: (patch: Partial<FigureNode>) => void; onState: (state: FigureState) => void; onDelete: () => void }) {
+function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDelete, onSelectMoment }: { figure: FigureNode; state: FigureState; activeMomentId: string | null; onPatch: (patch: Partial<FigureNode>) => void; onState: (state: FigureState) => void; onDelete: () => void; onSelectMoment: (id: string | null) => void }) {
   const [tab, setTab] = useState<'card' | 'profile' | 'links'>('card');
   const profile = figure.profile || { extra: [] };
   const patchProfile = (patch: Partial<Profile>) => onPatch({ profile: { ...profile, ...patch } });
@@ -232,6 +282,7 @@ function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDe
           <button className={figure.pinned ? 'active' : ''} aria-pressed={!!figure.pinned} onClick={() => onPatch({ pinned: !figure.pinned })}><Pin />{figure.pinned ? 'Position lösen' : 'Position fixieren'}</button>
         </div>
         {activeMomentId && figure.type !== 'ort' && figure.type !== 'konzept' && <button className={`timeline-life-action ${figure.diedMomentId === activeMomentId ? 'active' : ''}`} onClick={() => onPatch({ diedMomentId: figure.diedMomentId === activeMomentId ? undefined : activeMomentId })}><Skull />{figure.diedMomentId === activeMomentId ? 'Todesmarkierung entfernen' : 'Stirbt hier'}</button>}
+        {(figure.type === 'person' || figure.type === 'tier') && <PresenceField figure={figure} state={state} activeMomentId={activeMomentId} onState={onState} onSelectMoment={onSelectMoment} />}
       </>}
       {tab === 'profile' && <>{PROFILE_FIELDS.map(([key, label, size]) => <label className="field" key={key as string}><span>{label}</span>{size === 'short' ? <input value={String(profile[key] || '')} onChange={event => patchProfile({ [key]: event.target.value })} /> : <textarea value={String(profile[key] || '')} onChange={event => patchProfile({ [key]: event.target.value })} />}</label>)}
         <h3 className="section-label">Eigene Felder</h3>{(profile.extra || []).map((field, index) => <div className="custom-field" key={index}><input aria-label="Feldname" placeholder="Feldname" value={field.k} onChange={event => patchProfile({ extra: (profile.extra || []).map((item, i) => i === index ? { ...item, k: event.target.value } : item) })} /><textarea aria-label={`${field.k || 'Eigenes Feld'} Inhalt`} placeholder="Inhalt" value={field.v} onChange={event => patchProfile({ extra: (profile.extra || []).map((item, i) => i === index ? { ...item, v: event.target.value } : item) })} /><button className="icon-button danger-text" aria-label="Eigenes Feld entfernen" onClick={() => patchProfile({ extra: (profile.extra || []).filter((_, i) => i !== index) })}><Trash2 /></button></div>)}
@@ -250,16 +301,36 @@ function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDe
   </>;
 }
 
+function PresenceField({ figure, state, activeMomentId, onState, onSelectMoment }: { figure: FigureNode; state: FigureState; activeMomentId: string | null; onState: (state: FigureState) => void; onSelectMoment: (id: string | null) => void }) {
+  const timeline = state.timeline ?? EMPTY_TIMELINE;
+  const presence = state.presence ?? EMPTY_PRESENCE;
+  const places = state.nodes.filter(node => node.type === 'ort');
+  const editor = presenceFieldEditor(figure.id, presence, timeline, activeMomentId);
+  const inheritedName = editor.inheritedPlaceId ? state.nodes.find(node => node.id === editor.inheritedPlaceId)?.name : undefined;
+  const stops = figureJourney(figure, presence, timeline);
+  const activeIndex = activeMomentId ? momentIndex(timeline, activeMomentId) : -1;
+  const currentStopIndex = stops.reduce<number>((found, stop, index) => stop.index <= activeIndex ? index : found, -1);
+  return <div className="presence-field-group">
+    <label className="field presence-field">
+      <span>{activeMomentId ? `Ort ab „${timeline.find(moment => moment.id === activeMomentId)?.title ?? ''}“` : 'Ort · Ausgangslage'}</span>
+      {places.length ? <select value={editor.placeId} onChange={event => onState({ ...state, presence: patchPresence(presence, figure.id, activeMomentId, event.target.value || null) })}>
+        <option value="">{activeMomentId ? `Unverändert${inheritedName ? ' · ' + inheritedName : ''}` : 'Kein Ort'}</option>
+        {places.map(place => <option key={place.id} value={place.id}>{place.name}</option>)}
+      </select> : <p className="muted">Lege zuerst einen Ort an.</p>}
+    </label>
+    {stops.length > 0 && <div className="presence-journey">{stops.flatMap((stop, index) => {
+      const place = state.nodes.find(node => node.id === stop.placeId);
+      const button = <button key={`${stop.momentId ?? 'base'}-${index}`} className={index === currentStopIndex ? 'active' : ''} onClick={() => onSelectMoment(stop.momentId ?? null)}>{place?.name ?? 'Unbekannt'}</button>;
+      return index > 0 ? [<small key={`gap-${index}`} className="presence-journey-duration">{stopDateDiff(stops[index - 1], stop, timeline).label}</small>, button] : [button];
+    })}</div>}
+  </div>;
+}
+
 function TimelineStrip({ timeline, activeId, playing, onPlay, onSelect, onAdd, onPatch, onDelete }: { timeline: TimelineMoment[]; activeId: string | null; playing: boolean; onPlay: () => void; onSelect: (id: string | null) => void; onAdd: (title: string, date?: string) => void; onPatch: (id: string, patch: Partial<TimelineMoment>) => void; onDelete: (moment: TimelineMoment) => void }) {
   const [draft, setDraft] = useState(''), [draftDate, setDraftDate] = useState('');
   const add = () => { const title = draft.trim(); if (!title) return; onAdd(title, draftDate || undefined); setDraft(''); setDraftDate(''); };
   const active = timeline.find(moment => moment.id === activeId);
   return <div className={`timeline-strip ${playing ? 'is-playing' : ''}`} aria-label="Beziehungs-Zeitstreifen"><div className="timeline-heading"><Clock3 /><span>Zeit</span><button className="timeline-play" disabled={!timeline.length} aria-label={playing ? 'Zeitreise pausieren' : 'Zeitreise abspielen'} onClick={onPlay}>{playing ? <Pause /> : <Play />}</button><button className={!activeId ? 'active' : ''} aria-pressed={!activeId} onClick={() => onSelect(null)}>Gesamtsicht</button></div><div className="timeline-track">{timeline.map((moment, index) => <div className="timeline-moment" key={moment.id}><span aria-hidden="true">{index + 1}</span><button className={activeId === moment.id ? 'active' : ''} aria-pressed={activeId === moment.id} onClick={() => onSelect(moment.id)}><b>{moment.title}</b>{moment.date && <small>{formatMomentDate(moment.date)}</small>}</button></div>)}</div><div className="timeline-add"><input aria-label="Neuer Zeitpunkt" value={draft} placeholder="Neuer Zeitpunkt" onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} /><input className="timeline-date" type="date" aria-label="Datum des neuen Zeitpunkts" value={draftDate} onChange={event => setDraftDate(event.target.value)} /><button className="icon-button" disabled={!draft.trim()} aria-label="Zeitpunkt hinzufügen" onClick={add}><Plus /></button></div>{active && <div className="timeline-details"><label><span>Name</span><input value={active.title} onChange={event => onPatch(active.id, { title: event.target.value })} /></label><label><span>Datum · optional</span><input type="date" value={active.date || ''} onChange={event => onPatch(active.id, { date: event.target.value || undefined })} /></label><label><span>Notiz · optional</span><input value={active.note || ''} placeholder="Kapitel, Zeitsprung, Ereignis …" onChange={event => onPatch(active.id, { note: event.target.value })} /></label><button className="icon-button danger-text" aria-label="Zeitpunkt löschen" onClick={() => onDelete(active)}><Trash2 /></button></div>}</div>;
-}
-
-function formatMomentDate(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export function resolveRelationship(edge: FigureEdge, timeline: TimelineMoment[], activeId: string | null): FigureEdge & { active: boolean } {

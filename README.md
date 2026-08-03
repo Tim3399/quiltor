@@ -41,7 +41,13 @@ Der Assistent durchsucht Kapitel, Notizen, Profile, Elemente, Beziehungen und s�
 
 Änderungen an Elementen, Beziehungen und Timeline werden ausschließlich als strukturierte Vorschläge erzeugt. Erst eine ausdrückliche Bestätigung übernimmt sie als einen rückgängig machbaren Undo-Schritt.
 
-Die Modell-Runtime verwendet `llama.cpp`. Runtime und GGUF-Modell können lokal mitgeliefert oder konfiguriert werden:
+Die Modell-Runtime verwendet `llama.cpp` (auf Apple-Silicon-Macs wahlweise MLX, spürbar schneller dort). `python3 server.py` fragt beim ersten Start automatisch nach, falls noch keine Runtime eingerichtet ist, und lädt sie bei Zustimmung nach `runtime/` bzw. `models/` — kein separater Befehl nötig. Wer das explizit oder unbeaufsichtigt (z. B. in einem Skript) auslösen möchte:
+
+```bash
+python3 -m backend.llm.installer
+```
+
+Wer stattdessen eine vorhandene Runtime, ein anderes GGUF-Modell oder einen vorhandenen lokalen Endpoint verwenden möchte, kann das per Umgebungsvariable erzwingen:
 
 ```bash
 QUILTOR_AI_BINARY=/pfad/zu/llama-server \
@@ -59,23 +65,44 @@ Die mitgelieferte `.mcp.json` konfiguriert den Server automatisch für Clients, 
 
 ## Schnellstart
 
-Der gebaute Client liegt in `dist/`; für Editor und lokale Speicherung genügt Python 3:
+Vorausgesetzt wird Python 3.9 oder neuer (unter Windows meist als `python` aufrufbar, unter macOS/Linux als `python3`). Der gebaute Client liegt bereits in `dist/` — für Editor und lokale Speicherung ist sonst nichts zu installieren.
+
+**1. Repository holen**
 
 ```bash
 git clone https://github.com/Tim3399/quiltor.git
 cd quiltor
+```
+
+**2. Starten**
+
+```bash
 python3 server.py
 ```
 
-Quiltor öffnet [http://localhost:8000](http://localhost:8000). Alternativ:
+Quiltor öffnet automatisch [http://localhost:8000](http://localhost:8000) und legt beim ersten Start eine leere Welt an. Ein Repository bei GitHub, GitLab, Gitea oder einem anderen Git-Anbieter ist optional; Zugangsdaten speichert Quiltor nicht, verwendet wird deine lokal konfigurierte Git-Authentifizierung.
+
+Ist noch kein lokaler Assistent eingerichtet, fragt der Server einmalig nach (`Jetzt einrichten? [j/N]`), bevor er etwas herunterlädt — ~2,5 GB für llama.cpp, ~2,4 GB für MLX auf Apple-Silicon-Macs. Mit „Nein“ (oder einfach Enter) läuft Quiltor unverändert weiter, nur ohne Assistenten-Panel; die Frage kommt beim nächsten Start erneut, bis einmal zugestimmt wurde.
+
+Weitere Startoptionen:
 
 ```bash
-python3 server.py 8080 --no-open
+python3 server.py 8080            # anderer Port
+python3 server.py 8080 --no-open  # Browser nicht automatisch öffnen
 ```
 
-Beim ersten Start legst du eine leere Welt an. Ein Repository bei GitHub, GitLab, Gitea oder einem anderen Git-Anbieter ist optional. Zugangsdaten speichert Quiltor nicht; verwendet wird deine lokal konfigurierte Git-Authentifizierung.
+### Problembehebung
 
-Für Entwicklung und PDF-Export werden Node.js und die Projektabhängigkeiten benötigt:
+| Symptom | Lösung |
+| --- | --- |
+| `python3: command not found` | Unter Windows heißt der Befehl `python`, nicht `python3`. |
+| Assistenten-Panel zeigt „Lokales Modell nicht verfügbar“ | `python3 -m backend.llm.installer` ausführen und `server.py` danach neu starten. Prüfe, ob `runtime/llama-server` (bzw. `llama-server.exe`) und eine `.gguf`-Datei unter `models/` existieren. |
+| Download bricht ab oder ist langsam | `python3 -m backend.llm.installer` einfach erneut ausführen — vollständige Dateien werden übersprungen, unvollständige automatisch neu geladen. |
+| Firewall/Virenscanner meldet `llama-server.exe` | Stammt vom offiziellen [llama.cpp-Release](https://github.com/ggml-org/llama.cpp/releases) und lauscht ausschließlich auf `127.0.0.1`; als Ausnahme zulassen. |
+| Port 8000 ist belegt | Mit anderem Port starten: `python3 server.py 8080`. |
+| Eigene Runtime, eigenes Modell oder eigener Endpoint gewünscht | `QUILTOR_AI_BINARY`, `QUILTOR_AI_MODEL` oder `QUILTOR_AI_URL` setzen, siehe [Lokaler Assistent und RAG](#lokaler-assistent-und-rag). |
+
+Für Entwicklung und PDF-Export werden zusätzlich Node.js und die Projektabhängigkeiten benötigt:
 
 ```bash
 npm install
@@ -147,4 +174,17 @@ src/
 
 ## Status und Lizenz
 
-Quiltor befindet sich in aktiver Entwicklung. Es wurde noch keine Open-Source-Lizenz gewählt; bis dahin bleibt der Quellcode urheberrechtlich geschützt und kann zur Ansicht und privaten Evaluierung genutzt werden.
+Quiltor befindet sich in aktiver Entwicklung.
+
+Quiltor ist **source-available**, nicht Open Source: Der Quelltext ist öffentlich einsehbar, veränderbar und weitergebbar, aber die kommerzielle Nutzung durch größere Organisationen ist eingeschränkt. Es gilt wahlweise die [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) oder die [PolyForm Small Business License 1.0.0](https://polyformproject.org/licenses/small-business/1.0.0) — siehe [LICENSE](LICENSE).
+
+**Kostenlos, ohne Rückfrage:**
+
+- jede nicht-kommerzielle Nutzung — private Projekte, Hobby, Studium, Lehre, Forschung, gemeinnützige Organisationen und öffentliche Einrichtungen
+- kommerzielle Nutzung durch kleine Unternehmen im Sinne der PolyForm Small Business License: weniger als 100 Mitarbeitende und freie Mitarbeitende und weniger als 1.000.000 USD Umsatz im letzten Steuerjahr. Selbstständige Autorinnen und Autoren fallen praktisch immer darunter.
+
+**Individuelle Vereinbarung nötig:** Für kommerzielle Nutzung oberhalb dieser Grenze gibt es eine eigene, individuell verhandelte Lizenz. Schreib an licensing@quiltor.app — Details in [COMMERCIAL.md](COMMERCIAL.md).
+
+Diese Zusammenfassung ist unverbindlich; maßgeblich ist allein der englische Lizenztext in [LICENSE](LICENSE).
+
+Ausgelieferte Release-Pakete enthalten zusätzlich Software und Modellgewichte Dritter unter eigenen Lizenzen, siehe [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

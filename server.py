@@ -18,7 +18,10 @@ Starten:
 
 Stop: Ctrl+C
 
-Standard library only. No installation required.
+Standard library only. No installation required. On first run, if no local
+AI assistant is set up yet, you'll be asked once whether to download one
+(llama.cpp + a GGUF model, or MLX on Apple Silicon) — answer no and Quiltor
+runs exactly the same, just without the assistant panel.
 """
 
 import http.server
@@ -34,10 +37,15 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
+from backend.llm.shared.platform import force_utf8_streams
+
+force_utf8_streams()
+
 from backend import storage
 from backend.assistant import AssistantRuntime
 from backend.git_backup import GitBackup
 from backend.knowledge import build_knowledge
+from backend.llm.installer import ensure_installed
 from backend.validation import valid_figures, valid_manuscript
 
 BASE = Path(__file__).resolve().parent
@@ -47,6 +55,7 @@ BACKUPS = DATA / "backups"
 MANUSCRIPT_DIR = DATA / "manuscripts"
 PROFILE_DIR = DATA / "profiles"
 WORLD_BACKUPS = GitBackup(DATA / "repositories")
+ensure_installed()
 ASSISTANT = AssistantRuntime(BASE, DATA)
 
 MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
@@ -524,11 +533,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 request = json.loads(self.rfile.read(length).decode("utf-8"))
                 question = str(request.get("question", "")).strip()
                 history = request.get("history") if isinstance(request.get("history"), list) else []
+                chapter_ids = [str(item) for item in request.get("chapterIds") or [] if isinstance(item, str)][:50]
                 if not question or len(question) > 4000:
                     raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
                 with _lock:
                     manuscript, figures = storage.load_manuscript(), storage.load_figures()
-                result = ASSISTANT.complete(question, manuscript, figures, history[:12])
+                result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids)
                 with _lock:
                     interaction_id = storage.log_assistant_interaction(question, result)
                 print(f"  · {datetime.now():%H:%M:%S}  AI request {interaction_id} — {len(result.get('sources', []))} sources, {len(result.get('proposals', []))} proposals", flush=True)
