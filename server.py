@@ -42,7 +42,7 @@ from backend.llm.shared.platform import force_utf8_streams
 force_utf8_streams()
 
 from backend import storage
-from backend.assistant import AssistantRuntime
+from backend.assistant import AssistantRuntime, read_progress
 from backend.git_backup import GitBackup
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed
@@ -427,6 +427,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             with _lock:
                 return self.send_json({"ok": True, "interactions": storage.list_assistant_interactions()})
 
+        if route == "/api/assistant/progress":
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            progress_id = (q.get("id") or [""])[0]
+            # No _lock: this reads the in-memory progress registry (backend/assistant.py),
+            # not SQLite/manuscript state, so it's safe to poll while a batch run is in
+            # flight on another thread without contending with normal saves.
+            progress = read_progress(progress_id) if progress_id else None
+            return self.send_json({"ok": progress is not None, "progress": progress})
+
         if route == "/api/diff":
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
@@ -534,11 +544,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 question = str(request.get("question", "")).strip()
                 history = request.get("history") if isinstance(request.get("history"), list) else []
                 chapter_ids = [str(item) for item in request.get("chapterIds") or [] if isinstance(item, str)][:50]
+                run_batches = bool(request.get("runBatches"))
+                progress_id = str(request.get("progressId") or "")[:64] or None
                 if not question or len(question) > 4000:
                     raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
                 with _lock:
                     manuscript, figures = storage.load_manuscript(), storage.load_figures()
-                result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids)
+                result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids, run_batches, progress_id)
                 with _lock:
                     interaction_id = storage.log_assistant_interaction(question, result)
                 print(f"  · {datetime.now():%H:%M:%S}  AI request {interaction_id} — {len(result.get('sources', []))} sources, {len(result.get('proposals', []))} proposals", flush=True)

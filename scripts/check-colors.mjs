@@ -9,7 +9,7 @@ const color = /#[\da-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(|:\s*(?:white|black|tran
 const violations = [];
 
 function visit(path) {
-  if (ignored.has(path.split('/').at(-1))) return;
+  if (ignored.has(path.split(/[/\\]/).at(-1))) return;
   if (statSync(path).isDirectory()) return readdirSync(path).forEach(name => visit(join(path, name)));
   if (!extensions.has(extname(path)) || path === allowed) return;
   readFileSync(path, 'utf8').split('\n').forEach((line, index) => {

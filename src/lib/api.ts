@@ -43,7 +43,9 @@ export const api = {
   backups: () => json<{ ok: boolean; backups: Array<{ name: string; created: string; size: number }> }>('/api/backups'),
   restore: (name: string) => json<{ ok: boolean }>('/api/backups/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
   assistantStatus: () => json<{ ok: boolean; available: boolean; mode: string; reason: string; chunks: number }>('/api/assistant/status'),
-  assistantChat: (question: string, history: Array<{ role: 'user' | 'assistant'; content: string }> = [], signal?: AbortSignal, chapterIds?: string[]) => json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, history, chapterIds }), signal }),
+  assistantChat: (question: string, history: Array<{ role: 'user' | 'assistant'; content: string }> = [], signal?: AbortSignal, chapterIds?: string[], batch?: { runBatches: boolean; progressId: string }) =>
+    json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, history, chapterIds, runBatches: batch?.runBatches, progressId: batch?.progressId }), signal }),
+  assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; label: string; startedAt: number; updatedAt: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),
   bookPdf: async () => {
     const response = await fetch('/api/book.pdf', { method: 'POST' });
     if (!response.ok) { const error = await response.json().catch(() => null); throw new Error(error?.fehler || `HTTP ${response.status}`); }

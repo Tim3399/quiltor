@@ -121,7 +121,12 @@ export type AssistantProposal =
   | { kind: 'set_relationship_at_moment'; relationshipId: string; momentId: string; patch: { label?: string; active?: boolean; directed?: boolean; style?: FigureEdge['style'] } }
   | { kind: 'mark_deceased'; elementId: string; momentId: string }
   | { kind: 'arrange_elements'; strategy: 'thematic' | 'grid' };
-export interface AssistantReply { ok: boolean; message: string; proposals: AssistantProposal[]; sources: AssistantSource[]; proposalGroup?: { id: string; title: string; proposalIndexes: number[] } }
+export interface AssistantReply {
+  ok: boolean; message: string; proposals: AssistantProposal[]; sources: AssistantSource[];
+  proposalGroup?: { id: string; title: string; proposalIndexes: number[] };
+  agentTrace?: Array<{ step: string; [key: string]: unknown }>;
+  broadScope?: { chapterCount: number; estimateSeconds: number };
+}
 
 export const PROFILE_FIELDS: Array<[keyof Profile, string, 'short' | 'long']> = [
   ['alter', 'Alter', 'short'],

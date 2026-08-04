@@ -6,6 +6,20 @@ import urllib.request
 from typing import Any
 
 
+class IncompleteResponse(RuntimeError):
+    """The model's reply was cut off by max_tokens mid-JSON, not malformed.
+
+    Distinct from the generic parse-failure RuntimeError so callers can retry
+    with a larger budget instead of giving up immediately -- retrying can't
+    help a genuinely malformed response, only a truncated one.
+    """
+
+    def __init__(self, raw_content: str, finish_reason: str):
+        super().__init__("Das lokale Modell hat die Antwort nicht rechtzeitig fertiggestellt.")
+        self.raw_content = raw_content
+        self.finish_reason = finish_reason
+
+
 def json_schema_format(schema: dict[str, Any], name: str = "quiltor_reply") -> dict[str, Any]:
     """Build the response_format that forces JSON-schema-constrained decoding.
 
@@ -28,13 +42,19 @@ def invoke_chat(url: str, payload: dict[str, Any], timeout: int = 180) -> dict[s
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             result = json.loads(response.read())
-        content = result["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
+        choice = result["choices"][0]
+        content = choice["message"]["content"]
+        finish_reason = choice.get("finish_reason")
     except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError("Das lokale Modell ist nicht erreichbar.") from exc
     except (KeyError, ValueError, TypeError) as exc:
         raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
-    return parsed
+    try:
+        return json.loads(content)
+    except ValueError as exc:
+        if finish_reason == "length":
+            raise IncompleteResponse(content, finish_reason) from exc
+        raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
 
 
 def check_health(url: str, timeout: float = 0.7) -> bool:

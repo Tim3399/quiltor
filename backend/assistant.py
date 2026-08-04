@@ -4,15 +4,76 @@ import json
 import os
 import re
 import subprocess
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from backend.knowledge import build_knowledge, moment_order, retrieve
 from backend.llm import select
-from backend.llm.shared.contract import check_health, count_tokens, invoke_chat, json_schema_format
+from backend.llm.shared.contract import IncompleteResponse, check_health, count_tokens, invoke_chat, json_schema_format
 
 CONVERSATION_HISTORY_TOKEN_BUDGET = 2000
+
+# Must track backend/llm/runtimes/llamacpp.py's "-c" flag. MLX (runtimes/mlx.py) has no
+# equivalent flag or introspection endpoint, so this one constant is a shared
+# approximation across both runtimes rather than a per-runtime lookup.
+MODEL_CONTEXT_TOKENS = 8192
+# Reserved for the system prompt, world-state JSON, schema and the response itself when
+# deciding how much of the context budget "forced" chapter context is allowed to eat.
+CONTEXT_SAFETY_MARGIN = 2500
+# Live progress for in-flight batch runs, polled by the frontend. Deliberately a separate
+# lock from server.py's request-scoped _lock (which guards SQLite/manuscript state and is
+# meant to be held only briefly) -- a multi-minute batch run's frequent small writes here
+# shouldn't create unrelated contention with normal saves. No persistence, no cleanup
+# thread: entries are tiny, and a lazy sweep on each write is enough to bound growth.
+_PROGRESS_TTL_SECONDS = 300
+_progress: dict[str, dict[str, Any]] = {}
+_progress_lock = threading.Lock()
+
+
+def _sweep_progress(now: float) -> None:
+    stale = [key for key, entry in _progress.items() if now - entry["updatedAt"] > _PROGRESS_TTL_SECONDS]
+    for key in stale:
+        del _progress[key]
+
+
+def start_progress(progress_id: str, total: int) -> None:
+    now = time.time()
+    with _progress_lock:
+        _sweep_progress(now)
+        _progress[progress_id] = {"total": total, "done": 0, "label": "", "startedAt": now, "updatedAt": now}
+
+
+def update_progress(progress_id: str, done: int, label: str) -> None:
+    now = time.time()
+    with _progress_lock:
+        _sweep_progress(now)
+        entry = _progress.get(progress_id)
+        if entry is not None:
+            entry.update(done=done, label=label, updatedAt=now)
+
+
+def finish_progress(progress_id: str) -> None:
+    with _progress_lock:
+        entry = _progress.get(progress_id)
+        if entry is not None:
+            entry["updatedAt"] = time.time()
+
+
+def read_progress(progress_id: str) -> dict[str, Any] | None:
+    with _progress_lock:
+        entry = _progress.get(progress_id)
+        return dict(entry) if entry is not None else None
+
+
+# Per-group ceiling for batch mode's chapter grouping. Chapters vary a lot in length (a
+# confirmed 277-4679 words across one test manuscript), so groups are built by walking
+# chapters and accumulating real token counts up to this ceiling, not a flat chapter count
+# -- a fixed "N chapters per call" would just be a smaller version of the same fragile
+# constant this whole feature exists to get away from.
+BATCH_GROUP_TOKEN_BUDGET = 3500
 
 
 SYSTEM_PROMPT = """You are Quiltor's local worldbuilding assistant. Reply in the user's language.
@@ -39,8 +100,23 @@ For compound requests, emit every operation needed to fulfil the task. "Igor is 
 For arranging or sorting the board, use arrange_elements. Never invent timeline changes as a substitute for an unavailable operation.
 Do not emit unknown keys or any proposal for manuscript text."""
 
-MUTATION_REQUEST = re.compile(r"\b(anlegen|lege|erstelle?n?|hinzufügen|ergänz\w*|aktualisier\w*|änder\w*|setz\w*|markier\w*|sortier\w*|anordnen|verschieb\w*|schlag\w*|vorschlag|create|add|update|change|set|mark|arrange|propose)\b", re.IGNORECASE)
+MUTATION_REQUEST = re.compile(r"\b(anlegen|anzulegen|lege|erstelle?n?|hinzufügen|ergänz\w*|aktualisier\w*|änder\w*|setz\w*|markier\w*|sortier\w*|anordnen|verschieb\w*|schlag\w*|vorschlag|create|add|update|change|set|mark|arrange|propose)\b", re.IGNORECASE)
 PROSE_REQUEST = re.compile(r"\b(schreib\w*|fortsetzen|umschreib\w*|write|continue|rewrite)\b.*(szene|kapitel|roman|prosa|geschichte|scene|chapter|novel|prose|story)", re.IGNORECASE | re.DOTALL)
+# Broad, unscoped creation requests ("search all chapters and create every figure") can
+# need more than any single call's context/output budget can safely hold -- these get
+# routed to explicit, user-approved batch mode (see complete()'s "broad" short-circuit)
+# instead of risking either input overflow or output truncation.
+BROAD_SCOPE_REQUEST = re.compile(
+    r"\b(alle|sämtlich\w*|mehrere\w*|jed(?:es|e|en)|die\s+ganze|gesamte?|komplette?|all|every|entire|whole|multiple|several)\b"
+    r".{0,40}\b(kapitel|manuskript|geschichte|roman|chapters?|manuscript|story|novel)\b"
+    # "Kapitel" doesn't inflect for plural in German -- "die/den Kapitel(n)" (plural
+    # article) already signals "across chapters" without needing an "alle"-style
+    # qualifier, which is exactly the real phrasing that missed the first version of
+    # this pattern ("durchsuche die Kapitel und ...").
+    r"|\b(?:die|den)\s+kapitel(?:n)?\b"
+    r"|\bchapters\b",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 class AssistantRuntime:
@@ -61,7 +137,24 @@ class AssistantRuntime:
             reason = "Lokales Modell ist noch nicht installiert oder gestartet."
         return {"available": False, "mode": "local", "reason": reason}
 
-    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None, chapter_ids: list[str] | None = None) -> dict[str, Any]:
+    def _invoke_with_growth(self, payload: dict[str, Any], prompt_tokens: int) -> dict[str, Any]:
+        """Invoke the model; if the reply was cut off at max_tokens (not malformed),
+        retry once with a bigger budget bounded by remaining context headroom.
+        Retrying can't fix a genuinely malformed response, only a truncated one --
+        IncompleteResponse vs. the generic RuntimeError keeps those apart."""
+        try:
+            return self._invoke(payload)
+        except IncompleteResponse:
+            headroom = MODEL_CONTEXT_TOKENS - prompt_tokens - 256
+            if headroom <= payload["max_tokens"]:
+                raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from None
+            grown = {**payload, "max_tokens": min(headroom, payload["max_tokens"] * 2)}
+            try:
+                return self._invoke(grown)
+            except IncompleteResponse as exc:
+                raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
+
+    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None) -> dict[str, Any]:
         chunks = build_knowledge(manuscript, figures)
         contract = task_contract(question, figures)
         context = retrieve(chunks, question)
@@ -69,6 +162,7 @@ class AssistantRuntime:
         trace.append({"step": "contract", **contract})
         forced = [chunk for chunk in chunks if chapter_ids and chunk.kind in {"chapter", "chapter-note"} and chunk.target.get("id") in set(chapter_ids)]
         if forced:
+            forced = _fit_to_budget(forced, self.url, MODEL_CONTEXT_TOKENS - CONTEXT_SAFETY_MARGIN, trace)
             trace.append({"step": "force_context", "chapterIds": chapter_ids, "sources": [item.id for item in forced]})
         if contract["audit"]:
             audit = validate_world(figures)
@@ -81,6 +175,16 @@ class AssistantRuntime:
             source = next((chunk.public() for chunk in chunks if chunk.id == source_id), None)
             trace.append({"step": "preflight", "complete": False, "reason": "existing element", "elementId": duplicate["id"]})
             return {"message": f"„{duplicate.get('name', 'Dieses Element')}“ existiert bereits. Deshalb habe ich kein doppeltes Element vorgeschlagen. Du kannst stattdessen den vorhandenen Steckbrief oder seine Beziehungen ergänzen.", "citations": [source_id], "sources": [source] if source else [], "proposals": [], "agentTrace": trace}
+        if contract["broad"] and not chapter_ids and not run_batches:
+            chapter_count = len({chapter["id"] for chapter in manuscript.get("chapters") or []})
+            trace.append({"step": "preflight", "complete": False, "reason": "broad scope", "chapterCount": chapter_count})
+            return {
+                "message": broad_scope_message(chapter_count),
+                "citations": [], "sources": [], "proposals": [], "agentTrace": trace,
+                "broadScope": {"chapterCount": chapter_count, "estimateSeconds": estimate_batch_seconds(chapter_count)},
+            }
+        if run_batches and not chapter_ids:
+            return self._run_batches(question, manuscript, figures, history, progress_id)
         plan = ({"goal": question, "steps": contract["expected"], "searchQueries": [], "requiredKinds": contract["requiredKinds"], "planner": "deterministic"}
                 if contract["requiredKinds"] else self._plan(question, context))
         trace.append({"step": "plan", **plan})
@@ -106,9 +210,16 @@ class AssistantRuntime:
                 "proposals": {"type": "array", "items": {"type": "object"}},
             },
         }
+        conversation = conversation_messages(history, self.url)
+        user_content = f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{context_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"
+        prompt_tokens = count_tokens(self.url, SYSTEM_PROMPT + "".join(message["content"] for message in conversation) + user_content)
+        # Flat 900 was too tight for compound requests (multiple requiredKinds need more
+        # room to enumerate); scale a bit with complexity, still headroom-bounded so this
+        # can never itself push a well-scoped request into overflowing the context.
+        max_tokens = min(900 + 150 * len(contract["requiredKinds"]), max(300, MODEL_CONTEXT_TOKENS - prompt_tokens - 256))
         payload = {
-            "model": "local", "stream": False, "temperature": 0.2, "max_tokens": 900,
-            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *conversation_messages(history, self.url), {"role": "user", "content": f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{context_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"}],
+            "model": "local", "stream": False, "temperature": 0.2, "max_tokens": max_tokens,
+            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *conversation, {"role": "user", "content": user_content}],
             "response_format": json_schema_format(schema),
         }
         supported = {"create_element", "update_element", "create_timeline_moment", "create_relationship", "set_relationship_at_moment", "mark_deceased", "arrange_elements"}
@@ -118,7 +229,7 @@ class AssistantRuntime:
         required = explicit_required or (planned_required if mutation_requested else set())
         if required:
             payload["messages"][1]["content"] += "\n\nTASK REQUIREMENTS: The structured proposals must include: " + ", ".join(sorted(required)) + "."
-        parsed = self._invoke(payload)
+        parsed = self._invoke_with_growth(payload, prompt_tokens)
         parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
         if not mutation_requested:
             parsed["proposals"] = []
@@ -127,8 +238,10 @@ class AssistantRuntime:
         if required - {item.get("kind") for item in parsed["proposals"]}:
             retry_schema = json.loads(json.dumps(schema))
             retry_schema["properties"]["proposals"]["minItems"] = 1
-            retry = {**payload, "response_format": json_schema_format(retry_schema), "messages": [*payload["messages"], {"role": "assistant", "content": json.dumps(parsed, ensure_ascii=False)}, {"role": "user", "content": "The request requires a structured world-data proposal, but proposals was empty or invalid. Correct the response and emit at least one matching allowed proposal using IDs from CONTEXT. Do not claim it was applied. /no_think"}]}
-            parsed = self._invoke(retry)
+            repair_note = "The request requires a structured world-data proposal, but proposals was empty or invalid. Correct the response and emit at least one matching allowed proposal using IDs from CONTEXT. Do not claim it was applied. /no_think"
+            retry = {**payload, "response_format": json_schema_format(retry_schema), "messages": [*payload["messages"], {"role": "assistant", "content": json.dumps(parsed, ensure_ascii=False)}, {"role": "user", "content": repair_note}]}
+            retry_prompt_tokens = prompt_tokens + count_tokens(self.url, json.dumps(parsed, ensure_ascii=False) + repair_note)
+            parsed = self._invoke_with_growth(retry, retry_prompt_tokens)
             parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
             if not mutation_requested:
                 parsed["proposals"] = []
@@ -162,6 +275,40 @@ class AssistantRuntime:
         trace.append({"step": "verify", **verification})
         parsed["agentTrace"] = trace
         return parsed
+
+    def _run_batches(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None, progress_id: str | None) -> dict[str, Any]:
+        """Explicit, user-approved execution of a broad request: walk the manuscript in
+        token-budgeted chapter groups, reusing complete()'s ordinary single-call path per
+        group (same chapter-forcing mechanism the manual chapter picker already uses), and
+        merge results. Each group keeps its own review -- no single atomic proposalGroup
+        spanning every chapter, since forcing all-or-nothing across e.g. 17 chapters' worth
+        of proposals is exactly the usability trap batch mode exists to avoid."""
+        chapters = manuscript.get("chapters") or []
+        groups = _group_chapters_by_budget(chapters, self.url, BATCH_GROUP_TOKEN_BUDGET)
+        titles = {chapter["id"]: chapter.get("title") or "Ohne Titel" for chapter in chapters}
+        trace: list[dict[str, Any]] = [{"step": "batch_start", "groups": len(groups), "chapters": len(chapters)}]
+        accumulated: list[dict[str, Any]] = []
+        notes: list[str] = []
+        if progress_id:
+            start_progress(progress_id, len(groups))
+        try:
+            for index, group in enumerate(groups, start=1):
+                label = f"Kapitel {index}/{len(groups)}: " + ", ".join(titles[cid] for cid in group)
+                merged_figures = _merge_accumulated(figures, accumulated)
+                result = self.complete(question, manuscript, merged_figures, history, chapter_ids=group)
+                proposals = result.get("proposals") or []
+                accumulated.extend(proposals)
+                if result.get("message"):
+                    notes.append(f"{label}: {result['message']}")
+                trace.append({"step": "batch_group", "index": index, "chapterIds": group, "proposalKinds": [item.get("kind") for item in proposals]})
+                if progress_id:
+                    update_progress(progress_id, index, label)
+        finally:
+            if progress_id:
+                finish_progress(progress_id)
+        summary = (f"{len(chapters)} Kapitel in {len(groups)} Gruppen verarbeitet, {len(accumulated)} Vorschläge vorbereitet. "
+                   "Jeder Vorschlag kann einzeln geprüft und übernommen werden.")
+        return {"message": summary, "citations": [], "sources": [], "proposals": accumulated, "agentTrace": trace, "batchNotes": notes}
 
     def _plan(self, question: str, context: list[Any]) -> dict[str, Any]:
         schema = {
@@ -243,11 +390,11 @@ def required_proposal_kinds(question: str) -> set[str]:
         return {"mark_deceased"}
     if "beziehung" in folded and re.search(r"\b(zeitpunkt|moment|stand|status)\b", folded) and re.search(r"\b(änder\w*|setz\w*|aktualisier\w*)\b", folded):
         return {"set_relationship_at_moment"}
-    creation = bool(re.search(r"\b(lege|anlegen|erstelle?n?|hinzufügen|create|add)\b", folded))
+    creation = bool(re.search(r"\b(lege|anlegen|anzulegen|erstelle?n?|hinzufügen|create|add)\b", folded))
     requested: set[str] = set()
     if creation and re.search(r"\b(zeitpunkt|timeline|moment|ereignis)\w*\b", folded):
         requested.add("create_timeline_moment")
-    if ("beziehung" in folded or "relationship" in folded) and re.search(r"\b(schlag\w*|vorschlag|lege|anlegen|erstelle?n?|create|propose)\b", folded):
+    if ("beziehung" in folded or "relationship" in folded) and re.search(r"\b(schlag\w*|vorschlag|lege|anlegen|anzulegen|erstelle?n?|create|propose)\b", folded):
         requested.add("create_relationship")
     if requested:
         return requested
@@ -276,9 +423,14 @@ def task_contract(question: str, figures: dict[str, Any]) -> dict[str, Any]:
     if re.search(r"\b(element|figur|tier|ort|konzept|board|page)\w*\b", folded) or not scopes:
         scopes.append("elements")
     required = sorted(required_proposal_kinds(question))
+    # Only creation/mutation requests get the broad-scope treatment -- a read-only "fasse
+    # die ganze Geschichte zusammen" doesn't risk the truncation/overflow this flags.
+    # Audits already run as one deterministic pass over all figures, no LLM call, no risk.
+    broad = bool(required) and bool(BROAD_SCOPE_REQUEST.search(question)) and not audit
     return {
         "goal": question,
         "audit": audit,
+        "broad": broad,
         "readScopes": list(dict.fromkeys(scopes)),
         "requiredKinds": required,
         "expected": contract_expectations(question, required),
@@ -354,6 +506,66 @@ def conversation_messages(history: list[dict[str, str]] | None, url: str) -> lis
         result.append(message)
     result.reverse()
     return result
+
+
+def _fit_to_budget(chunks: list[Any], url: str, budget: int, trace: list[dict[str, Any]]) -> list[Any]:
+    """Keep as many forced chapter chunks as fit a real token budget, in order --
+    same idiom as conversation_messages: exact tokenizer counts, not a
+    chars-per-token estimate. Without this, the chapter-picker's "forced" context
+    has no cap at all and can silently overflow the model's context window when
+    a user selects several long chapters."""
+    kept: list[Any] = []
+    used = 0
+    for chunk in chunks:
+        tokens = count_tokens(url, chunk.text)
+        if used + tokens > budget:
+            break
+        used += tokens
+        kept.append(chunk)
+    if len(kept) < len(chunks):
+        trace.append({"step": "context_budget", "truncatedForced": True, "keptChunks": len(kept), "droppedChunks": len(chunks) - len(kept)})
+    return kept
+
+
+def _group_chapters_by_budget(chapters: list[dict[str, Any]], url: str, budget: int) -> list[list[str]]:
+    """Group chapter IDs so each group's combined chapter text stays within budget tokens,
+    instead of a flat chapter count -- chapter length varies a lot (a confirmed
+    277-4679 words across one test manuscript), so a fixed "N chapters per call" would
+    just reintroduce the same fixed-constant fragility batch mode exists to get away from."""
+    groups: list[list[str]] = []
+    current: list[str] = []
+    used = 0
+    for chapter in chapters:
+        tokens = count_tokens(url, str(chapter.get("body") or ""))
+        if current and used + tokens > budget:
+            groups.append(current)
+            current, used = [], 0
+        current.append(chapter["id"])
+        used += tokens
+    if current:
+        groups.append(current)
+    return groups
+
+
+def _merge_accumulated(figures: dict[str, Any], accumulated: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fold earlier batch groups' create_* proposals into a figures-shaped view so
+    validate_proposals's existing dedup logic (existing_names, the duplicate-edge check,
+    existing_moments -- all of which read from the `figures` argument) also rejects
+    repeats across batch groups, for free: no separate cross-batch dedup logic to write
+    or maintain, just a shape translation. Synthesized nodes/moments use their tempId as
+    `id`, so a later group's relationship proposal referencing an earlier group's
+    newly-created element resolves through the ordinary known_elements check too."""
+    nodes, edges, timeline = list(figures.get("nodes") or []), list(figures.get("edges") or []), list(figures.get("timeline") or [])
+    for proposal in accumulated:
+        kind = proposal.get("kind")
+        if kind == "create_element":
+            nodes.append({**(proposal.get("element") or {}), "id": proposal.get("tempId")})
+        elif kind == "create_relationship":
+            relation = proposal.get("relationship") or {}
+            edges.append({"id": f"temp:edge:{len(edges)}", "from": relation.get("from"), "to": relation.get("to"), "gerichtet": relation.get("directed"), "label": relation.get("label")})
+        elif kind == "create_timeline_moment":
+            timeline.append({**(proposal.get("moment") or {}), "id": proposal.get("tempId")})
+    return {**figures, "nodes": nodes, "edges": edges, "timeline": timeline}
 
 
 def _normal(value: Any) -> str:
@@ -475,6 +687,32 @@ def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
 def proposal_group_title(question: str) -> str:
     compact = " ".join(question.split())
     return compact[:80] + ("…" if len(compact) > 80 else "")
+
+
+def broad_scope_message(chapter_count: int) -> str:
+    low, high = estimate_batch_seconds(chapter_count, 0.7), estimate_batch_seconds(chapter_count, 1.3)
+    return (
+        f"Das betrifft alle {chapter_count} Kapitel. Eine einzelne Anfrage würde entweder "
+        f"nicht genug Kontext oder nicht genug Antwortraum bekommen, um das zuverlässig zu "
+        f"erledigen. Ich kann das stattdessen kapitelweise in Gruppen durchgehen -- das dauert "
+        f"lokal geschätzt {_format_minutes(low)}-{_format_minutes(high)} Minuten. Wähle "
+        f"entweder gezielt einzelne Kapitel aus, oder lass mich in Gruppen durchgehen."
+    )
+
+
+def _format_minutes(seconds: float) -> str:
+    return str(max(1, round(seconds / 60)))
+
+
+def estimate_batch_seconds(chapter_count: int, factor: float = 1.0) -> float:
+    """Rough estimate only, deliberately conservative and presented as a range, not a
+    false-precision number: group_count * (a typical group's max_tokens / a slow-end
+    tokens-per-second figure observed for this model on this machine)."""
+    if chapter_count <= 0:
+        return 0.0
+    group_count = max(1, round(chapter_count * 1400 / BATCH_GROUP_TOKEN_BUDGET))
+    seconds_per_group = 1200 / 9  # a compound-request-sized max_tokens budget / slow-end tok/s
+    return group_count * seconds_per_group * factor
 
 
 def complete_compound_proposals(question: str, proposals: list[dict[str, Any]], figures: dict[str, Any]) -> list[dict[str, Any]]:
