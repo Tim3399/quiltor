@@ -97,6 +97,24 @@ def invoke_chat(url: str, payload: dict[str, Any], timeout: int = 180) -> dict[s
         raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
 
 
+def embed(url: str, texts: list[str], timeout: float = 60) -> list[list[float]]:
+    """Return one embedding vector per input text via the OpenAI-compatible
+    /v1/embeddings endpoint. Results are reordered by the response's `index` so the
+    output aligns positionally with `texts` regardless of server batching order.
+    Raises RuntimeError on any transport or shape failure -- callers treat that as
+    "embeddings unavailable, fall back to lexical retrieval"."""
+    request = urllib.request.Request(f"{url}/v1/embeddings", data=json.dumps({"model": "local", "input": texts}).encode(), headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            result = json.loads(response.read())
+        ordered = sorted(result["data"], key=lambda item: item.get("index", 0))
+        return [item["embedding"] for item in ordered]
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise RuntimeError("Der Embedding-Dienst ist nicht erreichbar.") from exc
+    except (KeyError, ValueError, TypeError) as exc:
+        raise RuntimeError("Der Embedding-Dienst hat keine gültige Antwort geliefert.") from exc
+
+
 def check_health(url: str, timeout: float = 0.7) -> bool:
     try:
         with urllib.request.urlopen(f"{url}/health", timeout=timeout) as response:

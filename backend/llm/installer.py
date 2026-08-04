@@ -54,6 +54,13 @@ LLAMA_CPP_REPO = "ggml-org/llama.cpp"
 DEFAULT_MODEL_REPO = "Qwen/Qwen3-4B-GGUF"
 DEFAULT_MODEL_FILE = "Qwen3-4B-Q4_K_M.gguf"
 DEFAULT_MLX_MODEL_REPO = "mlx-community/Qwen3-4B-4bit"
+# Optional embedding model for semantic retrieval (a separate, lazily-started
+# llama-server --embeddings on port 11436). Small; default is a reliable GGUF that
+# works out of the box. For German-heavy projects override to a multilingual model
+# via --embed-model-repo (and set QUILTOR_EMBED_POOLING / QUILTOR_EMBED_*_PREFIX for
+# models that need different pooling or query/document prefixes).
+DEFAULT_EMBED_MODEL_REPO = "nomic-ai/nomic-embed-text-v1.5-GGUF"
+EMBED_MODELS_DIR = MODELS_DIR / "embed"
 MLX_REQUIREMENTS = BASE / "scripts" / "llm-runtime" / "mlx-requirements.txt"
 MLX_BRIDGE = BASE / "scripts" / "llm-runtime" / "mlx_bridge.py"
 MLX_VENV_DIR = RUNTIME_DIR / "mlx-venv"
@@ -250,6 +257,30 @@ def install_model(repo: str, filename: str) -> None:
     print(f"Installed {target}")
 
 
+def install_embedding_model(repo: str = DEFAULT_EMBED_MODEL_REPO, filename: str = "") -> None:
+    """Download a small embedding GGUF into models/embed/. Lists the repo tree and picks a
+    quant rather than trusting a hardcoded filename (which 404s whenever a repo renames its
+    quants), preferring smaller K-quants. Needs the llama.cpp binary to actually serve later
+    -- on an MLX-only install the file is still fetched but semantic retrieval stays off
+    until the llama.cpp runtime is present, falling back to lexical meanwhile."""
+    EMBED_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    if list(EMBED_MODELS_DIR.glob("*.gguf")):
+        print(f"embedding model already present in {EMBED_MODELS_DIR}, skipping")
+        return
+    with urllib.request.urlopen(f"https://huggingface.co/api/models/{repo}/tree/main", timeout=30) as response:
+        entries = json.loads(response.read())
+    files = [str(entry.get("path", "")) for entry in entries if isinstance(entry, dict) and str(entry.get("path", "")).endswith(".gguf")]
+    if not files:
+        raise SystemExit(f"No GGUF files listed for {repo}; check https://huggingface.co/{repo}")
+    if filename and filename in files:
+        pick = filename
+    else:
+        preference = ["q5_k_m", "q4_k_m", "q8_0", "f16"]
+        pick = next((name for quant in preference for name in files if quant in name.lower()), files[0])
+    download(f"https://huggingface.co/{repo}/resolve/main/{pick}", EMBED_MODELS_DIR / pick, pick)
+    print(f"Installed embedding model {EMBED_MODELS_DIR / pick}")
+
+
 def install_mlx_runtime() -> None:
     if not is_apple_silicon():
         raise SystemExit("MLX is only supported on Apple Silicon Macs. Use --runtime llamacpp instead.")
@@ -346,11 +377,16 @@ def _cli() -> None:
     parser.add_argument("--model-repo", default=DEFAULT_MODEL_REPO, help="Hugging Face repo id holding the GGUF file (llama.cpp path)")
     parser.add_argument("--model-file", default=DEFAULT_MODEL_FILE, help="GGUF filename inside the model repo (llama.cpp path)")
     parser.add_argument("--mlx-model-repo", default=DEFAULT_MLX_MODEL_REPO, help="Hugging Face repo id holding the MLX model (mlx path)")
+    parser.add_argument("--with-embeddings", action="store_true", help="also install the optional embedding model for semantic retrieval")
+    parser.add_argument("--embed-model-repo", default=DEFAULT_EMBED_MODEL_REPO, help="Hugging Face repo id holding the embedding GGUF (multilingual model recommended for non-English projects)")
+    parser.add_argument("--embed-model-file", default="", help="specific GGUF filename in the embedding repo (default: auto-pick a small quant)")
     args = parser.parse_args()
 
     runtime = resolve_runtime(args.runtime)
     print(f"Runtime: {runtime}" + (" (auto-detected)" if args.runtime == "auto" else ""))
     install(runtime, model_repo=args.model_repo, model_file=args.model_file, mlx_model_repo=args.mlx_model_repo, skip_runtime=args.skip_runtime, skip_model=args.skip_model, skip_smoke_test=args.skip_smoke_test)
+    if args.with_embeddings:
+        install_embedding_model(args.embed_model_repo, args.embed_model_file)
     print("\nDone. Start Quiltor with: python3 server.py")
 
 

@@ -104,11 +104,19 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
     return chunks
 
 
-def retrieve(chunks: list[KnowledgeChunk], query: str, limit: int = 14) -> list[KnowledgeChunk]:
-    """Local hybrid retrieval: exact phrases, word vectors and structured graph expansion."""
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
+
+
+def _lexical_scored(chunks: list[KnowledgeChunk], query: str) -> list[tuple[float, KnowledgeChunk]] | None:
+    """Exact-phrase + word-overlap scoring. Returns None to signal the caller should
+    return the head slice unchanged (query has no usable tokens)."""
     tokens = set(re.findall(r"[\wÄÖÜäöüß]{2,}", query.casefold()))
     if not tokens:
-        return chunks[:limit]
+        return None
     scored: list[tuple[float, KnowledgeChunk]] = []
     query_folded = query.casefold().strip()
     for chunk in chunks:
@@ -121,6 +129,34 @@ def retrieve(chunks: list[KnowledgeChunk], query: str, limit: int = 14) -> list[
         score = overlap + phrase + title
         if score:
             scored.append((score, chunk))
+    return scored
+
+
+def _embedding_scored(chunks: list[KnowledgeChunk], query: str, embedder: Any) -> list[tuple[float, KnowledgeChunk]] | None:
+    """Cosine similarity over local embeddings. `embedder(query, chunks)` returns
+    (query_vector, {chunk.id: vector}) or None; any miss/failure returns None here so the
+    caller transparently falls back to lexical retrieval."""
+    try:
+        result = embedder(query, chunks)
+    except Exception:
+        return None
+    if not result:
+        return None
+    query_vector, vectors = result
+    scored = [(_cosine(query_vector, vectors[chunk.id]), chunk) for chunk in chunks if chunk.id in vectors]
+    return scored or None
+
+
+def retrieve(chunks: list[KnowledgeChunk], query: str, limit: int = 14, embedder: Any = None) -> list[KnowledgeChunk]:
+    """Local hybrid retrieval: semantic embeddings when available, otherwise exact phrases
+    and word vectors -- both followed by the same structured graph expansion. An embedder
+    is a pure quality lever; if it is absent or fails, retrieval degrades to lexical with
+    no change in contract."""
+    scored = _embedding_scored(chunks, query, embedder) if embedder is not None else None
+    if scored is None:
+        scored = _lexical_scored(chunks, query)
+    if scored is None:
+        return chunks[:limit]
     selected = [chunk for _, chunk in sorted(scored, key=lambda item: (-item[0], item[1].id))[:limit]]
     related_ids = {chunk.target.get("id") for chunk in selected if chunk.kind == "element"}
     for chunk in chunks:

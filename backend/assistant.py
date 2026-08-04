@@ -14,6 +14,7 @@ from typing import Any
 from backend import storage
 from backend.knowledge import KnowledgeChunk, build_knowledge, moment_order, retrieve
 from backend.llm import select
+from backend.llm.embeddings import EmbeddingRuntime
 from backend.llm.shared.contract import ContextOverflowError, IncompleteResponse, check_health, count_tokens, invoke_chat, json_schema_format
 
 CONVERSATION_HISTORY_TOKEN_BUDGET = 2000
@@ -154,10 +155,47 @@ class AssistantRuntime:
         started = select.start_runtime(base, data, self.url)
         self.process: subprocess.Popen[str] | None = started[0] if started else None
         self.log_path: Path | None = started[1] if started else None
+        # Lazily-started, optional semantic-retrieval backend. Constructing it starts
+        # nothing; the first retrieval that needs a vector warms it, and if no embedding
+        # model is installed it stays disabled and retrieval falls back to lexical.
+        self.embeddings = EmbeddingRuntime(base, data)
+
+    def _embedder(self):
+        """Build the retrieval embedder closure, or None if embeddings are unavailable.
+
+        The closure keeps knowledge.retrieve() free of any storage/runtime dependency: it
+        embeds documents once (cached in SQLite, content-addressed by model+text) and the
+        query fresh, returning (query_vector, {chunk.id: vector}). Any failure returns None
+        so retrieve() falls back to lexical scoring for that call."""
+        if not self.embeddings.available():
+            return None
+        model_id = self.embeddings.model_id()
+
+        def embed(query: str, chunks: list[Any]) -> tuple[list[float], dict[str, list[float]]] | None:
+            texts = {chunk.id: f"{chunk.title}\n{chunk.text}".strip() for chunk in chunks}
+            keys = {cid: hashlib.sha256(f"{model_id}:doc:{text}".encode("utf-8")).hexdigest() for cid, text in texts.items()}
+            cached = storage.get_embeddings(list(dict.fromkeys(keys.values())))
+            missing = [(cid, texts[cid]) for cid in texts if keys[cid] not in cached]
+            if missing:
+                fresh = self.embeddings.embed([text for _, text in missing], is_query=False)
+                if fresh is None or len(fresh) != len(missing):
+                    return None
+                to_save = []
+                for (cid, _), vector in zip(missing, fresh):
+                    cached[keys[cid]] = vector
+                    to_save.append((keys[cid], vector))
+                storage.save_embeddings(to_save)
+            vectors = {cid: cached[keys[cid]] for cid in texts if keys[cid] in cached}
+            query_vectors = self.embeddings.embed([query], is_query=True)
+            if not query_vectors:
+                return None
+            return query_vectors[0], vectors
+
+        return embed
 
     def status(self) -> dict[str, Any]:
         if check_health(self.url):
-            return {"available": True, "mode": "local", "reason": ""}
+            return {"available": True, "mode": "local", "reason": "", "embeddings": self.embeddings.status()}
         exit_code = self.process.poll() if self.process is not None else None
         if exit_code is not None:
             reason = f"Lokaler Modell-Prozess ist beendet (Exit-Code {exit_code}). Details in {self.log_path}."
@@ -185,8 +223,9 @@ class AssistantRuntime:
     def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None) -> dict[str, Any]:
         chunks = build_knowledge(manuscript, figures)
         contract = task_contract(question, figures)
-        context = retrieve(chunks, question)
-        trace: list[dict[str, Any]] = [{"step": "initial_search", "query": question, "sources": [item.id for item in context]}]
+        embedder = self._embedder()
+        context = retrieve(chunks, question, embedder=embedder)
+        trace: list[dict[str, Any]] = [{"step": "initial_search", "query": question, "retrieval": "semantic" if embedder else "lexical", "sources": [item.id for item in context]}]
         trace.append({"step": "contract", **contract})
         forced = [chunk for chunk in chunks if chapter_ids and chunk.kind in {"chapter", "chapter-note"} and chunk.target.get("id") in set(chapter_ids)]
         if forced:
@@ -218,7 +257,7 @@ class AssistantRuntime:
         trace.append({"step": "plan", **plan})
         known_context = {item.id: item for item in context}
         for query in plan.get("searchQueries", [])[:4]:
-            found = retrieve(chunks, str(query))
+            found = retrieve(chunks, str(query), embedder=embedder)
             trace.append({"step": "search_world", "query": query, "sources": [item.id for item in found]})
             known_context.update((item.id, item) for item in found)
         limit = 10 if contract["requiredKinds"] else 16
@@ -575,6 +614,7 @@ class AssistantRuntime:
     def close(self) -> None:
         if self.process and self.process.poll() is None:
             self.process.terminate()
+        self.embeddings.close()
 
 
 def required_proposal_kinds(question: str) -> set[str]:
@@ -618,6 +658,14 @@ def task_contract(question: str, figures: dict[str, Any]) -> dict[str, Any]:
     if re.search(r"\b(element|figur|tier|ort|konzept|board|page)\w*\b", folded) or not scopes:
         scopes.append("elements")
     required = sorted(required_proposal_kinds(question))
+    # Any operation that references elements by ID (relationships, relationship states,
+    # death markers) must see the element list, or the model can't resolve the endpoints
+    # and the proposal gets dropped. Lexical retrieval used to surface those elements via
+    # exact name match; semantic retrieval ranks by meaning and may not, so the element
+    # scope is made explicit here rather than left to retrieval luck. It's budgeted, so
+    # adding it stays safe on large worlds (named entities rank to the top of the budget).
+    if {"create_relationship", "set_relationship_at_moment", "mark_deceased"} & set(required):
+        scopes.append("elements")
     # A whole-project summary/overview is read-only but still can't be done in one call on
     # a large manuscript -- it goes through the same broad-scope offer, then the compress
     # (map-reduce) path in _run_batches, so nothing is silently dropped. Mutations trigger

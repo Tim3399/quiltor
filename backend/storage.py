@@ -103,6 +103,11 @@ CREATE TABLE IF NOT EXISTS chapter_digests (
   digest TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS embeddings (
+  key TEXT PRIMARY KEY,
+  vector TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 """
 
 
@@ -233,6 +238,33 @@ def save_chapter_digest(chapter_id: str, body_hash: str, digest: str) -> None:
         conn.execute(
             "INSERT OR REPLACE INTO chapter_digests(chapter_id,body_hash,digest,created_at) VALUES(?,?,?,?)",
             (chapter_id, body_hash, digest, datetime.now().isoformat()),
+        )
+
+
+def get_embeddings(keys: list[str]) -> dict[str, list[float]]:
+    """Return cached vectors for the given content-addressed keys. Keys are hashes of
+    (embedding-model id + text), so a changed model or text simply misses the cache and
+    is recomputed -- each unique chunk is embedded once, then reused across requests."""
+    if not keys:
+        return {}
+    out: dict[str, list[float]] = {}
+    with connect() as conn:
+        for start in range(0, len(keys), 400):  # keep well under SQLite's variable limit
+            batch = keys[start:start + 400]
+            placeholders = ",".join("?" * len(batch))
+            for row in conn.execute(f"SELECT key, vector FROM embeddings WHERE key IN ({placeholders})", batch).fetchall():
+                out[row["key"]] = json.loads(row["vector"])
+    return out
+
+
+def save_embeddings(items: list[tuple[str, list[float]]]) -> None:
+    if not items:
+        return
+    now = datetime.now().isoformat()
+    with connect() as conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO embeddings(key,vector,created_at) VALUES(?,?,?)",
+            [(key, json.dumps(vector), now) for key, vector in items],
         )
 
 

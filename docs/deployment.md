@@ -65,6 +65,31 @@ is one contained seam, not a sweeping change.
 Estimate: ~½–1 focused day for a clean wheel tested on a fresh environment plus
 a slim app image.
 
+## Environment variables (for the setup CLI to manage)
+
+| Variable | Purpose |
+|---|---|
+| `QUILTOR_DATA_DIR` | writable data dir (worlds, backups, digests, vectors) |
+| `QUILTOR_AI_URL` | external generation endpoint; unset = spawn bundled llama-server |
+| `QUILTOR_EMBED_URL` | external embedding endpoint; unset = spawn bundled embedding server (port 11436) |
+| `QUILTOR_EMBED_MODEL` | path to a specific embedding GGUF (else auto-pick from `models/embed/`) |
+| `QUILTOR_EMBED_POOLING` | `mean` (default) / `cls` / `last`, per the embedding model |
+| `QUILTOR_EMBED_QUERY_PREFIX` / `QUILTOR_EMBED_DOC_PREFIX` | query/document prefixes some embedding models require |
+
+**Model choice is not a user-facing decision.** The maintainer pre-selects the
+generation and embedding models (the defaults in `installer.py`); a user only
+ever (a) takes the pre-selected model, or (b) points `QUILTOR_AI_URL` /
+`QUILTOR_EMBED_URL` at their own endpoint. There is no model picker. The
+`--*-model-repo` installer flags exist only for the maintainer/CI when choosing
+what the pre-selected default *is*, not as an end-user choice.
+
+Because users cannot swap it, the pre-selected embedding model must suit the
+product's content (multilingual, since manuscripts are often non-English).
+Semantic retrieval is optional; without an embedding model, retrieval falls back
+to lexical automatically. A future `quiltor` CLI wraps setup into `install`
+(generation + embedding models) and env management — again presenting only
+"use pre-selected" or "use a URL".
+
 ## Sandbox / isolation
 
 The assistant only emits **proposals** (no code/shell execution) and treats all
