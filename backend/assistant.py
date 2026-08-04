@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -10,11 +11,38 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from backend.knowledge import build_knowledge, moment_order, retrieve
+from backend import storage
+from backend.knowledge import KnowledgeChunk, build_knowledge, moment_order, retrieve
 from backend.llm import select
-from backend.llm.shared.contract import IncompleteResponse, check_health, count_tokens, invoke_chat, json_schema_format
+from backend.llm.shared.contract import ContextOverflowError, IncompleteResponse, check_health, count_tokens, invoke_chat, json_schema_format
 
 CONVERSATION_HISTORY_TOKEN_BUDGET = 2000
+
+# The realistic answer budget guaranteed to fit *alongside* the counted prompt.
+# API-style "reserve the client's whole max_tokens ceiling" is what pushed even
+# modest prompts past the local window; instead the prompt is counted exactly and
+# the world state is shrunk so prompt + this reserve always fits n_ctx. Mirrors
+# ai-relay's OUTPUT_RESERVE_TOKENS / context-fit gate, adapted for a local-only
+# model with no stronger server tier to escalate an over-long prompt to.
+OUTPUT_RESERVE_TOKENS = 1200
+# Hard floor for a usable structured reply. The fit routine guarantees this many
+# output tokens are always available -- it never floors max_tokens at the cost of
+# overflowing the window (the old bug), it shrinks the prompt instead.
+MIN_OUTPUT_TOKENS = 300
+# Slack for the small inexactness of summing tokenised segments vs. tokenising the
+# concatenation, plus the fixed world-state scaffolding text.
+PROMPT_FIT_MARGIN = 256
+# Head+tail cap for a single world-state string value (a very long profile note or
+# short description). Keeps both ends rather than truncating blindly, bounding the
+# cost one pathological field can add. Ported from ai-relay's routing._excerpt.
+WORLD_VALUE_CHAR_LIMIT = 600
+
+CONTEXT_OVERFLOW_MESSAGE = (
+    "Der Kontext ist für das lokale Modell zu groß, selbst nachdem ich den Weltzustand "
+    "auf die relevantesten Einträge reduziert habe. Grenze die Anfrage bitte enger ein "
+    "-- etwa einzelne Kapitel im Kontext-Bereich auswählen oder gezielter formulieren. "
+    "Es wurde nichts angewendet."
+)
 
 # Must track backend/llm/runtimes/llamacpp.py's "-c" flag. MLX (runtimes/mlx.py) has no
 # equivalent flag or introspection endpoint, so this one constant is a shared
@@ -198,8 +226,6 @@ class AssistantRuntime:
         # usual limit -- retrieve()'s lexical scoring is a best guess, an explicit pick isn't.
         rest = [item for item in known_context.values() if item.id not in {chunk.id for chunk in forced}]
         context = forced + rest[:max(0, limit - len(forced))]
-        context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
-        world_json = json.dumps(structured_world_state(figures, contract), ensure_ascii=False)
         if PROSE_REQUEST.search(question):
             return {"message": "Ich schreibe oder vervollständige keine Romanprosa. Ich kann die geplante Szene aber anhand deiner Welt analysieren, Widersprüche finden, beteiligte Figuren und Beziehungen ordnen oder ihre Konsequenzen als Notizen vorbereiten.", "citations": [], "sources": [], "proposals": []}
         schema = {
@@ -211,12 +237,12 @@ class AssistantRuntime:
             },
         }
         conversation = conversation_messages(history, self.url)
-        user_content = f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{context_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"
-        prompt_tokens = count_tokens(self.url, SYSTEM_PROMPT + "".join(message["content"] for message in conversation) + user_content)
-        # Flat 900 was too tight for compound requests (multiple requiredKinds need more
-        # room to enumerate); scale a bit with complexity, still headroom-bounded so this
-        # can never itself push a well-scoped request into overflowing the context.
-        max_tokens = min(900 + 150 * len(contract["requiredKinds"]), max(300, MODEL_CONTEXT_TOKENS - prompt_tokens - 256))
+        # Fit the whole prompt to the model's window before sending: shrink the world
+        # state (and, as a last resort, the RAG context) so prompt + a guaranteed output
+        # reserve always fits n_ctx. Replaces the old "floor max_tokens at 300" that could
+        # itself push the request past the window (llama.cpp then rejects it outright).
+        forced_ids = {chunk.id for chunk in forced}
+        user_content, context, context_json, prompt_tokens, max_tokens = self._fit_prompt(context, forced_ids, figures, contract, conversation, question, trace)
         payload = {
             "model": "local", "stream": False, "temperature": 0.2, "max_tokens": max_tokens,
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *conversation, {"role": "user", "content": user_content}],
@@ -229,7 +255,11 @@ class AssistantRuntime:
         required = explicit_required or (planned_required if mutation_requested else set())
         if required:
             payload["messages"][1]["content"] += "\n\nTASK REQUIREMENTS: The structured proposals must include: " + ", ".join(sorted(required)) + "."
-        parsed = self._invoke_with_growth(payload, prompt_tokens)
+        try:
+            parsed = self._invoke_with_growth(payload, prompt_tokens)
+        except ContextOverflowError as exc:
+            trace.append({"step": "context_overflow", "promptTokens": exc.prompt_tokens, "contextTokens": exc.context_tokens})
+            return {"message": CONTEXT_OVERFLOW_MESSAGE, "citations": [], "sources": [], "proposals": [], "agentTrace": trace}
         parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
         if not mutation_requested:
             parsed["proposals"] = []
@@ -241,12 +271,19 @@ class AssistantRuntime:
             repair_note = "The request requires a structured world-data proposal, but proposals was empty or invalid. Correct the response and emit at least one matching allowed proposal using IDs from CONTEXT. Do not claim it was applied. /no_think"
             retry = {**payload, "response_format": json_schema_format(retry_schema), "messages": [*payload["messages"], {"role": "assistant", "content": json.dumps(parsed, ensure_ascii=False)}, {"role": "user", "content": repair_note}]}
             retry_prompt_tokens = prompt_tokens + count_tokens(self.url, json.dumps(parsed, ensure_ascii=False) + repair_note)
-            parsed = self._invoke_with_growth(retry, retry_prompt_tokens)
-            parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
-            if not mutation_requested:
-                parsed["proposals"] = []
-            parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
-            trace.append({"step": "repair", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
+            # The echoed prior answer plus the repair note grow the prompt; re-clamp the
+            # output so prompt + max_tokens still fits, and if even the repair prompt no
+            # longer fits, keep the pre-repair result instead of failing the whole request.
+            retry["max_tokens"] = max(MIN_OUTPUT_TOKENS, min(payload["max_tokens"], MODEL_CONTEXT_TOKENS - retry_prompt_tokens - PROMPT_FIT_MARGIN))
+            try:
+                parsed = self._invoke_with_growth(retry, retry_prompt_tokens)
+                parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
+                if not mutation_requested:
+                    parsed["proposals"] = []
+                parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
+                trace.append({"step": "repair", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
+            except ContextOverflowError as exc:
+                trace.append({"step": "repair", "contextOverflow": True, "promptTokens": exc.prompt_tokens})
         if MUTATION_REQUEST.search(question) and not parsed["proposals"]:
             forced = self._forced_proposal(question, context_json, figures)
             if os.environ.get("QUILTOR_AI_DEBUG"):
@@ -284,9 +321,17 @@ class AssistantRuntime:
         spanning every chapter, since forcing all-or-nothing across e.g. 17 chapters' worth
         of proposals is exactly the usability trap batch mode exists to avoid."""
         chapters = manuscript.get("chapters") or []
+        # Read-only broad requests (summaries, overviews) can't accumulate proposals -- they
+        # compress instead, over persistent per-chapter digests. Mutations keep the
+        # proposal-accumulation path over token-budgeted chapter groups.
+        if not task_contract(question, figures)["requiredKinds"]:
+            return self._compress_read(question, chapters, history, progress_id)
         groups = _group_chapters_by_budget(chapters, self.url, BATCH_GROUP_TOKEN_BUDGET)
         titles = {chapter["id"]: chapter.get("title") or "Ohne Titel" for chapter in chapters}
-        trace: list[dict[str, Any]] = [{"step": "batch_start", "groups": len(groups), "chapters": len(chapters)}]
+        trace: list[dict[str, Any]] = [{"step": "batch_start", "groups": len(groups), "chapters": len(chapters), "mode": "create"}]
+        # The token-budgeted groups are the agent's self-derived todo list, processed in
+        # order; surfaced so the decomposition is visible rather than opaque.
+        trace.append({"step": "batch_plan", "todos": [{"index": index, "chapters": [titles[cid] for cid in group]} for index, group in enumerate(groups, start=1)]})
         accumulated: list[dict[str, Any]] = []
         notes: list[str] = []
         if progress_id:
@@ -309,6 +354,110 @@ class AssistantRuntime:
         summary = (f"{len(chapters)} Kapitel in {len(groups)} Gruppen verarbeitet, {len(accumulated)} Vorschläge vorbereitet. "
                    "Jeder Vorschlag kann einzeln geprüft und übernommen werden.")
         return {"message": summary, "citations": [], "sources": [], "proposals": accumulated, "agentTrace": trace, "batchNotes": notes}
+
+    def _compress_read(self, question: str, chapters: list[dict[str, Any]], history: list[dict[str, str]] | None, progress_id: str | None) -> dict[str, Any]:
+        """Whole-project read via persistent per-chapter digests, then a reduce.
+
+        Each chapter's digest is a question-agnostic memory note cached in SQLite and
+        content-addressed by the chapter body: unchanged chapters serve their digest without
+        re-reading the prose or spending a generation call, so the first whole-project read
+        pays the cost once and every later one is near-instant. The digests -- the agent's
+        self-derived todo list -- are reduced into one answer, hierarchically if needed."""
+        trace: list[dict[str, Any]] = [{"step": "batch_start", "chapters": len(chapters), "mode": "compress"}]
+        trace.append({"step": "batch_plan", "todos": [{"index": index, "chapter": chapter.get("title") or "Ohne Titel"} for index, chapter in enumerate(chapters, start=1)]})
+        digests: list[tuple[str, str]] = []
+        cached_count = 0
+        if progress_id:
+            start_progress(progress_id, len(chapters) + 1)
+        try:
+            for index, chapter in enumerate(chapters, start=1):
+                title = chapter.get("title") or "Ohne Titel"
+                body = str(chapter.get("body") or "")
+                body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+                cached = storage.get_chapter_digest(chapter["id"], body_hash) if chapter.get("id") else None
+                if cached is not None:
+                    digest, origin = cached, "cache"
+                    cached_count += 1
+                else:
+                    digest = self._chapter_digest(chapter)
+                    if digest.strip() and chapter.get("id"):
+                        storage.save_chapter_digest(chapter["id"], body_hash, digest)
+                    origin = "fresh"
+                if digest.strip():
+                    digests.append((title, digest))
+                trace.append({"step": "digest", "index": index, "chapter": title, "origin": origin})
+                if progress_id:
+                    update_progress(progress_id, index, f"Digest {index}/{len(chapters)}: {title}" + (" (aus Memory)" if origin == "cache" else ""))
+            if progress_id:
+                update_progress(progress_id, len(chapters) + 1, "Teilergebnisse verdichten")
+            message = self._reduce_summaries(question, digests, trace)
+        finally:
+            if progress_id:
+                finish_progress(progress_id)
+        trace.append({"step": "memory", "cachedDigests": cached_count, "freshDigests": len(chapters) - cached_count})
+        return {"message": message, "citations": [], "sources": [], "proposals": [], "agentTrace": trace,
+                "batchNotes": [f"{title}: {text}" for title, text in digests]}
+
+    def _chapter_digest(self, chapter: dict[str, Any]) -> str:
+        """Produce a compact, question-agnostic memory note for one chapter (figures, places,
+        concepts, key events). Token-fits the body first, head/tail-excerpting an unusually
+        long single chapter so even that stays inside the window."""
+        title = chapter.get("title") or "Kapitel"
+        body = str(chapter.get("body") or "")
+        system = ("Erstelle einen kompakten, sachlichen Digest dieses Kapitels als Gedächtnisnotiz: handelnde Figuren, "
+                  "Orte, Konzepte und die wichtigsten Ereignisse und Wendepunkte. Knapp und stichpunktartig, keine "
+                  "Interpretation, keine erfundenen Fakten. Reply in the text's language. Return valid JSON with keys message, citations, proposals.")
+        limit = len(body)
+        while True:
+            fitted = _excerpt(body, limit) if limit < len(body) else body
+            user = f"KAPITEL: {title}\n\n{fitted}\n/no_think"
+            prompt_tokens = count_tokens(self.url, system + user)
+            if prompt_tokens + MIN_OUTPUT_TOKENS <= MODEL_CONTEXT_TOKENS or limit < 2000:
+                break
+            limit = int(limit * 0.7)
+        schema = {"type": "object", "required": ["message", "citations", "proposals"], "additionalProperties": False,
+                  "properties": {"message": {"type": "string"}, "citations": {"type": "array", "items": {"type": "string"}}, "proposals": {"type": "array", "items": {"type": "object"}}}}
+        max_tokens = max(MIN_OUTPUT_TOKENS, min(OUTPUT_RESERVE_TOKENS, MODEL_CONTEXT_TOKENS - prompt_tokens - PROMPT_FIT_MARGIN))
+        payload = {"model": "local", "stream": False, "temperature": 0.2, "max_tokens": max_tokens,
+                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                   "response_format": json_schema_format(schema)}
+        try:
+            parsed = self._invoke_with_growth(payload, prompt_tokens)
+            return str(parsed.get("message") or "")
+        except (ContextOverflowError, RuntimeError):
+            return ""
+
+    def _reduce_summaries(self, question: str, partials: list[tuple[str, str]], trace: list[dict[str, Any]]) -> str:
+        """Reduce per-group partial summaries into one coherent answer -- the compression
+        step that lets a whole project be summarised despite no single call being able to
+        hold it. If the partials themselves overflow the window, they are reduced
+        hierarchically in halves, so this scales to an arbitrarily long manuscript."""
+        texts = [(label, text) for label, text in partials if text]
+        if not texts:
+            return "Ich konnte zu den Kapiteln keine Teilergebnisse erzeugen."
+        joined = "\n\n".join(f"[{label}]\n{text}" for label, text in texts)
+        system = ("Verdichte die folgenden abschnittsweisen Teilergebnisse zu einer einzigen, kohärenten Antwort auf die Anfrage. "
+                  "Keine Wiederholungen, keine erfundenen Fakten -- nur was in den Teilergebnissen steht. Reply in the user's language. Return valid JSON with keys message, citations, proposals.")
+        user = f"ANFRAGE:\n{question}\n\nABSCHNITTS-TEILERGEBNISSE:\n{joined}\n/no_think"
+        prompt_tokens = count_tokens(self.url, system + user)
+        if prompt_tokens + MIN_OUTPUT_TOKENS > MODEL_CONTEXT_TOKENS and len(texts) > 1:
+            middle = len(texts) // 2
+            left = self._reduce_summaries(question, texts[:middle], trace)
+            right = self._reduce_summaries(question, texts[middle:], trace)
+            return self._reduce_summaries(question, [("Teil A", left), ("Teil B", right)], trace)
+        schema = {"type": "object", "required": ["message", "citations", "proposals"], "additionalProperties": False,
+                  "properties": {"message": {"type": "string"}, "citations": {"type": "array", "items": {"type": "string"}}, "proposals": {"type": "array", "items": {"type": "object"}}}}
+        max_tokens = max(MIN_OUTPUT_TOKENS, min(OUTPUT_RESERVE_TOKENS, MODEL_CONTEXT_TOKENS - prompt_tokens - PROMPT_FIT_MARGIN))
+        payload = {"model": "local", "stream": False, "temperature": 0.2, "max_tokens": max_tokens,
+                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                   "response_format": json_schema_format(schema)}
+        try:
+            parsed = self._invoke_with_growth(payload, prompt_tokens)
+            trace.append({"step": "reduce", "partials": len(texts)})
+            return str(parsed.get("message") or joined)
+        except (ContextOverflowError, RuntimeError):
+            trace.append({"step": "reduce", "partials": len(texts), "fallback": "concatenated"})
+            return joined
 
     def _plan(self, question: str, context: list[Any]) -> dict[str, Any]:
         schema = {
@@ -374,6 +523,52 @@ class AssistantRuntime:
             return {"kind": "create_timeline_moment", "tempId": "new:moment:assistant", "moment": result}
         return None
 
+    def _user_content(self, world_json: str, context_json: str, contract: dict[str, Any], question: str, exhaustive: bool) -> str:
+        scope_note = "complete for the requested scopes" if exhaustive else "most relevant subset -- NOT exhaustive; more entries exist than shown, so do not conclude something is missing merely because it is absent here"
+        return (f"STRUCTURED WORLD STATE ({scope_note}):\n{world_json}\n\n"
+                f"RAG CONTEXT (content excerpts only):\n{context_json}\n\n"
+                f"TASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\n"
+                f"REQUEST:\n{question}\n/no_think")
+
+    def _fit_prompt(self, context: list[Any], forced_ids: set[str], figures: dict[str, Any], contract: dict[str, Any], conversation: list[dict[str, str]], question: str, trace: list[dict[str, Any]]) -> tuple[str, list[Any], str, int, int]:
+        """Assemble a user prompt guaranteed to fit the model's context window.
+
+        Two levers, applied in order of what is cheapest to lose: first the world
+        state is shrunk to the most relevant entries within a token budget; then, only
+        if the fixed context (a large RAG set or author-forced chapters) still overruns
+        the window, the lowest-ranked non-forced RAG chunks are dropped. The output
+        reserve is always kept whole, so the model never gets a prompt it cannot answer.
+        Returns the prompt, the (possibly trimmed) context list, its JSON, the exact
+        prompt token count and a max_tokens that provably satisfies prompt+output<=n_ctx."""
+        history_text = "".join(message["content"] for message in conversation)
+        desired_reserve = min(900 + 150 * len(contract["requiredKinds"]), OUTPUT_RESERVE_TOKENS)
+        priority_ids = {item.target.get("id") for item in context if item.kind == "element"}
+        full_state = structured_world_state(figures, contract)
+        ctx = list(context)
+
+        def assemble(world_state: dict[str, Any], exhaustive: bool) -> tuple[str, str]:
+            context_json = json.dumps([chunk.public() for chunk in ctx], ensure_ascii=False)
+            world_json = json.dumps(world_state, ensure_ascii=False)
+            return self._user_content(world_json, context_json, contract, question, exhaustive), context_json
+
+        empty_user, _ = assemble({scope: [] for scope in full_state}, True)
+        fixed_tokens = count_tokens(self.url, SYSTEM_PROMPT + history_text + empty_user)
+        world_budget = MODEL_CONTEXT_TOKENS - desired_reserve - PROMPT_FIT_MARGIN - fixed_tokens
+        world_state, exhaustive = _budget_world_state(full_state, self.url, question, priority_ids, world_budget, trace)
+        user_content, context_json = assemble(world_state, exhaustive)
+        prompt_tokens = count_tokens(self.url, SYSTEM_PROMPT + history_text + user_content)
+        while prompt_tokens + MIN_OUTPUT_TOKENS > MODEL_CONTEXT_TOKENS and any(chunk.id not in forced_ids for chunk in ctx):
+            for index in range(len(ctx) - 1, -1, -1):
+                if ctx[index].id not in forced_ids:
+                    del ctx[index]
+                    break
+            user_content, context_json = assemble(world_state, exhaustive)
+            prompt_tokens = count_tokens(self.url, SYSTEM_PROMPT + history_text + user_content)
+        if len(ctx) < len(context):
+            trace.append({"step": "context_budget", "keptContextChunks": len(ctx), "droppedContextChunks": len(context) - len(ctx)})
+        max_tokens = max(MIN_OUTPUT_TOKENS, min(desired_reserve, MODEL_CONTEXT_TOKENS - prompt_tokens - PROMPT_FIT_MARGIN))
+        return user_content, ctx, context_json, prompt_tokens, max_tokens
+
     def _invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
         return invoke_chat(self.url, payload)
 
@@ -423,10 +618,12 @@ def task_contract(question: str, figures: dict[str, Any]) -> dict[str, Any]:
     if re.search(r"\b(element|figur|tier|ort|konzept|board|page)\w*\b", folded) or not scopes:
         scopes.append("elements")
     required = sorted(required_proposal_kinds(question))
-    # Only creation/mutation requests get the broad-scope treatment -- a read-only "fasse
-    # die ganze Geschichte zusammen" doesn't risk the truncation/overflow this flags.
-    # Audits already run as one deterministic pass over all figures, no LLM call, no risk.
-    broad = bool(required) and bool(BROAD_SCOPE_REQUEST.search(question)) and not audit
+    # A whole-project summary/overview is read-only but still can't be done in one call on
+    # a large manuscript -- it goes through the same broad-scope offer, then the compress
+    # (map-reduce) path in _run_batches, so nothing is silently dropped. Mutations trigger
+    # it too. Audits run as one deterministic pass over all figures (no LLM call, no risk).
+    summarize = bool(re.search(r"\b(zusammenfass\w*|zusammenfassung|überblick|fasse|summar[iy]\w*|summari[sz]\w*)\b", folded))
+    broad = (bool(required) or summarize) and bool(BROAD_SCOPE_REQUEST.search(question)) and not audit
     return {
         "goal": question,
         "audit": audit,
@@ -472,16 +669,93 @@ def structured_context(chunks: list[Any], contract: dict[str, Any]) -> list[Any]
     return [chunk for chunk in chunks if chunk.kind in kinds]
 
 
+def _excerpt(value: Any, limit: int = WORLD_VALUE_CHAR_LIMIT) -> Any:
+    """Head+tail excerpt of an over-long string, keeping the start and end rather than
+    truncating blindly (ported from ai-relay's routing._excerpt). Non-strings and
+    short strings pass through untouched, so it is safe to map over arbitrary values."""
+    if not isinstance(value, str) or len(value) <= limit:
+        return value
+    half = max(0, (limit - len("\n[…]\n")) // 2)
+    return value[:half] + "\n[…]\n" + value[-half:]
+
+
+def _excerpt_deep(value: Any) -> Any:
+    """Apply _excerpt to every string inside a nested world-state value."""
+    if isinstance(value, dict):
+        return {key: _excerpt_deep(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_excerpt_deep(item) for item in value]
+    return _excerpt(value)
+
+
 def structured_world_state(figures: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
     state: dict[str, Any] = {}
     scopes = set(contract["readScopes"])
     if "elements" in scopes:
-        state["elements"] = [{key: node.get(key) for key in ("id", "type", "name", "label", "sub", "profile", "diedMomentId") if node.get(key) not in (None, "", [], {})} for node in figures.get("nodes") or []]
+        state["elements"] = [_excerpt_deep({key: node.get(key) for key in ("id", "type", "name", "label", "sub", "profile", "diedMomentId") if node.get(key) not in (None, "", [], {})}) for node in figures.get("nodes") or []]
     if "relationships" in scopes:
-        state["relationships"] = [{key: edge.get(key) for key in ("id", "from", "to", "label", "gerichtet", "style", "versions") if edge.get(key) not in (None, "", [], {})} for edge in figures.get("edges") or []]
+        state["relationships"] = [_excerpt_deep({key: edge.get(key) for key in ("id", "from", "to", "label", "gerichtet", "style", "versions") if edge.get(key) not in (None, "", [], {})}) for edge in figures.get("edges") or []]
     if "timeline" in scopes:
-        state["timeline"] = [{key: moment.get(key) for key in ("id", "title", "date", "note") if moment.get(key) not in (None, "", [], {})} for moment in figures.get("timeline") or []]
+        state["timeline"] = [_excerpt_deep({key: moment.get(key) for key in ("id", "title", "date", "note") if moment.get(key) not in (None, "", [], {})}) for moment in figures.get("timeline") or []]
     return state
+
+
+def _budget_world_state(state: dict[str, Any], url: str, question: str, priority_ids: set[Any], budget: int, trace: list[dict[str, Any]]) -> tuple[dict[str, Any], bool]:
+    """Shrink the world state to fit `budget` tokens, keeping the most relevant entries.
+
+    The elements scope is the dominant, unbounded cost, so it is packed first and by
+    relevance -- elements named in the request (needed for the model to reference or
+    connect them) rank ahead of elements retrieval already surfaced, ahead of the rest
+    in original order. Relationships prefer those between kept elements; timeline keeps
+    original order. Returns the trimmed state and whether it is still exhaustive, so the
+    prompt can honestly tell the model the state is a subset rather than "complete"
+    (which would make it wrongly conclude nothing is missing)."""
+    full_json = json.dumps(state, ensure_ascii=False)
+    full_tokens = count_tokens(url, full_json)
+    if budget > 0 and full_tokens <= budget:
+        return state, True
+    if budget <= 0:
+        trace.append({"step": "budget_world", "budgetTokens": budget, "kept": {scope: 0 for scope in state}, "exhaustive": False})
+        return {scope: [] for scope in state}, False
+    folded_question = _normal(question)
+    # Per-item cost is estimated from the one real full count's chars/token ratio rather
+    # than tokenising every entry over HTTP (which cost ~one round trip per figure). The
+    # estimate is only used to proportion the trim; _fit_prompt still real-counts the
+    # assembled prompt, so an estimate slip cannot silently overflow the window. A small
+    # inflation factor biases toward under-filling, never over-filling, the budget.
+    chars_per_token = max(1.0, len(full_json) / max(1, full_tokens))
+
+    def cost(item: dict[str, Any]) -> int:
+        return int(len(json.dumps(item, ensure_ascii=False)) / chars_per_token * 1.08) + 2
+
+    def element_rank(element: dict[str, Any]) -> tuple[int, int]:
+        name = _normal(element.get("name"))
+        mentioned = 0 if len(name) >= 3 and re.search(rf"\b{re.escape(name)}\b", folded_question) else 1
+        surfaced = 0 if element.get("id") in priority_ids else 1
+        return (mentioned, surfaced)
+
+    kept: dict[str, list[dict[str, Any]]] = {}
+    kept_ids: set[Any] = set()
+    used = 0
+    for scope in ("elements", "relationships", "timeline"):
+        items = list(state.get(scope) or [])
+        if scope == "elements":
+            items.sort(key=element_rank)
+        elif scope == "relationships":
+            items.sort(key=lambda edge: 0 if {edge.get("from"), edge.get("to")} <= kept_ids else 1)
+        keep: list[dict[str, Any]] = []
+        for item in items:
+            item_cost = cost(item)
+            if used + item_cost > budget:
+                break
+            used += item_cost
+            keep.append(item)
+            if scope == "elements":
+                kept_ids.add(item.get("id"))
+        if scope in state:
+            kept[scope] = keep
+    trace.append({"step": "budget_world", "budgetTokens": budget, "kept": {scope: len(items) for scope, items in kept.items()}, "dropped": {scope: len(state.get(scope) or []) - len(kept.get(scope) or []) for scope in state}, "exhaustive": False})
+    return kept, False
 
 
 def conversation_messages(history: list[dict[str, str]] | None, url: str) -> list[dict[str, str]]:

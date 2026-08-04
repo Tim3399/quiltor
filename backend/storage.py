@@ -97,6 +97,12 @@ CREATE TABLE IF NOT EXISTS assistant_interactions (
   error TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS assistant_interactions_created ON assistant_interactions(created_at DESC);
+CREATE TABLE IF NOT EXISTS chapter_digests (
+  chapter_id TEXT PRIMARY KEY,
+  body_hash TEXT NOT NULL,
+  digest TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 """
 
 
@@ -210,6 +216,24 @@ def list_assistant_interactions(limit: int = 50) -> list[dict[str, Any]]:
         "response": json.loads(row["response_json"]) if row["response_json"] else None,
         "status": row["status"], "error": row["error"],
     } for row in rows]
+
+
+def get_chapter_digest(chapter_id: str, body_hash: str) -> str | None:
+    """Return the cached compressed digest for this chapter iff it matches the current
+    body hash. Content-addressed so an edited chapter simply misses the cache and gets
+    recomputed, while unchanged chapters serve their digest without re-reading the prose
+    -- the persistent "memory" that keeps whole-project reads cheap on repeat."""
+    with connect() as conn:
+        row = conn.execute("SELECT digest FROM chapter_digests WHERE chapter_id=? AND body_hash=?", (chapter_id, body_hash)).fetchone()
+    return row["digest"] if row else None
+
+
+def save_chapter_digest(chapter_id: str, body_hash: str, digest: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO chapter_digests(chapter_id,body_hash,digest,created_at) VALUES(?,?,?,?)",
+            (chapter_id, body_hash, digest, datetime.now().isoformat()),
+        )
 
 
 def delete_world(world_id: str) -> None:
