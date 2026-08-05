@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import os
@@ -220,7 +221,19 @@ class AssistantRuntime:
             except IncompleteResponse as exc:
                 raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
 
-    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None) -> dict[str, Any]:
+    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None, resolutions: dict[str, str] | None = None) -> dict[str, Any]:
+        # Live step progress for a single request: a normal request can fire several LLM runs
+        # (plan, propose, repair, forced extraction), and the frontend polls this to show which
+        # one is active. Batch mode manages its own progress inside _run_batches instead.
+        step_progress = bool(progress_id) and not run_batches and not chapter_ids
+        if step_progress:
+            start_progress(progress_id, 0)
+
+        def emit(label: str) -> None:
+            if step_progress:
+                update_progress(progress_id, 0, label)
+
+        emit("Kontext durchsuchen")
         chunks = build_knowledge(manuscript, figures)
         contract = task_contract(question, figures)
         embedder = self._embedder()
@@ -242,6 +255,23 @@ class AssistantRuntime:
             source = next((chunk.public() for chunk in chunks if chunk.id == source_id), None)
             trace.append({"step": "preflight", "complete": False, "reason": "existing element", "elementId": duplicate["id"]})
             return {"message": f"„{duplicate.get('name', 'Dieses Element')}“ existiert bereits. Deshalb habe ich kein doppeltes Element vorgeschlagen. Du kannst stattdessen den vorhandenen Steckbrief oder seine Beziehungen ergänzen.", "citations": [source_id], "sources": [source] if source else [], "proposals": [], "agentTrace": trace}
+        # A near-miss on the creation name is more likely a typo for an existing element than a
+        # genuinely new one. Ask rather than silently create a near-duplicate; the user's answer
+        # comes back in resolutions[span]: "new" -> proceed to create, an element id -> they meant
+        # the existing one (point them there), absent -> ask.
+        target_span = creation_target_span(question)
+        answer = (resolutions or {}).get(target_span) if target_span else None
+        if target_span and answer != "new":
+            typo = creation_typo_candidate(question, figures)
+            if typo:
+                if answer:
+                    node = next((item for item in figures.get("nodes") or [] if item.get("id") == answer), None)
+                    if node:
+                        source_id = f"element:{node['id']}"
+                        source = next((chunk.public() for chunk in chunks if chunk.id == source_id), None)
+                        trace.append({"step": "clarify_resolved", "elementId": node.get("id")})
+                        return {"message": f"Verstanden – „{node.get('name')}“ existiert bereits. Du kannst dort ergänzen, statt neu anzulegen.", "citations": [source_id], "sources": [source] if source else [], "proposals": [], "agentTrace": trace}
+                return clarification_reply(question, target_span, typo[0], typo[1], trace)
         if contract["broad"] and not chapter_ids and not run_batches:
             chapter_count = len({chapter["id"] for chapter in manuscript.get("chapters") or []})
             trace.append({"step": "preflight", "complete": False, "reason": "broad scope", "chapterCount": chapter_count})
@@ -258,7 +288,7 @@ class AssistantRuntime:
         # Anything ambiguous (or needing free text / a new element) yields nothing here and
         # falls through to the model path below.
         det_kinds = set(contract["requiredKinds"])
-        if det_kinds and det_kinds <= {"arrange_elements", "mark_deceased", "set_relationship_at_moment", "update_element", "create_relationship"}:
+        if det_kinds and det_kinds <= {"arrange_elements", "mark_deceased", "set_relationship_at_moment", "update_element", "create_relationship", "create_element"}:
             built = complete_compound_proposals(question, validate_proposals(build_deterministic_proposals(question, figures), figures, question), figures)
             verification = verify_task_contract(contract, built, figures)
             if built and verification["complete"]:
@@ -276,11 +306,14 @@ class AssistantRuntime:
                     "proposalGroup": {"id": "task", "title": proposal_group_title(question), "proposalIndexes": list(range(len(built)))},
                     "agentTrace": trace,
                 }
+        if not contract["requiredKinds"]:
+            emit("Vorgehen planen")
         plan = ({"goal": question, "steps": contract["expected"], "searchQueries": [], "requiredKinds": contract["requiredKinds"], "planner": "deterministic"}
                 if contract["requiredKinds"] else self._plan(question, context))
         trace.append({"step": "plan", **plan})
         known_context = {item.id: item for item in context}
         for query in plan.get("searchQueries", [])[:4]:
+            emit(f"Welt durchsuchen: {query}")
             found = retrieve(chunks, str(query), embedder=embedder)
             trace.append({"step": "search_world", "query": query, "sources": [item.id for item in found]})
             known_context.update((item.id, item) for item in found)
@@ -318,6 +351,7 @@ class AssistantRuntime:
         required = explicit_required or (planned_required if mutation_requested else set())
         if required:
             payload["messages"][1]["content"] += "\n\nTASK REQUIREMENTS: The structured proposals must include: " + ", ".join(sorted(required)) + "."
+        emit("Antwort erstellen")
         try:
             parsed = self._invoke_with_growth(payload, prompt_tokens)
         except ContextOverflowError as exc:
@@ -329,6 +363,7 @@ class AssistantRuntime:
         parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
         trace.append({"step": "propose", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
         if required - {item.get("kind") for item in parsed["proposals"]}:
+            emit("Vorschlag nachbessern")
             retry_schema = json.loads(json.dumps(schema))
             retry_schema["properties"]["proposals"]["minItems"] = 1
             repair_note = "The request requires a structured world-data proposal, but proposals was empty or invalid. Correct the response and emit at least one matching allowed proposal using IDs from CONTEXT. Do not claim it was applied. /no_think"
@@ -348,6 +383,7 @@ class AssistantRuntime:
             except ContextOverflowError as exc:
                 trace.append({"step": "repair", "contextOverflow": True, "promptTokens": exc.prompt_tokens})
         if MUTATION_REQUEST.search(question) and not parsed["proposals"]:
+            emit("Vorschlag deterministisch ableiten")
             forced = self._forced_proposal(question, context_json, figures)
             if os.environ.get("QUILTOR_AI_DEBUG"):
                 print(f"  · AI forced proposal: {json.dumps(forced, ensure_ascii=False)}", flush=True)
@@ -719,17 +755,113 @@ def contract_expectations(question: str, required: list[str]) -> list[str]:
     return expectations
 
 
+# Confidence bands for fuzzy entity resolution. At/above _RESOLVE the match is taken
+# silently; between _CLARIFY and _RESOLVE it's a likely typo worth confirming with the user;
+# below _CLARIFY there's no match. Tuned against difflib ratios plus a substring boost.
+_RESOLVE_THRESHOLD = 0.9
+# Above a shared surname (~0.67 for "Lena Venn" vs "Mara Venn", a new sibling not a typo)
+# but below a real typo (~0.89 for "Mira"/"Priorn"), so families don't trigger false asks.
+_CLARIFY_THRESHOLD = 0.72
+
+
+def _similarity(reference: str, name: str) -> float:
+    """0..1 similarity: difflib ratio, lifted for a clear substring overlap so a partial name
+    ('Siegel' for 'Staatssiegel') or a typo ('Priorn' for 'Priorin') still scores high."""
+    a, b = _normal(reference), _normal(name)
+    if not a or not b:
+        return 0.0
+    ratio = difflib.SequenceMatcher(None, a, b).ratio()
+    if len(a) >= 4 and (a in b or b in a):
+        ratio = max(ratio, 0.86)
+    return ratio
+
+
+def _rank_by_similarity(reference: str, figures: dict[str, Any]) -> list[tuple[float, dict[str, Any]]]:
+    scored = [(_similarity(reference, node.get("name")), node) for node in figures.get("nodes") or [] if _normal(node.get("name"))]
+    return sorted(scored, key=lambda item: -item[0])
+
+
+def resolve_reference(reference: str, figures: dict[str, Any], resolutions: dict[str, str] | None = None) -> tuple[dict[str, Any] | None, float, list[dict[str, Any]]]:
+    """Resolve a referenced element name to a node with a confidence score. A user-supplied
+    resolution (from a previous clarification) wins outright. Otherwise: exact whole-word
+    match -> 1.0; else the best fuzzy candidate. Returns (node|None, score, near_candidates)."""
+    if resolutions:
+        chosen = resolutions.get(reference) or resolutions.get(_normal(reference))
+        if chosen and chosen != "new":
+            node = next((item for item in figures.get("nodes") or [] if item.get("id") == chosen), None)
+            if node:
+                return node, 1.0, []
+    normalised = _normal(reference)
+    for node in sorted(figures.get("nodes") or [], key=lambda node: -len(_normal(node.get("name")))):
+        name = _normal(node.get("name"))
+        if len(name) >= 3 and re.search(rf"\b{re.escape(name)}\b", normalised):
+            return node, 1.0, []
+    ranked = _rank_by_similarity(reference, figures)
+    if not ranked:
+        return None, 0.0, []
+    score, node = ranked[0]
+    near = [item for item_score, item in ranked[:3] if item_score >= _CLARIFY_THRESHOLD]
+    return (node, score, near) if score >= _CLARIFY_THRESHOLD else (None, score, near)
+
+
+def creation_target_span(question: str) -> str | None:
+    """The phrase naming the element to be created -- text right after a creation verb up to a
+    type marker or clause boundary. Scoping the duplicate check to this span is what stops a
+    *referenced* element (e.g. the parent in 'lege Lio an, Sohn von Tarek') from being
+    mistaken for the creation target."""
+    match = re.search(
+        r"\b(?:lege|erstelle|erstellen|anlegen|anzulegen|hinzufügen|hinzufüge|create|add)\b\s+"
+        r"(?:eine[nrs]?\s+|einen\s+|das\s+|die\s+|der\s+|den\s+|the\s+|a\s+)?"
+        r"(.+?)(?:\s+\b(?:als|an|hinzu|zum|zur|as)\b|[.,:!?]|$)",
+        question, re.IGNORECASE)
+    span = match.group(1).strip() if match else None
+    return span or None
+
+
 def existing_creation_target(question: str, figures: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any] | None:
+    """An existing element the creation would duplicate -- matched only inside the creation
+    target span, so a referenced element elsewhere in the sentence is never mistaken for it."""
     if "create_element" not in contract["requiredKinds"]:
         return None
-    folded = question.casefold()
-    requested_type = next((kind for kind, words in {
-        "tier": ("tier", "animal"), "person": ("figur", "person", "character"), "ort": ("ort", "place"),
-        "konzept": ("konzept", "concept"), "organisation": ("organisation", "organization"), "objekt": ("objekt", "object"),
-    }.items() if any(re.search(rf"\b{word}\w*\b", folded) for word in words)), None)
-    candidates = [node for node in figures.get("nodes") or [] if not requested_type or node.get("type", "person") == requested_type]
-    candidates.sort(key=lambda node: len(str(node.get("name", ""))), reverse=True)
-    return next((node for node in candidates if len(_normal(node.get("name"))) >= 3 and re.search(rf"\b{re.escape(_normal(node.get('name')))}\b", _normal(question))), None)
+    span = _normal(creation_target_span(question) or "")
+    if not span:
+        return None
+    for node in sorted(figures.get("nodes") or [], key=lambda node: -len(_normal(node.get("name")))):
+        name = _normal(node.get("name"))
+        if len(name) >= 3 and re.search(rf"\b{re.escape(name)}\b", span):
+            return node
+    return None
+
+
+def creation_typo_candidate(question: str, figures: dict[str, Any]) -> tuple[dict[str, Any], float] | None:
+    """A likely-misspelled reference to an existing element in the creation target: a fuzzy
+    (not exact) match inside the clarify band. Returns (node, score) or None."""
+    if "create_element" not in required_proposal_kinds(question):
+        return None
+    span = creation_target_span(question)
+    if not span:
+        return None
+    # An exact existing name is caught earlier (existing_creation_target); anything reaching
+    # here is at most a near-miss, and a near-miss on a *new* element's name is more likely a
+    # typo for an existing one the closer it is -- so clarify across the whole band up to exact.
+    ranked = _rank_by_similarity(span, figures)
+    if ranked and ranked[0][0] >= _CLARIFY_THRESHOLD:
+        return ranked[0][1], ranked[0][0]
+    return None
+
+
+def clarification_reply(question: str, reference: str, node: dict[str, Any], score: float, trace: list[dict[str, Any]], allow_new: bool = True) -> dict[str, Any]:
+    """Ask the user which element they meant instead of guessing or silently duplicating."""
+    candidates = [{"id": node.get("id"), "name": node.get("name"), "kind": node.get("type", "person"), "similarity": round(score, 2)}]
+    if allow_new:
+        candidates.append({"id": "new", "name": f"Neu anlegen: „{reference}“", "kind": "new"})
+    trace.append({"step": "clarify", "reference": reference, "candidateId": node.get("id"), "similarity": round(score, 2)})
+    return {
+        "message": f"Meintest du „{node.get('name')}“? Ich frage lieber nach, statt eine mögliche Dublette anzulegen.",
+        "citations": [], "sources": [], "proposals": [],
+        "clarification": {"question": "Welches Element meinst du?", "reference": reference, "candidates": candidates},
+        "agentTrace": trace,
+    }
 
 
 def structured_context(chunks: list[Any], contract: dict[str, Any]) -> list[Any]:
@@ -916,6 +1048,10 @@ def _merge_accumulated(figures: dict[str, Any], accumulated: list[dict[str, Any]
 
 def _normal(value: Any) -> str:
     return re.sub(r"[^\wäöüß]+", " ", str(value or "").casefold()).strip()
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", _normal(text)).strip("-") or "element"
 
 
 def verify_task_contract(contract: dict[str, Any], proposals: list[dict[str, Any]], figures: dict[str, Any]) -> dict[str, Any]:
@@ -1132,6 +1268,17 @@ def build_deterministic_proposals(question: str, figures: dict[str, Any]) -> lis
     model. Validation and de-duplication still run on top downstream."""
     required = required_proposal_kinds(question)
     folded = question.casefold()
+    if "create_element" in required:
+        # Only when the name is clean (1-4 capitalised tokens) -- a messy span like "das im
+        # letzten Kapitel erwähnte Frostkloster" or one carrying a rich profile falls through
+        # to the model. complete_compound_proposals() adds the relationship to a named owner,
+        # so "lege Lio an, Sohn von Tarek" becomes fully deterministic from this one element.
+        span = creation_target_span(question)
+        tokens = span.split() if span else []
+        if span and 1 <= len(tokens) <= 4 and all(token[:1].isupper() for token in tokens):
+            element_type = next((kind for kind, words in [("ort", ("ort", "place")), ("tier", ("tier", "animal")), ("konzept", ("konzept", "concept")), ("organisation", ("organisation", "organization")), ("objekt", ("objekt", "object"))] if any(word in folded for word in words)), "person")
+            return [{"kind": "create_element", "tempId": f"new:{_slug(span)}", "element": {"type": element_type, "name": span}}]
+        return []
     if required == {"arrange_elements"}:
         return [{"kind": "arrange_elements", "strategy": "grid" if re.search(r"\b(raster|grid)\b", folded) else "thematic"}]
     if required == {"mark_deceased"}:

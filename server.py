@@ -546,11 +546,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 chapter_ids = [str(item) for item in request.get("chapterIds") or [] if isinstance(item, str)][:50]
                 run_batches = bool(request.get("runBatches"))
                 progress_id = str(request.get("progressId") or "")[:64] or None
+                raw_resolutions = request.get("resolutions") if isinstance(request.get("resolutions"), dict) else {}
+                resolutions = {str(key): str(value) for key, value in list(raw_resolutions.items())[:20]}
                 if not question or len(question) > 4000:
                     raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
                 with _lock:
                     manuscript, figures = storage.load_manuscript(), storage.load_figures()
-                result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids, run_batches, progress_id)
+                result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids, run_batches, progress_id, resolutions)
                 with _lock:
                     interaction_id = storage.log_assistant_interaction(question, result)
                 print(f"  · {datetime.now():%H:%M:%S}  AI request {interaction_id} — {len(result.get('sources', []))} sources, {len(result.get('proposals', []))} proposals", flush=True)

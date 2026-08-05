@@ -174,7 +174,7 @@ describe('AssistantDrawer', () => {
     fireEvent.click(screen.getByText('1. Die Krönung'));
     expect(screen.getByText('Kontext: 1 Kapitel erzwungen')).toBeInTheDocument();
     await askQuestion('Fasse das zusammen.');
-    expect(vi.mocked(api.assistantChat).mock.calls[0][3]).toEqual(['c1']);
+    expect(vi.mocked(api.assistantChat).mock.calls[0][2]?.chapterIds).toEqual(['c1']);
   });
 
   it('does not render the chapter picker when the manuscript has no chapters', async () => {

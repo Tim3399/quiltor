@@ -126,6 +126,7 @@ export interface AssistantReply {
   proposalGroup?: { id: string; title: string; proposalIndexes: number[] };
   agentTrace?: Array<{ step: string; [key: string]: unknown }>;
   broadScope?: { chapterCount: number; estimateSeconds: number };
+  clarification?: { question: string; reference: string; candidates: Array<{ id: string; name: string; kind: string; similarity?: number }> };
 }
 
 export const PROFILE_FIELDS: Array<[keyof Profile, string, 'short' | 'long']> = [

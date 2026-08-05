@@ -19,7 +19,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
   const [status, setStatus] = useState<{ available: boolean; reason: string; chunks: number } | null>(null);
   const [confirmNewChat, setConfirmNewChat] = useState(false);
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
-  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; label: string } | null>(null);
+  const [progress, setProgress] = useState<{ total: number; done: number; label: string } | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chapterPickerRef = useRef<HTMLDetailsElement>(null);
@@ -33,16 +33,25 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     return () => window.clearInterval(interval);
   }, [checkStatus]);
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(entries.slice(-40))); end.current?.scrollIntoView({ behavior: 'smooth' }); }, [entries, storageKey]);
-  const send = async (retryId?: string, opts?: { batch?: boolean }) => {
+  const send = async (retryId?: string, opts?: { batch?: boolean; resolutions?: Record<string, string> }) => {
     const question = retryId ? entries.find(entry => entry.id === retryId)?.question : draft.trim();
     if (!question || sending) return;
     const id = retryId ?? crypto.randomUUID();
-    if (retryId) setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: undefined } : entry));
+    // Re-sending an entry (retry or a clarification answer) clears its previous reply/error so
+    // the live step indicator shows again instead of the stale answer.
+    if (retryId) setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: undefined, reply: undefined } : entry));
     else { setDraft(''); setEntries(current => [...current, { id, question, applied: [] }]); }
     setSending(true);
     const controller = new AbortController();
     abortRef.current = controller;
-    let progressInterval: number | undefined;
+    // Every request gets a progress id and is polled, not just batch mode: a single request
+    // can fire several LLM runs (plan, propose, repair, deterministic extraction) and the
+    // backend reports which step is active so it can be shown live.
+    const progressId = crypto.randomUUID();
+    setProgress({ total: 0, done: 0, label: '' });
+    const progressInterval = window.setInterval(() => {
+      api.assistantProgress(progressId).then(res => { if (res.progress) setProgress(res.progress); }).catch(() => {});
+    }, opts?.batch ? 1200 : 500);
     try {
       // Send the whole (locally capped) transcript -- the backend picks however much
       // actually fits the model's real token budget (backend/assistant.py's
@@ -51,14 +60,13 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
         { role: 'user' as const, content: entry.question },
         ...(entry.reply ? [{ role: 'assistant' as const, content: entry.reply.message }] : []),
       ]);
-      const batch = opts?.batch ? { runBatches: true, progressId: crypto.randomUUID() } : undefined;
-      if (batch) {
-        setBatchProgress({ total: 0, done: 0, label: '' });
-        progressInterval = window.setInterval(() => {
-          api.assistantProgress(batch.progressId).then(res => { if (res.progress) setBatchProgress(res.progress); }).catch(() => {});
-        }, 1500);
-      }
-      const response = await api.assistantChat(question, history, controller.signal, forcedChapterIds.length ? forcedChapterIds : undefined, batch);
+      const response = await api.assistantChat(question, history, {
+        signal: controller.signal,
+        chapterIds: forcedChapterIds.length ? forcedChapterIds : undefined,
+        runBatches: opts?.batch,
+        progressId,
+        resolutions: opts?.resolutions,
+      });
       const reply = { ...response, proposals: scopeAssistantProposals(response.proposals || [], id) };
       setEntries(current => current.map(entry => entry.id === id ? { ...entry, reply } : entry));
     } catch (error) {
@@ -66,8 +74,8 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
       setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: message } : entry));
     } finally {
       setSending(false); abortRef.current = null;
-      if (progressInterval) window.clearInterval(progressInterval);
-      setBatchProgress(null);
+      window.clearInterval(progressInterval);
+      setProgress(null);
     }
   };
   const cancel = () => abortRef.current?.abort();
@@ -94,6 +102,12 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
             <button type="button" onClick={openChapterPicker}>Kapitel einzeln auswählen</button>
             <button type="button" disabled={sending} onClick={() => void send(entry.id, { batch: true })}>In Kapitel-Gruppen ausführen</button>
           </div></div>}
+          {entry.reply.clarification && <div className="assistant-broadscope"><p>{entry.reply.clarification.question}</p><div className="assistant-broadscope-actions">
+            {entry.reply.clarification.candidates.map(candidate => <button key={candidate.id} type="button" disabled={sending}
+              onClick={() => { const reference = entry.reply!.clarification!.reference; void send(entry.id, { resolutions: { [reference]: candidate.id } }); }}>
+              {candidate.name}{candidate.similarity ? ` · ${Math.round(candidate.similarity * 100)}%` : ''}
+            </button>)}
+          </div></div>}
           {!!entry.reply.sources?.length && <SourceList sources={entry.reply.sources} onNavigate={onNavigate} />}
           {!!entry.reply.proposals?.length && <div className="assistant-proposals"><div className="assistant-proposal-heading"><strong>{entry.reply.proposals.length} Vorschläge</strong><button disabled={entry.applied.length === entry.reply.proposals.length} onClick={() => { const pending = entry.reply!.proposals.map((proposal, index) => ({ proposal, index })).filter(item => !entry.applied.includes(item.index)); apply(entry.id, pending.map(item => item.proposal), pending.map(item => item.index)); }}><Check />Alle übernehmen</button></div>
             {entry.reply.proposals.map((proposal, index) => { const grouped = (entry.reply?.proposalGroup?.proposalIndexes.length || 0) > 1; return <div className={`assistant-proposal ${entry.applied.includes(index) ? 'is-applied' : ''}`} key={index}><span>{proposalLabel(proposal, figures)}</span><button disabled={entry.applied.includes(index) || grouped} title={grouped ? 'Dieser Vorschlag gehört zu einem atomaren Paket und wird nur gemeinsam übernommen.' : undefined} onClick={() => apply(entry.id, [proposal], [index])}>{entry.applied.includes(index) ? <><Check />Übernommen</> : grouped ? 'Im Paket' : 'Übernehmen'}</button></div>; })}
@@ -101,11 +115,11 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
           {!!entry.reply.agentTrace?.length && <details className="assistant-trace"><summary><ChevronDown />Ablauf ({entry.reply.agentTrace.length} Schritte)</summary><pre>{JSON.stringify(entry.reply.agentTrace, null, 2)}</pre></details>}
         </div>}
       </article>)}
-      {sending && batchProgress && <div className="assistant-progress">
-        <span>{batchProgress.label || 'Kapitel-Gruppen werden verarbeitet …'} {batchProgress.total ? `(${batchProgress.done}/${batchProgress.total})` : ''}</span>
-        <div className="assistant-progress-bar"><span style={{ width: `${batchProgress.total ? Math.round((batchProgress.done / batchProgress.total) * 100) : 0}%` }} /></div>
+      {sending && progress && progress.total > 0 && <div className="assistant-progress">
+        <span>{progress.label || 'Kapitel-Gruppen werden verarbeitet …'} ({progress.done}/{progress.total})</span>
+        <div className="assistant-progress-bar"><span style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} /></div>
       </div>}
-      {sending && !batchProgress && <div className="assistant-thinking"><span /><span /><span />Quiltor durchsucht deine Welt …</div>}
+      {sending && (!progress || progress.total === 0) && <div className="assistant-thinking"><span /><span /><span /><em>{progress?.label || 'Quiltor durchsucht deine Welt'} …</em></div>}
       <div ref={end} />
     </div>
     <footer>
