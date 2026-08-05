@@ -252,6 +252,30 @@ class AssistantRuntime:
             }
         if run_batches and not chapter_ids:
             return self._run_batches(question, manuscript, figures, history, progress_id)
+        # Determinism-first: many structured commands are fully recoverable from the request
+        # plus existing world data. Build them algorithmically and skip the model entirely when
+        # the result already satisfies the contract -- faster and immune to LLM nondeterminism.
+        # Anything ambiguous (or needing free text / a new element) yields nothing here and
+        # falls through to the model path below.
+        det_kinds = set(contract["requiredKinds"])
+        if det_kinds and det_kinds <= {"arrange_elements", "mark_deceased", "set_relationship_at_moment", "update_element", "create_relationship"}:
+            built = complete_compound_proposals(question, validate_proposals(build_deterministic_proposals(question, figures), figures, question), figures)
+            verification = verify_task_contract(contract, built, figures)
+            if built and verification["complete"]:
+                trace.append({"step": "deterministic", "proposalKinds": [item.get("kind") for item in built]})
+                referenced: set[str] = set()
+                for item in built:
+                    relation = item.get("relationship") or {}
+                    referenced |= {f"element:{relation.get('from')}", f"element:{relation.get('to')}", f"element:{item.get('elementId')}",
+                                   f"relationship:{item.get('relationshipId')}", f"timeline:{item.get('momentId')}"}
+                cited = [chunk.public() for chunk in chunks if chunk.id in referenced]
+                trace.append({"step": "verify", **verification})
+                return {
+                    "message": f"{len(built)} zusammengehörige Änderung{'en' if len(built) != 1 else ''} als prüfbarer Vorschlag vorbereitet. Es wurde noch nichts angewendet.",
+                    "citations": [chunk["id"] for chunk in cited], "sources": cited, "proposals": built,
+                    "proposalGroup": {"id": "task", "title": proposal_group_title(question), "proposalIndexes": list(range(len(built)))},
+                    "agentTrace": trace,
+                }
         plan = ({"goal": question, "steps": contract["expected"], "searchQueries": [], "requiredKinds": contract["requiredKinds"], "planner": "deterministic"}
                 if contract["requiredKinds"] else self._plan(question, context))
         trace.append({"step": "plan", **plan})
@@ -1035,6 +1059,105 @@ def estimate_batch_seconds(chapter_count: int, factor: float = 1.0) -> float:
     group_count = max(1, round(chapter_count * 1400 / BATCH_GROUP_TOKEN_BUDGET))
     seconds_per_group = 1200 / 9  # a compound-request-sized max_tokens budget / slow-end tok/s
     return group_count * seconds_per_group * factor
+
+
+# Relation verbs recognised for deterministic labelling. Small and explicit on purpose --
+# an unknown verb falls through to a generic label rather than being guessed wrong.
+_RELATION_VERBS = {
+    "besitzt": "Besitzt", "gehört": "Gehört zu", "liebt": "Liebt", "hasst": "Hasst",
+    "tötet": "Tötet", "dient": "Dient", "vertraut": "Vertraut", "misstraut": "Misstraut",
+    "kennt": "Kennt", "führt": "Führt", "leitet": "Leitet", "erpresst": "Erpresst",
+    "owns": "Besitzt", "loves": "Liebt", "serves": "Dient", "knows": "Kennt", "leads": "Leitet",
+}
+
+
+def _mentioned_elements(question: str, figures: dict[str, Any]) -> list[dict[str, Any]]:
+    """Existing element nodes whose name occurs in the question, in order of appearance and
+    de-duplicated by id. Whole-word match on the normalised name keeps 'Elian' from matching
+    inside another word; ordering by position lets 'von A zu B' resolve A as source, B as target."""
+    folded = _normal(question)
+    found: list[tuple[int, dict[str, Any]]] = []
+    seen: set[Any] = set()
+    for node in figures.get("nodes") or []:
+        name = _normal(node.get("name"))
+        if len(name) < 3 or node.get("id") in seen:
+            continue
+        match = re.search(rf"\b{re.escape(name)}\b", folded)
+        if match:
+            found.append((match.start(), node))
+            seen.add(node.get("id"))
+    found.sort(key=lambda item: item[0])
+    return [node for _, node in found]
+
+
+def _mentioned_moment(question: str, figures: dict[str, Any]) -> dict[str, Any] | None:
+    folded = question.casefold()
+    for moment in figures.get("timeline") or []:
+        moment_id = str(moment.get("id", "")).casefold()
+        if moment_id and re.search(rf"\b{re.escape(moment_id)}\b", folded):
+            return moment
+    normalised = _normal(question)
+    for moment in figures.get("timeline") or []:
+        title = _normal(moment.get("title"))
+        if len(title) >= 3 and re.search(rf"\b{re.escape(title)}\b", normalised):
+            return moment
+    return None
+
+
+def _det_create_relationship(question: str, figures: dict[str, Any]) -> list[dict[str, Any]]:
+    """Deterministically build a create_relationship only when it is unambiguous: two distinct
+    existing elements are named, connected by a directional/associative phrase. Anything less
+    certain returns [] so the LLM path handles it -- determinism must not manufacture a wrong edge."""
+    folded = question.casefold()
+    if not re.search(r"\b(von|from|zwischen|between)\b", folded):
+        return []
+    elements = _mentioned_elements(question, figures)
+    if len(elements) < 2:
+        return []
+    source, target = elements[0], elements[1]
+    associative = bool(re.search(r"\b(zwischen|between)\b", folded))
+    directed = not (associative or "ungerichtet" in folded or "undirected" in folded)
+    if "gerichtet" in folded and "ungerichtet" not in folded:
+        directed = True
+    quoted = re.search(r"['\"„]([^'\"“]{2,40})['\"“]", question)
+    verb = next((label for token, label in _RELATION_VERBS.items() if re.search(rf"\b{token}\b", folded)), None)
+    label = quoted.group(1) if quoted else (verb or "Verbunden")
+    return [{"kind": "create_relationship", "relationship": {"from": source.get("id"), "to": target.get("id"), "label": label, "directed": directed, "style": "solid"}}]
+
+
+def build_deterministic_proposals(question: str, figures: dict[str, Any]) -> list[dict[str, Any]]:
+    """Construct proposals algorithmically for structured commands whose parts are all
+    recoverable from the request plus existing world data -- no LLM. Returns [] whenever a
+    reference doesn't resolve or the request is ambiguous, so the caller falls back to the
+    model. Validation and de-duplication still run on top downstream."""
+    required = required_proposal_kinds(question)
+    folded = question.casefold()
+    if required == {"arrange_elements"}:
+        return [{"kind": "arrange_elements", "strategy": "grid" if re.search(r"\b(raster|grid)\b", folded) else "thematic"}]
+    if required == {"mark_deceased"}:
+        elements, moment = _mentioned_elements(question, figures), _mentioned_moment(question, figures)
+        if elements and moment:
+            return [{"kind": "mark_deceased", "elementId": elements[0].get("id"), "momentId": moment.get("id")}]
+        return []
+    if required == {"set_relationship_at_moment"}:
+        edge = next((item for item in figures.get("edges") or [] if str(item.get("id", "")).casefold() in folded), None)
+        moment = _mentioned_moment(question, figures)
+        if edge and moment:
+            quoted = re.search(r"(?:auf|zu|to)\s+['\"„]([^'\"“]+)['\"“]", question, re.IGNORECASE)
+            return [{"kind": "set_relationship_at_moment", "relationshipId": edge.get("id"), "momentId": moment.get("id"),
+                     "patch": {"label": quoted.group(1) if quoted else edge.get("label", ""),
+                               "active": "inaktiv" not in folded and "inactive" not in folded,
+                               "directed": "ungerichtet" not in folded and "undirected" not in folded, "style": "solid"}}]
+        return []
+    if required == {"update_element"}:
+        elements = _mentioned_elements(question, figures)
+        note = re.search(r"(?:notiz|notes?)\s*:\s*(.+)$", question, re.IGNORECASE)
+        if elements and note:
+            return [{"kind": "update_element", "elementId": elements[0].get("id"), "patch": {"profile": {"notizen": note.group(1).strip().rstrip(".")}}}]
+        return []
+    if required == {"create_relationship"}:
+        return _det_create_relationship(question, figures)
+    return []
 
 
 def complete_compound_proposals(question: str, proposals: list[dict[str, Any]], figures: dict[str, Any]) -> list[dict[str, Any]]:
