@@ -373,19 +373,23 @@ class AssistantRuntime:
             verification = verify_task_contract(contract, built, figures)
             if built and verification["complete"]:
                 trace.append({"step": "deterministic", "proposalKinds": [item.get("kind") for item in built]})
-                referenced: set[str] = set()
-                for item in built:
-                    relation = item.get("relationship") or {}
-                    referenced |= {f"element:{relation.get('from')}", f"element:{relation.get('to')}", f"element:{item.get('elementId')}",
-                                   f"relationship:{item.get('relationshipId')}", f"timeline:{item.get('momentId')}"}
-                cited = [chunk.public() for chunk in chunks if chunk.id in referenced]
                 trace.append({"step": "verify", **verification})
-                return {
-                    "message": f"{len(built)} zusammengehörige Änderung{'en' if len(built) != 1 else ''} als prüfbarer Vorschlag vorbereitet. Es wurde noch nichts angewendet.",
-                    "citations": [chunk["id"] for chunk in cited], "sources": cited, "proposals": built,
-                    "proposalGroup": {"id": "task", "title": proposal_group_title(question), "proposalIndexes": list(range(len(built)))},
-                    "agentTrace": trace,
-                }
+                return self._structured_result(question, built, chunks, trace)
+        # Regex determinism couldn't fully build a plain relationship (a paraphrase, a
+        # misspelled endpoint). Let the model extract just the arguments (names), then resolve
+        # them deterministically -- build if they resolve, ask if one is a likely typo. Falls
+        # through to the full-proposal path below if the model can't even name two endpoints.
+        if list(contract["requiredKinds"]) == ["create_relationship"]:
+            emit("Beziehung auflösen")
+            outcome = self._relationship_via_args(question, figures, resolutions)
+            if outcome and outcome[0] == "clarify":
+                reference, node, score = outcome[1]
+                return clarification_reply(question, reference, node, score, trace, allow_new=False)
+            if outcome and outcome[0] == "build":
+                built = complete_compound_proposals(question, validate_proposals(outcome[1], figures, question), figures)
+                if built and verify_task_contract(contract, built, figures)["complete"]:
+                    trace.append({"step": "extract_args", "proposalKinds": [item.get("kind") for item in built]})
+                    return self._structured_result(question, built, chunks, trace)
         if not contract["requiredKinds"]:
             emit("Vorgehen planen")
         plan = ({"goal": question, "steps": contract["expected"], "searchQueries": [], "requiredKinds": contract["requiredKinds"], "planner": "deterministic"}
@@ -750,6 +754,56 @@ class AssistantRuntime:
             trace.append({"step": "context_budget", "keptContextChunks": len(ctx), "droppedContextChunks": len(context) - len(ctx)})
         max_tokens = max(MIN_OUTPUT_TOKENS, min(desired_reserve, MODEL_CONTEXT_TOKENS - prompt_tokens - PROMPT_FIT_MARGIN))
         return user_content, ctx, context_json, prompt_tokens, max_tokens
+
+    def _structured_result(self, question: str, built: list[dict[str, Any]], chunks: list[Any], trace: list[dict[str, Any]]) -> dict[str, Any]:
+        """Shared final shape for a deterministically-built proposal set: cite the referenced
+        world objects, group the proposals atomically, and phrase the message as a proposal."""
+        referenced: set[str] = set()
+        for item in built:
+            relation = item.get("relationship") or {}
+            referenced |= {f"element:{relation.get('from')}", f"element:{relation.get('to')}", f"element:{item.get('elementId')}",
+                           f"relationship:{item.get('relationshipId')}", f"timeline:{item.get('momentId')}"}
+        cited = [chunk.public() for chunk in chunks if chunk.id in referenced]
+        return {
+            "message": f"{len(built)} zusammengehörige Änderung{'en' if len(built) != 1 else ''} als prüfbarer Vorschlag vorbereitet. Es wurde noch nichts angewendet.",
+            "citations": [chunk["id"] for chunk in cited], "sources": cited, "proposals": built,
+            "proposalGroup": {"id": "task", "title": proposal_group_title(question), "proposalIndexes": list(range(len(built)))},
+            "agentTrace": trace,
+        }
+
+    def _relationship_via_args(self, question: str, figures: dict[str, Any], resolutions: dict[str, str] | None) -> tuple[str, Any] | None:
+        """Tool-call-style relationship path: the model extracts the ARGUMENTS (the two element
+        names, a label, direction) rather than a finished proposal, and the deterministic resolver
+        turns names into ids. This catches phrasings the regex path can't ("das Siegel gehört jetzt
+        Elian", with no von/zu), and a misspelled endpoint asks "did you mean ...?" instead of
+        guessing. Returns ("build", [proposal]) or ("clarify", (ref, node, score)), or None to fall
+        through to the full-proposal path."""
+        shape = {"type": "object", "required": ["from", "to"], "additionalProperties": False,
+                 "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "directed": {"type": "boolean"}}}
+        system = ("Extract the requested relationship as arguments: the two element NAMES exactly as the user names them, "
+                  "a short label for the relationship, and whether it is directed. Do not resolve names to ids. Return JSON only.")
+        try:
+            args = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 200,
+                                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": f"REQUEST:\n{question}\n/no_think"}],
+                                 "response_format": json_schema_format(shape)})
+        except (ContextOverflowError, RuntimeError):
+            return None
+        from_ref, to_ref = str(args.get("from") or "").strip(), str(args.get("to") or "").strip()
+        if not from_ref or not to_ref:
+            return None
+        resolved: dict[str, str] = {}
+        for endpoint, reference in (("from", from_ref), ("to", to_ref)):
+            node, score, _ = resolve_reference(reference, figures, resolutions)
+            answered = bool(resolutions and resolutions.get(reference))
+            if node and not answered and _CLARIFY_THRESHOLD <= score < _RESOLVE_THRESHOLD:
+                return "clarify", (reference, node, score)
+            if not node:
+                return None
+            resolved[endpoint] = node["id"]
+        if resolved["from"] == resolved["to"]:
+            return None
+        label = str(args.get("label") or "").strip() or "Verbunden"
+        return "build", [{"kind": "create_relationship", "relationship": {"from": resolved["from"], "to": resolved["to"], "label": label, "directed": bool(args.get("directed", True)), "style": "solid"}}]
 
     def _invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
         stats: dict[str, Any] = {}
