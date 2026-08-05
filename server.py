@@ -55,6 +55,21 @@ BACKUPS = DATA / "backups"
 MANUSCRIPT_DIR = DATA / "manuscripts"
 PROFILE_DIR = DATA / "profiles"
 WORLD_BACKUPS = GitBackup(DATA / "repositories")
+
+
+def _rotate_runtime_logs() -> None:
+    """Keep the append-only runtime logs (llama/embed/mlx) bounded: on startup, an oversized
+    log is trimmed to its recent tail. Best-effort -- a log another process still holds is left
+    alone (the trim just skips it)."""
+    for log in DATA.glob("*.log"):
+        try:
+            if log.stat().st_size > 4 * 1024 * 1024:
+                log.write_bytes(b"[... aeltere Logzeilen beim Start gekuerzt ...]\n" + log.read_bytes()[-256 * 1024:])
+        except OSError:
+            pass
+
+
+_rotate_runtime_logs()
 ensure_installed()
 ASSISTANT = AssistantRuntime(BASE, DATA)
 

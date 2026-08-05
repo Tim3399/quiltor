@@ -6,7 +6,7 @@ import sqlite3
 import uuid
 import re
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,12 @@ ACTIVE_WORLD_ID = ""
 SCHEMA_VERSION = 2
 MAX_BACKUPS = 40
 BACKUP_INTERVAL = 300
+# Retention for the collected assistant data, applied as one cheap pass on world open (see
+# prune_collected_data). The interaction log is a user-facing audit trail kept to a recent
+# window; the two caches are recomputable, so they shed anything stale or over the cap.
+INTERACTION_KEEP = 500
+INTERACTION_MAX_AGE_DAYS = 180
+EMBEDDING_CAP = 8000
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -192,6 +198,10 @@ def activate_world(world_id: str) -> dict[str, str]:
     ACTIVE_WORLD_ID = world_id
     BACKUPS = DATA / "backups" / world_id
     BACKUPS.mkdir(parents=True, exist_ok=True)
+    try:
+        prune_collected_data()
+    except sqlite3.Error:
+        pass  # retention is housekeeping; never block opening a world on it
     world = next((item for item in list_worlds() if item["id"] == world_id), None)
     if not world:
         raise ValueError("Diese Welt ist nicht lesbar.")
@@ -239,6 +249,28 @@ def save_chapter_digest(chapter_id: str, body_hash: str, digest: str) -> None:
             "INSERT OR REPLACE INTO chapter_digests(chapter_id,body_hash,digest,created_at) VALUES(?,?,?,?)",
             (chapter_id, body_hash, digest, datetime.now().isoformat()),
         )
+
+
+def prune_collected_data(conn: sqlite3.Connection | None = None) -> None:
+    """One cheap retention pass over everything the assistant accumulates, run on world open.
+
+    The interaction log keeps a recent window (newest N, and nothing past the age cap). The two
+    derived caches are recomputable, so they self-clean: chapter digests whose chapter no longer
+    exists are dropped outright, and the embedding vectors are capped to the most recent entries
+    (an edited chapter's old vector ages out, a new one is embedded on demand). Idempotent and
+    bounded, so calling it on every open is free."""
+    own = conn is None
+    conn = conn or connect()
+    try:
+        conn.execute("DELETE FROM assistant_interactions WHERE id NOT IN (SELECT id FROM assistant_interactions ORDER BY created_at DESC LIMIT ?)", (INTERACTION_KEEP,))
+        conn.execute("DELETE FROM assistant_interactions WHERE created_at < ?", ((datetime.now() - timedelta(days=INTERACTION_MAX_AGE_DAYS)).isoformat(),))
+        conn.execute("DELETE FROM chapter_digests WHERE chapter_id NOT IN (SELECT id FROM chapters)")
+        conn.execute("DELETE FROM embeddings WHERE key NOT IN (SELECT key FROM embeddings ORDER BY created_at DESC LIMIT ?)", (EMBEDDING_CAP,))
+        if own:
+            conn.commit()
+    finally:
+        if own:
+            conn.close()
 
 
 def get_tokens_per_second() -> float | None:
