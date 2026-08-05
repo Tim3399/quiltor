@@ -41,16 +41,17 @@ from backend.llm.shared.platform import force_utf8_streams
 
 force_utf8_streams()
 
-from backend import storage
+from backend import paths, storage
 from backend.assistant import AssistantRuntime, read_progress, read_progress_result, set_progress_result
 from backend.git_backup import GitBackup
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed
 from backend.validation import valid_figures, valid_manuscript
 
-BASE = Path(__file__).resolve().parent
+BASE = paths.package_root()
 PUBLIC = BASE / "dist"
 DATA = storage.DATA
+HOME = paths.home()
 BACKUPS = DATA / "backups"
 MANUSCRIPT_DIR = DATA / "manuscripts"
 PROFILE_DIR = DATA / "profiles"
@@ -71,7 +72,7 @@ def _rotate_runtime_logs() -> None:
 
 _rotate_runtime_logs()
 ensure_installed()
-ASSISTANT = AssistantRuntime(BASE, DATA)
+ASSISTANT = AssistantRuntime(HOME, DATA)
 
 MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
 
@@ -650,8 +651,8 @@ class Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-def main() -> None:
-    argv = sys.argv[1:]
+def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
     no_open = "--no-open" in argv
     positional = [a for a in argv if not a.startswith("--")]
     port = int(positional[0]) if positional else 8000

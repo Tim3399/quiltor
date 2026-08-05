@@ -45,11 +45,12 @@ import zipfile
 from pathlib import Path
 
 from backend.llm.runtimes import llamacpp
+from backend import paths
 from backend.llm.shared.platform import force_utf8_streams, is_apple_silicon
 
-BASE = Path(__file__).resolve().parent.parent.parent
-RUNTIME_DIR = BASE / "runtime"
-MODELS_DIR = BASE / "models"
+BASE = paths.package_root()
+RUNTIME_DIR = paths.runtime_dir()
+MODELS_DIR = paths.models_dir()
 LLAMA_CPP_REPO = "ggml-org/llama.cpp"
 DEFAULT_MODEL_REPO = "Qwen/Qwen3-4B-GGUF"
 DEFAULT_MODEL_FILE = "Qwen3-4B-Q4_K_M.gguf"

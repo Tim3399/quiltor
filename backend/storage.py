@@ -10,8 +10,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-BASE = Path(__file__).resolve().parent.parent
-DATA = Path(os.environ.get("QUILTOR_DATA_DIR", str(BASE / "data"))).resolve()
+from backend import paths
+
+BASE = paths.package_root()
+DATA = paths.data_dir()
 DB = DATA / ".no-active-world.sqlite3"
 BACKUPS = DATA / "backups"
 WORLDS = DATA / "worlds"

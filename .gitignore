@@ -41,3 +41,7 @@ models/mlx/*
 !models/mlx/.gitkeep
 models/embed/*
 !models/embed/.gitkeep
+
+# Python packaging artifacts
+*.egg-info/
+build/wheel/

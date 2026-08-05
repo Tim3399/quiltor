@@ -52,18 +52,30 @@ by env; `QUILTOR_DATA_DIR` already exists for `data/`). The code already threads
 (`AssistantRuntime(base, data)` → `installer` → `select` → `llamacpp`), so this
 is one contained seam, not a sweeping change.
 
-## Build tasks
+## Installing & running (implemented)
 
-| Deliverable | Effort |
-|---|---|
-| `pyproject.toml` + entry point (`quiltor` → `server.main`) | small |
-| Decouple `runtime/`/`models/`/`data/` → user cache dir (default + env override) | **medium** — the real work |
-| Ship `dist/` as package data, resolve at runtime (`importlib.resources`) | small |
-| Build step: `npm run build` before `python -m build` | small |
-| Slim app-layer `Dockerfile` (`QUILTOR_AI_URL` required) | small |
+Path decoupling (`backend/paths.py`) separates the read-only `package_root()`
+(code + shipped `dist/` and `scripts/`) from a writable `home()` (`runtime/`,
+`models/`, `data/`). In a source checkout `home()` is the repo root, so dev is
+unchanged; installed it is a per-user app-data dir. Override with `QUILTOR_HOME`
+(whole tree) or `QUILTOR_DATA_DIR` (just worlds).
 
-Estimate: ~½–1 focused day for a clean wheel tested on a fresh environment plus
-a slim app image.
+```bash
+npm run build                       # build the frontend into dist/ first
+pipx install .                      # or: pip install .   (backend is stdlib-only)
+quiltor install                     # fetch the runtime + generation model
+quiltor install --with-embeddings   # optional: add the embedding model
+quiltor doctor                      # check paths, models, connectivity
+quiltor run                         # start on :8000 and open a browser
+```
+
+Build a wheel with `python -m build --wheel --outdir build/wheel` (a custom
+outdir is required — the default `dist/` collides with the frontend build).
+
+App-layer Docker image (`Dockerfile`, `.dockerignore`): carries only the app,
+points at native inference via `QUILTOR_AI_URL` (Docker on Apple Silicon can't
+run the model). `docker build -t quiltor .` then run with
+`-e QUILTOR_AI_URL=http://host.docker.internal:11435 -v quiltor-data:/data`.
 
 ## Environment variables (for the setup CLI to manage)
 
@@ -86,7 +98,7 @@ what the pre-selected default *is*, not as an end-user choice.
 Because users cannot swap it, the pre-selected embedding model must suit the
 product's content (multilingual, since manuscripts are often non-English).
 Semantic retrieval is optional; without an embedding model, retrieval falls back
-to lexical automatically. A future `quiltor` CLI wraps setup into `install`
+to lexical automatically. The `quiltor` CLI wraps setup into `install`
 (generation + embedding models) and env management — again presenting only
 "use pre-selected" or "use a URL".
 

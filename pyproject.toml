@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quiltor"
+version = "2.0.0"
+description = "Local-first writing workshop with a private, on-device assistant"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0" }
+# The backend is standard-library only; the optional MLX runtime creates its own venv.
+dependencies = []
+
+[project.scripts]
+quiltor = "backend.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Tim3399/quiltor"
+
+# The importable code is `backend` and `mcp`; `server` is a top-level module. The built
+# frontend (`dist/`) and helper `scripts/` ship as data next to the package, where
+# backend.paths.package_root() looks for them. Recommended install is `pipx install .`
+# (an isolated venv per app), so the top-level data names never collide.
+[tool.hatch.build.targets.wheel]
+packages = ["backend", "mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"server.py" = "server.py"
+"dist" = "dist"
+"scripts" = "scripts"
+
+[tool.hatch.build.targets.sdist]
+include = ["backend", "mcp", "server.py", "dist", "scripts", "README.md", "LICENSE"]

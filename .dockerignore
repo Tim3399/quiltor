@@ -1,0 +1,22 @@
+# Keep the build context small and the image app-only: no models, runtime binaries, local data,
+# git history or node build inputs. dist/ (the built frontend) IS copied in explicitly.
+.git
+.github
+.idea
+node_modules
+.venv
+venv
+data
+models
+runtime
+tests
+playwright-report
+test-results
+*.pyc
+__pycache__
+src
+public
+index.html
+vite.config.ts
+tsconfig*.json
+package-lock.json
