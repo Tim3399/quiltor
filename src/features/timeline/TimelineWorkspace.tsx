@@ -70,7 +70,7 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
         </>}
       </main>
     </div>
-    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ und die dort gespeicherten Zustandsänderungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={5000} onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[0]?.id || null); setDeleteMoment(null); }} />}
+    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ und die dort gespeicherten Zustandsänderungen werden entfernt. Rückgängig machen geht mit ⌘Z.`} confirmLabel="Zeitpunkt löschen" onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[0]?.id || null); setDeleteMoment(null); }} />}
   </section>;
 }
 

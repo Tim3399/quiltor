@@ -7,6 +7,12 @@ import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 
 const STATUS_POLL_MS = 15000;
 
+// A single (non-batch) request has no server-side ETA, so estimate it from how long recent
+// requests on this world actually took -- a live, self-learning "noch ca. Xs" in the chat.
+function recentDurations(key: string): number[] { try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
+function recordDuration(key: string, ms: number): void { try { localStorage.setItem(key, JSON.stringify([...recentDurations(key), ms].slice(-8))); } catch { /* storage full/blocked: skip */ } }
+function median(values: number[]): number { if (!values.length) return 0; const sorted = [...values].sort((a, b) => a - b); const middle = Math.floor(sorted.length / 2); return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2; }
+
 type Entry = { id: string; question: string; reply?: AssistantReply; error?: string; applied: number[]; progressId?: string };
 
 export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigate, onClose }: {
@@ -20,6 +26,9 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
   const [confirmNewChat, setConfirmNewChat] = useState(false);
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
   const [progress, setProgress] = useState<{ total: number; done: number; label: string; etaSeconds?: number } | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const estimateRef = useRef(0);
+  const durationsKey = `quiltor-assistant-durations:${worldId}`;
   const end = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chapterPickerRef = useRef<HTMLDetailsElement>(null);
@@ -50,7 +59,13 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     const controller = new AbortController();
     abortRef.current = controller;
     setProgress({ total: 0, done: 0, label: '' });
+    // Live single-request estimate from the median of recent request durations (14s until
+    // there's history). Batch runs ignore this and use the server's measured ETA instead.
+    const startedAt = Date.now();
+    estimateRef.current = median(recentDurations(durationsKey)) || 14000;
+    setRemaining(estimateRef.current / 1000);
     const progressInterval = window.setInterval(() => {
+      setRemaining((estimateRef.current - (Date.now() - startedAt)) / 1000);
       api.assistantProgress(progressId).then(res => { if (res.progress) setProgress(res.progress); }).catch(() => {});
     }, opts?.batch ? 1200 : 500);
     try {
@@ -76,7 +91,10 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     } finally {
       setSending(false); abortRef.current = null;
       window.clearInterval(progressInterval);
-      setProgress(null);
+      setProgress(null); setRemaining(null);
+      // Learn from real LLM runs only; instant deterministic answers would drag the median to ~0.
+      const elapsed = Date.now() - startedAt;
+      if (!controller.signal.aborted && elapsed > 2000) recordDuration(durationsKey, elapsed);
     }
   };
   // Recover a request that was still running when the page reloaded: poll its result by the
@@ -157,7 +175,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
         <span>{progress.label || 'Kapitel-Gruppen werden verarbeitet …'} ({progress.done}/{progress.total}){formatEta(progress.etaSeconds) && <em> · {formatEta(progress.etaSeconds)}</em>}</span>
         <div className="assistant-progress-bar"><span style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} /></div>
       </div>}
-      {sending && (!progress || progress.total === 0) && <div className="assistant-thinking"><span /><span /><span /><em>{progress?.label || 'Quiltor durchsucht deine Welt'} …</em></div>}
+      {sending && (!progress || progress.total === 0) && <div className="assistant-thinking"><span /><span /><span /><em>{progress?.label || 'Quiltor durchsucht deine Welt'} …</em>{remaining != null && <span className="assistant-eta">{remaining > 1.5 ? `noch ca. ${Math.ceil(remaining)} s` : 'gleich fertig …'}</span>}</div>}
       <div ref={end} />
     </div>
     <footer>
