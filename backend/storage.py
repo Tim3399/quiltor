@@ -241,6 +241,32 @@ def save_chapter_digest(chapter_id: str, body_hash: str, digest: str) -> None:
         )
 
 
+def get_tokens_per_second() -> float | None:
+    """Persisted generation throughput for this machine, learned across sessions -- used to
+    turn a chapter/word count into a real time estimate instead of a hardcoded guess."""
+    with connect() as conn:
+        row = conn.execute("SELECT value FROM meta WHERE key='avg_tokens_per_second'").fetchone()
+    try:
+        return float(row[0]) if row else None
+    except (TypeError, ValueError):
+        return None
+
+
+def record_tokens_per_second(value: float) -> None:
+    """Fold a measured tokens/second sample into an exponential moving average in meta -- adapts
+    to the current machine and model without storing a history."""
+    if not value or value <= 0:
+        return
+    with connect() as conn:
+        row = conn.execute("SELECT value FROM meta WHERE key='avg_tokens_per_second'").fetchone()
+        try:
+            previous = float(row[0]) if row else None
+        except (TypeError, ValueError):
+            previous = None
+        blended = value if previous is None else 0.3 * value + 0.7 * previous
+        conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('avg_tokens_per_second',?)", (f"{blended:.2f}",))
+
+
 def get_embeddings(keys: list[str]) -> dict[str, list[float]]:
     """Return cached vectors for the given content-addressed keys. Keys are hashes of
     (embedding-model id + text), so a changed model or text simply misses the cache and

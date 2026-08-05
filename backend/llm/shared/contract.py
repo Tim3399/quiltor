@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from typing import Any
+
+# The local model serves one request at a time by default, so a momentary collision (a second
+# request arriving mid-generation, a dropped connection) comes back as a transient HTTP/transport
+# error rather than a real failure. These are retried briefly; a context overflow or a malformed
+# reply is not (retrying can't fix either).
+_TRANSIENT_HTTP_CODES = {429, 500, 502, 503, 504}
+_MAX_ATTEMPTS = 3
 
 
 class IncompleteResponse(RuntimeError):
@@ -62,33 +70,51 @@ def _read_error_body(exc: urllib.error.HTTPError) -> Any:
         return {}
 
 
-def invoke_chat(url: str, payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
+def invoke_chat(url: str, payload: dict[str, Any], timeout: int = 180, stats: dict[str, Any] | None = None) -> dict[str, Any]:
     """POST an OpenAI-compatible /v1/chat/completions request and return the parsed JSON content.
 
     This is the one HTTP contract every local runtime backend must speak;
-    nothing here is specific to llama.cpp.
+    nothing here is specific to llama.cpp. When a `stats` dict is passed it is
+    populated with the server-reported generation throughput (tokens/second) so
+    callers can persist a running average for time estimates.
     """
     request = urllib.request.Request(f"{url}/v1/chat/completions", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            result = json.loads(response.read())
-        choice = result["choices"][0]
-        content = choice["message"]["content"]
-        finish_reason = choice.get("finish_reason")
-    except urllib.error.HTTPError as exc:
-        # HTTPError is a URLError subclass, so it must be handled first -- otherwise
-        # a "prompt too big" 400 masquerades as "model not reachable" and hides the
-        # only fixable cause. llama.cpp reports the context overflow as HTTP 400 with
-        # type "exceed_context_size_error" and the exact token counts.
-        detail = _read_error_body(exc)
-        if exc.code == 400 and "exceed_context_size" in json.dumps(detail):
-            error = detail.get("error", {}) if isinstance(detail, dict) else {}
-            raise ContextOverflowError(error.get("n_prompt_tokens"), error.get("n_ctx")) from exc
-        raise RuntimeError("Das lokale Modell hat die Anfrage abgelehnt.") from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
-        raise RuntimeError("Das lokale Modell ist nicht erreichbar.") from exc
-    except (KeyError, ValueError, TypeError) as exc:
-        raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                result = json.loads(response.read())
+            choice = result["choices"][0]
+            content = choice["message"]["content"]
+            finish_reason = choice.get("finish_reason")
+            if stats is not None:
+                rate = (result.get("timings") or {}).get("predicted_per_second")
+                if rate:
+                    stats["tokens_per_second"] = float(rate)
+            break
+        except urllib.error.HTTPError as exc:
+            # HTTPError is a URLError subclass, so it must be handled first -- otherwise a
+            # "prompt too big" 400 masquerades as "model not reachable" and hides the only
+            # fixable cause. llama.cpp reports a context overflow as HTTP 400 with type
+            # "exceed_context_size_error"; that's not retryable, a momentary 5xx/429 is.
+            detail = _read_error_body(exc)
+            if exc.code == 400 and "exceed_context_size" in json.dumps(detail):
+                error = detail.get("error", {}) if isinstance(detail, dict) else {}
+                raise ContextOverflowError(error.get("n_prompt_tokens"), error.get("n_ctx")) from exc
+            if exc.code in _TRANSIENT_HTTP_CODES and attempt < _MAX_ATTEMPTS:
+                time.sleep(0.4 * attempt)
+                continue
+            raise RuntimeError(f"Das lokale Modell hat die Anfrage abgelehnt (HTTP {exc.code}).") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            # A reset/refused connection mid-request is usually a momentary collision on the
+            # single-slot server, not a dead model -- retry a couple of times before giving up.
+            if attempt < _MAX_ATTEMPTS and isinstance(getattr(exc, "reason", exc), (ConnectionError, TimeoutError)):
+                time.sleep(0.4 * attempt)
+                continue
+            raise RuntimeError("Das lokale Modell ist nicht erreichbar.") from exc
+        except (KeyError, ValueError, TypeError) as exc:
+            raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
     try:
         return json.loads(content)
     except ValueError as exc:

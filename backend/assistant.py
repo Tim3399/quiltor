@@ -726,7 +726,15 @@ class AssistantRuntime:
         return user_content, ctx, context_json, prompt_tokens, max_tokens
 
     def _invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return invoke_chat(self.url, payload)
+        stats: dict[str, Any] = {}
+        result = invoke_chat(self.url, payload, stats=stats)
+        rate = stats.get("tokens_per_second")
+        if rate:
+            try:
+                storage.record_tokens_per_second(rate)
+            except Exception:
+                pass  # no active world (tests) or a transient DB lock -- an estimate isn't worth failing a request over
+        return result
 
     def close(self) -> None:
         if self.process and self.process.poll() is None:
@@ -1244,13 +1252,18 @@ def _format_minutes(seconds: float) -> str:
 
 
 def estimate_batch_seconds(chapter_count: int, factor: float = 1.0) -> float:
-    """Rough estimate only, deliberately conservative and presented as a range, not a
-    false-precision number: group_count * (a typical group's max_tokens / a slow-end
-    tokens-per-second figure observed for this model on this machine)."""
+    """Rough estimate only, presented as a range, not false precision: group_count * (a typical
+    group's max_tokens / tokens-per-second). The tok/s rate is the persisted per-machine average
+    when one has been measured (storage.record_tokens_per_second), else a conservative slow-end
+    default -- so the upfront estimate sharpens to the real machine over time."""
     if chapter_count <= 0:
         return 0.0
     group_count = max(1, round(chapter_count * 1400 / BATCH_GROUP_TOKEN_BUDGET))
-    seconds_per_group = 1200 / 9  # a compound-request-sized max_tokens budget / slow-end tok/s
+    try:
+        rate = storage.get_tokens_per_second()
+    except Exception:
+        rate = None
+    seconds_per_group = 1200 / (rate or 9)  # a compound-request-sized max_tokens budget / tok/s
     return group_count * seconds_per_group * factor
 
 
