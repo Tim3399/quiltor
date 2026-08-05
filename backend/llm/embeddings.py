@@ -32,12 +32,14 @@ class EmbeddingRuntime:
         self.base, self.data = base, data
         self.url = os.environ.get("QUILTOR_EMBED_URL", "http://127.0.0.1:11436").rstrip("/")
         self.external = bool(os.environ.get("QUILTOR_EMBED_URL"))
-        # Defaults match the installer's default model (nomic-embed-text-v1.5: mean pooling
-        # and search_query:/search_document: prefixes). A different model overrides all three
-        # via env; cosine ranking is scale-invariant, so L2 normalisation isn't needed here.
-        self.query_prefix = os.environ.get("QUILTOR_EMBED_QUERY_PREFIX", "search_query: ")
-        self.doc_prefix = os.environ.get("QUILTOR_EMBED_DOC_PREFIX", "search_document: ")
-        self.pooling = os.environ.get("QUILTOR_EMBED_POOLING", "mean")
+        # Defaults match the pre-selected default model (bge-m3: multilingual, no query or
+        # document prefix). Pooling is left empty so llama-server uses the pooling type baked
+        # into the GGUF metadata (correct for the ggml-org build) rather than a guess that
+        # could silently degrade quality; a model reached via QUILTOR_EMBED_URL overrides all
+        # three via env. Cosine ranking is scale-invariant, so L2 normalisation isn't needed.
+        self.query_prefix = os.environ.get("QUILTOR_EMBED_QUERY_PREFIX", "")
+        self.doc_prefix = os.environ.get("QUILTOR_EMBED_DOC_PREFIX", "")
+        self.pooling = os.environ.get("QUILTOR_EMBED_POOLING", "")
         self.process: subprocess.Popen[str] | None = None
         self.log_path: Path | None = None
         self._lock = threading.Lock()
@@ -79,8 +81,9 @@ class EmbeddingRuntime:
                     self._disabled = True  # nothing to start; don't retry the spawn every request
                     return False
                 port = resolve_port(self.url, 11436)
-                argv = [str(binary), "-m", str(model), "--host", "127.0.0.1", "--port", str(port),
-                        "--embeddings", "--pooling", self.pooling, "-c", "2048"]
+                argv = [str(binary), "-m", str(model), "--host", "127.0.0.1", "--port", str(port), "--embeddings", "-c", "2048"]
+                if self.pooling:  # else let the GGUF metadata's pooling type stand
+                    argv += ["--pooling", self.pooling]
                 try:
                     self.process, self.log_path = spawn_logged(argv, self.data, "llama-embed.log")
                 except OSError:

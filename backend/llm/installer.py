@@ -59,7 +59,7 @@ DEFAULT_MLX_MODEL_REPO = "mlx-community/Qwen3-4B-4bit"
 # works out of the box. For German-heavy projects override to a multilingual model
 # via --embed-model-repo (and set QUILTOR_EMBED_POOLING / QUILTOR_EMBED_*_PREFIX for
 # models that need different pooling or query/document prefixes).
-DEFAULT_EMBED_MODEL_REPO = "nomic-ai/nomic-embed-text-v1.5-GGUF"
+DEFAULT_EMBED_MODEL_REPO = "ggml-org/bge-m3-Q8_0-GGUF"
 EMBED_MODELS_DIR = MODELS_DIR / "embed"
 MLX_REQUIREMENTS = BASE / "scripts" / "llm-runtime" / "mlx-requirements.txt"
 MLX_BRIDGE = BASE / "scripts" / "llm-runtime" / "mlx_bridge.py"
