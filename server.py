@@ -511,6 +511,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         WORLD_BACKUPS.activate(world["id"], world["gitUrl"], storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
                     else:
                         WORLD_BACKUPS.deactivate()
+                    manuscript, figures = storage.load_manuscript(), storage.load_figures()
+                # Warm the semantic-retrieval cache for the opened world in the background, so the
+                # first assistant query doesn't pay to embed every chunk inline. No-op if embeddings
+                # are off or already cached.
+                ASSISTANT.warm_embeddings(manuscript, figures)
                 return self.send_json({"ok": True, "world": world})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)

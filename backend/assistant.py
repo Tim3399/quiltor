@@ -214,6 +214,7 @@ class AssistantRuntime:
         # nothing; the first retrieval that needs a vector warms it, and if no embedding
         # model is installed it stays disabled and retrieval falls back to lexical.
         self.embeddings = EmbeddingRuntime(base, data)
+        self._warm_lock = threading.Lock()
 
     def _embedder(self):
         """Build the retrieval embedder closure, or None if embeddings are unavailable.
@@ -227,26 +228,51 @@ class AssistantRuntime:
         model_id = self.embeddings.model_id()
 
         def embed(query: str, chunks: list[Any]) -> tuple[list[float], dict[str, list[float]]] | None:
-            texts = {chunk.id: f"{chunk.title}\n{chunk.text}".strip() for chunk in chunks}
-            keys = {cid: hashlib.sha256(f"{model_id}:doc:{text}".encode("utf-8")).hexdigest() for cid, text in texts.items()}
-            cached = storage.get_embeddings(list(dict.fromkeys(keys.values())))
-            missing = [(cid, texts[cid]) for cid in texts if keys[cid] not in cached]
-            if missing:
-                fresh = self.embeddings.embed([text for _, text in missing], is_query=False)
-                if fresh is None or len(fresh) != len(missing):
-                    return None
-                to_save = []
-                for (cid, _), vector in zip(missing, fresh):
-                    cached[keys[cid]] = vector
-                    to_save.append((keys[cid], vector))
-                storage.save_embeddings(to_save)
-            vectors = {cid: cached[keys[cid]] for cid in texts if keys[cid] in cached}
+            vectors = self._cache_doc_embeddings(chunks, model_id)
+            if vectors is None:
+                return None
             query_vectors = self.embeddings.embed([query], is_query=True)
             if not query_vectors:
                 return None
             return query_vectors[0], vectors
 
         return embed
+
+    def _cache_doc_embeddings(self, chunks: list[Any], model_id: str) -> dict[str, list[float]] | None:
+        """Embed any not-yet-cached chunks (content-addressed by model+text) and return the full
+        {chunk.id: vector} map. Shared by the live embedder and the background warmer. Returns None
+        if the embedding service drops out mid-batch, so callers fall back to lexical retrieval."""
+        texts = {chunk.id: f"{chunk.title}\n{chunk.text}".strip() for chunk in chunks}
+        keys = {cid: hashlib.sha256(f"{model_id}:doc:{text}".encode("utf-8")).hexdigest() for cid, text in texts.items()}
+        cached = storage.get_embeddings(list(dict.fromkeys(keys.values())))
+        missing = [(cid, texts[cid]) for cid in texts if keys[cid] not in cached]
+        if missing:
+            fresh = self.embeddings.embed([text for _, text in missing], is_query=False)
+            if fresh is None or len(fresh) != len(missing):
+                return None
+            to_save = []
+            for (cid, _), vector in zip(missing, fresh):
+                cached[keys[cid]] = vector
+                to_save.append((keys[cid], vector))
+            storage.save_embeddings(to_save)
+        return {cid: cached[keys[cid]] for cid in texts if keys[cid] in cached}
+
+    def warm_embeddings(self, manuscript: dict[str, Any], figures: dict[str, Any]) -> None:
+        """Pre-compute and cache the world's document embeddings in a background thread, so the
+        first semantic retrieval is fast instead of embedding every chunk inline (~40-60s on a big
+        world). A no-op once the cache is warm (content-addressed) and when embeddings are off; one
+        run at a time. Best-effort -- failures just leave the first live retrieval to warm it."""
+        def run() -> None:
+            if not self._warm_lock.acquire(blocking=False):
+                return
+            try:
+                if self.embeddings.available():
+                    self._cache_doc_embeddings(build_knowledge(manuscript, figures), self.embeddings.model_id())
+            except Exception:
+                pass
+            finally:
+                self._warm_lock.release()
+        threading.Thread(target=run, daemon=True).start()
 
     def status(self) -> dict[str, Any]:
         if check_health(self.url):
