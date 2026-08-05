@@ -7,7 +7,7 @@ import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 
 const STATUS_POLL_MS = 15000;
 
-type Entry = { id: string; question: string; reply?: AssistantReply; error?: string; applied: number[] };
+type Entry = { id: string; question: string; reply?: AssistantReply; error?: string; applied: number[]; progressId?: string };
 
 export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigate, onClose }: {
   worldId: string; figures: FigureState; chapters: Chapter[]; onApply: (proposals: AssistantProposal[]) => void;
@@ -19,7 +19,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
   const [status, setStatus] = useState<{ available: boolean; reason: string; chunks: number } | null>(null);
   const [confirmNewChat, setConfirmNewChat] = useState(false);
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
-  const [progress, setProgress] = useState<{ total: number; done: number; label: string } | null>(null);
+  const [progress, setProgress] = useState<{ total: number; done: number; label: string; etaSeconds?: number } | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chapterPickerRef = useRef<HTMLDetailsElement>(null);
@@ -37,17 +37,18 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     const question = retryId ? entries.find(entry => entry.id === retryId)?.question : draft.trim();
     if (!question || sending) return;
     const id = retryId ?? crypto.randomUUID();
+    // Every request gets a progress id and is polled, not just batch mode: a single request
+    // can fire several LLM runs (plan, propose, repair, deterministic extraction) and the
+    // backend reports which step is active so it can be shown live. It's also stored on the
+    // entry (and so persisted) so a reload mid-request can reconnect and recover the answer.
+    const progressId = crypto.randomUUID();
     // Re-sending an entry (retry or a clarification answer) clears its previous reply/error so
     // the live step indicator shows again instead of the stale answer.
-    if (retryId) setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: undefined, reply: undefined } : entry));
-    else { setDraft(''); setEntries(current => [...current, { id, question, applied: [] }]); }
+    if (retryId) setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: undefined, reply: undefined, progressId } : entry));
+    else { setDraft(''); setEntries(current => [...current, { id, question, applied: [], progressId }]); }
     setSending(true);
     const controller = new AbortController();
     abortRef.current = controller;
-    // Every request gets a progress id and is polled, not just batch mode: a single request
-    // can fire several LLM runs (plan, propose, repair, deterministic extraction) and the
-    // backend reports which step is active so it can be shown live.
-    const progressId = crypto.randomUUID();
     setProgress({ total: 0, done: 0, label: '' });
     const progressInterval = window.setInterval(() => {
       api.assistantProgress(progressId).then(res => { if (res.progress) setProgress(res.progress); }).catch(() => {});
@@ -68,16 +69,53 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
         resolutions: opts?.resolutions,
       });
       const reply = { ...response, proposals: scopeAssistantProposals(response.proposals || [], id) };
-      setEntries(current => current.map(entry => entry.id === id ? { ...entry, reply } : entry));
+      setEntries(current => current.map(entry => entry.id === id ? { ...entry, reply, progressId: undefined } : entry));
     } catch (error) {
       const message = controller.signal.aborted ? 'Anfrage abgebrochen.' : error instanceof Error ? error.message : String(error);
-      setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: message } : entry));
+      setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: message, progressId: undefined } : entry));
     } finally {
       setSending(false); abortRef.current = null;
       window.clearInterval(progressInterval);
       setProgress(null);
     }
   };
+  // Recover a request that was still running when the page reloaded: poll its result by the
+  // stored progress id and fill the answer in, so a long request's result isn't lost.
+  const reconnect = async (entryId: string, progressId: string) => {
+    setSending(true);
+    setProgress({ total: 0, done: 0, label: 'Verbindung zur laufenden Anfrage …' });
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const progressInterval = window.setInterval(() => {
+      api.assistantProgress(progressId).then(res => { if (res.progress) setProgress(res.progress); }).catch(() => {});
+    }, 700);
+    try {
+      while (!controller.signal.aborted) {
+        const res = await api.assistantResult(progressId);
+        if (res.finished && res.result) {
+          const reply = { ...res.result, proposals: scopeAssistantProposals(res.result.proposals || [], entryId) };
+          setEntries(current => current.map(entry => entry.id === entryId ? { ...entry, reply, progressId: undefined } : entry));
+          return;
+        }
+        if (!res.ok) {
+          setEntries(current => current.map(entry => entry.id === entryId ? { ...entry, error: 'Die Anfrage lief noch, ihr Ergebnis ist nicht mehr abrufbar. Bitte erneut senden.', progressId: undefined } : entry));
+          return;
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 1000));
+      }
+    } finally {
+      setSending(false); abortRef.current = null;
+      window.clearInterval(progressInterval); setProgress(null);
+    }
+  };
+  const reconnectedRef = useRef(false);
+  useEffect(() => {
+    if (reconnectedRef.current) return;
+    reconnectedRef.current = true;
+    const pending = entries.find(entry => entry.progressId && !entry.reply && !entry.error);
+    if (pending?.progressId) void reconnect(pending.id, pending.progressId);
+    // Runs once on mount; entries here is the transcript restored from localStorage.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const cancel = () => abortRef.current?.abort();
   const apply = (entryId: string, proposals: AssistantProposal[], indices: number[]) => {
     onApply(proposals);
@@ -116,7 +154,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
         </div>}
       </article>)}
       {sending && progress && progress.total > 0 && <div className="assistant-progress">
-        <span>{progress.label || 'Kapitel-Gruppen werden verarbeitet …'} ({progress.done}/{progress.total})</span>
+        <span>{progress.label || 'Kapitel-Gruppen werden verarbeitet …'} ({progress.done}/{progress.total}){formatEta(progress.etaSeconds) && <em> · {formatEta(progress.etaSeconds)}</em>}</span>
         <div className="assistant-progress-bar"><span style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} /></div>
       </div>}
       {sending && (!progress || progress.total === 0) && <div className="assistant-thinking"><span /><span /><span /><em>{progress?.label || 'Quiltor durchsucht deine Welt'} …</em></div>}
@@ -140,6 +178,15 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
       <small><BookOpen />Manuskript ist nur lesbarer Kontext. Änderungen werden nie automatisch angewendet.</small></footer>
     {confirmNewChat && <ConfirmDialog title="Neuer Chat" description="Der aktuelle Gesprächsverlauf wird gelöscht. Das kann nicht rückgängig gemacht werden." confirmLabel="Neuer Chat starten" onConfirm={() => setEntries([])} onClose={() => setConfirmNewChat(false)} />}
   </aside>;
+}
+
+// Word-weighted, throughput-measured ETA from the backend (assistant.py's _Eta). Absent for
+// the first group (no measured rate yet), so this returns '' and the UI shows none rather than
+// a guess. Rounded to a friendly granularity -- this is an estimate, not a countdown.
+function formatEta(seconds?: number): string {
+  if (seconds == null || seconds < 0) return '';
+  if (seconds < 45) return 'noch <1 min';
+  return `noch ca. ${Math.round(seconds / 60)} min`;
 }
 
 function SourceList({ sources, onNavigate }: { sources: AssistantSource[]; onNavigate: (target: { workspace: Workspace; id: string }) => void }) {

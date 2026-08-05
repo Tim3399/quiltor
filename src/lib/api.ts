@@ -45,8 +45,9 @@ export const api = {
   assistantStatus: () => json<{ ok: boolean; available: boolean; mode: string; reason: string; chunks: number }>('/api/assistant/status'),
   assistantChat: (question: string, history: Array<{ role: 'user' | 'assistant'; content: string }> = [], opts: { signal?: AbortSignal; chapterIds?: string[]; runBatches?: boolean; progressId?: string; resolutions?: Record<string, string> } = {}) =>
     json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, history, chapterIds: opts.chapterIds, runBatches: opts.runBatches, progressId: opts.progressId, resolutions: opts.resolutions }), signal: opts.signal }),
-  assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; label: string; startedAt: number; updatedAt: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),
+  assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; label: string; startedAt: number; updatedAt: number; etaSeconds?: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),
   assistantLogs: () => json<{ ok: boolean; interactions: AssistantInteraction[] }>('/api/assistant/logs'),
+  assistantResult: (id: string) => json<{ ok: boolean; finished: boolean; result: (AssistantReply & { interactionId?: string }) | null }>(`/api/assistant/result?id=${encodeURIComponent(id)}`),
   bookPdf: async () => {
     const response = await fetch('/api/book.pdf', { method: 'POST' });
     if (!response.ok) { const error = await response.json().catch(() => null); throw new Error(error?.fehler || `HTTP ${response.status}`); }

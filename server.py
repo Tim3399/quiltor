@@ -42,7 +42,7 @@ from backend.llm.shared.platform import force_utf8_streams
 force_utf8_streams()
 
 from backend import storage
-from backend.assistant import AssistantRuntime, read_progress
+from backend.assistant import AssistantRuntime, read_progress, read_progress_result, set_progress_result
 from backend.git_backup import GitBackup
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed
@@ -437,6 +437,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             progress = read_progress(progress_id) if progress_id else None
             return self.send_json({"ok": progress is not None, "progress": progress})
 
+        if route == "/api/assistant/result":
+            # Reconnect: a client that reloaded mid-request fetches its still-running or
+            # just-finished result by progress id (see set_progress_result). No _lock -- reads
+            # the in-memory progress registry, not SQLite.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            entry = read_progress_result((q.get("id") or [""])[0])
+            if entry is None:
+                return self.send_json({"ok": False, "finished": False, "result": None})
+            return self.send_json({"ok": True, "finished": bool(entry.get("finished")), "result": entry.get("result")})
+
         if route == "/api/diff":
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
@@ -556,7 +567,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 with _lock:
                     interaction_id = storage.log_assistant_interaction(question, result)
                 print(f"  · {datetime.now():%H:%M:%S}  AI request {interaction_id} — {len(result.get('sources', []))} sources, {len(result.get('proposals', []))} proposals", flush=True)
-                return self.send_json({"ok": True, "interactionId": interaction_id, **result})
+                payload = {"ok": True, "interactionId": interaction_id, **result}
+                if progress_id:  # keep the answer retrievable by progress id for a client that reloaded mid-request
+                    set_progress_result(progress_id, payload)
+                return self.send_json(payload)
             except Exception as exc:
                 if "question" in locals() and question:
                     with _lock:

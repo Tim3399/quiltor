@@ -76,13 +76,19 @@ def start_progress(progress_id: str, total: int) -> None:
         _progress[progress_id] = {"total": total, "done": 0, "label": "", "startedAt": now, "updatedAt": now}
 
 
-def update_progress(progress_id: str, done: int, label: str) -> None:
+def update_progress(progress_id: str, done: int, label: str, eta_seconds: float | None = None) -> None:
     now = time.time()
     with _progress_lock:
         _sweep_progress(now)
         entry = _progress.get(progress_id)
         if entry is not None:
             entry.update(done=done, label=label, updatedAt=now)
+            # eta is measured from real throughput once a unit has completed; leave it absent
+            # (not stale) until then so the UI shows a plain "läuft" rather than a wrong number.
+            if eta_seconds is not None:
+                entry["etaSeconds"] = round(eta_seconds)
+            else:
+                entry.pop("etaSeconds", None)
 
 
 def finish_progress(progress_id: str) -> None:
@@ -92,10 +98,58 @@ def finish_progress(progress_id: str) -> None:
             entry["updatedAt"] = time.time()
 
 
+def set_progress_result(progress_id: str, result: dict[str, Any]) -> None:
+    """Stash a finished request's result on its progress entry so a client that reloaded
+    mid-request can reconnect by progress id and recover the answer it would otherwise lose.
+    Kept only for the progress TTL -- this is reconnection, not durable history (that's the
+    KI-Aktivität log)."""
+    now = time.time()
+    with _progress_lock:
+        _sweep_progress(now)
+        entry = _progress.get(progress_id)
+        if entry is None:
+            entry = {"total": 0, "done": 0, "label": "", "startedAt": now}
+            _progress[progress_id] = entry
+        entry["result"] = result
+        entry["finished"] = True
+        entry["updatedAt"] = now
+
+
+def read_progress_result(progress_id: str) -> dict[str, Any] | None:
+    with _progress_lock:
+        entry = _progress.get(progress_id)
+        return dict(entry) if entry is not None else None
+
+
 def read_progress(progress_id: str) -> dict[str, Any] | None:
     with _progress_lock:
         entry = _progress.get(progress_id)
         return dict(entry) if entry is not None else None
+
+
+def _words(text: Any) -> int:
+    return len(str(text or "").split())
+
+
+class _Eta:
+    """Word-weighted, throughput-measured ETA for a sequential batch run. Fed the words just
+    processed, it projects the remaining words at the *observed* rate so far -- combining the
+    two signals a good estimate needs: how much work each chapter is (its word count) and how
+    fast this machine is actually going right now. Cache hits (near-zero elapsed) raise the
+    measured rate and so lower the estimate on their own. Returns None until the first unit has
+    completed, so the UI never shows a fabricated number before there's real data."""
+
+    def __init__(self, total_words: int) -> None:
+        self.total = max(1, total_words)
+        self.done = 0
+        self.started = time.time()
+
+    def advance(self, words: int) -> float | None:
+        self.done += max(0, words)
+        elapsed = time.time() - self.started
+        if self.done <= 0 or elapsed <= 0 or self.done >= self.total:
+            return None
+        return (self.total - self.done) / (self.done / elapsed)
 
 
 # Per-group ceiling for batch mode's chapter grouping. Chapters vary a lot in length (a
@@ -433,6 +487,8 @@ class AssistantRuntime:
         trace.append({"step": "batch_plan", "todos": [{"index": index, "chapters": [titles[cid] for cid in group]} for index, group in enumerate(groups, start=1)]})
         accumulated: list[dict[str, Any]] = []
         notes: list[str] = []
+        words = {chapter["id"]: _words(chapter.get("body")) for chapter in chapters}
+        eta = _Eta(sum(words.values()))
         if progress_id:
             start_progress(progress_id, len(groups))
         try:
@@ -446,7 +502,7 @@ class AssistantRuntime:
                     notes.append(f"{label}: {result['message']}")
                 trace.append({"step": "batch_group", "index": index, "chapterIds": group, "proposalKinds": [item.get("kind") for item in proposals]})
                 if progress_id:
-                    update_progress(progress_id, index, label)
+                    update_progress(progress_id, index, label, eta.advance(sum(words.get(cid, 0) for cid in group)))
         finally:
             if progress_id:
                 finish_progress(progress_id)
@@ -466,6 +522,7 @@ class AssistantRuntime:
         trace.append({"step": "batch_plan", "todos": [{"index": index, "chapter": chapter.get("title") or "Ohne Titel"} for index, chapter in enumerate(chapters, start=1)]})
         digests: list[tuple[str, str]] = []
         cached_count = 0
+        eta = _Eta(sum(_words(chapter.get("body")) for chapter in chapters))
         if progress_id:
             start_progress(progress_id, len(chapters) + 1)
         try:
@@ -486,7 +543,7 @@ class AssistantRuntime:
                     digests.append((title, digest))
                 trace.append({"step": "digest", "index": index, "chapter": title, "origin": origin})
                 if progress_id:
-                    update_progress(progress_id, index, f"Digest {index}/{len(chapters)}: {title}" + (" (aus Memory)" if origin == "cache" else ""))
+                    update_progress(progress_id, index, f"Digest {index}/{len(chapters)}: {title}" + (" (aus Memory)" if origin == "cache" else ""), eta.advance(_words(body)))
             if progress_id:
                 update_progress(progress_id, len(chapters) + 1, "Teilergebnisse verdichten")
             message = self._reduce_summaries(question, digests, trace)
