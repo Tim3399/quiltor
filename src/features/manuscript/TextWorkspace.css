@@ -137,3 +137,30 @@
 .word-completion kbd {
   color: var(--ink);
 }
+
+/* Entity-mention overlay: a div rendered exactly over the prose textarea (same font, padding,
+   width and wrapping via field-sizing:content on the textarea). Its text is transparent so the
+   textarea's own text shows through; only the mentions get a subtle underline and a hover title.
+   The overlay is absolutely positioned, so it paints above the static textarea; pointer-events are
+   off except on the mentions, so writing passes straight through. Not rendered in focus mode. */
+.prose-shell { position: relative; }
+.prose-annotations {
+  position: absolute;
+  inset: 0;
+  padding: 18px 0;
+  font: 400 20px/1.72 var(--prose);
+  letter-spacing: .002em;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: var(--transparent);
+  pointer-events: none;
+  user-select: none;
+}
+.prose-annotations .entity-mention {
+  background: var(--transparent);
+  color: var(--transparent);
+  border-bottom: 1px dotted var(--gold-border);
+  pointer-events: auto;
+  cursor: help;
+}
+.prose-annotations .entity-mention:hover { border-bottom: 1px solid var(--gold); }

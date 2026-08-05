@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pilcrow, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
 import type { Chapter, FigureState, Manuscript } from '../../types';
 import { uid, wordCount } from '../../types';
@@ -8,6 +8,7 @@ import { api } from '../../lib/api';
 import type { CommitInfo } from '../../types';
 import './TextWorkspace.css';
 import { completeOneWord, writingVocabulary, type WordCompletion } from './autocomplete';
+import { detectEntities, type EntitySpan } from './entities';
 
 export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave }: {
   worldTitle?: string; manuscript: Manuscript; figures: FigureState; onChange: (value: Manuscript) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>;
@@ -32,6 +33,18 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
   const area = useRef<HTMLTextAreaElement>(null);
   const current = manuscript.chapters.find(chapter => chapter.id === currentId) ?? manuscript.chapters[0];
   const currentIndex = current ? manuscript.chapters.indexOf(current) + 1 : 0;
+  // Detected entity mentions for the subtle annotation overlay (skipped in focus mode).
+  const entitySpans = useMemo(() => (current && !focus ? detectEntities(current.body, figures.nodes) : []), [current?.body, figures.nodes, focus]);
+  // A mention in the overlay captures the click (for its hover card); forward it to the textarea
+  // so the caret lands there and writing over a name still works.
+  const onMentionMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const mention = (event.target as HTMLElement).closest('.entity-mention') as HTMLElement | null;
+    if (!mention || !area.current) return;
+    event.preventDefault();
+    const caret = Number(mention.dataset.start || 0);
+    area.current.focus();
+    area.current.setSelectionRange(caret, caret);
+  };
   useEffect(() => { if (targetId && manuscript.chapters.some(chapter => chapter.id === targetId)) setCurrentId(targetId); }, [targetId, manuscript.chapters]);
   useEffect(() => { if (!focus) setFocusHelpers(false); }, [focus]);
   useEffect(() => {
@@ -104,7 +117,10 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label="Kapiteltitel" value={current.title} onChange={event => update({ title: event.target.value })} placeholder="Kapiteltitel" />
+          <div className="prose-shell">
+          {!focus && !!entitySpans.length && <div className="prose-annotations" aria-hidden="true" onMouseDown={onMentionMouseDown}>{renderAnnotations(current.body, entitySpans)}</div>}
           <textarea ref={area} className="prose-editor" aria-label="Kapiteltext" value={current.body} onChange={event => { update({ body: event.target.value }); refreshCompletion(event.target.value, event.target.selectionStart, event.target.selectionEnd); }} onClick={event => refreshCompletion(event.currentTarget.value, event.currentTarget.selectionStart, event.currentTarget.selectionEnd)} onKeyUp={event => { if (event.key !== 'Tab') refreshCompletion(event.currentTarget.value, event.currentTarget.selectionStart, event.currentTarget.selectionEnd); }} onKeyDown={event => { if (event.key === 'Tab' && completion && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); acceptCompletion(); } }} placeholder="Schreib los …" spellCheck />
+          </div>
           {completion && <div className="word-completion" role="status" aria-live="polite"><kbd>Tab</kbd><span>{completion.word}</span></div>}</div>
           {historyOpen && <aside className="chapter-history" aria-label="Kapitelversionen"><header><div><strong>Frühere Fassung</strong><span>Direkt neben dem aktuellen Text</span></div><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label="Kapitelversionen schließen"><X /></button></header>
             {commits.length ? <label className="field"><span>Stand</span><select value={historyRef} onChange={event => setHistoryRef(event.target.value)}>{commits.map(commit => <option key={commit.hash} value={commit.hash}>{commit.datum} · {commit.betreff}</option>)}</select></label> : historyState !== 'loading' && <p className="muted">Noch keine gespeicherte Fassung vorhanden.</p>}
@@ -155,6 +171,20 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
     {deleteOpen && current && <ConfirmDialog title="Kapitel löschen" description={`„${current.title || 'Ohne Titel'}“ wird aus dem Manuskript entfernt. Rückgängig machen geht mit ⌘Z.`} confirmLabel="Kapitel löschen" onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
     {pdfState === 'error' && <div className="toast error-box" role="alert">Das Buch-PDF konnte nicht erzeugt werden.<button onClick={() => setPdfState('idle')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
   </section>;
+}
+
+// Render the chapter text with each detected entity mention wrapped in a <mark> (transparent
+// text, subtle underline, hover title) -- the overlay that sits exactly over the textarea.
+function renderAnnotations(text: string, spans: EntitySpan[]): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  spans.forEach((span, index) => {
+    if (span.start > cursor) nodes.push(text.slice(cursor, span.start));
+    nodes.push(<mark key={index} className={`entity-mention entity-${span.kind}`} title={span.info} data-start={span.start}>{text.slice(span.start, span.end)}</mark>);
+    cursor = span.end;
+  });
+  nodes.push(text.slice(cursor));
+  return nodes;
 }
 
 function FileTextIcon() { return <span className="empty-glyph" aria-hidden="true">Aa</span>; }
