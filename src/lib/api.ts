@@ -1,4 +1,4 @@
-import type { AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
+import type { AssistantInteraction, AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init });
@@ -46,6 +46,7 @@ export const api = {
   assistantChat: (question: string, history: Array<{ role: 'user' | 'assistant'; content: string }> = [], opts: { signal?: AbortSignal; chapterIds?: string[]; runBatches?: boolean; progressId?: string; resolutions?: Record<string, string> } = {}) =>
     json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, history, chapterIds: opts.chapterIds, runBatches: opts.runBatches, progressId: opts.progressId, resolutions: opts.resolutions }), signal: opts.signal }),
   assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; label: string; startedAt: number; updatedAt: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),
+  assistantLogs: () => json<{ ok: boolean; interactions: AssistantInteraction[] }>('/api/assistant/logs'),
   bookPdf: async () => {
     const response = await fetch('/api/book.pdf', { method: 'POST' });
     if (!response.ok) { const error = await response.json().catch(() => null); throw new Error(error?.fehler || `HTTP ${response.status}`); }

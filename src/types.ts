@@ -128,6 +128,10 @@ export interface AssistantReply {
   broadScope?: { chapterCount: number; estimateSeconds: number };
   clarification?: { question: string; reference: string; candidates: Array<{ id: string; name: string; kind: string; similarity?: number }> };
 }
+export interface AssistantInteraction {
+  id: string; createdAt: string; question: string; status: 'completed' | 'failed'; error: string;
+  response: (Partial<AssistantReply> & { agentTrace?: Array<{ step: string; [key: string]: unknown }> }) | null;
+}
 
 export const PROFILE_FIELDS: Array<[keyof Profile, string, 'short' | 'long']> = [
   ['alter', 'Alter', 'short'],
