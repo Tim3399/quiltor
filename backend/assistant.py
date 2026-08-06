@@ -184,6 +184,22 @@ For compound requests, emit every operation needed to fulfil the task. "Igor is 
 For arranging or sorting the board, use arrange_elements. Never invent timeline changes as a substitute for an unavailable operation.
 Do not emit unknown keys or any proposal for manuscript text."""
 
+# Schema for the multi-tool planner: an ordered list of tool calls, each naming a tool and the
+# fields it might use (all optional but `tool`; the executor reads what each tool needs).
+_ACTION_PLAN_SCHEMA = {
+    "type": "object", "required": ["actions"], "additionalProperties": False,
+    "properties": {"actions": {"type": "array", "maxItems": 12, "items": {
+        "type": "object", "required": ["tool"], "additionalProperties": False,
+        "properties": {
+            "tool": {"enum": ["create_element", "update_element", "create_relationship", "set_relationship_at_moment", "mark_deceased", "create_timeline_moment", "arrange"]},
+            "name": {"type": "string"}, "type": {"type": "string"},
+            "element": {"type": "string"}, "note": {"type": "string"},
+            "from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "directed": {"type": "boolean"},
+            "relationship": {"type": "string"}, "moment": {"type": "string"}, "active": {"type": "boolean"},
+            "title": {"type": "string"}, "date": {"type": "string"}, "strategy": {"type": "string"},
+        }}}},
+}
+
 MUTATION_REQUEST = re.compile(r"\b(anlegen|anzulegen|lege|erstelle?n?|hinzufügen|ergänz\w*|aktualisier\w*|änder\w*|setz\w*|markier\w*|sortier\w*|anordnen|verschieb\w*|schlag\w*|vorschlag|create|add|update|change|set|mark|arrange|propose)\b", re.IGNORECASE)
 PROSE_REQUEST = re.compile(r"\b(schreib\w*|fortsetzen|umschreib\w*|write|continue|rewrite)\b.*(szene|kapitel|roman|prosa|geschichte|scene|chapter|novel|prose|story)", re.IGNORECASE | re.DOTALL)
 # Broad, unscoped creation requests ("search all chapters and create every figure") can
@@ -389,6 +405,24 @@ class AssistantRuntime:
                 built = complete_compound_proposals(question, validate_proposals(outcome[1], figures, question), figures)
                 if built and verify_task_contract(contract, built, figures)["complete"]:
                     trace.append({"step": "extract_args", "proposalKinds": [item.get("kind") for item in built]})
+                    return self._structured_result(question, built, chunks, trace)
+        # Multi-tool loop: for any other structured mutation the regex path couldn't fully build
+        # (a messy create, a compound task, several edits at once), the model plans a sequence of
+        # tool calls by name and a deterministic executor resolves the names to ids, chains new
+        # elements' temp ids, builds + validates each, and pauses with a clarification if a
+        # reference is a likely typo. Falls through to the full-proposal path if it can't satisfy
+        # the contract, so the existing behaviour stays as a safety net.
+        if MUTATION_REQUEST.search(question) and contract["requiredKinds"]:
+            emit("Aktionen planen")
+            actions = self._plan_actions(question, figures)
+            if actions:
+                built, clarify = self._execute_actions(actions, figures, resolutions, trace)
+                if clarify:
+                    reference, node, score = clarify
+                    return clarification_reply(question, reference, node, score, trace, allow_new=False)
+                built = complete_compound_proposals(question, validate_proposals(built, figures, question), figures)
+                if built and verify_task_contract(contract, built, figures)["complete"]:
+                    trace.append({"step": "tool_loop", "actions": [action.get("tool") for action in actions], "proposalKinds": [item.get("kind") for item in built]})
                     return self._structured_result(question, built, chunks, trace)
         if not contract["requiredKinds"]:
             emit("Vorgehen planen")
@@ -754,6 +788,102 @@ class AssistantRuntime:
             trace.append({"step": "context_budget", "keptContextChunks": len(ctx), "droppedContextChunks": len(context) - len(ctx)})
         max_tokens = max(MIN_OUTPUT_TOKENS, min(desired_reserve, MODEL_CONTEXT_TOKENS - prompt_tokens - PROMPT_FIT_MARGIN))
         return user_content, ctx, context_json, prompt_tokens, max_tokens
+
+    def _plan_actions(self, question: str, figures: dict[str, Any]) -> list[dict[str, Any]]:
+        """Ask the model to decompose the request into a sequence of tool calls -- element NAMES,
+        not ids. This is the multi-tool loop's planning half; the deterministic executor turns the
+        names into ids and builds the proposals. Returns [] on any failure (caller falls back)."""
+        names = [str(node.get("name")) for node in (figures.get("nodes") or [])][:60]
+        moments = [f"{moment.get('id')}: {moment.get('title')}" for moment in (figures.get("timeline") or [])][:30]
+        edges = [str(edge.get("id")) for edge in (figures.get("edges") or [])][:40]
+        system = (
+            "Decompose the user's world-editing request into an ordered list of tool calls. Refer to "
+            "elements by their NAME exactly as written, never invent ids. Emit every call the task needs "
+            "-- e.g. 'create Lio, son of Tarek' is create_element then create_relationship (from the new "
+            "name to Tarek). Tools and their fields:\n"
+            "- create_element {name, type: person|tier|ort|organisation|objekt|konzept}\n"
+            "- update_element {element, note}\n"
+            "- create_relationship {from, to, label, directed}\n"
+            "- set_relationship_at_moment {relationship (edge id), moment (id), label, active}\n"
+            "- mark_deceased {element, moment (id)}\n"
+            "- create_timeline_moment {title, date}\n"
+            "- arrange {strategy: thematic|grid}\n"
+            "Use only existing names/ids from CONTEXT for references; new elements are referenced by the "
+            "name you gave them. Return JSON only."
+        )
+        user = (f"EXISTING ELEMENTS: {json.dumps(names, ensure_ascii=False)}\nMOMENTS: {json.dumps(moments, ensure_ascii=False)}\n"
+                f"RELATIONSHIP IDS: {json.dumps(edges, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think")
+        try:
+            result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 600,
+                                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                                   "response_format": json_schema_format(_ACTION_PLAN_SCHEMA)})
+        except (ContextOverflowError, RuntimeError):
+            return []
+        actions = result.get("actions")
+        return actions if isinstance(actions, list) else []
+
+    def _execute_actions(self, actions: list[dict[str, Any]], figures: dict[str, Any], resolutions: dict[str, str] | None, trace: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], tuple[str, dict[str, Any], float] | None]:
+        """Deterministic executor for a planned action list. Resolves each element reference to an
+        id (existing, or a new element's tempId created earlier in the same plan) and builds the
+        matching proposal. Returns (proposals, clarify) where clarify is (reference, node, score)
+        when a reference is a medium-confidence typo -- the loop pauses there for ask_user."""
+        existing = {_normal(node.get("name")): node.get("id") for node in (figures.get("nodes") or [])}
+        moments = {str(moment.get("id")) for moment in (figures.get("timeline") or [])}
+        edge_ids = {str(edge.get("id")) for edge in (figures.get("edges") or [])}
+        planned: dict[str, str] = {}  # normalised new-element name -> tempId, for later references
+
+        def ref(value: Any) -> Any:
+            key = _normal(value)
+            if key in planned:
+                return planned[key]
+            if key in existing:
+                return existing[key]
+            node, score, _ = resolve_reference(str(value or ""), figures, resolutions)
+            if node and _CLARIFY_THRESHOLD <= score < _RESOLVE_THRESHOLD and not (resolutions and resolutions.get(str(value))):
+                return ("clarify", str(value), node, score)
+            return node.get("id") if node else None
+
+        proposals: list[dict[str, Any]] = []
+        for action in actions:
+            tool = action.get("tool")
+            if tool == "create_element":
+                name = str(action.get("name") or "").strip()
+                if not name or _normal(name) in existing or _normal(name) in planned:
+                    continue
+                temp = f"new:{_slug(name)}"
+                planned[_normal(name)] = temp
+                proposals.append({"kind": "create_element", "tempId": temp, "element": {"type": action.get("type") if action.get("type") in {"person", "tier", "ort", "organisation", "objekt", "konzept"} else "person", "name": name}})
+            elif tool == "create_relationship":
+                source, target = ref(action.get("from")), ref(action.get("to"))
+                for endpoint in (source, target):
+                    if isinstance(endpoint, tuple):
+                        return proposals, endpoint[1:]
+                if source and target and source != target:
+                    proposals.append({"kind": "create_relationship", "relationship": {"from": source, "to": target, "label": str(action.get("label") or "").strip() or "Verbunden", "directed": bool(action.get("directed", True)), "style": "solid"}})
+            elif tool == "update_element":
+                target = ref(action.get("element"))
+                if isinstance(target, tuple):
+                    return proposals, target[1:]
+                note = str(action.get("note") or "").strip()
+                if target and note:
+                    proposals.append({"kind": "update_element", "elementId": target, "patch": {"profile": {"notizen": note}}})
+            elif tool == "mark_deceased":
+                target = ref(action.get("element"))
+                if isinstance(target, tuple):
+                    return proposals, target[1:]
+                if target and str(action.get("moment")) in moments:
+                    proposals.append({"kind": "mark_deceased", "elementId": target, "momentId": str(action.get("moment"))})
+            elif tool == "set_relationship_at_moment":
+                if str(action.get("relationship")) in edge_ids and str(action.get("moment")) in moments:
+                    proposals.append({"kind": "set_relationship_at_moment", "relationshipId": str(action.get("relationship")), "momentId": str(action.get("moment")), "patch": {"label": str(action.get("label") or ""), "active": bool(action.get("active", True)), "directed": bool(action.get("directed", True)), "style": "solid"}})
+            elif tool == "create_timeline_moment":
+                title = str(action.get("title") or "").strip()
+                if title:
+                    moment = {"title": title, **({"date": str(action.get("date"))} if action.get("date") else {})}
+                    proposals.append({"kind": "create_timeline_moment", "tempId": f"new:moment:{_slug(title)}", "moment": moment})
+            elif tool == "arrange":
+                proposals.append({"kind": "arrange_elements", "strategy": "grid" if action.get("strategy") == "grid" else "thematic"})
+        return proposals, None
 
     def _structured_result(self, question: str, built: list[dict[str, Any]], chunks: list[Any], trace: list[dict[str, Any]]) -> dict[str, Any]:
         """Shared final shape for a deterministically-built proposal set: cite the referenced
