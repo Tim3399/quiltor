@@ -57,12 +57,12 @@ def refusal_markers(message: str) -> list[str]:
     return [marker for marker in markers if marker in (message or "").casefold()]
 
 
-def capture(base: str, question: str, resolutions: dict | None = None) -> dict:
-    payload = {"question": question}
+def capture(base: str, question: str, resolutions: dict | None = None, extra: dict | None = None, timeout: int = 300) -> dict:
+    payload = {"question": question, **(extra or {})}
     if resolutions:
         payload["resolutions"] = resolutions
     started = time.monotonic()
-    response = request(base, "/api/assistant/chat", payload)
+    response = request(base, "/api/assistant/chat", payload, timeout=timeout)
     seconds = round(time.monotonic() - started, 2)
     trace = response.get("agentTrace", []) or []
     proposals = response.get("proposals", []) or []
@@ -105,6 +105,18 @@ SCENARIOS: list[dict] = [
     {"name": "sensitive-analysis", "q": "Analysiere sachlich die Folgen der Zwangsrekrutierung des Ordens für Mara und die Jugendlichen. Lehne das Thema nicht ab."},
     {"name": "no-prose", "q": "Schreibe die nächste Thrillerszene als fertige Romanprosa."},
     {"name": "broad-summary-offer", "q": "Fasse die ganze Geschichte über alle Kapitel hinweg zusammen."},
+    # Adversarial: references that don't resolve, contradictions, over-long compounds.
+    {"name": "nonexistent-endpoint", "q": "Erstelle eine Beziehung von Xandor Grimm zu Mara Venn: verbündet."},
+    {"name": "duplicate-create", "q": "Lege Mara Venn als neue Figur an."},
+    {"name": "four-action-compound", "q": "Lege Kilian Vale als Figur an, mach ihn zum Bruder von Corvin Vale, lege einen Zeitpunkt 'Kilians Ankunft' an und sortiere danach das Board thematisch."},
+    {"name": "ambiguous-two-maras", "q": "Ändere bei Mara etwas an ihrem Steckbrief."},
+]
+
+# Slow scenarios exercise the batch/compression path over a real novella; gated behind --slow and
+# a --story-world id. They can take minutes, so they get a long timeout.
+SLOW_SCENARIOS: list[dict] = [
+    {"name": "whole-project-compression", "q": "Fasse die ganze Geschichte über alle Kapitel hinweg zusammen.", "extra": {"runBatches": True, "progressId": "audit-compress"}},
+    {"name": "broad-figure-extraction", "q": "Durchsuche alle Kapitel und lege die wichtigsten fehlenden Figuren als Vorschläge an.", "extra": {"runBatches": True, "progressId": "audit-figures"}},
 ]
 
 
@@ -114,6 +126,8 @@ def main() -> None:
     parser.add_argument("--world", required=True)
     parser.add_argument("--out-dir", default="audits")
     parser.add_argument("--label", default="")
+    parser.add_argument("--slow", action="store_true", help="also run the multi-minute batch/compression scenarios")
+    parser.add_argument("--story-world", default="", help="novella world id for the --slow scenarios")
     args = parser.parse_args()
 
     # Open the world first: the status endpoint reads manuscript state, which needs an active world.
@@ -135,6 +149,14 @@ def main() -> None:
         records.append({"scenario": scenario["name"], "turns": turns})
         first = turns[0]
         print(f"[{','.join(first['flags']) or 'ok'}] {scenario['name']:28} {first['seconds']:6}s  {first['path']:14} {[p.get('kind') for p in first['proposals']]}", flush=True)
+
+    if args.slow and args.story_world:
+        request(args.base, "/api/worlds/open", {"id": args.story_world})
+        for scenario in SLOW_SCENARIOS:
+            turn = capture(args.base, scenario["q"], extra=scenario.get("extra"), timeout=1800)
+            records.append({"scenario": scenario["name"], "turns": [turn]})
+            print(f"[{','.join(turn['flags']) or 'ok'}] {scenario['name']:28} {turn['seconds']:6}s  {turn['path']:14} {[p.get('kind') for p in turn['proposals']]}", flush=True)
+        request(args.base, "/api/worlds/open", {"id": args.world})  # reopen so the state check compares like for like
 
     world_unchanged = request(args.base, "/api/state") == state_before
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
