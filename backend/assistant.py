@@ -960,22 +960,25 @@ def required_proposal_kinds(question: str) -> set[str]:
         return {"mark_deceased"}
     if "beziehung" in folded and re.search(r"\b(zeitpunkt|moment|stand|status)\b", folded) and re.search(r"\b(änder\w*|setz\w*|aktualisier\w*)\b", folded):
         return {"set_relationship_at_moment"}
+    # Creation intents accumulate: one request can ask for several things ("lege X als Ort an
+    # und einen Zeitpunkt an"). A timeline/relationship intent no longer suppresses the element
+    # intent -- create_element is added whenever an element is explicitly created (an element-type
+    # word is present) or when creation has no other target. Single-intent phrasings keep their
+    # exact old result; only genuinely multi-intent requests now return more than one kind.
     creation = bool(re.search(r"\b(lege|anlegen|anzulegen|erstelle?n?|hinzufügen|create|add)\b", folded))
-    requested: set[str] = set()
+    kinds: set[str] = set()
     if creation and re.search(r"\b(zeitpunkt|timeline|moment|ereignis)\w*\b", folded):
-        requested.add("create_timeline_moment")
+        kinds.add("create_timeline_moment")
     if ("beziehung" in folded or "relationship" in folded) and re.search(r"\b(schlag\w*|vorschlag|lege|anlegen|anzulegen|erstelle?n?|create|propose)\b", folded):
-        requested.add("create_relationship")
-    if requested:
-        return requested
-    if re.search(r"\b(ergänz\w*|aktualisier\w*|änder\w*|update)\b", folded):
-        return {"update_element"}
-    required: set[str] = set()
-    if creation:
-        required.add("create_element")
+        kinds.add("create_relationship")
+    element_type = bool(re.search(r"\b(figur|person|character|tier|animal|ort|place|konzept|concept|organisation|organization|objekt|object|element)\w*\b", folded))
+    if creation and (element_type or not kinds):
+        kinds.add("create_element")
         if re.search(r"\b(sohn|tochter|vater|mutter|bruder|schwester|ehefrau|ehemann|partner(?:in)?|gehört|besitzt)\b", folded) or re.search(r"\bhat\s+(?:einen?|eine)\b", folded):
-            required.add("create_relationship")
-    return required
+            kinds.add("create_relationship")
+    if not kinds and re.search(r"\b(ergänz\w*|aktualisier\w*|änder\w*|update)\b", folded):
+        kinds.add("update_element")
+    return kinds
 
 
 def task_contract(question: str, figures: dict[str, Any]) -> dict[str, Any]:
