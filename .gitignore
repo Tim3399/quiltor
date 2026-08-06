@@ -45,3 +45,6 @@ models/embed/*
 # Python packaging artifacts
 *.egg-info/
 build/wheel/
+
+# Assistant audit run outputs
+audits/
