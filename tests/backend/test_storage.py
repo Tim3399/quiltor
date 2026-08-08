@@ -136,5 +136,52 @@ class StorageTest(unittest.TestCase):
             storage.delete_world(world["id"])
         self.assertTrue((storage.WORLDS / f"{world['id']}.sqlite3").exists())
 
+    def test_list_worlds_filters_by_owner_sub(self):
+        mine = storage.create_world("Meine Welt", owner_sub="alice")
+        storage.create_world("Fremde Welt", owner_sub="bob")
+        self.assertEqual([w["id"] for w in storage.list_worlds(owner_sub="alice")], [mine["id"]])
+        self.assertEqual(len(storage.list_worlds(owner_sub="carol")), 0)
+        self.assertEqual(len(storage.list_worlds()), 2)
+
+    def test_create_world_stamps_owner_sub(self):
+        world = storage.create_world("Welt", owner_sub="alice")
+        self.assertEqual(storage.get_world_owner(world["id"]), "alice")
+
+    def test_get_world_owner_is_empty_for_unowned_world(self):
+        world = storage.create_world("Unclaimed")
+        self.assertEqual(storage.get_world_owner(world["id"]), "")
+        self.assertIsNone(storage.get_world_owner("0" * 32))
+
+    def test_delete_world_rejects_non_owner(self):
+        world = storage.create_world("Meine Welt", owner_sub="alice")
+        with self.assertRaises(PermissionError):
+            storage.delete_world(world["id"], owner_sub="bob")
+        self.assertTrue((storage.WORLDS / f"{world['id']}.sqlite3").exists())
+        storage.delete_world(world["id"], owner_sub="alice")
+        self.assertFalse((storage.WORLDS / f"{world['id']}.sqlite3").exists())
+
+    def test_explicit_db_path_is_isolated_from_the_global_active_world(self):
+        world_a = storage.create_world("A")
+        world_b = storage.create_world("B")
+        path_a = storage.world_db_path(world_a["id"])
+        path_b = storage.world_db_path(world_b["id"])
+        storage.save_manuscript({"chapters": [{"id": "c1", "title": "A", "body": "von A", "note": ""}]}, db_path=path_a)
+        storage.save_manuscript({"chapters": [{"id": "c1", "title": "B", "body": "von B", "note": ""}]}, db_path=path_b)
+        # The global ACTIVE_WORLD_ID/DB never moved — explicit db_path fully bypassed it.
+        self.assertEqual(storage.ACTIVE_WORLD_ID, "")
+        self.assertEqual(storage.load_manuscript(db_path=path_a)["chapters"][0]["body"], "von A")
+        self.assertEqual(storage.load_manuscript(db_path=path_b)["chapters"][0]["body"], "von B")
+
+    def test_explicit_backups_dir_is_isolated_per_world(self):
+        world_a = storage.create_world("A")
+        world_b = storage.create_world("B")
+        path_a, backups_a = storage.world_db_path(world_a["id"]), storage.DATA / "backups" / world_a["id"]
+        path_b, backups_b = storage.world_db_path(world_b["id"]), storage.DATA / "backups" / world_b["id"]
+        storage.backup_if_due(force=True, db_path=path_a, backups_dir=backups_a)
+        storage.backup_if_due(force=True, db_path=path_b, backups_dir=backups_b)
+        self.assertEqual(len(storage.list_backups(backups_dir=backups_a)), 1)
+        self.assertEqual(len(storage.list_backups(backups_dir=backups_b)), 1)
+        self.assertNotEqual(storage.list_backups(backups_dir=backups_a)[0]["name"], storage.list_backups(backups_dir=backups_b)[0]["name"])
+
 if __name__ == "__main__":
     unittest.main()

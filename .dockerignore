@@ -1,0 +1,12 @@
+node_modules
+dist
+data
+runtime
+models
+.git
+__pycache__
+*.pyc
+*.tsbuildinfo
+test-results
+playwright-report
+.pytest_cache

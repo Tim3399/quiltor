@@ -111,6 +111,51 @@ npm run dev
 
 Parallel dazu läuft `python3 server.py --no-open`; Vite leitet API-Anfragen an Port 8000 weiter.
 
+## Web-Demo mit Keycloak
+
+Quiltor kann zusätzlich als kleine Mehrbenutzer-Demo im Web laufen: Login über eine bestehende Keycloak-Instanz, jede angemeldete Person sieht ausschließlich ihre eigenen Welten. Ohne die folgenden Umgebungsvariablen bleibt Quiltor exakt der lokale Einzelnutzer-Modus von oben — der Web-Modus ist rein additiv und muss aktiv eingeschaltet werden.
+
+**1. Keycloak-Client anlegen** (im vorhandenen Realm):
+
+- Client-Authentifizierung: an (confidential Client, liefert ein Client-Secret)
+- Standard Flow: an · Direct Access Grants: aus
+- Gültige Redirect-URI: `https://<deine-domain>/auth/callback`
+- Erweiterte Einstellungen → PKCE-Methode: `S256`
+
+**2. Umgebungsvariablen setzen:**
+
+| Variable | Zweck |
+| --- | --- |
+| `QUILTOR_OIDC_ISSUER` | Realm-Issuer-URL, z. B. `https://kc.example.com/realms/quiltor`. **Ungesetzt = lokaler Modus**, alles Weitere entfällt. |
+| `QUILTOR_OIDC_CLIENT_ID` | Client-ID des oben angelegten Clients. |
+| `QUILTOR_OIDC_CLIENT_SECRET` | Zugehöriges Client-Secret. |
+| `QUILTOR_PUBLIC_URL` | Öffentliche Basis-URL, z. B. `https://quiltor.example.com` — muss exakt zur Redirect-URI im Keycloak-Client passen. |
+| `QUILTOR_COOKIE_SECURE` | `auto` (Standard, anhand `X-Forwarded-Proto`) · `0` · `1` — nur für lokales OIDC-Testen ohne HTTPS relevant. |
+| `QUILTOR_DATA_DIR` | Bereits vorhanden; im Container auf das gemountete Volume zeigen lassen. |
+
+**3. Starten mit Docker Compose** ([`docker-compose.yml`](docker-compose.yml)):
+
+```bash
+cp .env.example .env   # dann ausfüllen: Issuer, Client-ID/-Secret, öffentliche URL
+docker compose up -d
+```
+
+Der `quiltor`-Dienst ist danach nur auf `127.0.0.1:${QUILTOR_PORT:-8000}` erreichbar — dahin zeigt dein **bestehender** Reverse Proxy (der, der schon Keycloak bedient). Beispiele für Caddy und nginx liegen in [`deploy/`](deploy/); beide reichen `Host` und `X-Forwarded-Proto` weiter, das braucht `server.py`, um die exakte Redirect-URI zu bauen und Cookies korrekt als `Secure` zu markieren.
+
+Hast du noch **keinen** Reverse Proxy und soll dieser Stack sich selbst um TLS kümmern (automatisch via Let's Encrypt), zusätzlich Caddy mitstarten:
+
+```bash
+docker compose --profile with-caddy up -d
+```
+
+Das bringt Caddy auf Port 80/443 mit, terminiert TLS für `QUILTOR_PUBLIC_URL` und reicht intern an `quiltor:8000` weiter ([`deploy/Caddyfile.compose`](deploy/Caddyfile.compose)).
+
+Ohne Compose geht es auch direkt mit `docker build`/`docker run` — siehe [`Dockerfile`](Dockerfile).
+
+Das Docker-Image basiert auf Microsofts offiziellem Playwright-Image (statt einem schlanken Python-Image), weil `/api/book.pdf` auch im Web-Modus über einen echten Headless-Chromium rendert — Node, Playwright und dessen Systembibliotheken müssen also zur Laufzeit vorhanden sein, nicht nur beim Bauen.
+
+Sitzungen liegen im Prozessspeicher (kein separater Session-Store) — ein Neustart des Containers meldet alle Nutzer ab, sie loggen sich einfach erneut ein. Für eine kleine Demo ist das ein akzeptabler Kompromiss.
+
 ## Lokal heißt lokal
 
 - Jede Welt besitzt eine eigene SQLite-Datei unter `data/worlds/`.
@@ -154,7 +199,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ## Architektur
 
 ```text
-backend/                    SQLite, Backups, Retrieval, Assistant, Git
+backend/                    SQLite, Backups, Retrieval, Assistant, Git, Keycloak-Login (auth.py)
 mcp/                        Read- und Proposal-only MCP-Server
 src/
 ├── app/                    App-Shell und Navigation

@@ -1,0 +1,73 @@
+## Quiltor web demo — app + optional bundled reverse proxy.
+##
+## Assumes your Keycloak instance already runs elsewhere (this compose file
+## does not bring up Keycloak). Copy .env.example to .env and fill it in first.
+##
+## Two ways to run this:
+##
+##   1) You already have a reverse proxy (the one fronting Keycloak, say) on
+##      this host or another one, and just want the app container:
+##        docker compose up -d
+##      quiltor is published on 127.0.0.1:${QUILTOR_PORT:-8000} — point your
+##      existing proxy at that (see deploy/Caddyfile.example / nginx.example).
+##
+##   2) You don't have a reverse proxy yet and want this stack to be
+##      self-contained, with automatic TLS:
+##        docker compose --profile with-caddy up -d
+##      This additionally starts Caddy on 80/443, terminating TLS for
+##      QUILTOR_PUBLIC_URL and forwarding to the quiltor service.
+
+services:
+  quiltor:
+    build:
+      context: .
+      args:
+        QUILTOR_VERSION: ${QUILTOR_VERSION:-dev}
+    image: quiltor:${QUILTOR_VERSION:-dev}
+    restart: unless-stopped
+    environment:
+      QUILTOR_OIDC_ISSUER: ${QUILTOR_OIDC_ISSUER:?Set QUILTOR_OIDC_ISSUER in .env — see .env.example}
+      QUILTOR_OIDC_CLIENT_ID: ${QUILTOR_OIDC_CLIENT_ID:?Set QUILTOR_OIDC_CLIENT_ID in .env}
+      QUILTOR_OIDC_CLIENT_SECRET: ${QUILTOR_OIDC_CLIENT_SECRET:?Set QUILTOR_OIDC_CLIENT_SECRET in .env}
+      QUILTOR_PUBLIC_URL: ${QUILTOR_PUBLIC_URL:?Set QUILTOR_PUBLIC_URL in .env, e.g. https://quiltor.example.com}
+      QUILTOR_COOKIE_SECURE: ${QUILTOR_COOKIE_SECURE:-auto}
+    volumes:
+      - quiltor-data:/data
+    networks:
+      - quiltor
+    ports:
+      # Loopback-only. An external reverse proxy (yours, or the bundled Caddy
+      # below) is what actually terminates TLS and faces the internet.
+      - "127.0.0.1:${QUILTOR_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/version', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["with-caddy"]
+    restart: unless-stopped
+    depends_on:
+      - quiltor
+    environment:
+      QUILTOR_PUBLIC_URL: ${QUILTOR_PUBLIC_URL:?Set QUILTOR_PUBLIC_URL in .env, e.g. https://quiltor.example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile.compose:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - quiltor
+
+networks:
+  quiltor:
+
+volumes:
+  quiltor-data:
+  caddy-data:
+  caddy-config:

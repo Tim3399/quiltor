@@ -29,6 +29,9 @@ data/backups/*
 .DS_Store
 Thumbs.db
 
+# Web-Demo secrets (Keycloak client secret etc.) — never versioniert.
+.env
+
 # Local AI working notes/plans/memory — not part of the shipped project.
 /ai/
 

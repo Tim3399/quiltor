@@ -16,7 +16,7 @@ DB = DATA / ".no-active-world.sqlite3"
 BACKUPS = DATA / "backups"
 WORLDS = DATA / "worlds"
 ACTIVE_WORLD_ID = ""
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MAX_BACKUPS = 40
 BACKUP_INTERVAL = 300
 
@@ -120,7 +120,23 @@ def initialize(path: Path | None = None) -> None:
         migrate(conn, version)
 
 
-def list_worlds() -> list[dict[str, str]]:
+def world_db_path(world_id: str) -> Path:
+    return WORLDS / f"{world_id}.sqlite3"
+
+
+def get_world_owner(world_id: str) -> str | None:
+    path = world_db_path(world_id)
+    if not path.exists():
+        return None
+    try:
+        with connect(path) as conn:
+            row = conn.execute("SELECT value FROM meta WHERE key='owner_sub'").fetchone()
+        return row[0] if row else ""
+    except sqlite3.Error:
+        return None
+
+
+def list_worlds(owner_sub: str | None = None) -> list[dict[str, str]]:
     WORLDS.mkdir(exist_ok=True)
     candidates = [(path.stem, path) for path in sorted(WORLDS.glob("*.sqlite3"))]
     result = []
@@ -131,6 +147,9 @@ def list_worlds() -> list[dict[str, str]]:
             with connect(path) as conn:
                 row = conn.execute("SELECT value FROM meta WHERE key='world_title'").fetchone()
                 repository_row = conn.execute("SELECT value FROM meta WHERE key='git_repository'").fetchone()
+                owner_row = conn.execute("SELECT value FROM meta WHERE key='owner_sub'").fetchone()
+            if owner_sub is not None and (owner_row[0] if owner_row else "") != owner_sub:
+                continue
             title = row[0] if row else world_id
             repository = repository_row[0] if repository_row else ""
             result.append({"id": world_id, "title": title, "gitUrl": repository, "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat()})
@@ -151,7 +170,7 @@ def normalize_git_url(value: str) -> str:
     return url
 
 
-def create_world(title: str, git_url: str = "") -> dict[str, str]:
+def create_world(title: str, git_url: str = "", owner_sub: str | None = None) -> dict[str, str]:
     clean = " ".join(title.split()).strip()
     if not clean or len(clean) > 100:
         raise ValueError("Der Welttitel muss zwischen 1 und 100 Zeichen lang sein.")
@@ -164,6 +183,8 @@ def create_world(title: str, git_url: str = "") -> dict[str, str]:
         conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('world_title',?)", (clean,))
         if repository:
             conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('git_repository',?)", (repository,))
+        if owner_sub is not None:
+            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (owner_sub,))
         conn.execute("INSERT INTO chapters(id,position,title,body,note) VALUES(?,0,'','','')", (uuid.uuid4().hex,))
     return {"id": world_id, "title": clean, "gitUrl": repository, "updated": datetime.now().isoformat()}
 
@@ -187,9 +208,9 @@ def activate_world(world_id: str) -> dict[str, str]:
     return world
 
 
-def log_assistant_interaction(question: str, response: dict[str, Any] | None = None, error: str = "") -> str:
+def log_assistant_interaction(question: str, response: dict[str, Any] | None = None, error: str = "", db_path: Path | None = None) -> str:
     interaction_id = uuid.uuid4().hex
-    with connect() as conn:
+    with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO assistant_interactions(id,created_at,question,response_json,status,error) VALUES(?,?,?,?,?,?)",
             (interaction_id, datetime.now().isoformat(), question,
@@ -199,8 +220,8 @@ def log_assistant_interaction(question: str, response: dict[str, Any] | None = N
     return interaction_id
 
 
-def list_assistant_interactions(limit: int = 50) -> list[dict[str, Any]]:
-    with connect() as conn:
+def list_assistant_interactions(limit: int = 50, db_path: Path | None = None) -> list[dict[str, Any]]:
+    with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT id,created_at,question,response_json,status,error FROM assistant_interactions ORDER BY created_at DESC LIMIT ?",
             (max(1, min(limit, 200)),),
@@ -212,10 +233,12 @@ def list_assistant_interactions(limit: int = 50) -> list[dict[str, Any]]:
     } for row in rows]
 
 
-def delete_world(world_id: str) -> None:
+def delete_world(world_id: str, owner_sub: str | None = None) -> None:
     """Delete one local world without touching its configured remote repository."""
     if not re.fullmatch(r"[0-9a-f]{32}", world_id):
         raise ValueError("Invalid world identifier.")
+    if owner_sub is not None and get_world_owner(world_id) != owner_sub:
+        raise PermissionError("This world belongs to a different account.")
     if world_id == ACTIVE_WORLD_ID:
         raise ValueError("The active world cannot be deleted.")
     path = WORLDS / f"{world_id}.sqlite3"
@@ -233,6 +256,10 @@ def migrate(conn: sqlite3.Connection, version: int) -> None:
     conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('figures_revision','0')")
     if version < 2:
         conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('last_restore_at','')")
+    if version < 3:
+        # Worlds created before multi-tenancy land unowned ('') — invisible to every
+        # user once owner_sub filtering is in effect, on purpose (not auto-claimed).
+        conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('owner_sub','')")
     conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
 
 
@@ -240,8 +267,8 @@ class ConflictError(RuntimeError):
     pass
 
 
-def revision(kind: str, conn: sqlite3.Connection | None = None) -> int:
-    own = conn is None; db = conn or connect()
+def revision(kind: str, conn: sqlite3.Connection | None = None, db_path: Path | None = None) -> int:
+    own = conn is None; db = conn or connect(db_path)
     try:
         row = db.execute("SELECT value FROM meta WHERE key=?", (f"{kind}_revision",)).fetchone()
         return int(row[0]) if row else 0
@@ -249,8 +276,8 @@ def revision(kind: str, conn: sqlite3.Connection | None = None) -> int:
         if own: db.close()
 
 
-def save_with_revision(kind: str, state: dict[str, Any], expected: int | None) -> int:
-    with connect() as conn:
+def save_with_revision(kind: str, state: dict[str, Any], expected: int | None, db_path: Path | None = None) -> int:
+    with connect(db_path) as conn:
         current = revision(kind, conn)
         if expected is not None and expected != current:
             raise ConflictError(f"Stand wurde zwischenzeitlich geändert ({expected} → {current}).")
@@ -274,8 +301,8 @@ def _decoded(value: str) -> dict[str, Any]:
         return {}
 
 
-def load_manuscript() -> dict[str, Any]:
-    with connect() as conn:
+def load_manuscript(db_path: Path | None = None) -> dict[str, Any]:
+    with connect(db_path) as conn:
         settings = conn.execute("SELECT * FROM manuscript_settings WHERE id=1").fetchone()
         result = _decoded(settings["extra_json"]) if settings else {}
         result["words"] = json.loads(settings["words_json"]) if settings else []
@@ -289,9 +316,9 @@ def load_manuscript() -> dict[str, Any]:
         return result
 
 
-def save_manuscript(state: dict[str, Any], conn: sqlite3.Connection | None = None) -> None:
+def save_manuscript(state: dict[str, Any], conn: sqlite3.Connection | None = None, db_path: Path | None = None) -> None:
     own = conn is None
-    db = conn or connect()
+    db = conn or connect(db_path)
     try:
         with db:
             db.execute("DELETE FROM chapters")
@@ -311,8 +338,8 @@ def save_manuscript(state: dict[str, Any], conn: sqlite3.Connection | None = Non
         if own: db.close()
 
 
-def load_figures() -> dict[str, Any]:
-    with connect() as conn:
+def load_figures(db_path: Path | None = None) -> dict[str, Any]:
+    with connect(db_path) as conn:
         settings = conn.execute("SELECT * FROM figure_settings WHERE id=1").fetchone()
         result = _decoded(settings["extra_json"]) if settings else {}
         if settings:
@@ -343,9 +370,9 @@ def load_figures() -> dict[str, Any]:
         return result
 
 
-def save_figures(state: dict[str, Any], conn: sqlite3.Connection | None = None) -> None:
+def save_figures(state: dict[str, Any], conn: sqlite3.Connection | None = None, db_path: Path | None = None) -> None:
     own = conn is None
-    db = conn or connect()
+    db = conn or connect(db_path)
     try:
         with db:
             db.execute("DELETE FROM connections")
@@ -394,32 +421,35 @@ def save_figures(state: dict[str, Any], conn: sqlite3.Connection | None = None) 
         if own: db.close()
 
 
-def backup_if_due(force: bool = False) -> None:
-    BACKUPS.mkdir(exist_ok=True)
-    files = sorted(BACKUPS.glob("backup-*.sqlite3"))
+def backup_if_due(force: bool = False, db_path: Path | None = None, backups_dir: Path | None = None) -> None:
+    backups_dir = backups_dir or BACKUPS
+    backups_dir.mkdir(exist_ok=True)
+    files = sorted(backups_dir.glob("backup-*.sqlite3"))
     if not force and files and datetime.now().timestamp() - files[-1].stat().st_mtime < BACKUP_INTERVAL:
         return
-    target = BACKUPS / f"backup-{datetime.now():%Y%m%d-%H%M%S-%f}.sqlite3"
+    target = backups_dir / f"backup-{datetime.now():%Y%m%d-%H%M%S-%f}.sqlite3"
     temp = target.with_suffix(".tmp")
-    with connect() as source, sqlite3.connect(temp) as destination:
+    with connect(db_path) as source, sqlite3.connect(temp) as destination:
         source.backup(destination)
     os.replace(temp, target)
     for old in files[: max(0, len(files) - MAX_BACKUPS + 1)]:
         old.unlink(missing_ok=True)
 
 
-def list_backups() -> list[dict[str, Any]]:
+def list_backups(backups_dir: Path | None = None) -> list[dict[str, Any]]:
+    backups_dir = backups_dir or BACKUPS
     return [{"name": path.name, "created": datetime.fromtimestamp(path.stat().st_mtime).isoformat(), "size": path.stat().st_size}
-            for path in sorted(BACKUPS.glob("backup-*.sqlite3"), reverse=True)]
+            for path in sorted(backups_dir.glob("backup-*.sqlite3"), reverse=True)]
 
 
-def restore_backup(name: str) -> None:
+def restore_backup(name: str, db_path: Path | None = None, backups_dir: Path | None = None) -> None:
+    backups_dir = backups_dir or BACKUPS
     if Path(name).name != name or not name.startswith("backup-") or not name.endswith(".sqlite3"):
         raise ValueError("Ungültiger Sicherungsname")
-    source_path = BACKUPS / name
+    source_path = backups_dir / name
     if not source_path.exists(): raise FileNotFoundError(name)
-    backup_if_due(force=True)
-    with sqlite3.connect(source_path) as source, connect() as destination:
+    backup_if_due(force=True, db_path=db_path, backups_dir=backups_dir)
+    with sqlite3.connect(source_path) as source, connect(db_path) as destination:
         source.backup(destination)
         destination.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('last_restore_at',?)", (datetime.now().isoformat(),))
         for kind in ("manuscript", "figures"):

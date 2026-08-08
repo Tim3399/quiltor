@@ -1,0 +1,11 @@
+# Used by the `with-caddy` docker-compose profile (docker-compose.yml).
+# Reverse-proxies to the quiltor service by its Docker DNS name — not
+# 127.0.0.1, since these are separate containers on the compose network.
+# QUILTOR_PUBLIC_URL is injected as an env var by docker-compose.yml.
+
+{$QUILTOR_PUBLIC_URL} {
+	reverse_proxy quiltor:8000 {
+		header_up Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}

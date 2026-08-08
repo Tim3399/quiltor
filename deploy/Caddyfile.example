@@ -1,0 +1,14 @@
+# Example Caddy reverse-proxy config for the Quiltor web demo.
+# Copy into your existing Caddyfile (the one already fronting Keycloak) and
+# replace the placeholders. Caddy handles TLS automatically via Let's Encrypt.
+#
+# Forwarding Host and X-Forwarded-Proto is required: server.py uses them to
+# build the exact OIDC redirect_uri and to decide whether to mark cookies
+# Secure (see QUILTOR_PUBLIC_URL / QUILTOR_COOKIE_SECURE in the README).
+
+quiltor.example.com {
+    reverse_proxy 127.0.0.1:8000 {
+        header_up Host {host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

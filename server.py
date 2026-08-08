@@ -22,18 +22,27 @@ Standard library only. No installation required. On first run, if no local
 AI assistant is set up yet, you'll be asked once whether to download one
 (llama.cpp + a GGUF model, or MLX on Apple Silicon) — answer no and Quiltor
 runs exactly the same, just without the assistant panel.
+
+Setting QUILTOR_OIDC_ISSUER switches on Keycloak login and per-user world
+isolation for a hosted web demo — see README for the required env vars. With
+it unset (the default), Quiltor behaves exactly like the local single-user
+tool described above.
 """
 
+import http.cookies
 import http.server
 import json
 import os
 import re
+import secrets
 import subprocess
 import socketserver
 import sys
 import threading
 import tempfile
+import time
 import webbrowser
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -41,20 +50,25 @@ from backend.llm.shared.platform import force_utf8_streams
 
 force_utf8_streams()
 
-from backend import storage
+from backend import auth, storage
 from backend.assistant import AssistantRuntime, read_progress
-from backend.git_backup import GitBackup
+from backend.git_backup import GitBackup, GitContext
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed
 from backend.validation import valid_figures, valid_manuscript
 
 BASE = Path(__file__).resolve().parent
 PUBLIC = BASE / "dist"
+VERSION_FILE = BASE / "VERSION"
+VERSION = VERSION_FILE.read_text(encoding="utf-8").strip() if VERSION_FILE.exists() else "dev"
 DATA = storage.DATA
 BACKUPS = DATA / "backups"
 MANUSCRIPT_DIR = DATA / "manuscripts"
 PROFILE_DIR = DATA / "profiles"
 WORLD_BACKUPS = GitBackup(DATA / "repositories")
+# The single "currently open" world's Git backup context (local single-user mode
+# mirrors storage.DB/ACTIVE_WORLD_ID: one process, one active world at a time).
+CURRENT_GIT: GitContext | None = None
 ensure_installed()
 ASSISTANT = AssistantRuntime(BASE, DATA)
 
@@ -64,6 +78,80 @@ _lock = threading.Lock()
 
 # Only files matching this pattern may be cleaned from the mirror directories.
 MIRROR_RE = re.compile(r"^\d{2,3} - .*\.md$")
+
+# ------------------------------------------------------------- Auth (OIDC)
+
+AUTH_ENABLED = auth.OIDC_ENABLED
+PUBLIC_URL = os.environ.get("QUILTOR_PUBLIC_URL", "").rstrip("/")
+SESSION_COOKIE = "quiltor_session"
+LOGIN_STATE_COOKIE = "quiltor_login_state"
+
+# Short-lived, single-use tokens that let the internal PDF-render subprocess
+# (a headless browser navigating to our own /?world=...) act as the requesting
+# user for one render — see the book.pdf route and its module docs below.
+RENDER_TOKENS: dict[str, tuple[str, float]] = {}
+RENDER_TOKEN_TTL = 90
+
+
+def issue_render_token(sub: str) -> str:
+    token = secrets.token_urlsafe(24)
+    now = time.time()
+    with _lock:
+        for key in [k for k, (_, expires) in RENDER_TOKENS.items() if expires < now]:
+            RENDER_TOKENS.pop(key, None)
+        RENDER_TOKENS[token] = (sub, now + RENDER_TOKEN_TTL)
+    return token
+
+
+def redeem_render_token(token: str) -> str | None:
+    with _lock:
+        entry = RENDER_TOKENS.pop(token, None)
+    if entry and entry[1] > time.time():
+        return entry[0]
+    return None
+
+
+@dataclass
+class WorldContext:
+    """Per-request paths for one user's world — resolved fresh each call, never stored."""
+
+    id: str
+    db_path: Path
+    backups_dir: Path
+    manuscripts_dir: Path
+    profiles_dir: Path
+    git: GitContext | None
+
+
+def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
+    """Resolve a per-request world context for the session's own world, or raise.
+
+    ValueError -> malformed id, PermissionError -> owned by someone else,
+    FileNotFoundError -> no such world. Callers map these to 400/403/404.
+    """
+    if not re.fullmatch(r"[0-9a-f]{32}", world_id or ""):
+        raise ValueError("Invalid world id.")
+    owner = storage.get_world_owner(world_id)
+    if owner is None:
+        raise FileNotFoundError("This world does not exist.")
+    if owner != session.sub:
+        raise PermissionError("This world belongs to a different account.")
+    db_path = storage.world_db_path(world_id)
+    storage.initialize(db_path)
+    # storage.DATA, not the server-module DATA/MANUSCRIPT_DIR/PROFILE_DIR constants:
+    # those are frozen at import time and won't follow a reassigned storage.DATA
+    # (as tests do, and as QUILTOR_DATA_DIR does before the very first import).
+    manuscripts_dir = storage.DATA / "manuscripts" / world_id
+    profiles_dir = storage.DATA / "profiles" / world_id
+    manuscripts_dir.mkdir(parents=True, exist_ok=True)
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    backups_dir = storage.DATA / "backups" / world_id
+    world = next((w for w in storage.list_worlds(owner_sub=session.sub) if w["id"] == world_id), None)
+    repository_url = (world or {}).get("gitUrl", "")
+    git_ctx = (WORLD_BACKUPS.context(world_id, repository_url, db_path, manuscripts_dir, profiles_dir)
+               if repository_url else None)
+    return WorldContext(id=world_id, db_path=db_path, backups_dir=backups_dir,
+                         manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, git=git_ctx)
 
 
 # ---------------------------------------------------------------- Storage
@@ -81,9 +169,10 @@ def safe_name(title: str) -> str:
     return (name or "Ohne Titel")[:70]
 
 
-def mirror_text(chapters) -> None:
+def mirror_text(chapters, manuscript_dir: Path | None = None) -> None:
     """Write every chapter to Markdown for reading, backups, and versioning."""
-    ensure_dirs()
+    manuscript_dir = manuscript_dir or MANUSCRIPT_DIR
+    manuscript_dir.mkdir(parents=True, exist_ok=True)
     expected_files = set()
     for i, ch in enumerate(chapters, start=1):
         title = ch.get("title") or f"Kapitel {i}"
@@ -94,12 +183,12 @@ def mirror_text(chapters) -> None:
         text = f"# {title}\n\n{body.rstrip()}\n"
         if note:
             text += "\n---\n\n<!-- Notiz\n" + note.rstrip() + "\n-->\n"
-        path = MANUSCRIPT_DIR / fname
+        path = manuscript_dir / fname
         if path.exists() and path.read_text(encoding="utf-8") == text:
             continue
         path.write_text(text, encoding="utf-8")
     # Remove orphaned mirrors, touching only files owned by this application.
-    for f in MANUSCRIPT_DIR.glob("*.md"):
+    for f in manuscript_dir.glob("*.md"):
         if f.name not in expected_files and MIRROR_RE.match(f.name):
             f.unlink(missing_ok=True)
 
@@ -114,9 +203,10 @@ PROFILE_FIELDS = [
 ]
 
 
-def mirror_profiles(state) -> None:
+def mirror_profiles(state, profile_dir: Path | None = None) -> None:
     """Write every character profile to readable, versionable Markdown."""
-    ensure_dirs()
+    profile_dir = profile_dir or PROFILE_DIR
+    profile_dir.mkdir(parents=True, exist_ok=True)
     nodes = state.get("nodes", [])
     edges = state.get("edges", [])
     names = {n.get("id"): (n.get("name") or "Ohne Namen") for n in nodes}
@@ -156,12 +246,12 @@ def mirror_profiles(state) -> None:
             lines += ["## Verbindungen im Diagramm", ""] + relationships + [""]
 
         text = "\n".join(lines).rstrip() + "\n"
-        path = PROFILE_DIR / fname
+        path = profile_dir / fname
         if path.exists() and path.read_text(encoding="utf-8") == text:
             continue
         path.write_text(text, encoding="utf-8")
 
-    for f in PROFILE_DIR.glob("*.md"):
+    for f in profile_dir.glob("*.md"):
         if f.name not in expected_files and MIRROR_RE.match(f.name):
             f.unlink(missing_ok=True)
 
@@ -396,41 +486,188 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def end_headers(self) -> None:
+        # Any Set-Cookie headers queued by the auth routes ride along on whatever
+        # response actually gets sent (send_json/send_pdf/redirect/static fallback).
+        for key, value in getattr(self, "_pending_cookies", None) or []:
+            self.send_header(key, value)
+        super().end_headers()
+
     def log_message(self, fmt, *args):
         pass  # Suppress default noise; meaningful operations are logged explicitly.
+
+    # ---------- Auth helpers ----------
+
+    def get_cookie(self, name: str) -> str | None:
+        raw = self.headers.get("Cookie")
+        if not raw:
+            return None
+        jar = http.cookies.SimpleCookie()
+        try:
+            jar.load(raw)
+        except Exception:
+            return None
+        morsel = jar.get(name)
+        return morsel.value if morsel else None
+
+    def cookie_secure(self) -> bool:
+        override = os.environ.get("QUILTOR_COOKIE_SECURE", "auto")
+        if override == "1":
+            return True
+        if override == "0":
+            return False
+        return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
+
+    def cookie_header(self, name: str, value: str, max_age: int | None) -> tuple[str, str]:
+        morsel = http.cookies.SimpleCookie()
+        morsel[name] = value
+        morsel[name]["path"] = "/"
+        morsel[name]["httponly"] = True
+        morsel[name]["samesite"] = "Lax"
+        if self.cookie_secure():
+            morsel[name]["secure"] = True
+        if max_age is not None:
+            morsel[name]["max-age"] = max_age
+        return ("Set-Cookie", morsel.output(header="").strip())
+
+    def public_base_url(self) -> str:
+        if PUBLIC_URL:
+            return PUBLIC_URL
+        scheme = "https" if self.cookie_secure() else "http"
+        host = self.headers.get("Host", "localhost")
+        return f"{scheme}://{host}"
+
+    def send_redirect(self, location: str) -> None:
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def handle_login(self) -> None:
+        redirect_uri = f"{self.public_base_url()}/auth/callback"
+        authorize_url, state = auth.start_login(redirect_uri)
+        self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, state, max_age=600))
+        return self.send_redirect(authorize_url)
+
+    def handle_auth_callback(self) -> None:
+        from urllib.parse import parse_qs, urlparse
+        q = parse_qs(urlparse(self.path).query)
+        if (q.get("error") or [""])[0]:
+            return self.send_redirect("/login?failed=1")
+        code = (q.get("code") or [""])[0]
+        state = (q.get("state") or [""])[0]
+        cookie_state = self.get_cookie(LOGIN_STATE_COOKIE)
+        if not code or not state or not cookie_state or state != cookie_state:
+            return self.send_json({"ok": False, "fehler": "Invalid login state."}, 400)
+        pending = auth.consume_pending_login(state)
+        if pending is None:
+            return self.send_json({"ok": False, "fehler": "Login expired or already used."}, 400)
+        try:
+            tokens = auth.exchange_code(code, pending["verifier"], pending["redirect_uri"])
+            claims = auth.decode_id_token_claims(tokens["id_token"])
+            auth.validate_claims(claims)
+        except Exception as exc:
+            return self.send_json({"ok": False, "fehler": f"Login failed: {exc}"}, 400)
+        session_id = auth.create_session(str(claims.get("sub", "")), str(claims.get("email", "")),
+                                          str(claims.get("name") or claims.get("preferred_username") or ""))
+        self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, session_id, max_age=auth.SESSION_TTL))
+        self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, "", max_age=0))
+        return self.send_redirect("/")
+
+    def handle_logout(self) -> None:
+        auth.destroy_session(self.get_cookie(SESSION_COOKIE))
+        self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, "", max_age=0))
+        return self.send_json({"ok": True})
+
+    def _resolve_world_or_respond(self, session, world_id: str) -> WorldContext | None:
+        try:
+            return resolve_world(session, world_id)
+        except ValueError as exc:
+            self.send_json({"ok": False, "fehler": str(exc)}, 400)
+        except PermissionError as exc:
+            self.send_json({"ok": False, "fehler": str(exc)}, 403)
+        except FileNotFoundError as exc:
+            self.send_json({"ok": False, "fehler": str(exc)}, 404)
+        return None
 
     # ---------- Routes ----------
 
     def do_GET(self):
+        self._pending_cookies = []
         route = self.path.split("?")[0]
+        from urllib.parse import parse_qs, urlparse
+        query = parse_qs(urlparse(self.path).query)
+        world_id = (query.get("world") or [""])[0]
+
+        if route == "/api/version":
+            return self.send_json({"ok": True, "version": VERSION})
+
+        session = auth.get_session(self.get_cookie(SESSION_COOKIE)) if AUTH_ENABLED else None
+        if AUTH_ENABLED and session is None:
+            token = (query.get("renderToken") or [""])[0]
+            if token:
+                sub = redeem_render_token(token)
+                if sub:
+                    new_session_id = auth.create_session(sub, "", "")
+                    session = auth.get_session(new_session_id)
+                    self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, new_session_id, max_age=auth.SESSION_TTL))
+
+        if AUTH_ENABLED and route not in ("/login", "/auth/callback", "/api/whoami") and session is None:
+            if route.startswith("/api/"):
+                return self.send_json({"ok": False, "fehler": "not authenticated"}, 401)
+            return self.send_redirect("/login")
+
+        if AUTH_ENABLED and route == "/login":
+            return self.handle_login()
+        if AUTH_ENABLED and route == "/auth/callback":
+            return self.handle_auth_callback()
+        if AUTH_ENABLED and route == "/api/whoami":
+            if session is None:
+                return self.send_json({"ok": False})
+            return self.send_json({"ok": True, "sub": session.sub, "email": session.email, "name": session.name})
+
         if route == "/api/worlds":
             with _lock:
-                return self.send_json({"ok": True, "worlds": storage.list_worlds()})
+                worlds = storage.list_worlds(owner_sub=session.sub if AUTH_ENABLED else None)
+                return self.send_json({"ok": True, "worlds": worlds})
+
+        world_ctx = None
+        if AUTH_ENABLED and route in ("/api/git", "/api/log", "/api/backups", "/api/assistant/status",
+                                       "/api/assistant/logs", "/api/diff", "/api/textfassung",
+                                       "/api/state", "/api/manuscript"):
+            world_ctx = self._resolve_world_or_respond(session, world_id)
+            if world_ctx is None:
+                return
+        db_path = world_ctx.db_path if world_ctx else None
+        git_ctx = world_ctx.git if world_ctx else CURRENT_GIT
+
         if route == "/api/git":
             with _lock:
-                return self.send_json(WORLD_BACKUPS.status())
+                if git_ctx is None:
+                    return self.send_json({"ok": False, "grund": "No Git backup is configured for this world."})
+                return self.send_json(WORLD_BACKUPS.status(git_ctx))
 
         if route == "/api/log":
             with _lock:
-                return self.send_json({"ok": True, "commits": WORLD_BACKUPS.history()})
+                commits = WORLD_BACKUPS.history(git_ctx) if git_ctx else []
+                return self.send_json({"ok": True, "commits": commits})
 
         if route == "/api/backups":
             with _lock:
-                return self.send_json({"ok": True, "backups": storage.list_backups()})
+                backups_dir = world_ctx.backups_dir if world_ctx else None
+                return self.send_json({"ok": True, "backups": storage.list_backups(backups_dir)})
 
         if route == "/api/assistant/status":
             with _lock:
-                manuscript, figures = storage.load_manuscript(), storage.load_figures()
+                manuscript, figures = storage.load_manuscript(db_path), storage.load_figures(db_path)
             return self.send_json({"ok": True, **ASSISTANT.status(), "chunks": len(build_knowledge(manuscript, figures))})
 
         if route == "/api/assistant/logs":
             with _lock:
-                return self.send_json({"ok": True, "interactions": storage.list_assistant_interactions()})
+                return self.send_json({"ok": True, "interactions": storage.list_assistant_interactions(db_path=db_path)})
 
         if route == "/api/assistant/progress":
-            from urllib.parse import parse_qs, urlparse
-            q = parse_qs(urlparse(self.path).query)
-            progress_id = (q.get("id") or [""])[0]
+            progress_id = (query.get("id") or [""])[0]
             # No _lock: this reads the in-memory progress registry (backend/assistant.py),
             # not SQLite/manuscript state, so it's safe to poll while a batch run is in
             # flight on another thread without contending with normal saves.
@@ -438,53 +675,82 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"ok": progress is not None, "progress": progress})
 
         if route == "/api/diff":
-            from urllib.parse import parse_qs, urlparse
-            q = parse_qs(urlparse(self.path).query)
-            ref = (q.get("ref") or ["WORK"])[0]
-            nur_text = (q.get("alles") or ["0"])[0] != "1"
-            wortweise = (q.get("modus") or ["wort"])[0] == "wort"
+            ref = (query.get("ref") or ["WORK"])[0]
+            nur_text = (query.get("alles") or ["0"])[0] != "1"
+            wortweise = (query.get("modus") or ["wort"])[0] == "wort"
             with _lock:
-                return self.send_json(WORLD_BACKUPS.diff(ref, nur_text, wortweise))
+                if git_ctx is None:
+                    return self.send_json({"ok": False, "grund": "No Git backup is configured for this world."})
+                return self.send_json(WORLD_BACKUPS.diff(git_ctx, ref, nur_text, wortweise))
 
         if route == "/api/textfassung":
-            from urllib.parse import parse_qs, urlparse
-            q = parse_qs(urlparse(self.path).query)
-            ref = (q.get("ref") or ["WORK"])[0]
-            titel = (q.get("titel") or [""])[0]
-            kap = (q.get("kapitel") or [""])[0]
+            ref = (query.get("ref") or ["WORK"])[0]
+            titel = (query.get("titel") or [""])[0]
+            kap = (query.get("kapitel") or [""])[0]
             if not kap.isdigit():
                 return self.send_json({"ok": False, "grund": "Kapitel fehlt."})
             with _lock:
-                return self.send_json(WORLD_BACKUPS.chapter_version(ref, int(kap), safe_name(titel)))
+                if git_ctx is None:
+                    return self.send_json({"ok": False, "grund": "No Git backup is configured for this world."})
+                return self.send_json(WORLD_BACKUPS.chapter_version(git_ctx, ref, int(kap), safe_name(titel)))
+
         if route in ROUTES:
             with _lock:
                 kind = "figures" if route == "/api/state" else "manuscript"
-                data = storage.load_figures() if kind == "figures" else storage.load_manuscript()
-                return self.send_json(data, headers={"ETag": f'"{storage.revision(kind)}"'})
+                data = storage.load_figures(db_path) if kind == "figures" else storage.load_manuscript(db_path)
+                revision = storage.revision(kind, db_path=db_path)
+                return self.send_json(data, headers={"ETag": f'"{revision}"'})
         if route == "/":
             self.path = "/index.html"
         return super().do_GET()
 
     def _save(self):
+        self._pending_cookies = []
         route = self.path.split("?")[0]
+        session = auth.get_session(self.get_cookie(SESSION_COOKIE)) if AUTH_ENABLED else None
+        if AUTH_ENABLED and route != "/logout" and session is None:
+            return self.send_json({"ok": False, "fehler": "not authenticated"}, 401)
+
+        if AUTH_ENABLED and route == "/logout":
+            return self.handle_logout()
 
         if route in ("/api/worlds/open", "/api/worlds/create", "/api/worlds/delete"):
+            global CURRENT_GIT
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                owner_sub = session.sub if AUTH_ENABLED else None
                 with _lock:
                     if route.endswith("/delete"):
-                        storage.delete_world(str(payload.get("id", "")))
+                        try:
+                            storage.delete_world(str(payload.get("id", "")), owner_sub=owner_sub)
+                        except PermissionError as exc:
+                            return self.send_json({"ok": False, "fehler": str(exc)}, 403)
                         return self.send_json({"ok": True})
+
                     if route.endswith("/create"):
-                        created = storage.create_world(str(payload.get("title", "")), str(payload.get("gitUrl", "")))
-                        world = storage.activate_world(created["id"])
+                        world = storage.create_world(str(payload.get("title", "")), str(payload.get("gitUrl", "")), owner_sub=owner_sub)
+                        if not AUTH_ENABLED:
+                            world = storage.activate_world(world["id"])
                     else:
-                        world = storage.activate_world(str(payload.get("id", "")))
-                    if world.get("gitUrl"):
-                        WORLD_BACKUPS.activate(world["id"], world["gitUrl"], storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
-                    else:
-                        WORLD_BACKUPS.deactivate()
+                        world_id = str(payload.get("id", ""))
+                        if AUTH_ENABLED:
+                            owner = storage.get_world_owner(world_id)
+                            if owner is None:
+                                return self.send_json({"ok": False, "fehler": "This world does not exist."}, 404)
+                            if owner != session.sub:
+                                return self.send_json({"ok": False, "fehler": "This world belongs to a different account."}, 403)
+                            world = next((w for w in storage.list_worlds(owner_sub=session.sub) if w["id"] == world_id), None)
+                            if world is None:
+                                return self.send_json({"ok": False, "fehler": "This world does not exist."}, 404)
+                        else:
+                            world = storage.activate_world(world_id)
+
+                    if not AUTH_ENABLED:
+                        if world.get("gitUrl"):
+                            CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world["gitUrl"], storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
+                        else:
+                            CURRENT_GIT = None
                 return self.send_json({"ok": True, "world": world})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
@@ -494,10 +760,28 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             script = BASE / "scripts" / "render-book-pdf.mjs"
             target_name = ""
             try:
+                length = int(self.headers.get("Content-Length") or 0)
+                body_payload = {}
+                if length:
+                    try:
+                        body_payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                    except Exception:
+                        body_payload = {}
+                if AUTH_ENABLED:
+                    ctx = self._resolve_world_or_respond(session, str(body_payload.get("worldId", "")))
+                    if ctx is None:
+                        return
+                    # The headless render subprocess can't do an interactive Keycloak
+                    # login, so it gets a short-lived token that redeems into a real
+                    # session cookie on its first request (see redeem_render_token).
+                    render_token = issue_render_token(session.sub)
+                    target_url = f"http://127.0.0.1:{port}/?world={ctx.id}&renderToken={render_token}"
+                else:
+                    target_url = f"http://127.0.0.1:{port}/?world={storage.ACTIVE_WORLD_ID}"
                 with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as target:
                     target_name = target.name
                 result = subprocess.run(
-                    ["node", str(script), f"http://127.0.0.1:{port}/?world={storage.ACTIVE_WORLD_ID}", target_name],
+                    ["node", str(script), target_url, target_name],
                     cwd=BASE, capture_output=True, text=True, timeout=90,
                 )
                 if result.returncode != 0:
@@ -517,8 +801,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 wunsch = {}
             nachricht = (wunsch.get("message") or "").strip()
             pushen = bool(wunsch.get("push"))
+            if AUTH_ENABLED:
+                ctx = self._resolve_world_or_respond(session, str(wunsch.get("worldId", "")))
+                if ctx is None:
+                    return
+                git_ctx = ctx.git
+            else:
+                git_ctx = CURRENT_GIT
             with _lock:
-                ergebnis = WORLD_BACKUPS.commit(nachricht, pushen)
+                if git_ctx is None:
+                    ergebnis = {"ok": False, "grund": "No Git backup is configured for this world.", "log": []}
+                else:
+                    ergebnis = WORLD_BACKUPS.commit(git_ctx, nachricht, pushen)
             for zeile in ergebnis.get("log", []):
                 print(f"  · {datetime.now():%H:%M:%S}  {zeile}")
             if not ergebnis.get("ok"):
@@ -529,16 +823,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 request = json.loads(self.rfile.read(length).decode("utf-8"))
+                db_path = backups_dir = manuscripts_dir = profiles_dir = None
+                if AUTH_ENABLED:
+                    ctx = self._resolve_world_or_respond(session, str(request.get("worldId", "")))
+                    if ctx is None:
+                        return
+                    db_path, backups_dir = ctx.db_path, ctx.backups_dir
+                    manuscripts_dir, profiles_dir = ctx.manuscripts_dir, ctx.profiles_dir
                 with _lock:
-                    storage.restore_backup(str(request.get("name", "")))
-                    manuscript, figures = storage.load_manuscript(), storage.load_figures()
-                    mirror_text(manuscript["chapters"]); mirror_profiles(figures)
+                    storage.restore_backup(str(request.get("name", "")), db_path=db_path, backups_dir=backups_dir)
+                    manuscript, figures = storage.load_manuscript(db_path), storage.load_figures(db_path)
+                    mirror_text(manuscript["chapters"], manuscript_dir=manuscripts_dir)
+                    mirror_profiles(figures, profile_dir=profiles_dir)
                 return self.send_json({"ok": True})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
 
         if route == "/api/assistant/chat":
             length = int(self.headers.get("Content-Length") or 0)
+            db_path = None
             try:
                 request = json.loads(self.rfile.read(length).decode("utf-8"))
                 question = str(request.get("question", "")).strip()
@@ -546,19 +849,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 chapter_ids = [str(item) for item in request.get("chapterIds") or [] if isinstance(item, str)][:50]
                 run_batches = bool(request.get("runBatches"))
                 progress_id = str(request.get("progressId") or "")[:64] or None
+                if AUTH_ENABLED:
+                    ctx = self._resolve_world_or_respond(session, str(request.get("worldId", "")))
+                    if ctx is None:
+                        return
+                    db_path = ctx.db_path
                 if not question or len(question) > 4000:
                     raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
                 with _lock:
-                    manuscript, figures = storage.load_manuscript(), storage.load_figures()
+                    manuscript, figures = storage.load_manuscript(db_path), storage.load_figures(db_path)
                 result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids, run_batches, progress_id)
                 with _lock:
-                    interaction_id = storage.log_assistant_interaction(question, result)
+                    interaction_id = storage.log_assistant_interaction(question, result, db_path=db_path)
                 print(f"  · {datetime.now():%H:%M:%S}  AI request {interaction_id} — {len(result.get('sources', []))} sources, {len(result.get('proposals', []))} proposals", flush=True)
                 return self.send_json({"ok": True, "interactionId": interaction_id, **result})
             except Exception as exc:
                 if "question" in locals() and question:
                     with _lock:
-                        interaction_id = storage.log_assistant_interaction(question, error=str(exc))
+                        interaction_id = storage.log_assistant_interaction(question, error=str(exc), db_path=db_path)
                     print(f"  ! {datetime.now():%H:%M:%S}  AI request {interaction_id} failed — {exc}", flush=True)
                 return self.send_json({"ok": False, "fehler": str(exc)}, 503)
 
@@ -572,22 +880,39 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            # worldId is routing metadata, not document content — always strip it
+            # before validation/storage (regardless of AUTH_ENABLED: the frontend
+            # sends it once any world is open, auth or not) so it never persists
+            # into extra_json.
+            world_id_from_body = str(payload.pop("worldId", "")) if isinstance(payload, dict) else ""
             if not validate(payload):
                 raise ValueError
         except Exception:
             return self.send_json({"ok": False, "fehler": "kein gültiger Zustand"}, 400)
 
+        world_ctx = None
+        if AUTH_ENABLED:
+            world_ctx = self._resolve_world_or_respond(session, world_id_from_body)
+            if world_ctx is None:
+                return
+        db_path = world_ctx.db_path if world_ctx else None
+        backups_dir = world_ctx.backups_dir if world_ctx else None
+        manuscripts_dir = world_ctx.manuscripts_dir if world_ctx else None
+        profiles_dir = world_ctx.profiles_dir if world_ctx else None
+
         with _lock:
             try:
-                storage.backup_if_due()
+                storage.backup_if_due(db_path=db_path, backups_dir=backups_dir)
                 kind = "manuscript" if route == "/api/manuscript" else "figures"
                 match = self.headers.get("If-Match", "").strip('"')
                 expected = int(match) if match.isdigit() else None
-                if route == "/api/manuscript":
-                    updated_revision = storage.save_with_revision(kind, payload, expected)
-                else:
-                    updated_revision = storage.save_with_revision(kind, payload, expected)
-                if after:
+                updated_revision = storage.save_with_revision(kind, payload, expected, db_path=db_path)
+                if AUTH_ENABLED:
+                    if route == "/api/manuscript":
+                        mirror_text(payload["chapters"], manuscript_dir=manuscripts_dir)
+                    else:
+                        mirror_profiles(payload, profile_dir=profiles_dir)
+                elif after:
                     after(payload)
             except storage.ConflictError as exc:
                 return self.send_json({"ok": False, "fehler": str(exc), "code": "conflict"}, 409)
@@ -624,13 +949,15 @@ def main() -> None:
     url = f"http://localhost:{port}/"
 
     print()
-    print("  Quiltor · Autorenwerkstatt")
+    print(f"  Quiltor · Autorenwerkstatt · v{VERSION}")
     print("  " + "─" * 52)
     print(f"  Adresse    {url}")
     print(f"  Datenbank  {storage.DB}")
     print(f"  Manuscripts {MANUSCRIPT_DIR}")
     print(f"  Profiles    {PROFILE_DIR}")
     print(f"  Backups     {BACKUPS}")
+    if AUTH_ENABLED:
+        print(f"  Auth        Keycloak ({auth.ISSUER})")
     print("  Stop        Ctrl+C")
     print("  " + "─" * 52)
     print()
@@ -639,7 +966,11 @@ def main() -> None:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
 
     try:
-        with Server(("127.0.0.1", port), Handler) as httpd:
+        # Defaults to loopback-only, matching the local single-user tool's security
+        # posture. The Docker image sets QUILTOR_HOST=0.0.0.0 because a container's
+        # loopback interface isn't reachable through Docker's port forwarding at all
+        # — the reverse proxy in front of it is what actually restricts exposure.
+        with Server((os.environ.get("QUILTOR_HOST", "127.0.0.1"), port), Handler) as httpd:
             httpd.serve_forever()
     except OSError as exc:
         print(f"  ! Port {port} ist belegt ({exc}).")
