@@ -61,6 +61,8 @@ def main() -> None:
         started = time.monotonic()
         response = request(args.base, "/api/assistant/chat", {"question": case["question"]})
         kinds = [proposal.get("kind") for proposal in response.get("proposals", [])]
+        metrics = next((step for step in reversed(response.get("agentTrace", [])) if step.get("step") == "metrics"), {})
+        repair_calls = int(metrics.get("repairCalls", sum(step.get("step") == "repair" for step in response.get("agentTrace", []))))
         message = response.get("message", "")
         checks = [bool(message), len(response.get("sources", [])) >= case.get("sources", 0)]
         if case.get("kind"):
@@ -75,11 +77,15 @@ def main() -> None:
             checks.append(not response.get("proposals"))
         if case.get("forbid_long_prose"):
             checks.append(len(message.split()) < 180)
-        reports.append({"name": case["name"], "passed": all(checks), "seconds": round(time.monotonic() - started, 2), "sources": len(response.get("sources", [])), "proposals": kinds, "message": message[:240]})
+        reports.append({"name": case["name"], "passed": all(checks), "seconds": round(time.monotonic() - started, 2), "sources": len(response.get("sources", [])), "proposals": kinds, "repairCalls": repair_calls, "validWithoutRepair": bool(kinds) and repair_calls == 0, "message": message[:240]})
         print(f"[{reports[-1]['passed'] and 'PASS' or 'FAIL'}] {case['name']} ({reports[-1]['seconds']}s) {kinds}", flush=True)
     unchanged = request(args.base, "/api/state") == state_before
-    print(json.dumps({"modelAvailable": True, "chunks": status.get("chunks"), "passed": sum(report["passed"] for report in reports), "total": len(reports), "worldStateUnchanged": unchanged, "reports": reports}, ensure_ascii=False, indent=2))
-    raise SystemExit(0 if unchanged and all(report["passed"] for report in reports) else 1)
+    proposal_reports = [report for report in reports if report["proposals"]]
+    without_repair = sum(report["validWithoutRepair"] for report in proposal_reports)
+    valid_without_repair_rate = without_repair / len(proposal_reports) if proposal_reports else 1.0
+    result = {"modelAvailable": True, "chunks": status.get("chunks"), "passed": sum(report["passed"] for report in reports), "total": len(reports), "worldStateUnchanged": unchanged, "proposalResponses": len(proposal_reports), "proposalResponsesWithoutRepair": without_repair, "validProposalWithoutRepairRate": round(valid_without_repair_rate, 4), "reports": reports}
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    raise SystemExit(0 if unchanged and all(report["passed"] for report in reports) and valid_without_repair_rate >= 0.95 else 1)
 
 
 if __name__ == "__main__":
