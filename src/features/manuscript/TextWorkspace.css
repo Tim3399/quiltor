@@ -137,3 +137,54 @@
 .word-completion kbd {
   color: var(--ink);
 }
+
+.compact-panel {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  flex-direction: column;
+}
+
+.panel-resize-handle {
+  position: absolute;
+  z-index: var(--z-sticky);
+  top: 0;
+  bottom: 0;
+  width: var(--space-8);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.text-layout > .binder,
+.text-layout > .inspector { position: relative; }
+.panel-resize-handle--end { right: calc(var(--space-4) * -1); }
+.panel-resize-handle--start { left: calc(var(--space-4) * -1); }
+
+@media (max-width: 1099px) and (min-width: 720px) {
+  .text-layout,
+  .text-layout.no-binder,
+  .text-layout.no-inspector,
+  .text-layout.no-binder.no-inspector {
+    grid-template-columns: 1fr;
+  }
+
+  .text-layout > .binder,
+  .text-layout > .inspector {
+    position: absolute;
+    z-index: var(--z-drawer);
+    top: 0;
+    bottom: 0;
+  }
+
+  .text-layout > .binder {
+    left: 0;
+    box-shadow: var(--shadow-drawer-right);
+  }
+
+  .text-layout > .inspector {
+    right: 0;
+    box-shadow: var(--shadow-drawer-left);
+  }
+}

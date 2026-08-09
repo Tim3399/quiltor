@@ -6,7 +6,7 @@ import { AppShell } from './AppShell';
 describe('AppShell', () => {
   it('keeps secondary tools in a keyboard-accessible overflow menu', () => {
     const history = vi.fn(), git = vi.fn(), backups = vi.fn();
-    render(<LanguageProvider><AppShell title="Welt" workspace="text" onWorkspace={() => undefined} phase="idle" retry={() => undefined} theme="light" onTheme={() => undefined} onSearch={() => undefined} onCommands={() => undefined} onHistory={history} onGit={git} onBackups={backups} onAssistant={() => undefined}><div /></AppShell></LanguageProvider>);
+    render(<LanguageProvider><AppShell title="Welt" workspace="text" onWorkspace={() => undefined} phase="idle" retry={() => undefined} theme="light" onTheme={() => undefined} onSearch={() => undefined} onHistory={history} onGit={git} onBackups={backups} onAssistant={() => undefined}><div /></AppShell></LanguageProvider>);
     const more = screen.getByRole('button', { name: 'Mehr' });
     fireEvent.click(more);
     expect(more).toHaveAttribute('aria-expanded', 'true');

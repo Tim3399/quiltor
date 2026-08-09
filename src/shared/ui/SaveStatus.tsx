@@ -9,9 +9,10 @@ const labelKeys: Record<SavePhase, MessageKey> = {
 export function SaveStatus({ phase, error, onRetry }: { phase: SavePhase; error?: string; onRetry?: () => void }) {
   const { t } = useLanguage();
   const Icon = phase === 'error' ? CloudOff : phase === 'saving' ? LoaderCircle : phase === 'saved' ? Check : phase === 'dirty' ? AlertCircle : Check;
-  return <button className={`save-status save-${phase}`} onClick={phase === 'error' ? onRetry : undefined}
-    title={error || t(labelKeys[phase])} aria-live="polite">
-    <Icon size={15} className={phase === 'saving' ? 'spin' : ''} aria-hidden="true" />
-    <span>{t(labelKeys[phase])}</span>
-  </button>;
+  const content = <><Icon size={15} className={phase === 'saving' ? 'spin' : ''} aria-hidden="true" /><span>{t(labelKeys[phase])}</span></>;
+  return phase === 'error' ? <button className={`save-status save-${phase}`} onClick={onRetry} title={error || t(labelKeys[phase])} aria-live="polite">
+    {content}
+  </button> : <div className={`save-status save-${phase}`} title={t(labelKeys[phase])} aria-live="polite">
+    {content}
+  </div>;
 }

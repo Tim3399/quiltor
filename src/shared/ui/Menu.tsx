@@ -18,6 +18,8 @@ export function MenuItem({ children, onSelect, disabled = false }: { children: R
   return <button type="button" role="menuitem" disabled={disabled} tabIndex={-1} onClick={() => { if (!disabled) onSelect(); }}>{children}</button>;
 }
 
+export function MenuSeparator() { return <div className="ui-menu__separator" role="separator" />; }
+
 export function ContextMenu({ children, ...props }: Parameters<typeof Menu>[0]) {
   return <Menu {...props}>{Children.map(children, child => isValidElement(child) ? cloneElement(child as ReactElement) : child)}</Menu>;
 }

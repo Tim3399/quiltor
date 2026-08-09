@@ -42,4 +42,13 @@ describe('TextWorkspace', () => {
     const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: true, onFocus: vi.fn() });
     expect(within(view.container).queryByRole('combobox', { name: 'Kapitel im Fokusmodus auswählen' })).not.toBeInTheDocument();
   });
+
+  it('ändert persistierbare Panelbreiten auch per Tastatur', () => {
+    const onSidebarWidth = vi.fn(), onInspectorWidth = vi.fn();
+    renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), viewportMode: 'wide', binderOpen: true, inspectorOpen: true, sidebarWidth: 246, inspectorWidth: 294, onSidebarWidth, onInspectorWidth });
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Navigation breiter oder schmaler ziehen' }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Inspector breiter oder schmaler ziehen' }), { key: 'ArrowLeft' });
+    expect(onSidebarWidth).toHaveBeenCalledWith(256);
+    expect(onInspectorWidth).toHaveBeenCalledWith(304);
+  });
 });

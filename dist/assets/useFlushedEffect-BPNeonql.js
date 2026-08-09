@@ -1,1 +1,0 @@
-import{j as e,k as t}from"./index-D8fYZGJT.js";var n=e(t(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

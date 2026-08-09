@@ -9,6 +9,7 @@ import { WorldGate } from './features/worlds/WorldGate';
 import { PRODUCT_MARK } from './config/branding';
 import { applyAssistantProposals } from './features/assistant/proposals';
 import { useLanguage } from './language';
+import { useWorkspaceLayout } from './hooks/useWorkspaceLayout';
 
 const TextWorkspace = lazy(() => import('./features/manuscript/TextWorkspace').then(module => ({ default: module.TextWorkspace })));
 const FigureWorkspace = lazy(() => import('./features/figures/FigureWorkspace').then(module => ({ default: module.FigureWorkspace })));
@@ -20,7 +21,7 @@ const GitDialog = lazy(() => import('./features/tools/GitDialog').then(module =>
 const HistoryDialog = lazy(() => import('./features/tools/HistoryDialog').then(module => ({ default: module.HistoryDialog })));
 const BackupDialog = lazy(() => import('./features/tools/BackupDialog').then(module => ({ default: module.BackupDialog })));
 
-type Overlay = 'search' | 'commands' | 'history' | 'git' | 'backups' | null;
+type Overlay = 'palette' | 'history' | 'git' | 'backups' | null;
 
 export function App() {
   const { t } = useLanguage();
@@ -33,6 +34,7 @@ export function App() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [target, setTarget] = useState<{ workspace: Workspace; id: string } | null>(null);
   const [whoami, setWhoami] = useState<{ email?: string; name?: string } | null>(null);
+  const workspaceLayout = useWorkspaceLayout(world?.id, workspace);
   useEffect(() => { api.whoami().then(result => setWhoami(result.ok ? result : null)).catch(() => setWhoami(null)); }, []);
   const logout = useCallback(() => { void api.logout().then(() => { location.href = '/login'; }); }, []);
   const [version, setVersion] = useState('');
@@ -61,8 +63,7 @@ export function App() {
       if (event.key === 'Escape' && focus) { event.preventDefault(); setFocus(false); return; }
       if (modifier && event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); setOverlay('git'); return; }
       if (modifier && event.key.toLowerCase() === 's') { event.preventDefault(); void flushAll(); return; }
-      if (modifier && event.key.toLowerCase() === 'f') { event.preventDefault(); setOverlay('search'); return; }
-      if (modifier && event.key.toLowerCase() === 'k') { event.preventDefault(); setOverlay('commands'); }
+      if (modifier && (event.key.toLowerCase() === 'f' || event.key.toLowerCase() === 'k')) { event.preventDefault(); setOverlay('palette'); }
       const inField = /input|textarea|select/i.test((event.target as HTMLElement)?.tagName || '');
       if (modifier && !inField && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? (workspace === 'text' ? manuscriptHistory.redo() : figureHistory.redo()) : (workspace === 'text' ? manuscriptHistory.undo() : figureHistory.undo()); }
     };
@@ -75,13 +76,13 @@ export function App() {
   if (loadError) return <main className="fatal-state"><h1>{t('unreachable')}</h1><p>{loadError}</p><p>{restartPrefix}<code>python3 server.py</code>{restartSuffix}</p></main>;
   if (!manuscript || !figures) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>{t('openingWorkshop')}</p></main>;
   return <Suspense fallback={<main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>{t('openingWorkshop')}</p></main>}>
-    <AppShell title={world.title} workspace={workspace} onWorkspace={value => { setWorkspace(value); setFocus(false); }} phase={activeSave.phase} error={activeSave.error} retry={activeSave.retry} theme={theme} onTheme={toggleTheme}
-      onSearch={() => setOverlay('search')} onCommands={() => setOverlay('commands')} onHistory={() => setOverlay('history')} onGit={() => setOverlay('git')} onBackups={() => setOverlay('backups')} onAssistant={() => setAssistantOpen(value => !value)}
+    <AppShell title={world.title} workspace={workspace} onWorkspace={value => { setWorkspace(value); setFocus(false); }} navigationAvailable={workspace === 'text' && !focus} navigationOpen={workspaceLayout.layout.navigationOpen} onNavigation={() => workspaceLayout.setNavigationOpen(!workspaceLayout.layout.navigationOpen)} phase={activeSave.phase} error={activeSave.error} retry={activeSave.retry} theme={theme} onTheme={toggleTheme}
+      onSearch={() => setOverlay('palette')} onHistory={() => setOverlay('history')} onGit={() => setOverlay('git')} onBackups={() => setOverlay('backups')} onAssistant={() => setAssistantOpen(value => !value)}
       whoami={whoami} onLogout={logout} version={version}>
-      {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} onChange={manuscriptHistory.change} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} /> : workspace === 'figures' ? <FigureWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : workspace === 'timeline' ? <TimelineWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'timeline' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : <PlacesWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'places' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} onOpen={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
+      {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} onChange={manuscriptHistory.change} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} viewportMode={workspaceLayout.mode} binderOpen={workspaceLayout.layout.navigationOpen} onBinderOpen={workspaceLayout.setNavigationOpen} inspectorOpen={workspaceLayout.layout.inspectorOpen} onInspectorOpen={workspaceLayout.setInspectorOpen} sidebarWidth={workspaceLayout.layout.sidebarWidth} onSidebarWidth={workspaceLayout.setSidebarWidth} inspectorWidth={workspaceLayout.layout.inspectorWidth} onInspectorWidth={workspaceLayout.setInspectorWidth} /> : workspace === 'figures' ? <FigureWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : workspace === 'timeline' ? <TimelineWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'timeline' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : <PlacesWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'places' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} onOpen={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
     </AppShell>
     {assistantOpen && <AssistantDrawer worldId={world.id} figures={figures} chapters={manuscript.chapters} onClose={() => setAssistantOpen(false)} onApply={proposals => { figureHistory.change(applyAssistantProposals(figures, proposals, t)); setWorkspace('figures'); setFocus(false); }} onNavigate={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
-    {(overlay === 'search' || overlay === 'commands') && <SearchDialog mode={overlay} manuscript={manuscript} figures={figures} onClose={() => setOverlay(null)} onWorkspace={setWorkspace} onSelect={setTarget} onCommand={executeCommand} />}
+    {overlay === 'palette' && <SearchDialog manuscript={manuscript} figures={figures} onClose={() => setOverlay(null)} onWorkspace={setWorkspace} onSelect={setTarget} onCommand={executeCommand} />}
     {overlay === 'git' && <GitDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'history' && <HistoryDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'backups' && <BackupDialog onClose={() => setOverlay(null)} flush={flushAll} />}

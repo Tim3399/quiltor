@@ -9,16 +9,22 @@ import type { CommitInfo } from '../../types';
 import './TextWorkspace.css';
 import { completeOneWord, writingVocabulary, type WordCompletion } from './autocomplete';
 import { useLanguage } from '../../language';
+import { Sheet } from '../../shared/ui/Sheet';
+import type { ViewportMode } from '../../hooks/useWorkspaceLayout';
 
-export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave }: {
-  worldTitle?: string; manuscript: Manuscript; figures: FigureState; onChange: (value: Manuscript) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>;
+export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave, viewportMode = window.innerWidth < 720 ? 'compact' : window.innerWidth < 1100 ? 'regular' : 'wide', binderOpen: controlledBinderOpen, onBinderOpen, inspectorOpen: controlledInspectorOpen, onInspectorOpen, sidebarWidth = 246, onSidebarWidth, inspectorWidth = 294, onInspectorWidth }: {
+  worldTitle?: string; manuscript: Manuscript; figures: FigureState; onChange: (value: Manuscript) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>; viewportMode?: ViewportMode; binderOpen?: boolean; onBinderOpen?: (open: boolean) => void; inspectorOpen?: boolean; onInspectorOpen?: (open: boolean) => void; sidebarWidth?: number; onSidebarWidth?: (width: number) => void; inspectorWidth?: number; onInspectorWidth?: (width: number) => void;
 }) {
   const { t } = useLanguage();
   const [currentId, setCurrentId] = useState(manuscript.chapters[0]?.id ?? '');
   const [inspector, setInspector] = useState<'chapter' | 'helpers'>('chapter');
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [binderOpen, setBinderOpen] = useState(() => window.innerWidth > 820);
-  const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth > 820);
+  const [localBinderOpen, setLocalBinderOpen] = useState(() => window.innerWidth >= 720);
+  const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
+  const binderOpen = controlledBinderOpen ?? localBinderOpen;
+  const inspectorOpen = controlledInspectorOpen ?? localInspectorOpen;
+  const setBinderOpen = onBinderOpen ?? setLocalBinderOpen;
+  const setInspectorOpen = onInspectorOpen ?? setLocalInspectorOpen;
   const [newWord, setNewWord] = useState('');
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [symbolPicker, setSymbolPicker] = useState(false);
@@ -32,6 +38,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
   const [historyState, setHistoryState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [pdfState, setPdfState] = useState<'idle' | 'loading' | 'error'>('idle');
   const area = useRef<HTMLTextAreaElement>(null);
+  const layout = useRef<HTMLDivElement>(null);
   const current = manuscript.chapters.find(chapter => chapter.id === currentId) ?? manuscript.chapters[0];
   const currentIndex = current ? manuscript.chapters.indexOf(current) + 1 : 0;
   useEffect(() => { if (targetId && manuscript.chapters.some(chapter => chapter.id === targetId)) setCurrentId(targetId); }, [targetId, manuscript.chapters]);
@@ -88,27 +95,55 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
   const exportAll = () => download(`Quiltor-Manuskript-${new Date().toISOString().slice(0, 10)}.md`, manuscript.chapters.map(c => `# ${c.title || t('untitled')}\n\n${c.body.trim()}\n`).join('\n'));
   const printBook = async () => { setPdfState('loading'); try { await onSave?.(); await api.bookPdf(); setPdfState('idle'); } catch { setPdfState('error'); } };
   const addWord = () => { const value = newWord.trim(); if (!value) return; const words = manuscript.words || []; if (!words.some(item => (typeof item === 'string' ? item : item.w).toLocaleLowerCase('de-DE') === value.toLocaleLowerCase('de-DE'))) onChange({ ...manuscript, words: [...words, { w: value, d: '' }] }); setNewWord(''); };
+  const beginResize = (side: 'sidebar' | 'inspector', event: React.PointerEvent) => {
+    if (!layout.current) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const bounds = layout.current.getBoundingClientRect();
+    const move = (next: PointerEvent) => side === 'sidebar' ? onSidebarWidth?.(next.clientX - bounds.left) : onInspectorWidth?.(bounds.right - next.clientX);
+    const stop = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', stop);
+  };
+
+  const binderPanel = <>
+    <div className="panel-heading"><span>{t('chapters')}</span><button className="icon-button" onClick={() => setBinderOpen(false)} aria-label={t('closeNavigation')}><PanelLeftClose /></button></div>
+    <div className="chapter-list">
+      {manuscript.chapters.map((chapter, index) => <button key={chapter.id} draggable className={chapter.id === current?.id ? 'active' : ''} onClick={() => { setCurrentId(chapter.id); if (viewportMode === 'compact') setBinderOpen(false); }} onDragStart={() => setDraggedId(chapter.id)} onDragOver={event => event.preventDefault()} onDrop={() => { if (!draggedId || draggedId === chapter.id) return; const next = [...manuscript.chapters], from = next.findIndex(item => item.id === draggedId), to = next.findIndex(item => item.id === chapter.id); const [item] = next.splice(from, 1); next.splice(to, 0, item); setChapters(next); setDraggedId(null); }}>
+        <span className="chapter-number">{String(index + 1).padStart(2, '0')}</span><span className="chapter-name">{chapter.title || t('untitled')}</span><span className="chapter-words">{wordCount(chapter.body)} {t('words')}</span>
+      </button>)}
+    </div>
+    <footer>{manuscript.chapters.length} {t('chapters')} · {(total / 250).toFixed(1).replace('.', ',')} {t('standardPages')}</footer>
+  </>;
+  const inspectorPanel = current ? <>
+    <div className="panel-heading"><span>{t('inspector')}</span><button className="icon-button" onClick={() => setInspectorOpen(false)} aria-label={t('closeInspector')}><PanelRightClose /></button></div>
+    <div className="panel-tabs" role="tablist">
+      <button role="tab" aria-selected={inspector === 'chapter'} onClick={() => setInspector('chapter')}>{t('chapter')}</button>
+      <button role="tab" aria-selected={inspector === 'helpers'} onClick={() => setInspector('helpers')}>{t('writingHelpers')}</button>
+    </div>
+    {inspector === 'chapter' ? <div className="panel-body">
+      <dl className="stats"><div><dt>{t('words')}</dt><dd>{wordCount(current.body)}</dd></div><div><dt>{t('characters')}</dt><dd>{current.body.length}</dd></div><div><dt>{t('standardPages')}</dt><dd>{(wordCount(current.body) / 250).toFixed(1).replace('.', ',')}</dd></div></dl>
+      <label className="field"><span>{t('chapterNote')}</span><textarea value={current.note} onChange={event => update({ note: event.target.value })} placeholder={t('chapterNotePlaceholder')} /></label>
+      <div className="stack-actions"><button onClick={() => move(-1)}><ChevronUp />{t('moveUp')}</button><button onClick={() => move(1)}><ChevronDown />{t('moveDown')}</button></div>
+      <button className="secondary-action" onClick={() => download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${current.body}\n`)}><Download />{t('chapterMarkdown')}</button>
+      <button className="danger-text" onClick={() => setDeleteOpen(true)}><Trash2 />{t('deleteChapter')}</button>
+    </div> : <div className="panel-body helper-panel">
+      <h3>{t('figuresPlaces')}</h3><div className="chip-list">{figures.nodes.map(node => <button key={node.id} onClick={() => insert(node.name)}>{node.name}</button>)}</div>
+      <h3>{t('ownTerms')}</h3><div className="chip-list editable-chips">{(manuscript.words || []).map((item, index) => { const word = typeof item === 'string' ? item : item.w; return <span key={`${word}-${index}`}><button onClick={() => insert(word)}>{word}</button><button aria-label={t('removeTerm').replace('{word}', word)} onClick={() => onChange({ ...manuscript, words: (manuscript.words || []).filter((_, i) => i !== index) })}>×</button></span>; })}</div><div className="add-term"><input aria-label={t('newTerm')} value={newWord} onChange={event => setNewWord(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addWord(); }} placeholder={t('addTerm')} /><button onClick={addWord} aria-label={t('addTerm')}>+</button></div>
+      <h3>{t('specialCharacters')}</h3><div className="chip-list symbols">{(manuscript.zeichenAktiv || ['„','“','–','—','…']).map(symbol => <button key={symbol} onClick={() => insert(symbol)}>{symbol}</button>)}<button aria-expanded={symbolPicker} onClick={() => setSymbolPicker(!symbolPicker)}>±</button></div>{symbolPicker && <div className="symbol-picker">{['„','“','‚','‘','»','«','›','‹','–','—','…','·','§','¶','†','°','′','″','×','±','½','¼'].map(symbol => { const active = (manuscript.zeichenAktiv || []).includes(symbol); return <button key={symbol} aria-pressed={active} onClick={() => onChange({ ...manuscript, zeichenAktiv: active ? (manuscript.zeichenAktiv || []).filter(item => item !== symbol) : [...(manuscript.zeichenAktiv || []), symbol] })}>{symbol}</button>; })}</div>}
+    </div>}
+  </> : null;
 
   return <section className={`text-workspace ${focus ? 'is-focus' : ''}`} aria-label={t('manuscript')}>
     <div className="context-bar">
       <div className="context-title"><strong>{current?.title || t('manuscript')}</strong><span>{total.toLocaleString('de-DE')} {t('totalWords')}</span></div>
       <div className="tool-group"><button className="primary" onClick={add}><FilePlus2 />{t('chapter')}</button></div>
-      <div className="tool-group panel-toggles"><button aria-pressed={binderOpen} onClick={() => { setBinderOpen(!binderOpen); if (!binderOpen && window.innerWidth <= 820) setInspectorOpen(false); }}><PanelLeft />{t('navigation')}</button><button aria-pressed={inspectorOpen} onClick={() => { setInspectorOpen(!inspectorOpen); if (!inspectorOpen && window.innerWidth <= 820) setBinderOpen(false); }}><PanelRight />{t('details')}</button></div>
+      <div className="tool-group panel-toggles"><button aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}><PanelRight />{t('details')}</button></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoManuscript')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoManuscript')}><Redo2 /></button></div>
       <div className="tool-group"><button aria-pressed={historyOpen} onClick={() => setHistoryOpen(!historyOpen)}><HistoryIcon />{t('versions')}</button></div>
       <div className="tool-group"><button aria-pressed={focus} onClick={() => onFocus(!focus)}><Focus />{t('focus')}</button></div>
       <div className="tool-group"><button onClick={exportAll}><Download />{t('manuscript')}</button><button disabled={pdfState === 'loading'} onClick={() => void printBook()} title={t('downloadBookPdfHelp')}><Printer />{pdfState === 'loading' ? t('creatingPdf') : t('bookPdf')}</button></div>
     </div>
-    <div className={`text-layout ${!binderOpen || focus ? 'no-binder' : ''} ${!inspectorOpen || focus ? 'no-inspector' : ''}`}>
-      {!focus && binderOpen && <aside className="binder drawer-open" aria-label={t('chapters')}>
-        <div className="panel-heading"><span>{t('chapters')}</span><button className="icon-button" onClick={() => setBinderOpen(false)} aria-label={t('closeNavigation')}><PanelLeftClose /></button></div>
-        <div className="chapter-list">
-          {manuscript.chapters.map((chapter, index) => <button key={chapter.id} draggable className={chapter.id === current?.id ? 'active' : ''} onClick={() => setCurrentId(chapter.id)} onDragStart={() => setDraggedId(chapter.id)} onDragOver={event => event.preventDefault()} onDrop={() => { if (!draggedId || draggedId === chapter.id) return; const next = [...manuscript.chapters], from = next.findIndex(item => item.id === draggedId), to = next.findIndex(item => item.id === chapter.id); const [item] = next.splice(from, 1); next.splice(to, 0, item); setChapters(next); setDraggedId(null); }}>
-            <span className="chapter-number">{String(index + 1).padStart(2, '0')}</span><span className="chapter-name">{chapter.title || t('untitled')}</span><span className="chapter-words">{wordCount(chapter.body)} {t('words')}</span>
-          </button>)}
-        </div>
-        <footer>{manuscript.chapters.length} {t('chapters')} · {(total / 250).toFixed(1).replace('.', ',')} {t('standardPages')}</footer>
-      </aside>}
+    <div ref={layout} className={`text-layout ${!binderOpen || focus ? 'no-binder' : ''} ${!inspectorOpen || focus ? 'no-inspector' : ''}`} style={{ '--workspace-sidebar-width': `${sidebarWidth}px`, '--workspace-inspector-width': `${inspectorWidth}px` } as React.CSSProperties}>
+      {!focus && viewportMode !== 'compact' && binderOpen && <aside className="binder drawer-open" aria-label={t('chapters')} style={{ width: sidebarWidth }}>{binderPanel}{onSidebarWidth && <div className="panel-resize-handle panel-resize-handle--end" role="separator" aria-orientation="vertical" aria-label={t('resizeNavigation')} tabIndex={0} onPointerDown={event => beginResize('sidebar', event)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') onSidebarWidth(sidebarWidth + (event.key === 'ArrowRight' ? 10 : -10)); }} />}</aside>}
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label={t('chapterTitle')} value={current.title} onChange={event => update({ title: event.target.value })} placeholder={t('chapterTitle')} />
@@ -120,25 +155,10 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
           </aside>}
         </div> : <div className="empty-state"><FileTextIcon /><h2>{t('noChapterYet')}</h2><button className="primary" onClick={add}>{t('createFirstChapter')}</button></div>}
       </article>
-      {!focus && current && inspectorOpen && <aside className="inspector drawer-open" aria-label={t('chapterInspectorLabel')}>
-        <div className="panel-heading"><span>{t('inspector')}</span><button className="icon-button" onClick={() => setInspectorOpen(false)} aria-label={t('closeInspector')}><PanelRightClose /></button></div>
-        <div className="panel-tabs" role="tablist">
-          <button role="tab" aria-selected={inspector === 'chapter'} onClick={() => setInspector('chapter')}>{t('chapter')}</button>
-          <button role="tab" aria-selected={inspector === 'helpers'} onClick={() => setInspector('helpers')}>{t('writingHelpers')}</button>
-        </div>
-        {inspector === 'chapter' ? <div className="panel-body">
-          <dl className="stats"><div><dt>{t('words')}</dt><dd>{wordCount(current.body)}</dd></div><div><dt>{t('characters')}</dt><dd>{current.body.length}</dd></div><div><dt>{t('standardPages')}</dt><dd>{(wordCount(current.body) / 250).toFixed(1).replace('.', ',')}</dd></div></dl>
-          <label className="field"><span>{t('chapterNote')}</span><textarea value={current.note} onChange={event => update({ note: event.target.value })} placeholder={t('chapterNotePlaceholder')} /></label>
-          <div className="stack-actions"><button onClick={() => move(-1)}><ChevronUp />{t('moveUp')}</button><button onClick={() => move(1)}><ChevronDown />{t('moveDown')}</button></div>
-          <button className="secondary-action" onClick={() => download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${current.body}\n`)}><Download />{t('chapterMarkdown')}</button>
-          <button className="danger-text" onClick={() => setDeleteOpen(true)}><Trash2 />{t('deleteChapter')}</button>
-        </div> : <div className="panel-body helper-panel">
-          <h3>{t('figuresPlaces')}</h3><div className="chip-list">{figures.nodes.map(node => <button key={node.id} onClick={() => insert(node.name)}>{node.name}</button>)}</div>
-          <h3>{t('ownTerms')}</h3><div className="chip-list editable-chips">{(manuscript.words || []).map((item, index) => { const word = typeof item === 'string' ? item : item.w; return <span key={`${word}-${index}`}><button onClick={() => insert(word)}>{word}</button><button aria-label={t('removeTerm').replace('{word}', word)} onClick={() => onChange({ ...manuscript, words: (manuscript.words || []).filter((_, i) => i !== index) })}>×</button></span>; })}</div><div className="add-term"><input aria-label={t('newTerm')} value={newWord} onChange={event => setNewWord(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addWord(); }} placeholder={t('addTerm')} /><button onClick={addWord} aria-label={t('addTerm')}>+</button></div>
-          <h3>{t('specialCharacters')}</h3><div className="chip-list symbols">{(manuscript.zeichenAktiv || ['„','“','–','—','…']).map(symbol => <button key={symbol} onClick={() => insert(symbol)}>{symbol}</button>)}<button aria-expanded={symbolPicker} onClick={() => setSymbolPicker(!symbolPicker)}>±</button></div>{symbolPicker && <div className="symbol-picker">{['„','“','‚','‘','»','«','›','‹','–','—','…','·','§','¶','†','°','′','″','×','±','½','¼'].map(symbol => { const active = (manuscript.zeichenAktiv || []).includes(symbol); return <button key={symbol} aria-pressed={active} onClick={() => onChange({ ...manuscript, zeichenAktiv: active ? (manuscript.zeichenAktiv || []).filter(item => item !== symbol) : [...(manuscript.zeichenAktiv || []), symbol] })}>{symbol}</button>; })}</div>}
-        </div>}
-      </aside>}
+      {!focus && viewportMode !== 'compact' && inspectorOpen && inspectorPanel && <aside className="inspector drawer-open" aria-label={t('chapterInspectorLabel')} style={{ width: inspectorWidth }}>{onInspectorWidth && <div className="panel-resize-handle panel-resize-handle--start" role="separator" aria-orientation="vertical" aria-label={t('resizeInspector')} tabIndex={0} onPointerDown={event => beginResize('inspector', event)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') onInspectorWidth(inspectorWidth + (event.key === 'ArrowLeft' ? 10 : -10)); }} />}{inspectorPanel}</aside>}
     </div>
+    {!focus && viewportMode === 'compact' && <Sheet open={binderOpen} label={t('chapters')} onClose={() => setBinderOpen(false)}><div className="binder compact-panel">{binderPanel}</div></Sheet>}
+    {!focus && viewportMode === 'compact' && inspectorPanel && <Sheet open={inspectorOpen} label={t('chapterInspectorLabel')} onClose={() => setInspectorOpen(false)}><div className="inspector compact-panel">{inspectorPanel}</div></Sheet>}
     {focus && manuscript.chapters.length > 1 && <aside className={`focus-chapters ${focusChapters ? 'is-open' : ''}`} aria-label={t('focusChapterPickerLabel')}>
       <button className="focus-side-toggle" aria-expanded={focusChapters} onClick={() => setFocusChapters(!focusChapters)} title={t('selectChapters')}>
         {focusChapters ? <X /> : <PanelLeft />}<span className="sr-only">{focusChapters ? t('closeChapterPicker') : t('openChapterPicker')}</span>

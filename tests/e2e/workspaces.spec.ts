@@ -29,14 +29,15 @@ test('Text, Suche und Figurenboard laden ohne Laufzeitfehler', async ({ page }, 
   if ((page.viewportSize()?.width || 0) <= 820) {
     await expect(page.locator('aside.binder')).toHaveCount(0);
     await page.getByRole('button', { name: /Navigation/ }).click();
-    await expect(page.locator('aside.binder')).toBeVisible();
+    const navigation = (page.viewportSize()?.width || 0) < 720 ? page.getByRole('dialog', { name: 'Kapitel' }) : page.locator('aside.binder');
+    await expect(navigation).toBeVisible();
     await page.getByRole('button', { name: 'Kapitelnavigation schließen' }).click();
-    await expect(page.locator('aside.binder')).toHaveCount(0);
+    await expect(navigation).toHaveCount(0);
   }
   await page.screenshot({ path: testInfo.outputPath('text.png'), fullPage: true });
 
   await page.keyboard.press('Control+KeyF');
-  await page.getByRole('textbox', { name: 'Suchbegriff' }).fill('Test');
+  await page.getByRole('combobox', { name: 'Suchbegriff' }).fill('Test');
   await page.keyboard.press('Escape');
 
   await page.getByRole('button', { name: 'Figuren' }).click();
@@ -86,30 +87,30 @@ test('Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
 
 test('Befehlspalette führt alle sichtbaren Aktionen atomar aus', async ({ page }) => {
   await openBlankWorld(page);
-  const open = async () => { await page.keyboard.press('Control+KeyK'); await expect(page.getByRole('heading', { name: 'Befehlspalette' })).toBeVisible(); };
+  const open = async () => { await page.keyboard.press('Control+KeyK'); await expect(page.getByRole('heading', { name: 'Suchen & Befehle' })).toBeVisible(); };
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
-  await open(); await page.getByRole('dialog').getByRole('button', { name: /Zum Manuskript wechseln/ }).click();
+  await open(); await page.getByRole('dialog').getByRole('option', { name: /Zum Manuskript wechseln/ }).click();
   await expect(page.getByRole('button', { name: 'Text', exact: true })).toHaveAttribute('aria-current', 'page');
-  await open(); await page.getByRole('dialog').getByRole('button', { name: /Zum Figurenboard wechseln/ }).click();
+  await open(); await page.getByRole('dialog').getByRole('option', { name: /Zum Figurenboard wechseln/ }).click();
   await expect(page.getByRole('button', { name: 'Figuren', exact: true })).toHaveAttribute('aria-current', 'page');
-  await open(); await page.getByRole('dialog').getByRole('button', { name: /Fokusmodus umschalten/ }).click();
+  await open(); await page.getByRole('dialog').getByRole('option', { name: /Fokusmodus umschalten/ }).click();
   await expect(page.getByRole('button', { name: /Fokusmodus verlassen/ })).toBeVisible();
   await page.keyboard.press('Escape');
   for (const command of ['Verlauf öffnen', 'Git öffnen', 'Sicherungen öffnen']) {
-    await open(); await page.getByRole('dialog').getByRole('button', { name: new RegExp(command) }).click();
+    await open(); await page.getByRole('dialog').getByRole('option', { name: new RegExp(command) }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: /schließen/i }).click();
   }
 });
 
-test('Inhaltssuche, Befehlspalette und Timeline sind getrennte Arbeitsbereiche', async ({ page }) => {
+test('Inhaltssuche und Befehle teilen eine Palette', async ({ page }) => {
   await openBlankWorld(page);
   await page.keyboard.press('Control+KeyF');
-  await expect(page.getByRole('heading', { name: 'Inhalte durchsuchen' })).toBeVisible();
-  await expect(page.getByText('Zum Manuskript wechseln')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Suchen & Befehle' })).toBeVisible();
+  await expect(page.getByText('Zum Manuskript wechseln')).toBeVisible();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+KeyK');
-  await expect(page.getByRole('heading', { name: 'Befehlspalette' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Suchen & Befehle' })).toBeVisible();
   await expect(page.getByText('Zum Manuskript wechseln')).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
@@ -331,9 +332,7 @@ test('Kapitelversionen erscheinen direkt neben der Schreibfläche', async ({ pag
   const history = page.getByRole('complementary', { name: 'Versionen' });
   await expect(history).toBeVisible();
   await expect(history).toContainText('Historischer Kapiteltext');
-  const viewportWidth = page.viewportSize()?.width || 0;
-  if (viewportWidth >= 1100 || viewportWidth < 720) await expect(page.getByLabel('Kapiteltext')).toBeVisible();
-  else await expect(page.getByLabel('Kapiteltext')).toBeHidden();
+  await expect(page.getByLabel('Kapiteltext')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('chapter-history.png'), fullPage: true });
 });
 
