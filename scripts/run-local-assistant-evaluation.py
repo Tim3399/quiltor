@@ -11,6 +11,8 @@ import sys
 import tempfile
 import time
 import urllib.request
+import json
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -59,6 +61,7 @@ def main() -> None:
     parser.add_argument("--case", action="append", dest="cases", help="Run only this evaluation case; repeatable.")
     parser.add_argument("--model", type=Path, default=ROOT / "models" / "Qwen3-4B-Q4_K_M.gguf")
     parser.add_argument("--runtime", type=Path, default=ROOT / "runtime" / ("llama-server.exe" if os.name == "nt" else "llama-server"))
+    parser.add_argument("--report-dir", type=Path, default=ROOT / "reports" / "assistant-eval", help="Directory for persistent JSON run/comparison reports.")
     args = parser.parse_args()
     if not args.runtime.is_file() or not args.model.is_file():
         raise SystemExit("Bundled llama.cpp runtime/model missing. Run: python3 -m backend.llm.installer --runtime llamacpp")
@@ -81,9 +84,24 @@ def main() -> None:
             command = [sys.executable, str(ROOT / "scripts" / "evaluate-local-assistant.py"), "--base", f"http://127.0.0.1:{app_port}", "--world", world_id]
             for case in args.cases or []:
                 command.extend(["--case", case])
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            run_results = []
             for run in range(1, args.runs + 1):
                 print(f"\n=== Local assistant evaluation {run}/{args.runs} ===", flush=True)
-                subprocess.run(command, cwd=ROOT, env=env, check=True)
+                output = args.report_dir / f"{stamp}-run-{run}.json"
+                subprocess.run([*command, "--output", str(output)], cwd=ROOT, env=env, check=True)
+                run_results.append(json.loads(output.read_text()))
+            comparison = {
+                "createdAt": datetime.now().isoformat(), "runs": args.runs,
+                "allPassed": all(item["passed"] == item["total"] and item["worldStateUnchanged"] for item in run_results),
+                "passed": [item["passed"] for item in run_results], "totals": [item["total"] for item in run_results],
+                "validProposalWithoutRepairRates": [item["validProposalWithoutRepairRate"] for item in run_results],
+                "averageScenarioSeconds": [round(sum(report["seconds"] for report in item["reports"]) / max(1, len(item["reports"])), 2) for item in run_results],
+                "runReports": [f"{stamp}-run-{run}.json" for run in range(1, args.runs + 1)],
+            }
+            comparison_path = args.report_dir / f"{stamp}-comparison.json"
+            comparison_path.write_text(json.dumps(comparison, ensure_ascii=False, indent=2) + "\n")
+            print(f"\nComparison report: {comparison_path}", flush=True)
         except Exception as exc:
             print(f"\nEvaluation failed: {exc}", file=sys.stderr)
             print(f"\n--- runtime.log ---\n{tail(runtime_log)}", file=sys.stderr)

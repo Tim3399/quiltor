@@ -32,7 +32,7 @@ from backend.assistant.contract import (
     verify_task_contract,
 )
 from backend.assistant.config import RUNTIME_CONFIG
-from backend.assistant.context import pack_chunks
+from backend.assistant.context import TOKEN_CACHE, pack_chunks
 from backend.assistant.references import resolve_reference
 from backend.assistant.schemas import KINDS, planner_schema, reply_schema
 from backend.knowledge import build_knowledge, retrieve
@@ -120,6 +120,12 @@ Do not emit unknown keys or any proposal for manuscript text."""
 
 MUTATION_REQUEST = re.compile(r"\b(anlegen|anzulegen|lege|erstelle?n?|hinzufügen|ergänz\w*|aktualisier\w*|änder\w*|setz\w*|markier\w*|sortier\w*|anordnen|verschieb\w*|schlag\w*|vorschlag|create|add|update|change|set|mark|arrange|propose)\b", re.IGNORECASE)
 PROSE_REQUEST = re.compile(r"\b(schreib\w*|fortsetzen|umschreib\w*|write|continue|rewrite)\b.*(szene|kapitel|roman|prosa|geschichte|scene|chapter|novel|prose|story)", re.IGNORECASE | re.DOTALL)
+COMPLEX_ANALYSIS_REQUEST = re.compile(r"\b(prüf\w*|analysier\w*|widerspr\w*|konsisten\w*|verbind\w*|warum|weshalb|folgen?|mehrere|anhand|manuskript|kapitel|compare|analyse|analyze|why|consisten\w*|contradiction\w*)\b", re.IGNORECASE)
+
+
+def needs_planner(question: str) -> bool:
+    """Reserve the extra model call for genuinely multi-source reasoning."""
+    return bool(COMPLEX_ANALYSIS_REQUEST.search(question))
 
 
 class AssistantRuntime:
@@ -160,6 +166,7 @@ class AssistantRuntime:
 
     def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, Any]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None) -> dict[str, Any]:
         started_at = time.monotonic()
+        self._invocation_metrics = []
         chunks = build_knowledge(manuscript, figures)
         contract = task_contract(question, figures)
         reference = resolve_reference(question, history, figures)
@@ -203,7 +210,8 @@ class AssistantRuntime:
         if run_batches and not chapter_ids:
             return self._run_batches(question, manuscript, figures, history, progress_id)
         plan = ({"goal": question, "steps": contract["expected"], "searchQueries": [], "requiredKinds": contract["requiredKinds"], "planner": "deterministic"}
-                if contract["requiredKinds"] else self._plan(question, context))
+                if contract["requiredKinds"] or not needs_planner(question) else self._plan(question, context))
+        plan.setdefault("planner", "model")
         trace.append({"step": "plan", **plan})
         known_context = {item.id: item for item in context}
         for query in plan.get("searchQueries", [])[:4]:
@@ -262,13 +270,15 @@ class AssistantRuntime:
         if required:
             payload["messages"][1]["content"] += "\n\nTASK REQUIREMENTS: The structured proposals must include: " + ", ".join(sorted(required)) + "."
         parsed = self._invoke_with_growth(payload, prompt_tokens)
-        parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
+        raw_proposals = parsed.get("proposals") if isinstance(parsed.get("proposals"), list) else []
+        parsed["proposals"] = validate_proposals(raw_proposals, figures, question)
+        discarded_proposals = max(0, len(raw_proposals) - len(parsed["proposals"]))
         if not mutation_requested:
             parsed["proposals"] = []
         parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
         trace.append({"step": "propose", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
         if required - {item.get("kind") for item in parsed["proposals"]}:
-            deterministic = self._forced_proposal(question, context_json, figures) if required <= {"update_element", "set_relationship_at_moment", "mark_deceased", "set_presence", "arrange_elements"} else None
+            deterministic = self._forced_proposal(question, context_json, figures)
             deterministic_proposals = validate_proposals([deterministic] if deterministic else [], figures, question)
             if deterministic_proposals:
                 parsed["proposals"] = complete_compound_proposals(question, deterministic_proposals, figures)
@@ -297,8 +307,14 @@ class AssistantRuntime:
             parsed["message"] = re.sub(r"\b(?:wurde|wird|ist)(?: als [^.!\n]+)? (?:hinzugefügt|angelegt|erstellt|aufgenommen)\b", "ist als Vorschlag vorbereitet", str(parsed.get("message", "")), flags=re.IGNORECASE)
             parsed["message"] = re.sub(r"\b(hinzugefügt|angelegt|erstellt|aufgenommen)\b", "als Vorschlag vorbereitet", parsed["message"], flags=re.IGNORECASE)
         known = {chunk.id: chunk.public() for chunk in context}
-        parsed["citations"] = list(dict.fromkeys(source for source in parsed.get("citations", []) if source in known))
+        raw_citations = parsed.get("citations") if isinstance(parsed.get("citations"), list) else []
+        parsed["citations"] = list(dict.fromkeys(source for source in raw_citations if source in known))
+        discarded_citations = len(raw_citations) - len(parsed["citations"])
         parsed["sources"] = [known[source] for source in parsed["citations"]]
+        if discarded_proposals or discarded_citations:
+            trace.append({"step": "discard", "proposalReasons": {"semantic_validation": discarded_proposals}, "citationReasons": {"unknown_or_duplicate": discarded_citations}})
+        if not parsed["proposals"] and not parsed["citations"] and any(chunk.kind in {"chapter", "chapter-note"} for chunk in context) and not PROSE_REQUEST.search(question):
+            parsed["message"] = str(parsed.get("message", "")).rstrip() + "\n\nHinweis: Diese manuskriptbezogene Aussage ist ohne gültige Quellenangabe unbelegt."
         if contract["audit"]:
             audit = validate_world(figures)
             parsed["message"] = audit_message(audit, contract)
@@ -312,7 +328,8 @@ class AssistantRuntime:
             parsed["proposalGroup"] = {"id": "task", "title": proposal_group_title(question), "proposalIndexes": list(range(len(parsed["proposals"])))}
             parsed["message"] = f"{len(parsed['proposals'])} zusammengehörige Änderung{'en' if len(parsed['proposals']) != 1 else ''} als prüfbarer Vorschlag vorbereitet. Es wurde noch nichts angewendet."
         trace.append({"step": "verify", **verification})
-        trace.append({"step": "metrics", "plannerCalls": 0 if contract["requiredKinds"] else 1, "answerCalls": 1, "repairCalls": int(any(item.get("step") == "repair" for item in trace)), "promptTokens": prompt_tokens, "contextTokens": MODEL_CONTEXT_TOKENS, "outputBudget": max_tokens, "durationMs": round((time.monotonic() - started_at) * 1000), "finishReason": "stop"})
+        calls = list(getattr(self, "_invocation_metrics", []))
+        trace.append({"step": "metrics", "plannerCalls": int(any(item.get("step") == "plan" and item.get("planner") != "deterministic" for item in trace)), "answerCalls": 1, "repairCalls": int(any(item.get("step") == "repair" for item in trace)), "promptTokens": prompt_tokens, "usedContextTokens": prompt_tokens, "contextTokens": MODEL_CONTEXT_TOKENS, "outputBudget": max_tokens, "durationMs": round((time.monotonic() - started_at) * 1000), "finishReason": calls[-1].get("finishReason", "unknown") if calls else "unknown", "runtimeCalls": calls, "tokenCache": TOKEN_CACHE.stats(), "discardedProposals": discarded_proposals, "discardedCitations": discarded_citations})
         parsed["agentTrace"] = trace
         return parsed
 
@@ -373,6 +390,12 @@ class AssistantRuntime:
                 normal = query.casefold()
                 if query and normal not in seen_queries:
                     seen_queries.add(normal); deduped.append(query)
+            # A complex multi-source request must not silently degrade to the
+            # initial lexical hit set merely because the small local planner
+            # returned an empty query list. The original request is a safe,
+            # deterministic search seed and still keeps the four-query cap.
+            if not deduped and needs_planner(question):
+                deduped.append(" ".join(question.split())[:300])
             result["searchQueries"] = deduped[:4]
             result["requiredKinds"] = [str(item) for item in result.get("requiredKinds", []) if str(item) in KINDS]
             return result
@@ -387,6 +410,22 @@ class AssistantRuntime:
         moments = figures.get("timeline") or []
         node = next((item for item in nodes if str(item.get("id", "")).casefold() in folded or str(item.get("name", "")).casefold() in folded), None)
         moment = next((item for item in moments if re.search(rf"\b{re.escape(str(item.get('id', '')).casefold())}\b", folded) or str(item.get("title", "")).casefold() in folded), None)
+        if "create_element" in required:
+            existing_names = {str(item.get("name", "")).casefold() for item in nodes}
+            candidates = re.findall(r"\b[A-ZÄÖÜ][\wÄÖÜäöüß-]*(?:\s+[A-ZÄÖÜ][\wÄÖÜäöüß-]*)*", question)
+            generic = {"lege", "erstelle", "figur", "ort", "tier", "konzept", "organisation", "objekt", "kapitel", "timeline"}
+            cleaned_candidates = []
+            for value in candidates:
+                words = value.strip().split()
+                while words and words[0].casefold() in generic:
+                    words.pop(0)
+                cleaned = " ".join(words)
+                if cleaned and cleaned.casefold() not in generic and cleaned.casefold() not in existing_names:
+                    cleaned_candidates.append(cleaned)
+            name = next(reversed(cleaned_candidates), None)
+            if name:
+                element_type = next((kind for kind in ("tier", "ort", "organisation", "objekt", "konzept") if re.search(rf"\b{kind}\w*\b", folded)), "person")
+                return {"kind": "create_element", "tempId": "new:" + re.sub(r"[^\w]+", "-", name.casefold()).strip("-"), "element": {"type": element_type, "name": name}}
         if required == {"update_element"} and node:
             note = re.search(r"(?:notiz|notes?)\s*:\s*(.+)$", question, re.IGNORECASE)
             patch = {"profile": {"notizen": (note.group(1).strip().rstrip(".") if note else question)}}
@@ -404,22 +443,23 @@ class AssistantRuntime:
             if place and element:
                 return {"kind": "set_presence", "elementId": element["id"], "placeId": place["id"], **({"momentId": moment["id"]} if moment else {})}
         if "beziehung" in folded or "relationship" in folded:
-            shape = {"type": "object", "required": ["from", "to", "label", "directed", "style"], "additionalProperties": False, "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "directed": {"type": "boolean"}, "style": {"enum": ["solid", "dashed", "blood", "gold"]}}}
-            result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 300, "messages": [{"role": "system", "content": "Extract one requested relationship proposal. Use exact existing element IDs from context, not names. Return JSON only."}, {"role": "user", "content": f"CONTEXT:\n{context_json}\nREQUEST:\n{question}\n/no_think"}], "response_format": json_schema_format(shape)})
-            if not result.get("from") and isinstance(result.get("target"), dict):
-                text = str(result.get("text", ""))
-                label = re.search(r"(?:Beziehung|Relationship):\s*([^\n]+)", text, re.IGNORECASE)
-                relation_kind = re.search(r"(?:Art|Type):\s*([^\n]+)", text, re.IGNORECASE)
-                result = {"from": result["target"].get("from", ""), "to": result["target"].get("to", ""), "label": label.group(1).strip() if label else "Beziehung", "directed": bool(relation_kind and relation_kind.group(1).strip().casefold() in {"gerichtet", "directed"}), "style": "solid"}
-            return {"kind": "create_relationship", "relationship": result}
+            matches = [item for item in nodes if str(item.get("id", "")).casefold() in folded or str(item.get("name", "")).casefold() in folded]
+            if len(matches) >= 2:
+                label = "Besitzt" if re.search(r"\b(besitzt|gehört|owns?)\b", folded) else "Beziehung"
+                return {"kind": "create_relationship", "relationship": {"from": matches[0]["id"], "to": matches[1]["id"], "label": label, "directed": bool(re.search(r"\b(gerichtet|directed|besitzt|gehört|owns?)\b", folded)), "style": "solid"}}
+            return None
         if "zeitpunkt" in folded or "timeline" in folded:
-            shape = {"type": "object", "required": ["title"], "additionalProperties": False, "properties": {"title": {"type": "string"}, "date": {"type": "string"}, "note": {"type": "string"}}}
-            result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 300, "messages": [{"role": "system", "content": "Extract one requested timeline moment proposal. Return JSON only."}, {"role": "user", "content": f"CONTEXT:\n{context_json}\nREQUEST:\n{question}\n/no_think"}], "response_format": json_schema_format(shape)})
-            return {"kind": "create_timeline_moment", "tempId": "new:moment:assistant", "moment": result}
+            title_match = re.search(r"(?:für|of|called|namens)\s+(?:den|die|das|einen?|eine)?\s*([^,.]+)", question, re.IGNORECASE)
+            title = (title_match.group(1).strip() if title_match else "Neuer Zeitpunkt")[:160]
+            return {"kind": "create_timeline_moment", "tempId": "new:moment:assistant", "moment": {"title": title}}
         return None
 
     def _invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return invoke_chat(self.url, payload)
+        result = invoke_chat(self.url, payload, include_metadata=True)
+        metadata = result.pop("_runtime", {})
+        if isinstance(metadata, dict):
+            getattr(self, "_invocation_metrics", []).append(metadata)
+        return result
 
     def close(self) -> None:
         if self.process and self.process.poll() is None:
@@ -441,7 +481,7 @@ def conversation_messages(history: list[dict[str, Any]] | None, url: str) -> lis
     result: list[dict[str, str]] = []
     budget = CONVERSATION_HISTORY_TOKEN_BUDGET
     for message in reversed(candidates):
-        tokens = count_tokens(url, message["content"])
+        tokens = TOKEN_CACHE.count(url, message["content"], lambda value: count_tokens(url, value))
         if tokens > budget:
             break
         budget -= tokens

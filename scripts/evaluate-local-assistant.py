@@ -8,6 +8,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 
 CASES = [
@@ -50,6 +51,7 @@ def main() -> None:
     parser.add_argument("--base", default="http://127.0.0.1:8102")
     parser.add_argument("--world", required=True)
     parser.add_argument("--case", action="append", dest="cases", help="Run only the named case; may be repeated.")
+    parser.add_argument("--output", type=Path, help="Write the machine-readable result to this JSON file.")
     args = parser.parse_args()
     request(args.base, "/api/worlds/open", {"id": args.world})
     for _ in range(120):
@@ -105,6 +107,9 @@ def main() -> None:
     valid_without_repair_rate = without_repair / len(proposal_reports) if proposal_reports else 1.0
     result = {"modelAvailable": True, "chunks": status.get("chunks"), "passed": sum(report["passed"] for report in reports), "total": len(reports), "worldStateUnchanged": unchanged, "proposalResponses": len(proposal_reports), "proposalResponsesWithoutRepair": without_repair, "validProposalWithoutRepairRate": round(valid_without_repair_rate, 4), "reports": reports}
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     raise SystemExit(0 if unchanged and all(report["passed"] for report in reports) and valid_without_repair_rate >= 0.95 else 1)
 
 

@@ -15,19 +15,26 @@ class TokenCountCache:
         self.max_bytes, self.bytes = max_bytes, 0
         self.values: OrderedDict[str, tuple[int, int]] = OrderedDict()
         self.identity = ""
+        self.hits = 0
+        self.misses = 0
 
     def count(self, identity: str, text: str, counter: Callable[[str], int]) -> int:
         if identity != self.identity:
-            self.values.clear(); self.bytes = 0; self.identity = identity
+            self.values.clear(); self.bytes = 0; self.identity = identity; self.hits = 0; self.misses = 0
         digest = hashlib.sha256(text.encode()).hexdigest()
         if digest in self.values:
+            self.hits += 1
             value = self.values.pop(digest); self.values[digest] = value
             return value[0]
+        self.misses += 1
         tokens, size = counter(text), len(text.encode()) + 96
         self.values[digest] = (tokens, size); self.bytes += size
         while self.bytes > self.max_bytes and self.values:
             _, (_, removed) = self.values.popitem(last=False); self.bytes -= removed
         return tokens
+
+    def stats(self) -> dict[str, int]:
+        return {"hits": self.hits, "misses": self.misses, "entries": len(self.values), "bytes": self.bytes}
 
 
 TOKEN_CACHE = TokenCountCache()

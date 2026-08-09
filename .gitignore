@@ -20,6 +20,7 @@ data/profiles/*
 !data/profiles/.gitkeep
 test-results/
 playwright-report/
+reports/assistant-eval/*.json
 data/llama-server.log
 data/mlx-server.log
 data/llama-embed.log

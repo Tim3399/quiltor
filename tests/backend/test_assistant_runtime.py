@@ -85,29 +85,34 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         return runtime
 
     def test_happy_path_returns_the_model_reply_with_sources_resolved(self):
-        # A plain question has no deterministic requiredKinds, so complete() plans
-        # first (one invoke_chat call) before asking for the actual answer (a second).
+        # Simple facts bypass the planner and need a single answer call.
         runtime = self._runtime()
-        plan = {"goal": "info", "steps": [], "searchQueries": [], "requiredKinds": []}
         reply = {"message": "Alles bereit.", "citations": [], "proposals": []}
         with patch("backend.assistant.runtime.count_tokens", return_value=0), \
-             patch("backend.assistant.runtime.invoke_chat", side_effect=[plan, reply]) as invoke:
+             patch("backend.assistant.runtime.invoke_chat", return_value=reply) as invoke:
             result = runtime.complete("Wie geht es Tarek?", {}, FIGURES, history=None)
         self.assertEqual(result["message"], "Alles bereit.")
         self.assertEqual(result["proposals"], [])
-        self.assertEqual(invoke.call_count, 2)
+        self.assertEqual(invoke.call_count, 1)
 
-    def test_retry_repair_loop_runs_a_second_call_when_a_required_proposal_is_missing(self):
+    def test_complex_planner_gets_a_deterministic_search_seed_when_model_returns_none(self):
+        runtime = self._runtime()
+        planner_reply = {"goal": "audit", "steps": [], "searchQueries": [], "requiredKinds": []}
+        with patch("backend.assistant.runtime.invoke_chat", return_value=planner_reply):
+            plan = runtime._plan("Prüfe Manuskript und Timeline auf Konsistenz.", [])
+        self.assertEqual(plan["searchQueries"], ["Prüfe Manuskript und Timeline auf Konsistenz."])
+
+    def test_deterministic_fallback_avoids_repair_when_a_required_proposal_is_unambiguous(self):
         runtime = self._runtime()
         empty = {"message": "...", "citations": [], "proposals": []}
-        fixed = {"message": "Erledigt.", "citations": [], "proposals": [{"kind": "create_element", "tempId": "new:igor", "element": {"type": "person", "name": "Igor"}}]}
         with patch("backend.assistant.runtime.count_tokens", return_value=0), \
-             patch("backend.assistant.runtime.invoke_chat", side_effect=[empty, fixed]) as invoke:
+             patch("backend.assistant.runtime.invoke_chat", return_value=empty) as invoke:
             result = runtime.complete("Lege Igor als neue Figur an.", {}, FIGURES, history=None)
-        self.assertEqual(invoke.call_count, 2)
+        self.assertEqual(invoke.call_count, 1)
         self.assertEqual([item["kind"] for item in result["proposals"]], ["create_element"])
+        self.assertEqual(result["proposals"][0]["element"]["name"], "Igor")
         steps = [item["step"] for item in result["agentTrace"]]
-        self.assertIn("repair", steps)
+        self.assertIn("deterministic_fallback", steps)
 
     def test_explicitly_picked_chapters_are_forced_into_context_even_when_retrieval_would_miss_them(self):
         # Plan B.4: an author-picked chapter range should always reach the model, not depend

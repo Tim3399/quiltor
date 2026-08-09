@@ -47,6 +47,20 @@ class InvokeChatTests(unittest.TestCase):
             result = invoke_chat("http://mock", {"messages": []})
         self.assertEqual(result, {"message": "hi", "citations": [], "proposals": []})
 
+    def test_optionally_returns_runtime_usage_without_changing_the_default_contract(self):
+        body = {
+            "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({"message": "hi"})}}],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15},
+        }
+        with patch("backend.llm.shared.contract.urllib.request.urlopen", return_value=FakeResponse(body)):
+            result = invoke_chat("http://mock", {"messages": []}, include_metadata=True)
+        self.assertEqual(result["message"], "hi")
+        self.assertEqual(result["_runtime"]["finishReason"], "stop")
+        self.assertEqual(result["_runtime"]["promptTokens"], 12)
+        self.assertEqual(result["_runtime"]["completionTokens"], 3)
+        self.assertEqual(result["_runtime"]["totalTokens"], 15)
+        self.assertIsInstance(result["_runtime"]["durationMs"], int)
+
 
 if __name__ == "__main__":
     unittest.main()

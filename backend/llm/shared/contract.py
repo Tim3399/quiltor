@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+import time
 from typing import Any
 
 
@@ -32,13 +33,14 @@ def json_schema_format(schema: dict[str, Any], name: str = "quiltor_reply") -> d
     return {"type": "json_schema", "json_schema": {"name": name, "strict": True, "schema": schema}}
 
 
-def invoke_chat(url: str, payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
+def invoke_chat(url: str, payload: dict[str, Any], timeout: int = 180, include_metadata: bool = False) -> dict[str, Any]:
     """POST an OpenAI-compatible /v1/chat/completions request and return the parsed JSON content.
 
     This is the one HTTP contract every local runtime backend must speak;
     nothing here is specific to llama.cpp.
     """
     request = urllib.request.Request(f"{url}/v1/chat/completions", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+    started = time.monotonic()
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             result = json.loads(response.read())
@@ -50,7 +52,11 @@ def invoke_chat(url: str, payload: dict[str, Any], timeout: int = 180) -> dict[s
     except (KeyError, ValueError, TypeError) as exc:
         raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
     try:
-        return json.loads(content)
+        parsed = json.loads(content)
+        if include_metadata:
+            usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
+            parsed["_runtime"] = {"finishReason": finish_reason or "unknown", "promptTokens": usage.get("prompt_tokens"), "completionTokens": usage.get("completion_tokens"), "totalTokens": usage.get("total_tokens"), "durationMs": round((time.monotonic() - started) * 1000)}
+        return parsed
     except ValueError as exc:
         if finish_reason == "length":
             raise IncompleteResponse(content, finish_reason) from exc
