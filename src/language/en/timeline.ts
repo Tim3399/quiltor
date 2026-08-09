@@ -1,0 +1,11 @@
+export const timeline = {
+  deleteTimeMoment: 'Delete moment', momentKind: 'Moment',
+  deleteTimeMomentDescription: '"{title}" will be removed from the time strip. Relationship changes at this moment will revert to the previous state.', deleteMomentDescription: '"{title}" and the state changes stored there will be removed. Hold the delete button for five seconds.',
+  timelineStripLabel: 'Relationship time strip', pauseTimeTravel: 'Pause time travel', playTimeTravel: 'Play time travel', overview: 'Overview', newMoment: 'New moment', newMomentDate: 'Date of the new moment', addMoment: 'Add moment', optionalDate: 'Date · optional', optionalNote: 'Note · optional', momentNotePlaceholder: 'Chapter, time jump, event …', timeToggle: 'Time',
+  timelineManageLabel: 'Manage timeline', moments: 'Moments', undoTimeline: 'Undo timeline change', redoTimeline: 'Redo timeline change', noDate: 'No date', noTimelineYet: 'No timeline yet',
+  timelineIntro: 'Moments capture the states of your world. Their order here also drives the animation in the character board.', createMoment: 'Create moment', createFirstMoment: 'Create first moment', emptyTimelineHint: 'Create the first moment to manage relationships over time.',
+  momentNumberLabel: 'Moment {n}', changesAtMoment: '{n} changes at this moment', moveEarlierHelp: 'Move earlier', moveLaterHelp: 'Move later', earlier: 'Earlier', later: 'Later', momentNoteQuestion: 'What changes at this moment?',
+  relationshipsSectionDescription: 'Here you only change the state at the selected moment.', lifeEventsSection: 'Life events', lifeEventsSectionDescription: 'Mark which characters or animals die at this moment.', presenceSection: 'Presence', presenceSectionDescription: 'Drag a character or animal onto a place to set their presence at this moment.',
+  noRelationshipsInBoard: 'No relationships in the character board yet.', noFiguresOrAnimalsYet: 'No characters or animals yet.', active: 'Active', reverseDirectionBetween: 'Reverse direction between {from} and {to}', reverseDirection: 'Reverse direction', undirected: 'Undirected', labelForXAndY: 'Label for {from} and {to}', relationshipWord: 'Relationship',
+  unchangedNoPlace: 'Unchanged / no place', figuresAndAnimalsListLabel: 'Characters and animals', inheritedFrom: 'inherited · {name}', noPlacesInBoard: 'No places in the character board yet.',
+} as const;

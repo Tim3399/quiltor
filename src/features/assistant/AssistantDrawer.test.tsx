@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssistantDrawer } from './AssistantDrawer';
 import { api } from '../../lib/api';
+import { LanguageProvider } from '../../language';
 import type { AssistantReply, Chapter, FigureState } from '../../types';
 
 vi.mock('../../lib/api', () => ({ api: { assistantStatus: vi.fn(), assistantChat: vi.fn() }, errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }));
@@ -22,7 +23,7 @@ function reply(patch: Partial<AssistantReply> = {}): AssistantReply {
 
 function setup(worldId = 'world-1', chapters: Chapter[] = CHAPTERS) {
   const onApply = vi.fn(), onNavigate = vi.fn(), onClose = vi.fn();
-  const { unmount } = render(<AssistantDrawer worldId={worldId} figures={FIGURES} chapters={chapters} onApply={onApply} onNavigate={onNavigate} onClose={onClose} />);
+  const { unmount } = render(<LanguageProvider><AssistantDrawer worldId={worldId} figures={FIGURES} chapters={chapters} onApply={onApply} onNavigate={onNavigate} onClose={onClose} /></LanguageProvider>);
   return { onApply, onNavigate, onClose, unmount };
 }
 

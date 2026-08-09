@@ -1,4 +1,10 @@
 import type { AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
+import { languages } from '../language';
+
+// api.ts is a plain module used outside React's render cycle (event handlers, fetch
+// callbacks), so it can't call the useLanguage() hook -- read the persisted preference
+// directly instead, mirroring LanguageProvider's own default-language logic.
+function currentLanguage() { return localStorage.getItem('writer-language') === 'en' ? 'en' : 'de'; }
 
 // Set once per tab when a world is opened (see App.tsx). Each browser tab has its
 // own isolated JS module state, so this is safely per-tab even with multiple tabs
@@ -33,7 +39,7 @@ async function loadDocument<T>(url: string, kind: keyof typeof revisions): Promi
 async function saveDocument<T extends object>(url: string, kind: keyof typeof revisions, data: T) {
   const response = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': `"${revisions[kind]}"` }, body: JSON.stringify(withWorldBody(data)) });
   const result = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(response.status === 409 ? 'Speicherkonflikt: Die Seite wurde in einem anderen Tab geändert. Bitte neu laden.' : result?.fehler || `HTTP ${response.status}`);
+  if (!response.ok) throw new Error(response.status === 409 ? languages[currentLanguage()].saveConflict : result?.fehler || `HTTP ${response.status}`);
   revisions[kind] = result.revision;
   return result as { ok: boolean; zeit: string; revision: number };
 }

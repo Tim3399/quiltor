@@ -1,6 +1,6 @@
 .focus-chapters {
   position: fixed;
-  z-index: 30;
+  z-index:var(--z-popover);
   top: 50%;
   left: 8px;
   display: flex;
@@ -37,10 +37,10 @@
   width: min(238px, max(150px, calc((100vw - min(720px, 100vw - 80px)) / 2 - 46px)));
   max-height: 68vh;
   overflow: auto;
-  margin-left: 7px;
-  padding: 6px;
+  margin-left: var(--space-7);
+  padding: var(--space-6);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow);
 }
@@ -50,10 +50,10 @@
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   grid-template-areas: "number title" "number words";
-  gap: 1px 6px;
-  padding: 9px;
+  gap: 1px var(--space-6);
+  padding: var(--space-9);
   border: 1px solid var(--transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--transparent);
   color: var(--ink);
   text-align: left;
@@ -72,13 +72,13 @@
 .focus-chapter-list span {
   grid-area: number;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--font-size-1);
 }
 
 .focus-chapter-list strong {
   grid-area: title;
   overflow: hidden;
-  font: 600 14px var(--prose);
+  font: 600 var(--font-size-4) var(--prose);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -86,7 +86,7 @@
 .focus-chapter-list small {
   grid-area: words;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--font-size-1);
 }
 
 .text-workspace .focus-helper {
@@ -97,16 +97,16 @@
 
 .text-workspace .focus-helper-panel {
   width: min(254px, max(150px, calc((100vw - min(720px, 100vw - 80px)) / 2 - 46px)));
-  margin-right: 7px;
+  margin-right: var(--space-7);
   margin-left: 0;
 }
 
 @media (max-width: 640px) {
   .focus-chapters { left: 4px; }
-  .focus-chapter-list { width: 150px; max-height: calc(100dvh - var(--bar) - 16px); margin-left: 3px; padding: 3px; }
-  .focus-chapter-list button { padding: 7px 5px; }
+  .focus-chapter-list { width: 150px; max-height: calc(100dvh - var(--bar) - 16px); margin-left: var(--space-3); padding: var(--space-3); }
+  .focus-chapter-list button { padding: var(--space-7) var(--space-5); }
   .text-workspace .focus-helper { right: 4px; left: auto; }
-  .text-workspace .focus-helper-panel { margin-right: 3px; margin-left: 0; }
+  .text-workspace .focus-helper-panel { margin-right: var(--space-3); margin-left: 0; }
 }
 
 @media print {
@@ -117,20 +117,20 @@
 
 .word-completion {
   position: fixed;
-  z-index: 24;
+  z-index: var(--z-hint);
   bottom: 17px;
   left: 50%;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-7);
   transform: translateX(-50%);
-  padding: 5px 8px;
+  padding: var(--space-5) var(--space-8);
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-xl);
   background: var(--panel);
   box-shadow: var(--shadow);
   color: var(--muted);
-  font: 500 11px var(--ui);
+  font: 500 var(--font-size-2) var(--ui);
   pointer-events: none;
 }
 

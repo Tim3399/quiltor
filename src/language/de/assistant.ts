@@ -1,0 +1,17 @@
+export const assistant = {
+  localOnlySuggestions: 'Lokal · nur Vorschläge', newChat: 'Neuer Chat', closeAssistant: 'Assistent schließen',
+  sourcesIndexed: '{n} Quellen indexiert', sourcesScopeDescription: 'Welt, Manuskript, Profile, Beziehungen und Timeline',
+  localModelUnavailable: 'Lokales Modell nicht verfügbar', stillFullyUsable: 'Quiltor selbst bleibt vollständig nutzbar.', retry: 'Nochmal versuchen',
+  assistantGreeting: 'Wobei soll ich die Welt pflegen?', assistantGreetingBody: 'Ich kann Figuren und Beziehungen vorbereiten, Timeline-Stände anlegen und vorhandene Informationen mit Quellen auswerten.',
+  findMissingFigures: 'Fehlende Figuren finden', findMissingFiguresPrompt: 'Lege aus meinen vorhandenen Notizen fehlende Figuren als Vorschläge an.', checkTimeline: 'Timeline prüfen', checkTimelinePrompt: 'Prüfe die Beziehungen und Timeline auf Lücken oder Widersprüche.',
+  retryLabel: 'Erneut versuchen', requestAborted: 'Anfrage abgebrochen.',
+  pickChaptersIndividually: 'Kapitel einzeln auswählen', runInChapterGroups: 'In Kapitel-Gruppen ausführen',
+  nProposals: '{n} Vorschläge', applyAll: 'Alle übernehmen', packageOnlyTogetherHelp: 'Dieser Vorschlag gehört zu einem atomaren Paket und wird nur gemeinsam übernommen.', applied: 'Übernommen', inPackage: 'Im Paket', apply: 'Übernehmen',
+  agentTraceSteps: 'Ablauf ({n} Schritte)', processingChapterGroups: 'Kapitel-Gruppen werden verarbeitet …', assistantSearchingWorld: 'Quiltor durchsucht deine Welt …',
+  contextNChaptersForced: 'Kontext: {n} Kapitel erzwungen', contextEntireWorld: 'Kontext: gesamte Welt', resetSelection: 'Auswahl zurücksetzen',
+  messageToAssistantLabel: 'Nachricht an den lokalen Assistenten', messagePlaceholder: 'Figur anlegen, Beziehung ändern, Timeline prüfen …', cancelRequest: 'Anfrage abbrechen', sendMessage: 'Nachricht senden',
+  manuscriptReadOnlyNote: 'Manuskript ist nur lesbarer Kontext. Änderungen werden nie automatisch angewendet.', newChatConfirmDescription: 'Der aktuelle Gesprächsverlauf wird gelöscht. Das kann nicht rückgängig gemacht werden.', startNewChat: 'Neuer Chat starten', sources: 'Quellen',
+  createElementLabel: 'Element anlegen · {name}', withoutName: 'Ohne Namen', updateElementLabel: 'Element ergänzen · {name}', createMomentLabel: 'Zeitpunkt anlegen · {title}', createRelationshipLabel: 'Beziehung anlegen · {from} ↔ {to}',
+  updateRelationshipStateLabel: 'Beziehungsstand ändern · {label}', statusFallback: 'Status', rearrangeElementsLabel: 'Elemente thematisch neu anordnen', setDeathMomentLabel: 'Todeszeitpunkt setzen · {name}', newPrefix: 'Neu: ',
+  defaultElementName: 'Neues Element', defaultMomentTitle: 'Neuer Zeitpunkt',
+} as const;

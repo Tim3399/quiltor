@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FigureNode, PresenceEntry, TimelineMoment } from '../../types';
 import { presenceFieldEditor } from '../figures/presence';
+import { useLanguage } from '../../language';
 
 const UNCHANGED = '__unchanged__';
 
@@ -8,16 +9,17 @@ export function PresenceBoard({ nodes, places, presence, timeline, momentId, onP
   nodes: FigureNode[]; places: FigureNode[]; presence: PresenceEntry[]; timeline: TimelineMoment[];
   momentId: string; onPatch: (nodeId: string, placeId: string) => void;
 }) {
+  const { t } = useLanguage();
   const [selectedChip, setSelectedChip] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   const editorFor = (node: FigureNode) => presenceFieldEditor(node.id, presence, timeline, momentId);
   const assign = (nodeId: string, laneId: string) => onPatch(nodeId, laneId === UNCHANGED ? '' : laneId);
 
-  const lanes = [{ id: UNCHANGED, name: 'Unverändert / kein Ort' }, ...places.map(place => ({ id: place.id, name: place.name }))];
+  const lanes = [{ id: UNCHANGED, name: t('unchangedNoPlace') }, ...places.map(place => ({ id: place.id, name: place.name }))];
 
   return <div className="presence-board">
-    <div className="presence-board-roster" role="list" aria-label="Figuren und Tiere">
+    <div className="presence-board-roster" role="list" aria-label={t('figuresAndAnimalsListLabel')}>
       {nodes.map(node => {
         const editor = editorFor(node);
         const inheritedName = !editor.placeId && editor.inheritedPlaceId ? places.find(place => place.id === editor.inheritedPlaceId)?.name : undefined;
@@ -26,10 +28,10 @@ export function PresenceBoard({ nodes, places, presence, timeline, momentId, onP
           aria-pressed={selectedChip === node.id}
           onDragStart={event => event.dataTransfer.setData('application/x-quiltor-figure', node.id)}
           onClick={() => setSelectedChip(current => current === node.id ? null : node.id)}>
-          <strong>{node.name}</strong>{inheritedName && <small>geerbt · {inheritedName}</small>}
+          <strong>{node.name}</strong>{inheritedName && <small>{t('inheritedFrom').replace('{name}', inheritedName)}</small>}
         </button>;
       })}
-      {!nodes.length && <p className="timeline-section-empty">Noch keine Figuren oder Tiere vorhanden.</p>}
+      {!nodes.length && <p className="timeline-section-empty">{t('noFiguresOrAnimalsYet')}</p>}
     </div>
     <div className="presence-board-lanes">
       {lanes.map(lane => {
@@ -50,7 +52,7 @@ export function PresenceBoard({ nodes, places, presence, timeline, momentId, onP
           </div>
         </div>;
       })}
-      {!places.length && <p className="timeline-section-empty">Noch keine Orte im Figurenboard.</p>}
+      {!places.length && <p className="timeline-section-empty">{t('noPlacesInBoard')}</p>}
     </div>
   </div>;
 }

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SavePhase } from '../types';
+import { useLanguage } from '../language';
 
 const DEFAULT_AUTOSAVE_DELAY_MS = 800;
 
 export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unknown>, delay = DEFAULT_AUTOSAVE_DELAY_MS) {
+  const { t } = useLanguage();
   const [phase, setPhase] = useState<SavePhase>('idle');
   const [error, setError] = useState('');
   const timer = useRef<number | undefined>(undefined);
@@ -32,12 +34,12 @@ export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unkn
       if (latest.current === snapshot) { dirty.current = false; setPhase('saved'); }
       else setPhase('dirty');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Speichern fehlgeschlagen');
+      setError(reason instanceof Error ? reason.message : t('saveFailed'));
       setPhase('error');
     } finally {
       if (inFlightSnapshot.current === snapshot) inFlightSnapshot.current = null;
     }
-  }, [save]);
+  }, [save, t]);
 
   useEffect(() => {
     if (!value) return;

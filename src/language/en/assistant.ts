@@ -1,0 +1,17 @@
+export const assistant = {
+  localOnlySuggestions: 'Local · suggestions only', newChat: 'New chat', closeAssistant: 'Close assistant',
+  sourcesIndexed: '{n} sources indexed', sourcesScopeDescription: 'World, manuscript, profiles, relationships, and timeline',
+  localModelUnavailable: 'Local model unavailable', stillFullyUsable: 'Quiltor itself remains fully usable.', retry: 'Try again',
+  assistantGreeting: 'What should I help maintain in your world?', assistantGreetingBody: 'I can prepare characters and relationships, create timeline states, and evaluate existing information with sources.',
+  findMissingFigures: 'Find missing characters', findMissingFiguresPrompt: 'Based on my existing notes, propose any missing characters.', checkTimeline: 'Check timeline', checkTimelinePrompt: 'Check the relationships and timeline for gaps or contradictions.',
+  retryLabel: 'Try again', requestAborted: 'Request aborted.',
+  pickChaptersIndividually: 'Select chapters individually', runInChapterGroups: 'Run in chapter groups',
+  nProposals: '{n} proposals', applyAll: 'Apply all', packageOnlyTogetherHelp: 'This proposal belongs to an atomic package and can only be applied together with the others.', applied: 'Applied', inPackage: 'In package', apply: 'Apply',
+  agentTraceSteps: 'Trace ({n} steps)', processingChapterGroups: 'Processing chapter groups …', assistantSearchingWorld: 'Quiltor is searching your world …',
+  contextNChaptersForced: 'Context: {n} chapters forced', contextEntireWorld: 'Context: entire world', resetSelection: 'Reset selection',
+  messageToAssistantLabel: 'Message to the local assistant', messagePlaceholder: 'Create a character, change a relationship, check the timeline …', cancelRequest: 'Cancel request', sendMessage: 'Send message',
+  manuscriptReadOnlyNote: 'The manuscript is read-only context. Changes are never applied automatically.', newChatConfirmDescription: 'The current conversation will be deleted. This cannot be undone.', startNewChat: 'Start new chat', sources: 'Sources',
+  createElementLabel: 'Create element · {name}', withoutName: 'Without a name', updateElementLabel: 'Update element · {name}', createMomentLabel: 'Create moment · {title}', createRelationshipLabel: 'Create relationship · {from} ↔ {to}',
+  updateRelationshipStateLabel: 'Change relationship state · {label}', statusFallback: 'Status', rearrangeElementsLabel: 'Rearrange elements by theme', setDeathMomentLabel: 'Set death moment · {name}', newPrefix: 'New: ',
+  defaultElementName: 'New element', defaultMomentTitle: 'New moment',
+} as const;

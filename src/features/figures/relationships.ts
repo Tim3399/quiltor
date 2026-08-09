@@ -1,16 +1,17 @@
 import type { FigureEdge, FigureKind, FigureNode, RelationshipVersion, TimelineMoment } from '../../types';
+import type { MessageKey } from '../../language';
 
 export type SemanticZoomTier = 'detail' | 'compact' | 'overview';
 
 export const GRID_SIZE = 48;
 
-export function kindLabel(kind?: FigureKind): string {
-  if (kind === 'ort') return 'Ort';
-  if (kind === 'konzept') return 'Konzept';
-  if (kind === 'tier') return 'Tier';
-  if (kind === 'organisation') return 'Organisation';
-  if (kind === 'objekt') return 'Objekt';
-  return 'Figur';
+export function kindLabel(kind: FigureKind | undefined, t: (key: MessageKey) => string): string {
+  if (kind === 'ort') return t('place');
+  if (kind === 'konzept') return t('concept');
+  if (kind === 'tier') return t('animal');
+  if (kind === 'organisation') return t('organisation');
+  if (kind === 'objekt') return t('object');
+  return t('figure');
 }
 
 export function semanticZoomTier(zoom: number): SemanticZoomTier {

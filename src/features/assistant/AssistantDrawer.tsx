@@ -4,6 +4,7 @@ import { api, errorMessage } from '../../lib/api';
 import type { AssistantProposal, AssistantReply, AssistantSource, Chapter, FigureState, Workspace } from '../../types';
 import { proposalLabel, scopeAssistantProposals } from './proposals';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { useLanguage } from '../../language';
 
 const STATUS_POLL_MS = 15000;
 const BATCH_PROGRESS_POLL_MS = 1500;
@@ -14,6 +15,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
   worldId: string; figures: FigureState; chapters: Chapter[]; onApply: (proposals: AssistantProposal[]) => void;
   onNavigate: (target: { workspace: Workspace; id: string }) => void; onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const storageKey = `quiltor-assistant:${worldId}`;
   const [entries, setEntries] = useState<Entry[]>(() => { try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; } });
   const [draft, setDraft] = useState(''), [sending, setSending] = useState(false);
@@ -63,7 +65,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
       const reply = { ...response, proposals: scopeAssistantProposals(response.proposals || [], id) };
       setEntries(current => current.map(entry => entry.id === id ? { ...entry, reply } : entry));
     } catch (error) {
-      const message = controller.signal.aborted ? 'Anfrage abgebrochen.' : errorMessage(error);
+      const message = controller.signal.aborted ? t('requestAborted') : errorMessage(error);
       setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: message } : entry));
     } finally {
       setSending(false); abortRef.current = null;
@@ -76,59 +78,60 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     onApply(proposals);
     setEntries(current => current.map(entry => entry.id === entryId ? { ...entry, applied: [...new Set([...entry.applied, ...indices])] } : entry));
   };
-  return <aside className={`assistant-drawer ${status && !status.available ? 'has-offline' : ''}`} aria-label="Lokaler Assistent">
-    <header><div><Sparkles /><span><strong>Assistent</strong><small>Lokal · nur Vorschläge</small></span></div>
+  return <aside className={`assistant-drawer ${status && !status.available ? 'has-offline' : ''}`} aria-label={t('localAssistant')}>
+    <header><div><Sparkles /><span><strong>{t('assistant')}</strong><small>{t('localOnlySuggestions')}</small></span></div>
       <div className="assistant-header-actions">
-        <button className="icon-button" disabled={!entries.length} aria-label="Neuer Chat" title="Neuer Chat" onClick={() => setConfirmNewChat(true)}><Plus /></button>
-        <button className="icon-button" aria-label="Assistent schließen" onClick={onClose}><X /></button>
+        <button className="icon-button" disabled={!entries.length} aria-label={t('newChat')} title={t('newChat')} onClick={() => setConfirmNewChat(true)}><Plus /></button>
+        <button className="icon-button" aria-label={t('closeAssistant')} onClick={onClose}><X /></button>
       </div>
     </header>
-    <div className="assistant-scope"><Database /><span><strong>{status?.chunks ?? '…'} Quellen indexiert</strong><small>Welt, Manuskript, Profile, Beziehungen und Timeline</small></span></div>
-    {status && !status.available && <div className="assistant-offline"><Bot /><div><strong>Lokales Modell nicht verfügbar</strong><p>{status.reason}</p><small>Quiltor selbst bleibt vollständig nutzbar.</small><button onClick={checkStatus}><RotateCw />Nochmal versuchen</button></div></div>}
+    <div className="assistant-scope"><Database /><span><strong>{t('sourcesIndexed').replace('{n}', String(status?.chunks ?? '…'))}</strong><small>{t('sourcesScopeDescription')}</small></span></div>
+    {status && !status.available && <div className="assistant-offline"><Bot /><div><strong>{t('localModelUnavailable')}</strong><p>{status.reason}</p><small>{t('stillFullyUsable')}</small><button onClick={checkStatus}><RotateCw />{t('retry')}</button></div></div>}
     <div className="assistant-messages">
-      {!entries.length && <div className="assistant-empty"><Bot /><h2>Wobei soll ich die Welt pflegen?</h2><p>Ich kann Figuren und Beziehungen vorbereiten, Timeline-Stände anlegen und vorhandene Informationen mit Quellen auswerten.</p><button onClick={() => setDraft('Lege aus meinen vorhandenen Notizen fehlende Figuren als Vorschläge an.')}>Fehlende Figuren finden</button><button onClick={() => setDraft('Prüfe die Beziehungen und Timeline auf Lücken oder Widersprüche.')}>Timeline prüfen</button></div>}
+      {!entries.length && <div className="assistant-empty"><Bot /><h2>{t('assistantGreeting')}</h2><p>{t('assistantGreetingBody')}</p><button onClick={() => setDraft(t('findMissingFiguresPrompt'))}>{t('findMissingFigures')}</button><button onClick={() => setDraft(t('checkTimelinePrompt'))}>{t('checkTimeline')}</button></div>}
       {entries.map(entry => <article className="assistant-exchange" key={entry.id}>
         <p className="assistant-question">{entry.question}</p>
-        {entry.error && <div className="assistant-error"><span>{entry.error}</span><button disabled={sending} onClick={() => void send(entry.id)}><RotateCw />Erneut versuchen</button></div>}
+        {entry.error && <div className="assistant-error"><span>{entry.error}</span><button disabled={sending} onClick={() => void send(entry.id)}><RotateCw />{t('retryLabel')}</button></div>}
         {entry.reply && <div className="assistant-answer"><p>{entry.reply.message}</p>
           {entry.reply.broadScope && <div className="assistant-broadscope"><div className="assistant-broadscope-actions">
-            <button type="button" onClick={openChapterPicker}>Kapitel einzeln auswählen</button>
-            <button type="button" disabled={sending} onClick={() => void send(entry.id, { batch: true })}>In Kapitel-Gruppen ausführen</button>
+            <button type="button" onClick={openChapterPicker}>{t('pickChaptersIndividually')}</button>
+            <button type="button" disabled={sending} onClick={() => void send(entry.id, { batch: true })}>{t('runInChapterGroups')}</button>
           </div></div>}
           {!!entry.reply.sources?.length && <SourceList sources={entry.reply.sources} onNavigate={onNavigate} />}
-          {!!entry.reply.proposals?.length && <div className="assistant-proposals"><div className="assistant-proposal-heading"><strong>{entry.reply.proposals.length} Vorschläge</strong><button disabled={entry.applied.length === entry.reply.proposals.length} onClick={() => { const pending = entry.reply!.proposals.map((proposal, index) => ({ proposal, index })).filter(item => !entry.applied.includes(item.index)); apply(entry.id, pending.map(item => item.proposal), pending.map(item => item.index)); }}><Check />Alle übernehmen</button></div>
-            {entry.reply.proposals.map((proposal, index) => { const grouped = (entry.reply?.proposalGroup?.proposalIndexes.length || 0) > 1; return <div className={`assistant-proposal ${entry.applied.includes(index) ? 'is-applied' : ''}`} key={index}><span>{proposalLabel(proposal, figures)}</span><button disabled={entry.applied.includes(index) || grouped} title={grouped ? 'Dieser Vorschlag gehört zu einem atomaren Paket und wird nur gemeinsam übernommen.' : undefined} onClick={() => apply(entry.id, [proposal], [index])}>{entry.applied.includes(index) ? <><Check />Übernommen</> : grouped ? 'Im Paket' : 'Übernehmen'}</button></div>; })}
+          {!!entry.reply.proposals?.length && <div className="assistant-proposals"><div className="assistant-proposal-heading"><strong>{t('nProposals').replace('{n}', String(entry.reply.proposals.length))}</strong><button disabled={entry.applied.length === entry.reply.proposals.length} onClick={() => { const pending = entry.reply!.proposals.map((proposal, index) => ({ proposal, index })).filter(item => !entry.applied.includes(item.index)); apply(entry.id, pending.map(item => item.proposal), pending.map(item => item.index)); }}><Check />{t('applyAll')}</button></div>
+            {entry.reply.proposals.map((proposal, index) => { const grouped = (entry.reply?.proposalGroup?.proposalIndexes.length || 0) > 1; return <div className={`assistant-proposal ${entry.applied.includes(index) ? 'is-applied' : ''}`} key={index}><span>{proposalLabel(proposal, figures, t)}</span><button disabled={entry.applied.includes(index) || grouped} title={grouped ? t('packageOnlyTogetherHelp') : undefined} onClick={() => apply(entry.id, [proposal], [index])}>{entry.applied.includes(index) ? <><Check />{t('applied')}</> : grouped ? t('inPackage') : t('apply')}</button></div>; })}
           </div>}
-          {!!entry.reply.agentTrace?.length && <details className="assistant-trace"><summary><ChevronDown />Ablauf ({entry.reply.agentTrace.length} Schritte)</summary><pre>{JSON.stringify(entry.reply.agentTrace, null, 2)}</pre></details>}
+          {!!entry.reply.agentTrace?.length && <details className="assistant-trace"><summary><ChevronDown />{t('agentTraceSteps').replace('{n}', String(entry.reply.agentTrace.length))}</summary><pre>{JSON.stringify(entry.reply.agentTrace, null, 2)}</pre></details>}
         </div>}
       </article>)}
       {sending && batchProgress && <div className="assistant-progress">
-        <span>{batchProgress.label || 'Kapitel-Gruppen werden verarbeitet …'} {batchProgress.total ? `(${batchProgress.done}/${batchProgress.total})` : ''}</span>
+        <span>{batchProgress.label || t('processingChapterGroups')} {batchProgress.total ? `(${batchProgress.done}/${batchProgress.total})` : ''}</span>
         <div className="assistant-progress-bar"><span style={{ width: `${batchProgress.total ? Math.round((batchProgress.done / batchProgress.total) * 100) : 0}%` }} /></div>
       </div>}
-      {sending && !batchProgress && <div className="assistant-thinking"><span /><span /><span />Quiltor durchsucht deine Welt …</div>}
+      {sending && !batchProgress && <div className="assistant-thinking"><span /><span /><span />{t('assistantSearchingWorld')}</div>}
       <div ref={end} />
     </div>
     <footer>
       {!!chapters.length && <details className="assistant-chapter-picker" ref={chapterPickerRef}>
-        <summary><ChevronDown />{forcedChapterIds.length ? `Kontext: ${forcedChapterIds.length} Kapitel erzwungen` : 'Kontext: gesamte Welt'}</summary>
+        <summary><ChevronDown />{forcedChapterIds.length ? t('contextNChaptersForced').replace('{n}', String(forcedChapterIds.length)) : t('contextEntireWorld')}</summary>
         <div className="assistant-chapter-picker-list">
           {chapters.map((chapter, index) => <label key={chapter.id}>
             <input type="checkbox" checked={forcedChapterIds.includes(chapter.id)}
               onChange={() => setForcedChapterIds(current => current.includes(chapter.id) ? current.filter(id => id !== chapter.id) : [...current, chapter.id])} />
-            <span>{index + 1}. {chapter.title || 'Ohne Titel'}</span>
+            <span>{index + 1}. {chapter.title || t('untitled')}</span>
           </label>)}
-          {!!forcedChapterIds.length && <button type="button" onClick={() => setForcedChapterIds([])}>Auswahl zurücksetzen</button>}
+          {!!forcedChapterIds.length && <button type="button" onClick={() => setForcedChapterIds([])}>{t('resetSelection')}</button>}
         </div>
       </details>}
-      <label><span className="sr-only">Nachricht an den lokalen Assistenten</span><textarea value={draft} disabled={sending || status?.available === false} placeholder="Figur anlegen, Beziehung ändern, Timeline prüfen …" onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /></label>
-      {sending ? <button aria-label="Anfrage abbrechen" onClick={cancel}><Square /></button>
-        : <button aria-label="Nachricht senden" disabled={!draft.trim() || status?.available === false} onClick={() => void send()}><ArrowUp /></button>}
-      <small><BookOpen />Manuskript ist nur lesbarer Kontext. Änderungen werden nie automatisch angewendet.</small></footer>
-    {confirmNewChat && <ConfirmDialog title="Neuer Chat" description="Der aktuelle Gesprächsverlauf wird gelöscht. Das kann nicht rückgängig gemacht werden." confirmLabel="Neuer Chat starten" onConfirm={() => setEntries([])} onClose={() => setConfirmNewChat(false)} />}
+      <label><span className="sr-only">{t('messageToAssistantLabel')}</span><textarea value={draft} disabled={sending || status?.available === false} placeholder={t('messagePlaceholder')} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /></label>
+      {sending ? <button aria-label={t('cancelRequest')} onClick={cancel}><Square /></button>
+        : <button aria-label={t('sendMessage')} disabled={!draft.trim() || status?.available === false} onClick={() => void send()}><ArrowUp /></button>}
+      <small><BookOpen />{t('manuscriptReadOnlyNote')}</small></footer>
+    {confirmNewChat && <ConfirmDialog title={t('newChat')} description={t('newChatConfirmDescription')} confirmLabel={t('startNewChat')} onConfirm={() => setEntries([])} onClose={() => setConfirmNewChat(false)} />}
   </aside>;
 }
 
 function SourceList({ sources, onNavigate }: { sources: AssistantSource[]; onNavigate: (target: { workspace: Workspace; id: string }) => void }) {
-  return <div className="assistant-sources"><span>Quellen</span>{sources.map(source => <button key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>{source.title}</button>)}</div>;
+  const { t } = useLanguage();
+  return <div className="assistant-sources"><span>{t('sources')}</span>{sources.map(source => <button key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>{source.title}</button>)}</div>;
 }

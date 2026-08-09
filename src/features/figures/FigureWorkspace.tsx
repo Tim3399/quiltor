@@ -7,6 +7,7 @@ import { download } from '../../lib/api';
 import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
 import { figureJourney, journeyHandles, journeyLegs, momentIndex, patchPresence, presenceByPlace, presenceFieldEditor, prunePresence, resolvePresence, stopDateDiff } from './presence';
 import { formatMomentDate } from './date';
+import { useLanguage, type MessageKey } from '../../language';
 import {
   GRID_SIZE,
   alignNodesToGrid,
@@ -28,16 +29,17 @@ const nodeTypes = { story: StoryNode };
 const EMPTY_TIMELINE: TimelineMoment[] = [];
 const EMPTY_PRESENCE: PresenceEntry[] = [];
 const EMPTY_NODES: FigureNode[] = [];
-const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: string; nodeLabel: string; quick: boolean }> = [
-  { kind: 'person', label: 'Figur', initialName: 'Neue Figur', nodeLabel: 'Rolle', quick: true },
-  { kind: 'ort', label: 'Ort', initialName: 'Neuer Ort', nodeLabel: 'Ort', quick: true },
-  { kind: 'konzept', label: 'Konzept', initialName: 'Neues Konzept', nodeLabel: 'Konzept', quick: true },
-  { kind: 'tier', label: 'Tier', initialName: 'Neues Tier', nodeLabel: 'Art / Rolle', quick: false },
-  { kind: 'organisation', label: 'Organisation', initialName: 'Neue Organisation', nodeLabel: 'Art / Funktion', quick: false },
-  { kind: 'objekt', label: 'Objekt', initialName: 'Neues Objekt', nodeLabel: 'Art / Bedeutung', quick: false },
+const ELEMENT_TYPES: Array<{ kind: FigureKind; label: MessageKey; initialName: MessageKey; nodeLabel: MessageKey; quick: boolean }> = [
+  { kind: 'person', label: 'figure', initialName: 'newFigureName', nodeLabel: 'nodeRoleLabel', quick: true },
+  { kind: 'ort', label: 'place', initialName: 'newPlaceName', nodeLabel: 'place', quick: true },
+  { kind: 'konzept', label: 'concept', initialName: 'newConceptName', nodeLabel: 'concept', quick: true },
+  { kind: 'tier', label: 'animal', initialName: 'newAnimalName', nodeLabel: 'animalRoleLabel', quick: false },
+  { kind: 'organisation', label: 'organisation', initialName: 'newOrganisationName', nodeLabel: 'organisationRoleLabel', quick: false },
+  { kind: 'objekt', label: 'object', initialName: 'newObjectName', nodeLabel: 'objectRoleLabel', quick: false },
 ];
 
 function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
+  const { t } = useLanguage();
   const item = data.figure;
   const semanticScale = data.zoomTier === 'overview' ? 1 / Math.max(data.zoom, .08) : 1;
   return <div style={{ '--semantic-scale': semanticScale } as CSSProperties} className={`story-node zoom-${data.zoomTier} type-${item.type || 'person'} accent-${item.accent || 'ink'} ${item.important ? 'is-important' : ''} ${item.dash ? 'dashed' : ''} ${data.deceased ? 'is-deceased' : ''} ${data.guests.length ? 'has-guests' : ''} ${selected ? 'selected' : ''}`}>
@@ -45,8 +47,8 @@ function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
     <Handle id="neutral-top" className="neutral-handle" type="source" position={Position.Top} />
     <Handle id="journey-top" className="journey-handle" type="source" position={Position.Top} isConnectable={false} />
     <Handle id="journey-bottom" className="journey-handle" type="source" position={Position.Bottom} isConnectable={false} />
-    <span className="node-kind">{item.type !== 'person' ? kindLabel(item.type) : (item.label || 'Figur')}</span>
-    <strong>{item.important && <Star className="importance-mark" aria-label="Wichtig" />}{item.name}{data.deceased && <Skull aria-label="Verstorben" />}</strong>{item.sub && <small>{item.sub}</small>}
+    <span className="node-kind">{item.type !== 'person' ? kindLabel(item.type, t) : (item.label || t('figure'))}</span>
+    <strong>{item.important && <Star className="importance-mark" aria-label={t('important')} />}{item.name}{data.deceased && <Skull aria-label={t('deceased')} />}</strong>{item.sub && <small>{item.sub}</small>}
     {data.guests.length > 0 && <small className="node-guests">{data.guests.slice(0, 3).map(guest => guest.name).join(', ')}{data.guests.length > 3 ? ` +${data.guests.length - 3}` : ''}</small>}
     <Handle id="out" className="directed-handle outgoing-handle" type="source" position={Position.Right} />
     <Handle id="neutral-bottom" className="neutral-handle" type="source" position={Position.Bottom} />
@@ -80,6 +82,7 @@ export function FigureWorkspace(props: FigureWorkspaceProps) {
 }
 
 function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUndo = false, canRedo = false }: FigureWorkspaceProps) {
+  const { t } = useLanguage();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(true);
@@ -177,20 +180,20 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     const center = flow.current?.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }) ?? { x: 300, y: 250 };
     const position = snapToGrid ? { x: Math.round(center.x / GRID_SIZE) * GRID_SIZE, y: Math.round(center.y / GRID_SIZE) * GRID_SIZE } : center;
     const definition = ELEMENT_TYPES.find(item => item.kind === kind) ?? ELEMENT_TYPES[0];
-    const node: FigureNode = { id: uid('n'), x: position.x, y: position.y, type: kind, label: definition.nodeLabel, name: definition.initialName, sub: '', accent: 'ink', profile: { extra: [] } };
+    const node: FigureNode = { id: uid('n'), x: position.x, y: position.y, type: kind, label: t(definition.nodeLabel), name: t(definition.initialName), sub: '', accent: 'ink', profile: { extra: [] } };
     onChange({ ...state, nodes: [...state.nodes, node] }); setSelectedId(node.id); setCreateMenuOpen(false);
   };
   const connect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target) return;
     const kind = connectionKind(connection.sourceHandle, connection.targetHandle);
-    if (!kind) { setConnectionError('Verbinde rechts mit links für eine gerichtete Beziehung oder Mitte mit Mitte für eine ungerichtete.'); return; }
+    if (!kind) { setConnectionError(t('connectDirectedHelp')); return; }
     const duplicate = state.edges.find(edge => relationshipKey(edge.from, edge.to, !!edge.gerichtet) === relationshipKey(connection.source!, connection.target!, kind === 'directed'));
-    if (duplicate) { setSelectedId(duplicate.from); setConnecting(false); setConnectionError('Diese Beziehung existiert bereits und wurde im Inspector geöffnet.'); return; }
+    if (duplicate) { setSelectedId(duplicate.from); setConnecting(false); setConnectionError(t('relationExists')); return; }
     const uiEdge = addEdge(connection, edges).at(-1);
     const edge: FigureEdge = { id: uiEdge?.id || uid('e'), from: connection.source, to: connection.target, fromHandle: connection.sourceHandle || undefined, toHandle: connection.targetHandle || undefined, gerichtet: kind === 'directed', label: '', style: 'solid', ...(activeMomentId ? { active: false, versions: [{ momentId: activeMomentId, label: '', style: 'solid', gerichtet: kind === 'directed', active: true }] } : {}) };
     onChange({ ...state, edges: [...state.edges, edge] });
     setConnecting(false); setConnectionError('');
-  }, [activeMomentId, edges, onChange, state]);
+  }, [activeMomentId, edges, onChange, state, t]);
   const moveNodes = useCallback((changes: NodeChange<Node<CardData>>[]) => {
     setFlowNodes(current => applyNodeChanges(changes, current));
   }, []);
@@ -218,7 +221,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const exportProfiles = () => download(`Quiltor-Steckbriefe-${new Date().toISOString().slice(0, 10)}.md`, state.nodes.map(node => {
     const profile = node.profile || {}; const lines = [`# ${node.name}`, '', node.label ? `*${node.label}*` : '', node.sub || '', ''];
     PROFILE_FIELDS.forEach(([key, label]) => { const value = String(profile[key] || '').trim(); if (value) lines.push(`## ${label}`, '', value, ''); });
-    (profile.extra || []).forEach(field => { if (field.k || field.v) lines.push(`## ${field.k || 'Ohne Titel'}`, '', field.v || '', ''); });
+    (profile.extra || []).forEach(field => { if (field.k || field.v) lines.push(`## ${field.k || t('untitled')}`, '', field.v || '', ''); });
     return lines.filter((line, index) => line || lines[index - 1]).join('\n').trim();
   }).join('\n\n---\n\n'));
   const importState = async (file?: File) => {
@@ -227,23 +230,23 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
       const value = JSON.parse(await file.text()) as FigureState;
       if (!Array.isArray(value.nodes) || !Array.isArray(value.edges)) throw new Error();
       setPendingImport(value); setImportError('');
-    } catch { setImportError('Diese Datei enthält kein gültiges Figurendiagramm.'); }
+    } catch { setImportError(t('invalidDiagramFile')); }
     if (input.current) input.current.value = '';
   };
 
-  return <section className="figure-workspace" aria-label="Figuren und Beziehungen">
+  return <section className="figure-workspace" aria-label={t('figuresAndRelationsLabel')}>
     <div className="context-bar">
-      <div className="context-title"><strong>Figuren & Welt</strong><span>{state.nodes.length} Elemente · {state.edges.length} Verbindungen</span></div>
-      <div className="tool-group create-group"><div className="element-create" ref={createMenu}><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />Element</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{type.label}</button>)}</div>
-      <div className="tool-group"><button aria-pressed={connecting} className={connecting ? 'active' : ''} onClick={() => setConnecting(!connecting)}><Link2 />Verbinden</button></div>
-      <div className="tool-group"><button aria-pressed={snapToGrid} className={snapToGrid ? 'active' : ''} title={snapToGrid ? 'Raster ausblenden und frei verschieben · Alt/Option löst nur temporär' : 'Raster einblenden und Einrasten aktivieren'} onClick={() => setSnapToGrid(value => !value)}><Grid3X3 />Raster</button><button disabled={!state.nodes.length} title="Alle Elemente am Raster ausrichten" onClick={alignAllNodes}><LayoutGrid />Anordnen</button></div>
-      <div className="tool-group"><button aria-pressed={timelineOpen} className={timelineOpen ? 'active' : ''} onClick={() => setTimelineOpen(value => !value)}><Clock3 />Zeit</button><button aria-pressed={journeyOverlayOpen} className={journeyOverlayOpen ? 'active' : ''} onClick={() => setJourneyOverlayOpen(value => !value)}><MapPin />Wege</button></div>
-      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label="Diagramm rückgängig"><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label="Diagramm wiederholen"><Redo2 /></button></div>
-      <div className="tool-group"><button onClick={exportProfiles}><Download />Steckbriefe</button><button onClick={exportState}><Download />JSON</button><button onClick={() => input.current?.click()}><Upload />Import</button><input ref={input} hidden type="file" accept="application/json" onChange={event => void importState(event.target.files?.[0])} /></div>
+      <div className="context-title"><strong>{t('figuresWorld')}</strong><span>{state.nodes.length} {t('elements')} · {state.edges.length} {t('connections')}</span></div>
+      <div className="tool-group create-group"><div className="element-create" ref={createMenu}><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />{t('element')}</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{t(type.label)}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{t(type.label)}</button>)}</div>
+      <div className="tool-group"><button aria-pressed={connecting} className={connecting ? 'active' : ''} onClick={() => setConnecting(!connecting)}><Link2 />{t('connect')}</button></div>
+      <div className="tool-group"><button aria-pressed={snapToGrid} className={snapToGrid ? 'active' : ''} title={snapToGrid ? t('gridFreeModeHelp') : t('gridSnapModeHelp')} onClick={() => setSnapToGrid(value => !value)}><Grid3X3 />{t('grid')}</button><button disabled={!state.nodes.length} title={t('alignAllHelp')} onClick={alignAllNodes}><LayoutGrid />{t('arrangeGrid')}</button></div>
+      <div className="tool-group"><button aria-pressed={timelineOpen} className={timelineOpen ? 'active' : ''} onClick={() => setTimelineOpen(value => !value)}><Clock3 />{t('timeToggle')}</button><button aria-pressed={journeyOverlayOpen} className={journeyOverlayOpen ? 'active' : ''} onClick={() => setJourneyOverlayOpen(value => !value)}><MapPin />{t('pathsToggle')}</button></div>
+      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoDiagram')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoDiagram')}><Redo2 /></button></div>
+      <div className="tool-group"><button onClick={exportProfiles}><Download />{t('profiles')}</button><button onClick={exportState}><Download />JSON</button><button onClick={() => input.current?.click()}><Upload />{t('import')}</button><input ref={input} hidden type="file" accept="application/json" onChange={event => void importState(event.target.files?.[0])} /></div>
     </div>
     <div className="figure-layout">
       <div className={`flow-area zoom-${zoomTier} ${connecting ? 'is-connecting' : ''} ${playing ? 'timeline-playing' : ''}`}>
-        {connecting && <div className="mode-banner"><Link2 /><span>Rechts → links: gerichtet · Mitte ↔ Mitte: ungerichtet</span><button onClick={() => setConnecting(false)}><X /><span className="sr-only">Abbrechen</span></button></div>}
+        {connecting && <div className="mode-banner"><Link2 /><span>{t('connectModeHint')}</span><button onClick={() => setConnecting(false)}><X /><span className="sr-only">{t('cancel')}</span></button></div>}
         <ReactFlow nodes={nodes} edges={allEdges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; const zoom = instance.getZoom(); setViewportZoom(zoom); setZoomTier(semanticZoomTier(zoom)); }} onMove={(_, viewport) => { const zoom = Math.round(viewport.zoom * 100) / 100; setViewportZoom(current => current === zoom ? current : zoom); setZoomTier(current => { const next = semanticZoomTier(zoom); return current === next ? current : next; }); }}
           onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
           onNodesChange={moveNodes} onNodeDragStop={(_, node) => commitNodePosition(node.id, node.position)}
@@ -252,59 +255,61 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
         </ReactFlow>
         {timelineOpen && <TimelineStrip timeline={timeline} activeId={activeMomentId} playing={playing} onPlay={() => { if (!timeline.length) return; if (playing) { setPlaying(false); return; } if (!activeMomentId || activeMomentId === timeline.at(-1)?.id) setActiveMomentId(timeline[0].id); setPlaying(true); }} onSelect={id => { setPlaying(false); setActiveMomentId(id); }} onAdd={(title, date) => { const moment = { id: uid('t'), title, ...(date ? { date } : {}) }; onChange({ ...state, timeline: [...timeline, moment] }); setActiveMomentId(moment.id); }} onPatch={(id, patch) => onChange({ ...state, timeline: timeline.map(moment => moment.id === id ? { ...moment, ...patch } : moment) })} onDelete={moment => setDeleteMoment(moment)} />}
       </div>
-      <aside className={`inspector figure-inspector ${selected ? 'has-selection' : ''}`} aria-label="Figuren-Inspector">
-        <div className="panel-heading"><span>{selected ? 'Auswahl' : 'Inspector'}</span>{selected && <button className="icon-button" onClick={() => setSelectedId(null)} aria-label="Auswahl schließen"><X /></button>}</div>
-        {!selected ? <div className="empty-inspector"><UserRound /><h2>Element auswählen</h2><p>Wähle ein Element, um Details und Beziehungen zu bearbeiten.</p></div>
+      <aside className={`inspector figure-inspector ${selected ? 'has-selection' : ''}`} aria-label={t('figureInspectorLabel')}>
+        <div className="panel-heading"><span>{selected ? t('selection') : t('inspector')}</span>{selected && <button className="icon-button" onClick={() => setSelectedId(null)} aria-label={t('closeSelection')}><X /></button>}</div>
+        {!selected ? <div className="empty-inspector"><UserRound /><h2>{t('selectElement')}</h2><p>{t('selectElementHelp')}</p></div>
         : <FigureInspector figure={selected} state={state} activeMomentId={activeMomentId} onPatch={patch => patchNode(selected.id, patch)} onState={onChange} onDelete={() => setConfirmDelete(true)} onSelectMoment={id => { setPlaying(false); setActiveMomentId(id); }} />}
       </aside>
     </div>
-    {importError && <div className="toast error-box" role="alert">{importError}<button onClick={() => setImportError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
-    {connectionError && <div className="toast error-box" role="status">{connectionError}<button onClick={() => setConnectionError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
-    {selected && confirmDelete && <ConfirmDialog title="Element löschen" description={`„${selected.name}“ und alle zugehörigen Verbindungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Element löschen" holdDurationMs={DELETE_HOLD_MS} onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
-    {pendingImport && <ConfirmDialog title="Diagramm importieren" description={`${pendingImport.nodes.length} Elemente und ${pendingImport.edges.length} Verbindungen ersetzen den aktuellen Stand. Vorher wird automatisch gesichert.`} confirmLabel="Importieren" onConfirm={() => { onChange(pendingImport); setSelectedId(null); setPendingImport(null); }} onClose={() => setPendingImport(null)} />}
-    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ wird aus dem Zeitstreifen entfernt. Beziehungsänderungen an diesem Zeitpunkt fallen auf den vorherigen Stand zurück.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={DELETE_HOLD_MS} onConfirm={() => { onChange({ ...state, timeline: timeline.filter(moment => moment.id !== deleteMoment.id), edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); if (activeMomentId === deleteMoment.id) setActiveMomentId(null); }} onClose={() => setDeleteMoment(null)} />}
+    {importError && <div className="toast error-box" role="alert">{importError}<button onClick={() => setImportError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
+    {connectionError && <div className="toast error-box" role="status">{connectionError}<button onClick={() => setConnectionError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
+    {selected && confirmDelete && <ConfirmDialog title={t('deleteElement')} description={t('deleteElementDescription').replace('{name}', selected.name)} confirmLabel={t('deleteElement')} holdDurationMs={DELETE_HOLD_MS} onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
+    {pendingImport && <ConfirmDialog title={t('importDiagram')} description={t('importDiagramDescription').replace('{nodes}', String(pendingImport.nodes.length)).replace('{edges}', String(pendingImport.edges.length))} confirmLabel={t('importAction')} onConfirm={() => { onChange(pendingImport); setSelectedId(null); setPendingImport(null); }} onClose={() => setPendingImport(null)} />}
+    {deleteMoment && <ConfirmDialog title={t('deleteTimeMoment')} description={t('deleteTimeMomentDescription').replace('{title}', deleteMoment.title)} confirmLabel={t('deleteTimeMoment')} holdDurationMs={DELETE_HOLD_MS} onConfirm={() => { onChange({ ...state, timeline: timeline.filter(moment => moment.id !== deleteMoment.id), edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); if (activeMomentId === deleteMoment.id) setActiveMomentId(null); }} onClose={() => setDeleteMoment(null)} />}
   </section>;
 }
 
 function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDelete, onSelectMoment }: { figure: FigureNode; state: FigureState; activeMomentId: string | null; onPatch: (patch: Partial<FigureNode>) => void; onState: (state: FigureState) => void; onDelete: () => void; onSelectMoment: (id: string | null) => void }) {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<'card' | 'profile' | 'links'>('card');
   const profile = figure.profile || { extra: [] };
   const patchProfile = (patch: Partial<Profile>) => onPatch({ profile: { ...profile, ...patch } });
   const linked = state.edges.filter(edge => edge.from === figure.id || edge.to === figure.id);
   return <>
-    <div className="panel-tabs three" role="tablist"><button role="tab" aria-selected={tab === 'card'} onClick={() => setTab('card')}>Karte</button><button role="tab" aria-selected={tab === 'profile'} onClick={() => setTab('profile')}>Steckbrief</button><button role="tab" aria-selected={tab === 'links'} onClick={() => setTab('links')}>Beziehungen</button></div>
+    <div className="panel-tabs three" role="tablist"><button role="tab" aria-selected={tab === 'card'} onClick={() => setTab('card')}>{t('card')}</button><button role="tab" aria-selected={tab === 'profile'} onClick={() => setTab('profile')}>{t('profile')}</button><button role="tab" aria-selected={tab === 'links'} onClick={() => setTab('links')}>{t('relationships')}</button></div>
     <div className="panel-body">
       {tab === 'card' && <>
-        <label className="field"><span>Art</span><select value={figure.type || 'person'} onChange={event => onPatch({ type: event.target.value as FigureKind })}><option value="person">Figur</option><option value="tier">Tier</option><option value="ort">Ort</option><option value="organisation">Organisation</option><option value="objekt">Objekt</option><option value="konzept">Konzept</option></select></label>
-        <label className="field"><span>Name</span><input value={figure.name} onChange={event => onPatch({ name: event.target.value })} /></label>
-        <label className="field"><span>Rolle / Kategorie</span><input value={figure.label || ''} onChange={event => onPatch({ label: event.target.value })} /></label>
-        <label className="field"><span>Kurzbeschreibung</span><textarea value={figure.sub || ''} onChange={event => onPatch({ sub: event.target.value })} /></label>
-        <label className="field"><span>Akzent</span><select value={figure.accent || 'ink'} onChange={event => onPatch({ accent: event.target.value as FigureNode['accent'] })}><option value="ink">Neutral</option><option value="gold">Gold</option><option value="rose">Rosa</option><option value="moss">Grün</option></select></label>
+        <label className="field"><span>{t('kind')}</span><select value={figure.type || 'person'} onChange={event => onPatch({ type: event.target.value as FigureKind })}><option value="person">{t('figure')}</option><option value="tier">{t('animal')}</option><option value="ort">{t('place')}</option><option value="organisation">{t('organisation')}</option><option value="objekt">{t('object')}</option><option value="konzept">{t('concept')}</option></select></label>
+        <label className="field"><span>{t('name')}</span><input value={figure.name} onChange={event => onPatch({ name: event.target.value })} /></label>
+        <label className="field"><span>{t('category')}</span><input value={figure.label || ''} onChange={event => onPatch({ label: event.target.value })} /></label>
+        <label className="field"><span>{t('shortDescription')}</span><textarea value={figure.sub || ''} onChange={event => onPatch({ sub: event.target.value })} /></label>
+        <label className="field"><span>{t('accent')}</span><select value={figure.accent || 'ink'} onChange={event => onPatch({ accent: event.target.value as FigureNode['accent'] })}><option value="ink">{t('neutral')}</option><option value="gold">{t('gold')}</option><option value="rose">{t('rose')}</option><option value="moss">{t('green')}</option></select></label>
         <div className="node-priority-actions">
-          <button className={figure.important ? 'active' : ''} aria-pressed={!!figure.important} onClick={() => onPatch({ important: !figure.important })}><Star />{figure.important ? 'Nicht mehr wichtig' : 'Als wichtig markieren'}</button>
-          <button className={figure.pinned ? 'active' : ''} aria-pressed={!!figure.pinned} onClick={() => onPatch({ pinned: !figure.pinned })}><Pin />{figure.pinned ? 'Position lösen' : 'Position fixieren'}</button>
+          <button className={figure.important ? 'active' : ''} aria-pressed={!!figure.important} onClick={() => onPatch({ important: !figure.important })}><Star />{figure.important ? t('unmarkImportant') : t('markImportant')}</button>
+          <button className={figure.pinned ? 'active' : ''} aria-pressed={!!figure.pinned} onClick={() => onPatch({ pinned: !figure.pinned })}><Pin />{figure.pinned ? t('unpinPosition') : t('pinPosition')}</button>
         </div>
-        {activeMomentId && figure.type !== 'ort' && figure.type !== 'konzept' && <button className={`timeline-life-action ${figure.diedMomentId === activeMomentId ? 'active' : ''}`} onClick={() => onPatch({ diedMomentId: figure.diedMomentId === activeMomentId ? undefined : activeMomentId })}><Skull />{figure.diedMomentId === activeMomentId ? 'Todesmarkierung entfernen' : 'Stirbt hier'}</button>}
+        {activeMomentId && figure.type !== 'ort' && figure.type !== 'konzept' && <button className={`timeline-life-action ${figure.diedMomentId === activeMomentId ? 'active' : ''}`} onClick={() => onPatch({ diedMomentId: figure.diedMomentId === activeMomentId ? undefined : activeMomentId })}><Skull />{figure.diedMomentId === activeMomentId ? t('unmarkDeath') : t('diesHere')}</button>}
         {(figure.type === 'person' || figure.type === 'tier') && <PresenceField figure={figure} state={state} activeMomentId={activeMomentId} onState={onState} onSelectMoment={onSelectMoment} />}
       </>}
-      {tab === 'profile' && <>{PROFILE_FIELDS.map(([key, label, size]) => <label className="field" key={key as string}><span>{label}</span>{size === 'short' ? <input value={String(profile[key] || '')} onChange={event => patchProfile({ [key]: event.target.value })} /> : <textarea value={String(profile[key] || '')} onChange={event => patchProfile({ [key]: event.target.value })} />}</label>)}
-        <h3 className="section-label">Eigene Felder</h3>{(profile.extra || []).map((field, index) => <div className="custom-field" key={index}><input aria-label="Feldname" placeholder="Feldname" value={field.k} onChange={event => patchProfile({ extra: (profile.extra || []).map((item, i) => i === index ? { ...item, k: event.target.value } : item) })} /><textarea aria-label={`${field.k || 'Eigenes Feld'} Inhalt`} placeholder="Inhalt" value={field.v} onChange={event => patchProfile({ extra: (profile.extra || []).map((item, i) => i === index ? { ...item, v: event.target.value } : item) })} /><button className="icon-button danger-text" aria-label="Eigenes Feld entfernen" onClick={() => patchProfile({ extra: (profile.extra || []).filter((_, i) => i !== index) })}><Trash2 /></button></div>)}
-        <button className="secondary-action" onClick={() => patchProfile({ extra: [...(profile.extra || []), { k: '', v: '' }] })}><Plus />Eigenes Feld</button>
+      {tab === 'profile' && <>{PROFILE_FIELDS.map(([key, label, size]) => <label className="field" key={key as string}><span>{t(label)}</span>{size === 'short' ? <input value={String(profile[key] || '')} onChange={event => patchProfile({ [key]: event.target.value })} /> : <textarea value={String(profile[key] || '')} onChange={event => patchProfile({ [key]: event.target.value })} />}</label>)}
+        <h3 className="section-label">{t('customFields')}</h3>{(profile.extra || []).map((field, index) => <div className="custom-field" key={index}><input aria-label={t('fieldName')} placeholder={t('fieldName')} value={field.k} onChange={event => patchProfile({ extra: (profile.extra || []).map((item, i) => i === index ? { ...item, k: event.target.value } : item) })} /><textarea aria-label={`${field.k || t('customField')} ${t('content')}`} placeholder={t('content')} value={field.v} onChange={event => patchProfile({ extra: (profile.extra || []).map((item, i) => i === index ? { ...item, v: event.target.value } : item) })} /><button className="icon-button danger-text" aria-label={t('removeCustomField')} onClick={() => patchProfile({ extra: (profile.extra || []).filter((_, i) => i !== index) })}><Trash2 /></button></div>)}
+        <button className="secondary-action" onClick={() => patchProfile({ extra: [...(profile.extra || []), { k: '', v: '' }] })}><Plus />{t('customField')}</button>
       </>}
       {tab === 'links' && <div className="relation-list">{linked.length ? linked.map(edge => {
         const resolved = resolveRelationship(edge, state.timeline || [], activeMomentId);
         const labelEditor = relationshipLabelEditor(edge, state.timeline || [], activeMomentId);
         const otherId = resolved.from === figure.id ? resolved.to : resolved.from; const other = state.nodes.find(node => node.id === otherId);
         const patchEdge = (patch: Partial<FigureEdge>) => onState({ ...state, edges: state.edges.map(item => item.id === edge.id ? patchRelationship(item, state.timeline || [], activeMomentId, patch) : item) });
-        const directionLabel = `Richtung umkehren: ${state.nodes.find(node => node.id === resolved.from)?.name || 'Unbekannt'} nach ${state.nodes.find(node => node.id === resolved.to)?.name || 'Unbekannt'}`;
-        return <div key={edge.id} className={!resolved.active ? 'outside-moment' : ''}><div>{resolved.gerichtet ? <button type="button" className="relation-direction" aria-label={directionLabel} title={directionLabel} disabled={!resolved.active} onClick={() => patchEdge({ from: resolved.to, to: resolved.from })}>{resolved.from === figure.id ? '→' : '←'}</button> : <span className="relation-undirected" aria-label="Ungerichtete Beziehung" title="Ungerichtete Beziehung">↔</span>}<strong>{other?.name || 'Unbekannt'}</strong>{activeMomentId && <small>{resolved.active ? 'Gilt hier' : 'Hier nicht aktiv'}</small>}</div><label className="relationship-label-editor"><span className="sr-only">Beziehung zu {other?.name}</span><input aria-label={`Beziehung zu ${other?.name}`} value={labelEditor.value} placeholder={labelEditor.inherited || 'Beziehung benennen'} disabled={!resolved.active} onChange={event => patchEdge({ label: event.target.value })} /></label><button className="icon-button danger-text" aria-label="Verbindung löschen" onClick={() => onState({ ...state, edges: state.edges.filter(item => item.id !== edge.id) })}><Trash2 /></button><select aria-label="Linienstil" value={resolved.style || 'solid'} disabled={!resolved.active} onChange={event => patchEdge({ style: event.target.value as (typeof edge.style) })}><option value="solid">Normal</option><option value="dashed">Gestrichelt</option><option value="blood">Lebenskette</option><option value="gold">Gold</option></select><label className="check-field"><input type="checkbox" checked={!!resolved.gerichtet} disabled={!resolved.active} onChange={event => patchEdge({ gerichtet: event.target.checked })} />Gerichtet</label>{activeMomentId && <button className="relation-toggle" onClick={() => patchEdge({ active: !resolved.active })}>{resolved.active ? 'Beziehung endet hier' : 'Ab hier beginnen'}</button>}</div>;
-      }) : <p className="muted">Noch keine Beziehungen.</p>}</div>}
-      <button className="danger-text inspector-delete" onClick={onDelete}><Trash2 />{kindLabel(figure.type)} löschen</button>
+        const directionLabel = t('reverseDirectionTo').replace('{from}', state.nodes.find(node => node.id === resolved.from)?.name || t('unknown')).replace('{to}', state.nodes.find(node => node.id === resolved.to)?.name || t('unknown'));
+        return <div key={edge.id} className={!resolved.active ? 'outside-moment' : ''}><div>{resolved.gerichtet ? <button type="button" className="relation-direction" aria-label={directionLabel} title={directionLabel} disabled={!resolved.active} onClick={() => patchEdge({ from: resolved.to, to: resolved.from })}>{resolved.from === figure.id ? '→' : '←'}</button> : <span className="relation-undirected" aria-label={t('undirectedRelation')} title={t('undirectedRelation')}>↔</span>}<strong>{other?.name || t('unknown')}</strong>{activeMomentId && <small>{resolved.active ? t('appliesHere') : t('notActiveHere')}</small>}</div><label className="relationship-label-editor"><span className="sr-only">{t('relationToName').replace('{name}', other?.name || '')}</span><input aria-label={t('relationToName').replace('{name}', other?.name || '')} value={labelEditor.value} placeholder={labelEditor.inherited || t('nameRelationship')} disabled={!resolved.active} onChange={event => patchEdge({ label: event.target.value })} /></label><button className="icon-button danger-text" aria-label={t('deleteConnection')} onClick={() => onState({ ...state, edges: state.edges.filter(item => item.id !== edge.id) })}><Trash2 /></button><select aria-label={t('lineStyle')} value={resolved.style || 'solid'} disabled={!resolved.active} onChange={event => patchEdge({ style: event.target.value as (typeof edge.style) })}><option value="solid">{t('normal')}</option><option value="dashed">{t('dashed')}</option><option value="blood">{t('bloodline')}</option><option value="gold">{t('gold')}</option></select><label className="check-field"><input type="checkbox" checked={!!resolved.gerichtet} disabled={!resolved.active} onChange={event => patchEdge({ gerichtet: event.target.checked })} />{t('directed')}</label>{activeMomentId && <button className="relation-toggle" onClick={() => patchEdge({ active: !resolved.active })}>{resolved.active ? t('relationEndsHere') : t('relationStartsHere')}</button>}</div>;
+      }) : <p className="muted">{t('noRelationshipsYet')}</p>}</div>}
+      <button className="danger-text inspector-delete" onClick={onDelete}><Trash2 />{t('deleteKind').replace('{kind}', kindLabel(figure.type, t))}</button>
     </div>
   </>;
 }
 
 function PresenceField({ figure, state, activeMomentId, onState, onSelectMoment }: { figure: FigureNode; state: FigureState; activeMomentId: string | null; onState: (state: FigureState) => void; onSelectMoment: (id: string | null) => void }) {
+  const { t } = useLanguage();
   const timeline = state.timeline ?? EMPTY_TIMELINE;
   const presence = state.presence ?? EMPTY_PRESENCE;
   const places = state.nodes.filter(node => node.type === 'ort');
@@ -315,24 +320,25 @@ function PresenceField({ figure, state, activeMomentId, onState, onSelectMoment 
   const currentStopIndex = stops.reduce<number>((found, stop, index) => stop.index <= activeIndex ? index : found, -1);
   return <div className="presence-field-group">
     <label className="field presence-field">
-      <span>{activeMomentId ? `Ort ab „${timeline.find(moment => moment.id === activeMomentId)?.title ?? ''}“` : 'Ort · Ausgangslage'}</span>
+      <span>{activeMomentId ? t('placeSinceMoment').replace('{title}', timeline.find(moment => moment.id === activeMomentId)?.title ?? '') : t('placeInitial')}</span>
       {places.length ? <select value={editor.placeId} onChange={event => onState({ ...state, presence: patchPresence(presence, figure.id, activeMomentId, event.target.value || null) })}>
-        <option value="">{activeMomentId ? `Unverändert${inheritedName ? ' · ' + inheritedName : ''}` : 'Kein Ort'}</option>
+        <option value="">{activeMomentId ? `${t('unchanged')}${inheritedName ? ' · ' + inheritedName : ''}` : t('noPlace')}</option>
         {places.map(place => <option key={place.id} value={place.id}>{place.name}</option>)}
-      </select> : <p className="muted">Lege zuerst einen Ort an.</p>}
+      </select> : <p className="muted">{t('createPlaceFirst')}</p>}
     </label>
     {stops.length > 0 && <div className="presence-journey">{stops.flatMap((stop, index) => {
       const place = state.nodes.find(node => node.id === stop.placeId);
-      const button = <button key={`${stop.momentId ?? 'base'}-${index}`} className={index === currentStopIndex ? 'active' : ''} onClick={() => onSelectMoment(stop.momentId ?? null)}>{place?.name ?? 'Unbekannt'}</button>;
+      const button = <button key={`${stop.momentId ?? 'base'}-${index}`} className={index === currentStopIndex ? 'active' : ''} onClick={() => onSelectMoment(stop.momentId ?? null)}>{place?.name ?? t('unknown')}</button>;
       return index > 0 ? [<small key={`gap-${index}`} className="presence-journey-duration">{stopDateDiff(stops[index - 1], stop, timeline).label}</small>, button] : [button];
     })}</div>}
   </div>;
 }
 
 function TimelineStrip({ timeline, activeId, playing, onPlay, onSelect, onAdd, onPatch, onDelete }: { timeline: TimelineMoment[]; activeId: string | null; playing: boolean; onPlay: () => void; onSelect: (id: string | null) => void; onAdd: (title: string, date?: string) => void; onPatch: (id: string, patch: Partial<TimelineMoment>) => void; onDelete: (moment: TimelineMoment) => void }) {
+  const { t } = useLanguage();
   const [draft, setDraft] = useState(''), [draftDate, setDraftDate] = useState('');
   const add = () => { const title = draft.trim(); if (!title) return; onAdd(title, draftDate || undefined); setDraft(''); setDraftDate(''); };
   const active = timeline.find(moment => moment.id === activeId);
-  return <div className={`timeline-strip ${playing ? 'is-playing' : ''}`} aria-label="Beziehungs-Zeitstreifen"><div className="timeline-heading"><Clock3 /><span>Zeit</span><button className="timeline-play" disabled={!timeline.length} aria-label={playing ? 'Zeitreise pausieren' : 'Zeitreise abspielen'} onClick={onPlay}>{playing ? <Pause /> : <Play />}</button><button className={!activeId ? 'active' : ''} aria-pressed={!activeId} onClick={() => onSelect(null)}>Gesamtsicht</button></div><div className="timeline-track">{timeline.map((moment, index) => <div className="timeline-moment" key={moment.id}><span aria-hidden="true">{index + 1}</span><button className={activeId === moment.id ? 'active' : ''} aria-pressed={activeId === moment.id} onClick={() => onSelect(moment.id)}><b>{moment.title}</b>{moment.date && <small>{formatMomentDate(moment.date)}</small>}</button></div>)}</div><div className="timeline-add"><input aria-label="Neuer Zeitpunkt" value={draft} placeholder="Neuer Zeitpunkt" onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} /><input className="timeline-date" type="date" aria-label="Datum des neuen Zeitpunkts" value={draftDate} onChange={event => setDraftDate(event.target.value)} /><button className="icon-button" disabled={!draft.trim()} aria-label="Zeitpunkt hinzufügen" onClick={add}><Plus /></button></div>{active && <div className="timeline-details"><label><span>Name</span><input value={active.title} onChange={event => onPatch(active.id, { title: event.target.value })} /></label><label><span>Datum · optional</span><input type="date" value={active.date || ''} onChange={event => onPatch(active.id, { date: event.target.value || undefined })} /></label><label><span>Notiz · optional</span><input value={active.note || ''} placeholder="Kapitel, Zeitsprung, Ereignis …" onChange={event => onPatch(active.id, { note: event.target.value })} /></label><button className="icon-button danger-text" aria-label="Zeitpunkt löschen" onClick={() => onDelete(active)}><Trash2 /></button></div>}</div>;
+  return <div className={`timeline-strip ${playing ? 'is-playing' : ''}`} aria-label={t('timelineStripLabel')}><div className="timeline-heading"><Clock3 /><span>{t('timeToggle')}</span><button className="timeline-play" disabled={!timeline.length} aria-label={playing ? t('pauseTimeTravel') : t('playTimeTravel')} onClick={onPlay}>{playing ? <Pause /> : <Play />}</button><button className={!activeId ? 'active' : ''} aria-pressed={!activeId} onClick={() => onSelect(null)}>{t('overview')}</button></div><div className="timeline-track">{timeline.map((moment, index) => <div className="timeline-moment" key={moment.id}><span aria-hidden="true">{index + 1}</span><button className={activeId === moment.id ? 'active' : ''} aria-pressed={activeId === moment.id} onClick={() => onSelect(moment.id)}><b>{moment.title}</b>{moment.date && <small>{formatMomentDate(moment.date)}</small>}</button></div>)}</div><div className="timeline-add"><input aria-label={t('newMoment')} value={draft} placeholder={t('newMoment')} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} /><input className="timeline-date" type="date" aria-label={t('newMomentDate')} value={draftDate} onChange={event => setDraftDate(event.target.value)} /><button className="icon-button" disabled={!draft.trim()} aria-label={t('addMoment')} onClick={add}><Plus /></button></div>{active && <div className="timeline-details"><label><span>{t('name')}</span><input value={active.title} onChange={event => onPatch(active.id, { title: event.target.value })} /></label><label><span>{t('optionalDate')}</span><input type="date" value={active.date || ''} onChange={event => onPatch(active.id, { date: event.target.value || undefined })} /></label><label><span>{t('optionalNote')}</span><input value={active.note || ''} placeholder={t('momentNotePlaceholder')} onChange={event => onPatch(active.id, { note: event.target.value })} /></label><button className="icon-button danger-text" aria-label={t('deleteTimeMoment')} onClick={() => onDelete(active)}><Trash2 /></button></div>}</div>;
 }
 

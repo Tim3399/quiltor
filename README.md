@@ -201,7 +201,9 @@ python3 -m unittest discover -s tests/backend -v
 npm run test:e2e
 ```
 
-Der Build prüft TypeScript und verhindert Farbliterale außerhalb von `src/design/colors.css`. Browsertests decken Desktop und kompakte Ansichten, Light/Dark Mode, Autosave, Konflikte und die Kernansichten gegen WCAG A/AA ab.
+Der Build prüft TypeScript und verhindert Farb-, Abstands-, Rundungs-, Schatten-, Schriftgrößen- und z-index-Literale außerhalb von `src/design/colors.css` bzw. `src/design/tokens.css`. Browsertests decken Desktop und kompakte Ansichten, Light/Dark Mode, Autosave, Konflikte und die Kernansichten gegen WCAG A/AA ab.
+
+`npm run check:i18n` durchsucht `.tsx`-Dateien heuristisch nach hartcodiertem deutschem Text außerhalb von `t()`-Aufrufen (alle Oberflächentexte sollten stattdessen aus `src/language/{de,en}/*.ts` kommen). Der Check ist kein echter JSX-Parser und daher nicht Teil des Builds — er dient als Stichprobe, nicht als vollständiges Gate.
 
 Demo-Screenshots lassen sich reproduzierbar gegen einen separaten Testserver erzeugen:
 
@@ -216,7 +218,7 @@ backend/                    SQLite, Backups, Retrieval, Assistant, Git, Keycloak
 mcp/                        Read- und Proposal-only MCP-Server
 src/
 ├── app/                    App-Shell und Navigation
-├── design/colors.css       sämtliche Light-/Dark-Farbtokens
+├── design/                 Farb- und Gestaltungstokens (colors.css, tokens.css)
 ├── features/
 │   ├── manuscript/         Editor, Fokusmodus und Schreibhilfen
 │   ├── figures/            Weltgraph und Beziehungslogik
@@ -225,7 +227,7 @@ src/
 │   ├── tools/              Suche, Verlauf, Git und Backups
 │   └── worlds/             Weltwahl und Erstellung
 ├── hooks/                  Autosave, Theme und Undo/Redo
-├── i18n/                   deutsche und englische Oberfläche
+├── language/               deutsche und englische Oberfläche, je ein Ordner pro Sprache mit Dateien pro Anwendungsbereich
 ├── lib/                    API und Exporte
 └── shared/ui/              wiederverwendbare UI-Bausteine
 ```

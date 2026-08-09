@@ -17,10 +17,12 @@ import { AssistantDrawer } from './features/assistant/AssistantDrawer';
 import { applyAssistantProposals } from './features/assistant/proposals';
 import { TimelineWorkspace } from './features/timeline/TimelineWorkspace';
 import { PlacesWorkspace } from './features/places/PlacesWorkspace';
+import { useLanguage } from './language';
 
 type Overlay = 'search' | 'commands' | 'history' | 'git' | 'backups' | null;
 
 export function App() {
+  const { t } = useLanguage();
   const { theme, preference, setPreference, toggleTheme } = useTheme();
   const [workspace, setWorkspace] = useState<Workspace>('text');
   const manuscriptHistory = useHistoryState<Manuscript>(), figureHistory = useHistoryState<FigureState>();
@@ -66,17 +68,18 @@ export function App() {
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   }, [focus, flushAll, workspace, manuscriptHistory.undo, manuscriptHistory.redo, figureHistory.undo, figureHistory.redo]);
 
-  if (worlds === null) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>Welten werden geladen …</p></main>;
+  const [restartPrefix, restartSuffix] = t('restartServerHint').split('{code}');
+  if (worlds === null) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>{t('loadingWorlds')}</p></main>;
   if (!world) return <WorldGate worlds={worlds} theme={preference} onTheme={setPreference} error={loadError} onOpen={id => loadWorld(api.openWorld(id))} onCreate={(title, gitUrl) => loadWorld(api.createWorld(title, gitUrl))} onDelete={async id => { await api.deleteWorld(id); const result = await api.worlds(); setWorlds(result.worlds); }} />;
-  if (loadError) return <main className="fatal-state"><h1>Werkstatt nicht erreichbar</h1><p>{loadError}</p><p>Starte den lokalen Server mit <code>python3 server.py</code> und lade die Seite neu.</p></main>;
-  if (!manuscript || !figures) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>Werkstatt wird geöffnet …</p></main>;
+  if (loadError) return <main className="fatal-state"><h1>{t('unreachable')}</h1><p>{loadError}</p><p>{restartPrefix}<code>python3 server.py</code>{restartSuffix}</p></main>;
+  if (!manuscript || !figures) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>{t('openingWorkshop')}</p></main>;
   return <>
     <AppShell title={world.title} workspace={workspace} onWorkspace={value => { setWorkspace(value); setFocus(false); }} phase={activeSave.phase} error={activeSave.error} retry={activeSave.retry} theme={theme} onTheme={toggleTheme}
       onSearch={() => setOverlay('search')} onCommands={() => setOverlay('commands')} onHistory={() => setOverlay('history')} onGit={() => setOverlay('git')} onBackups={() => setOverlay('backups')} onAssistant={() => setAssistantOpen(value => !value)}
       whoami={whoami} onLogout={logout} version={version}>
       {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} onChange={manuscriptHistory.change} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} /> : workspace === 'figures' ? <FigureWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : workspace === 'timeline' ? <TimelineWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'timeline' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : <PlacesWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'places' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} onOpen={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
     </AppShell>
-    {assistantOpen && <AssistantDrawer worldId={world.id} figures={figures} chapters={manuscript.chapters} onClose={() => setAssistantOpen(false)} onApply={proposals => { figureHistory.change(applyAssistantProposals(figures, proposals)); setWorkspace('figures'); setFocus(false); }} onNavigate={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
+    {assistantOpen && <AssistantDrawer worldId={world.id} figures={figures} chapters={manuscript.chapters} onClose={() => setAssistantOpen(false)} onApply={proposals => { figureHistory.change(applyAssistantProposals(figures, proposals, t)); setWorkspace('figures'); setFocus(false); }} onNavigate={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
     {(overlay === 'search' || overlay === 'commands') && <SearchDialog mode={overlay} manuscript={manuscript} figures={figures} onClose={() => setOverlay(null)} onWorkspace={setWorkspace} onSelect={setTarget} onCommand={executeCommand} />}
     {overlay === 'git' && <GitDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'history' && <HistoryDialog onClose={() => setOverlay(null)} flush={flushAll} />}

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { applyAssistantProposals } from './proposals';
+import { de } from '../../language/de';
+import type { MessageKey } from '../../language';
+
+const t = (key: MessageKey) => de[key];
 
 describe('assistant proposals', () => {
   it('creates linked elements, a moment and a temporal relationship without touching manuscript data', () => {
@@ -9,7 +13,7 @@ describe('assistant proposals', () => {
       { kind: 'create_timeline_moment', tempId: 'new:m', moment: { title: 'Begegnung' } },
       { kind: 'create_relationship', relationship: { from: 'new:a', to: 'new:b', label: 'Misstrauen', directed: false } },
       { kind: 'mark_deceased', elementId: 'new:b', momentId: 'new:m' },
-    ]);
+    ], t);
     expect(result.nodes.map(node => node.name)).toEqual(['Ada', 'Bela']);
     expect(result.edges[0]).toMatchObject({ label: 'Misstrauen', gerichtet: false });
     expect(result.nodes[1].diedMomentId).toBe(result.timeline?.[0].id);
@@ -21,7 +25,7 @@ describe('assistant proposals', () => {
       { id: 'b', x: 720, y: 520, type: 'person' as const, name: 'Bela' },
       { id: 'c', x: 740, y: 540, type: 'ort' as const, name: 'Cella' },
     ], edges: [{ id: 'e', from: 'a', to: 'b', label: 'Verbündet' }] };
-    const result = applyAssistantProposals(state, [{ kind: 'arrange_elements', strategy: 'thematic' }]);
+    const result = applyAssistantProposals(state, [{ kind: 'arrange_elements', strategy: 'thematic' }], t);
     expect(result.nodes).toHaveLength(3);
     expect(result.edges).toEqual(state.edges);
     expect(new Set(result.nodes.map(node => `${node.x}:${node.y}`)).size).toBe(3);

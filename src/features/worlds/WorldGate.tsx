@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BookOpen, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import type { WorldInfo } from '../../types';
-import { useLanguage } from '../../i18n/languages';
+import { useLanguage } from '../../language';
 import { PRODUCT_MARK, PRODUCT_NAME } from '../../config/branding';
 import type { ThemePreference } from '../../hooks/useTheme';
 import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';

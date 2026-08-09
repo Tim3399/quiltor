@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PresenceBoard } from './PresenceBoard';
+import { LanguageProvider } from '../../language';
 import type { FigureNode, PresenceEntry, TimelineMoment } from '../../types';
 
 afterEach(cleanup);
@@ -9,6 +10,10 @@ const timeline: TimelineMoment[] = [{ id: 'm1', title: 'Erster Zeitpunkt' }];
 const ada: FigureNode = { id: 'ada', x: 0, y: 0, name: 'Ada', type: 'person' };
 const arcene: FigureNode = { id: 'arcene', x: 0, y: 0, name: 'Arcène', type: 'ort' };
 const hafen: FigureNode = { id: 'hafen', x: 0, y: 0, name: 'Hafen', type: 'ort' };
+
+function renderBoard(props: React.ComponentProps<typeof PresenceBoard>) {
+  return render(<LanguageProvider><PresenceBoard {...props} /></LanguageProvider>);
+}
 
 function makeDataTransfer(nodeId: string) {
   return { setData: vi.fn(), getData: () => nodeId };
@@ -25,7 +30,7 @@ function lane(name: string) {
 describe('PresenceBoard', () => {
   it('assigns a place when a character chip is dragged onto a lane', () => {
     const onPatch = vi.fn();
-    render(<PresenceBoard nodes={[ada]} places={[arcene, hafen]} presence={[]} timeline={timeline} momentId="m1" onPatch={onPatch} />);
+    renderBoard({ nodes: [ada], places: [arcene, hafen], presence: [], timeline, momentId: 'm1', onPatch });
     const dataTransfer = makeDataTransfer('ada');
     fireEvent.dragStart(chip('Ada'), { dataTransfer });
     fireEvent.dragOver(lane('Hafen'), { dataTransfer });
@@ -35,7 +40,7 @@ describe('PresenceBoard', () => {
 
   it('assigns a place via the click-click accessibility fallback', () => {
     const onPatch = vi.fn();
-    render(<PresenceBoard nodes={[ada]} places={[arcene, hafen]} presence={[]} timeline={timeline} momentId="m1" onPatch={onPatch} />);
+    renderBoard({ nodes: [ada], places: [arcene, hafen], presence: [], timeline, momentId: 'm1', onPatch });
     fireEvent.click(chip('Ada'));
     fireEvent.click(lane('Arcène'));
     expect(onPatch).toHaveBeenCalledWith('ada', 'arcene');
@@ -43,7 +48,7 @@ describe('PresenceBoard', () => {
 
   it('deselects a chip when clicked twice, without assigning it anywhere', () => {
     const onPatch = vi.fn();
-    render(<PresenceBoard nodes={[ada]} places={[arcene, hafen]} presence={[]} timeline={timeline} momentId="m1" onPatch={onPatch} />);
+    renderBoard({ nodes: [ada], places: [arcene, hafen], presence: [], timeline, momentId: 'm1', onPatch });
     const adaChip = chip('Ada');
     fireEvent.click(adaChip);
     fireEvent.click(adaChip);
@@ -55,7 +60,7 @@ describe('PresenceBoard', () => {
   it('clears the assignment when dropped on the "Unverändert" lane', () => {
     const onPatch = vi.fn();
     const presence: PresenceEntry[] = [{ id: 'p1', elementId: 'ada', placeId: 'hafen', momentId: 'm1' }];
-    render(<PresenceBoard nodes={[ada]} places={[arcene, hafen]} presence={presence} timeline={timeline} momentId="m1" onPatch={onPatch} />);
+    renderBoard({ nodes: [ada], places: [arcene, hafen], presence, timeline, momentId: 'm1', onPatch });
     const dataTransfer = makeDataTransfer('ada');
     fireEvent.dragStart(chip('Ada'), { dataTransfer });
     fireEvent.drop(lane('Unverändert / kein Ort'), { dataTransfer });
@@ -66,13 +71,13 @@ describe('PresenceBoard', () => {
     const before: TimelineMoment = { id: 'before', title: 'Vorher' };
     const twoMoments = [before, timeline[0]];
     const presence: PresenceEntry[] = [{ id: 'p1', elementId: 'ada', placeId: 'arcene' }];
-    render(<PresenceBoard nodes={[ada]} places={[arcene, hafen]} presence={presence} timeline={twoMoments} momentId="m1" onPatch={vi.fn()} />);
+    renderBoard({ nodes: [ada], places: [arcene, hafen], presence, timeline: twoMoments, momentId: 'm1', onPatch: vi.fn() });
     expect(screen.getByText(/geerbt · Arcène/)).toBeInTheDocument();
   });
 
   it('lists an occupant chip inside the lane matching their explicit override', () => {
     const presence: PresenceEntry[] = [{ id: 'p1', elementId: 'ada', placeId: 'hafen', momentId: 'm1' }];
-    render(<PresenceBoard nodes={[ada]} places={[arcene, hafen]} presence={presence} timeline={timeline} momentId="m1" onPatch={vi.fn()} />);
+    renderBoard({ nodes: [ada], places: [arcene, hafen], presence, timeline, momentId: 'm1', onPatch: vi.fn() });
     expect(lane('Hafen').querySelector('.presence-chip-mini')).toHaveTextContent('Ada');
   });
 });

@@ -4,6 +4,7 @@ import { MapPin, Redo2, Ruler, Undo2, X } from 'lucide-react';
 import type { FigureNode, FigureState, TimelineMoment, Workspace } from '../../types';
 import { placeChronicle, placeJourney, stopDateDiff, type PlaceMomentRow, type PlaceStay } from '../figures/presence';
 import { mapDistance, formatDistance } from './placeMap';
+import { useLanguage } from '../../language';
 import './PlacesWorkspace.css';
 
 type PlaceCardData = { place: FigureNode; measuring: boolean };
@@ -11,11 +12,12 @@ const nodeTypes = { place: OrtNode };
 const GRID_SIZE = 48;
 
 function OrtNode({ data }: NodeProps<Node<PlaceCardData>>) {
+  const { t } = useLanguage();
   const item = data.place;
   return <div className={`story-node type-ort ${data.measuring ? 'is-measuring' : ''}`}>
     <Handle id="place-anchor" type="target" position={Position.Top} isConnectable={false} className="place-center-handle" />
     <Handle id="place-anchor" type="source" position={Position.Bottom} isConnectable={false} className="place-center-handle" />
-    <span className="node-kind">Ort</span>
+    <span className="node-kind">{t('place')}</span>
     <strong>{item.name}</strong>{item.sub && <small>{item.sub}</small>}
   </div>;
 }
@@ -35,6 +37,7 @@ export function PlacesWorkspace(props: PlacesWorkspaceProps) {
 }
 
 function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onOpen }: PlacesWorkspaceProps) {
+  const { t } = useLanguage();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [measuring, setMeasuring] = useState(false);
   const [measurePair, setMeasurePair] = useState<string[]>([]);
@@ -89,32 +92,32 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     const distance = mapDistance({ mapX: a.position.x, mapY: a.position.y }, { mapX: b.position.x, mapY: b.position.y });
     return [{
       id: 'distance-measure', source: a.id, target: b.id, sourceHandle: 'place-anchor', targetHandle: 'place-anchor',
-      type: 'straight', label: formatDistance(distance, state.mapScale),
+      type: 'straight', label: formatDistance(distance, t, state.mapScale),
       labelBgStyle: { fill: 'var(--edge-label-bg)' }, labelStyle: { fill: 'var(--edge-label-text)' },
       className: 'distance-edge',
     }];
-  }, [measurePair, nodes, state.mapScale]);
+  }, [measurePair, nodes, state.mapScale, t]);
 
   const stays = useMemo(() => selected ? placeJourney(selected.id, state.nodes, presence, timeline) : [], [selected, state.nodes, presence, timeline]);
   const chronicle = useMemo(() => selected ? placeChronicle(selected.id, state.nodes, presence, timeline) : [], [selected, state.nodes, presence, timeline]);
 
-  const patchScale = (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => onChange({ ...state, mapScale: { unitsPer100px: 1, unitLabel: 'Einheiten', ...state.mapScale, ...patch } });
+  const patchScale = (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => onChange({ ...state, mapScale: { unitsPer100px: 1, unitLabel: t('unitsDefault'), ...state.mapScale, ...patch } });
 
-  return <section className="places-workspace" aria-label="Orte verwalten">
+  return <section className="places-workspace" aria-label={t('placesLabel')}>
     <div className="context-bar">
-      <div className="context-title"><strong>Orte</strong><span>{places.length} Orte</span></div>
-      <div className="tool-group"><button aria-pressed={measuring} className={measuring ? 'active' : ''} onClick={() => { setMeasuring(value => !value); setMeasurePair([]); }}><Ruler />Distanz messen</button></div>
-      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label="Orte rückgängig"><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label="Orte wiederholen"><Redo2 /></button></div>
+      <div className="context-title"><strong>{t('places')}</strong><span>{t('nPlaces').replace('{n}', String(places.length))}</span></div>
+      <div className="tool-group"><button aria-pressed={measuring} className={measuring ? 'active' : ''} onClick={() => { setMeasuring(value => !value); setMeasurePair([]); }}><Ruler />{t('measureDistance')}</button></div>
+      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoPlaces')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoPlaces')}><Redo2 /></button></div>
     </div>
     <div className="figure-layout">
       <div className={`flow-area places-flow-area ${measuring ? 'is-connecting' : ''}`}>
         {measuring && <div className="mode-banner"><Ruler />
-          <span>{measurePair.length === 0 ? 'Klicke den ersten Ort' : measurePair.length === 1 ? 'Klicke den zweiten Ort' : 'Distanz wird live gezeigt · zum Verschieben ziehen, für ein neues Paar einen dritten Ort klicken'}</span>
-          <button onClick={() => { setMeasuring(false); setMeasurePair([]); }}><X /><span className="sr-only">Distanz messen beenden</span></button>
+          <span>{measurePair.length === 0 ? t('clickFirstPlace') : measurePair.length === 1 ? t('clickSecondPlace') : t('distanceLiveHint')}</span>
+          <button onClick={() => { setMeasuring(false); setMeasurePair([]); }}><X /><span className="sr-only">{t('stopMeasuring')}</span></button>
         </div>}
         {measuring && measurePair.length === 2 && <div className="places-scale-legend">
-          <label><span>Maßstab</span><input type="number" min="0.01" step="0.01" value={state.mapScale?.unitsPer100px ?? 1} onChange={event => patchScale({ unitsPer100px: Number(event.target.value) || 1 })} /><span>pro 100px</span></label>
-          <label><span className="sr-only">Einheit</span><input value={state.mapScale?.unitLabel ?? 'Einheiten'} onChange={event => patchScale({ unitLabel: event.target.value })} /></label>
+          <label><span>{t('scale')}</span><input type="number" min="0.01" step="0.01" value={state.mapScale?.unitsPer100px ?? 1} onChange={event => patchScale({ unitsPer100px: Number(event.target.value) || 1 })} /><span>{t('perHundredPx')}</span></label>
+          <label><span className="sr-only">{t('unitLabelField')}</span><input value={state.mapScale?.unitLabel ?? t('unitsDefault')} onChange={event => patchScale({ unitLabel: event.target.value })} /></label>
         </div>}
         <ReactFlow nodes={nodes} edges={measureEdges} nodeTypes={nodeTypes} nodesConnectable={true}
           onInit={instance => { flow.current = instance; }}
@@ -125,11 +128,11 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
           <Controls position="bottom-left" />
           <MiniMap position="bottom-right" pannable zoomable nodeColor={() => 'var(--minimap-place)'} maskColor="var(--minimap-mask)" />
         </ReactFlow>
-        {!places.length && <div className="places-manager-empty"><MapPin /><h2>Noch keine Orte</h2><p>Lege im Figurenboard den ersten Ort an, um seine Geschichte und Position zu verfolgen.</p></div>}
+        {!places.length && <div className="places-manager-empty"><MapPin /><h2>{t('noPlacesYet')}</h2><p>{t('noPlacesYetBody')}</p></div>}
       </div>
-      <aside className={`inspector places-inspector ${selected ? 'has-selection' : ''}`} aria-label="Orte-Inspector">
-        <div className="panel-heading"><span>{selected ? selected.name : 'Inspector'}</span>{selected && <button className="icon-button" onClick={() => setSelectedId(null)} aria-label="Auswahl schließen"><X /></button>}</div>
-        {!selected ? <div className="empty-inspector"><MapPin /><h2>Ort auswählen</h2><p>Wähle einen Ort auf der Karte, um zu sehen, wer dort war und wann.</p></div>
+      <aside className={`inspector places-inspector ${selected ? 'has-selection' : ''}`} aria-label={t('placesInspectorLabel')}>
+        <div className="panel-heading"><span>{selected ? selected.name : t('inspector')}</span>{selected && <button className="icon-button" onClick={() => setSelectedId(null)} aria-label={t('closeSelection')}><X /></button>}</div>
+        {!selected ? <div className="empty-inspector"><MapPin /><h2>{t('selectPlace')}</h2><p>{t('selectPlaceBody')}</p></div>
         : <PlaceInspector place={selected} nodes={state.nodes} stays={stays} chronicle={chronicle} timeline={timeline} onOpen={onOpen} />}
       </aside>
     </div>
@@ -140,33 +143,34 @@ function PlaceInspector({ nodes, stays, chronicle, timeline, onOpen }: {
   place: FigureNode; nodes: FigureNode[]; stays: PlaceStay[]; chronicle: PlaceMomentRow[]; timeline: TimelineMoment[];
   onOpen: (target: { workspace: Workspace; id: string }) => void;
 }) {
+  const { t } = useLanguage();
   return <div className="panel-body places-inspector-body">
     <section className="places-manager-section">
-      <header><div><h2>Wer war hier</h2><p>Aufenthalte an diesem Ort, sortiert nach Ankunft.</p></div></header>
+      <header><div><h2>{t('whoWasHere')}</h2><p>{t('whoWasHereBody')}</p></div></header>
       <div className="places-stay-table">
         {stays.map((stay, index) => {
           const figure = nodes.find(node => node.id === stay.elementId);
           if (!figure) return null;
           return <div key={`${stay.elementId}-${index}`}>
             <button className="places-link" onClick={() => onOpen({ workspace: 'figures', id: figure.id })}>{figure.name}</button>
-            <span>{stay.arrivedAt.momentId ? timeline.find(moment => moment.id === stay.arrivedAt.momentId)?.title : 'Ausgangslage'}</span>
-            <span>{stay.leftAt ? (stay.died ? `† ${timeline.find(moment => moment.id === stay.leftAt?.momentId)?.title ?? ''}` : timeline.find(moment => moment.id === stay.leftAt?.momentId)?.title) : 'weiterhin hier'}</span>
+            <span>{stay.arrivedAt.momentId ? timeline.find(moment => moment.id === stay.arrivedAt.momentId)?.title : t('initialState')}</span>
+            <span>{stay.leftAt ? (stay.died ? `† ${timeline.find(moment => moment.id === stay.leftAt?.momentId)?.title ?? ''}` : timeline.find(moment => moment.id === stay.leftAt?.momentId)?.title) : t('stillHere')}</span>
             <span className="places-stay-duration">{stay.leftAt ? stopDateDiff(stay.arrivedAt, stay.leftAt, timeline).label : ''}</span>
           </div>;
         })}
-        {!stays.length && <p className="places-section-empty">Noch niemand war hier.</p>}
+        {!stays.length && <p className="places-section-empty">{t('noOneHereYet')}</p>}
       </div>
     </section>
     <section className="places-manager-section">
-      <header><div><h2>Chronik</h2><p>Wer war an welchem Zeitpunkt hier, und wer kam oder ging.</p></div></header>
+      <header><div><h2>{t('chronicle')}</h2><p>{t('chronicleBody')}</p></div></header>
       <div className="places-chronicle-list">
         {chronicle.map(row => <div key={row.index}>
-          <strong>{row.moment ? <button className="places-link" onClick={() => onOpen({ workspace: 'timeline', id: row.moment!.id })}>{row.moment.title}</button> : 'Ausgangslage'}</strong>
-          <span>{row.occupants.length ? row.occupants.map(node => node.name).join(', ') : 'Niemand hier'}</span>
-          {!!row.arrived.length && <small>Angekommen: {row.arrived.map(node => node.name).join(', ')}</small>}
-          {!!row.left.length && <small>Gegangen: {row.left.map(node => node.name).join(', ')}</small>}
+          <strong>{row.moment ? <button className="places-link" onClick={() => onOpen({ workspace: 'timeline', id: row.moment!.id })}>{row.moment.title}</button> : t('initialState')}</strong>
+          <span>{row.occupants.length ? row.occupants.map(node => node.name).join(', ') : t('nobodyHere')}</span>
+          {!!row.arrived.length && <small>{t('arrived')} {row.arrived.map(node => node.name).join(', ')}</small>}
+          {!!row.left.length && <small>{t('left')} {row.left.map(node => node.name).join(', ')}</small>}
         </div>)}
-        {!chronicle.length && <p className="places-section-empty">Noch keine Bewegungen an diesem Ort.</p>}
+        {!chronicle.length && <p className="places-section-empty">{t('noMovementYet')}</p>}
       </div>
     </section>
   </div>;

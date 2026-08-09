@@ -1,0 +1,13 @@
+export const manuscript = {
+  manuscript: 'Manuscript', chapter: 'Chapter', chapters: 'Chapters', chapterText: 'Chapter text', chapterTitle: 'Chapter title', words: 'Words', totalWords: 'words total', characters: 'Characters', standardPages: 'Standard pages',
+  navigation: 'Navigation', details: 'Details', focus: 'Focus', versions: 'Versions', bookPdf: 'Book PDF', creatingPdf: 'Creating PDF …',
+  undoManuscript: 'Undo manuscript change', redoManuscript: 'Redo manuscript change', closeNavigation: 'Close chapter navigation', closeInspector: 'Close inspector',
+  chapterNote: 'Chapter note', moveUp: 'Move up', moveDown: 'Move down', chapterMarkdown: 'Chapter as Markdown', deleteChapter: 'Delete chapter', writingHelpers: 'Writing aids',
+  figuresPlaces: 'Characters & places', ownTerms: 'Custom terms', specialCharacters: 'Special characters', addTerm: 'Add term', newTerm: 'New term',
+  previousVersion: 'Previous version', nextToCurrent: 'Shown beside the current text', state: 'Version', loadingVersion: 'Loading version …', noVersion: 'No saved version yet.', closeVersions: 'Close chapter versions',
+  focusHelper: 'Writing aid', openFocusHelper: 'Open writing aid', closeFocusHelper: 'Close writing aid', leaveFocus: 'Leave focus mode',
+  newChapterTitle: 'Chapter {n}', downloadBookPdfHelp: 'Download typeset 6×9-inch book', startWritingPlaceholder: 'Start writing …', versionLoadError: 'The version could not be loaded.', chapterNotYetExisting: 'This chapter did not yet exist at this point in history.',
+  noChapterYet: 'No chapter yet', createFirstChapter: 'Create first chapter', chapterInspectorLabel: 'Chapter inspector', chapterNotePlaceholder: 'What needs to happen in this chapter?', removeTerm: 'Remove {word}',
+  focusChapterPickerLabel: 'Chapter picker (focus mode)', selectChapters: 'Select chapters', closeChapterPicker: 'Close chapter picker', openChapterPicker: 'Open chapter picker', focusHelperPanelLabel: 'Writing aid (focus mode)',
+  novelLabel: 'Novel', untitledWorld: 'Untitled world', manuscriptVersionLabel: 'Manuscript version ·', deleteChapterDescription: '"{title}" will be removed from the manuscript. Hold the delete button for five seconds.', bookPdfError: 'The book PDF could not be generated.',
+} as const;

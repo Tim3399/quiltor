@@ -1,5 +1,6 @@
 import type { AssistantProposal, FigureEdge, FigureNode, FigureState, TimelineMoment } from '../../types';
 import { uid } from '../../types';
+import type { MessageKey } from '../../language';
 
 const GRID_X = 288, GRID_Y = 192;
 
@@ -7,7 +8,7 @@ function gridPosition(index: number): { x: number; y: number } {
   return { x: 96 + (index % 4) * GRID_X, y: 96 + Math.floor(index / 4) * GRID_Y };
 }
 
-export function applyAssistantProposals(state: FigureState, proposals: AssistantProposal[]): FigureState {
+export function applyAssistantProposals(state: FigureState, proposals: AssistantProposal[], t: (key: MessageKey) => string): FigureState {
   const next: FigureState = structuredClone(state);
   next.timeline ||= [];
   const references = new Map<string, string>();
@@ -22,7 +23,7 @@ export function applyAssistantProposals(state: FigureState, proposals: Assistant
       const node: FigureNode = {
         id, ...gridPosition(index),
         type: ['ort', 'konzept', 'tier', 'organisation', 'objekt'].includes(element.type || '') ? element.type : 'person',
-        name: String(element.name || 'Neues Element').slice(0, 160), label: String(element.label || '').slice(0, 160),
+        name: String(element.name || t('defaultElementName')).slice(0, 160), label: String(element.label || '').slice(0, 160),
         sub: String(element.sub || '').slice(0, 1000), accent: 'ink', profile: sanitizeProfile(element.profile),
       };
       next.nodes.push(node);
@@ -38,7 +39,7 @@ export function applyAssistantProposals(state: FigureState, proposals: Assistant
       const id = proposalId(proposal.tempId, 't');
       references.set(proposal.tempId, id);
       if (next.timeline.some(moment => moment.id === id)) continue;
-      const moment: TimelineMoment = { id, title: String(proposal.moment.title || 'Neuer Zeitpunkt').slice(0, 160) };
+      const moment: TimelineMoment = { id, title: String(proposal.moment.title || t('defaultMomentTitle')).slice(0, 160) };
       if (proposal.moment.date) moment.date = String(proposal.moment.date).slice(0, 20);
       if (proposal.moment.note) moment.note = String(proposal.moment.note).slice(0, 1000);
       next.timeline.push(moment);
@@ -118,13 +119,13 @@ function arrangeNodes(nodes: FigureNode[], edges: FigureEdge[], strategy: 'thema
   return nodes.map(node => ({ ...node, ...positioned.get(node.id)! }));
 }
 
-export function proposalLabel(proposal: AssistantProposal, state: FigureState) {
-  const nodeName = (id: string) => state.nodes.find(node => node.id === id)?.name || id.replace('new:', 'Neu: ');
-  if (proposal.kind === 'create_element') return `Element anlegen · ${proposal.element.name || 'Ohne Namen'}`;
-  if (proposal.kind === 'update_element') return `Element ergänzen · ${nodeName(proposal.elementId)}`;
-  if (proposal.kind === 'create_timeline_moment') return `Zeitpunkt anlegen · ${proposal.moment.title || 'Ohne Titel'}`;
-  if (proposal.kind === 'create_relationship') return `Beziehung anlegen · ${nodeName(proposal.relationship.from)} ↔ ${nodeName(proposal.relationship.to)}`;
-  if (proposal.kind === 'set_relationship_at_moment') return `Beziehungsstand ändern · ${proposal.patch.label || 'Status'}`;
-  if (proposal.kind === 'arrange_elements') return `Elemente thematisch neu anordnen`;
-  return `Todeszeitpunkt setzen · ${nodeName(proposal.elementId)}`;
+export function proposalLabel(proposal: AssistantProposal, state: FigureState, t: (key: MessageKey) => string) {
+  const nodeName = (id: string) => state.nodes.find(node => node.id === id)?.name || id.replace('new:', t('newPrefix'));
+  if (proposal.kind === 'create_element') return t('createElementLabel').replace('{name}', proposal.element.name || t('withoutName'));
+  if (proposal.kind === 'update_element') return t('updateElementLabel').replace('{name}', nodeName(proposal.elementId));
+  if (proposal.kind === 'create_timeline_moment') return t('createMomentLabel').replace('{title}', proposal.moment.title || t('untitled'));
+  if (proposal.kind === 'create_relationship') return t('createRelationshipLabel').replace('{from}', nodeName(proposal.relationship.from)).replace('{to}', nodeName(proposal.relationship.to));
+  if (proposal.kind === 'set_relationship_at_moment') return t('updateRelationshipStateLabel').replace('{label}', proposal.patch.label || t('statusFallback'));
+  if (proposal.kind === 'arrange_elements') return t('rearrangeElementsLabel');
+  return t('setDeathMomentLabel').replace('{name}', nodeName(proposal.elementId));
 }

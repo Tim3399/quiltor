@@ -1,3 +1,5 @@
+import type { MessageKey } from './language';
+
 export type Workspace = 'text' | 'figures' | 'timeline' | 'places';
 export type SavePhase = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -128,13 +130,13 @@ export interface AssistantReply {
   broadScope?: { chapterCount: number; estimateSeconds: number };
 }
 
-export const PROFILE_FIELDS: Array<[keyof Profile, string, 'short' | 'long']> = [
-  ['alter', 'Alter', 'short'],
-  ['rolle', 'Rolle in der Geschichte', 'long'],
-  ['aussehen', 'Aussehen', 'long'],
-  ['herkunft', 'Herkunft & Vorgeschichte', 'long'],
-  ['stimme', 'Stimme & Sprechweise', 'long'],
-  ['notizen', 'Notizen', 'long'],
+export const PROFILE_FIELDS: Array<[keyof Profile, MessageKey, 'short' | 'long']> = [
+  ['alter', 'profileAge', 'short'],
+  ['rolle', 'profileRoleInStory', 'long'],
+  ['aussehen', 'profileAppearance', 'long'],
+  ['herkunft', 'profileBackground', 'long'],
+  ['stimme', 'profileVoice', 'long'],
+  ['notizen', 'profileNotes', 'long'],
 ];
 
 export const uid = (prefix: string) => `${prefix}${crypto.randomUUID().slice(0, 8)}`;

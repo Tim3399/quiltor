@@ -1,20 +1,25 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TextWorkspace } from './TextWorkspace';
+import { LanguageProvider } from '../../language';
 
 const manuscript = { chapters: [{ id: 'c1', title: 'Prolog', body: 'Hallo Welt', note: '' }] };
 const figures = { nodes: [{ id: 'n1', x: 0, y: 0, name: 'Testfigur' }], edges: [] };
 
+function renderWorkspace(props: React.ComponentProps<typeof TextWorkspace>) {
+  return render(<LanguageProvider><TextWorkspace {...props} /></LanguageProvider>);
+}
+
 describe('TextWorkspace', () => {
   it('ändert Text ohne die übrige Manuskriptstruktur zu verlieren', () => {
     const onChange = vi.fn();
-    render(<TextWorkspace manuscript={manuscript} figures={figures} onChange={onChange} focus={false} onFocus={vi.fn()} />);
+    renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn() });
     fireEvent.change(screen.getByLabelText('Kapiteltext'), { target: { value: 'Neuer Text' } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [expect.objectContaining({ id: 'c1', body: 'Neuer Text' })] }));
   });
 
   it('macht den Fokusmodus explizit verlassbar', () => {
-    render(<TextWorkspace manuscript={manuscript} figures={figures} onChange={vi.fn()} focus onFocus={vi.fn()} />);
+    renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: true, onFocus: vi.fn() });
     expect(screen.getByRole('button', { name: /Fokusmodus verlassen/ })).toBeVisible();
   });
 
@@ -23,7 +28,7 @@ describe('TextWorkspace', () => {
       ...manuscript.chapters,
       { id: 'c2', title: 'Aufbruch', body: 'Der Weg beginnt.', note: '' },
     ] };
-    const view = render(<TextWorkspace manuscript={twoChapters} figures={figures} onChange={vi.fn()} focus onFocus={vi.fn()} />);
+    const view = renderWorkspace({ manuscript: twoChapters, figures, onChange: vi.fn(), focus: true, onFocus: vi.fn() });
     const rendered = within(view.container);
     fireEvent.click(rendered.getByRole('button', { name: 'Kapitelauswahl öffnen' }));
     const picker = rendered.getByRole('complementary', { name: 'Kapitelauswahl im Fokusmodus' });
@@ -34,7 +39,7 @@ describe('TextWorkspace', () => {
   });
 
   it('blendet die Kapitelauswahl bei nur einem Kapitel aus', () => {
-    const view = render(<TextWorkspace manuscript={manuscript} figures={figures} onChange={vi.fn()} focus onFocus={vi.fn()} />);
+    const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: true, onFocus: vi.fn() });
     expect(within(view.container).queryByRole('combobox', { name: 'Kapitel im Fokusmodus auswählen' })).not.toBeInTheDocument();
   });
 });

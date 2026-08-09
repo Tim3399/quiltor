@@ -143,7 +143,9 @@ python3 -m unittest discover -s tests/backend -v
 npm run test:e2e
 ```
 
-The build checks TypeScript and rejects color literals outside `src/design/colors.css`. Browser tests cover desktop and compact layouts, light and dark themes, autosave, conflicts, and WCAG A/AA checks for the core workspaces.
+The build checks TypeScript and rejects color, spacing, radius, shadow, font-size, and z-index literals outside `src/design/colors.css` and `src/design/tokens.css`. Browser tests cover desktop and compact layouts, light and dark themes, autosave, conflicts, and WCAG A/AA checks for the core workspaces.
+
+`npm run check:i18n` heuristically scans `.tsx` files for hardcoded German text outside `t()` calls (all interface text should instead come from `src/language/{de,en}/*.ts`). It isn't a real JSX parser and isn't part of the build — treat it as a spot check, not a complete gate.
 
 Demo screenshots can be reproduced against a separate test server:
 
@@ -158,7 +160,7 @@ backend/                    SQLite, backups, retrieval, assistant, Git
 mcp/                        read-only and proposal-only MCP server
 src/
 ├── app/                    application shell and navigation
-├── design/colors.css       every light and dark color token
+├── design/                 color and design tokens (colors.css, tokens.css)
 ├── features/
 │   ├── manuscript/         editor, focus mode, writing aids
 │   ├── figures/            world graph and relationship logic
@@ -167,7 +169,7 @@ src/
 │   ├── tools/              search, history, Git, backups
 │   └── worlds/             world selection and creation
 ├── hooks/                  autosave, theme, undo/redo
-├── i18n/                   German and English interface
+├── language/               German and English interface, one folder per language with a file per application area
 ├── lib/                    API and exports
 └── shared/ui/              reusable UI components
 ```

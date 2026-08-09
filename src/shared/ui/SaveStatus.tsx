@@ -1,15 +1,17 @@
 import { AlertCircle, Check, CloudOff, LoaderCircle } from 'lucide-react';
 import type { SavePhase } from '../../types';
+import { useLanguage, type MessageKey } from '../../language';
 
-const labels: Record<SavePhase, string> = {
-  idle: 'Bereit', dirty: 'Ungespeichert', saving: 'Speichert …', saved: 'Gespeichert', error: 'Nicht gespeichert',
+const labelKeys: Record<SavePhase, MessageKey> = {
+  idle: 'ready', dirty: 'unsaved', saving: 'saving', saved: 'saved', error: 'notSaved',
 };
 
 export function SaveStatus({ phase, error, onRetry }: { phase: SavePhase; error?: string; onRetry?: () => void }) {
+  const { t } = useLanguage();
   const Icon = phase === 'error' ? CloudOff : phase === 'saving' ? LoaderCircle : phase === 'saved' ? Check : phase === 'dirty' ? AlertCircle : Check;
   return <button className={`save-status save-${phase}`} onClick={phase === 'error' ? onRetry : undefined}
-    title={error || labels[phase]} aria-live="polite">
+    title={error || t(labelKeys[phase])} aria-live="polite">
     <Icon size={15} className={phase === 'saving' ? 'spin' : ''} aria-hidden="true" />
-    <span>{labels[phase]}</span>
+    <span>{t(labelKeys[phase])}</span>
   </button>;
 }

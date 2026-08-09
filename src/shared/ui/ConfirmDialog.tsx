@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Dialog } from './Dialog';
+import { useLanguage } from '../../language';
 
 // Shared hold-to-confirm duration for destructive actions (delete world/element/chapter/moment).
 export const DELETE_HOLD_MS = 5000;
@@ -8,14 +9,16 @@ export const DELETE_HOLD_MS = 5000;
 export function ConfirmDialog({ title, description, confirmLabel, holdDurationMs = 0, onConfirm, onClose }: {
   title: string; description: string; confirmLabel: string; holdDurationMs?: number; onConfirm: () => void; onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const complete = () => { onConfirm(); onClose(); };
   return <Dialog title={title} onClose={onClose}>
     <div className="confirm-message"><AlertTriangle aria-hidden="true" /><p>{description}</p></div>
-    <div className="dialog-actions"><button onClick={onClose}>Abbrechen</button>{holdDurationMs > 0 ? <HoldButton label={confirmLabel} duration={holdDurationMs} onComplete={complete} /> : <button className="danger-button" onClick={complete}>{confirmLabel}</button>}</div>
+    <div className="dialog-actions"><button onClick={onClose}>{t('cancel')}</button>{holdDurationMs > 0 ? <HoldButton label={confirmLabel} duration={holdDurationMs} onComplete={complete} /> : <button className="danger-button" onClick={complete}>{confirmLabel}</button>}</div>
   </Dialog>;
 }
 
 function HoldButton({ label, duration, onComplete }: { label: string; duration: number; onComplete: () => void }) {
+  const { t } = useLanguage();
   const [startedAt, setStartedAt] = useState<number | null>(null), [progress, setProgress] = useState(0);
   const timer = useRef<number | null>(null), completed = useRef(false);
   const cancel = () => { if (timer.current !== null) window.clearInterval(timer.current); timer.current = null; completed.current = false; setStartedAt(null); setProgress(0); };
@@ -31,8 +34,8 @@ function HoldButton({ label, duration, onComplete }: { label: string; duration: 
   const remaining = Math.max(1, Math.ceil((duration * (1 - progress)) / 1000));
   const totalSeconds = Math.round(duration / 1000);
   return <button className={`danger-button hold-button ${startedAt !== null ? 'is-holding' : ''}`} style={{ '--hold-progress': progress } as React.CSSProperties}
-    aria-label={`${label} – ${totalSeconds} Sekunden halten`} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start(); }} onPointerUp={cancel} onPointerCancel={cancel} onPointerLeave={cancel}
+    aria-label={t('holdSecondsAriaLabel').replace('{label}', label).replace('{n}', String(totalSeconds))} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start(); }} onPointerUp={cancel} onPointerCancel={cancel} onPointerLeave={cancel}
     onKeyDown={event => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { event.preventDefault(); start(); } }} onKeyUp={event => { if (event.key === ' ' || event.key === 'Enter') cancel(); }} onBlur={cancel}>
-    <span>{startedAt === null ? `${label} · ${totalSeconds} Sek. halten` : `Weiter halten · ${remaining}`}</span>
+    <span>{startedAt === null ? t('holdToConfirm').replace('{label}', label).replace('{n}', String(totalSeconds)) : t('keepHolding').replace('{n}', String(remaining))}</span>
   </button>;
 }
