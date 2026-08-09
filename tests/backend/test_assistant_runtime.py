@@ -114,6 +114,11 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         steps = [item["step"] for item in result["agentTrace"]]
         self.assertIn("deterministic_fallback", steps)
 
+    def test_board_arrangement_has_a_deterministic_fallback(self):
+        runtime = self._runtime()
+        proposal = runtime._forced_proposal("Sortiere das Figurenboard in einem Raster neu.", "[]", FIGURES)
+        self.assertEqual(proposal, {"kind": "arrange_elements", "strategy": "grid"})
+
     def test_explicitly_picked_chapters_are_forced_into_context_even_when_retrieval_would_miss_them(self):
         # Plan B.4: an author-picked chapter range should always reach the model, not depend
         # on retrieve()'s lexical scoring guessing the question is about that chapter.

@@ -442,6 +442,8 @@ class AssistantRuntime:
             element = next((item for item in nodes if item.get("id") != (place or {}).get("id") and (str(item.get("id", "")).casefold() in folded or str(item.get("name", "")).casefold() in folded)), None)
             if place and element:
                 return {"kind": "set_presence", "elementId": element["id"], "placeId": place["id"], **({"momentId": moment["id"]} if moment else {})}
+        if required == {"arrange_elements"}:
+            return {"kind": "arrange_elements", "strategy": "grid" if "raster" in folded or "grid" in folded else "thematic"}
         if "beziehung" in folded or "relationship" in folded:
             matches = [item for item in nodes if str(item.get("id", "")).casefold() in folded or str(item.get("name", "")).casefold() in folded]
             if len(matches) >= 2:
