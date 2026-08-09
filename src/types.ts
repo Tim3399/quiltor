@@ -4,11 +4,22 @@ import type { WritingLanguage } from './language/writing';
 export type Workspace = 'text' | 'figures' | 'timeline' | 'places';
 export type SavePhase = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
+export interface EntityMention {
+  id: string;
+  elementId: string;
+  from: number;
+  to: number;
+  surface: string;
+  source: 'completion' | 'helper' | 'deterministic' | 'llm-assisted';
+  confidence: number;
+}
+
 export interface Chapter {
   id: string;
   title: string;
   body: string;
   note: string;
+  mentions?: EntityMention[];
   [key: string]: unknown;
 }
 

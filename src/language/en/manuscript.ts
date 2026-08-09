@@ -10,4 +10,6 @@ export const manuscript = {
   noChapterYet: 'No chapter yet', createFirstChapter: 'Create first chapter', chapterInspectorLabel: 'Chapter inspector', chapterNotePlaceholder: 'What needs to happen in this chapter?', removeTerm: 'Remove {word}',
   focusChapterPickerLabel: 'Chapter picker (focus mode)', selectChapters: 'Select chapters', closeChapterPicker: 'Close chapter picker', openChapterPicker: 'Open chapter picker', focusHelperPanelLabel: 'Writing aid (focus mode)',
   novelLabel: 'Novel', untitledWorld: 'Untitled world', manuscriptVersionLabel: 'Manuscript version ·', deleteChapterDescription: '"{title}" will be removed from the manuscript. Hold the delete button for five seconds.', bookPdfError: 'The book PDF could not be generated.',
+  ambiguousMentions: 'Ambiguous links', worldObject: 'World object',
+  orphanedMentionsRemoved: '{count} orphaned links were removed.', updateEntityMentions: 'Update manuscript?', updateEntityMentionsDescription: '“{from}” was renamed to “{to}”. Replace all linked occurrences in the manuscript?', updateMentions: 'Replace occurrences',
 } as const;

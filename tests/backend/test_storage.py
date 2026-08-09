@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend import storage
+from backend import mirror, storage
 
 
 class StorageTest(unittest.TestCase):
@@ -22,7 +22,7 @@ class StorageTest(unittest.TestCase):
 
     def test_sqlite_round_trips_unknown_fields(self):
         manuscript_input = {
-            "chapters": [{"id": "c1", "title": "Eins", "body": "Hallo Welt", "note": "N", "mood": "still"}],
+            "chapters": [{"id": "c1", "title": "Eins", "body": "Hallo Welt", "note": "N", "mood": "still", "mentions": [{"id": "m1", "elementId": "n1", "from": 0, "to": 5, "surface": "Hallo", "source": "helper", "confidence": 1}]}],
             "words": [{"w": "Arcène", "d": "Ort"}], "zeichenAktiv": ["…"], "future": True,
         }
         figures_input = {
@@ -39,6 +39,13 @@ class StorageTest(unittest.TestCase):
         storage.save_figures(figures_input)
         manuscript = storage.load_manuscript(); figures = storage.load_figures()
         self.assertEqual(manuscript["chapters"][0]["mood"], "still")
+        self.assertEqual(manuscript["chapters"][0]["mentions"][0]["elementId"], "n1")
+        mirror_dir = storage.DATA / "manuskript"
+        mirror.mirror_text(manuscript["chapters"], mirror_dir)
+        exported = next(mirror_dir.glob("*.md")).read_text(encoding="utf-8")
+        self.assertIn("Hallo Welt", exported)
+        self.assertNotIn("elementId", exported)
+        self.assertNotIn('"m1"', exported)
         self.assertTrue(manuscript["future"])
         self.assertEqual(figures["nodes"][0]["profile"]["extra"][0]["k"], "Motiv")
         self.assertEqual(figures["nodes"][0]["future"], 7)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pilcrow, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
-import type { Chapter, FigureState, Manuscript } from '../../types';
+import type { Chapter, FigureNode, FigureState, Manuscript, Workspace } from '../../types';
 import { uid, wordCount } from '../../types';
 import { download } from '../../lib/api';
 import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
@@ -15,9 +15,11 @@ import { Popover } from '../../shared/ui/Popover';
 import { SelectionMenu } from '../../shared/ui/SelectionMenu';
 import type { ViewportMode } from '../../hooks/useWorkspaceLayout';
 import { ManuscriptEditor, type EditorTextSelection, type ManuscriptEditorHandle } from './ManuscriptEditor';
+import { addDeterministicMentions, scanEntityMentions } from './mentions';
+import { kindLabel } from '../figures/relationships';
 
-export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave, viewportMode = window.innerWidth < 720 ? 'compact' : window.innerWidth < 1100 ? 'regular' : 'wide', binderOpen: controlledBinderOpen, onBinderOpen, inspectorOpen: controlledInspectorOpen, onInspectorOpen, sidebarWidth = 246, onSidebarWidth, inspectorWidth = 294, onInspectorWidth }: {
-  worldTitle?: string; manuscript: Manuscript; figures: FigureState; onChange: (value: Manuscript) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>; viewportMode?: ViewportMode; binderOpen?: boolean; onBinderOpen?: (open: boolean) => void; inspectorOpen?: boolean; onInspectorOpen?: (open: boolean) => void; sidebarWidth?: number; onSidebarWidth?: (width: number) => void; inspectorWidth?: number; onInspectorWidth?: (width: number) => void;
+export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMentions = 0, onChange, onOpenEntity, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave, viewportMode = window.innerWidth < 720 ? 'compact' : window.innerWidth < 1100 ? 'regular' : 'wide', binderOpen: controlledBinderOpen, onBinderOpen, inspectorOpen: controlledInspectorOpen, onInspectorOpen, sidebarWidth = 246, onSidebarWidth, inspectorWidth = 294, onInspectorWidth }: {
+  worldTitle?: string; manuscript: Manuscript; figures: FigureState; orphanedMentions?: number; onChange: (value: Manuscript) => void; onOpenEntity?: (target: { workspace: Workspace; id: string }) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>; viewportMode?: ViewportMode; binderOpen?: boolean; onBinderOpen?: (open: boolean) => void; inspectorOpen?: boolean; onInspectorOpen?: (open: boolean) => void; sidebarWidth?: number; onSidebarWidth?: (width: number) => void; inspectorWidth?: number; onInspectorWidth?: (width: number) => void;
 }) {
   const { t } = useLanguage();
   const [currentId, setCurrentId] = useState(manuscript.chapters[0]?.id ?? '');
@@ -70,6 +72,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
   }, [historyOpen, historyRef, current?.id, current?.title, currentIndex]);
   const total = useMemo(() => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0), [manuscript.chapters]);
   const vocabulary = useMemo(() => writingVocabulary(manuscript, figures), [manuscript.words, figures.nodes]);
+  const ambiguousMentions = useMemo(() => current ? scanEntityMentions(current.body, figures.nodes, () => '').ambiguous.filter(candidate => !(current.mentions || []).some(mention => candidate.from < mention.to && candidate.to > mention.from)) : [], [current, figures.nodes]);
   useEffect(() => { setSelection(null); setSelectionTool(null); setWritingQuery(''); }, [currentId]);
 
   const setChapters = (chapters: Chapter[]) => onChange({ ...manuscript, chapters });
@@ -91,6 +94,12 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
   const insert = (text: string) => {
     if (!current) return;
     editor.current?.insert(text);
+  };
+  const insertEntity = (entity: FigureNode) => editor.current?.insertEntity(entity);
+  const resolveAmbiguous = (candidate: (typeof ambiguousMentions)[number], entity: FigureNode) => {
+    if (!current) return;
+    const mention = { id: crypto.randomUUID(), elementId: entity.id, from: candidate.from, to: candidate.to, surface: candidate.surface, source: 'helper' as const, confidence: 1 };
+    update({ mentions: [...(current.mentions || []), mention].sort((a, b) => a.from - b.from) });
   };
   const exportAll = () => download(`Quiltor-Manuskript-${new Date().toISOString().slice(0, 10)}.md`, manuscript.chapters.map(c => `# ${c.title || t('untitled')}\n\n${c.body.trim()}\n`).join('\n'));
   const printBook = async () => { setPdfState('loading'); try { await onSave?.(); await api.bookPdf(); setPdfState('idle'); } catch { setPdfState('error'); } };
@@ -131,7 +140,9 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
       <button className="danger-text" onClick={() => setDeleteOpen(true)}><Trash2 />{t('deleteChapter')}</button>
     </div> : <div className="panel-body helper-panel">
       {selectionTool && writingQuery && <section className="writing-selection-state"><span>{selectionTool === 'lookup' ? t('dictionary') : selectionTool === 'synonyms' ? t('synonyms') : t('translate')}</span><strong>{writingQuery}</strong><p>{t('writingDataMissing')}</p></section>}
-      <h3>{t('figuresPlaces')}</h3><div className="chip-list">{figures.nodes.map(node => <button key={node.id} onClick={() => insert(node.name)}>{node.name}</button>)}</div>
+      <h3>{t('figuresPlaces')}</h3><div className="chip-list">{figures.nodes.map(node => <button key={node.id} onClick={() => insertEntity(node)}>{node.name}</button>)}</div>
+      {!!ambiguousMentions.length && <section className="mention-review"><h3>{t('ambiguousMentions')}</h3>{ambiguousMentions.map(candidate => <div key={`${candidate.from}-${candidate.to}`}><strong>{candidate.surface}</strong><div className="chip-list">{candidate.elementIds.map(id => { const node = figures.nodes.find(item => item.id === id); return node && <button key={id} onClick={() => resolveAmbiguous(candidate, node)}>{node.name} · {node.sub || node.label || t('worldObject')}</button>; })}</div></div>)}</section>}
+      {orphanedMentions > 0 && <p className="muted" role="status">{t('orphanedMentionsRemoved').replace('{count}', String(orphanedMentions))}</p>}
       <h3>{t('ownTerms')}</h3><div className="chip-list editable-chips">{(manuscript.words || []).map((item, index) => { const word = typeof item === 'string' ? item : item.w; return <span key={`${word}-${index}`}><button onClick={() => insert(word)}>{word}</button><button aria-label={t('removeTerm').replace('{word}', word)} onClick={() => onChange({ ...manuscript, words: (manuscript.words || []).filter((_, i) => i !== index) })}>×</button></span>; })}</div><div className="add-term"><input aria-label={t('newTerm')} value={newWord} onChange={event => setNewWord(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addWord(); }} placeholder={t('addTerm')} /><button onClick={addWord} aria-label={t('addTerm')}>+</button></div>
       <h3>{t('specialCharacters')}</h3><div className="chip-list symbols">{(manuscript.zeichenAktiv || ['„','“','–','—','…']).map(symbol => <button key={symbol} onClick={() => insert(symbol)}>{symbol}</button>)}<button aria-expanded={symbolPicker} onClick={() => setSymbolPicker(!symbolPicker)}>±</button></div>{symbolPicker && <div className="symbol-picker">{['„','“','‚','‘','»','«','›','‹','–','—','…','·','§','¶','†','°','′','″','×','±','½','¼'].map(symbol => { const active = (manuscript.zeichenAktiv || []).includes(symbol); return <button key={symbol} aria-pressed={active} onClick={() => onChange({ ...manuscript, zeichenAktiv: active ? (manuscript.zeichenAktiv || []).filter(item => item !== symbol) : [...(manuscript.zeichenAktiv || []), symbol] })}>{symbol}</button>; })}</div>}
     </div>}
@@ -152,7 +163,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label={t('chapterTitle')} value={current.title} onChange={event => update({ title: event.target.value })} placeholder={t('chapterTitle')} />
-          <ManuscriptEditor key={current.id} value={current.body} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={body => update({ body })} onSelection={next => setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null)} /></div>
+          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) })} onSelection={next => setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null)} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
           {historyOpen && <aside className="chapter-history" aria-label={t('versions')}><header><div><strong>{t('previousVersion')}</strong><span>{t('nextToCurrent')}</span></div><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label={t('closeVersions')}><X /></button></header>
             {commits.length ? <label className="field"><span>{t('state')}</span><select value={historyRef} onChange={event => setHistoryRef(event.target.value)}>{commits.map(commit => <option key={commit.hash} value={commit.hash}>{commit.datum} · {commit.betreff}</option>)}</select></label> : historyState !== 'loading' && <p className="muted">{t('noVersion')}</p>}
             {historyState === 'loading' ? <p className="muted">{t('loadingVersion')}</p> : historyState === 'error' ? <div className="error-box">{t('versionLoadError')}</div> : commits.length > 0 && <div className="historical-prose">{historicalText || <em>{t('chapterNotYetExisting')}</em>}</div>}
@@ -176,7 +187,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
         {focusHelpers ? <X /> : <Pilcrow />}<span className="sr-only">{focusHelpers ? t('closeFocusHelper') : t('openFocusHelper')}</span>
       </button>
       {focusHelpers && <div className="focus-helper-panel">
-        <section><h3>{t('figuresPlaces')}</h3><div className="focus-helper-chips">{figures.nodes.map(node => <button key={node.id} onClick={() => insert(node.name)}>{node.name}</button>)}</div></section>
+        <section><h3>{t('figuresPlaces')}</h3><div className="focus-helper-chips">{figures.nodes.map(node => <button key={node.id} onClick={() => insertEntity(node)}>{node.name}</button>)}</div></section>
         {!!(manuscript.words || []).length && <section><h3>{t('ownTerms')}</h3><div className="focus-helper-chips">{(manuscript.words || []).map((item, index) => { const word = typeof item === 'string' ? item : item.w; return <button key={`${word}-${index}`} onClick={() => insert(word)}>{word}</button>; })}</div></section>}
         <section><h3>{t('specialCharacters')}</h3><div className="focus-helper-chips focus-helper-symbols">{(manuscript.zeichenAktiv || ['„','“','–','—','…']).map(symbol => <button key={symbol} onClick={() => insert(symbol)}>{symbol}</button>)}</div></section>
       </div>}

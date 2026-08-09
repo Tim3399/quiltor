@@ -52,5 +52,28 @@ def valid_manuscript(payload: Any) -> bool:
             return False
         if any(not isinstance(chapter.get(key, ""), str) for key in ("title", "body", "note")):
             return False
+        if len(chapter["id"]) > 200 or len(chapter.get("title", "")) > 1000 or len(chapter.get("note", "")) > 100_000 or len(chapter.get("body", "")) > 10_000_000:
+            return False
+        mentions = chapter.get("mentions", [])
+        if not isinstance(mentions, list) or len(mentions) > 10_000:
+            return False
+        previous_to = -1
+        mention_ids: set[str] = set()
+        for mention in sorted(mentions, key=lambda item: item.get("from", -1) if isinstance(item, dict) else -1):
+            if not isinstance(mention, dict):
+                return False
+            if any(not isinstance(mention.get(key), str) or not mention[key] or len(mention[key]) > 500 for key in ("id", "elementId", "surface", "source")):
+                return False
+            if mention["source"] not in {"completion", "helper", "deterministic", "llm-assisted"}:
+                return False
+            start, end, confidence = mention.get("from"), mention.get("to"), mention.get("confidence")
+            if type(start) is not int or type(end) is not int or start < 0 or end <= start or end > len(chapter.get("body", "")):
+                return False
+            if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or confidence < 0 or confidence > 1:
+                return False
+            if start < previous_to or chapter["body"][start:end] != mention["surface"] or mention["id"] in mention_ids:
+                return False
+            previous_to = end
+            mention_ids.add(mention["id"])
         ids.append(chapter["id"])
     return len(ids) == len(set(ids))

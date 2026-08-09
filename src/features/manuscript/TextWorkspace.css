@@ -157,6 +157,22 @@
 .prose-editor .cm-placeholder { color: var(--muted); }
 .prose-editor .cm-selectionBackground,
 .prose-editor .cm-content ::selection { background: var(--selection); }
+.prose-editor .entity-mention {
+  border-bottom: 1px solid var(--gold);
+  background: var(--selection);
+}
+.prose-editor .cm-tooltip {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--material-popover);
+  box-shadow: var(--shadow);
+}
+.entity-mention-card { display: grid; grid-template-columns: 1fr auto; gap: var(--space-4) var(--space-12); min-width: var(--popover-min); padding: var(--space-10); }
+.entity-mention-card strong { color: var(--ink); }
+.entity-mention-card span { grid-column: 1; color: var(--muted); }
+.entity-mention-card button { grid-column: 2; grid-row: 1 / span 2; align-self: center; min-width: var(--control-compact); min-height: var(--control-compact); }
+.mention-review { display: grid; gap: var(--space-10); }
+.mention-review > div { display: grid; gap: var(--space-6); padding: var(--space-10); border: 1px solid var(--line); border-radius: var(--radius); }
 
 .selection-anchor {
   position: fixed;

@@ -10,4 +10,6 @@ export const manuscript = {
   noChapterYet: 'Noch kein Kapitel', createFirstChapter: 'Erstes Kapitel anlegen', chapterInspectorLabel: 'Kapitel-Inspector', chapterNotePlaceholder: 'Was muss in diesem Kapitel passieren?', removeTerm: '{word} entfernen',
   focusChapterPickerLabel: 'Kapitelauswahl im Fokusmodus', selectChapters: 'Kapitel auswählen', closeChapterPicker: 'Kapitelauswahl schließen', openChapterPicker: 'Kapitelauswahl öffnen', focusHelperPanelLabel: 'Schreibhilfe im Fokusmodus',
   novelLabel: 'Roman', untitledWorld: 'Unbenannte Welt', manuscriptVersionLabel: 'Manuskriptfassung ·', deleteChapterDescription: '„{title}“ wird aus dem Manuskript entfernt. Halte den Löschknopf fünf Sekunden gedrückt.', bookPdfError: 'Das Buch-PDF konnte nicht erzeugt werden.',
+  ambiguousMentions: 'Mehrdeutige Verknüpfungen', worldObject: 'Weltobjekt',
+  orphanedMentionsRemoved: '{count} verwaiste Verknüpfungen wurden entfernt.', updateEntityMentions: 'Manuskript aktualisieren?', updateEntityMentionsDescription: '„{from}“ wurde in „{to}“ umbenannt. Sollen alle verknüpften Vorkommen im Manuskript ersetzt werden?', updateMentions: 'Vorkommen ersetzen',
 } as const;

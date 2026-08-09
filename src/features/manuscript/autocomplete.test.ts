@@ -5,7 +5,7 @@ describe('deterministic writing autocomplete', () => {
   it('uses only helper vocabulary and returns one complete word', () => {
     const vocabulary = writingVocabulary({ chapters: [], words: ['Frostkloster'] }, { nodes: [{ id: 'm', x: 0, y: 0, type: 'person', name: 'Mara Venn' }], edges: [] });
     expect(completeOneWord('Sie betritt das Frostk', 22, vocabulary)?.word).toBe('Frostkloster');
-    expect(completeOneWord('Ma', 2, vocabulary)?.word).toBe('Mara');
+    expect(completeOneWord('Ma', 2, vocabulary)).toBeNull();
   });
 
   it('does not suggest prose or already completed words', () => {

@@ -10,6 +10,8 @@ import { PRODUCT_MARK } from './config/branding';
 import { applyAssistantProposals } from './features/assistant/proposals';
 import { useLanguage } from './language';
 import { useWorkspaceLayout } from './hooks/useWorkspaceLayout';
+import { addDeterministicMentions, reconcileMentions, replaceEntityMentions } from './features/manuscript/mentions';
+import { ConfirmDialog } from './shared/ui/ConfirmDialog';
 
 const TextWorkspace = lazy(() => import('./features/manuscript/TextWorkspace').then(module => ({ default: module.TextWorkspace })));
 const FigureWorkspace = lazy(() => import('./features/figures/FigureWorkspace').then(module => ({ default: module.FigureWorkspace })));
@@ -33,6 +35,8 @@ export function App() {
   const [overlay, setOverlay] = useState<Overlay>(null), [focus, setFocus] = useState(false), [loadError, setLoadError] = useState('');
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [target, setTarget] = useState<{ workspace: Workspace; id: string } | null>(null);
+  const [orphanedMentions, setOrphanedMentions] = useState(0);
+  const [pendingRename, setPendingRename] = useState<{ id: string; from: string; to: string } | null>(null);
   const [whoami, setWhoami] = useState<{ email?: string; name?: string } | null>(null);
   const workspaceLayout = useWorkspaceLayout(world?.id, workspace);
   useEffect(() => { api.whoami().then(result => setWhoami(result.ok ? result : null)).catch(() => setWhoami(null)); }, []);
@@ -53,9 +57,14 @@ export function App() {
 
   const loadWorld = async (selected: Promise<{ ok: boolean; world: WorldInfo }>) => {
     setLoadError('');
-    try { const result = await selected; setActiveWorld(result.world.id); const [m, f] = await Promise.all([api.manuscript(), api.figures()]); manuscriptHistory.load(m); figureHistory.load(f); setWorld(result.world); }
+    try { const result = await selected; setActiveWorld(result.world.id); const [m, f] = await Promise.all([api.manuscript(), api.figures()]); const reconciled = reconcileMentions(m, f.nodes); const linked = { ...reconciled.manuscript, chapters: reconciled.manuscript.chapters.map(chapter => ({ ...chapter, mentions: addDeterministicMentions(chapter.body, chapter.mentions || [], f.nodes) })) }; setOrphanedMentions(reconciled.orphanedCount); manuscriptHistory.load(linked); figureHistory.load(f); setWorld(result.world); }
     catch (error) { setLoadError(errorMessage(error)); }
   };
+  const changeFigures = useCallback((next: FigureState) => {
+    const renamed = figures && next.nodes.find(node => figures.nodes.some(previous => previous.id === node.id && previous.name !== node.name));
+    if (renamed) { const previous = figures.nodes.find(node => node.id === renamed.id)!; setPendingRename({ id: renamed.id, from: previous.name, to: renamed.name }); }
+    figureHistory.change(next);
+  }, [figures, figureHistory.change]);
   useEffect(() => { api.worlds().then(result => { setWorlds(result.worlds); const requested = new URLSearchParams(location.search).get('world'); if (requested) void loadWorld(api.openWorld(requested)); }).catch(error => { setWorlds([]); setLoadError(errorMessage(error)); }); }, []);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -79,12 +88,13 @@ export function App() {
     <AppShell title={world.title} workspace={workspace} onWorkspace={value => { setWorkspace(value); setFocus(false); }} navigationAvailable={workspace === 'text' && !focus} navigationOpen={workspaceLayout.layout.navigationOpen} onNavigation={() => workspaceLayout.setNavigationOpen(!workspaceLayout.layout.navigationOpen)} phase={activeSave.phase} error={activeSave.error} retry={activeSave.retry} theme={theme} onTheme={toggleTheme}
       onSearch={() => setOverlay('palette')} onHistory={() => setOverlay('history')} onGit={() => setOverlay('git')} onBackups={() => setOverlay('backups')} onAssistant={() => setAssistantOpen(value => !value)}
       whoami={whoami} onLogout={logout} version={version}>
-      {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} onChange={manuscriptHistory.change} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} viewportMode={workspaceLayout.mode} binderOpen={workspaceLayout.layout.navigationOpen} onBinderOpen={workspaceLayout.setNavigationOpen} inspectorOpen={workspaceLayout.layout.inspectorOpen} onInspectorOpen={workspaceLayout.setInspectorOpen} sidebarWidth={workspaceLayout.layout.sidebarWidth} onSidebarWidth={workspaceLayout.setSidebarWidth} inspectorWidth={workspaceLayout.layout.inspectorWidth} onInspectorWidth={workspaceLayout.setInspectorWidth} /> : workspace === 'figures' ? <FigureWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : workspace === 'timeline' ? <TimelineWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'timeline' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : <PlacesWorkspace state={figures} onChange={figureHistory.change} targetId={target?.workspace === 'places' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} onOpen={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
+      {workspace === 'text' ? <TextWorkspace worldTitle={world.title} manuscript={manuscript} figures={figures} orphanedMentions={orphanedMentions} onChange={manuscriptHistory.change} onOpenEntity={selected => { setWorkspace(selected.workspace); setTarget(selected); }} focus={focus} onFocus={setFocus} targetId={target?.workspace === 'text' ? target.id : undefined} onUndo={manuscriptHistory.undo} onRedo={manuscriptHistory.redo} canUndo={manuscriptHistory.canUndo} canRedo={manuscriptHistory.canRedo} onSave={flushAll} viewportMode={workspaceLayout.mode} binderOpen={workspaceLayout.layout.navigationOpen} onBinderOpen={workspaceLayout.setNavigationOpen} inspectorOpen={workspaceLayout.layout.inspectorOpen} onInspectorOpen={workspaceLayout.setInspectorOpen} sidebarWidth={workspaceLayout.layout.sidebarWidth} onSidebarWidth={workspaceLayout.setSidebarWidth} inspectorWidth={workspaceLayout.layout.inspectorWidth} onInspectorWidth={workspaceLayout.setInspectorWidth} /> : workspace === 'figures' ? <FigureWorkspace state={figures} onChange={changeFigures} targetId={target?.workspace === 'figures' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : workspace === 'timeline' ? <TimelineWorkspace state={figures} onChange={changeFigures} targetId={target?.workspace === 'timeline' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} /> : <PlacesWorkspace state={figures} onChange={changeFigures} targetId={target?.workspace === 'places' ? target.id : undefined} onUndo={figureHistory.undo} onRedo={figureHistory.redo} canUndo={figureHistory.canUndo} canRedo={figureHistory.canRedo} onOpen={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
     </AppShell>
     {assistantOpen && <AssistantDrawer worldId={world.id} figures={figures} chapters={manuscript.chapters} onClose={() => setAssistantOpen(false)} onApply={proposals => { figureHistory.change(applyAssistantProposals(figures, proposals, t)); setWorkspace('figures'); setFocus(false); }} onNavigate={selected => { setWorkspace(selected.workspace); setTarget(selected); }} />}
     {overlay === 'palette' && <SearchDialog manuscript={manuscript} figures={figures} onClose={() => setOverlay(null)} onWorkspace={setWorkspace} onSelect={setTarget} onCommand={executeCommand} />}
     {overlay === 'git' && <GitDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'history' && <HistoryDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'backups' && <BackupDialog onClose={() => setOverlay(null)} flush={flushAll} />}
+    {pendingRename && <ConfirmDialog title={t('updateEntityMentions')} description={t('updateEntityMentionsDescription').replace('{from}', pendingRename.from).replace('{to}', pendingRename.to)} confirmLabel={t('updateMentions')} onConfirm={() => { manuscriptHistory.change(replaceEntityMentions(manuscript, pendingRename.id, pendingRename.to)); setPendingRename(null); }} onClose={() => setPendingRename(null)} />}
   </Suspense>;
 }

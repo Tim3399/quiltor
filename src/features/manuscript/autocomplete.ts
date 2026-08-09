@@ -2,9 +2,8 @@ import type { FigureState, Manuscript } from '../../types';
 
 export type WordCompletion = { word: string; start: number; end: number };
 
-export function writingVocabulary(manuscript: Manuscript, figures: FigureState): string[] {
+export function writingVocabulary(manuscript: Manuscript, _figures: FigureState): string[] {
   const terms = [
-    ...figures.nodes.flatMap(node => node.name.split(/[^\p{L}\p{N}'’-]+/u)),
     ...(manuscript.words || []).flatMap(item => (typeof item === 'string' ? item : item.w).split(/[^\p{L}\p{N}'’-]+/u)),
   ].map(term => term.trim()).filter(term => term.length >= 2);
   return [...new Map(terms.map(term => [term.toLocaleLowerCase('de-DE'), term])).values()]
