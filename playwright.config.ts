@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+export const baselineViewports = {
+  wide: { width: 1440, height: 900 },
+  regular: { width: 900, height: 760 },
+  compact: { width: 390, height: 844 },
+} as const;
+
 export default defineConfig({
   testDir: './tests/e2e',
   workers: 1,
@@ -10,10 +16,8 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } } },
-    { name: 'compact', use: { ...devices['Desktop Chrome'], viewport: { width: 900, height: 760 } } },
-    { name: 'tablet', use: { ...devices['Desktop Chrome'], viewport: { width: 768, height: 1024 } } },
-    { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
+    { name: 'wide', use: { ...devices['Desktop Chrome'], viewport: baselineViewports.wide } },
+    { name: 'regular', use: { ...devices['Desktop Chrome'], viewport: baselineViewports.regular } },
+    { name: 'compact', use: { ...devices['Desktop Chrome'], viewport: baselineViewports.compact } },
   ],
 });

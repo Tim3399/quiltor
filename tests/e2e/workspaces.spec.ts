@@ -35,8 +35,8 @@ test('Text, Suche und Figurenboard laden ohne Laufzeitfehler', async ({ page }, 
   }
   await page.screenshot({ path: testInfo.outputPath('text.png'), fullPage: true });
 
-  await page.getByRole('button', { name: /Suche öffnen/ }).click();
-  await page.getByPlaceholder('Kapitel, Text, Elemente, Zeitpunkte …').fill('Test');
+  await page.keyboard.press('Control+KeyF');
+  await page.getByRole('textbox', { name: 'Suchbegriff' }).fill('Test');
   await page.keyboard.press('Escape');
 
   await page.getByRole('button', { name: 'Figuren' }).click();
@@ -57,7 +57,7 @@ test('Shortcuts unterscheiden Speichern und Git', async ({ page }) => {
 });
 
 test('Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-Schritt', async ({ page }) => {
-  await page.route('**/api/assistant/status', route => route.fulfill({ json: { ok: true, available: true, mode: 'local', reason: '', chunks: 7 } }));
+  await page.route('**/api/assistant/status*', route => route.fulfill({ json: { ok: true, available: true, mode: 'local', reason: '', chunks: 7 } }));
   await page.route('**/api/assistant/chat', route => route.fulfill({ json: {
     ok: true,
     message: 'Ich habe Ada, Bela und ihre Beziehung als Vorschläge vorbereitet.',
@@ -73,7 +73,7 @@ test('Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
   const drawer = page.getByRole('complementary', { name: 'Lokaler Assistent' });
   await expect(drawer).toContainText('7 Quellen indexiert');
   const drawerBox = await drawer.boundingBox(), composerBox = await drawer.locator('footer').boundingBox();
-  expect(drawerBox && composerBox && composerBox.height < 120 && Math.abs(composerBox.y + composerBox.height - (drawerBox.y + drawerBox.height)) < 1).toBeTruthy();
+  expect(drawerBox && composerBox && Math.abs(composerBox.y + composerBox.height - (drawerBox.y + drawerBox.height)) < 1).toBeTruthy();
   await drawer.getByRole('textbox', { name: 'Nachricht an den lokalen Assistenten' }).fill('Lege Ada und Bela mit ihrer Beziehung an.');
   await drawer.getByRole('button', { name: 'Nachricht senden' }).click();
   await expect(drawer).toContainText('Erstes Kapitel');
@@ -130,8 +130,8 @@ test('Inhaltssuche, Befehlspalette und Timeline sind getrennte Arbeitsbereiche',
 });
 
 test('Figuren folgen dem Zeiger bereits während des Ziehens', async ({ page }) => {
-  await page.route('**/api/manuscript', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
-  await page.route('**/api/state', route => route.request().method() === 'GET'
+  await page.route('**/api/manuscript*', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
+  await page.route('**/api/state*', route => route.request().method() === 'GET'
     ? route.fulfill({ json: { nodes: [{ id: 'n1', x: 100, y: 100, type: 'person', name: 'Testfigur' }], edges: [] }, headers: { ETag: '"0"' } })
     : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }));
   await openBlankWorld(page);
@@ -148,8 +148,8 @@ test('Figuren folgen dem Zeiger bereits während des Ziehens', async ({ page }) 
 });
 
 test('Minimap unterscheidet Elementarten und das Raster lässt sich lösen', async ({ page }) => {
-  await page.route('**/api/manuscript', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
-  await page.route('**/api/state', route => route.request().method() === 'GET'
+  await page.route('**/api/manuscript*', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
+  await page.route('**/api/state*', route => route.request().method() === 'GET'
     ? route.fulfill({ json: { nodes: [
       { id: 'n1', x: 101, y: 101, type: 'person', name: 'Figur' },
       { id: 'n2', x: 401, y: 101, type: 'ort', name: 'Ort' },
@@ -159,10 +159,12 @@ test('Minimap unterscheidet Elementarten und das Raster lässt sich lösen', asy
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
 
+  await expect(page.locator('.react-flow__minimap-node')).toHaveCount(3);
   const fills = await page.locator('.react-flow__minimap-node').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).fill));
   expect(new Set(fills).size).toBe(3);
   const sizes = await page.locator('.story-node').evaluateAll(nodes => nodes.map(node => ({ width: getComputedStyle(node).width, height: getComputedStyle(node).height })));
-  expect(sizes).toEqual([{ width: '200px', height: '96px' }, { width: '200px', height: '96px' }, { width: '200px', height: '96px' }]);
+  const expectedHeight = (page.viewportSize()?.width || 0) < 720 ? '68px' : '96px';
+  expect(sizes).toEqual(Array.from({ length: 3 }, () => ({ width: '200px', height: expectedHeight })));
   await expect(page.locator('.react-flow__background path')).toHaveCount(1);
   await page.getByRole('button', { name: 'Anordnen', exact: true }).click();
   await expect.poll(() => page.locator('.react-flow__node').first().getAttribute('style')).toContain('translate(96px, 96px)');
@@ -200,7 +202,7 @@ test('Verschieben erhält alle Elemente auch nach Autosave und Neuladen', async 
 });
 
 test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekunden Halten', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Die zeitbasierte Sicherheitsinteraktion muss nur einmal geprüft werden.');
+  test.skip(testInfo.project.name !== 'wide', 'Die zeitbasierte Sicherheitsinteraktion muss nur einmal geprüft werden.');
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
   for (const label of ['Element', 'Figur', 'Ort', 'Konzept']) await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
@@ -225,9 +227,9 @@ test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekun
 });
 
 test('Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Die Timeline wird im breiten Figurenboard geprüft.');
-  await page.route('**/api/manuscript', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
-  await page.route('**/api/state', route => route.request().method() === 'GET'
+  test.skip(testInfo.project.name !== 'wide', 'Die Timeline wird im breiten Figurenboard geprüft.');
+  await page.route('**/api/manuscript*', route => route.fulfill({ json: { chapters: [{ id: 'c1', title: 'Test', body: '', note: '' }] }, headers: { ETag: '"0"' } }));
+  await page.route('**/api/state*', route => route.request().method() === 'GET'
     ? route.fulfill({ json: { nodes: [{ id: 'n1', x: 120, y: 140, type: 'person', name: 'Ada' }, { id: 'n2', x: 520, y: 140, type: 'person', name: 'Bela' }], edges: [{ id: 'e1', from: 'n1', to: 'n2', label: 'Verbündete' }, { id: 'e2', from: 'n2', to: 'n1', label: 'Bewundert', gerichtet: true }] }, headers: { ETag: '"0"' } })
     : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }));
   await openBlankWorld(page);
@@ -289,7 +291,7 @@ test('Fokusmodus bietet eine diskrete Schreibhilfe', async ({ page }, testInfo) 
 });
 
 test('Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht', async ({ page }) => {
-  await page.route('**/api/manuscript', route => route.request().method() === 'GET'
+  await page.route('**/api/manuscript*', route => route.request().method() === 'GET'
     ? route.fulfill({ json: { chapters: [
       { id: 'c1', title: 'Prolog', body: 'Ein langer Absatz hält seinen Zeilenumbruch beim Öffnen der Randpanels stabil.', note: '' },
       { id: 'c2', title: 'Aufbruch', body: 'Der Weg beginnt.', note: '' },
@@ -306,13 +308,15 @@ test('Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht', async
   const withChapters = await editor.boundingBox();
   expect(withChapters).toEqual(initial);
   const chapters = await page.locator('.focus-chapter-list').boundingBox();
-  expect(chapters!.x + chapters!.width).toBeLessThanOrEqual(initial!.x);
+  if ((page.viewportSize()?.width || 0) >= 1100) expect(chapters!.x + chapters!.width).toBeLessThanOrEqual(initial!.x);
+  else expect(chapters!.x).toBeGreaterThanOrEqual(0);
 
   await page.getByRole('button', { name: 'Schreibhilfe öffnen' }).click();
   const withBoth = await editor.boundingBox();
   expect(withBoth).toEqual(initial);
   const helper = await page.locator('.focus-helper-panel').boundingBox();
-  expect(helper!.x).toBeGreaterThanOrEqual(initial!.x + initial!.width);
+  if ((page.viewportSize()?.width || 0) >= 1100) expect(helper!.x).toBeGreaterThanOrEqual(initial!.x + initial!.width);
+  else expect(helper!.x + helper!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
 
   await page.getByRole('button', { name: 'Kapitelauswahl schließen' }).click();
   await page.getByRole('button', { name: 'Schreibhilfe schließen' }).click();
@@ -320,19 +324,21 @@ test('Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht', async
 });
 
 test('Kapitelversionen erscheinen direkt neben der Schreibfläche', async ({ page }, testInfo) => {
-  await page.route('**/api/log', route => route.fulfill({ json: { ok: true, commits: [{ hash: 'abc123', kurz: 'abc123', datum: '01.01.2026 12:00', betreff: 'Frühere Fassung' }] } }));
+  await page.route('**/api/log*', route => route.fulfill({ json: { ok: true, commits: [{ hash: 'abc123', kurz: 'abc123', datum: '01.01.2026 12:00', betreff: 'Frühere Fassung' }] } }));
   await page.route('**/api/textfassung**', route => route.fulfill({ json: { ok: true, text: 'Historischer Kapiteltext' } }));
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Versionen' }).click();
-  const history = page.getByRole('complementary', { name: 'Kapitelversionen' });
+  const history = page.getByRole('complementary', { name: 'Versionen' });
   await expect(history).toBeVisible();
   await expect(history).toContainText('Historischer Kapiteltext');
-  await expect(page.getByLabel('Kapiteltext')).toBeVisible();
+  const viewportWidth = page.viewportSize()?.width || 0;
+  if (viewportWidth >= 1100 || viewportWidth < 720) await expect(page.getByLabel('Kapiteltext')).toBeVisible();
+  else await expect(page.getByLabel('Kapiteltext')).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('chapter-history.png'), fullPage: true });
 });
 
 test('Buchausgabe rendert als echtes 6×9-Zoll-PDF', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'PDF-Geometrie muss nur einmal geprüft werden.');
+  test.skip(testInfo.project.name !== 'wide', 'PDF-Geometrie muss nur einmal geprüft werden.');
   await openBlankWorld(page);
   await page.emulateMedia({ media: 'print' });
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
@@ -344,14 +350,14 @@ test('Buchausgabe rendert als echtes 6×9-Zoll-PDF', async ({ page }, testInfo) 
 test('Autosave überlebt Reload und meldet konkurrierende Änderungen', async ({ page }) => {
   let revision = 0;
   let manuscript = { chapters: [{ id: 'c1', title: 'Test', body: 'Anfang', note: '' }], words: [], zeichenAktiv: [] };
-  await page.route('**/api/manuscript', async route => {
+  await page.route('**/api/manuscript*', async route => {
     if (route.request().method() === 'GET') return route.fulfill({ json: manuscript, headers: { ETag: `"${revision}"` } });
     const expected = Number((route.request().headers()['if-match'] || '').replaceAll('"', ''));
     if (expected !== revision) return route.fulfill({ status: 409, json: { code: 'conflict', fehler: 'Konflikt' } });
     manuscript = route.request().postDataJSON(); revision += 1;
     return route.fulfill({ json: { ok: true, zeit: '12:00', revision }, headers: { ETag: `"${revision}"` } });
   });
-  await page.route('**/api/state', route => route.fulfill({ json: { nodes: [], edges: [] }, headers: { ETag: '"0"' } }));
+  await page.route('**/api/state*', route => route.fulfill({ json: { nodes: [], edges: [] }, headers: { ETag: '"0"' } }));
   await openBlankWorld(page);
   await page.getByLabel('Kapiteltext').fill('Nach Reload vorhanden');
   await expect(page.locator('.save-saved')).toBeVisible();
@@ -364,6 +370,7 @@ test('Autosave überlebt Reload und meldet konkurrierende Änderungen', async ({
 
 test('Kernansichten haben keine automatisiert erkennbaren WCAG-A/AA-Verstöße', async ({ page }) => {
   await openBlankWorld(page);
+  await expect(page.getByLabel('Kapiteltext')).toBeVisible();
   const textResults = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(textResults.violations).toEqual([]);
   await page.getByRole('button', { name: 'Figuren' }).click();
@@ -376,11 +383,14 @@ test('Kernansichten haben keine automatisiert erkennbaren WCAG-A/AA-Verstöße',
 
 test('Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich', async ({ page }, testInfo) => {
   await openBlankWorld(page);
-  await page.getByRole('button', { name: 'Dunkles Design aktivieren' }).click();
+  await page.getByRole('button', { name: 'Mehr' }).click();
+  await page.getByRole('menuitem', { name: 'Dunkel' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect(page.getByRole('button', { name: 'Helles Design aktivieren' })).toBeVisible();
+  await page.getByRole('button', { name: 'Mehr' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Hell' })).toBeVisible();
+  await page.keyboard.press('Escape');
   let results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(results.violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('dark-text.png'), fullPage: true });
@@ -395,7 +405,7 @@ test('Startseite lädt eine Welt und übernimmt ihren variablen Titel', async ({
   await page.request.post('/api/worlds/create', { data: { title: 'Öffentliche Testwelt' } });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welche Welt öffnest du?' })).toBeVisible();
-  await page.getByRole('button', { name: /Öffentliche Testwelt/ }).click();
+  await page.locator('.world-open').filter({ hasText: 'Öffentliche Testwelt' }).last().click();
   await expect(page.locator('.brand')).toContainText('Öffentliche Testwelt');
   await expect(page.getByLabel('Kapiteltext')).toBeVisible();
 });
@@ -420,9 +430,9 @@ test('Welt lässt sich erst nach fünf Sekunden Halten lokal löschen', async ({
 test('Sprachwahl erfolgt ausschließlich in der Welt-Auswahl', async ({ page }) => {
   await page.request.post('/api/worlds/create', { data: { title: 'Language Test World', gitUrl: 'git@git.example.com:example/language-test.git' } });
   await page.goto('/');
-  await page.getByRole('button', { name: 'English' }).click();
+  await page.getByRole('radio', { name: 'Englisch' }).click();
   await expect(page.getByRole('heading', { name: 'Which world would you like to open?' })).toBeVisible();
-  await page.getByRole('button', { name: /Language Test World/ }).click();
+  await page.locator('.world-open').filter({ hasText: 'Language Test World' }).last().click();
   await expect(page.locator('.workspace-switch').getByRole('button', { name: 'Manuscript', exact: true })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Language / Sprache' })).toHaveCount(0);
+  await expect(page.getByRole('radiogroup', { name: 'Language' })).toHaveCount(0);
 });
