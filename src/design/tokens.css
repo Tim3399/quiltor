@@ -20,6 +20,7 @@
   --popover-min: 180px;
   --popover-max: 360px;
   --sheet-max: 560px;
+  --sheet-wide: 880px;
   --layout-gutter-compact: var(--space-8);
   --layout-gutter-regular: var(--space-16);
   --layout-gutter-wide: var(--space-24);

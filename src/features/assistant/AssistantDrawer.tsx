@@ -4,6 +4,8 @@ import { api, errorMessage } from '../../lib/api';
 import type { AssistantProposal, AssistantReply, AssistantSource, Chapter, FigureState, Workspace } from '../../types';
 import { proposalLabel, scopeAssistantProposals } from './proposals';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { Inspector } from '../../shared/ui/Sidebar';
+import { Sheet } from '../../shared/ui/Sheet';
 import { useLanguage } from '../../language';
 
 const STATUS_POLL_MS = 15000;
@@ -23,6 +25,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
   const [confirmNewChat, setConfirmNewChat] = useState(false);
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
   const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; label: string } | null>(null);
+  const [compact, setCompact] = useState(() => typeof matchMedia === 'function' && matchMedia('(max-width: 719px)').matches);
   const end = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chapterPickerRef = useRef<HTMLDetailsElement>(null);
@@ -36,6 +39,12 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     return () => window.clearInterval(interval);
   }, [checkStatus]);
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(entries.slice(-40))); end.current?.scrollIntoView({ behavior: 'smooth' }); }, [entries, storageKey]);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const media = matchMedia('(max-width: 719px)'), update = () => setCompact(media.matches);
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const send = async (retryId?: string, opts?: { batch?: boolean }, explicitQuestion?: string) => {
     const question = explicitQuestion || (retryId ? entries.find(entry => entry.id === retryId)?.question : draft.trim());
     if (!question || sending) return;
@@ -78,7 +87,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     onApply(proposals);
     setEntries(current => current.map(entry => entry.id === entryId ? { ...entry, applied: [...new Set([...entry.applied, ...indices])] } : entry));
   };
-  return <aside className={`assistant-drawer ${status && !status.available ? 'has-offline' : ''}`} aria-label={t('localAssistant')}>
+  const content = <>
     <header><div><Sparkles /><span><strong>{t('assistant')}</strong><small>{t('localOnlySuggestions')}</small></span></div>
       <div className="assistant-header-actions">
         <button className="icon-button" disabled={!entries.length} aria-label={t('newChat')} title={t('newChat')} onClick={() => setConfirmNewChat(true)}><Plus /></button>
@@ -86,12 +95,12 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
       </div>
     </header>
     <div className="assistant-scope"><Database /><span><strong>{t('sourcesIndexed').replace('{n}', String(status?.chunks ?? '…'))}</strong><small>{t('sourcesScopeDescription')}</small></span></div>
-    {status && !status.available && <div className="assistant-offline"><Bot /><div><strong>{t('localModelUnavailable')}</strong><p>{status.reason}</p><small>{t('stillFullyUsable')}</small><button onClick={checkStatus}><RotateCw />{t('retry')}</button></div></div>}
+    {status && !status.available && <div className="assistant-offline" role="alert"><Bot /><div><strong>{t('localModelUnavailable')}</strong><p>{status.reason}</p><small>{t('stillFullyUsable')}</small><button onClick={checkStatus}><RotateCw />{t('retry')}</button></div></div>}
     <div className="assistant-messages">
       {!entries.length && <div className="assistant-empty"><Bot /><h2>{t('assistantGreeting')}</h2><p>{t('assistantGreetingBody')}</p><button onClick={() => setDraft(t('findMissingFiguresPrompt'))}>{t('findMissingFigures')}</button><button onClick={() => setDraft(t('checkTimelinePrompt'))}>{t('checkTimeline')}</button></div>}
       {entries.map(entry => <article className="assistant-exchange" key={entry.id}>
         <p className="assistant-question">{entry.question}</p>
-        {entry.error && <div className="assistant-error"><span>{entry.error}</span><button disabled={sending} onClick={() => void send(entry.id)}><RotateCw />{t('retryLabel')}</button></div>}
+        {entry.error && <div className="assistant-error" role="alert"><span>{entry.error}</span><button disabled={sending} onClick={() => void send(entry.id)}><RotateCw />{t('retryLabel')}</button></div>}
         {entry.reply && <div className="assistant-answer"><p>{entry.reply.message}</p>
           {!!entry.reply.clarification?.candidates.length && <div className="assistant-broadscope"><div className="assistant-broadscope-actions">
             {entry.reply.clarification.candidates.map(candidate => <button type="button" disabled={sending} key={candidate.id} onClick={() => void send(undefined, undefined, `${entry.reply!.clarification!.question} ${candidate.name} [${candidate.id}]`)}>{candidate.name}</button>)}
@@ -101,9 +110,9 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
             <button type="button" disabled={sending} onClick={() => void send(entry.id, { batch: true })}>{t('runInChapterGroups')}</button>
           </div></div>}
           {!!entry.reply.sources?.length && <SourceList sources={entry.reply.sources} onNavigate={onNavigate} />}
-          {!!entry.reply.proposals?.length && <div className="assistant-proposals"><div className="assistant-proposal-heading"><strong>{t('nProposals').replace('{n}', String(entry.reply.proposals.length))}</strong><button disabled={entry.applied.length === entry.reply.proposals.length} onClick={() => { const pending = entry.reply!.proposals.map((proposal, index) => ({ proposal, index })).filter(item => !entry.applied.includes(item.index)); apply(entry.id, pending.map(item => item.proposal), pending.map(item => item.index)); }}><Check />{t('applyAll')}</button></div>
+          {!!entry.reply.proposals?.length && <details className="assistant-proposals" open><summary className="assistant-proposal-heading"><span><ChevronDown /><strong>{t('nProposals').replace('{n}', String(entry.reply.proposals.length))}</strong></span><button disabled={entry.applied.length === entry.reply.proposals.length} onClick={event => { event.preventDefault(); const pending = entry.reply!.proposals.map((proposal, index) => ({ proposal, index })).filter(item => !entry.applied.includes(item.index)); apply(entry.id, pending.map(item => item.proposal), pending.map(item => item.index)); }}><Check />{t('applyAll')}</button></summary>
             {entry.reply.proposals.map((proposal, index) => { const grouped = (entry.reply?.proposalGroup?.proposalIndexes.length || 0) > 1; return <div className={`assistant-proposal ${entry.applied.includes(index) ? 'is-applied' : ''}`} key={index}><span>{proposalLabel(proposal, figures, t)}</span><button disabled={entry.applied.includes(index) || grouped} title={grouped ? t('packageOnlyTogetherHelp') : undefined} onClick={() => apply(entry.id, [proposal], [index])}>{entry.applied.includes(index) ? <><Check />{t('applied')}</> : grouped ? t('inPackage') : t('apply')}</button></div>; })}
-          </div>}
+          </details>}
           {!!entry.reply.agentTrace?.length && <details className="assistant-trace"><summary><ChevronDown />{t('agentTraceSteps').replace('{n}', String(entry.reply.agentTrace.length))}</summary><pre>{JSON.stringify(entry.reply.agentTrace, null, 2)}</pre></details>}
         </div>}
       </article>)}
@@ -131,12 +140,14 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
         : <button aria-label={t('sendMessage')} disabled={!draft.trim() || status?.available === false} onClick={() => void send()}><ArrowUp /></button>}
       <small><BookOpen />{t('manuscriptReadOnlyNote')}</small></footer>
     {confirmNewChat && <ConfirmDialog title={t('newChat')} description={t('newChatConfirmDescription')} confirmLabel={t('startNewChat')} onConfirm={() => setEntries([])} onClose={() => setConfirmNewChat(false)} />}
-  </aside>;
+  </>;
+  const className = `assistant-drawer ${status && !status.available ? 'has-offline' : ''}`;
+  return compact ? <Sheet open label={t('localAssistant')} onClose={onClose}><div className={className}>{content}</div></Sheet> : <Inspector className={className} aria-label={t('localAssistant')}>{content}</Inspector>;
 }
 
 function SourceList({ sources, onNavigate }: { sources: AssistantSource[]; onNavigate: (target: { workspace: Workspace; id: string }) => void }) {
   const { t } = useLanguage();
-  return <div className="assistant-sources"><span>{t('sources')}</span>{sources.map(source => <button key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>{source.title}</button>)}</div>;
+  return <details className="assistant-sources"><summary><ChevronDown />{t('sources')} · {sources.length}</summary><div>{sources.map(source => <button key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>{source.title}</button>)}</div></details>;
 }
 
 function replyReferences(reply: AssistantReply): string[] {
