@@ -24,6 +24,7 @@ export interface Chapter {
 }
 
 export type GrammarMode = 'manual' | 'automatic';
+export type WritingIssue = { id: string; from: number; to: number; ruleId: string; category: string; message: string; replacements: string[] };
 
 export interface Manuscript {
   chapters: Chapter[];

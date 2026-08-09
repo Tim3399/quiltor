@@ -69,4 +69,17 @@ describe('TextWorkspace', () => {
     await rendered.findByText('Gebäude');
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('ändert bei einer Grammatikprüfung keinen Text ohne bestätigte Ersetzung', async () => {
+    vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {}, grammar: { available: true, installed: true, running: false, version: '6.6', javaVersion: 17, javaRequired: 17, externalConfigured: false, externalEnabled: false, download: { url: '', checksum: '', license: 'LGPL' } } });
+    vi.spyOn(api, 'checkGrammar').mockResolvedValue({ ok: true, language: 'de-DE', issues: [{ id: 'i1', from: 0, to: 5, ruleId: 'SPELL', category: 'Rechtschreibung', message: 'Möglicher Fehler', replacements: ['Hallo'] }] });
+    const onChange = vi.fn();
+    const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), inspectorOpen: true });
+    const rendered = within(view.container);
+    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhelfer' }));
+    await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
+    fireEvent.click(rendered.getByRole('button', { name: 'Text prüfen' }));
+    await waitFor(() => expect(api.checkGrammar).toHaveBeenCalledWith('Hallo Welt', ['Testfigur'], expect.any(AbortSignal)));
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

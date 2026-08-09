@@ -47,6 +47,8 @@ class StorageTest(unittest.TestCase):
         self.assertNotIn("elementId", exported)
         self.assertNotIn('"m1"', exported)
         self.assertTrue(manuscript["future"])
+        self.assertEqual(manuscript["language"], "de-DE")
+        self.assertEqual(manuscript["grammarMode"], "manual")
         self.assertEqual(figures["nodes"][0]["profile"]["extra"][0]["k"], "Motiv")
         self.assertEqual(figures["nodes"][0]["future"], 7)
         self.assertEqual(figures["nodes"][0]["diedMomentId"], "t2")

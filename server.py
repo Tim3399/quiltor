@@ -501,6 +501,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 500)
 
+        if route == "/api/language/grammar/install":
+            try:
+                return self.send_json(LANGUAGE.install_grammar())
+            except Exception as exc:
+                return self.send_json({"ok": False, "fehler": str(exc)}, 500)
+
+        if route == "/api/language/check":
+            try:
+                request = self._read_json_body()
+                words = request.get("customWords", [])
+                if not isinstance(words, list): raise ValueError("invalid project dictionary")
+                return self.send_json(LANGUAGE.check(str(request.get("language", "")), str(request.get("text", "")), words[:5000]))
+            except PermissionError as exc:
+                return self.send_json({"ok": False, "fehler": str(exc), "code": "external_opt_in_required"}, 403)
+            except FileNotFoundError as exc:
+                return self.send_json({"ok": False, "fehler": str(exc), "code": "not_installed"}, 409)
+            except ValueError as exc:
+                return self.send_json({"ok": False, "fehler": str(exc)}, 400)
+            except Exception as exc:
+                return self.send_json({"ok": False, "fehler": str(exc)}, 503)
+
         if route == "/api/git":
             try:
                 wunsch = self._read_json_body()
@@ -680,6 +701,7 @@ def run(port: int = 8000, no_open: bool = False) -> None:
         print("\n  Stopped. Your work is stored in data/\n")
     finally:
         ASSISTANT.close()
+        LANGUAGE.close()
 
 
 def main() -> None:

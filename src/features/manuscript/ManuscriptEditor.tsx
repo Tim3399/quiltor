@@ -3,17 +3,27 @@ import { Annotation, EditorSelection, EditorState, StateEffect, StateField } fro
 import { Decoration, keymap, placeholder as placeholderExtension, EditorView, hoverTooltip } from '@codemirror/view';
 import type { WordCompletion } from './autocomplete';
 import { completeOneWord } from './autocomplete';
-import type { EntityMention, FigureNode } from '../../types';
+import type { EntityMention, FigureNode, WritingIssue } from '../../types';
 import { mapMentions } from './mentions';
 
 const controlledUpdate = Annotation.define<boolean>();
 const createdMention = Annotation.define<EntityMention>();
 const setMentionDecorations = StateEffect.define<EntityMention[]>();
+const setIssueDecorations = StateEffect.define<WritingIssue[]>();
 const mentionDecorations = StateField.define({
   create: () => Decoration.none,
   update(value, transaction) {
     value = value.map(transaction.changes);
     for (const effect of transaction.effects) if (effect.is(setMentionDecorations)) value = Decoration.set(effect.value.map(mention => Decoration.mark({ class: 'entity-mention', attributes: { 'data-mention-id': mention.id } }).range(mention.from, mention.to)), true);
+    return value;
+  },
+  provide: field => EditorView.decorations.from(field),
+});
+const issueDecorations = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    value = value.map(transaction.changes);
+    for (const effect of transaction.effects) if (effect.is(setIssueDecorations)) value = Decoration.set(effect.value.map(issue => Decoration.mark({ class: 'writing-issue', attributes: { 'data-writing-issue': issue.id } }).range(issue.from, issue.to)), true);
     return value;
   },
   provide: field => EditorView.decorations.from(field),
@@ -46,24 +56,26 @@ export type ManuscriptEditorHandle = {
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
 };
 
-export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentions = [], entities = [], editorRef, onChange, onSelection, onOpenEntity, describeEntity = entity => entity.sub || entity.label || '' }: {
+export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentions = [], issues = [], entities = [], editorRef, onChange, onSelection, onIssue, onOpenEntity, describeEntity = entity => entity.sub || entity.label || '' }: {
   value: string;
   label: string;
   placeholder: string;
   vocabulary: string[];
   mentions?: EntityMention[];
+  issues?: WritingIssue[];
   entities?: FigureNode[];
   editorRef: React.MutableRefObject<ManuscriptEditorHandle | null>;
   onChange: (value: string, mentions: EntityMention[]) => void;
   onSelection: (selection: EditorTextSelection | null) => void;
+  onIssue?: (issue: WritingIssue) => void;
   onOpenEntity?: (entity: FigureNode) => void;
   describeEntity?: (entity: FigureNode) => string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
-  const changeRef = useRef(onChange), selectionRef = useRef(onSelection), openEntityRef = useRef(onOpenEntity), describeEntityRef = useRef(describeEntity), vocabularyRef = useRef(vocabulary), mentionsRef = useRef(mentions || []), entitiesRef = useRef(entities || []);
+  const changeRef = useRef(onChange), selectionRef = useRef(onSelection), issueRef = useRef(onIssue), openEntityRef = useRef(onOpenEntity), describeEntityRef = useRef(describeEntity), vocabularyRef = useRef(vocabulary), mentionsRef = useRef(mentions || []), issuesRef = useRef(issues), entitiesRef = useRef(entities || []);
   const [completion, setCompletion] = useState<CompletionPreview | null>(null);
-  changeRef.current = onChange; selectionRef.current = onSelection; openEntityRef.current = onOpenEntity; describeEntityRef.current = describeEntity; vocabularyRef.current = vocabulary; mentionsRef.current = mentions || []; entitiesRef.current = entities || [];
+  changeRef.current = onChange; selectionRef.current = onSelection; issueRef.current = onIssue; openEntityRef.current = onOpenEntity; describeEntityRef.current = describeEntity; vocabularyRef.current = vocabulary; mentionsRef.current = mentions || []; issuesRef.current = issues; entitiesRef.current = entities || [];
 
   useLayoutEffect(() => {
     if (!host.current) return;
@@ -81,6 +93,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
         EditorView.contentAttributes.of({ 'aria-label': label, spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true' }),
         placeholderExtension(placeholder),
         mentionDecorations,
+        issueDecorations,
         hoverTooltip((_current, position) => {
           const mention = mentionsRef.current.find(item => position >= item.from && position <= item.to);
           const entity = mention && entitiesRef.current.find(item => item.id === mention.elementId);
@@ -105,6 +118,12 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
           return true;
         } }]),
         EditorView.domEventHandlers({
+          click: event => {
+            const id = (event.target as HTMLElement).closest<HTMLElement>('[data-writing-issue]')?.dataset.writingIssue;
+            const issue = id && issuesRef.current.find(item => item.id === id);
+            if (issue) { issueRef.current?.(issue); return true; }
+            return false;
+          },
           contextmenu: (event, current) => {
             if (current.state.selection.main.empty) {
               const position = current.posAtCoords({ x: event.clientX, y: event.clientY });
@@ -178,6 +197,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
   }, [value]);
 
   useEffect(() => { view.current?.dispatch({ effects: setMentionDecorations.of(mentions) }); }, [mentions]);
+  useEffect(() => { view.current?.dispatch({ effects: setIssueDecorations.of(issues) }); }, [issues]);
 
   return <div className="prose-editor" ref={host}>{completion && <div className="word-completion" role="status" aria-live="polite"><kbd>Tab</kbd><span>{completion.word}{completion.detail && <small>{completion.detail}</small>}</span></div>}</div>;
 }

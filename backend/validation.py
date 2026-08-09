@@ -46,6 +46,8 @@ def valid_figures(payload: Any) -> bool:
 def valid_manuscript(payload: Any) -> bool:
     if not isinstance(payload, dict) or not isinstance(payload.get("chapters"), list):
         return False
+    if payload.get("language", "de-DE") != "de-DE" or payload.get("grammarMode", "manual") not in {"manual", "automatic"}:
+        return False
     ids: list[str] = []
     for chapter in payload["chapters"]:
         if not isinstance(chapter, dict) or not isinstance(chapter.get("id"), str) or not chapter["id"]:

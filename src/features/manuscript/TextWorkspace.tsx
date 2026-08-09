@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pilcrow, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
-import type { Chapter, FigureNode, FigureState, Manuscript, Workspace } from '../../types';
+import type { Chapter, FigureNode, FigureState, Manuscript, Workspace, WritingIssue } from '../../types';
 import { uid, wordCount } from '../../types';
 import { download } from '../../lib/api';
 import type { LanguageLookupResult, LanguageStatus } from '../../lib/api';
@@ -45,6 +45,9 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const [languageStatus, setLanguageStatus] = useState<LanguageStatus | null>(null);
   const [languageResults, setLanguageResults] = useState<LanguageLookupResult[]>([]);
   const [languagePhase, setLanguagePhase] = useState<'idle' | 'loading' | 'installing' | 'error'>('idle');
+  const [grammarIssues, setGrammarIssues] = useState<WritingIssue[]>([]);
+  const [selectedIssue, setSelectedIssue] = useState<WritingIssue | null>(null);
+  const [grammarPhase, setGrammarPhase] = useState<'idle' | 'checking' | 'installing' | 'unavailable' | 'error'>('idle');
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
@@ -54,10 +57,13 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const [pdfState, setPdfState] = useState<'idle' | 'loading' | 'error'>('idle');
   const editor = useRef<ManuscriptEditorHandle | null>(null);
   const lookupRequest = useRef<AbortController | null>(null);
+  const grammarRequest = useRef<AbortController | null>(null);
   const selectionAnchor = useRef<HTMLButtonElement>(null);
   const exportButton = useRef<HTMLButtonElement>(null);
   const layout = useRef<HTMLDivElement>(null);
   const current = manuscript.chapters.find(chapter => chapter.id === currentId) ?? manuscript.chapters[0];
+  const currentRef = useRef(current);
+  currentRef.current = current;
   const currentIndex = current ? manuscript.chapters.indexOf(current) + 1 : 0;
   useEffect(() => { if (targetId && manuscript.chapters.some(chapter => chapter.id === targetId)) setCurrentId(targetId); }, [targetId, manuscript.chapters]);
   useEffect(() => { if (!focus) setFocusHelpers(false); }, [focus]);
@@ -80,7 +86,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const total = useMemo(() => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0), [manuscript.chapters]);
   const vocabulary = useMemo(() => writingVocabulary(manuscript, figures), [manuscript.words, figures.nodes]);
   const ambiguousMentions = useMemo(() => current ? scanEntityMentions(current.body, figures.nodes, () => '').ambiguous.filter(candidate => !(current.mentions || []).some(mention => candidate.from < mention.to && candidate.to > mention.from)) : [], [current, figures.nodes]);
-  useEffect(() => { setSelection(null); setWritingSelection(null); setSelectionTool(null); setWritingQuery(''); }, [currentId]);
+  useEffect(() => { setSelection(null); setWritingSelection(null); setSelectionTool(null); setWritingQuery(''); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); }, [currentId]);
   useEffect(() => { void api.languageStatus().then(setLanguageStatus).catch(() => setLanguagePhase('error')); return () => lookupRequest.current?.abort(); }, []);
   useEffect(() => () => lookupRequest.current?.abort(), [writingSelection?.chapterId, writingSelection?.from, writingSelection?.to, writingSelection?.revision]);
 
@@ -139,6 +145,24 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     if (!writingSelection || !current || writingSelection.chapterId !== current.id || writingSelection.revision !== current.body) return;
     if (editor.current?.replaceSelection(writingSelection.from, writingSelection.to, writingSelection.text, text)) { setSelection(null); setWritingSelection(null); }
   };
+  const projectWords = () => [...(manuscript.words || []).map(item => typeof item === 'string' ? item : item.w), ...figures.nodes.map(node => node.name)];
+  const checkGrammar = () => {
+    if (!current || !languageStatus?.grammar?.available) { setGrammarPhase('unavailable'); return; }
+    grammarRequest.current?.abort(); const request = new AbortController(); grammarRequest.current = request;
+    const chapterId = current.id, revision = current.body; setGrammarPhase('checking'); setSelectedIssue(null);
+    void api.checkGrammar(revision, projectWords(), request.signal).then(result => {
+      if (grammarRequest.current === request && currentRef.current?.id === chapterId && currentRef.current.body === revision) { setGrammarIssues(result.issues); setGrammarPhase('idle'); }
+    }).catch(error => { if (error instanceof DOMException && error.name === 'AbortError') return; setGrammarPhase('error'); });
+  };
+  const installGrammar = () => { setGrammarPhase('installing'); void api.installGrammar().then(() => api.languageStatus()).then(status => { setLanguageStatus(status); setGrammarPhase('idle'); }).catch(() => setGrammarPhase('error')); };
+  const applyIssue = (issue: WritingIssue, replacement: string) => {
+    if (!current || current.body.slice(issue.from, issue.to) === '' || !editor.current?.replaceSelection(issue.from, issue.to, current.body.slice(issue.from, issue.to), replacement)) return;
+    setGrammarIssues([]); setSelectedIssue(null);
+  };
+  useEffect(() => {
+    if (manuscript.grammarMode !== 'automatic' || !current?.body || !languageStatus?.grammar?.available) return;
+    const timeout = window.setTimeout(checkGrammar, 900); return () => { window.clearTimeout(timeout); grammarRequest.current?.abort(); };
+  }, [current?.id, current?.body, manuscript.grammarMode, languageStatus?.grammar?.available]);
 
   const binderPanel = <>
     <div className="panel-heading"><span>{t('chapters')}</span><button className="icon-button" onClick={() => setBinderOpen(false)} aria-label={t('closeNavigation')}><PanelLeftClose /></button></div>
@@ -162,6 +186,13 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <button className="secondary-action" onClick={() => download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${current.body}\n`)}><Download />{t('chapterMarkdown')}</button>
       <button className="danger-text" onClick={() => setDeleteOpen(true)}><Trash2 />{t('deleteChapter')}</button>
     </div> : <div className="panel-body helper-panel">
+      <section className="grammar-tool"><div className="grammar-heading"><h3>{t('grammar')}</h3><button className="primary" onClick={checkGrammar} disabled={grammarPhase === 'checking'}>{grammarPhase === 'checking' ? t('grammarChecking') : t('checkText')}</button></div>
+        <label className="field"><span>{t('grammarMode')}</span><select value={manuscript.grammarMode || 'manual'} onChange={event => onChange({ ...manuscript, language: 'de-DE', grammarMode: event.target.value as Manuscript['grammarMode'] })}><option value="manual">{t('grammarManual')}</option><option value="automatic">{t('grammarAutomatic')}</option></select></label>
+        {!languageStatus?.grammar?.available && <div className="writing-data-state"><p>{languageStatus?.grammar?.installed ? t('grammarJavaMissing').replace('{version}', String(languageStatus.grammar.javaRequired)) : t('grammarUnavailable')}</p>{!languageStatus?.grammar?.installed && <button onClick={installGrammar} disabled={grammarPhase === 'installing'}>{grammarPhase === 'installing' ? t('grammarInstalling') : t('grammarInstall')}</button>}<small>{t('grammarBrowserFallback')}</small></div>}
+        {grammarPhase === 'error' && <p className="error-box" role="alert">{t('grammarCheckError')}</p>}
+        {languageStatus?.grammar?.available && grammarPhase === 'idle' && <p className="muted" role="status">{grammarIssues.length ? t('grammarIssueCount').replace('{count}', String(grammarIssues.length)) : t('grammarReady')}</p>}
+        {selectedIssue && <article className="grammar-issue-card"><strong>{selectedIssue.category || t('grammar')}</strong><p>{selectedIssue.message}</p><div className="writing-values">{selectedIssue.replacements.map(value => <button key={value} onClick={() => applyIssue(selectedIssue, value)}>{value}</button>)}</div><button onClick={() => setSelectedIssue(null)}>{t('close')}</button></article>}
+      </section>
       {selectionTool && writingQuery && <section className="writing-selection-state"><span>{selectionTool === 'lookup' ? t('dictionary') : selectionTool === 'synonyms' ? t('synonyms') : t('translate')}</span><strong>{writingQuery}</strong></section>}
       <div className="writing-tool-tabs" role="tablist">{(['lookup', 'synonyms', 'translate'] as const).map(tool => <button key={tool} role="tab" aria-selected={selectionTool === tool} onClick={() => { setSelectionTool(tool); setLanguageResults([]); }}>{tool === 'lookup' ? t('dictionary') : tool === 'synonyms' ? t('synonyms') : t('translate')}</button>)}</div>
       {selectionTool && <section className="writing-reference-tool">
@@ -192,7 +223,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label={t('chapterTitle')} value={current.title} onChange={event => update({ title: event.target.value })} placeholder={t('chapterTitle')} />
-          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => { if (body !== current.body) setWritingSelection(null); update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) }); }} onSelection={next => setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null)} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
+          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} issues={grammarIssues} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => { if (body !== current.body) { setWritingSelection(null); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); } update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) }); }} onSelection={next => setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null)} onIssue={setSelectedIssue} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
           {historyOpen && <aside className="chapter-history" aria-label={t('versions')}><header><div><strong>{t('previousVersion')}</strong><span>{t('nextToCurrent')}</span></div><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label={t('closeVersions')}><X /></button></header>
             {commits.length ? <label className="field"><span>{t('state')}</span><select value={historyRef} onChange={event => setHistoryRef(event.target.value)}>{commits.map(commit => <option key={commit.hash} value={commit.hash}>{commit.datum} · {commit.betreff}</option>)}</select></label> : historyState !== 'loading' && <p className="muted">{t('noVersion')}</p>}
             {historyState === 'loading' ? <p className="muted">{t('loadingVersion')}</p> : historyState === 'error' ? <div className="error-box">{t('versionLoadError')}</div> : commits.length > 0 && <div className="historical-prose">{historicalText || <em>{t('chapterNotYetExisting')}</em>}</div>}

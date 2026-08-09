@@ -315,6 +315,8 @@ def load_manuscript(db_path: Path | None = None) -> dict[str, Any]:
         result = _decoded(settings["extra_json"]) if settings else {}
         result["words"] = json.loads(settings["words_json"]) if settings else []
         result["zeichenAktiv"] = json.loads(settings["characters_json"]) if settings else []
+        result.setdefault("language", "de-DE")
+        result.setdefault("grammarMode", "manual")
         chapters = []
         for row in conn.execute("SELECT * FROM chapters ORDER BY position"):
             chapter = _decoded(row["extra_json"])

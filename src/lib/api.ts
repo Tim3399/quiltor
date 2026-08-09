@@ -1,9 +1,10 @@
-import type { AssistantHistoryMessage, AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
+import type { AssistantHistoryMessage, AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo, WritingIssue } from '../types';
 import { languages, readInterfaceLanguage } from '../language';
 
 export type LanguageLookupMode = 'dictionary' | 'synonyms' | 'translation';
 export type LanguageLookupResult = { lemma: string; partOfSpeech: string; meaning: string; values: string[]; source: string };
-export type LanguageStatus = { ok: boolean; installed: boolean; stale: boolean; version: string | null; sources: Record<string, { version: string; url: string; checksum: string; license: string; attribution: string }> };
+export type GrammarStatus = { available: boolean; installed: boolean; running: boolean; version: string; javaVersion: number | null; javaRequired: number; externalConfigured: boolean; externalEnabled: boolean; download: { url: string; checksum: string; license: string } };
+export type LanguageStatus = { ok: boolean; installed: boolean; stale: boolean; version: string | null; sources: Record<string, { version: string; url: string; checksum: string; license: string; attribution: string }>; grammar?: GrammarStatus };
 
 // api.ts is a plain module used outside React's render cycle (event handlers, fetch
 // callbacks), so it can't call the useLanguage() hook -- read the persisted preference
@@ -76,6 +77,8 @@ export const api = {
   languageStatus: () => json<LanguageStatus>('/api/language/status'),
   installLanguageData: () => json<{ ok: boolean; version: string; entries: number }>('/api/language/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   languageLookup: (language: 'de-DE' | 'en-GB', mode: LanguageLookupMode, query: string, signal?: AbortSignal) => json<{ ok: boolean; query: string; language: string; mode: string; version: string; results: LanguageLookupResult[] }>('/api/language/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language, mode, query }), signal }),
+  installGrammar: () => json<GrammarStatus & { ok: boolean }>('/api/language/grammar/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  checkGrammar: (text: string, customWords: string[], signal?: AbortSignal) => json<{ ok: boolean; language: 'de-DE'; issues: WritingIssue[] }>('/api/language/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'de-DE', text, customWords }), signal }),
   bookPdf: async () => {
     const response = await fetch('/api/book.pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({})) });
     if (!response.ok) { const error = await response.json().catch(() => null); throw new Error(error?.fehler || `HTTP ${response.status}`); }

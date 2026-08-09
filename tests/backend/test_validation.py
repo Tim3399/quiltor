@@ -21,6 +21,12 @@ class ManuscriptMentionValidationTests(unittest.TestCase):
         self.assertFalse(valid_manuscript(self.manuscript([self.mention(), self.mention(**{"from": 2, "to": 8}, surface="ra und")])))
         self.assertFalse(valid_manuscript(self.manuscript([self.mention(), self.mention(**{"from": 9, "to": 13}, surface="Bela")])))
 
+    def test_accepts_supported_grammar_settings_and_rejects_unknown_values(self):
+        manuscript = self.manuscript([])
+        self.assertTrue(valid_manuscript({**manuscript, "language": "de-DE", "grammarMode": "automatic"}))
+        self.assertFalse(valid_manuscript({**manuscript, "language": "en-US"}))
+        self.assertFalse(valid_manuscript({**manuscript, "grammarMode": "always"}))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -186,6 +186,12 @@
 .writing-values, .writing-result-actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .writing-values button { color: var(--gold-text); background: var(--gold-soft); }
 .writing-result-actions { padding-top: var(--space-6); border-top: 1px solid var(--line); }
+.grammar-tool { display: grid; gap: var(--space-8); padding-bottom: var(--space-12); border-bottom: 1px solid var(--line); }
+.grammar-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.grammar-heading h3 { margin: 0; }
+.grammar-issue-card { display: grid; gap: var(--space-8); padding: var(--space-12); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow-soft); }
+.grammar-issue-card p { margin: 0; }
+.writing-issue { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--danger); text-underline-offset: var(--space-4); cursor: pointer; }
 
 .selection-anchor {
   position: fixed;

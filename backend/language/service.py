@@ -5,14 +5,17 @@ from pathlib import Path
 
 from . import storage
 from .installer import install
+from .grammar import LanguageToolManager
 from .registry import MANIFEST_VERSION, SOURCES, manifest
 
 class LanguageService:
-    def __init__(self, data_dir: Path): self.path = data_dir / "language" / "writing.sqlite3"
+    def __init__(self, data_dir: Path):
+        self.path = data_dir / "language" / "writing.sqlite3"
+        self.grammar = LanguageToolManager(data_dir)
 
     def status(self) -> dict:
         installed_version = storage.version(self.path)
-        return {"installed": installed_version == MANIFEST_VERSION, "stale": installed_version is not None and installed_version != MANIFEST_VERSION, "version": installed_version, "manifest": manifest(), "sources": SOURCES}
+        return {"installed": installed_version == MANIFEST_VERSION, "stale": installed_version is not None and installed_version != MANIFEST_VERSION, "version": installed_version, "manifest": manifest(), "sources": SOURCES, "grammar": self.grammar.status()}
 
     def install(self) -> dict:
         result = install(self.path)
@@ -29,3 +32,10 @@ class LanguageService:
     @lru_cache(maxsize=512)
     def _lookup(self, language: str, mode: str, query: str) -> tuple:
         return tuple(storage.lookup(self.path, language, mode, query))
+
+    def install_grammar(self) -> dict: return self.grammar.install()
+
+    def check(self, language: str, text: str, custom_words: list[str]) -> dict:
+        return self.grammar.check(language, text, custom_words)
+
+    def close(self) -> None: self.grammar.close()

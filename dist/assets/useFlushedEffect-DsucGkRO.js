@@ -1,1 +1,0 @@
-import{I as e,R as t}from"./index-B-2HPPdn.js";var n=t(e(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};
