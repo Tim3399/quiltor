@@ -160,6 +160,16 @@ Sitzungen liegen im Prozessspeicher (kein separater Session-Store) — ein Neust
 
 Zusätzlich enthält jedes [GitHub Release](https://github.com/Tim3399/quiltor/releases) ein pip-Wheel (`pip install quiltor-<version>-py3-none-any.whl`, danach `quiltor` als Befehl). Ohne `QUILTOR_DATA_DIR` schreibt eine so installierte Instanz ihre Daten neben das installierte Package — bei systemweiten Installationen ggf. nicht beschreibbar, `QUILTOR_DATA_DIR` explizit setzen.
 
+**Das `quiltor`-CLI** (nur bei pip/pipx-Installation, nicht bei `python3 server.py`) bringt neben `quiltor` / `quiltor run [port] [--no-open]` auch persistente Konfiguration mit — Einstellungen landen in `~/.quiltor/config.env` und überleben so einen Neustart, echte Umgebungsvariablen haben aber immer Vorrang:
+
+```bash
+quiltor config keycloak   # geführtes Setup für Keycloak-Login (Issuer, Client-ID/-Secret, Public-URL)
+quiltor config llm        # externen LLM-Endpunkt statt der gebündelten lokalen Runtime hinterlegen
+quiltor config set|get|list|unset <KEY> [VALUE]   # generischer Zugriff auf jede QUILTOR_*-Variable
+quiltor config path        # zeigt den Pfad der Config-Datei
+quiltor --version
+```
+
 ## Lokal heißt lokal
 
 - Jede Welt besitzt eine eigene SQLite-Datei unter `data/worlds/`.

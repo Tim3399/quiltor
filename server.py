@@ -613,12 +613,7 @@ class Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-def main() -> None:
-    argv = sys.argv[1:]
-    no_open = "--no-open" in argv
-    positional = [a for a in argv if not a.startswith("--")]
-    port = int(positional[0]) if positional else 8000
-
+def run(port: int = 8000, no_open: bool = False) -> None:
     ensure_dirs()
     url = f"http://localhost:{port}/"
 
@@ -654,6 +649,14 @@ def main() -> None:
         print("\n  Stopped. Your work is stored in data/\n")
     finally:
         ASSISTANT.close()
+
+
+def main() -> None:
+    argv = sys.argv[1:]
+    no_open = "--no-open" in argv
+    positional = [a for a in argv if not a.startswith("--")]
+    port = int(positional[0]) if positional else 8000
+    run(port=port, no_open=no_open)
 
 
 if __name__ == "__main__":

@@ -9,10 +9,12 @@ description = "Local-first writing workshop with a private, on-device assistant"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0" }
-dependencies = []
+# The server itself (`python3 server.py`) stays standard-library only; this
+# is the one dependency of the packaged `quiltor` CLI's `run`/`config` commands.
+dependencies = ["typer>=0.12"]
 
 [project.scripts]
-quiltor = "backend.cli:main"
+quiltor = "backend.cli:main_entry"
 
 [project.urls]
 Homepage = "https://github.com/Tim3399/quiltor"
