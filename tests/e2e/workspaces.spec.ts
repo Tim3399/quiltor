@@ -100,14 +100,20 @@ test('Inhaltssuche, Befehlspalette und Timeline sind getrennte Arbeitsbereiche',
   await expect(page.getByText('Zum Manuskript wechseln')).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
-  await page.getByRole('button', { name: 'Element', exact: true }).click();
-  await expect(page.getByRole('menu')).toBeVisible();
-  await page.getByText(/Elemente ·/).click();
-  await expect(page.getByRole('menu')).toHaveCount(0);
+  if ((page.viewportSize()?.width || 0) > 640) {
+    await page.getByRole('button', { name: 'Element', exact: true }).click();
+    await expect(page.getByRole('menu')).toBeVisible();
+    await page.getByText(/Elemente ·/).click();
+    await expect(page.getByRole('menu')).toHaveCount(0);
+  }
   await page.getByRole('button', { name: 'Timeline', exact: true }).click();
-  await expect(page.getByLabel('Timeline verwalten')).toBeVisible();
-  await page.getByRole('button', { name: 'Zeitpunkt', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Noch keine Timeline' })).toBeVisible();
+  await page.getByRole('button', { name: 'Zeitpunkt hinzufügen' }).click();
   await expect(page.getByRole('heading', { name: 'Neuer Zeitpunkt' })).toBeVisible();
+  if ((page.viewportSize()?.width || 0) > 640) await expect(page.getByRole('navigation', { name: 'Zeitstrahl' })).toBeVisible();
+  else await expect(page.getByText('1 von 1')).toBeVisible();
+  await expect(page.getByText('Nur Änderungen')).toBeVisible();
 });
 
 test('Figuren folgen dem Zeiger bereits während des Ziehens', async ({ page }) => {
