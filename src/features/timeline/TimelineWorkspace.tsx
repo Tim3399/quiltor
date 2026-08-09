@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronLeft, ChevronRight, Clock3, GripVertical, Plus, Redo2, Skull, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Clock3, GripVertical, Plus, Redo2, Skull, Trash2, Undo2, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from '../../types';
 import { uid } from '../../types';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
@@ -22,6 +22,7 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
   const [draggedMomentId, setDraggedMomentId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [mode, setMode] = useState<BoardMode>('changes');
+  const [openSections, setOpenSections] = useState(() => new Set(['relationships']));
   const [selectedLifeId, setSelectedLifeId] = useState<string | null>(null);
   const selected = timeline.find(moment => moment.id === selectedId) || null;
   const selectedIndex = selected ? timeline.findIndex(moment => moment.id === selected.id) : -1;
@@ -67,6 +68,11 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
     onChange({ ...state, nodes: state.nodes.map(node => node.id === nodeId ? { ...node, diedMomentId: node.diedMomentId === selected.id ? undefined : selected.id } : node) });
     setSelectedLifeId(null);
   };
+  const toggleSection = (section: string) => setOpenSections(current => {
+    const next = new Set(current);
+    if (next.has(section)) next.delete(section); else next.add(section);
+    return next;
+  });
 
   return <section className="timeline-workspace" aria-label={t('timeline')}>
     <div className="context-bar"><div className="context-title"><strong>{t('timeline')}</strong><span>{timeline.length} {t('timelinePoints')} · {state.edges.length} {t('timelineRelations')}</span></div><div className="context-tools">
@@ -98,18 +104,17 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
 
           <section className="timeline-meta-card"><label className="field"><span>{t('timelineName')}</span><input value={selected.title} onChange={event => patchMoment({ title: event.target.value })} /></label><label className="field"><span>{t('timelineDate')}</span><input type="date" value={selected.date || ''} onChange={event => patchMoment({ date: event.target.value || undefined })} /></label><label className="field timeline-note"><span>{t('timelineNote')}</span><textarea value={selected.note || ''} placeholder={t('timelineNotePlaceholder')} onChange={event => patchMoment({ note: event.target.value })} /></label></section>
 
-          <div className="storyboard-mode" role="group" aria-label={t('timelineView')}><button aria-pressed={mode === 'changes'} onClick={() => setMode('changes')}>{t('timelineOnlyChanges')}</button><button aria-pressed={mode === 'state'} onClick={() => setMode('state')}>{t('timelineWholeState')}</button></div>
-
-          <ManagerSection title={t('relationships')} count={edgeChanges.length} description={mode === 'changes' ? t('timelineRelationsChanged') : t('timelineRelationsState')}>
+          <ManagerSection id="relationships" title={t('relationships')} count={edgeChanges.length} description={mode === 'changes' ? t('timelineRelationsChanged') : t('timelineRelationsState')} open={openSections.has('relationships')} onToggle={() => toggleSection('relationships')}>
+            <div className="storyboard-mode-row"><span>{t('timelineRelationshipView')}</span><div className="storyboard-mode" role="group" aria-label={t('timelineView')}><button aria-pressed={mode === 'changes'} onClick={() => setMode('changes')}>{t('timelineOnlyChanges')}</button><button aria-pressed={mode === 'state'} onClick={() => setMode('state')}>{t('timelineWholeState')}</button></div></div>
             <div className="relationship-add"><label><span className="sr-only">{t('timelineChangeRelation')}</span><select defaultValue="" onChange={event => { if (event.target.value) addRelationshipChange(event.target.value); event.target.value = ''; }}><option value="">{t('timelineChangeRelation')}</option>{state.edges.filter(edge => !edgeChanges.includes(edge)).map(edge => <option value={edge.id} key={edge.id}>{relationshipName(edge, state.nodes, timeline, selected.id, t)}</option>)}</select></label></div>
             <div className="relationship-change-list">{visibleEdges.map(edge => <RelationshipCard key={edge.id} edge={edge} nodes={state.nodes} timeline={timeline} momentId={selected.id} explicit={edgeChanges.includes(edge)} selected={edge.id === selectedEdgeId} onSelect={() => setSelectedEdgeId(edge.id)} t={t} />)}{!visibleEdges.length && <p className="timeline-section-empty">{t('timelineNoRelationChanges')}</p>}</div>
           </ManagerSection>
 
-          <ManagerSection title={t('timelinePresence')} count={presenceChanges.length} description={t('timelinePresenceHelp')}>
+          <ManagerSection id="presence" title={t('timelinePresence')} count={presenceChanges.length} description={t('timelinePresenceHelp')} open={openSections.has('presence')} onToggle={() => toggleSection('presence')}>
             <PresenceBoard nodes={lifeNodes} places={places} presence={presence} timeline={timeline} momentId={selected.id} onPatch={patchPresenceAt} />
           </ManagerSection>
 
-          <ManagerSection title={t('timelineLife')} count={lifeChanges.length} description={t('timelineLifeHelp')}>
+          <ManagerSection id="life" title={t('timelineLife')} count={lifeChanges.length} description={t('timelineLifeHelp')} open={openSections.has('life')} onToggle={() => toggleSection('life')}>
             <div className="life-event-board"><div className="life-event-roster">{lifeNodes.map(node => <button key={node.id} draggable className={selectedLifeId === node.id ? 'selected' : ''} aria-pressed={selectedLifeId === node.id} onDragStart={event => event.dataTransfer.setData('application/x-quiltor-life', node.id)} onClick={() => setSelectedLifeId(value => value === node.id ? null : node.id)}><strong>{node.name}</strong><small>{node.type === 'tier' ? t('animal') : t('figure')}</small></button>)}</div>
               <button className="death-dropzone" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const id = event.dataTransfer.getData('application/x-quiltor-life'); if (id) markDeath(id); }} onClick={() => selectedLifeId && markDeath(selectedLifeId)}><Skull /><span><strong>{t('timelineDeathHere')}</strong><small>{selectedLifeId ? t('timelineDeathSelected') : t('timelineDeathHelp')}</small></span></button>
               {!!lifeChanges.length && <div className="life-change-list">{lifeChanges.map(node => <button key={node.id} onClick={() => markDeath(node.id)}><Skull /><span><strong>{node.name}</strong><small>{t('timelineRemoveDeath')}</small></span><X /></button>)}</div>}
@@ -127,8 +132,9 @@ function InsertMomentButton({ label, onClick }: { label: string; onClick: () => 
   return <button className="insert-moment" aria-label={label} title={label} onClick={onClick}><Plus /></button>;
 }
 
-function ManagerSection({ title, description, count, children }: { title: string; description: string; count: number; children: React.ReactNode }) {
-  return <section className="timeline-manager-section"><header><div><h2>{title}</h2><p>{description}</p></div><span className="section-count">{count}</span></header>{children}</section>;
+function ManagerSection({ id, title, description, count, open, onToggle, children }: { id: string; title: string; description: string; count: number; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  const panelId = `timeline-section-${id}`;
+  return <section className={`timeline-manager-section ${open ? 'open' : ''}`}><header><button className="timeline-section-toggle" aria-label={title} aria-expanded={open} aria-controls={panelId} onClick={onToggle}><div><h2>{title}</h2><p>{description}</p></div><span className="timeline-section-summary"><span className="section-count">{count}</span><ChevronDown /></span></button></header>{open && <div id={panelId} className="timeline-section-body">{children}</div>}</section>;
 }
 
 function RelationshipCard({ edge, nodes, timeline, momentId, explicit, selected, onSelect, t }: { edge: FigureEdge; nodes: FigureNode[]; timeline: TimelineMoment[]; momentId: string; explicit: boolean; selected: boolean; onSelect: () => void; t: Translate }) {
