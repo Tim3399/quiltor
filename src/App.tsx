@@ -1,23 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AppShell } from './app/AppShell';
 import { api, errorMessage, setActiveWorld } from './lib/api';
 import { useAutosave } from './hooks/useAutosave';
 import type { FigureState, Manuscript, Workspace, WorldInfo } from './types';
-import { TextWorkspace } from './features/manuscript/TextWorkspace';
-import { FigureWorkspace } from './features/figures/FigureWorkspace';
-import { SearchDialog } from './features/tools/SearchDialog';
-import { GitDialog } from './features/tools/GitDialog';
-import { HistoryDialog } from './features/tools/HistoryDialog';
 import { useHistoryState } from './hooks/useHistoryState';
-import { BackupDialog } from './features/tools/BackupDialog';
 import { useTheme } from './hooks/useTheme';
 import { WorldGate } from './features/worlds/WorldGate';
 import { PRODUCT_MARK } from './config/branding';
-import { AssistantDrawer } from './features/assistant/AssistantDrawer';
 import { applyAssistantProposals } from './features/assistant/proposals';
-import { TimelineWorkspace } from './features/timeline/TimelineWorkspace';
-import { PlacesWorkspace } from './features/places/PlacesWorkspace';
 import { useLanguage } from './language';
+
+const TextWorkspace = lazy(() => import('./features/manuscript/TextWorkspace').then(module => ({ default: module.TextWorkspace })));
+const FigureWorkspace = lazy(() => import('./features/figures/FigureWorkspace').then(module => ({ default: module.FigureWorkspace })));
+const TimelineWorkspace = lazy(() => import('./features/timeline/TimelineWorkspace').then(module => ({ default: module.TimelineWorkspace })));
+const PlacesWorkspace = lazy(() => import('./features/places/PlacesWorkspace').then(module => ({ default: module.PlacesWorkspace })));
+const AssistantDrawer = lazy(() => import('./features/assistant/AssistantDrawer').then(module => ({ default: module.AssistantDrawer })));
+const SearchDialog = lazy(() => import('./features/tools/SearchDialog').then(module => ({ default: module.SearchDialog })));
+const GitDialog = lazy(() => import('./features/tools/GitDialog').then(module => ({ default: module.GitDialog })));
+const HistoryDialog = lazy(() => import('./features/tools/HistoryDialog').then(module => ({ default: module.HistoryDialog })));
+const BackupDialog = lazy(() => import('./features/tools/BackupDialog').then(module => ({ default: module.BackupDialog })));
 
 type Overlay = 'search' | 'commands' | 'history' | 'git' | 'backups' | null;
 
@@ -73,7 +74,7 @@ export function App() {
   if (!world) return <WorldGate worlds={worlds} theme={preference} onTheme={setPreference} error={loadError} onOpen={id => loadWorld(api.openWorld(id))} onCreate={(title, gitUrl) => loadWorld(api.createWorld(title, gitUrl))} onDelete={async id => { await api.deleteWorld(id); const result = await api.worlds(); setWorlds(result.worlds); }} />;
   if (loadError) return <main className="fatal-state"><h1>{t('unreachable')}</h1><p>{loadError}</p><p>{restartPrefix}<code>python3 server.py</code>{restartSuffix}</p></main>;
   if (!manuscript || !figures) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>{t('openingWorkshop')}</p></main>;
-  return <>
+  return <Suspense fallback={<main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>{t('openingWorkshop')}</p></main>}>
     <AppShell title={world.title} workspace={workspace} onWorkspace={value => { setWorkspace(value); setFocus(false); }} phase={activeSave.phase} error={activeSave.error} retry={activeSave.retry} theme={theme} onTheme={toggleTheme}
       onSearch={() => setOverlay('search')} onCommands={() => setOverlay('commands')} onHistory={() => setOverlay('history')} onGit={() => setOverlay('git')} onBackups={() => setOverlay('backups')} onAssistant={() => setAssistantOpen(value => !value)}
       whoami={whoami} onLogout={logout} version={version}>
@@ -84,5 +85,5 @@ export function App() {
     {overlay === 'git' && <GitDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'history' && <HistoryDialog onClose={() => setOverlay(null)} flush={flushAll} />}
     {overlay === 'backups' && <BackupDialog onClose={() => setOverlay(null)} flush={flushAll} />}
-  </>;
+  </Suspense>;
 }
