@@ -71,9 +71,17 @@ npm run test:assistant:local -- --case set-presence  # one scenario
 
 The bundled `.mcp.json` configures the server for clients that support project-level MCP configuration.
 
+## German writing tools
+
+Manuscripts using the `de-DE` writing language have local dictionary, synonym, and word-translation lookup plus confirmable spelling and grammar checks. Selected text can be looked up, but insertion, replacement, and correction happen only after an explicit action and remain undoable.
+
+The guided `quiltor install` command includes these tools by default. Language data is stored under `data/language/`, or `~/.quiltor/data/language/` for a pipx installation. LanguageTool requires Java 17 or newer; browser spellchecking remains available without it. External LanguageTool-compatible services are used only with `QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1`. Without that opt-in, neither manuscript text nor search terms leave the device.
+
+Sources, versions, checksums, licenses, and attribution are recorded in the installation manifest and in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
 ## Quick start
 
-Requires Python 3.9 or newer (usually callable as `python` on Windows, `python3` on macOS/Linux). The built client already lives in `dist/` — nothing else to install for the editor and local storage.
+Requires Python 3.11 or newer (usually callable as `python` on Windows, `python3` on macOS/Linux). The built client already lives in `dist/` — nothing else to install for the editor and local storage.
 
 #### 1. Get the repository
 
@@ -153,7 +161,7 @@ npm run test:e2e
 
 The build checks TypeScript and rejects color, spacing, radius, shadow, font-size, and z-index literals outside `src/design/colors.css` and `src/design/tokens.css`. Browser tests cover desktop and compact layouts, light and dark themes, autosave, conflicts, and WCAG A/AA checks for the core workspaces.
 
-`npm run check:i18n` heuristically scans `.tsx` files for hardcoded German text outside `t()` calls (all interface text should instead come from `src/language/{de,en}/*.ts`). It isn't a real JSX parser and isn't part of the build — treat it as a spot check, not a complete gate.
+`npm run check:i18n` heuristically scans `.tsx` files for hardcoded visible text outside `t()` calls and statically checks German/English key parity. It is part of `npm run build`; all interface text belongs in `src/language/{de,en}/*.ts`.
 
 Demo screenshots can be reproduced against a separate test server:
 

@@ -51,7 +51,8 @@ for (const theme of ['light', 'dark'] as const) {
     await page.keyboard.press('Escape');
 
     await page.getByRole('button', { name: 'Lokalen Assistenten öffnen' }).click();
-    await expect(page.getByRole('complementary', { name: 'Lokaler Assistent' })).toBeVisible();
+    const assistant = (page.viewportSize()?.width || 0) < 720 ? page.getByRole('dialog', { name: 'Lokaler Assistent' }) : page.getByRole('complementary', { name: 'Lokaler Assistent' });
+    await expect(assistant).toBeVisible();
     await expect(page).toHaveScreenshot(`${theme}-assistant.png`, { animations: 'disabled' });
   });
 }

@@ -87,9 +87,10 @@ test('Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
   } }));
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Lokalen Assistenten öffnen' }).click();
-  const drawer = page.getByRole('complementary', { name: 'Lokaler Assistent' });
+  const drawer = (page.viewportSize()?.width || 0) < 720 ? page.getByRole('dialog', { name: 'Lokaler Assistent' }) : page.getByRole('complementary', { name: 'Lokaler Assistent' });
   await expect(drawer).toContainText('7 Quellen indexiert');
-  const drawerBox = await drawer.boundingBox(), composerBox = await drawer.locator('footer').boundingBox();
+  const assistantPanel = (page.viewportSize()?.width || 0) < 720 ? drawer.locator('.assistant-drawer') : drawer;
+  const drawerBox = await assistantPanel.boundingBox(), composerBox = await assistantPanel.locator('footer').boundingBox();
   expect(drawerBox && composerBox && Math.abs(composerBox.y + composerBox.height - (drawerBox.y + drawerBox.height)) < 1).toBeTruthy();
   await drawer.getByRole('textbox', { name: 'Nachricht an den lokalen Assistenten' }).fill('Lege Ada und Bela mit ihrer Beziehung an.');
   await drawer.getByRole('button', { name: 'Nachricht senden' }).click();
@@ -183,12 +184,11 @@ test('Minimap unterscheidet Elementarten und das Raster lässt sich lösen', asy
   const expectedHeight = (page.viewportSize()?.width || 0) < 720 ? '68px' : '96px';
   expect(sizes).toEqual(Array.from({ length: 3 }, () => ({ width: '200px', height: expectedHeight })));
   await expect(page.locator('.react-flow__background path')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Anordnen', exact: true }).click();
+  await page.getByRole('button', { name: 'Ansicht', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Anordnen', exact: true }).click();
   await expect.poll(() => page.locator('.react-flow__node').first().getAttribute('style')).toContain('translate(96px, 96px)');
-  const raster = page.getByRole('button', { name: 'Raster', exact: true });
-  await expect(raster).toHaveAttribute('aria-pressed', 'true');
-  await raster.click();
-  await expect(raster).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Ansicht', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Raster ausblenden', exact: true }).click();
   await expect(page.locator('.react-flow__background')).toHaveCount(0);
 });
 
@@ -222,8 +222,8 @@ test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekun
   test.skip(testInfo.project.name !== 'wide', 'Die zeitbasierte Sicherheitsinteraktion muss nur einmal geprüft werden.');
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
-  for (const label of ['Element', 'Figur', 'Ort', 'Konzept']) await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
-  for (const label of ['Tier', 'Organisation', 'Objekt']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Element', exact: true })).toBeVisible();
+  for (const label of ['Figur', 'Ort', 'Konzept', 'Tier', 'Organisation', 'Objekt']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Element', exact: true }).click();
   await expect(page.getByRole('menu')).toBeVisible();
   await expect(page.getByRole('menuitem')).toHaveCount(6);
@@ -268,7 +268,8 @@ test('Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab', async ({ pa
   await expect(page.getByRole('button', { name: 'Richtung umkehren: Ada nach Bela' })).toBeVisible();
   const controlsBeforeTimeline = await page.locator('.react-flow__controls').boundingBox();
   const minimapBeforeTimeline = await page.locator('.react-flow__minimap').boundingBox();
-  await page.getByRole('button', { name: 'Zeit', exact: true }).click();
+  await page.getByRole('button', { name: 'Ansicht', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Zeit einblenden', exact: true }).click();
   const stripBox = await page.getByLabel('Beziehungs-Zeitstreifen').boundingBox();
   const controlsBox = await page.locator('.react-flow__controls').boundingBox();
   const minimapBox = await page.locator('.react-flow__minimap').boundingBox();

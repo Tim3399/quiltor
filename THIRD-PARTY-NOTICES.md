@@ -35,6 +35,20 @@ Full license texts for these are available from their respective npm
 packages and repositories; `npm ls` and each package's own `LICENSE` file are
 authoritative.
 
+## Optional local writing data (`data/language/`, installed on demand)
+
+- **LanguageTool 6.6** — LGPL-2.1-or-later, downloaded from
+  <https://languagetool.org/>. Quiltor verifies the archive checksum before extraction.
+- **German Wiktionary data** — CC BY-SA 4.0 / GFDL; German-language Wiktionary,
+  machine-readable extraction by Wiktextract/Kaikki.org.
+- **OpenThesaurus** — CC BY-SA 4.0, <https://www.openthesaurus.de/>.
+- **FreeDict deu-eng and eng-deu dictionaries** — GPL according to the respective
+  dictionary TEI header, <https://freedict.org/>.
+
+The exact upstream version, URL, checksum, license label, and attribution used by
+the installer are recorded in `backend/language/registry.py`. These datasets are
+not committed to Git and are not covered by Quiltor's own license.
+
 ## A note on `libomp140.x86_64.dll`
 
 The Windows `llama-server` runtime bundle includes `libomp140.x86_64.dll` (an

@@ -38,8 +38,8 @@ The E2E suite includes Axe WCAG A/AA checks for manuscript, figures, and timelin
 
 The deliberately broad regression ceilings are 5 seconds for initial readiness and 2 seconds for workspace switching on the Wide Chromium project. Attached measurements provide the comparison values for later phases; the thresholds are guards, not performance targets.
 
-## Known baseline constraints
+## Final status after the adaptive writing rollout
 
-- The runtime MutationObserver in `src/language/index.tsx` still translates legacy UI strings. It must remain until Phase 2 explicitly localizes every productive string.
-- Existing feature CSS remains concentrated in `src/styles.css`; Phase 1 owns its extraction.
+- The runtime MutationObserver translation fallback has been removed; productive UI text is localized explicitly and key parity is a build gate.
+- Reusable visual foundations live in `src/design/`; `src/styles.css` retains feature layout wiring that will remain feature-local until a later modularization pass.
 - Visual snapshots are Chromium baselines. WebKit compatibility remains covered separately when release testing is performed.

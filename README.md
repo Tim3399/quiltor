@@ -71,9 +71,17 @@ npm run test:assistant:local -- --case set-presence  # einzelnes Szenario
 
 Die mitgelieferte `.mcp.json` konfiguriert den Server automatisch für Clients, die projektbezogene MCP-Konfiguration unterstützen.
 
+## Deutsche Schreibwerkzeuge
+
+Für Manuskripte mit Schreibsprache `de-DE` stehen lokale Wörterbuch-, Synonym- und Wortübersetzungsabfragen sowie eine bestätigungspflichtige Rechtschreib- und Grammatikprüfung bereit. Markierter Text kann nachgeschlagen werden; Einfügen, Ersetzen und Korrigieren geschieht ausschließlich nach einer ausdrücklichen Aktion und bleibt per Undo rückgängig machbar.
+
+Das geführte `quiltor install` richtet die Schreibwerkzeuge standardmäßig mit ein. Wörterbuchdaten liegen anschließend unter `data/language/` beziehungsweise bei einer pipx-Installation unter `~/.quiltor/data/language/`. LanguageTool benötigt Java 17 oder neuer. Ohne LanguageTool bleibt die Browser-Rechtschreibprüfung verfügbar. Externe LanguageTool-kompatible Dienste werden nur mit `QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1` verwendet; ohne dieses Opt-in verlassen weder Kapiteltexte noch Suchbegriffe das Gerät.
+
+Quellen, Versionen, Prüfsummen, Lizenzen und Attributionen sind im Installationsmanifest sowie in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) dokumentiert.
+
 ## Schnellstart
 
-Vorausgesetzt wird Python 3.9 oder neuer (unter Windows meist als `python` aufrufbar, unter macOS/Linux als `python3`). Der gebaute Client liegt bereits in `dist/` — für Editor und lokale Speicherung ist sonst nichts zu installieren.
+Vorausgesetzt wird Python 3.11 oder neuer (unter Windows meist als `python` aufrufbar, unter macOS/Linux als `python3`). Der gebaute Client liegt bereits in `dist/` — für Editor und lokale Speicherung ist sonst nichts zu installieren.
 
 **1. Repository holen**
 
@@ -211,7 +219,7 @@ npm run test:e2e
 
 Der Build prüft TypeScript und verhindert Farb-, Abstands-, Rundungs-, Schatten-, Schriftgrößen- und z-index-Literale außerhalb von `src/design/colors.css` bzw. `src/design/tokens.css`. Browsertests decken Desktop und kompakte Ansichten, Light/Dark Mode, Autosave, Konflikte und die Kernansichten gegen WCAG A/AA ab.
 
-`npm run check:i18n` durchsucht `.tsx`-Dateien heuristisch nach hartcodiertem deutschem Text außerhalb von `t()`-Aufrufen (alle Oberflächentexte sollten stattdessen aus `src/language/{de,en}/*.ts` kommen). Der Check ist kein echter JSX-Parser und daher nicht Teil des Builds — er dient als Stichprobe, nicht als vollständiges Gate.
+`npm run check:i18n` durchsucht `.tsx`-Dateien heuristisch nach hartcodiertem sichtbarem Text außerhalb von `t()`-Aufrufen und prüft die statische Schlüsselparität von Deutsch und Englisch. Der Check ist Teil von `npm run build`; alle Oberflächentexte gehören nach `src/language/{de,en}/*.ts`.
 
 Demo-Screenshots lassen sich reproduzierbar gegen einen separaten Testserver erzeugen:
 
