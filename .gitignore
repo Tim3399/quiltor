@@ -24,6 +24,7 @@ reports/assistant-eval/*.json
 data/llama-server.log
 data/mlx-server.log
 data/llama-embed.log
+data/language/
 
 # Automatische Sicherungen — bei Bedarf auskommentieren, wenn du sie
 # doch mitversionieren willst

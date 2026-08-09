@@ -171,7 +171,7 @@ Zusätzlich enthält jedes [GitHub Release](https://github.com/Tim3399/quiltor/r
 **Das `quiltor`-CLI** (nur bei pip/pipx-Installation, nicht bei `python3 server.py`) ist so gebaut, dass du lokal im Normalfall keine einzige Umgebungsvariable von Hand setzen musst — Daten, Runtime und Modell landen automatisch unter `~/.quiltor/` (steuerbar über `QUILTOR_HOME`), und Keycloak/LLM-Einstellungen werden geführt abgefragt und in `~/.quiltor/config.env` gespeichert. Echte Umgebungsvariablen bleiben der Not-Anker für lokale Sonderfälle — und der primäre Konfigurationsweg, wenn du stattdessen mit Docker deployst (siehe oben):
 
 ```bash
-quiltor install   # geführtes Setup: Keycloak-Mehrbenutzer-Login (default nein) + lokaler KI-Assistent (default ja)
+quiltor install   # geführtes Setup: Keycloak (default nein), deutsche Schreibwerkzeuge und lokaler KI-Assistent (jeweils default ja)
 quiltor config set|get|list|unset <KEY> [VALUE]   # Notfall-Zugriff auf jede QUILTOR_*-Variable
 quiltor config path        # zeigt den Pfad der Config-Datei
 quiltor --version

@@ -176,9 +176,11 @@ def config_unset(key: str) -> None:
 
 @app.command()
 def install() -> None:
-    """Guided one-time setup: optional Keycloak multi-user login, optional local AI assistant."""
+    """Guided setup for login, German writing tools, and the local AI assistant."""
     _load_config()  # so QUILTOR_HOME is set before _install_llm_step imports the installer
     _install_keycloak_step()
+    typer.echo()
+    _install_language_step()
     typer.echo()
     _install_llm_step()
 
@@ -233,6 +235,35 @@ def _install_llm_step() -> None:
         # SystemExit (e.g. an unsupported platform) -- see ensure_installed().
         typer.echo(f"! Einrichtung fehlgeschlagen: {exc}", err=True)
         typer.echo("Quiltor läuft trotzdem, nur ohne Assistenten. Erneut versuchen mit: quiltor install")
+
+
+def _install_language_step() -> None:
+    if not typer.confirm("Deutsche Schreibwerkzeuge einrichten (Wörterbuch, Synonyme, Übersetzung und LanguageTool)?", default=True):
+        typer.echo("Übersprungen. Die Browser-Rechtschreibprüfung bleibt verfügbar. Später erneut mit: quiltor install")
+        return
+    from backend.language.service import LanguageService
+    home = Path(os.environ["QUILTOR_HOME"])
+    data_dir = Path(os.environ.get("QUILTOR_DATA_DIR", str(home / "data"))).expanduser().resolve()
+    service = LanguageService(data_dir)
+    try:
+        status = service.status()
+        if status["installed"]:
+            typer.echo("✓ Wörterbuch, Synonyme und Übersetzungen sind bereits installiert.")
+        else:
+            result = service.install()
+            typer.echo(f"✓ Deutsche Referenzdaten installiert ({result['entries']} Basiseinträge).")
+        grammar = service.status()["grammar"]
+        if grammar["available"]:
+            typer.echo(f"✓ LanguageTool {grammar['version']} ist bereits einsatzbereit.")
+        else:
+            typer.echo(f"LanguageTool {grammar['version']} wird heruntergeladen und lokal eingerichtet …")
+            installed = service.install_grammar()
+            typer.echo(f"✓ LanguageTool {installed['version']} installiert.")
+    except (SystemExit, Exception) as exc:
+        typer.echo(f"! Einrichtung der Schreibwerkzeuge fehlgeschlagen: {exc}", err=True)
+        typer.echo("Quiltor läuft mit der Browser-Rechtschreibprüfung weiter. Erneut versuchen mit: quiltor install")
+    finally:
+        service.close()
 
 
 def main_entry() -> None:

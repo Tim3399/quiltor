@@ -8,7 +8,7 @@ const rawValueAuthorities = new Set([
   join(designRoot, 'tokens.css'),
 ]);
 const extensions = new Set(['.css', '.html', '.ts', '.tsx']);
-const ignored = new Set(['node_modules', 'dist', 'test-results', 'playwright-report', '.git']);
+const ignored = new Set(['node_modules', 'dist', 'data', 'test-results', 'playwright-report', '.git']);
 
 const color = /#[\da-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(|:\s*(?:white|black|transparent)(?=\s*[;}])/gi;
 
