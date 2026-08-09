@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Clock3, GripVertical, Plus, Redo2, Skull, Trash2, Undo2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, GripVertical, MoreHorizontal, Plus, Redo2, Skull, Trash2, Undo2, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from '../../types';
 import { uid } from '../../types';
-import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
+import { Menu, MenuItem, MenuSeparator } from '../../shared/ui/Menu';
+import { Popover } from '../../shared/ui/Popover';
+import { Sheet } from '../../shared/ui/Sheet';
 import { patchRelationship, relationshipLabelEditor, resolveRelationship } from '../figures/relationships';
 import { patchPresence } from '../figures/presence';
 import { PresenceBoard } from './PresenceBoard';
@@ -24,12 +27,21 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
   const [mode, setMode] = useState<BoardMode>('changes');
   const [openSections, setOpenSections] = useState(() => new Set(['relationships']));
   const [selectedLifeId, setSelectedLifeId] = useState<string | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [compact, setCompact] = useState(() => typeof matchMedia === 'function' && matchMedia('(max-width: 719px)').matches);
+  const actionsButton = useRef<HTMLButtonElement>(null);
   const selected = timeline.find(moment => moment.id === selectedId) || null;
   const selectedIndex = selected ? timeline.findIndex(moment => moment.id === selected.id) : -1;
 
   useEffect(() => { if (targetId && timeline.some(moment => moment.id === targetId)) setSelectedId(targetId); }, [targetId, timeline]);
   useEffect(() => { if (!selectedId && timeline.length) setSelectedId(timeline[0].id); }, [selectedId, timeline]);
   useEffect(() => setSelectedEdgeId(null), [selectedId]);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const media = matchMedia('(max-width: 719px)'), update = () => setCompact(media.matches);
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   const addMomentAt = (index: number) => {
     const moment: TimelineMoment = { id: uid('t'), title: t('timelineNew') };
@@ -45,6 +57,18 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
     next.splice(adjusted, 0, moment); onChange({ ...state, timeline: next }); setSelectedId(moment.id);
   };
   const moveMoment = (offset: number) => selected && moveMomentTo(selected.id, selectedIndex + offset + (offset > 0 ? 1 : 0));
+  const duplicateMoment = () => {
+    if (!selected) return;
+    const copy = { ...selected, id: uid('t'), title: t('timelineCopyName', { name: selected.title || t('timelineUntitled') }) };
+    const next = [...timeline]; next.splice(selectedIndex + 1, 0, copy);
+    onChange({
+      ...state,
+      timeline: next,
+      edges: state.edges.map(edge => ({ ...edge, versions: [...(edge.versions || []), ...(edge.versions || []).filter(version => version.momentId === selected.id).map(version => ({ ...version, momentId: copy.id }))] })),
+      nodes: state.nodes,
+      presence: [...presence, ...presence.filter(entry => entry.momentId === selected.id).map(entry => ({ ...entry, momentId: copy.id }))],
+    }); setSelectedId(copy.id); setActionsOpen(false);
+  };
   const patchEdge = (edge: FigureEdge, patch: Partial<FigureEdge>) => selected && onChange({ ...state, edges: state.edges.map(item => item.id === edge.id ? patchRelationship(item, timeline, selected.id, patch) : item) });
   const removeEdgeChange = (edge: FigureEdge) => selected && onChange({ ...state, edges: state.edges.map(item => item.id === edge.id ? { ...item, versions: item.versions?.filter(version => version.momentId !== selected.id) } : item) });
 
@@ -99,7 +123,7 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
         <main className="storyboard-main">
           <header className="storyboard-header"><div className="storyboard-stepper"><button disabled={selectedIndex <= 0} onClick={() => setSelectedId(timeline[selectedIndex - 1]?.id)} aria-label={t('timelinePrevious')}><ChevronLeft /></button><span>{t('timelineOf', { current: selectedIndex + 1, total: timeline.length })}</span><button disabled={selectedIndex >= timeline.length - 1} onClick={() => setSelectedId(timeline[selectedIndex + 1]?.id)} aria-label={t('timelineNext')}><ChevronRight /></button></div>
             <div className="storyboard-title"><span>{t('timelinePoint', { number: selectedIndex + 1 })}</span><h1>{selected.title || t('timelineUntitled')}</h1><small>{t('timelineOwnChanges', { count: changes })}</small></div>
-            <div className="storyboard-actions"><button disabled={selectedIndex === 0} onClick={() => moveMoment(-1)}><ArrowUp />{t('timelineEarlier')}</button><button disabled={selectedIndex === timeline.length - 1} onClick={() => moveMoment(1)}><ArrowDown />{t('timelineLater')}</button><button className="danger-text" onClick={() => setDeleteMoment(selected)}><Trash2 />{t('timelineDelete')}</button></div>
+            <div className="storyboard-actions"><button ref={actionsButton} aria-haspopup="menu" aria-expanded={actionsOpen} onClick={() => setActionsOpen(value => !value)}><MoreHorizontal />{t('menuActions')}</button><Popover anchorRef={actionsButton} open={actionsOpen} onClose={() => setActionsOpen(false)} label={t('timelineActions')}><Menu label={t('timelineActions')} onClose={() => setActionsOpen(false)}><MenuItem disabled={selectedIndex === 0} onSelect={() => { moveMoment(-1); setActionsOpen(false); }}><ArrowUp />{t('timelineEarlier')}</MenuItem><MenuItem disabled={selectedIndex === timeline.length - 1} onSelect={() => { moveMoment(1); setActionsOpen(false); }}><ArrowDown />{t('timelineLater')}</MenuItem><MenuItem onSelect={duplicateMoment}><Copy />{t('timelineDuplicate')}</MenuItem><MenuSeparator /><MenuItem onSelect={() => { setDeleteMoment(selected); setActionsOpen(false); }}><Trash2 />{t('timelineDelete')}</MenuItem></Menu></Popover></div>
           </header>
 
           <section className="timeline-meta-card"><label className="field"><span>{t('timelineName')}</span><input value={selected.title} onChange={event => patchMoment({ title: event.target.value })} /></label><label className="field"><span>{t('timelineDate')}</span><input type="date" value={selected.date || ''} onChange={event => patchMoment({ date: event.target.value || undefined })} /></label><label className="field timeline-note"><span>{t('timelineNote')}</span><textarea value={selected.note || ''} placeholder={t('timelineNotePlaceholder')} onChange={event => patchMoment({ note: event.target.value })} /></label></section>
@@ -121,10 +145,11 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
             </div>
           </ManagerSection>
         </main>
-        {selectedEdge && <RelationshipInspector edge={selectedEdge} nodes={state.nodes} timeline={timeline} momentId={selected.id} explicit={edgeChanges.includes(selectedEdge)} onPatch={patch => patchEdge(selectedEdge, patch)} onReset={() => { removeEdgeChange(selectedEdge); setSelectedEdgeId(null); }} onClose={() => setSelectedEdgeId(null)} t={t} />}
+        {selectedEdge && !compact && <RelationshipInspector edge={selectedEdge} nodes={state.nodes} timeline={timeline} momentId={selected.id} explicit={edgeChanges.includes(selectedEdge)} onPatch={patch => patchEdge(selectedEdge, patch)} onReset={() => { removeEdgeChange(selectedEdge); setSelectedEdgeId(null); }} onClose={() => setSelectedEdgeId(null)} t={t} />}
       </div>}
     </>}
-    {deleteMoment && <ConfirmDialog title={t('timelineDeleteTitle')} description={t('timelineDeleteDescription', { title: deleteMoment.title, count: countMomentChanges(state, deleteMoment.id) })} confirmLabel={t('timelineDeleteConfirm')} onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[Math.min(selectedIndex, remaining.length - 1)]?.id || null); setDeleteMoment(null); }} />}
+    {selected && selectedEdge && compact && <Sheet open label={t('timelineRelation')} onClose={() => setSelectedEdgeId(null)}><RelationshipInspector edge={selectedEdge} nodes={state.nodes} timeline={timeline} momentId={selected.id} explicit={edgeChanges.includes(selectedEdge)} onPatch={patch => patchEdge(selectedEdge, patch)} onReset={() => { removeEdgeChange(selectedEdge); setSelectedEdgeId(null); }} onClose={() => setSelectedEdgeId(null)} t={t} /></Sheet>}
+    {deleteMoment && <ConfirmDialog title={t('timelineDeleteTitle')} description={t('timelineDeleteDescription', { title: deleteMoment.title, count: countMomentChanges(state, deleteMoment.id) })} confirmLabel={t('timelineDeleteConfirm')} holdDurationMs={DELETE_HOLD_MS} onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[Math.min(selectedIndex, remaining.length - 1)]?.id || null); setDeleteMoment(null); }} />}
   </section>;
 }
 

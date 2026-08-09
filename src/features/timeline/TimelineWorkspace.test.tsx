@@ -15,8 +15,8 @@ const state: FigureState = {
   edges: [],
 };
 
-function renderTimeline() {
-  return render(<LanguageProvider><TimelineWorkspace state={state} onChange={vi.fn()} /></LanguageProvider>);
+function renderTimeline(onChange = vi.fn()) {
+  return { ...render(<LanguageProvider><TimelineWorkspace state={state} onChange={onChange} /></LanguageProvider>), onChange };
 }
 
 describe('TimelineWorkspace sections', () => {
@@ -34,5 +34,16 @@ describe('TimelineWorkspace sections', () => {
     fireEvent.click(presence);
     expect(presence).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Unverändert / kein Ort')).toBeVisible();
+  });
+
+  it('duplicates a moment only after an explicit menu action', () => {
+    const onChange = vi.fn();
+    renderTimeline(onChange);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Aktionen' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Zeitpunkt duplizieren' }));
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0].timeline).toHaveLength(2);
+    expect(onChange.mock.calls[0][0].timeline[1].title).toBe('Ankunft – Kopie');
   });
 });

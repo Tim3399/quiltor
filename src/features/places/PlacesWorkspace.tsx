@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, Handle, MiniMap, Position, applyNodeChanges, useUpdateNodeInternals, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
-import { MapPin, Redo2, Ruler, Undo2, X } from 'lucide-react';
+import { Copy, MapPin, MoreHorizontal, Plus, Redo2, Ruler, Trash2, Undo2, X } from 'lucide-react';
 import type { FigureNode, FigureState, TimelineMoment, Workspace } from '../../types';
 import { placeChronicle, placeJourney, stopDateDiff, type PlaceMomentRow, type PlaceStay } from '../figures/presence';
 import { mapDistance, formatDistance } from './placeMap';
 import { useLanguage } from '../../language';
+import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
+import { Menu, MenuItem, MenuSeparator } from '../../shared/ui/Menu';
+import { Popover } from '../../shared/ui/Popover';
+import { Inspector } from '../../shared/ui/Sidebar';
+import { Sheet } from '../../shared/ui/Sheet';
+import { uid } from '../../types';
 import './PlacesWorkspace.css';
 
 type PlaceCardData = { place: FigureNode; measuring: boolean };
@@ -41,6 +47,10 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [measuring, setMeasuring] = useState(false);
   const [measurePair, setMeasurePair] = useState<string[]>([]);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
+  const [compact, setCompact] = useState(() => typeof matchMedia === 'function' && matchMedia('(max-width: 719px)').matches);
+  const actionsButton = useRef<HTMLButtonElement>(null);
   const flow = useRef<ReactFlowInstance<Node<PlaceCardData>, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
@@ -56,6 +66,18 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     const item = latestState.current.nodes.find(node => node.id === targetId && node.type === 'ort');
     if (item) { setSelectedId(targetId); const position = placePosition(item); setTimeout(() => flow.current?.setCenter(position.x, position.y, { zoom: 1, duration: 350 }), 0); }
   }, [targetId]);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const media = matchMedia('(max-width: 719px)'), update = () => setCompact(media.matches);
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    if (!measuring) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setMeasuring(false); setMeasurePair([]); } };
+    document.addEventListener('keydown', escape);
+    return () => document.removeEventListener('keydown', escape);
+  }, [measuring]);
 
   const derivedNodes = useMemo<Node<PlaceCardData>[]>(() => places.map(place => ({
     id: place.id, type: 'place', position: placePosition(place),
@@ -102,12 +124,32 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const chronicle = useMemo(() => selected ? placeChronicle(selected.id, state.nodes, presence, timeline) : [], [selected, state.nodes, presence, timeline]);
 
   const patchScale = (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => onChange({ ...state, mapScale: { unitsPer100px: 1, unitLabel: t('unitsDefault'), ...state.mapScale, ...patch } });
+  const addPlace = () => {
+    const center = flow.current?.screenToFlowPosition({ x: innerWidth / 2, y: innerHeight / 2 }) ?? { x: 240, y: 180 };
+    const place: FigureNode = { id: uid('n'), type: 'ort', name: t('newPlaceName'), label: t('place'), sub: '', x: center.x, y: center.y, mapX: center.x, mapY: center.y, accent: 'ink', profile: { extra: [] } };
+    onChange({ ...state, nodes: [...state.nodes, place] }); setSelectedId(place.id);
+  };
+  const duplicateSelected = () => {
+    if (!selected) return;
+    const copy: FigureNode = { ...selected, id: uid('n'), name: t('placeCopyName', { name: selected.name }), x: selected.x + GRID_SIZE, y: selected.y + GRID_SIZE, mapX: placePosition(selected).x + GRID_SIZE, mapY: placePosition(selected).y + GRID_SIZE };
+    onChange({ ...state, nodes: [...state.nodes, copy] }); setSelectedId(copy.id); setActionsOpen(false);
+  };
+  const removePlace = () => {
+    if (!deletePlace) return;
+    const nodes = state.nodes.filter(node => node.id !== deletePlace.id);
+    onChange({ ...state, nodes, edges: state.edges.filter(edge => edge.from !== deletePlace.id && edge.to !== deletePlace.id), presence: presence.filter(entry => entry.placeId !== deletePlace.id) });
+    setSelectedId(null); setDeletePlace(null);
+  };
+  const patchSelected = (patch: Partial<FigureNode>) => selected && onChange({ ...state, nodes: state.nodes.map(node => node.id === selected.id ? { ...node, ...patch } : node) });
+  const inspectorContent = <><div className="panel-heading"><span>{selected ? selected.name : t('inspector')}</span>{selected && <button className="icon-button" onClick={() => setSelectedId(null)} aria-label={t('closeSelection')}><X /></button>}</div>{!selected ? <div className="empty-inspector"><MapPin /><h2>{t('selectPlace')}</h2><p>{t('selectPlaceBody')}</p></div> : <><div className="panel-body places-place-fields"><label className="field"><span>{t('name')}</span><input value={selected.name} onChange={event => patchSelected({ name: event.target.value })} /></label><label className="field"><span>{t('shortDescription')}</span><textarea value={selected.sub || ''} onChange={event => patchSelected({ sub: event.target.value })} /></label></div><PlaceInspector place={selected} nodes={state.nodes} stays={stays} chronicle={chronicle} timeline={timeline} onOpen={onOpen} /></>}</>;
 
   return <section className="places-workspace" aria-label={t('placesLabel')}>
     <div className="context-bar">
       <div className="context-title"><strong>{t('places')}</strong><span>{t('nPlaces').replace('{n}', String(places.length))}</span></div>
+      <div className="tool-group"><button className="primary" onClick={addPlace}><Plus />{t('newPlace')}</button></div>
       <div className="tool-group"><button aria-pressed={measuring} className={measuring ? 'active' : ''} onClick={() => { setMeasuring(value => !value); setMeasurePair([]); }}><Ruler />{t('measureDistance')}</button></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoPlaces')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoPlaces')}><Redo2 /></button></div>
+      <div className="tool-group"><button ref={actionsButton} disabled={!selected} aria-label={t('placeActions')} aria-haspopup="menu" aria-expanded={actionsOpen} onClick={() => setActionsOpen(value => !value)}><MoreHorizontal /></button><Popover anchorRef={actionsButton} open={actionsOpen} onClose={() => setActionsOpen(false)} label={t('placeActions')}><Menu label={t('placeActions')} onClose={() => setActionsOpen(false)}><MenuItem onSelect={duplicateSelected}><Copy />{t('duplicatePlace')}</MenuItem><MenuSeparator /><MenuItem onSelect={() => { setDeletePlace(selected); setActionsOpen(false); }}><Trash2 />{t('deletePlace')}</MenuItem></Menu></Popover></div>
     </div>
     <div className="figure-layout">
       <div className={`flow-area places-flow-area ${measuring ? 'is-connecting' : ''}`}>
@@ -130,12 +172,10 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
         </ReactFlow>
         {!places.length && <div className="places-manager-empty"><MapPin /><h2>{t('noPlacesYet')}</h2><p>{t('noPlacesYetBody')}</p></div>}
       </div>
-      <aside className={`inspector places-inspector ${selected ? 'has-selection' : ''}`} aria-label={t('placesInspectorLabel')}>
-        <div className="panel-heading"><span>{selected ? selected.name : t('inspector')}</span>{selected && <button className="icon-button" onClick={() => setSelectedId(null)} aria-label={t('closeSelection')}><X /></button>}</div>
-        {!selected ? <div className="empty-inspector"><MapPin /><h2>{t('selectPlace')}</h2><p>{t('selectPlaceBody')}</p></div>
-        : <PlaceInspector place={selected} nodes={state.nodes} stays={stays} chronicle={chronicle} timeline={timeline} onOpen={onOpen} />}
-      </aside>
+      {!compact && <Inspector className={`inspector places-inspector ${selected ? 'has-selection' : ''}`} aria-label={t('placesInspectorLabel')}>{inspectorContent}</Inspector>}
     </div>
+    {compact && selected && <Sheet open label={t('placesInspectorLabel')} onClose={() => setSelectedId(null)}>{inspectorContent}</Sheet>}
+    {deletePlace && <ConfirmDialog title={t('deletePlace')} description={t('deletePlaceDescription', { name: deletePlace.name })} confirmLabel={t('deletePlace')} holdDurationMs={DELETE_HOLD_MS} onClose={() => setDeletePlace(null)} onConfirm={removePlace} />}
   </section>;
 }
 
@@ -145,8 +185,8 @@ function PlaceInspector({ nodes, stays, chronicle, timeline, onOpen }: {
 }) {
   const { t } = useLanguage();
   return <div className="panel-body places-inspector-body">
-    <section className="places-manager-section">
-      <header><div><h2>{t('whoWasHere')}</h2><p>{t('whoWasHereBody')}</p></div></header>
+    <details className="places-manager-section" open>
+      <summary><div><h2>{t('whoWasHere')}</h2><p>{t('whoWasHereBody')}</p></div></summary>
       <div className="places-stay-table">
         {stays.map((stay, index) => {
           const figure = nodes.find(node => node.id === stay.elementId);
@@ -160,9 +200,9 @@ function PlaceInspector({ nodes, stays, chronicle, timeline, onOpen }: {
         })}
         {!stays.length && <p className="places-section-empty">{t('noOneHereYet')}</p>}
       </div>
-    </section>
-    <section className="places-manager-section">
-      <header><div><h2>{t('chronicle')}</h2><p>{t('chronicleBody')}</p></div></header>
+    </details>
+    <details className="places-manager-section" open>
+      <summary><div><h2>{t('chronicle')}</h2><p>{t('chronicleBody')}</p></div></summary>
       <div className="places-chronicle-list">
         {chronicle.map(row => <div key={row.index}>
           <strong>{row.moment ? <button className="places-link" onClick={() => onOpen({ workspace: 'timeline', id: row.moment!.id })}>{row.moment.title}</button> : t('initialState')}</strong>
@@ -172,6 +212,6 @@ function PlaceInspector({ nodes, stays, chronicle, timeline, onOpen }: {
         </div>)}
         {!chronicle.length && <p className="places-section-empty">{t('noMovementYet')}</p>}
       </div>
-    </section>
+    </details>
   </div>;
 }
