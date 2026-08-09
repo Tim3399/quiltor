@@ -156,7 +156,7 @@ Das Docker-Image basiert auf Microsofts offiziellem Playwright-Image (statt eine
 
 Sitzungen liegen im Prozessspeicher (kein separater Session-Store) — ein Neustart des Containers meldet alle Nutzer ab, sie loggen sich einfach erneut ein. Für eine kleine Demo ist das ein akzeptabler Kompromiss.
 
-**Fertige Images:** Jeder Versions-Bump (Datei `VERSION`) auf `main` löst automatisch einen Release aus — fertige Images stehen danach unter `ghcr.io/Tim3399/quiltor:<version>` und `:latest` bereit. In `docker-compose.yml` kann statt des lokalen `build:`-Blocks auch `image: ghcr.io/tim3399/quiltor:${QUILTOR_VERSION:-latest}` verwendet werden, um lokales Bauen zu überspringen.
+**Fertige Images:** Jeder Versions-Bump (Datei `VERSION`) auf `main` löst automatisch einen Release aus — fertige Images stehen danach unter `ghcr.io/tim3399/quiltor:<version>` und `:latest` bereit (Docker-Image-Namen sind zwingend kleingeschrieben). In `docker-compose.yml` kann statt des lokalen `build:`-Blocks auch `image: ghcr.io/tim3399/quiltor:${QUILTOR_VERSION:-latest}` verwendet werden, um lokales Bauen zu überspringen.
 
 Zusätzlich enthält jedes [GitHub Release](https://github.com/Tim3399/quiltor/releases) ein pip-Wheel (`pip install quiltor-<version>-py3-none-any.whl`, danach `quiltor` als Befehl). Ohne `QUILTOR_DATA_DIR` schreibt eine so installierte Instanz ihre Daten neben das installierte Package — bei systemweiten Installationen ggf. nicht beschreibbar, `QUILTOR_DATA_DIR` explizit setzen.
 
