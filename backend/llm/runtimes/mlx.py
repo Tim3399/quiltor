@@ -31,5 +31,5 @@ def start(base: Path, data: Path, url: str, binary_override: str | None, model_o
     if not python.exists() or not bridge.exists() or not model or not model.exists():
         return None
     port = resolve_port(url)
-    argv = [str(python), str(bridge), "--model", str(model), "--host", "127.0.0.1", "--port", str(port)]
+    argv = [str(python), str(bridge), "--model", str(model), "--host", "127.0.0.1", "--port", str(port), "--max-prompt-tokens", "8192"]
     return spawn_logged(argv, data, "mlx-server.log")

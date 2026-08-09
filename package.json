@@ -11,7 +11,8 @@
     "check:i18n": "node scripts/check-i18n.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:assistant:local": "python3 scripts/run-local-assistant-evaluation.py"
   },
   "dependencies": {
     "@xyflow/react": "12.11.2",

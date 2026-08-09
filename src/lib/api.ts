@@ -1,4 +1,4 @@
-import type { AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
+import type { AssistantHistoryMessage, AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
 import { languages } from '../language';
 
 // api.ts is a plain module used outside React's render cycle (event handlers, fetch
@@ -65,8 +65,8 @@ export const api = {
   textVersion: (ref: string, chapter: number, title: string) => json<{ ok: boolean; neu?: boolean; text: string }>(withWorldQuery(`/api/textfassung?ref=${encodeURIComponent(ref)}&kapitel=${chapter}&titel=${encodeURIComponent(title)}`)),
   backups: () => json<{ ok: boolean; backups: Array<{ name: string; created: string; size: number }> }>(withWorldQuery('/api/backups')),
   restore: (name: string) => json<{ ok: boolean }>('/api/backups/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ name })) }),
-  assistantStatus: () => json<{ ok: boolean; available: boolean; mode: string; reason: string; chunks: number }>(withWorldQuery('/api/assistant/status')),
-  assistantChat: (question: string, history: Array<{ role: 'user' | 'assistant'; content: string }> = [], signal?: AbortSignal, chapterIds?: string[], batch?: { runBatches: boolean; progressId: string }) =>
+  assistantStatus: () => json<{ ok: boolean; available: boolean; mode: string; reason: string; chunks: number; backend?: string; contextTokens?: number; model?: string }>(withWorldQuery('/api/assistant/status')),
+  assistantChat: (question: string, history: AssistantHistoryMessage[] = [], signal?: AbortSignal, chapterIds?: string[], batch?: { runBatches: boolean; progressId: string }) =>
     json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ question, history, chapterIds, runBatches: batch?.runBatches, progressId: batch?.progressId })), signal }),
   assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; label: string; startedAt: number; updatedAt: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),
   bookPdf: async () => {

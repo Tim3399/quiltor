@@ -553,7 +553,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     with _lock:
                         interaction_id = storage.log_assistant_interaction(question, error=str(exc), db_path=db_path)
                     print(f"  ! {datetime.now():%H:%M:%S}  AI request {interaction_id} failed — {exc}", flush=True)
-                return self.send_json({"ok": False, "fehler": str(exc)}, 503)
+                message = str(exc)
+                error_type = ("context_too_large" if "Kontextfenster" in message else "runtime_unavailable" if "nicht erreichbar" in message or "nicht installiert" in message else "response_truncated" if "nicht rechtzeitig" in message else "validation_error" if "strukturiert" in message or "gültig" in message else "timeout" if "Zeit" in message or "timeout" in message.casefold() else "assistant_error")
+                return self.send_json({"ok": False, "fehler": message, "errorType": error_type}, 503)
 
         if route not in ROUTES:
             return self.send_error(404)

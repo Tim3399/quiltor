@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+import urllib.error
 import urllib.request
 
 
@@ -20,6 +21,7 @@ CASES = [
     {"name": "update-element", "question": "Ergänze bei Tarek Venn im Profil die Notiz: Vertraut alten Karten mehr als Zeugen.", "kind": "update_element"},
     {"name": "relationship-state", "question": "Ändere den Stand der Beziehung e-mara-iven am Zeitpunkt trial auf 'Vorsichtige Verbündete', aktiv und ungerichtet.", "kind": "set_relationship_at_moment"},
     {"name": "death-marker", "question": "Markiere Nima Nox am bestehenden Zeitpunkt trial als verstorben.", "kind": "mark_deceased"},
+    {"name": "set-presence", "question": "Setze die Anwesenheit von Mara Venn am Zeitpunkt trial auf den Ort Asterheim.", "kind": "set_presence"},
     {"name": "arrange-board", "question": "Sortiere das Figurenboard thematisch neu, sodass verbundene Elemente beieinander liegen.", "kind": "arrange_elements"},
     {"name": "compound-element-relation", "question": "Lege Lio Venn als Figur an. Lio ist der 6 Jahre alte Sohn von Tarek Venn.", "kinds": ["create_element", "create_relationship"]},
     {"name": "agentic-search", "question": "Prüfe anhand von Manuskript, Beziehungen und Timeline, ob Maras Verhalten nach dem Nordtor konsistent ist.", "sources": 2, "trace_step": "search_world"},
@@ -29,8 +31,12 @@ CASES = [
 def request(base: str, path: str, payload: dict | None = None) -> dict:
     body = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(base + path, data=body, headers={"Content-Type": "application/json"} if body else {})
-    with urllib.request.urlopen(req, timeout=240) as response:
-        return json.loads(response.read())
+    try:
+        with urllib.request.urlopen(req, timeout=240) as response:
+            return json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        detail = json.loads(exc.read() or b"{}")
+        raise RuntimeError(f"{path} failed ({exc.code}): {detail.get('fehler') or detail}") from exc
 
 
 def main() -> None:

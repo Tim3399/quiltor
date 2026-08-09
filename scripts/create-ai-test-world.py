@@ -64,6 +64,8 @@ EDGES = [
 
 
 def main() -> None:
+    storage.DATA.mkdir(parents=True, exist_ok=True)
+    storage.initialize()
     existing = next((world for world in storage.list_worlds() if world["title"] == TITLE), None)
     world = existing or storage.create_world(TITLE)
     storage.activate_world(world["id"])

@@ -32,6 +32,7 @@ TOOLS = [
     {"name": "propose_timeline_moment", "description": "Create a non-destructive timeline moment proposal.", "inputSchema": {"type": "object", "required": ["worldId", "title"], "properties": {"worldId": {"type": "string"}, "title": {"type": "string"}, "date": {"type": "string"}, "note": {"type": "string"}}, "additionalProperties": False}},
     {"name": "propose_relationship_state", "description": "Propose a relationship label or active state at an existing timeline moment.", "inputSchema": {"type": "object", "required": ["worldId", "relationshipId", "momentId"], "properties": {"worldId": {"type": "string"}, "relationshipId": {"type": "string"}, "momentId": {"type": "string"}, "label": {"type": "string"}, "active": {"type": "boolean"}, "directed": {"type": "boolean"}, "style": {"enum": ["solid", "dashed", "blood", "gold"]}}, "additionalProperties": False}},
     {"name": "propose_death_marker", "description": "Propose marking an existing character deceased at an existing timeline moment.", "inputSchema": {"type": "object", "required": ["worldId", "elementId", "momentId"], "properties": {"worldId": {"type": "string"}, "elementId": {"type": "string"}, "momentId": {"type": "string"}}, "additionalProperties": False}},
+    {"name": "propose_set_presence", "description": "Propose placing an existing element at an existing place, optionally from a timeline moment onward.", "inputSchema": {"type": "object", "required": ["worldId", "elementId", "placeId"], "properties": {"worldId": {"type": "string"}, "elementId": {"type": "string"}, "placeId": {"type": "string"}, "momentId": {"type": "string"}}, "additionalProperties": False}},
     {"name": "propose_arrange_elements", "description": "Propose arranging the figure board as a grid or by connected thematic groups.", "inputSchema": {"type": "object", "required": ["worldId", "strategy"], "properties": {"worldId": {"type": "string"}, "strategy": {"enum": ["thematic", "grid"]}}, "additionalProperties": False}},
 ]
 
@@ -63,6 +64,11 @@ def _proposal(arguments: dict[str, Any], figures: dict[str, Any], kind: str) -> 
         if arguments["relationshipId"] not in edges or arguments["momentId"] not in moments:
             raise ValueError("Relationship and moment must already exist.")
         return {"kind": kind, "relationshipId": arguments["relationshipId"], "momentId": arguments["momentId"], "patch": {key: arguments[key] for key in ("label", "active", "directed", "style") if key in arguments}}
+    if kind == "set_presence":
+        places = {node["id"] for node in figures.get("nodes", []) if node.get("type") == "ort"}
+        if arguments["elementId"] not in nodes or arguments["placeId"] not in places or (arguments.get("momentId") and arguments["momentId"] not in moments):
+            raise ValueError("Element, place, and optional moment must already exist.")
+        return {"kind": kind, "elementId": arguments["elementId"], "placeId": arguments["placeId"], **({"momentId": arguments["momentId"]} if arguments.get("momentId") else {})}
     if arguments["elementId"] not in nodes or arguments["momentId"] not in moments:
         raise ValueError("Element and moment must already exist.")
     return {"kind": "mark_deceased", "elementId": arguments["elementId"], "momentId": arguments["momentId"]}
@@ -76,7 +82,7 @@ def call_tool(name: str, arguments: dict[str, Any]) -> Any:
         chunks = retrieve(build_knowledge(manuscript, figures), str(arguments.get("query", "")), int(arguments.get("limit", 14)))
         return {"sources": [chunk.public() for chunk in chunks]}
     if name == "get_world_structure":
-        return {"nodes": figures.get("nodes", []), "edges": figures.get("edges", []), "timeline": figures.get("timeline", [])}
+        return {"nodes": figures.get("nodes", []), "edges": figures.get("edges", []), "timeline": figures.get("timeline", []), "presence": figures.get("presence", [])}
     if name == "list_elements":
         return {"elements": figures.get("nodes", []), "count": len(figures.get("nodes", []))}
     if name == "list_relationships":
@@ -97,6 +103,7 @@ def call_tool(name: str, arguments: dict[str, Any]) -> Any:
         "propose_create_element": "create_element", "propose_create_relationship": "create_relationship",
         "propose_timeline_moment": "create_timeline_moment", "propose_relationship_state": "set_relationship_at_moment",
         "propose_death_marker": "mark_deceased",
+        "propose_set_presence": "set_presence",
         "propose_update_element": "update_element", "propose_arrange_elements": "arrange_elements",
     }
     if name not in mapping:

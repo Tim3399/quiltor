@@ -55,7 +55,15 @@ QUILTOR_AI_MODEL=/pfad/zu/model.gguf \
 python3 server.py
 ```
 
-Alternativ lässt sich ein vorhandener lokaler Endpoint über `QUILTOR_AI_URL` verwenden. Alle Anfragen bleiben auf Loopback.
+Alternativ lässt sich eine vorhandene lokale Runtime über `QUILTOR_AI_URL` anbinden. Sie muss den **Quiltor-Runtime-Vertrag** mit `GET /health`, `POST /tokenize` und `POST /v1/chat/completions` samt strikt erzwungenem JSON-Schema erfüllen; dies ist keine allgemeine Freigabe beliebiger OpenAI-Endpunkte. Beide gebündelten Backends verwenden 8192 Kontexttokens. Alle Anfragen bleiben auf Loopback.
+
+Der reale Assistenten-Test startet Runtime, Testwelt und Quiltor isoliert in einem temporären Verzeichnis und beendet alle Prozesse anschließend wieder:
+
+```bash
+npm run test:assistant:local                         # ein vollständiger Lauf
+npm run test:assistant:local -- --runs 3             # Abnahme: drei Läufe
+npm run test:assistant:local -- --case set-presence  # einzelnes Szenario
+```
 
 ### MCP inklusive
 

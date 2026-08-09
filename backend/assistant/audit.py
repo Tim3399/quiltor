@@ -109,7 +109,7 @@ def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
 def validate_proposals(value: Any, figures: dict[str, Any], question: str = "") -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
-    allowed = {"create_element", "update_element", "create_timeline_moment", "create_relationship", "set_relationship_at_moment", "mark_deceased", "arrange_elements"}
+    allowed = {"create_element", "update_element", "create_timeline_moment", "create_relationship", "set_relationship_at_moment", "mark_deceased", "arrange_elements", "set_presence"}
     known_elements = {node.get("id") for node in figures.get("nodes") or []}
     element_aliases = {str(node.get("name", "")).casefold(): node.get("id") for node in figures.get("nodes") or []}
     known_moments = {moment.get("id") for moment in figures.get("timeline") or []}
@@ -139,6 +139,8 @@ def validate_proposals(value: Any, figures: dict[str, Any], question: str = "") 
                 element = proposal.get("element")
                 if not isinstance(element, dict) or not str(element.get("name", "")).strip():
                     continue
+                if len(str(element.get("name", ""))) > 160 or len(str(element.get("label", ""))) > 160 or len(str(element.get("sub", ""))) > 1000:
+                    continue
                 if _normal(element.get("name")) in existing_names:
                     continue
                 if not isinstance(element.get("profile"), dict):
@@ -146,21 +148,41 @@ def validate_proposals(value: Any, figures: dict[str, Any], question: str = "") 
                 age = re.search(r"\b(\d{1,3})\s*(?:jahre?|years?)\b", question, re.IGNORECASE)
                 if age and not element["profile"].get("alter"):
                     element["profile"]["alter"] = age.group(1)
-            elif (_normal((proposal.get("moment") or {}).get("title")), _normal((proposal.get("moment") or {}).get("date"))) in existing_moments:
+            else:
+                moment_value = proposal.get("moment")
+                if not isinstance(moment_value, dict) or not str(moment_value.get("title", "")).strip() or len(str(moment_value.get("title", ""))) > 160 or len(str(moment_value.get("date", ""))) > 20 or len(str(moment_value.get("note", ""))) > 1000:
+                    continue
+                if (_normal(moment_value.get("title")), _normal(moment_value.get("date"))) in existing_moments:
+                    continue
+        elif kind == "update_element":
+            if proposal.get("elementId") not in known_elements or not isinstance(proposal.get("patch"), dict):
                 continue
-        elif kind == "update_element" and proposal.get("elementId") not in known_elements:
-            continue
+            patch = proposal["patch"]
+            clean_patch = {key: str(patch[key])[:limit] for key, limit in (("name", 160), ("label", 160), ("sub", 1000)) if isinstance(patch.get(key), str)}
+            if isinstance(patch.get("profile"), dict):
+                clean_patch["profile"] = {key: str(patch["profile"][key])[:4000] for key in ("alter", "rolle", "aussehen", "herkunft", "stimme", "notizen") if isinstance(patch["profile"].get(key), str)}
+            if not clean_patch:
+                continue
+            proposal = {"kind": kind, "elementId": proposal["elementId"], "patch": clean_patch}
         elif kind == "set_relationship_at_moment" and (proposal.get("relationshipId") not in known_relationships or proposal.get("momentId") not in known_moments | temporary):
             continue
         elif kind == "mark_deceased" and (proposal.get("elementId") not in known_elements | temporary or proposal.get("momentId") not in known_moments | temporary):
             continue
+        elif kind == "set_presence":
+            element_id, place_id, moment_id = proposal.get("elementId"), proposal.get("placeId"), proposal.get("momentId")
+            places = {node.get("id") for node in figures.get("nodes") or [] if node.get("type") == "ort"}
+            if element_id not in known_elements | temporary or place_id not in places | temporary or (moment_id is not None and moment_id not in known_moments | temporary):
+                continue
+            proposal = {"kind": kind, "elementId": element_id, "placeId": place_id, **({"momentId": moment_id} if moment_id else {})}
         elif kind == "create_relationship":
             relation = proposal.get("relationship") or {}
+            if not isinstance(relation, dict) or len(str(relation.get("label", ""))) > 160 or relation.get("style", "solid") not in {"solid", "dashed", "blood", "gold"}:
+                continue
             for endpoint in ("from", "to"):
                 endpoint_value = relation.get(endpoint)
                 if endpoint_value not in known_elements and isinstance(endpoint_value, str) and endpoint_value.casefold() in element_aliases:
                     relation[endpoint] = element_aliases[endpoint_value.casefold()]
-            if relation.get("from") not in known_elements | temporary or relation.get("to") not in known_elements | temporary:
+            if relation.get("from") not in known_elements | temporary or relation.get("to") not in known_elements | temporary or relation.get("from") == relation.get("to"):
                 continue
             directed = bool(relation.get("directed"))
             duplicate = any(

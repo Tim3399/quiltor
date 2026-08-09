@@ -36,8 +36,8 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     return () => window.clearInterval(interval);
   }, [checkStatus]);
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(entries.slice(-40))); end.current?.scrollIntoView({ behavior: 'smooth' }); }, [entries, storageKey]);
-  const send = async (retryId?: string, opts?: { batch?: boolean }) => {
-    const question = retryId ? entries.find(entry => entry.id === retryId)?.question : draft.trim();
+  const send = async (retryId?: string, opts?: { batch?: boolean }, explicitQuestion?: string) => {
+    const question = explicitQuestion || (retryId ? entries.find(entry => entry.id === retryId)?.question : draft.trim());
     if (!question || sending) return;
     const id = retryId ?? crypto.randomUUID();
     if (retryId) setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: undefined } : entry));
@@ -52,7 +52,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
       // conversation_messages), so there's no need to pre-guess a turn count here.
       const history = entries.filter(entry => entry.id !== id).flatMap(entry => [
         { role: 'user' as const, content: entry.question },
-        ...(entry.reply ? [{ role: 'assistant' as const, content: entry.reply.message }] : []),
+        ...(entry.reply ? [{ role: 'assistant' as const, content: entry.reply.message, references: replyReferences(entry.reply) }] : []),
       ]);
       const batch = opts?.batch ? { runBatches: true, progressId: crypto.randomUUID() } : undefined;
       if (batch) {
@@ -93,6 +93,9 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
         <p className="assistant-question">{entry.question}</p>
         {entry.error && <div className="assistant-error"><span>{entry.error}</span><button disabled={sending} onClick={() => void send(entry.id)}><RotateCw />{t('retryLabel')}</button></div>}
         {entry.reply && <div className="assistant-answer"><p>{entry.reply.message}</p>
+          {!!entry.reply.clarification?.candidates.length && <div className="assistant-broadscope"><div className="assistant-broadscope-actions">
+            {entry.reply.clarification.candidates.map(candidate => <button type="button" disabled={sending} key={candidate.id} onClick={() => void send(undefined, undefined, `${entry.reply!.clarification!.question} ${candidate.name} [${candidate.id}]`)}>{candidate.name}</button>)}
+          </div></div>}
           {entry.reply.broadScope && <div className="assistant-broadscope"><div className="assistant-broadscope-actions">
             <button type="button" onClick={openChapterPicker}>{t('pickChaptersIndividually')}</button>
             <button type="button" disabled={sending} onClick={() => void send(entry.id, { batch: true })}>{t('runInChapterGroups')}</button>
@@ -134,4 +137,16 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
 function SourceList({ sources, onNavigate }: { sources: AssistantSource[]; onNavigate: (target: { workspace: Workspace; id: string }) => void }) {
   const { t } = useLanguage();
   return <div className="assistant-sources"><span>{t('sources')}</span>{sources.map(source => <button key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>{source.title}</button>)}</div>;
+}
+
+function replyReferences(reply: AssistantReply): string[] {
+  const targets = (reply.proposals || []).flatMap(proposal => {
+    if (proposal.kind === 'create_element' || proposal.kind === 'create_timeline_moment') return [proposal.tempId];
+    if (proposal.kind === 'update_element' || proposal.kind === 'mark_deceased') return [proposal.elementId];
+    if (proposal.kind === 'set_presence') return [proposal.elementId, proposal.placeId, ...(proposal.momentId ? [proposal.momentId] : [])];
+    if (proposal.kind === 'create_relationship') return [proposal.relationship.from, proposal.relationship.to];
+    if (proposal.kind === 'set_relationship_at_moment') return [proposal.relationshipId, proposal.momentId];
+    return [];
+  });
+  return [...new Set([...(reply.sources || []).map(source => source.id), ...targets])];
 }

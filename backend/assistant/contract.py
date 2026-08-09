@@ -31,6 +31,8 @@ def _normal(value: Any) -> str:
 
 def required_proposal_kinds(question: str) -> set[str]:
     folded = question.casefold()
+    if re.search(r"\b(anwesen\w*|aufenthalt\w*|befind\w*|presence|located|location)\b", folded) and re.search(r"\b(setz\w*|änder\w*|aktualisier\w*|markier\w*|set|change|update|propose)\b", folded):
+        return {"set_presence"}
     if re.search(r"\b(sortier\w*|anordnen|anordnung|arrange|layout|platzier\w*|verschieb\w*)\b", folded):
         return {"arrange_elements"}
     if re.search(r"\b(markier\w*|setz\w*)\b.*\b(verstorben|gestorben|tot|todeszeitpunkt)\b", folded):
@@ -67,6 +69,8 @@ def task_contract(question: str, figures: dict[str, Any]) -> dict[str, Any]:
         scopes.append("relationships")
     if "timeline" in folded or "zeit" in folded or audit:
         scopes.append("timeline")
+    if re.search(r"\b(anwesen\w*|aufenthalt\w*|befind\w*|presence|location)\b", folded):
+        scopes.extend(["elements", "timeline", "presence"])
     if re.search(r"\b(element|figur|tier|ort|konzept|board|page)\w*\b", folded) or not scopes:
         scopes.append("elements")
     required = sorted(required_proposal_kinds(question))
@@ -107,6 +111,9 @@ def existing_creation_target(question: str, figures: dict[str, Any], contract: d
     }.items() if any(re.search(rf"\b{word}\w*\b", folded) for word in words)), None)
     candidates = [node for node in figures.get("nodes") or [] if not requested_type or node.get("type", "person") == requested_type]
     candidates.sort(key=lambda node: len(str(node.get("name", ""))), reverse=True)
+    named_target = re.search(r"\b(?:[Ll]ege|[Ee]rstelle?|[Cc]reate|[Aa]dd)\s+([A-ZÄÖÜ][\wÄÖÜäöüß-]*(?:\s+[A-ZÄÖÜ][\wÄÖÜäöüß-]*)*)\s+(?:als|an\b)", question)
+    if named_target and all(_normal(node.get("name")) != _normal(named_target.group(1)) for node in candidates):
+        return None
     return next((node for node in candidates if len(_normal(node.get("name"))) >= 3 and re.search(rf"\b{re.escape(_normal(node.get('name')))}\b", _normal(question))), None)
 
 
@@ -128,6 +135,8 @@ def structured_world_state(figures: dict[str, Any], contract: dict[str, Any]) ->
         state["relationships"] = [{key: edge.get(key) for key in ("id", "from", "to", "label", "gerichtet", "style", "versions") if edge.get(key) not in (None, "", [], {})} for edge in figures.get("edges") or []]
     if "timeline" in scopes:
         state["timeline"] = [{key: moment.get(key) for key in ("id", "title", "date", "note") if moment.get(key) not in (None, "", [], {})} for moment in figures.get("timeline") or []]
+    if "presence" in scopes:
+        state["presence"] = [{key: entry.get(key) for key in ("id", "elementId", "placeId", "momentId") if entry.get(key) not in (None, "")} for entry in figures.get("presence") or []]
     return state
 
 

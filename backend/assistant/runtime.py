@@ -31,19 +31,23 @@ from backend.assistant.contract import (
     task_contract,
     verify_task_contract,
 )
+from backend.assistant.config import RUNTIME_CONFIG
+from backend.assistant.context import pack_chunks
+from backend.assistant.references import resolve_reference
+from backend.assistant.schemas import KINDS, planner_schema, reply_schema
 from backend.knowledge import build_knowledge, retrieve
 from backend.llm import select
 from backend.llm.shared.contract import IncompleteResponse, check_health, count_tokens, invoke_chat, json_schema_format
 
-CONVERSATION_HISTORY_TOKEN_BUDGET = 2000
+CONVERSATION_HISTORY_TOKEN_BUDGET = RUNTIME_CONFIG.history_tokens
 
 # Must track backend/llm/runtimes/llamacpp.py's "-c" flag. MLX (runtimes/mlx.py) has no
 # equivalent flag or introspection endpoint, so this one constant is a shared
 # approximation across both runtimes rather than a per-runtime lookup.
-MODEL_CONTEXT_TOKENS = 8192
+MODEL_CONTEXT_TOKENS = RUNTIME_CONFIG.context_tokens
 # Reserved for the system prompt, world-state JSON, schema and the response itself when
 # deciding how much of the context budget "forced" chapter context is allowed to eat.
-CONTEXT_SAFETY_MARGIN = 2500
+CONTEXT_SAFETY_MARGIN = MODEL_CONTEXT_TOKENS - RUNTIME_CONFIG.forced_context_tokens
 # Live progress for in-flight batch runs, polled by the frontend. Deliberately a separate
 # lock from server.py's request-scoped _lock (which guards SQLite/manuscript state and is
 # meant to be held only briefly) -- a multi-minute batch run's frequent small writes here
@@ -105,6 +109,7 @@ Allowed proposal kinds:
 - set_relationship_at_moment: {kind,relationshipId,momentId,patch:{label,active,directed,style}}
 - mark_deceased: {kind,elementId,momentId}
 - arrange_elements: {kind,strategy} where strategy is thematic or grid
+- set_presence: {kind,elementId,placeId,momentId?}
 When a user asks to create, add, change, mark, or propose world data, proposals MUST contain the matching structured operation. A prose claim such as "was added" without an operation is invalid. Say "prepared as a proposal", never "added".
 Example: "Lege Frostkloster als Ort an" requires {"kind":"create_element","tempId":"new:frostkloster","element":{"type":"ort","name":"Frostkloster"}}.
 Example: "Schlage eine Beziehung von elian zu seal vor" requires {"kind":"create_relationship","relationship":{"from":"elian","to":"seal","label":"Besitzt","directed":true,"style":"solid"}}.
@@ -127,7 +132,8 @@ class AssistantRuntime:
 
     def status(self) -> dict[str, Any]:
         if check_health(self.url):
-            return {"available": True, "mode": "local", "reason": ""}
+            backend = "mlx" if self.log_path and "mlx" in self.log_path.name else "llama.cpp"
+            return {"available": True, "mode": "local", "reason": "", "backend": backend, "contextTokens": MODEL_CONTEXT_TOKENS, "model": os.environ.get("QUILTOR_AI_MODEL", "bundled")}
         exit_code = self.process.poll() if self.process is not None else None
         if exit_code is not None:
             reason = f"Lokaler Modell-Prozess ist beendet (Exit-Code {exit_code}). Details in {self.log_path}."
@@ -143,7 +149,7 @@ class AssistantRuntime:
         try:
             return self._invoke(payload)
         except IncompleteResponse:
-            headroom = MODEL_CONTEXT_TOKENS - prompt_tokens - 256
+            headroom = MODEL_CONTEXT_TOKENS - prompt_tokens - RUNTIME_CONFIG.template_reserve
             if headroom <= payload["max_tokens"]:
                 raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from None
             grown = {**payload, "max_tokens": min(headroom, payload["max_tokens"] * 2)}
@@ -152,9 +158,16 @@ class AssistantRuntime:
             except IncompleteResponse as exc:
                 raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
 
-    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None) -> dict[str, Any]:
+    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, Any]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None) -> dict[str, Any]:
+        started_at = time.monotonic()
         chunks = build_knowledge(manuscript, figures)
         contract = task_contract(question, figures)
+        reference = resolve_reference(question, history, figures)
+        if reference and reference.get("clarification"):
+            clarification = reference["clarification"]
+            return {"message": clarification["question"], "citations": [], "sources": [], "proposals": [], "clarification": clarification, "agentTrace": [{"step": "clarification", "candidateCount": len(clarification["candidates"])}]}
+        if reference and reference.get("resolvedId"):
+            question = f"{question}\n[Resolved reference: {reference['resolvedId']}]"
         context = retrieve(chunks, question)
         trace: list[dict[str, Any]] = [{"step": "initial_search", "query": question, "sources": [item.id for item in context]}]
         trace.append({"step": "contract", **contract})
@@ -196,23 +209,18 @@ class AssistantRuntime:
         # usual limit -- retrieve()'s lexical scoring is a best guess, an explicit pick isn't.
         rest = [item for item in known_context.values() if item.id not in {chunk.id for chunk in forced}]
         context = forced + rest[:max(0, limit - len(forced))]
+        context = pack_chunks(context, self.url, RUNTIME_CONFIG.forced_context_tokens, count_tokens, trace)
         context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
         world_json = json.dumps(structured_world_state(figures, contract), ensure_ascii=False)
         if PROSE_REQUEST.search(question):
             return {"message": "Ich schreibe oder vervollständige keine Romanprosa. Ich kann die geplante Szene aber anhand deiner Welt analysieren, Widersprüche finden, beteiligte Figuren und Beziehungen ordnen oder ihre Konsequenzen als Notizen vorbereiten.", "citations": [], "sources": [], "proposals": []}
-        schema = {
-            "type": "object", "required": ["message", "citations", "proposals"], "additionalProperties": False,
-            "properties": {
-                "message": {"type": "string"},
-                "citations": {"type": "array", "items": {"type": "string"}},
-                "proposals": {"type": "array", "items": {"type": "object"}},
-            },
-        }
+        mutation_requested = bool(MUTATION_REQUEST.search(question))
+        schema = reply_schema(contract["requiredKinds"] or (KINDS if mutation_requested else []))
         conversation = conversation_messages(history, self.url)
         user_content = f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{context_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"
         prompt_tokens = count_tokens(self.url, SYSTEM_PROMPT + "".join(message["content"] for message in conversation) + user_content)
-        headroom = MODEL_CONTEXT_TOKENS - prompt_tokens - 256
-        if headroom <= 0:
+        headroom = MODEL_CONTEXT_TOKENS - prompt_tokens - RUNTIME_CONFIG.template_reserve
+        if headroom < RUNTIME_CONFIG.minimum_output_tokens:
             # The prompt alone already overflows the context window -- calling the model
             # anyway would just floor max_tokens to a token budget too small to answer,
             # and fail later with an opaque IncompleteResponse/RuntimeError instead of
@@ -225,16 +233,15 @@ class AssistantRuntime:
         # Flat 900 was too tight for compound requests (multiple requiredKinds need more
         # room to enumerate); scale a bit with complexity, still headroom-bounded so this
         # can never itself push a well-scoped request into overflowing the context.
-        max_tokens = min(900 + 150 * len(contract["requiredKinds"]), max(300, headroom))
+        max_tokens = min(RUNTIME_CONFIG.base_output_tokens + RUNTIME_CONFIG.output_tokens_per_kind * len(contract["requiredKinds"]), headroom)
         payload = {
             "model": "local", "stream": False, "temperature": 0.2, "max_tokens": max_tokens,
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *conversation, {"role": "user", "content": user_content}],
             "response_format": json_schema_format(schema),
         }
-        supported = {"create_element", "update_element", "create_timeline_moment", "create_relationship", "set_relationship_at_moment", "mark_deceased", "arrange_elements"}
+        supported = set(KINDS)
         explicit_required = set(contract["requiredKinds"])
         planned_required = {kind for kind in plan.get("requiredKinds", []) if kind in supported}
-        mutation_requested = bool(MUTATION_REQUEST.search(question))
         required = explicit_required or (planned_required if mutation_requested else set())
         if required:
             payload["messages"][1]["content"] += "\n\nTASK REQUIREMENTS: The structured proposals must include: " + ", ".join(sorted(required)) + "."
@@ -245,17 +252,23 @@ class AssistantRuntime:
         parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
         trace.append({"step": "propose", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
         if required - {item.get("kind") for item in parsed["proposals"]}:
-            retry_schema = json.loads(json.dumps(schema))
-            retry_schema["properties"]["proposals"]["minItems"] = 1
-            repair_note = "The request requires a structured world-data proposal, but proposals was empty or invalid. Correct the response and emit at least one matching allowed proposal using IDs from CONTEXT. Do not claim it was applied. /no_think"
-            retry = {**payload, "response_format": json_schema_format(retry_schema), "messages": [*payload["messages"], {"role": "assistant", "content": json.dumps(parsed, ensure_ascii=False)}, {"role": "user", "content": repair_note}]}
-            retry_prompt_tokens = prompt_tokens + count_tokens(self.url, json.dumps(parsed, ensure_ascii=False) + repair_note)
-            parsed = self._invoke_with_growth(retry, retry_prompt_tokens)
-            parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
-            if not mutation_requested:
-                parsed["proposals"] = []
-            parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
-            trace.append({"step": "repair", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
+            deterministic = self._forced_proposal(question, context_json, figures) if required <= {"update_element", "set_relationship_at_moment", "mark_deceased", "set_presence", "arrange_elements"} else None
+            deterministic_proposals = validate_proposals([deterministic] if deterministic else [], figures, question)
+            if deterministic_proposals:
+                parsed["proposals"] = complete_compound_proposals(question, deterministic_proposals, figures)
+                trace.append({"step": "deterministic_fallback", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
+            else:
+                retry_schema = json.loads(json.dumps(schema))
+                retry_schema["properties"]["proposals"]["minItems"] = 1
+                repair_note = "The response was semantically incomplete: a required world-data proposal was missing or invalid. Correct it using IDs from CONTEXT. Do not claim it was applied. /no_think"
+                retry = {**payload, "response_format": json_schema_format(retry_schema), "messages": [*payload["messages"], {"role": "assistant", "content": json.dumps(parsed, ensure_ascii=False)}, {"role": "user", "content": repair_note}]}
+                retry_prompt_tokens = prompt_tokens + count_tokens(self.url, json.dumps(parsed, ensure_ascii=False) + repair_note)
+                parsed = self._invoke_with_growth(retry, retry_prompt_tokens)
+                parsed["proposals"] = validate_proposals(parsed.get("proposals"), figures, question)
+                if not mutation_requested:
+                    parsed["proposals"] = []
+                parsed["proposals"] = complete_compound_proposals(question, parsed["proposals"], figures)
+                trace.append({"step": "repair", "proposalKinds": [item.get("kind") for item in parsed["proposals"]]})
         if MUTATION_REQUEST.search(question) and not parsed["proposals"]:
             forced = self._forced_proposal(question, context_json, figures)
             if os.environ.get("QUILTOR_AI_DEBUG"):
@@ -268,7 +281,8 @@ class AssistantRuntime:
             parsed["message"] = re.sub(r"\b(?:wurde|wird|ist)(?: als [^.!\n]+)? (?:hinzugefügt|angelegt|erstellt|aufgenommen)\b", "ist als Vorschlag vorbereitet", str(parsed.get("message", "")), flags=re.IGNORECASE)
             parsed["message"] = re.sub(r"\b(hinzugefügt|angelegt|erstellt|aufgenommen)\b", "als Vorschlag vorbereitet", parsed["message"], flags=re.IGNORECASE)
         known = {chunk.id: chunk.public() for chunk in context}
-        parsed["sources"] = [known[source] for source in parsed.get("citations", []) if source in known]
+        parsed["citations"] = list(dict.fromkeys(source for source in parsed.get("citations", []) if source in known))
+        parsed["sources"] = [known[source] for source in parsed["citations"]]
         if contract["audit"]:
             audit = validate_world(figures)
             parsed["message"] = audit_message(audit, contract)
@@ -282,10 +296,11 @@ class AssistantRuntime:
             parsed["proposalGroup"] = {"id": "task", "title": proposal_group_title(question), "proposalIndexes": list(range(len(parsed["proposals"])))}
             parsed["message"] = f"{len(parsed['proposals'])} zusammengehörige Änderung{'en' if len(parsed['proposals']) != 1 else ''} als prüfbarer Vorschlag vorbereitet. Es wurde noch nichts angewendet."
         trace.append({"step": "verify", **verification})
+        trace.append({"step": "metrics", "plannerCalls": 0 if contract["requiredKinds"] else 1, "answerCalls": 1, "repairCalls": int(any(item.get("step") == "repair" for item in trace)), "promptTokens": prompt_tokens, "contextTokens": MODEL_CONTEXT_TOKENS, "outputBudget": max_tokens, "durationMs": round((time.monotonic() - started_at) * 1000), "finishReason": "stop"})
         parsed["agentTrace"] = trace
         return parsed
 
-    def _run_batches(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, str]] | None, progress_id: str | None) -> dict[str, Any]:
+    def _run_batches(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, Any]] | None, progress_id: str | None) -> dict[str, Any]:
         """Explicit, user-approved execution of a broad request: walk the manuscript in
         token-budgeted chapter groups, reusing complete()'s ordinary single-call path per
         group (same chapter-forcing mechanism the manual chapter picker already uses), and
@@ -320,15 +335,7 @@ class AssistantRuntime:
         return {"message": summary, "citations": [], "sources": [], "proposals": accumulated, "agentTrace": trace, "batchNotes": notes}
 
     def _plan(self, question: str, context: list[Any]) -> dict[str, Any]:
-        schema = {
-            "type": "object", "required": ["goal", "steps", "searchQueries", "requiredKinds"], "additionalProperties": False,
-            "properties": {
-                "goal": {"type": "string"},
-                "steps": {"type": "array", "maxItems": 8, "items": {"type": "string"}},
-                "searchQueries": {"type": "array", "maxItems": 4, "items": {"type": "string"}},
-                "requiredKinds": {"type": "array", "items": {"enum": ["create_element", "update_element", "create_timeline_moment", "create_relationship", "set_relationship_at_moment", "mark_deceased", "arrange_elements"]}},
-            },
-        }
+        schema = planner_schema(KINDS)
         summary = json.dumps([{"id": item.id, "kind": item.kind, "title": item.title} for item in context[:8]], ensure_ascii=False)
         payload = {"model": "local", "stream": False, "temperature": 0.1, "max_tokens": 500,
                    "messages": [{"role": "system", "content": "Plan the user's world-management task before answering. Decompose compound tasks into every necessary operation. Decide which additional local world searches are needed. Never plan prose writing or direct mutations. Return JSON only."},
@@ -343,8 +350,15 @@ class AssistantRuntime:
                            for item in operations if isinstance(item, dict) and "search" in str(item.get("type", "")).casefold()]
             result["goal"] = str(result.get("goal") or result.get("task") or question)
             result["steps"] = result.get("steps") or [str(item.get("description") or item.get("purpose") or item.get("target") or "") for item in result.get("operations", []) if isinstance(item, dict)]
-            result["searchQueries"] = [str(item)[:300] for item in queries if str(item).strip()][:4]
-            result["requiredKinds"] = [str(item) for item in result.get("requiredKinds", [])]
+            deduped: list[str] = []
+            seen_queries: set[str] = set()
+            for item in queries:
+                query = " ".join(str(item).split())[:300]
+                normal = query.casefold()
+                if query and normal not in seen_queries:
+                    seen_queries.add(normal); deduped.append(query)
+            result["searchQueries"] = deduped[:4]
+            result["requiredKinds"] = [str(item) for item in result.get("requiredKinds", []) if str(item) in KINDS]
             return result
         except RuntimeError:
             return {"goal": question, "steps": ["Search relevant world data", "Prepare and verify the response"], "searchQueries": [], "requiredKinds": sorted(required_proposal_kinds(question))}
@@ -368,6 +382,11 @@ class AssistantRuntime:
                 return {"kind": "set_relationship_at_moment", "relationshipId": edge["id"], "momentId": moment["id"], "patch": {"label": label.group(1) if label else edge.get("label", ""), "active": "inaktiv" not in folded and "inactive" not in folded, "directed": not ("ungerichtet" in folded or "undirected" in folded), "style": "solid"}}
         if required == {"mark_deceased"} and node and moment:
             return {"kind": "mark_deceased", "elementId": node["id"], "momentId": moment["id"]}
+        if required == {"set_presence"} and node:
+            place = next((item for item in nodes if item.get("type") == "ort" and (str(item.get("id", "")).casefold() in folded or str(item.get("name", "")).casefold() in folded)), None)
+            element = next((item for item in nodes if item.get("id") != (place or {}).get("id") and (str(item.get("id", "")).casefold() in folded or str(item.get("name", "")).casefold() in folded)), None)
+            if place and element:
+                return {"kind": "set_presence", "elementId": element["id"], "placeId": place["id"], **({"momentId": moment["id"]} if moment else {})}
         if "beziehung" in folded or "relationship" in folded:
             shape = {"type": "object", "required": ["from", "to", "label", "directed", "style"], "additionalProperties": False, "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "directed": {"type": "boolean"}, "style": {"enum": ["solid", "dashed", "blood", "gold"]}}}
             result = self._invoke({"model": "local", "stream": False, "temperature": 0, "max_tokens": 300, "messages": [{"role": "system", "content": "Extract one requested relationship proposal. Use exact existing element IDs from context, not names. Return JSON only."}, {"role": "user", "content": f"CONTEXT:\n{context_json}\nREQUEST:\n{question}\n/no_think"}], "response_format": json_schema_format(shape)})
@@ -391,7 +410,7 @@ class AssistantRuntime:
             self.process.terminate()
 
 
-def conversation_messages(history: list[dict[str, str]] | None, url: str) -> list[dict[str, str]]:
+def conversation_messages(history: list[dict[str, Any]] | None, url: str) -> list[dict[str, str]]:
     """Keep as much recent history as fits a real token budget, newest-first until it doesn't.
 
     Uses count_tokens (the runtime's own tokenizer) rather than a message-count
@@ -421,14 +440,7 @@ def _fit_to_budget(chunks: list[Any], url: str, budget: int, trace: list[dict[st
     chars-per-token estimate. Without this, the chapter-picker's "forced" context
     has no cap at all and can silently overflow the model's context window when
     a user selects several long chapters."""
-    kept: list[Any] = []
-    used = 0
-    for chunk in chunks:
-        tokens = count_tokens(url, chunk.text)
-        if used + tokens > budget:
-            break
-        used += tokens
-        kept.append(chunk)
+    kept = pack_chunks(chunks, url, budget, count_tokens, trace)
     if len(kept) < len(chunks):
         trace.append({"step": "context_budget", "truncatedForced": True, "keptChunks": len(kept), "droppedChunks": len(chunks) - len(kept)})
     return kept

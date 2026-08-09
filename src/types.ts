@@ -122,12 +122,15 @@ export type AssistantProposal =
   | { kind: 'create_relationship'; relationship: { from: string; to: string; label?: string; directed?: boolean; style?: FigureEdge['style'] } }
   | { kind: 'set_relationship_at_moment'; relationshipId: string; momentId: string; patch: { label?: string; active?: boolean; directed?: boolean; style?: FigureEdge['style'] } }
   | { kind: 'mark_deceased'; elementId: string; momentId: string }
+  | { kind: 'set_presence'; elementId: string; placeId: string; momentId?: string }
   | { kind: 'arrange_elements'; strategy: 'thematic' | 'grid' };
+export interface AssistantHistoryMessage { role: 'user' | 'assistant'; content: string; references?: string[] }
 export interface AssistantReply {
   ok: boolean; message: string; proposals: AssistantProposal[]; sources: AssistantSource[];
   proposalGroup?: { id: string; title: string; proposalIndexes: number[] };
   agentTrace?: Array<{ step: string; [key: string]: unknown }>;
   broadScope?: { chapterCount: number; estimateSeconds: number };
+  clarification?: { question: string; candidates: Array<{ id: string; name: string; kind: string }> };
 }
 
 export const PROFILE_FIELDS: Array<[keyof Profile, MessageKey, 'short' | 'long']> = [

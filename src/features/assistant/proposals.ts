@@ -62,6 +62,11 @@ export function applyAssistantProposals(state: FigureState, proposals: Assistant
     } else if (proposal.kind === 'mark_deceased') {
       const elementId = resolve(proposal.elementId), momentId = resolve(proposal.momentId);
       if (next.timeline.some(moment => moment.id === momentId)) next.nodes = next.nodes.map(node => node.id === elementId ? { ...node, diedMomentId: momentId } : node);
+    } else if (proposal.kind === 'set_presence') {
+      const elementId = resolve(proposal.elementId), placeId = resolve(proposal.placeId), momentId = proposal.momentId ? resolve(proposal.momentId) : undefined;
+      if (!next.nodes.some(node => node.id === elementId) || !next.nodes.some(node => node.id === placeId && node.type === 'ort') || (momentId && !next.timeline.some(moment => moment.id === momentId))) continue;
+      next.presence ||= [];
+      next.presence = [...next.presence.filter(entry => !(entry.elementId === elementId && (entry.momentId || undefined) === momentId)), { id: uid('p'), elementId, placeId, ...(momentId ? { momentId } : {}) }];
     } else if (proposal.kind === 'arrange_elements') {
       next.nodes = arrangeNodes(next.nodes, next.edges, proposal.strategy);
     }
@@ -82,6 +87,7 @@ export function scopeAssistantProposals(proposals: AssistantProposal[], scope: s
     if (proposal.kind === 'create_relationship') return { ...proposal, relationship: { ...proposal.relationship, from: scoped(proposal.relationship.from), to: scoped(proposal.relationship.to) } };
     if (proposal.kind === 'set_relationship_at_moment') return { ...proposal, relationshipId: scoped(proposal.relationshipId), momentId: scoped(proposal.momentId) };
     if (proposal.kind === 'mark_deceased') return { ...proposal, elementId: scoped(proposal.elementId), momentId: scoped(proposal.momentId) };
+    if (proposal.kind === 'set_presence') return { ...proposal, elementId: scoped(proposal.elementId), placeId: scoped(proposal.placeId), ...(proposal.momentId ? { momentId: scoped(proposal.momentId) } : {}) };
     return proposal;
   });
 }
@@ -127,5 +133,6 @@ export function proposalLabel(proposal: AssistantProposal, state: FigureState, t
   if (proposal.kind === 'create_relationship') return t('createRelationshipLabel').replace('{from}', nodeName(proposal.relationship.from)).replace('{to}', nodeName(proposal.relationship.to));
   if (proposal.kind === 'set_relationship_at_moment') return t('updateRelationshipStateLabel').replace('{label}', proposal.patch.label || t('statusFallback'));
   if (proposal.kind === 'arrange_elements') return t('rearrangeElementsLabel');
+  if (proposal.kind === 'set_presence') return `${nodeName(proposal.elementId)} → ${nodeName(proposal.placeId)}`;
   return t('setDeathMomentLabel').replace('{name}', nodeName(proposal.elementId));
 }
