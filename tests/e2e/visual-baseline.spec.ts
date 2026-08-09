@@ -23,7 +23,7 @@ async function mockWorkshop(page: Page) {
 
 for (const theme of ['light', 'dark'] as const) {
   test(`${theme}: Kernansichten bleiben visuell reproduzierbar`, async ({ page }) => {
-    await page.addInitScript(selected => { localStorage.setItem('quiltor-theme', selected); localStorage.setItem('writer-language', 'de'); }, theme);
+    await page.addInitScript(selected => { localStorage.setItem('quiltor-theme', selected); localStorage.setItem('quiltor-interface-language', 'de'); }, theme);
     await mockWorkshop(page);
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Welche Welt öffnest du?' })).toBeVisible();

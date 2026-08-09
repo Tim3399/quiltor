@@ -1,10 +1,10 @@
 import type { AssistantHistoryMessage, AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
-import { languages } from '../language';
+import { languages, readInterfaceLanguage } from '../language';
 
 // api.ts is a plain module used outside React's render cycle (event handlers, fetch
 // callbacks), so it can't call the useLanguage() hook -- read the persisted preference
 // directly instead, mirroring LanguageProvider's own default-language logic.
-function currentLanguage() { return localStorage.getItem('writer-language') === 'en' ? 'en' : 'de'; }
+function currentLanguage() { return readInterfaceLanguage(); }
 
 // Set once per tab when a world is opened (see App.tsx). Each browser tab has its
 // own isolated JS module state, so this is safely per-tab even with multiple tabs

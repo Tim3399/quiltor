@@ -5,36 +5,27 @@ const root = process.cwd();
 const languageRoot = join(root, 'src', 'language');
 const ignored = new Set(['node_modules', 'dist', 'test-results', 'playwright-report', '.git']);
 
-// Same escape hatch classNames the runtime MutationObserver in src/language/index.tsx uses
-// for content that's intentionally never translated (user-authored prose, proper nouns).
-const blocked = ['chapter-title', 'prose-editor', 'chapter-name', 'historical-prose', 'story-node', 'data-no-i18n'];
-
-// Heuristic, not a real JSX parser: flags German-looking text (umlauts/ß, or a common
-// German function word) inside aria-label/title/placeholder attribute values or JSX text
-// content. It will under-report (misses German text built from ternaries/template
-// literals split across `{}` expressions) and can false-positive (e.g. a user-typed
-// example name that happens to contain "und"). Treat this as a first pass to skim, not
-// a complete gate -- that's also why it isn't wired into `npm run build`.
-const germanish = /[äöüßÄÖÜ]|\b(?:der|die|das|und|nicht|öffnen|schließen|löschen|neue?|keine?)\b/i;
+// Product UI must be localized regardless of its source language. Technical labels that are
+// intentionally language-neutral are explicit here instead of being silently ignored.
+const allowedLiteralText = new Set(['Aa', 'Esc', 'Git', 'JSON', 'Tab', '⌘ F', '⌘ K', 'python3 server.py']);
+const humanText = /[A-Za-zÄÖÜäöüß]/;
 const attr = /\b(?:aria-label|title|placeholder)=["']([^"'{}]*)["']/g;
-const jsxText = />([^<>{}\n]{2,})</g;
+const jsxText = />([^<>{}\n]{2,})<\/[A-Za-z]/g;
 
 const violations = [];
 
-function isBlockedLine(line) {
-  return blocked.some(name => line.includes(name));
-}
-
 function scan(file, text) {
   text.split('\n').forEach((line, index) => {
-    if (isBlockedLine(line)) return;
     let m;
     attr.lastIndex = 0;
-    while ((m = attr.exec(line))) if (germanish.test(m[1])) violations.push(`${file}:${index + 1}: [attr] "${m[1]}"`);
+    while ((m = attr.exec(line))) {
+      const content = m[1].trim();
+      if (content && !allowedLiteralText.has(content)) violations.push(`${file}:${index + 1}: [attr] "${content}"`);
+    }
     jsxText.lastIndex = 0;
     while ((m = jsxText.exec(line))) {
       const content = m[1].trim();
-      if (content && germanish.test(content)) violations.push(`${file}:${index + 1}: [text] "${content}"`);
+      if (humanText.test(content) && !allowedLiteralText.has(content)) violations.push(`${file}:${index + 1}: [text] "${content}"`);
     }
   });
 }
@@ -43,35 +34,51 @@ function visit(path) {
   if (path === languageRoot) return;
   if (ignored.has(path.split(/[/\\]/).at(-1))) return;
   if (statSync(path).isDirectory()) return readdirSync(path).forEach(name => visit(join(path, name)));
-  if (extname(path) !== '.tsx') return;
+  if (extname(path) !== '.tsx' || path.endsWith('.test.tsx')) return;
   scan(relative(root, path), readFileSync(path, 'utf8'));
 }
 
 visit(join(root, 'src'));
 if (violations.length) {
-  console.error(`Hartcodierte deutsche Texte außerhalb von t()-Aufrufen (${violations.length}):\n` + violations.join('\n'));
+  console.error(`Hartcodierte sichtbare Texte außerhalb von src/language (${violations.length}):\n` + violations.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('Keine offensichtlichen hartcodierten deutschen Texte gefunden.');
+  console.log('Keine hartcodierten sichtbaren UI-Texte gefunden.');
 }
 
 function languageKeys(directory) {
   const keys = new Set();
+  const duplicates = new Set();
   for (const name of readdirSync(directory)) {
     if (!name.endsWith('.ts') || name === 'index.ts') continue;
     const text = readFileSync(join(directory, name), 'utf8');
-    for (const match of text.matchAll(/^\s{2}([A-Za-z_$][\w$]*):/gm)) keys.add(match[1]);
+    const structure = text.replace(/'(?:\\.|[^'\\])*'/gs, "''").replace(/\/\/.*$/gm, '');
+    for (const match of structure.matchAll(/(?:^|[, {\n])\s*([A-Za-z_$][\w$]*)\s*:/gm)) {
+      if (keys.has(match[1])) duplicates.add(match[1]);
+      keys.add(match[1]);
+    }
   }
-  return keys;
+  return { keys, duplicates };
 }
 
-const deKeys = languageKeys(join(languageRoot, 'de'));
-const enKeys = languageKeys(join(languageRoot, 'en'));
+const deCatalog = languageKeys(join(languageRoot, 'de'));
+const enCatalog = languageKeys(join(languageRoot, 'en'));
+const catalogFiles = directory => readdirSync(directory).filter(name => name.endsWith('.ts') && name !== 'index.ts').sort();
+const deFiles = catalogFiles(join(languageRoot, 'de'));
+const enFiles = catalogFiles(join(languageRoot, 'en'));
+const deKeys = deCatalog.keys;
+const enKeys = enCatalog.keys;
+const missingEnFiles = deFiles.filter(name => !enFiles.includes(name));
+const missingDeFiles = enFiles.filter(name => !deFiles.includes(name));
 const missingEn = [...deKeys].filter(key => !enKeys.has(key));
 const missingDe = [...enKeys].filter(key => !deKeys.has(key));
-if (missingEn.length || missingDe.length) {
+if (missingEn.length || missingDe.length || missingEnFiles.length || missingDeFiles.length || deCatalog.duplicates.size || enCatalog.duplicates.size) {
+  if (missingEnFiles.length) console.error(`Fehlende englische Katalogdateien: ${missingEnFiles.join(', ')}`);
+  if (missingDeFiles.length) console.error(`Fehlende deutsche Katalogdateien: ${missingDeFiles.join(', ')}`);
   if (missingEn.length) console.error(`Fehlende englische Schlüssel: ${missingEn.join(', ')}`);
   if (missingDe.length) console.error(`Fehlende deutsche Schlüssel: ${missingDe.join(', ')}`);
+  if (deCatalog.duplicates.size) console.error(`Doppelte deutsche Schlüssel: ${[...deCatalog.duplicates].join(', ')}`);
+  if (enCatalog.duplicates.size) console.error(`Doppelte englische Schlüssel: ${[...enCatalog.duplicates].join(', ')}`);
   process.exitCode = 1;
 } else {
   console.log(`Sprachschlüssel sind vollständig und paarig (${deKeys.size}).`);
