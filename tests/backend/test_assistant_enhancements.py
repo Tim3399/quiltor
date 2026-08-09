@@ -1,10 +1,12 @@
 import unittest
+from unittest.mock import patch
 
 from backend.assistant.audit import validate_proposals
 from backend.assistant.context import TokenCountCache, pack_chunks
 from backend.assistant.references import resolve_reference
 from backend.assistant.contract import existing_creation_target, task_contract
 from backend.assistant.schemas import reply_schema
+from backend.assistant.batch import _group_chapters_by_budget, _merge_accumulated
 from backend.knowledge import KnowledgeChunk
 
 
@@ -48,6 +50,17 @@ class AssistantEnhancementTests(unittest.TestCase):
         self.assertEqual(cache.count("a", "hello", lambda _: 2), 2)
         self.assertEqual(cache.count("a", "hello", lambda _: 9), 2)
         self.assertEqual(cache.count("b", "hello", lambda _: 9), 9)
+
+    def test_oversized_batch_chapter_is_isolated_and_later_chapters_continue(self):
+        chapters = [{"id": "huge", "body": "x" * 5000}, {"id": "small", "body": "x" * 10}]
+        with patch("backend.assistant.batch.count_tokens", side_effect=lambda _url, text: len(text)):
+            self.assertEqual(_group_chapters_by_budget(chapters, "mock", 100), [["huge"], ["small"]])
+
+    def test_batch_merge_preserves_temp_references_for_presence(self):
+        figures = {"nodes": [], "edges": [], "timeline": []}
+        accumulated = [{"kind": "create_element", "tempId": "new:place", "element": {"type": "ort", "name": "Archiv"}}]
+        merged = _merge_accumulated(figures, accumulated)
+        self.assertEqual(merged["nodes"][0]["id"], "new:place")
 
 
 if __name__ == "__main__":

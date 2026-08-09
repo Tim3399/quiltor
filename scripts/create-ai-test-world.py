@@ -21,6 +21,7 @@ MANUSCRIPT = {"chapters": [
     {"id": "tc06", "title": "Verrat am Nordtor", "body": "Corvin öffnet das Nordtor für Ordensleute, um Ivens Geiselnahme zu erzwingen. Als Nima dazwischen gerät, wendet er sich gegen den Orden. Priorin Elian tötet Corvin und flieht mit dem echten Siegel.", "note": "Corvin stirbt am Ereignis Nordtor; seine Beziehung zu Iven wechselt zuvor von loyal zu erpresserisch."},
     {"id": "tc07", "title": "Der Prozess", "body": "Mara legt die Briefe und Seras Aussage dem Rat vor. Iven gesteht die Verbrechen seines Vaters nicht vertuscht, aber aus Angst verschwiegen zu haben. Elian wird in Abwesenheit angeklagt.", "note": "Iven und Mara werden vorsichtige politische Verbündete."},
     {"id": "tc08", "title": "Asche im Schnee", "body": "Monate später findet Tarek das Siegel in einem ausgebrannten Kloster. Eine Nachricht deutet darauf hin, dass Elian lebt. Mara archiviert den Fall nicht als abgeschlossen, sondern als Beginn eines größeren Netzes.", "note": "Offenes Ende; Ort Frostkloster für spätere Erweiterung anlegen."},
+    {"id": "tc-long", "title": "Das lange Archiv", "body": (("Inventarliste ohne neue Handlung. " * 650) + "Am Ende der Akte steht der eindeutige Prüfmarker OBSIDIAN-ANKER: Nima versteckte eine Karte im Uhrkasten."), "note": "Künstliches langes Kapitel für Kontextgrenztests."},
 ]}
 
 NODES = [

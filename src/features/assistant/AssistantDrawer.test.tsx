@@ -140,6 +140,30 @@ describe('AssistantDrawer', () => {
     expect(onNavigate).toHaveBeenCalledWith({ workspace: 'figures', id: 'tarek' });
   });
 
+  it('renders clarification candidates and sends the selected id as an explicit follow-up', async () => {
+    vi.mocked(api.assistantChat)
+      .mockResolvedValueOnce(reply({ message: 'Welches Element meinst du?', clarification: { question: 'Welches Element meinst du?', candidates: [{ id: 'tarek', name: 'Tarek Venn', kind: 'person' }] } }))
+      .mockResolvedValueOnce(reply({ message: 'Eindeutig.' }));
+    setup();
+    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await askQuestion('Ergänze sein Profil.');
+    fireEvent.click(await screen.findByRole('button', { name: 'Tarek Venn' }));
+    await screen.findByText('Eindeutig.');
+    expect(vi.mocked(api.assistantChat).mock.calls[1][0]).toContain('[tarek]');
+  });
+
+  it('sends valid source ids as machine-readable assistant history references', async () => {
+    vi.mocked(api.assistantChat)
+      .mockResolvedValueOnce(reply({ sources: [{ id: 'element:tarek', kind: 'element', title: 'Tarek', text: '', target: { workspace: 'figures', id: 'tarek' } }] }))
+      .mockResolvedValueOnce(reply());
+    setup();
+    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await askQuestion('Wer ist Tarek?');
+    await screen.findByText('Tarek');
+    await askQuestion('Und sein Profil?');
+    expect(vi.mocked(api.assistantChat).mock.calls[1][1]).toContainEqual(expect.objectContaining({ role: 'assistant', references: ['element:tarek'] }));
+  });
+
   it('persists entries per worldId and starts fresh for a different world', async () => {
     vi.mocked(api.assistantChat).mockResolvedValue(reply({ message: 'Gemerkt.' }));
     const { unmount } = setup('world-a');

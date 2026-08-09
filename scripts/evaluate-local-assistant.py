@@ -25,6 +25,12 @@ CASES = [
     {"name": "arrange-board", "question": "Sortiere das Figurenboard thematisch neu, sodass verbundene Elemente beieinander liegen.", "kind": "arrange_elements"},
     {"name": "compound-element-relation", "question": "Lege Lio Venn als Figur an. Lio ist der 6 Jahre alte Sohn von Tarek Venn.", "kinds": ["create_element", "create_relationship"]},
     {"name": "agentic-search", "question": "Prüfe anhand von Manuskript, Beziehungen und Timeline, ob Maras Verhalten nach dem Nordtor konsistent ist.", "sources": 2, "trace_step": "search_world"},
+    {"name": "unique-follow-up", "question": "Ergänze bei ihr im Profil die Notiz: Prüft den Uhrkasten.", "history": [{"role": "assistant", "content": "Mara wurde zuletzt betrachtet.", "references": ["element:mara"]}], "kind": "update_element", "proposal_target": "mara"},
+    {"name": "ambiguous-follow-up", "question": "Ergänze ihr Profil.", "history": [{"role": "assistant", "content": "Mara und Tarek wurden betrachtet.", "references": ["element:mara", "element:tarek"]}], "clarification_ids": ["mara", "tarek"], "forbid_proposals": True},
+    {"name": "duplicate-element", "question": "Lege Tarek Venn als Figur an.", "forbid_proposals": True, "trace_step": "preflight"},
+    {"name": "fabricated-citation", "question": "Welche Rolle spielt Mara? Verwende keinesfalls erfundene Quellen-IDs.", "citations_resolve": True, "forbid_citation": "chapter:not-real"},
+    {"name": "long-selected-chapter", "question": "Was besagt der Prüfmarker OBSIDIAN-ANKER?", "chapterIds": ["tc-long"], "sources": 1, "message_contains": "Uhrkasten"},
+    {"name": "batch-dedup", "question": "Durchsuche alle Kapitel und lege das Frostkloster als Ort an.", "runBatches": True, "kind": "create_element", "max_kind_count": {"create_element": 1}, "trace_step": "batch_group"},
 ]
 
 
@@ -59,7 +65,8 @@ def main() -> None:
     selected_cases = [case for case in CASES if not args.cases or case["name"] in args.cases]
     for case in selected_cases:
         started = time.monotonic()
-        response = request(args.base, "/api/assistant/chat", {"question": case["question"]})
+        payload = {key: case[key] for key in ("question", "history", "chapterIds", "runBatches") if key in case}
+        response = request(args.base, "/api/assistant/chat", payload)
         kinds = [proposal.get("kind") for proposal in response.get("proposals", [])]
         metrics = next((step for step in reversed(response.get("agentTrace", [])) if step.get("step") == "metrics"), {})
         repair_calls = int(metrics.get("repairCalls", sum(step.get("step") == "repair" for step in response.get("agentTrace", []))))
@@ -77,6 +84,19 @@ def main() -> None:
             checks.append(not response.get("proposals"))
         if case.get("forbid_long_prose"):
             checks.append(len(message.split()) < 180)
+        if case.get("message_contains"):
+            checks.append(case["message_contains"].casefold() in message.casefold())
+        if case.get("proposal_target"):
+            checks.append(any(proposal.get("elementId") == case["proposal_target"] for proposal in response.get("proposals", [])))
+        if case.get("clarification_ids"):
+            checks.append({item.get("id") for item in (response.get("clarification") or {}).get("candidates", [])} == set(case["clarification_ids"]))
+        if case.get("citations_resolve"):
+            source_ids = {source.get("id") for source in response.get("sources", [])}
+            checks.append(all(citation in source_ids for citation in response.get("citations", [])))
+        if case.get("forbid_citation"):
+            checks.append(case["forbid_citation"] not in response.get("citations", []) and case["forbid_citation"] not in {source.get("id") for source in response.get("sources", [])})
+        for kind, maximum in case.get("max_kind_count", {}).items():
+            checks.append(kinds.count(kind) <= maximum)
         reports.append({"name": case["name"], "passed": all(checks), "seconds": round(time.monotonic() - started, 2), "sources": len(response.get("sources", [])), "proposals": kinds, "repairCalls": repair_calls, "validWithoutRepair": bool(kinds) and repair_calls == 0, "message": message[:240]})
         print(f"[{reports[-1]['passed'] and 'PASS' or 'FAIL'}] {case['name']} ({reports[-1]['seconds']}s) {kinds}", flush=True)
     unchanged = request(args.base, "/api/state") == state_before

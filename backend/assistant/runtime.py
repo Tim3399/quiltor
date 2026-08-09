@@ -173,6 +173,12 @@ class AssistantRuntime:
         trace.append({"step": "contract", **contract})
         forced = [chunk for chunk in chunks if chapter_ids and chunk.kind in {"chapter", "chapter-note"} and chunk.target.get("id") in set(chapter_ids)]
         if forced:
+            # Within explicitly selected chapters, put lexical matches first. A single
+            # very long chapter can otherwise spend the entire budget on its opening
+            # chunks even when the question clearly targets a passage near the end.
+            forced_by_id = {chunk.id: chunk for chunk in forced}
+            ranked_ids = [chunk.id for chunk in context if chunk.id in forced_by_id]
+            forced = [forced_by_id[item] for item in ranked_ids] + [chunk for chunk in forced if chunk.id not in set(ranked_ids)]
             forced = _fit_to_budget(forced, self.url, MODEL_CONTEXT_TOKENS - CONTEXT_SAFETY_MARGIN, trace)
             trace.append({"step": "force_context", "chapterIds": chapter_ids, "sources": [item.id for item in forced]})
         if contract["audit"]:
@@ -208,8 +214,8 @@ class AssistantRuntime:
         # Chapters the author explicitly picked always make it into context, even past the
         # usual limit -- retrieve()'s lexical scoring is a best guess, an explicit pick isn't.
         rest = [item for item in known_context.values() if item.id not in {chunk.id for chunk in forced}]
-        context = forced + rest[:max(0, limit - len(forced))]
-        context = pack_chunks(context, self.url, RUNTIME_CONFIG.forced_context_tokens, count_tokens, trace)
+        context_candidates = forced + rest[:max(0, limit - len(forced))]
+        context = pack_chunks(context_candidates, self.url, RUNTIME_CONFIG.forced_context_tokens, count_tokens, trace)
         context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
         world_json = json.dumps(structured_world_state(figures, contract), ensure_ascii=False)
         if PROSE_REQUEST.search(question):
@@ -217,9 +223,19 @@ class AssistantRuntime:
         mutation_requested = bool(MUTATION_REQUEST.search(question))
         schema = reply_schema(contract["requiredKinds"] or (KINDS if mutation_requested else []))
         conversation = conversation_messages(history, self.url)
-        user_content = f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{context_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"
-        prompt_tokens = count_tokens(self.url, SYSTEM_PROMPT + "".join(message["content"] for message in conversation) + user_content)
-        headroom = MODEL_CONTEXT_TOKENS - prompt_tokens - RUNTIME_CONFIG.template_reserve
+        def prompt_for(packed_json: str) -> tuple[str, int, int]:
+            content = f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{packed_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"
+            tokens = count_tokens(self.url, SYSTEM_PROMPT + "".join(message["content"] for message in conversation) + content)
+            return content, tokens, MODEL_CONTEXT_TOKENS - tokens - RUNTIME_CONFIG.template_reserve
+
+        user_content, prompt_tokens, headroom = prompt_for(context_json)
+        for reduced_budget in (4096, 3072, 2048, 1024, 512, 0):
+            if headroom >= RUNTIME_CONFIG.minimum_output_tokens:
+                break
+            context = pack_chunks(context_candidates, self.url, reduced_budget, count_tokens)
+            context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
+            user_content, prompt_tokens, headroom = prompt_for(context_json)
+            trace.append({"step": "context_reduce", "tokenBudget": reduced_budget, "promptTokens": prompt_tokens, "remainingOutputTokens": headroom})
         if headroom < RUNTIME_CONFIG.minimum_output_tokens:
             # The prompt alone already overflows the context window -- calling the model
             # anyway would just floor max_tokens to a token budget too small to answer,

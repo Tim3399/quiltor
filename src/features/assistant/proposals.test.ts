@@ -30,4 +30,18 @@ describe('assistant proposals', () => {
     expect(result.edges).toEqual(state.edges);
     expect(new Set(result.nodes.map(node => `${node.x}:${node.y}`)).size).toBe(3);
   });
+
+  it('replaces presence only at the proposed base or timeline state', () => {
+    const state = {
+      nodes: [{ id: 'mara', x: 0, y: 0, name: 'Mara', type: 'person' as const }, { id: 'hafen', x: 0, y: 0, name: 'Hafen', type: 'ort' as const }, { id: 'archiv', x: 0, y: 0, name: 'Archiv', type: 'ort' as const }],
+      edges: [], timeline: [{ id: 'trial', title: 'Prozess' }],
+      presence: [{ id: 'old-base', elementId: 'mara', placeId: 'hafen' }, { id: 'old-trial', elementId: 'mara', placeId: 'hafen', momentId: 'trial' }],
+    };
+    const result = applyAssistantProposals(state, [{ kind: 'set_presence', elementId: 'mara', placeId: 'archiv', momentId: 'trial' }], t);
+    expect(result.presence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'old-base', placeId: 'hafen' }),
+      expect.objectContaining({ elementId: 'mara', placeId: 'archiv', momentId: 'trial' }),
+    ]));
+    expect(result.presence).not.toContainEqual(expect.objectContaining({ id: 'old-trial' }));
+  });
 });
