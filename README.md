@@ -163,8 +163,7 @@ Zusätzlich enthält jedes [GitHub Release](https://github.com/Tim3399/quiltor/r
 **Das `quiltor`-CLI** (nur bei pip/pipx-Installation, nicht bei `python3 server.py`) bringt neben `quiltor` / `quiltor run [port] [--no-open]` auch persistente Konfiguration mit — Einstellungen landen in `~/.quiltor/config.env` und überleben so einen Neustart, echte Umgebungsvariablen haben aber immer Vorrang:
 
 ```bash
-quiltor config keycloak   # geführtes Setup für Keycloak-Login (Issuer, Client-ID/-Secret, Public-URL)
-quiltor config llm        # externen LLM-Endpunkt statt der gebündelten lokalen Runtime hinterlegen
+quiltor install   # geführtes Setup: Keycloak-Mehrbenutzer-Login (default nein) + lokaler KI-Assistent (default ja)
 quiltor config set|get|list|unset <KEY> [VALUE]   # generischer Zugriff auf jede QUILTOR_*-Variable
 quiltor config path        # zeigt den Pfad der Config-Datei
 quiltor --version

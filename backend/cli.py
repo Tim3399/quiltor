@@ -17,6 +17,10 @@ from pathlib import Path
 
 import typer
 
+from backend.llm.shared.platform import force_utf8_streams
+
+force_utf8_streams()
+
 app = typer.Typer(
     name="quiltor",
     help="Local-first writing workshop with a private, on-device assistant.",
@@ -161,34 +165,37 @@ def config_unset(key: str) -> None:
     typer.echo(f"Removed {key}.")
 
 
-@config_app.command("keycloak")
-def config_keycloak() -> None:
-    """Interactive setup for Keycloak/OIDC login (skips Quiltor's local single-user mode)."""
+@app.command()
+def install() -> None:
+    """Guided one-time setup: optional Keycloak multi-user login, optional local AI assistant."""
+    _install_keycloak_step()
+    typer.echo()
+    _install_llm_step()
+
+
+def _install_keycloak_step() -> None:
     current = _read_config()
-    typer.echo("Leave the issuer empty to disable Keycloak and stay in local single-user mode.\n")
-    issuer = typer.prompt("Realm issuer URL (QUILTOR_OIDC_ISSUER)", default=current.get("QUILTOR_OIDC_ISSUER", ""), show_default=False)
-    values = dict(current)
-    if not issuer.strip():
-        values.pop("QUILTOR_OIDC_ISSUER", None)
-        _write_config(values)
-        typer.echo("Keycloak login disabled — settings left untouched otherwise.")
+    if not typer.confirm("Mehrbenutzer-Modus mit Keycloak-Login einrichten?", default=False):
+        typer.echo("Übersprungen — Quiltor bleibt im lokalen Einzelnutzer-Modus.")
         return
-    client_id = typer.prompt("Client ID (QUILTOR_OIDC_CLIENT_ID)", default=current.get("QUILTOR_OIDC_CLIENT_ID", ""), show_default=False)
+    issuer = typer.prompt("Realm-Issuer-URL (QUILTOR_OIDC_ISSUER)", default=current.get("QUILTOR_OIDC_ISSUER", ""), show_default=False)
+    client_id = typer.prompt("Client-ID (QUILTOR_OIDC_CLIENT_ID)", default=current.get("QUILTOR_OIDC_CLIENT_ID", ""), show_default=False)
     client_secret = typer.prompt(
-        "Client secret (QUILTOR_OIDC_CLIENT_SECRET)",
+        "Client-Secret (QUILTOR_OIDC_CLIENT_SECRET)",
         default=current.get("QUILTOR_OIDC_CLIENT_SECRET", ""),
         show_default=False,
         hide_input=True,
     )
     public_url = typer.prompt(
-        "Public base URL, e.g. https://quiltor.example.com (QUILTOR_PUBLIC_URL)",
+        "Öffentliche Basis-URL, z. B. https://quiltor.example.com (QUILTOR_PUBLIC_URL)",
         default=current.get("QUILTOR_PUBLIC_URL", ""),
         show_default=False,
     )
     cookie_secure = typer.prompt(
-        "Cookie Secure flag: auto/0/1 (QUILTOR_COOKIE_SECURE)",
+        "Cookie-Secure-Flag: auto/0/1 (QUILTOR_COOKIE_SECURE)",
         default=current.get("QUILTOR_COOKIE_SECURE", "auto"),
     )
+    values = dict(current)
     values.update({
         "QUILTOR_OIDC_ISSUER": issuer.strip(),
         "QUILTOR_OIDC_CLIENT_ID": client_id.strip(),
@@ -197,39 +204,25 @@ def config_keycloak() -> None:
         "QUILTOR_COOKIE_SECURE": cookie_secure.strip(),
     })
     _write_config(values)
-    typer.echo(f"\nSaved to {CONFIG_PATH}. Run `quiltor` to start with Keycloak login enabled.")
+    typer.echo("Gespeichert — Keycloak-Login ist ab dem nächsten `quiltor run` aktiv.")
 
 
-@config_app.command("llm")
-def config_llm() -> None:
-    """Interactive setup for the AI assistant: bundled local runtime or an external endpoint."""
-    current = _read_config()
-    use_external = typer.confirm(
-        "Point at an external OpenAI-compatible inference server instead of the bundled local runtime?",
-        default=bool(current.get("QUILTOR_AI_URL")),
-    )
-    values = dict(current)
-    if not use_external:
-        values.pop("QUILTOR_AI_URL", None)
-        _write_config(values)
-        typer.echo("Using the bundled local runtime (downloaded on first interactive run).")
+def _install_llm_step() -> None:
+    if not typer.confirm("Lokalen KI-Assistenten einrichten (lädt Runtime + Modell herunter, ~2,5 GB)?", default=True):
+        typer.echo(
+            "Übersprungen. Extern anbindbar per `quiltor config set QUILTOR_AI_URL <url>`, "
+            "oder später erneut mit `quiltor install`."
+        )
         return
-    url = typer.prompt(
-        "Endpoint URL (QUILTOR_AI_URL)",
-        default=current.get("QUILTOR_AI_URL", "http://127.0.0.1:11435"),
-    )
-    model = typer.prompt(
-        "Model override, leave empty to use the endpoint's default (QUILTOR_AI_MODEL)",
-        default=current.get("QUILTOR_AI_MODEL", ""),
-        show_default=False,
-    )
-    values["QUILTOR_AI_URL"] = url.strip()
-    if model.strip():
-        values["QUILTOR_AI_MODEL"] = model.strip()
-    else:
-        values.pop("QUILTOR_AI_MODEL", None)
-    _write_config(values)
-    typer.echo(f"\nSaved to {CONFIG_PATH}.")
+    from backend.llm.installer import install as install_llm, resolve_runtime
+    runtime = resolve_runtime("auto")
+    try:
+        install_llm(runtime)
+    except (SystemExit, Exception) as exc:
+        # Also catches network/subprocess failures the installer surfaces as
+        # SystemExit (e.g. an unsupported platform) -- see ensure_installed().
+        typer.echo(f"! Einrichtung fehlgeschlagen: {exc}", err=True)
+        typer.echo("Quiltor läuft trotzdem, nur ohne Assistenten. Erneut versuchen mit: quiltor install")
 
 
 def main_entry() -> None:
