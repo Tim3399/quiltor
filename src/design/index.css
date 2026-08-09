@@ -2,6 +2,7 @@
 @import './tokens.css';
 @import './materials.css';
 @import './motion.css';
+@import './base.css';
 @import './components/button.css';
 @import './components/toolbar.css';
 @import './components/segmented-control.css';

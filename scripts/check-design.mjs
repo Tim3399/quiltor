@@ -3,6 +3,10 @@ import { extname, join, relative } from 'node:path';
 
 const root = process.cwd();
 const designRoot = join(root, 'src/design');
+const rawValueAuthorities = new Set([
+  join(designRoot, 'colors.css'),
+  join(designRoot, 'tokens.css'),
+]);
 const extensions = new Set(['.css', '.html', '.ts', '.tsx']);
 const ignored = new Set(['node_modules', 'dist', 'test-results', 'playwright-report', '.git']);
 
@@ -34,9 +38,9 @@ function visit(path) {
   if (ignored.has(path.split(/[/\\]/).at(-1))) return;
   if (statSync(path).isDirectory()) return readdirSync(path).forEach(name => visit(join(path, name)));
   if (!extensions.has(extname(path))) return;
-  const isDesignFile = path.startsWith(`${designRoot}/`);
+  const allowsRawValues = rawValueAuthorities.has(path);
   readFileSync(path, 'utf8').split('\n').forEach((line, index) => {
-    if (isDesignFile) return;
+    if (allowsRawValues) return;
     // print layout is a separate rendering context (pt/in units, relative em drop-cap sizing
     // tied to print typography) — not part of the app's screen-facing design token system.
     if (/^@media print\b|^@page\b/.test(line.trim())) return;
@@ -67,6 +71,37 @@ function visit(path) {
 }
 
 visit(root);
+
+const tokens = readFileSync(join(designRoot, 'tokens.css'), 'utf8');
+const colors = readFileSync(join(designRoot, 'colors.css'), 'utf8');
+const requiredTokens = [
+  'control-compact', 'control-regular', 'control-touch',
+  'toolbar-compact', 'toolbar-regular',
+  'sidebar-min', 'sidebar-ideal', 'sidebar-max',
+  'inspector-min', 'inspector-ideal', 'inspector-max',
+  'popover-min', 'popover-max', 'sheet-max',
+  'layout-gutter-compact', 'layout-gutter-regular', 'layout-gutter-wide',
+  'motion-instant', 'motion-fast', 'motion-regular', 'motion-slow',
+  'ease-standard', 'ease-emphasized',
+  'blur-toolbar', 'blur-popover', 'blur-sheet',
+];
+const requiredColors = [
+  'material-toolbar', 'material-popover', 'material-sheet',
+  'selection-surface', 'control-hover', 'disabled-surface', 'disabled-content',
+];
+
+for (const name of requiredTokens) {
+  if (!tokens.includes(`--${name}:`)) violations.push(`src/design/tokens.css: [Pflicht-Token] --${name}`);
+}
+for (const name of requiredColors) {
+  const definitions = colors.match(new RegExp(`--${name}:`, 'g')) || [];
+  if (definitions.length < 2) violations.push(`src/design/colors.css: [Theme-Parität] --${name} fehlt in Light oder Dark`);
+}
+const touchSize = tokens.match(/--control-touch:\s*(\d+)px/);
+if (!touchSize || Number(touchSize[1]) < 44) {
+  violations.push('src/design/tokens.css: [Touchziel] --control-touch muss mindestens 44px betragen');
+}
+
 if (violations.length) {
   console.error('Farb- und Gestaltungswerte gehören ausschließlich in src/design/colors.css bzw. src/design/tokens.css:\n' + violations.join('\n'));
   process.exit(1);
