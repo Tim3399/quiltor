@@ -47,6 +47,22 @@ test('Text, Suche und Figurenboard laden ohne Laufzeitfehler', async ({ page }, 
   expect(errors).toEqual([]);
 });
 
+test('CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil', async ({ page }) => {
+  await openBlankWorld(page);
+  const editor = page.getByLabel('Kapiteltext');
+  await editor.fill('Der Morgen lag still über dem Hafen.');
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('.cm-placeholder')).toBeVisible();
+  await editor.fill('Der Morgen lag still über dem Hafen.');
+  await page.locator('.cm-line').selectText();
+  const selectionMenu = page.getByRole('dialog', { name: 'Aktionen für die Textauswahl' });
+  await expect(selectionMenu).toBeVisible();
+  await selectionMenu.getByRole('menuitem', { name: 'Nachschlagen' }).click();
+  await expect(page.locator('.writing-selection-state')).toContainText('Der Morgen lag still über dem Hafen.');
+  await expect(editor).toHaveText('Der Morgen lag still über dem Hafen.');
+  await expect(page.getByText('Sprachdaten sind nicht installiert.')).toBeVisible();
+});
+
 test('Shortcuts unterscheiden Speichern und Git', async ({ page }) => {
   await openBlankWorld(page);
   await page.keyboard.press('Control+Shift+S');
@@ -328,7 +344,8 @@ test('Kapitelversionen erscheinen direkt neben der Schreibfläche', async ({ pag
   await page.route('**/api/log*', route => route.fulfill({ json: { ok: true, commits: [{ hash: 'abc123', kurz: 'abc123', datum: '01.01.2026 12:00', betreff: 'Frühere Fassung' }] } }));
   await page.route('**/api/textfassung**', route => route.fulfill({ json: { ok: true, text: 'Historischer Kapiteltext' } }));
   await openBlankWorld(page);
-  await page.getByRole('button', { name: 'Versionen' }).click();
+  await page.getByRole('button', { name: 'Exportieren' }).click();
+  await page.getByRole('menuitem', { name: 'Versionen' }).click();
   const history = page.getByRole('complementary', { name: 'Versionen' });
   await expect(history).toBeVisible();
   await expect(history).toContainText('Historischer Kapiteltext');
@@ -361,7 +378,7 @@ test('Autosave überlebt Reload und meldet konkurrierende Änderungen', async ({
   await page.getByLabel('Kapiteltext').fill('Nach Reload vorhanden');
   await expect(page.locator('.save-saved')).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('Kapiteltext')).toHaveValue('Nach Reload vorhanden');
+  await expect(page.getByLabel('Kapiteltext')).toHaveText('Nach Reload vorhanden');
   revision += 1;
   await page.getByLabel('Kapiteltext').fill('Konkurrierender Stand');
   await expect(page.locator('.save-error')).toBeVisible();

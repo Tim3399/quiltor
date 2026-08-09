@@ -138,6 +138,47 @@
   color: var(--ink);
 }
 
+.prose-editor .cm-editor,
+.prose-editor .cm-scroller,
+.prose-editor .cm-content {
+  min-height: inherit;
+}
+
+.prose-editor .cm-editor { background: var(--transparent); }
+.prose-editor .cm-editor.cm-focused { outline: 0; }
+.prose-editor .cm-scroller {
+  overflow: visible;
+  font: inherit;
+  font-family: var(--prose);
+  line-height: inherit;
+}
+.prose-editor .cm-content { padding: 0; caret-color: var(--ink); }
+.prose-editor .cm-line { padding: 0; }
+.prose-editor .cm-placeholder { color: var(--muted); }
+.prose-editor .cm-selectionBackground,
+.prose-editor .cm-content ::selection { background: var(--selection); }
+
+.selection-anchor {
+  position: fixed;
+  z-index: var(--z-hint);
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.writing-selection-state {
+  display: grid;
+  gap: var(--space-6);
+  margin-bottom: var(--space-18);
+  padding: var(--space-12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.writing-selection-state span { color: var(--muted); font-size: var(--font-size-2); text-transform: uppercase; letter-spacing: .08em; }
+.writing-selection-state strong { font: 600 var(--font-size-5) var(--prose); }
+.writing-selection-state p { margin: 0; color: var(--muted); font-size: var(--font-size-2); }
+
 .compact-panel {
   display: flex;
   width: 100%;

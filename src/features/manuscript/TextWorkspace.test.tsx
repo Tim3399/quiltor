@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TextWorkspace } from './TextWorkspace';
 import { LanguageProvider } from '../../language';
@@ -11,11 +11,13 @@ function renderWorkspace(props: React.ComponentProps<typeof TextWorkspace>) {
 }
 
 describe('TextWorkspace', () => {
-  it('ändert Text ohne die übrige Manuskriptstruktur zu verlieren', () => {
+  it('ändert Text ohne die übrige Manuskriptstruktur zu verlieren', async () => {
     const onChange = vi.fn();
     renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn() });
-    fireEvent.change(screen.getByLabelText('Kapiteltext'), { target: { value: 'Neuer Text' } });
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [expect.objectContaining({ id: 'c1', body: 'Neuer Text' })] }));
+    const editor = screen.getByLabelText('Kapiteltext');
+    editor.textContent = 'Neuer Text';
+    fireEvent.input(editor, { inputType: 'insertText', data: 'Neuer Text' });
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [expect.objectContaining({ id: 'c1', body: 'Neuer Text' })] })));
   });
 
   it('macht den Fokusmodus explizit verlassbar', () => {
@@ -35,7 +37,7 @@ describe('TextWorkspace', () => {
     expect(within(picker).getByRole('button', { name: /Prolog/ })).toHaveAttribute('aria-current', 'page');
     fireEvent.click(within(picker).getByRole('button', { name: /Aufbruch/ }));
     expect(rendered.getByLabelText('Kapiteltitel')).toHaveValue('Aufbruch');
-    expect(rendered.getByLabelText('Kapiteltext')).toHaveValue('Der Weg beginnt.');
+    expect(rendered.getByLabelText('Kapiteltext')).toHaveTextContent('Der Weg beginnt.');
   });
 
   it('blendet die Kapitelauswahl bei nur einem Kapitel aus', () => {

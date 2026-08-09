@@ -1,1 +1,0 @@
-import{A as e,M as t}from"./index-plUrx3XI.js";var n=t(e(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

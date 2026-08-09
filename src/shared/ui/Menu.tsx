@@ -1,8 +1,8 @@
 import { Children, cloneElement, isValidElement, useEffect, useRef, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
 
-export function Menu({ label, children, onClose }: { label: string; children: ReactNode; onClose: () => void }) {
+export function Menu({ label, children, onClose, autoFocus = true }: { label: string; children: ReactNode; onClose: () => void; autoFocus?: boolean }) {
   const root = useRef<HTMLDivElement>(null);
-  useEffect(() => { root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus(); }, []);
+  useEffect(() => { if (autoFocus) root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus(); }, [autoFocus]);
   const onKeyDown = (event: KeyboardEvent) => {
     const items = [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') || [])];
     const index = items.indexOf(document.activeElement as HTMLElement);

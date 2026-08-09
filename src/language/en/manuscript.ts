@@ -1,6 +1,6 @@
 export const manuscript = {
   manuscript: 'Manuscript', chapter: 'Chapter', chapters: 'Chapters', chapterText: 'Chapter text', chapterTitle: 'Chapter title', words: 'Words', totalWords: 'words total', characters: 'Characters', standardPages: 'Standard pages',
-  navigation: 'Navigation', details: 'Details', focus: 'Focus', versions: 'Versions', bookPdf: 'Book PDF', creatingPdf: 'Creating PDF …',
+  navigation: 'Navigation', details: 'Details', focus: 'Focus', versions: 'Versions', exportManuscript: 'Export', exportOptions: 'Export options', bookPdf: 'Book PDF', creatingPdf: 'Creating PDF …',
   undoManuscript: 'Undo manuscript change', redoManuscript: 'Redo manuscript change', closeNavigation: 'Close chapter navigation', closeInspector: 'Close inspector',
   chapterNote: 'Chapter note', moveUp: 'Move up', moveDown: 'Move down', chapterMarkdown: 'Chapter as Markdown', deleteChapter: 'Delete chapter', writingHelpers: 'Writing aids',
   figuresPlaces: 'Characters & places', ownTerms: 'Custom terms', specialCharacters: 'Special characters', addTerm: 'Add term', newTerm: 'New term',
