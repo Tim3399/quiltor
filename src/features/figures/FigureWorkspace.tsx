@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type MiniMapNodeProps, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
-import { Clock3, Download, Grid3X3, LayoutGrid, Link2, MapPin, Pause, Pin, Play, Plus, Redo2, Skull, Star, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
+import { Clock3, Download, Grid3X3, LayoutGrid, Link2, MapPin, MoreHorizontal, Pause, Pin, Play, Plus, Redo2, Skull, Star, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, FigureKind, PresenceEntry, Profile, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
 import { download } from '../../lib/api';
 import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
+import { ContextMenu, Menu, MenuItem, MenuSeparator } from '../../shared/ui/Menu';
+import { Popover } from '../../shared/ui/Popover';
 import { figureJourney, journeyHandles, journeyLegs, momentIndex, patchPresence, presenceByPlace, presenceFieldEditor, prunePresence, resolvePresence, stopDateDiff } from './presence';
 import { formatMomentDate } from './date';
 import { useLanguage, type MessageKey } from '../../language';
@@ -90,6 +92,9 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingImport, setPendingImport] = useState<FigureState | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [manageMenuOpen, setManageMenuOpen] = useState(false);
+  const [nodeMenu, setNodeMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [activeMomentId, setActiveMomentId] = useState<string | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(() => !!state.timeline?.length);
   const [journeyOverlayOpen, setJourneyOverlayOpen] = useState(() => !!state.presence?.length);
@@ -100,7 +105,9 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const [zoomTier, setZoomTier] = useState<SemanticZoomTier>('detail');
   const [viewportZoom, setViewportZoom] = useState(1);
   const input = useRef<HTMLInputElement>(null);
-  const createMenu = useRef<HTMLDivElement>(null);
+  const createButton = useRef<HTMLButtonElement>(null);
+  const viewButton = useRef<HTMLButtonElement>(null);
+  const manageButton = useRef<HTMLButtonElement>(null);
   const flow = useRef<ReactFlowInstance<Node<CardData>, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
@@ -117,13 +124,22 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     return () => { window.removeEventListener('keydown', setOverride); window.removeEventListener('keyup', setOverride); window.removeEventListener('blur', clearOverride); };
   }, []);
   useEffect(() => {
-    if (!createMenuOpen) return;
-    const close = (event: PointerEvent) => { if (!createMenu.current?.contains(event.target as unknown as globalThis.Node)) setCreateMenuOpen(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setCreateMenuOpen(false); };
-    document.addEventListener('pointerdown', close);
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (connecting) setConnecting(false);
+      if (nodeMenu) setNodeMenu(null);
+    };
     document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); };
-  }, [createMenuOpen]);
+    return () => document.removeEventListener('keydown', escape);
+  }, [connecting, nodeMenu]);
+  useEffect(() => {
+    if (!nodeMenu) return;
+    const close = () => setNodeMenu(null);
+    document.addEventListener('pointerdown', close);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('resize', close); window.removeEventListener('scroll', close, true); };
+  }, [nodeMenu]);
   useEffect(() => {
     if (!targetId) return;
     const item = latestState.current.nodes.find(node => node.id === targetId);
@@ -237,18 +253,17 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   return <section className="figure-workspace" aria-label={t('figuresAndRelationsLabel')}>
     <div className="context-bar">
       <div className="context-title"><strong>{t('figuresWorld')}</strong><span>{state.nodes.length} {t('elements')} · {state.edges.length} {t('connections')}</span></div>
-      <div className="tool-group create-group"><div className="element-create" ref={createMenu}><button className="create-action" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />{t('element')}</button>{createMenuOpen && <div className="element-create-menu" role="menu">{ELEMENT_TYPES.map(type => <button key={type.kind} role="menuitem" onClick={() => addNode(type.kind)}><Plus />{t(type.label)}</button>)}</div>}</div>{ELEMENT_TYPES.filter(type => type.quick).map(type => <button className="create-action" key={type.kind} onClick={() => addNode(type.kind)}><Plus />{t(type.label)}</button>)}</div>
+      <div className="tool-group create-group"><button ref={createButton} className="create-action primary" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen(value => !value)}><Plus />{t('element')}</button><Popover anchorRef={createButton} open={createMenuOpen} onClose={() => setCreateMenuOpen(false)} label={t('createElementMenu')}><Menu label={t('createElementMenu')} onClose={() => setCreateMenuOpen(false)}>{ELEMENT_TYPES.map(type => <MenuItem key={type.kind} onSelect={() => addNode(type.kind)}><Plus />{t(type.label)}</MenuItem>)}</Menu></Popover></div>
       <div className="tool-group"><button aria-pressed={connecting} className={connecting ? 'active' : ''} onClick={() => setConnecting(!connecting)}><Link2 />{t('connect')}</button></div>
-      <div className="tool-group"><button aria-pressed={snapToGrid} className={snapToGrid ? 'active' : ''} title={snapToGrid ? t('gridFreeModeHelp') : t('gridSnapModeHelp')} onClick={() => setSnapToGrid(value => !value)}><Grid3X3 />{t('grid')}</button><button disabled={!state.nodes.length} title={t('alignAllHelp')} onClick={alignAllNodes}><LayoutGrid />{t('arrangeGrid')}</button></div>
-      <div className="tool-group"><button aria-pressed={timelineOpen} className={timelineOpen ? 'active' : ''} onClick={() => setTimelineOpen(value => !value)}><Clock3 />{t('timeToggle')}</button><button aria-pressed={journeyOverlayOpen} className={journeyOverlayOpen ? 'active' : ''} onClick={() => setJourneyOverlayOpen(value => !value)}><MapPin />{t('pathsToggle')}</button></div>
+      <div className="tool-group"><button ref={viewButton} aria-expanded={viewMenuOpen} aria-haspopup="menu" onClick={() => setViewMenuOpen(value => !value)}><Grid3X3 />{t('figureViewMenu')}</button><Popover anchorRef={viewButton} open={viewMenuOpen} onClose={() => setViewMenuOpen(false)} label={t('figureViewMenu')}><Menu label={t('figureViewMenu')} onClose={() => setViewMenuOpen(false)}><MenuItem onSelect={() => setSnapToGrid(value => !value)}><Grid3X3 />{snapToGrid ? t('hideGrid') : t('showGrid')}</MenuItem><MenuItem disabled={!state.nodes.length} onSelect={alignAllNodes}><LayoutGrid />{t('arrangeGrid')}</MenuItem><MenuSeparator /><MenuItem onSelect={() => setTimelineOpen(value => !value)}><Clock3 />{timelineOpen ? t('hideTimeline') : t('showTimeline')}</MenuItem><MenuItem onSelect={() => setJourneyOverlayOpen(value => !value)}><MapPin />{journeyOverlayOpen ? t('hidePaths') : t('showPaths')}</MenuItem></Menu></Popover></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoDiagram')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoDiagram')}><Redo2 /></button></div>
-      <div className="tool-group"><button onClick={exportProfiles}><Download />{t('profiles')}</button><button onClick={exportState}><Download />JSON</button><button onClick={() => input.current?.click()}><Upload />{t('import')}</button><input ref={input} hidden type="file" accept="application/json" onChange={event => void importState(event.target.files?.[0])} /></div>
+      <div className="tool-group"><button ref={manageButton} aria-expanded={manageMenuOpen} aria-haspopup="menu" aria-label={t('figureManageMenu')} onClick={() => setManageMenuOpen(value => !value)}><MoreHorizontal /></button><Popover anchorRef={manageButton} open={manageMenuOpen} onClose={() => setManageMenuOpen(false)} label={t('figureManageMenu')}><Menu label={t('figureManageMenu')} onClose={() => setManageMenuOpen(false)}><MenuItem onSelect={() => { exportProfiles(); setManageMenuOpen(false); }}><Download />{t('profiles')}</MenuItem><MenuItem onSelect={() => { exportState(); setManageMenuOpen(false); }}><Download />JSON</MenuItem><MenuSeparator /><MenuItem onSelect={() => { input.current?.click(); setManageMenuOpen(false); }}><Upload />{t('import')}</MenuItem></Menu></Popover><input ref={input} hidden type="file" accept="application/json" onChange={event => void importState(event.target.files?.[0])} /></div>
     </div>
     <div className="figure-layout">
       <div className={`flow-area zoom-${zoomTier} ${connecting ? 'is-connecting' : ''} ${playing ? 'timeline-playing' : ''}`}>
         {connecting && <div className="mode-banner"><Link2 /><span>{t('connectModeHint')}</span><button onClick={() => setConnecting(false)}><X /><span className="sr-only">{t('cancel')}</span></button></div>}
         <ReactFlow nodes={nodes} edges={allEdges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onInit={instance => { flow.current = instance; const zoom = instance.getZoom(); setViewportZoom(zoom); setZoomTier(semanticZoomTier(zoom)); }} onMove={(_, viewport) => { const zoom = Math.round(viewport.zoom * 100) / 100; setViewportZoom(current => current === zoom ? current : zoom); setZoomTier(current => { const next = semanticZoomTier(zoom); return current === next ? current : next; }); }}
-          onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)}
+          onNodeClick={(_, node: Node<CardData>) => setSelectedId(node.id)} onNodeContextMenu={(event, node) => { event.preventDefault(); setSelectedId(node.id); setNodeMenu({ id: node.id, x: event.clientX, y: event.clientY }); }} onPaneClick={() => { setSelectedId(null); setNodeMenu(null); }}
           onNodesChange={moveNodes} onNodeDragStop={(_, node) => commitNodePosition(node.id, node.position)}
           onConnect={connect} nodesConnectable={connecting} snapToGrid={snapToGrid && !gridOverride} snapGrid={[GRID_SIZE, GRID_SIZE]} fitView minZoom={0.08} maxZoom={2.2} deleteKeyCode={null}>
           {snapToGrid && zoomTier !== 'overview' && <Background className={`board-grid board-grid-${zoomTier}`} variant={BackgroundVariant.Lines} gap={GRID_SIZE} size={0.55} color="var(--line)" />}<Controls position="bottom-left" /><MiniMap position="bottom-right" pannable zoomable nodeComponent={MiniMapDot} nodeColor={node => minimapColorForKind((node.data as CardData).figure.type)} maskColor="var(--minimap-mask)" />
@@ -261,6 +276,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
         : <FigureInspector figure={selected} state={state} activeMomentId={activeMomentId} onPatch={patch => patchNode(selected.id, patch)} onState={onChange} onDelete={() => setConfirmDelete(true)} onSelectMoment={id => { setPlaying(false); setActiveMomentId(id); }} />}
       </aside>
     </div>
+    {nodeMenu && <div className="node-context-menu material-popover" style={{ left: nodeMenu.x, top: nodeMenu.y }} onPointerDown={event => event.stopPropagation()}><ContextMenu label={t('elementActions')} onClose={() => setNodeMenu(null)}><MenuItem onSelect={() => { setSelectedId(nodeMenu.id); setNodeMenu(null); }}><UserRound />{t('openInInspector')}</MenuItem><MenuItem onSelect={() => { setSelectedId(nodeMenu.id); setConnecting(true); setNodeMenu(null); }}><Link2 />{t('connect')}</MenuItem><MenuItem onSelect={() => { const node = state.nodes.find(item => item.id === nodeMenu.id); if (node) patchNode(node.id, { important: !node.important }); setNodeMenu(null); }}><Star />{state.nodes.find(item => item.id === nodeMenu.id)?.important ? t('unmarkImportant') : t('markImportant')}</MenuItem><MenuSeparator /><MenuItem onSelect={() => { setSelectedId(nodeMenu.id); setConfirmDelete(true); setNodeMenu(null); }}><Trash2 />{t('deleteElement')}</MenuItem></ContextMenu></div>}
     {importError && <div className="toast error-box" role="alert">{importError}<button onClick={() => setImportError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
     {connectionError && <div className="toast error-box" role="status">{connectionError}<button onClick={() => setConnectionError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
     {selected && confirmDelete && <ConfirmDialog title={t('deleteElement')} description={t('deleteElementDescription').replace('{name}', selected.name)} confirmLabel={t('deleteElement')} holdDurationMs={DELETE_HOLD_MS} onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
@@ -341,4 +357,3 @@ function TimelineStrip({ timeline, activeId, playing, onPlay, onSelect, onAdd, o
   const active = timeline.find(moment => moment.id === activeId);
   return <div className={`timeline-strip ${playing ? 'is-playing' : ''}`} aria-label={t('timelineStripLabel')}><div className="timeline-heading"><Clock3 /><span>{t('timeToggle')}</span><button className="timeline-play" disabled={!timeline.length} aria-label={playing ? t('pauseTimeTravel') : t('playTimeTravel')} onClick={onPlay}>{playing ? <Pause /> : <Play />}</button><button className={!activeId ? 'active' : ''} aria-pressed={!activeId} onClick={() => onSelect(null)}>{t('overview')}</button></div><div className="timeline-track">{timeline.map((moment, index) => <div className="timeline-moment" key={moment.id}><span aria-hidden="true">{index + 1}</span><button className={activeId === moment.id ? 'active' : ''} aria-pressed={activeId === moment.id} onClick={() => onSelect(moment.id)}><b>{moment.title}</b>{moment.date && <small>{formatMomentDate(moment.date)}</small>}</button></div>)}</div><div className="timeline-add"><input aria-label={t('newMoment')} value={draft} placeholder={t('newMoment')} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} /><input className="timeline-date" type="date" aria-label={t('newMomentDate')} value={draftDate} onChange={event => setDraftDate(event.target.value)} /><button className="icon-button" disabled={!draft.trim()} aria-label={t('addMoment')} onClick={add}><Plus /></button></div>{active && <div className="timeline-details"><label><span>{t('name')}</span><input value={active.title} onChange={event => onPatch(active.id, { title: event.target.value })} /></label><label><span>{t('optionalDate')}</span><input type="date" value={active.date || ''} onChange={event => onPatch(active.id, { date: event.target.value || undefined })} /></label><label><span>{t('optionalNote')}</span><input value={active.note || ''} placeholder={t('momentNotePlaceholder')} onChange={event => onPatch(active.id, { note: event.target.value })} /></label><button className="icon-button danger-text" aria-label={t('deleteTimeMoment')} onClick={() => onDelete(active)}><Trash2 /></button></div>}</div>;
 }
-
