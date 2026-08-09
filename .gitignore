@@ -22,6 +22,7 @@ test-results/
 playwright-report/
 data/llama-server.log
 data/mlx-server.log
+data/llama-embed.log
 
 # Automatische Sicherungen — bei Bedarf auskommentieren, wenn du sie
 # doch mitversionieren willst
@@ -31,6 +32,7 @@ data/backups/*
 # Betriebssystem-Kram
 .DS_Store
 Thumbs.db
+.idea/
 
 # Web-Demo secrets (Keycloak client secret etc.) — never versioniert.
 .env
@@ -42,5 +44,6 @@ Thumbs.db
 runtime/*
 !runtime/README.md
 models/*.gguf
+models/embed/
 models/mlx/*
 !models/mlx/.gitkeep
