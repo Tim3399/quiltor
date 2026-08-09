@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any
 
 BASE = Path(__file__).resolve().parent.parent
-DATA = Path(os.environ.get("QUILTOR_DATA_DIR", str(BASE / "data"))).resolve()
+# QUILTOR_DATA_DIR wins outright (Docker sets it explicitly); QUILTOR_HOME is
+# the packaged CLI's per-user default (see backend/llm/installer.py's HOME);
+# with neither set, a source checkout / Docker keeps using BASE/data as before.
+_HOME = Path(os.environ.get("QUILTOR_HOME", str(BASE)))
+DATA = Path(os.environ.get("QUILTOR_DATA_DIR", str(_HOME / "data"))).resolve()
 DB = DATA / ".no-active-world.sqlite3"
 BACKUPS = DATA / "backups"
 WORLDS = DATA / "worlds"
@@ -115,7 +119,7 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
 
 def initialize(path: Path | None = None) -> None:
     """Create only the schema and its internal forward migrations."""
-    DATA.mkdir(exist_ok=True)
+    DATA.mkdir(parents=True, exist_ok=True)
     BACKUPS.mkdir(exist_ok=True)
     with connect(path) as conn:
         conn.executescript(SCHEMA)

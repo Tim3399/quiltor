@@ -1,14 +1,16 @@
 """CLI entry point for `pip install quiltor`.
 
 `quiltor` (or `quiltor run`) starts the server exactly like `python3 server.py`
-does -- this module just adds a friendlier command surface and a persisted
-config file (`~/.quiltor/config.env`) so `QUILTOR_*` settings (Keycloak,
-external LLM endpoint, ...) survive between runs instead of having to be
-re-exported by hand every time.
+does -- this module just adds a friendlier command surface, a persisted config
+file (`~/.quiltor/config.env`), and sensible per-user defaults (QUILTOR_HOME),
+so running locally never *requires* touching an environment variable by hand.
+`quiltor install`/`quiltor config set` cover the normal path; exporting a raw
+QUILTOR_* env var is the emergency override, same as it always was.
 
-Real environment variables always win over the persisted file: `_load_config`
-uses `setdefault`, so `QUILTOR_OIDC_ISSUER=... quiltor run` still overrides
-whatever is saved.
+Environment variables stay the primary configuration mechanism for Docker
+deployments (which never go through this module) and remain the top-priority
+override locally too: `_load_config` uses `setdefault`, so a real env var
+always wins over both the persisted file and the built-in QUILTOR_HOME default.
 """
 from __future__ import annotations
 
@@ -30,7 +32,8 @@ app = typer.Typer(
 config_app = typer.Typer(help="Read or write persisted QUILTOR_* settings (~/.quiltor/config.env).")
 app.add_typer(config_app, name="config")
 
-CONFIG_PATH = Path.home() / ".quiltor" / "config.env"
+DEFAULT_HOME = Path.home() / ".quiltor"
+CONFIG_PATH = DEFAULT_HOME / "config.env"
 
 # name -> short description, shown by `quiltor config list`/`get`/`set --help`.
 KNOWN_KEYS: dict[str, str] = {
@@ -44,7 +47,8 @@ KNOWN_KEYS: dict[str, str] = {
     "QUILTOR_AI_BINARY": "Path to a specific llama-server/MLX binary, overriding the bundled default.",
     "QUILTOR_AI_RUNTIME": "Force a specific local runtime: llamacpp or mlx.",
     "QUILTOR_AI_DEBUG": "Set to any value to enable verbose assistant-runtime logging.",
-    "QUILTOR_DATA_DIR": "Directory for worlds, backups, and manuscripts data.",
+    "QUILTOR_HOME": f"Where runtime/model/data files live. Defaults to {DEFAULT_HOME} for the CLI.",
+    "QUILTOR_DATA_DIR": "Directory for worlds, backups, and manuscripts data. Defaults to QUILTOR_HOME/data.",
     "QUILTOR_HOST": "Bind address for the server (default 127.0.0.1).",
 }
 SECRET_KEYS = {"QUILTOR_OIDC_CLIENT_SECRET"}
@@ -73,6 +77,11 @@ def _load_config() -> None:
     """Apply the persisted config to the environment. Real env vars always win."""
     for key, value in _read_config().items():
         os.environ.setdefault(key, value)
+    # Below either of the above: a sensible per-user default so that running
+    # via the CLI never *requires* touching an env var locally (data/runtime/
+    # models land under ~/.quiltor instead of site-packages). Env vars stay
+    # the primary knob for Docker, which never goes through this module.
+    os.environ.setdefault("QUILTOR_HOME", str(DEFAULT_HOME))
 
 
 def _mask(key: str, value: str) -> str:
@@ -168,6 +177,7 @@ def config_unset(key: str) -> None:
 @app.command()
 def install() -> None:
     """Guided one-time setup: optional Keycloak multi-user login, optional local AI assistant."""
+    _load_config()  # so QUILTOR_HOME is set before _install_llm_step imports the installer
     _install_keycloak_step()
     typer.echo()
     _install_llm_step()

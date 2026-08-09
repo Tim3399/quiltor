@@ -68,7 +68,12 @@ WORLD_BACKUPS = GitBackup(DATA / "repositories")
 # mirrors storage.DB/ACTIVE_WORLD_ID: one process, one active world at a time).
 CURRENT_GIT: GitContext | None = None
 ensure_installed()
-ASSISTANT = AssistantRuntime(BASE, DATA)
+# Where the assistant looks for its runtime/model (backend/llm/installer.py's
+# HOME): BASE for a source checkout / Docker, or QUILTOR_HOME for the packaged
+# CLI. Deliberately not BASE itself -- that stays the package root for
+# PUBLIC/VERSION_FILE/render script above, none of which move with QUILTOR_HOME.
+RUNTIME_HOME = Path(os.environ.get("QUILTOR_HOME", str(BASE)))
+ASSISTANT = AssistantRuntime(RUNTIME_HOME, DATA)
 
 MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
 
@@ -128,8 +133,10 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
 # ---------------------------------------------------------------- Storage
 
 def ensure_dirs() -> None:
+    # parents=True: DATA's parent is QUILTOR_HOME for a pip/pipx install, which
+    # (unlike the package root a source checkout/Docker uses) may not exist yet.
     for d in (DATA, BACKUPS, MANUSCRIPT_DIR, PROFILE_DIR):
-        d.mkdir(exist_ok=True)
+        d.mkdir(parents=True, exist_ok=True)
 
 
 # ------------------------------------------------------------------ Server

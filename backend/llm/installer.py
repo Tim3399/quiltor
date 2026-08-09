@@ -48,8 +48,15 @@ from backend.llm.runtimes import llamacpp
 from backend.llm.shared.platform import force_utf8_streams, is_apple_silicon
 
 BASE = Path(__file__).resolve().parent.parent.parent
-RUNTIME_DIR = BASE / "runtime"
-MODELS_DIR = BASE / "models"
+# Where to install the (large, writable) runtime + model files. Defaults to
+# BASE for a source checkout / Docker (unchanged behavior); the packaged
+# `quiltor` CLI points this at a per-user directory instead, since BASE is
+# inside site-packages for a pip/pipx install -- not a place to dump a
+# multi-GB download. Shipped, read-only assets (the mlx bridge script below)
+# stay BASE-relative regardless.
+HOME = Path(os.environ.get("QUILTOR_HOME", str(BASE)))
+RUNTIME_DIR = HOME / "runtime"
+MODELS_DIR = HOME / "models"
 LLAMA_CPP_REPO = "ggml-org/llama.cpp"
 DEFAULT_MODEL_REPO = "Qwen/Qwen3-4B-GGUF"
 DEFAULT_MODEL_FILE = "Qwen3-4B-Q4_K_M.gguf"
@@ -192,7 +199,7 @@ def _extract_archive(archive: Path, dest: Path) -> None:
 
 
 def install_runtime() -> None:
-    RUNTIME_DIR.mkdir(exist_ok=True)
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     binary_name = llamacpp.binary_name()
     target = RUNTIME_DIR / binary_name
     if target.exists():
@@ -243,7 +250,7 @@ def install_runtime() -> None:
 
 
 def install_model(repo: str, filename: str) -> None:
-    MODELS_DIR.mkdir(exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
     target = MODELS_DIR / filename
     if target.exists():
         print(f"model already present at {target}, skipping")
