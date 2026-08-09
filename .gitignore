@@ -3,6 +3,9 @@ node_modules/
 __pycache__/
 *.py[cod]
 
+# pip wheel/sdist build output (produced by `python -m build --outdir pkg-dist`)
+pkg-dist/
+
 # Private world data never belongs in the public application repository.
 data/**/*.sqlite3
 data/**/*.sqlite3-shm
