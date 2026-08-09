@@ -8,7 +8,14 @@ export type Language = 'de' | 'en';
 export const languages = { de, en } as const;
 
 export type MessageKey = keyof typeof de;
-const LanguageContext = createContext<{ language: Language; setLanguage: (language: Language) => void; t: (key: MessageKey) => string } | null>(null);
+export type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
+const LanguageContext = createContext<{ language: Language; setLanguage: (language: Language) => void; t: Translate } | null>(null);
+
+function translate(language: Language, key: MessageKey, params?: Record<string, string | number>) {
+  const message: string = languages[language][key];
+  if (!params) return message;
+  return Object.entries(params).reduce((result, [name, value]) => result.replaceAll(`{${name}}`, String(value)), message);
+}
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguage] = useState<Language>(() => localStorage.getItem('writer-language') === 'en' ? 'en' : 'de');
@@ -45,7 +52,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
   }, [language]);
-  const value = useMemo(() => ({ language, setLanguage, t: (key: MessageKey) => languages[language][key] }), [language]);
+  const value = useMemo(() => ({ language, setLanguage, t: (key: MessageKey, params?: Record<string, string | number>) => translate(language, key, params) }), [language]);
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
