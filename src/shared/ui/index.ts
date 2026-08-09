@@ -1,4 +1,5 @@
 export * from './ConfirmDialog';
+export * from './CommandPalette';
 export * from './Dialog';
 export * from './Menu';
 export * from './Popover';

@@ -4,6 +4,6 @@ export function Toolbar({ label, children, className = '', ...props }: HTMLAttri
   return <div {...props} className={`ui-toolbar material-toolbar ${className}`.trim()} role="toolbar" aria-label={label}>{children}</div>;
 }
 
-export function ToolbarGroup({ align = 'start', children }: { align?: 'start' | 'end'; children: ReactNode }) {
-  return <div className="ui-toolbar__group" data-align={align}>{children}</div>;
+export function ToolbarGroup({ align = 'start', priority = 'primary', children }: { align?: 'start' | 'end'; priority?: 'primary' | 'secondary' | 'overflow'; children: ReactNode }) {
+  return <div className="ui-toolbar__group" data-align={align} data-priority={priority}>{children}</div>;
 }
