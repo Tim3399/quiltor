@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest';
 import { TextWorkspace } from './TextWorkspace';
 import { LanguageProvider } from '../../language';
+import { api } from '../../lib/api';
 
 const manuscript = { chapters: [{ id: 'c1', title: 'Prolog', body: 'Hallo Welt', note: '' }] };
 const figures = { nodes: [{ id: 'n1', x: 0, y: 0, name: 'Testfigur' }], edges: [] };
@@ -52,5 +53,20 @@ describe('TextWorkspace', () => {
     fireEvent.keyDown(screen.getByRole('separator', { name: 'Inspector breiter oder schmaler ziehen' }), { key: 'ArrowLeft' });
     expect(onSidebarWidth).toHaveBeenCalledWith(256);
     expect(onInspectorWidth).toHaveBeenCalledWith(304);
+  });
+
+  it('ändert beim freien Nachschlagen keinen Manuskripttext ohne Ergebnisaktion', async () => {
+    vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {} });
+    vi.spyOn(api, 'languageLookup').mockResolvedValue({ ok: true, query: 'Haus', language: 'de-DE', mode: 'dictionary', version: 'test', results: [{ lemma: 'Haus', partOfSpeech: 'Substantiv', meaning: 'Gebäude', values: [], source: 'wiktionary' }] });
+    const onChange = vi.fn();
+    const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), inspectorOpen: true });
+    const rendered = within(view.container);
+    await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
+    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhelfer' }));
+    fireEvent.click(rendered.getByRole('tab', { name: 'Wörterbuch' }));
+    fireEvent.change(rendered.getByLabelText('Suchbegriff'), { target: { value: 'Haus' } });
+    fireEvent.submit(rendered.getByLabelText('Suchbegriff').closest('form')!);
+    await rendered.findByText('Gebäude');
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

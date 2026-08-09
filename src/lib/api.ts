@@ -1,6 +1,10 @@
 import type { AssistantHistoryMessage, AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo } from '../types';
 import { languages, readInterfaceLanguage } from '../language';
 
+export type LanguageLookupMode = 'dictionary' | 'synonyms' | 'translation';
+export type LanguageLookupResult = { lemma: string; partOfSpeech: string; meaning: string; values: string[]; source: string };
+export type LanguageStatus = { ok: boolean; installed: boolean; stale: boolean; version: string | null; sources: Record<string, { version: string; url: string; checksum: string; license: string; attribution: string }> };
+
 // api.ts is a plain module used outside React's render cycle (event handlers, fetch
 // callbacks), so it can't call the useLanguage() hook -- read the persisted preference
 // directly instead, mirroring LanguageProvider's own default-language logic.
@@ -69,6 +73,9 @@ export const api = {
   assistantChat: (question: string, history: AssistantHistoryMessage[] = [], signal?: AbortSignal, chapterIds?: string[], batch?: { runBatches: boolean; progressId: string }) =>
     json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ question, history, chapterIds, runBatches: batch?.runBatches, progressId: batch?.progressId })), signal }),
   assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; label: string; startedAt: number; updatedAt: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),
+  languageStatus: () => json<LanguageStatus>('/api/language/status'),
+  installLanguageData: () => json<{ ok: boolean; version: string; entries: number }>('/api/language/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  languageLookup: (language: 'de-DE' | 'en-GB', mode: LanguageLookupMode, query: string, signal?: AbortSignal) => json<{ ok: boolean; query: string; language: string; mode: string; version: string; results: LanguageLookupResult[] }>('/api/language/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language, mode, query }), signal }),
   bookPdf: async () => {
     const response = await fetch('/api/book.pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({})) });
     if (!response.ok) { const error = await response.json().catch(() => null); throw new Error(error?.fehler || `HTTP ${response.status}`); }

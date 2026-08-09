@@ -32,4 +32,10 @@ export const writing = {
   writingCopy: 'Kopieren',
   writingInsert: 'Am Cursor einfügen',
   writingReplace: 'Auswahl ersetzen',
+  translationDirection: 'Übersetzungsrichtung',
+  germanToEnglish: 'Deutsch → Englisch',
+  englishToGerman: 'Englisch → Deutsch',
+  writingSearchQuery: 'Suchbegriff',
+  writingSearchPlaceholder: 'Beliebiges Wort suchen …',
+  writingSearching: 'Suche …',
 } as const;

@@ -43,6 +43,7 @@ export type ManuscriptEditorHandle = {
   focus: () => void;
   insert: (text: string) => void;
   insertEntity: (entity: FigureNode) => void;
+  replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
 };
 
 export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentions = [], entities = [], editorRef, onChange, onSelection, onOpenEntity, describeEntity = entity => entity.sub || entity.label || '' }: {
@@ -159,6 +160,11 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
         const mention = { id: crypto.randomUUID(), elementId: entity.id, from: range.from, to: range.from + entity.name.length, surface: entity.name, source: 'helper' as const, confidence: 1 };
         instance.dispatch({ changes: { from: range.from, to: range.to, insert: entity.name }, selection: { anchor: mention.to }, annotations: createdMention.of(mention), userEvent: 'input' });
         instance.focus();
+      },
+      replaceSelection: (from, to, expected, text) => {
+        if (instance.state.sliceDoc(from, to) !== expected) return false;
+        instance.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input' });
+        instance.focus(); return true;
       },
     };
     return () => { selectionRef.current(null); editorRef.current = null; view.current = null; instance.destroy(); };

@@ -60,7 +60,7 @@ test('CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil', a
   await selectionMenu.getByRole('menuitem', { name: 'Nachschlagen' }).click();
   await expect(page.locator('.writing-selection-state')).toContainText('Der Morgen lag still über dem Hafen.');
   await expect(editor).toHaveText('Der Morgen lag still über dem Hafen.');
-  await expect(page.getByText('Sprachdaten sind nicht installiert.')).toBeVisible();
+  await expect(page.getByText('Keine Ergebnisse gefunden.')).toBeVisible();
 });
 
 test('Shortcuts unterscheiden Speichern und Git', async ({ page }) => {

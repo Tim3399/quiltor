@@ -54,6 +54,7 @@ from backend.llm.installer import ensure_installed
 from backend.mirror import mirror_profiles, mirror_text, safe_name
 from backend.render import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, render_pdf
 from backend.validation import valid_figures, valid_manuscript
+from backend.language import LanguageService
 
 BASE = Path(__file__).resolve().parent
 PUBLIC = BASE / "dist"
@@ -74,6 +75,7 @@ ensure_installed()
 # PUBLIC/VERSION_FILE/render script above, none of which move with QUILTOR_HOME.
 RUNTIME_HOME = Path(os.environ.get("QUILTOR_HOME", str(BASE)))
 ASSISTANT = AssistantRuntime(RUNTIME_HOME, DATA)
+LANGUAGE = LanguageService(DATA)
 
 MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
 
@@ -333,6 +335,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 worlds = storage.list_worlds(owner_sub=session.sub if AUTH_ENABLED else None)
                 return self.send_json({"ok": True, "worlds": worlds})
 
+        if route == "/api/language/status":
+            return self.send_json({"ok": True, **LANGUAGE.status()})
+
         world_ctx = None
         if AUTH_ENABLED and route in ("/api/git", "/api/log", "/api/backups", "/api/assistant/status",
                                        "/api/assistant/logs", "/api/diff", "/api/textfassung",
@@ -478,6 +483,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_pdf(render_pdf(script, BASE, target_url))
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": f"PDF konnte nicht erzeugt werden: {exc}"}, 500)
+
+        if route == "/api/language/install":
+            try:
+                return self.send_json(LANGUAGE.install())
+            except Exception as exc:
+                return self.send_json({"ok": False, "fehler": str(exc)}, 500)
+
+        if route == "/api/language/lookup":
+            try:
+                request = self._read_json_body()
+                return self.send_json(LANGUAGE.lookup(str(request.get("language", "")), str(request.get("mode", "")), str(request.get("query", ""))))
+            except FileNotFoundError as exc:
+                return self.send_json({"ok": False, "fehler": str(exc), "code": "not_installed"}, 409)
+            except ValueError as exc:
+                return self.send_json({"ok": False, "fehler": str(exc)}, 400)
+            except Exception as exc:
+                return self.send_json({"ok": False, "fehler": str(exc)}, 500)
 
         if route == "/api/git":
             try:

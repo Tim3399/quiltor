@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryI
 import type { Chapter, FigureNode, FigureState, Manuscript, Workspace } from '../../types';
 import { uid, wordCount } from '../../types';
 import { download } from '../../lib/api';
+import type { LanguageLookupResult, LanguageStatus } from '../../lib/api';
 import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
 import { api } from '../../lib/api';
 import type { CommitInfo } from '../../types';
@@ -37,8 +38,13 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const [focusHelpers, setFocusHelpers] = useState(false);
   const [focusChapters, setFocusChapters] = useState(false);
   const [selection, setSelection] = useState<(EditorTextSelection & { chapterId: string; revision: string }) | null>(null);
+  const [writingSelection, setWritingSelection] = useState<(EditorTextSelection & { chapterId: string; revision: string }) | null>(null);
   const [selectionTool, setSelectionTool] = useState<'lookup' | 'synonyms' | 'translate' | null>(null);
   const [writingQuery, setWritingQuery] = useState('');
+  const [writingLanguage, setWritingLanguage] = useState<'de-DE' | 'en-GB'>('de-DE');
+  const [languageStatus, setLanguageStatus] = useState<LanguageStatus | null>(null);
+  const [languageResults, setLanguageResults] = useState<LanguageLookupResult[]>([]);
+  const [languagePhase, setLanguagePhase] = useState<'idle' | 'loading' | 'installing' | 'error'>('idle');
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
@@ -47,6 +53,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const [historyState, setHistoryState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [pdfState, setPdfState] = useState<'idle' | 'loading' | 'error'>('idle');
   const editor = useRef<ManuscriptEditorHandle | null>(null);
+  const lookupRequest = useRef<AbortController | null>(null);
   const selectionAnchor = useRef<HTMLButtonElement>(null);
   const exportButton = useRef<HTMLButtonElement>(null);
   const layout = useRef<HTMLDivElement>(null);
@@ -73,7 +80,9 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const total = useMemo(() => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0), [manuscript.chapters]);
   const vocabulary = useMemo(() => writingVocabulary(manuscript, figures), [manuscript.words, figures.nodes]);
   const ambiguousMentions = useMemo(() => current ? scanEntityMentions(current.body, figures.nodes, () => '').ambiguous.filter(candidate => !(current.mentions || []).some(mention => candidate.from < mention.to && candidate.to > mention.from)) : [], [current, figures.nodes]);
-  useEffect(() => { setSelection(null); setSelectionTool(null); setWritingQuery(''); }, [currentId]);
+  useEffect(() => { setSelection(null); setWritingSelection(null); setSelectionTool(null); setWritingQuery(''); }, [currentId]);
+  useEffect(() => { void api.languageStatus().then(setLanguageStatus).catch(() => setLanguagePhase('error')); return () => lookupRequest.current?.abort(); }, []);
+  useEffect(() => () => lookupRequest.current?.abort(), [writingSelection?.chapterId, writingSelection?.from, writingSelection?.to, writingSelection?.revision]);
 
   const setChapters = (chapters: Chapter[]) => onChange({ ...manuscript, chapters });
   const update = (patch: Partial<Chapter>) => current && setChapters(manuscript.chapters.map(chapter => chapter.id === current.id ? { ...chapter, ...patch } : chapter));
@@ -112,9 +121,23 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     const stop = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', stop);
   };
+  const lookupMode = (tool: 'lookup' | 'synonyms' | 'translate') => tool === 'lookup' ? 'dictionary' : tool === 'synonyms' ? 'synonyms' : 'translation';
+  const runLookup = (tool = selectionTool, query = writingQuery, language = writingLanguage) => {
+    const value = query.trim(); if (!tool || !value || !languageStatus?.installed) return;
+    lookupRequest.current?.abort(); const request = new AbortController(); lookupRequest.current = request; setLanguagePhase('loading'); setLanguageResults([]);
+    void api.languageLookup(tool === 'translate' ? language : 'de-DE', lookupMode(tool), value, request.signal).then(result => { if (lookupRequest.current === request) { setLanguageResults(result.results); setLanguagePhase('idle'); } }).catch(error => { if (error instanceof DOMException && error.name === 'AbortError') return; setLanguagePhase('error'); });
+  };
   const openWritingTool = (tool: 'lookup' | 'synonyms' | 'translate') => {
     if (!selection || !current || selection.chapterId !== current.id || selection.revision !== current.body) return;
-    setSelectionTool(tool); setWritingQuery(selection.text); setInspector('helpers'); setInspectorOpen(true);
+    const selectedText = selection;
+    setWritingSelection(selectedText); setSelectionTool(tool); setWritingQuery(selectedText.text); setInspector('helpers'); setInspectorOpen(true);
+    requestAnimationFrame(() => runLookup(tool, selectedText.text, writingLanguage));
+  };
+  const installLanguageData = () => { setLanguagePhase('installing'); void api.installLanguageData().then(() => api.languageStatus()).then(status => { setLanguageStatus(status); setLanguagePhase('idle'); }).catch(() => setLanguagePhase('error')); };
+  const resultText = (result: LanguageLookupResult) => result.values[0] || result.lemma;
+  const replaceSelection = (text: string) => {
+    if (!writingSelection || !current || writingSelection.chapterId !== current.id || writingSelection.revision !== current.body) return;
+    if (editor.current?.replaceSelection(writingSelection.from, writingSelection.to, writingSelection.text, text)) { setSelection(null); setWritingSelection(null); }
   };
 
   const binderPanel = <>
@@ -139,7 +162,13 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <button className="secondary-action" onClick={() => download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${current.body}\n`)}><Download />{t('chapterMarkdown')}</button>
       <button className="danger-text" onClick={() => setDeleteOpen(true)}><Trash2 />{t('deleteChapter')}</button>
     </div> : <div className="panel-body helper-panel">
-      {selectionTool && writingQuery && <section className="writing-selection-state"><span>{selectionTool === 'lookup' ? t('dictionary') : selectionTool === 'synonyms' ? t('synonyms') : t('translate')}</span><strong>{writingQuery}</strong><p>{t('writingDataMissing')}</p></section>}
+      {selectionTool && writingQuery && <section className="writing-selection-state"><span>{selectionTool === 'lookup' ? t('dictionary') : selectionTool === 'synonyms' ? t('synonyms') : t('translate')}</span><strong>{writingQuery}</strong></section>}
+      <div className="writing-tool-tabs" role="tablist">{(['lookup', 'synonyms', 'translate'] as const).map(tool => <button key={tool} role="tab" aria-selected={selectionTool === tool} onClick={() => { setSelectionTool(tool); setLanguageResults([]); }}>{tool === 'lookup' ? t('dictionary') : tool === 'synonyms' ? t('synonyms') : t('translate')}</button>)}</div>
+      {selectionTool && <section className="writing-reference-tool">
+        {selectionTool === 'translate' && <div className="ui-segmented" role="radiogroup" aria-label={t('translationDirection')}><button role="radio" aria-checked={writingLanguage === 'de-DE'} onClick={() => { setWritingLanguage('de-DE'); setLanguageResults([]); }}>{t('germanToEnglish')}</button><button role="radio" aria-checked={writingLanguage === 'en-GB'} onClick={() => { setWritingLanguage('en-GB'); setLanguageResults([]); }}>{t('englishToGerman')}</button></div>}
+        <form className="writing-search" onSubmit={event => { event.preventDefault(); runLookup(); }}><input aria-label={t('writingSearchQuery')} value={writingQuery} onChange={event => setWritingQuery(event.target.value)} placeholder={t('writingSearchPlaceholder')} /><button className="primary" disabled={!writingQuery.trim() || languagePhase === 'loading'}>{languagePhase === 'loading' ? t('writingSearching') : t('lookup')}</button></form>
+        {!languageStatus?.installed ? <div className="writing-data-state"><p>{t('writingDataMissing')}</p><button onClick={installLanguageData} disabled={languagePhase === 'installing'}>{languagePhase === 'installing' ? t('writingDataInstalling') : t('writingDataInstall')}</button></div> : languagePhase === 'error' ? <p className="error-box" role="alert">{t('writingRequestError')}</p> : languageResults.length ? <div className="writing-results">{languageResults.map((result, index) => <article key={`${result.source}-${result.lemma}-${index}`}><header><strong>{result.lemma}</strong>{result.partOfSpeech && <span>{result.partOfSpeech}</span>}</header>{result.meaning && <p>{result.meaning}</p>}{result.values.length > 0 && <div className="writing-values">{result.values.map(value => <button key={value} onClick={() => insert(value)}>{value}</button>)}</div>}<div className="writing-result-actions"><button onClick={() => void navigator.clipboard.writeText(resultText(result))}>{t('writingCopy')}</button><button onClick={() => insert(resultText(result))}>{t('writingInsert')}</button><button disabled={!writingSelection || writingSelection.chapterId !== current.id || writingSelection.revision !== current.body} onClick={() => replaceSelection(resultText(result))}>{t('writingReplace')}</button></div><details><summary>{t('writingAttribution')}</summary><p>{languageStatus.sources[result.source]?.attribution || result.source} · {languageStatus.sources[result.source]?.license}</p></details></article>)}</div> : writingQuery && languagePhase === 'idle' ? <p className="muted">{t('writingNoResults')}</p> : null}
+      </section>}
       <h3>{t('figuresPlaces')}</h3><div className="chip-list">{figures.nodes.map(node => <button key={node.id} onClick={() => insertEntity(node)}>{node.name}</button>)}</div>
       {!!ambiguousMentions.length && <section className="mention-review"><h3>{t('ambiguousMentions')}</h3>{ambiguousMentions.map(candidate => <div key={`${candidate.from}-${candidate.to}`}><strong>{candidate.surface}</strong><div className="chip-list">{candidate.elementIds.map(id => { const node = figures.nodes.find(item => item.id === id); return node && <button key={id} onClick={() => resolveAmbiguous(candidate, node)}>{node.name} · {node.sub || node.label || t('worldObject')}</button>; })}</div></div>)}</section>}
       {orphanedMentions > 0 && <p className="muted" role="status">{t('orphanedMentionsRemoved').replace('{count}', String(orphanedMentions))}</p>}
@@ -163,7 +192,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label={t('chapterTitle')} value={current.title} onChange={event => update({ title: event.target.value })} placeholder={t('chapterTitle')} />
-          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) })} onSelection={next => setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null)} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
+          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => { if (body !== current.body) setWritingSelection(null); update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) }); }} onSelection={next => setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null)} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
           {historyOpen && <aside className="chapter-history" aria-label={t('versions')}><header><div><strong>{t('previousVersion')}</strong><span>{t('nextToCurrent')}</span></div><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label={t('closeVersions')}><X /></button></header>
             {commits.length ? <label className="field"><span>{t('state')}</span><select value={historyRef} onChange={event => setHistoryRef(event.target.value)}>{commits.map(commit => <option key={commit.hash} value={commit.hash}>{commit.datum} · {commit.betreff}</option>)}</select></label> : historyState !== 'loading' && <p className="muted">{t('noVersion')}</p>}
             {historyState === 'loading' ? <p className="muted">{t('loadingVersion')}</p> : historyState === 'error' ? <div className="error-box">{t('versionLoadError')}</div> : commits.length > 0 && <div className="historical-prose">{historicalText || <em>{t('chapterNotYetExisting')}</em>}</div>}
