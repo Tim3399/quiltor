@@ -1,5 +1,10 @@
 import { useCallback, useRef, useState } from 'react';
 
+// Edits within this window of each other coalesce into one undo step, so holding a key
+// down or typing a quick burst doesn't fill the undo stack with single-character entries.
+const COALESCE_WINDOW_MS = 650;
+const MAX_HISTORY_ENTRIES = 80;
+
 export function useHistoryState<T>() {
   const [value, setValue] = useState<T | null>(null);
   const [, setTimelineVersion] = useState(0);
@@ -9,8 +14,8 @@ export function useHistoryState<T>() {
     setValue(current => {
       if (current) {
         const now = Date.now();
-        if (now - last.current > 650) past.current.push(current);
-        if (past.current.length > 80) past.current.shift();
+        if (now - last.current > COALESCE_WINDOW_MS) past.current.push(current);
+        if (past.current.length > MAX_HISTORY_ENTRIES) past.current.shift();
         last.current = now; future.current = [];
       }
       return next;

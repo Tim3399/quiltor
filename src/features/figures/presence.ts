@@ -1,6 +1,6 @@
 import type { FigureNode, PresenceEntry, TimelineMoment } from '../../types';
 import { uid } from '../../types';
-import { figureIsDeceased } from './FigureWorkspace';
+import { figureIsDeceased } from './relationships';
 import { formatDuration, momentDateDiffDays } from './date';
 
 export function momentIndex(timeline: TimelineMoment[], momentId?: string): number {
@@ -41,7 +41,11 @@ export function patchPresence(presence: PresenceEntry[], elementId: string, mome
 export interface JourneyStop { placeId: string; momentId?: string; index: number }
 
 export function figureJourney(figure: FigureNode, presence: PresenceEntry[], timeline: TimelineMoment[]): JourneyStop[] {
-  const deathIndex = figure.diedMomentId ? momentIndex(timeline, figure.diedMomentId) : Infinity;
+  const rawDeathIndex = figure.diedMomentId ? momentIndex(timeline, figure.diedMomentId) : Infinity;
+  // A dangling diedMomentId (its moment was deleted) means we no longer know when this
+  // figure died -- treat that as "not (yet) dead" rather than -2 sorting before every
+  // real stop and silently emptying the whole journey.
+  const deathIndex = rawDeathIndex === -2 ? Infinity : rawDeathIndex;
   const stops = presence
     .filter(entry => entry.elementId === figure.id)
     .map(entry => ({ placeId: entry.placeId, momentId: entry.momentId, index: momentIndex(timeline, entry.momentId) }))

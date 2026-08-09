@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SavePhase } from '../types';
 
-export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unknown>, delay = 800) {
+const DEFAULT_AUTOSAVE_DELAY_MS = 800;
+
+export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unknown>, delay = DEFAULT_AUTOSAVE_DELAY_MS) {
   const [phase, setPhase] = useState<SavePhase>('idle');
   const [error, setError] = useState('');
   const timer = useRef<number | undefined>(undefined);
@@ -9,12 +11,20 @@ export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unkn
   const chain = useRef<Promise<unknown>>(Promise.resolve());
   const dirty = useRef(false);
   const initialized = useRef(false);
+  const inFlightSnapshot = useRef<T | null>(null);
   latest.current = value;
 
   const flush = useCallback(async () => {
     if (!latest.current || !dirty.current) return;
+    if (inFlightSnapshot.current === latest.current) {
+      // A save for this exact, unchanged value is already in progress (e.g. the
+      // debounce timer and a manual save both fired around the same time) -- await
+      // it instead of issuing a second, redundant PUT with identical content.
+      return chain.current;
+    }
     clearTimeout(timer.current);
     const snapshot = latest.current;
+    inFlightSnapshot.current = snapshot;
     setPhase('saving'); setError('');
     chain.current = chain.current.then(() => save(snapshot));
     try {
@@ -24,6 +34,8 @@ export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unkn
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Speichern fehlgeschlagen');
       setPhase('error');
+    } finally {
+      if (inFlightSnapshot.current === snapshot) inFlightSnapshot.current = null;
     }
   }, [save]);
 

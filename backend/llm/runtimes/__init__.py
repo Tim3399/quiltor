@@ -71,15 +71,22 @@ def _bind_lifetime_to_parent(process: subprocess.Popen) -> None:
         ]
 
     kernel32 = ctypes.windll.kernel32
+    # `job` is deliberately never closed: KILL_ON_JOB_CLOSE fires when its LAST handle
+    # closes, and this process's handle is that trigger. Windows closes it for us on
+    # exit (graceful or not) -- that's what ties the child's lifetime to ours.
     job = kernel32.CreateJobObjectW(None, None)
     if not job:
         return
     info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
     info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
     kernel32.SetInformationJobObject(job, JobObjectExtendedLimitInformation, ctypes.byref(info), ctypes.sizeof(info))
+    # This handle, unlike `job`, is only needed for the AssignProcessToJobObject call
+    # below -- the job/process association outlives it, so it must be closed here or
+    # it leaks one handle per runtime launch.
     handle = kernel32.OpenProcess(PROCESS_TERMINATE | PROCESS_SET_QUOTA, False, process.pid)
     if handle:
         kernel32.AssignProcessToJobObject(job, handle)
+        kernel32.CloseHandle(handle)
 
 
 def spawn_logged(argv: list[str], data: Path, log_name: str) -> tuple[subprocess.Popen[str], Path]:

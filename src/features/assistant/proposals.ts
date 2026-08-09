@@ -3,6 +3,10 @@ import { uid } from '../../types';
 
 const GRID_X = 288, GRID_Y = 192;
 
+function gridPosition(index: number): { x: number; y: number } {
+  return { x: 96 + (index % 4) * GRID_X, y: 96 + Math.floor(index / 4) * GRID_Y };
+}
+
 export function applyAssistantProposals(state: FigureState, proposals: AssistantProposal[]): FigureState {
   const next: FigureState = structuredClone(state);
   next.timeline ||= [];
@@ -16,7 +20,7 @@ export function applyAssistantProposals(state: FigureState, proposals: Assistant
       const index = next.nodes.length;
       const element = proposal.element;
       const node: FigureNode = {
-        id, x: 96 + (index % 4) * GRID_X, y: 96 + Math.floor(index / 4) * GRID_Y,
+        id, ...gridPosition(index),
         type: ['ort', 'konzept', 'tier', 'organisation', 'objekt'].includes(element.type || '') ? element.type : 'person',
         name: String(element.name || 'Neues Element').slice(0, 160), label: String(element.label || '').slice(0, 160),
         sub: String(element.sub || '').slice(0, 1000), accent: 'ink', profile: sanitizeProfile(element.profile),
@@ -92,7 +96,7 @@ function safeStyle(style?: FigureEdge['style']): FigureEdge['style'] {
 }
 
 function arrangeNodes(nodes: FigureNode[], edges: FigureEdge[], strategy: 'thematic' | 'grid') {
-  if (strategy === 'grid') return nodes.map((node, index) => ({ ...node, x: 96 + (index % 4) * GRID_X, y: 96 + Math.floor(index / 4) * GRID_Y }));
+  if (strategy === 'grid') return nodes.map((node, index) => ({ ...node, ...gridPosition(index) }));
   const remaining = new Set(nodes.map(node => node.id));
   const neighbours = new Map(nodes.map(node => [node.id, new Set<string>()]));
   for (const edge of edges) { neighbours.get(edge.from)?.add(edge.to); neighbours.get(edge.to)?.add(edge.from); }

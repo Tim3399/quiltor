@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { Clock3, Command, FileText, MapPin, Search, UserRound } from 'lucide-react';
 import type { FigureState, Manuscript, Workspace } from '../../types';
 import { Dialog } from '../../shared/ui/Dialog';
+import { kindLabel } from '../figures/relationships';
 
 export function SearchDialog({ mode = 'search', manuscript, figures, onClose, onWorkspace, onSelect, onCommand }: { mode?: 'search' | 'commands'; manuscript: Manuscript; figures: FigureState; onClose: () => void; onWorkspace: (value: Workspace) => void; onSelect: (target: { workspace: Workspace; id: string }) => void; onCommand: (command: string) => void }) {
   const [query, setQuery] = useState('');
   const results = useMemo(() => {
     const term = query.trim().toLocaleLowerCase('de-DE'); if (!term) return [];
     const chapters = manuscript.chapters.filter(c => `${c.title}\n${c.body}\n${c.note}`.toLocaleLowerCase('de-DE').includes(term)).map(c => ({ id: c.id, kind: 'Kapitel', title: c.title || 'Ohne Titel', detail: c.body.slice(0, 120), workspace: 'text' as const }));
-    const nodes = figures.nodes.filter(n => JSON.stringify(n).toLocaleLowerCase('de-DE').includes(term)).map(n => ({ id: n.id, kind: n.type === 'ort' ? 'Ort' : n.type === 'konzept' ? 'Konzept' : 'Figur', title: n.name, detail: n.sub || n.label || '', workspace: n.type === 'ort' ? 'places' as const : 'figures' as const }));
+    const nodes = figures.nodes.filter(n => JSON.stringify(n).toLocaleLowerCase('de-DE').includes(term)).map(n => ({ id: n.id, kind: kindLabel(n.type), title: n.name, detail: n.sub || n.label || '', workspace: n.type === 'ort' ? 'places' as const : 'figures' as const }));
     const moments = (figures.timeline || []).filter(moment => JSON.stringify(moment).toLocaleLowerCase('de-DE').includes(term)).map(moment => ({ id: moment.id, kind: 'Zeitpunkt', title: moment.title, detail: moment.note || moment.date || '', workspace: 'timeline' as const }));
     return [...chapters, ...nodes, ...moments];
   }, [query, manuscript, figures]);

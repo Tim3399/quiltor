@@ -4,7 +4,7 @@ import { AssistantDrawer } from './AssistantDrawer';
 import { api } from '../../lib/api';
 import type { AssistantReply, Chapter, FigureState } from '../../types';
 
-vi.mock('../../lib/api', () => ({ api: { assistantStatus: vi.fn(), assistantChat: vi.fn() } }));
+vi.mock('../../lib/api', () => ({ api: { assistantStatus: vi.fn(), assistantChat: vi.fn() }, errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }));
 
 // jsdom doesn't implement scrollIntoView; the drawer calls it on every entries change.
 Element.prototype.scrollIntoView = vi.fn();

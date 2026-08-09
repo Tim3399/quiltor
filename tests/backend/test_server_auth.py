@@ -9,7 +9,7 @@ import urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 
-from backend import auth, storage
+from backend import auth, render, storage
 import server
 
 
@@ -50,7 +50,7 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         auth._discovery_cache.clear()
         auth.SESSIONS.clear()
         auth.PENDING_LOGINS.clear()
-        server.RENDER_TOKENS.clear()
+        render._tokens.clear()
 
         self.discovery = {"authorization_endpoint": "https://kc.example.com/auth", "token_endpoint": "https://kc.example.com/token"}
         self.discover_patch = patch.object(auth, "discover", return_value=self.discovery)
@@ -71,7 +71,7 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         auth._discovery_cache.clear()
         auth.SESSIONS.clear()
         auth.PENDING_LOGINS.clear()
-        server.RENDER_TOKENS.clear()
+        render._tokens.clear()
         storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = self.original_storage
         self.temp.cleanup()
 
@@ -232,10 +232,10 @@ class RenderTokenTests(unittest.TestCase):
     and the do_GET renderToken handling."""
 
     def setUp(self):
-        server.RENDER_TOKENS.clear()
+        render._tokens.clear()
 
     def tearDown(self):
-        server.RENDER_TOKENS.clear()
+        render._tokens.clear()
 
     def test_token_redeems_to_the_issuing_users_sub(self):
         token = server.issue_render_token("user-alice")
@@ -251,8 +251,8 @@ class RenderTokenTests(unittest.TestCase):
 
     def test_expired_token_does_not_redeem(self):
         token = server.issue_render_token("user-alice")
-        sub, _ = server.RENDER_TOKENS[token]
-        server.RENDER_TOKENS[token] = (sub, time.time() - 1)
+        sub, _ = render._tokens[token]
+        render._tokens[token] = (sub, time.time() - 1)
         self.assertIsNone(server.redeem_render_token(token))
 
 

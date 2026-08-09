@@ -177,9 +177,14 @@ class SessionStoreTests(AuthConfigTestCase):
 
     def test_get_session_expires_stale_sessions(self):
         session_id = auth.create_session("user-1", "a@example.com", "Alice")
-        auth.SESSIONS[session_id].created_at = time.time() - auth.SESSION_TTL - 1
+        auth.SESSIONS[session_id].expires_at = time.time() - 1
         self.assertIsNone(auth.get_session(session_id))
         self.assertNotIn(session_id, auth.SESSIONS)
+
+    def test_create_session_with_custom_ttl_expires_early(self):
+        session_id = auth.create_session("user-1", "a@example.com", "Alice", ttl=0.01)
+        time.sleep(0.02)
+        self.assertIsNone(auth.get_session(session_id))
 
     def test_two_sessions_get_distinct_ids(self):
         first = auth.create_session("user-1", "a@example.com", "Alice")

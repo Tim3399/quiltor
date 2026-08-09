@@ -4,7 +4,7 @@ import type { WorldInfo } from '../../types';
 import { useLanguage } from '../../i18n/languages';
 import { PRODUCT_MARK, PRODUCT_NAME } from '../../config/branding';
 import type { ThemePreference } from '../../hooks/useTheme';
-import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
 
 export function WorldGate({ worlds, onOpen, onCreate, onDelete, theme, onTheme, error }: { worlds: WorldInfo[]; onOpen: (id: string) => Promise<void>; onCreate: (title: string, gitUrl: string) => Promise<void>; onDelete: (id: string) => Promise<void>; theme: ThemePreference; onTheme: (theme: ThemePreference) => void; error?: string }) {
   const [title, setTitle] = useState(''), [gitUrl, setGitUrl] = useState(''), [busy, setBusy] = useState(false);
@@ -15,5 +15,5 @@ export function WorldGate({ worlds, onOpen, onCreate, onDelete, theme, onTheme, 
     {error && <div className="error-box" role="alert">{error}</div>}
     <div className="world-grid"><div><h2>{t('existingWorlds')}</h2><div className="world-list">{worlds.map(world => <div className="world-list-item" key={world.id}><button className="world-open" disabled={busy} onClick={() => void run(() => onOpen(world.id))}><BookOpen /><span><strong>{world.title}</strong><small>{t('lastChanged')} {new Date(world.updated).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB')}</small></span><ChevronRight /></button><button className="world-delete" disabled={busy} aria-label={`${world.title} – ${t('deleteWorld')}`} title={t('deleteWorld')} onClick={() => setDeleteTarget(world)}><Trash2 /></button></div>)}{!worlds.length && <p className="muted">{t('noWorld')}</p>}</div></div>
       <form onSubmit={event => { event.preventDefault(); if (title.trim()) void run(() => onCreate(title.trim(), gitUrl.trim())); }}><h2>{t('newWorld')}</h2><p>{t('newWorldIntro')}</p><label className="field"><span>{t('worldTitle')}</span><input autoFocus value={title} maxLength={100} onChange={event => setTitle(event.target.value)} placeholder={t('worldExample')} /></label><label className="field"><span>{t('gitRepository')}</span><input value={gitUrl} onChange={event => setGitUrl(event.target.value)} placeholder={t('gitExample')} /></label><p className="muted">{t('repositoryRecommended')}</p><button className="world-create" disabled={busy || !title.trim()}><Plus />{t('createWorld')}</button></form>
-    </div></section>{deleteTarget && <ConfirmDialog title={t('deleteWorldTitle')} description={t('deleteWorldDescription').replace('{title}', deleteTarget.title)} confirmLabel={t('deleteWorld')} holdDurationMs={5000} onConfirm={() => void run(() => onDelete(deleteTarget.id))} onClose={() => setDeleteTarget(null)} />}</main>;
+    </div></section>{deleteTarget && <ConfirmDialog title={t('deleteWorldTitle')} description={t('deleteWorldDescription').replace('{title}', deleteTarget.title)} confirmLabel={t('deleteWorld')} holdDurationMs={DELETE_HOLD_MS} onConfirm={() => void run(() => onDelete(deleteTarget.id))} onClose={() => setDeleteTarget(null)} />}</main>;
 }

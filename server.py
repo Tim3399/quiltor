@@ -33,18 +33,14 @@ import http.cookies
 import http.server
 import json
 import os
-import re
-import secrets
-import subprocess
 import socketserver
 import sys
 import threading
-import tempfile
-import time
 import webbrowser
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from backend.llm.shared.platform import force_utf8_streams
 
@@ -55,6 +51,8 @@ from backend.assistant import AssistantRuntime, read_progress
 from backend.git_backup import GitBackup, GitContext
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed
+from backend.mirror import mirror_profiles, mirror_text, safe_name
+from backend.render import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, render_pdf
 from backend.validation import valid_figures, valid_manuscript
 
 BASE = Path(__file__).resolve().parent
@@ -76,39 +74,12 @@ MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
 
 _lock = threading.Lock()
 
-# Only files matching this pattern may be cleaned from the mirror directories.
-MIRROR_RE = re.compile(r"^\d{2,3} - .*\.md$")
-
 # ------------------------------------------------------------- Auth (OIDC)
 
 AUTH_ENABLED = auth.OIDC_ENABLED
 PUBLIC_URL = os.environ.get("QUILTOR_PUBLIC_URL", "").rstrip("/")
 SESSION_COOKIE = "quiltor_session"
 LOGIN_STATE_COOKIE = "quiltor_login_state"
-
-# Short-lived, single-use tokens that let the internal PDF-render subprocess
-# (a headless browser navigating to our own /?world=...) act as the requesting
-# user for one render — see the book.pdf route and its module docs below.
-RENDER_TOKENS: dict[str, tuple[str, float]] = {}
-RENDER_TOKEN_TTL = 90
-
-
-def issue_render_token(sub: str) -> str:
-    token = secrets.token_urlsafe(24)
-    now = time.time()
-    with _lock:
-        for key in [k for k, (_, expires) in RENDER_TOKENS.items() if expires < now]:
-            RENDER_TOKENS.pop(key, None)
-        RENDER_TOKENS[token] = (sub, now + RENDER_TOKEN_TTL)
-    return token
-
-
-def redeem_render_token(token: str) -> str | None:
-    with _lock:
-        entry = RENDER_TOKENS.pop(token, None)
-    if entry and entry[1] > time.time():
-        return entry[0]
-    return None
 
 
 @dataclass
@@ -129,7 +100,7 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
     ValueError -> malformed id, PermissionError -> owned by someone else,
     FileNotFoundError -> no such world. Callers map these to 400/403/404.
     """
-    if not re.fullmatch(r"[0-9a-f]{32}", world_id or ""):
+    if not storage.WORLD_ID_RE.fullmatch(world_id or ""):
         raise ValueError("Invalid world id.")
     owner = storage.get_world_owner(world_id)
     if owner is None:
@@ -161,302 +132,11 @@ def ensure_dirs() -> None:
         d.mkdir(exist_ok=True)
 
 
-# ------------------------------------------------ Human-readable text mirror
-
-def safe_name(title: str) -> str:
-    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", title or "").strip()
-    name = re.sub(r"\s+", " ", name)
-    return (name or "Ohne Titel")[:70]
-
-
-def mirror_text(chapters, manuscript_dir: Path | None = None) -> None:
-    """Write every chapter to Markdown for reading, backups, and versioning."""
-    manuscript_dir = manuscript_dir or MANUSCRIPT_DIR
-    manuscript_dir.mkdir(parents=True, exist_ok=True)
-    expected_files = set()
-    for i, ch in enumerate(chapters, start=1):
-        title = ch.get("title") or f"Kapitel {i}"
-        fname = f"{i:02d} - {safe_name(title)}.md"
-        expected_files.add(fname)
-        body = ch.get("body") or ""
-        note = (ch.get("note") or "").strip()
-        text = f"# {title}\n\n{body.rstrip()}\n"
-        if note:
-            text += "\n---\n\n<!-- Notiz\n" + note.rstrip() + "\n-->\n"
-        path = manuscript_dir / fname
-        if path.exists() and path.read_text(encoding="utf-8") == text:
-            continue
-        path.write_text(text, encoding="utf-8")
-    # Remove orphaned mirrors, touching only files owned by this application.
-    for f in manuscript_dir.glob("*.md"):
-        if f.name not in expected_files and MIRROR_RE.match(f.name):
-            f.unlink(missing_ok=True)
-
-
-PROFILE_FIELDS = [
-    ("alter",       "Alter"),
-    ("rolle",       "Rolle in der Geschichte"),
-    ("aussehen",    "Aussehen"),
-    ("herkunft",    "Herkunft & Vorgeschichte"),
-    ("stimme",      "Stimme & Sprechweise"),
-    ("notizen",     "Notizen"),
-]
-
-
-def mirror_profiles(state, profile_dir: Path | None = None) -> None:
-    """Write every character profile to readable, versionable Markdown."""
-    profile_dir = profile_dir or PROFILE_DIR
-    profile_dir.mkdir(parents=True, exist_ok=True)
-    nodes = state.get("nodes", [])
-    edges = state.get("edges", [])
-    names = {n.get("id"): (n.get("name") or "Ohne Namen") for n in nodes}
-    expected_files = set()
-
-    for i, n in enumerate(nodes, start=1):
-        name = n.get("name") or "Ohne Namen"
-        fname = f"{i:02d} - {safe_name(name)}.md"
-        expected_files.add(fname)
-
-        lines = [f"# {name}", ""]
-        if n.get("label"):
-            lines += [f"*{n['label']}*", ""]
-        if n.get("sub"):
-            lines += [n["sub"], ""]
-
-        prof = n.get("profile") or {}
-        for key, heading in PROFILE_FIELDS:
-            value = (prof.get(key) or "").strip()
-            if value:
-                lines += [f"## {heading}", "", value, ""]
-        for extra in prof.get("extra") or []:
-            k = (extra.get("k") or "").strip()
-            v = (extra.get("v") or "").strip()
-            if k or v:
-                lines += [f"## {k or 'Ohne Titel'}", "", v, ""]
-
-        relationships = []
-        for e in edges:
-            if e.get("from") == n.get("id"):
-                relationships.append(f"- → {names.get(e.get('to'), '?')}"
-                            + (f" — {e['label']}" if e.get("label") else ""))
-            elif e.get("to") == n.get("id"):
-                relationships.append(f"- ← {names.get(e.get('from'), '?')}"
-                            + (f" — {e['label']}" if e.get("label") else ""))
-        if relationships:
-            lines += ["## Verbindungen im Diagramm", ""] + relationships + [""]
-
-        text = "\n".join(lines).rstrip() + "\n"
-        path = profile_dir / fname
-        if path.exists() and path.read_text(encoding="utf-8") == text:
-            continue
-        path.write_text(text, encoding="utf-8")
-
-    for f in profile_dir.glob("*.md"):
-        if f.name not in expected_files and MIRROR_RE.match(f.name):
-            f.unlink(missing_ok=True)
-
-
-# --------------------------------------------------------------------- Git
-
-GIT_ENV = {
-    **os.environ,
-    "GIT_TERMINAL_PROMPT": "0",   # never request credentials interactively
-    "GIT_ASKPASS": "echo",        # and never open a credential dialog
-    "GCM_INTERACTIVE": "never",
-    "LC_ALL": "C",
-}
-
-
-def git(*args, timeout=90):
-    """Run Git in the application directory without a shell or prompts."""
-    return subprocess.run(
-        # quotepath=false keeps non-ASCII file names human-readable.
-        ["git", "-c", "core.quotepath=false", "-C", str(BASE), *args],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=timeout, env=GIT_ENV,
-    )
-
-
-def git_status() -> dict:
-    try:
-        probe = git("rev-parse", "--is-inside-work-tree", timeout=10)
-    except FileNotFoundError:
-        return {"ok": False, "grund": "git ist nicht installiert."}
-    except Exception as exc:
-        return {"ok": False, "grund": str(exc)}
-
-    if probe.returncode != 0:
-        return {"ok": False, "grund": "Dieser Ordner liegt in keinem Git-Repository."}
-
-    def out(*a, **kw):
-        r = git(*a, **kw)
-        return r.stdout.strip() if r.returncode == 0 else ""
-
-    branch = out("rev-parse", "--abbrev-ref", "HEAD", timeout=10) or "?"
-    upstream = out("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}", timeout=10)
-    remote = out("remote", "get-url", "origin", timeout=10)
-    name = out("config", "user.name", timeout=10)
-    mail = out("config", "user.email", timeout=10)
-
-    raw_status = git("status", "--porcelain", "--", ".", timeout=20)
-    changes = [line for line in raw_status.stdout.splitlines() if line.strip()]
-
-    ahead = 0
-    if upstream:
-        count = out("rev-list", "--count", f"{upstream}..HEAD", timeout=15)
-        ahead = int(count) if count.isdigit() else 0
-
-    return {
-        "ok": True,
-        "branch": branch,
-        "upstream": upstream,
-        "remote": remote,
-        "identitaet": bool(name and mail),
-        "aenderungen": changes[:60],
-        "anzahl": len(changes),
-        "unveroeffentlicht": ahead,
-        "vorschlag": commit_vorschlag(),
-    }
-
-
-def commit_vorschlag() -> str:
-    parts = []
-    manuscript = storage.load_manuscript()
-    if manuscript and isinstance(manuscript.get("chapters"), list):
-        chapters = manuscript["chapters"]
-        word_count = sum(len((chapter.get("body") or "").split()) for chapter in chapters)
-        parts.append(f"{len(chapters)} Kapitel, {word_count} Wörter")
-    fig = storage.load_figures()
-    if fig and isinstance(fig.get("nodes"), list):
-        parts.append(f"{len(fig['nodes'])} Figuren")
-    stand = " · ".join(parts) if parts else "Arbeitsstand"
-    return f"Schreibstand {datetime.now():%Y-%m-%d %H:%M} — {stand}"
-
-
-def git_commit(nachricht: str, pushen: bool) -> dict:
-    log = []
-    st = git_status()
-    if not st.get("ok"):
-        return {"ok": False, "grund": st.get("grund"), "log": log}
-    if not st["identitaet"]:
-        return {"ok": False, "log": log, "grund":
-                "Git kennt deinen Namen noch nicht. Einmalig im Terminal:\n"
-                '  git config --global user.name "Dein Name"\n'
-                '  git config --global user.email "du@example.com"'}
-
-    r = git("add", "-A", "--", ".", timeout=60)
-    if r.returncode != 0:
-        return {"ok": False, "grund": r.stderr.strip() or "git add fehlgeschlagen", "log": log}
-
-    etwas_da = git("diff", "--cached", "--quiet", timeout=30).returncode != 0
-
-    if etwas_da:
-        r = git("commit", "-m", nachricht or commit_vorschlag(), timeout=60)
-        if r.returncode != 0:
-            return {"ok": False, "grund": (r.stderr or r.stdout).strip(), "log": log}
-        log.append("Commit angelegt: " + (nachricht or "").strip())
-    else:
-        log.append("Nichts zu committen — alles schon gesichert.")
-
-    if not pushen:
-        return {"ok": True, "log": log, "status": git_status()}
-
-    if not st["upstream"]:
-        return {"ok": False, "log": log, "grund":
-                "Für diesen Branch ist kein Ziel eingerichtet. Einmalig im Terminal:\n"
-                f"  git push -u origin {st['branch']}"}
-
-    try:
-        r = git("push", timeout=180)
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "log": log, "grund":
-                "Push hat zu lange gebraucht — vermutlich fehlen Zugangsdaten. "
-                "Einmal im Terminal pushen, danach merkt Git sie sich."}
-    if r.returncode != 0:
-        return {"ok": False, "log": log, "grund": (r.stderr or r.stdout).strip()}
-
-    log.append("Gepusht nach " + (st["upstream"] or "origin"))
-    return {"ok": True, "log": log, "status": git_status()}
-
-
-def git_log(n: int = 40) -> list:
-    """Return the most recent commits that affect this directory."""
-    r = git("log", f"-{n}", "--format=%H%x1f%h%x1f%ad%x1f%an%x1f%s",
-            "--date=format:%d.%m.%Y %H:%M", "--", ".", timeout=30)
-    if r.returncode != 0:
-        return []
-    entries = []
-    for line in r.stdout.splitlines():
-        parts = line.split("\x1f")
-        if len(parts) == 5:
-            entries.append({"hash": parts[0], "kurz": parts[1],
-                            "datum": parts[2], "autor": parts[3], "betreff": parts[4]})
-    return entries
-
-
-# Compare readable mirrors by default so Git history remains understandable.
-TEXT_PATHS = ["data/manuscripts", "data/profiles"]
-
-
-def git_diff(ref: str, nur_text: bool = True, wortweise: bool = True) -> dict:
-    st = git("rev-parse", "--is-inside-work-tree", timeout=10)
-    if st.returncode != 0:
-        return {"ok": False, "grund": "Dieser Ordner liegt in keinem Git-Repository."}
-
-    paths = ["--", *TEXT_PATHS] if nur_text else ["--", "."]
-    opts = ["--word-diff=plain", "--word-diff-regex=[^[:space:]]+"] if wortweise else []
-    opts += ["--unified=1"] if wortweise else ["--unified=3"]
-
-    new_files = []
-    if ref in ("", "WORK", None):
-        has_head = git("rev-parse", "--verify", "HEAD", timeout=10).returncode == 0
-        if has_head:
-            r = git("diff", "HEAD", *opts, *paths, timeout=60)
-        else:
-            r = git("diff", *opts, *paths, timeout=60)
-        raw_status = git("status", "--porcelain", "--untracked-files=all", "--", ".", timeout=30)
-        new_files = [line[3:].strip('"') for line in raw_status.stdout.splitlines() if line.startswith("??")]
-    else:
-        if not ref.replace("-", "").isalnum():
-            return {"ok": False, "grund": "Ungültige Angabe."}
-        r = git("show", "--patch", "--format=", ref, *opts, *paths, timeout=60)
-
-    if r.returncode not in (0, 1):
-        return {"ok": False, "grund": (r.stderr or r.stdout).strip()}
-    return {"ok": True, "diff": r.stdout, "neu": new_files, "wortweise": wortweise}
-
-
-def alte_kapitelfassung(ref: str, kapitel_index: int, titel: str) -> dict:
-    """Return plain chapter text for an editor-side comparison.
-
-    The lookup follows the mirror filename. A changed title or chapter order
-    may therefore make an older file appear as a newly created chapter.
-    """
-    st = git("rev-parse", "--is-inside-work-tree", timeout=10)
-    if st.returncode != 0:
-        return {"ok": False, "grund": "Dieser Ordner liegt in keinem Git-Repository."}
-    zielref = "HEAD" if ref in ("", "WORK", None) else ref
-    if not zielref.replace("-", "").isalnum():
-        return {"ok": False, "grund": "Ungültige Angabe."}
-    fname = f"{kapitel_index:02d} - {safe_name(titel)}.md"
-    path = f"data/manuscripts/{fname}"
-    r = git("show", f"{zielref}:{path}", timeout=30)
-    if r.returncode != 0:
-        return {"ok": True, "neu": True, "text": ""}
-    text = r.stdout
-    # Strip the Markdown title.
-    parts = text.split("\n\n", 1)
-    body = parts[1] if len(parts) > 1 else text
-    # Strip the optional note appendix.
-    body = body.split("\n---\n\n<!-- Notiz", 1)[0]
-    return {"ok": True, "neu": False, "text": body.rstrip("\n")}
-
-
 # ------------------------------------------------------------------ Server
 
 ROUTES = {
-    "/api/state":      (valid_figures, mirror_profiles),
-    "/api/manuscript": (valid_manuscript, lambda p: mirror_text(p["chapters"])),
+    "/api/state":      (valid_figures, lambda p: mirror_profiles(p, PROFILE_DIR)),
+    "/api/manuscript": (valid_manuscript, lambda p: mirror_text(p["chapters"], MANUSCRIPT_DIR)),
 }
 
 
@@ -464,7 +144,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def __init__(self, *args, **kwargs):
         # Only the built Vite client is public; databases and mirrors stay private.
-        super().__init__(*args, directory=str(PUBLIC if PUBLIC.exists() else BASE), **kwargs)
+        # Never fall back to BASE: that would serve data/worlds/*.sqlite3, backups,
+        # and source alongside the app. If dist/ is missing, static GETs just 404.
+        super().__init__(*args, directory=str(PUBLIC), **kwargs)
 
     def send_json(self, obj, code: int = 200, headers: dict | None = None) -> None:
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -485,6 +167,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _read_json_body(self) -> Any:
+        """Read and parse the request's JSON body, capped at MAX_BODY so a
+        client-controlled Content-Length can't force an unbounded read. Raises
+        ValueError/json.JSONDecodeError on an invalid size or malformed JSON --
+        callers that want a default instead of propagating wrap this themselves."""
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > MAX_BODY:
+            raise ValueError("ungültige Größe")
+        return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def end_headers(self) -> None:
         # Any Set-Cookie headers queued by the auth routes ride along on whatever
@@ -608,9 +300,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if token:
                 sub = redeem_render_token(token)
                 if sub:
-                    new_session_id = auth.create_session(sub, "", "")
+                    # Scoped to the render itself, not a normal 24h login: this cookie
+                    # only exists so the headless render subprocess can act as the
+                    # requesting user for the one page load it needs.
+                    new_session_id = auth.create_session(sub, "", "", ttl=RENDER_TOKEN_TTL)
                     session = auth.get_session(new_session_id)
-                    self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, new_session_id, max_age=auth.SESSION_TTL))
+                    self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, new_session_id, max_age=RENDER_TOKEN_TTL))
 
         if AUTH_ENABLED and route not in ("/login", "/auth/callback", "/api/whoami") and session is None:
             if route.startswith("/api/"):
@@ -716,9 +411,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         if route in ("/api/worlds/open", "/api/worlds/create", "/api/worlds/delete"):
             global CURRENT_GIT
-            length = int(self.headers.get("Content-Length") or 0)
             try:
-                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                payload = self._read_json_body()
                 owner_sub = session.sub if AUTH_ENABLED else None
                 with _lock:
                     if route.endswith("/delete"):
@@ -758,15 +452,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if route == "/api/book.pdf":
             port = self.server.server_address[1]
             script = BASE / "scripts" / "render-book-pdf.mjs"
-            target_name = ""
             try:
-                length = int(self.headers.get("Content-Length") or 0)
-                body_payload = {}
-                if length:
-                    try:
-                        body_payload = json.loads(self.rfile.read(length).decode("utf-8"))
-                    except Exception:
-                        body_payload = {}
+                try:
+                    body_payload = self._read_json_body()
+                except Exception:
+                    body_payload = {}
                 if AUTH_ENABLED:
                     ctx = self._resolve_world_or_respond(session, str(body_payload.get("worldId", "")))
                     if ctx is None:
@@ -778,25 +468,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     target_url = f"http://127.0.0.1:{port}/?world={ctx.id}&renderToken={render_token}"
                 else:
                     target_url = f"http://127.0.0.1:{port}/?world={storage.ACTIVE_WORLD_ID}"
-                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as target:
-                    target_name = target.name
-                result = subprocess.run(
-                    ["node", str(script), target_url, target_name],
-                    cwd=BASE, capture_output=True, text=True, timeout=90,
-                )
-                if result.returncode != 0:
-                    raise RuntimeError((result.stderr or result.stdout or "PDF-Renderer fehlgeschlagen.").strip())
-                return self.send_pdf(Path(target_name).read_bytes())
+                return self.send_pdf(render_pdf(script, BASE, target_url))
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": f"PDF konnte nicht erzeugt werden: {exc}"}, 500)
-            finally:
-                if target_name:
-                    Path(target_name).unlink(missing_ok=True)
 
         if route == "/api/git":
-            length = int(self.headers.get("Content-Length") or 0)
             try:
-                wunsch = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
+                wunsch = self._read_json_body()
             except Exception:
                 wunsch = {}
             nachricht = (wunsch.get("message") or "").strip()
@@ -806,9 +484,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if ctx is None:
                     return
                 git_ctx = ctx.git
-            else:
-                git_ctx = CURRENT_GIT
             with _lock:
+                # Read CURRENT_GIT inside the lock: /api/worlds/open|create can reassign
+                # it concurrently, and reading it earlier would race against that.
+                if not AUTH_ENABLED:
+                    git_ctx = CURRENT_GIT
                 if git_ctx is None:
                     ergebnis = {"ok": False, "grund": "No Git backup is configured for this world.", "log": []}
                 else:
@@ -820,9 +500,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(ergebnis)
 
         if route == "/api/backups/restore":
-            length = int(self.headers.get("Content-Length") or 0)
             try:
-                request = json.loads(self.rfile.read(length).decode("utf-8"))
+                request = self._read_json_body()
                 db_path = backups_dir = manuscripts_dir = profiles_dir = None
                 if AUTH_ENABLED:
                     ctx = self._resolve_world_or_respond(session, str(request.get("worldId", "")))
@@ -840,10 +519,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
 
         if route == "/api/assistant/chat":
-            length = int(self.headers.get("Content-Length") or 0)
             db_path = None
             try:
-                request = json.loads(self.rfile.read(length).decode("utf-8"))
+                request = self._read_json_body()
                 question = str(request.get("question", "")).strip()
                 history = request.get("history") if isinstance(request.get("history"), list) else []
                 chapter_ids = [str(item) for item in request.get("chapterIds") or [] if isinstance(item, str)][:50]
@@ -874,12 +552,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_error(404)
         validate, after = ROUTES[route]
 
-        length = int(self.headers.get("Content-Length") or 0)
-        if length <= 0 or length > MAX_BODY:
-            return self.send_json({"ok": False, "fehler": "ungültige Größe"}, 400)
-
         try:
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            payload = self._read_json_body()
             # worldId is routing metadata, not document content — always strip it
             # before validation/storage (regardless of AUTH_ENABLED: the frontend
             # sends it once any world is open, auth or not) so it never persists

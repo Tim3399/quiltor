@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, BookOpen, Bot, Check, ChevronDown, Database, Plus, RotateCw, Sparkles, Square, X } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, errorMessage } from '../../lib/api';
 import type { AssistantProposal, AssistantReply, AssistantSource, Chapter, FigureState, Workspace } from '../../types';
 import { proposalLabel, scopeAssistantProposals } from './proposals';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 
 const STATUS_POLL_MS = 15000;
+const BATCH_PROGRESS_POLL_MS = 1500;
 
 type Entry = { id: string; question: string; reply?: AssistantReply; error?: string; applied: number[] };
 
@@ -25,7 +26,7 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
   const chapterPickerRef = useRef<HTMLDetailsElement>(null);
   const openChapterPicker = () => { const el = chapterPickerRef.current; if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
   const checkStatus = useCallback(() => {
-    api.assistantStatus().then(setStatus).catch(error => setStatus({ available: false, reason: String(error), chunks: 0 }));
+    api.assistantStatus().then(setStatus).catch(error => setStatus({ available: false, reason: errorMessage(error), chunks: 0 }));
   }, []);
   useEffect(() => {
     checkStatus();
@@ -56,13 +57,13 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
         setBatchProgress({ total: 0, done: 0, label: '' });
         progressInterval = window.setInterval(() => {
           api.assistantProgress(batch.progressId).then(res => { if (res.progress) setBatchProgress(res.progress); }).catch(() => {});
-        }, 1500);
+        }, BATCH_PROGRESS_POLL_MS);
       }
       const response = await api.assistantChat(question, history, controller.signal, forcedChapterIds.length ? forcedChapterIds : undefined, batch);
       const reply = { ...response, proposals: scopeAssistantProposals(response.proposals || [], id) };
       setEntries(current => current.map(entry => entry.id === id ? { ...entry, reply } : entry));
     } catch (error) {
-      const message = controller.signal.aborted ? 'Anfrage abgebrochen.' : error instanceof Error ? error.message : String(error);
+      const message = controller.signal.aborted ? 'Anfrage abgebrochen.' : errorMessage(error);
       setEntries(current => current.map(entry => entry.id === id ? { ...entry, error: message } : entry));
     } finally {
       setSending(false); abortRef.current = null;

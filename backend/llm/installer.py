@@ -104,7 +104,10 @@ def ensure_installed() -> None:
         return
     try:
         install(runtime)
-    except SystemExit as exc:
+    except (SystemExit, Exception) as exc:
+        # Also catches network/subprocess failures (URLError, OSError,
+        # CalledProcessError, ...) from download()/install_mlx_runtime() -- a
+        # flaky connection during setup must not take the whole server down.
         print(f"  ! Einrichtung fehlgeschlagen: {exc}")
         print("  Quiltor startet trotzdem; der Assistent bleibt bis zur nächsten Einrichtung inaktiv.")
     print()

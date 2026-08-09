@@ -50,6 +50,11 @@ class SessionData:
     email: str
     name: str
     created_at: float = field(default_factory=time.time)
+    expires_at: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.expires_at:
+            self.expires_at = self.created_at + SESSION_TTL
 
 
 def _http_json(url: str, data: bytes | None = None, headers: dict[str, str] | None = None) -> dict[str, Any]:
@@ -158,10 +163,20 @@ def validate_claims(claims: dict[str, Any], issuer: str | None = None, client_id
         raise ValueError("Token has expired.")
 
 
-def create_session(sub: str, email: str, name: str) -> str:
+def _purge_expired_sessions() -> None:
+    now = time.time()
+    for key in [k for k, session in SESSIONS.items() if now > session.expires_at]:
+        SESSIONS.pop(key, None)
+
+
+def create_session(sub: str, email: str, name: str, *, ttl: float = SESSION_TTL) -> str:
+    """Create a session cookie. `ttl` defaults to a normal 24h login; pass a much
+    shorter value for narrowly-scoped sessions (e.g. the PDF-render subprocess's
+    one-shot credential, which only needs to live for the render itself)."""
     session_id = secrets.token_urlsafe(32)
     with _lock:
-        SESSIONS[session_id] = SessionData(sub=sub, email=email, name=name)
+        _purge_expired_sessions()
+        SESSIONS[session_id] = SessionData(sub=sub, email=email, name=name, expires_at=time.time() + ttl)
     return session_id
 
 
@@ -170,7 +185,7 @@ def get_session(session_id: str | None) -> SessionData | None:
         return None
     with _lock:
         session = SESSIONS.get(session_id)
-        if session is not None and time.time() - session.created_at > SESSION_TTL:
+        if session is not None and time.time() > session.expires_at:
             SESSIONS.pop(session_id, None)
             session = None
     return session

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from './app/AppShell';
-import { api, setActiveWorld } from './lib/api';
+import { api, errorMessage, setActiveWorld } from './lib/api';
 import { useAutosave } from './hooks/useAutosave';
 import type { FigureState, Manuscript, Workspace, WorldInfo } from './types';
 import { TextWorkspace } from './features/manuscript/TextWorkspace';
@@ -49,9 +49,9 @@ export function App() {
   const loadWorld = async (selected: Promise<{ ok: boolean; world: WorldInfo }>) => {
     setLoadError('');
     try { const result = await selected; setActiveWorld(result.world.id); const [m, f] = await Promise.all([api.manuscript(), api.figures()]); manuscriptHistory.load(m); figureHistory.load(f); setWorld(result.world); }
-    catch (error) { setLoadError(error instanceof Error ? error.message : String(error)); }
+    catch (error) { setLoadError(errorMessage(error)); }
   };
-  useEffect(() => { api.worlds().then(result => { setWorlds(result.worlds); const requested = new URLSearchParams(location.search).get('world'); if (requested) void loadWorld(api.openWorld(requested)); }).catch(error => { setWorlds([]); setLoadError(error instanceof Error ? error.message : String(error)); }); }, []);
+  useEffect(() => { api.worlds().then(result => { setWorlds(result.worlds); const requested = new URLSearchParams(location.search).get('world'); if (requested) void loadWorld(api.openWorld(requested)); }).catch(error => { setWorlds([]); setLoadError(errorMessage(error)); }); }, []);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       const modifier = event.metaKey || event.ctrlKey;

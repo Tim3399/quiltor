@@ -1,6 +1,9 @@
 import { chromium } from 'playwright';
 
-const [url, target] = process.argv.slice(2);
+// The URL carries a one-shot render token, so it travels via env rather than
+// argv to avoid sitting in plain sight in `ps`/Task Manager output.
+const url = process.env.QUILTOR_RENDER_URL;
+const [target] = process.argv.slice(2);
 if (!url || !target) throw new Error('URL und Zieldatei fehlen.');
 
 const browser = await chromium.launch({ headless: true });

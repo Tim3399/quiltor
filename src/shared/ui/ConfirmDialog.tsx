@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Dialog } from './Dialog';
 
+// Shared hold-to-confirm duration for destructive actions (delete world/element/chapter/moment).
+export const DELETE_HOLD_MS = 5000;
+
 export function ConfirmDialog({ title, description, confirmLabel, holdDurationMs = 0, onConfirm, onClose }: {
   title: string; description: string; confirmLabel: string; holdDurationMs?: number; onConfirm: () => void; onClose: () => void;
 }) {
@@ -26,9 +29,10 @@ function HoldButton({ label, duration, onComplete }: { label: string; duration: 
   };
   useEffect(() => () => { if (timer.current !== null) window.clearInterval(timer.current); }, []);
   const remaining = Math.max(1, Math.ceil((duration * (1 - progress)) / 1000));
+  const totalSeconds = Math.round(duration / 1000);
   return <button className={`danger-button hold-button ${startedAt !== null ? 'is-holding' : ''}`} style={{ '--hold-progress': progress } as React.CSSProperties}
-    aria-label={`${label} – 5 Sekunden halten`} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start(); }} onPointerUp={cancel} onPointerCancel={cancel} onPointerLeave={cancel}
+    aria-label={`${label} – ${totalSeconds} Sekunden halten`} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start(); }} onPointerUp={cancel} onPointerCancel={cancel} onPointerLeave={cancel}
     onKeyDown={event => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { event.preventDefault(); start(); } }} onKeyUp={event => { if (event.key === ' ' || event.key === 'Enter') cancel(); }} onBlur={cancel}>
-    <span>{startedAt === null ? `${label} · 5 Sek. halten` : `Weiter halten · ${remaining}`}</span>
+    <span>{startedAt === null ? `${label} · ${totalSeconds} Sek. halten` : `Weiter halten · ${remaining}`}</span>
   </button>;
 }

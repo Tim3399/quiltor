@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryI
 import type { Chapter, FigureState, Manuscript } from '../../types';
 import { uid, wordCount } from '../../types';
 import { download } from '../../lib/api';
-import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
 import { api } from '../../lib/api';
 import type { CommitInfo } from '../../types';
 import './TextWorkspace.css';
@@ -42,7 +42,13 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
   useEffect(() => {
     if (!historyOpen || !historyRef || !current) return;
     setHistoryState('loading');
-    void api.textVersion(historyRef, currentIndex, current.title).then(result => { setHistoricalText(result.neu ? '' : result.text); setHistoryState('idle'); }).catch(() => setHistoryState('error'));
+    // current.title has to stay a dependency (the lookup is by archived filename, which
+    // is derived from the title), but that means every keystroke while editing the title
+    // would otherwise re-fire this fetch -- debounce so only a paused title settles it.
+    const timeout = setTimeout(() => {
+      void api.textVersion(historyRef, currentIndex, current.title).then(result => { setHistoricalText(result.neu ? '' : result.text); setHistoryState('idle'); }).catch(() => setHistoryState('error'));
+    }, 400);
+    return () => clearTimeout(timeout);
   }, [historyOpen, historyRef, current?.id, current?.title, currentIndex]);
   const total = useMemo(() => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0), [manuscript.chapters]);
   const vocabulary = useMemo(() => writingVocabulary(manuscript, figures), [manuscript.words, figures.nodes]);
@@ -152,7 +158,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, onChange, focus
       <section className="book-title-page"><div><span>Roman</span><h1>{worldTitle || 'Unbenannte Welt'}</h1><i aria-hidden="true">◆</i></div><footer>Manuskriptfassung · {new Date().toLocaleDateString('de-DE')}</footer></section>
       {manuscript.chapters.map((chapter, chapterIndex) => <section className="book-chapter" key={chapter.id}><header><span>{String(chapterIndex + 1).padStart(2, '0')}</span><h2>{chapter.title || 'Ohne Titel'}</h2></header>{chapter.body.trim().split(/\n{2,}/).filter(Boolean).map((paragraph, index) => /^\s*([*⁂◆]|\*\s*\*\s*\*)\s*$/.test(paragraph) ? <div className="scene-break" key={index}>⁂</div> : <p key={index}>{paragraph.replace(/\n/g, ' ')}</p>)}</section>)}
     </article>
-    {deleteOpen && current && <ConfirmDialog title="Kapitel löschen" description={`„${current.title || 'Ohne Titel'}“ wird aus dem Manuskript entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Kapitel löschen" holdDurationMs={5000} onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
+    {deleteOpen && current && <ConfirmDialog title="Kapitel löschen" description={`„${current.title || 'Ohne Titel'}“ wird aus dem Manuskript entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Kapitel löschen" holdDurationMs={DELETE_HOLD_MS} onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
     {pdfState === 'error' && <div className="toast error-box" role="alert">Das Buch-PDF konnte nicht erzeugt werden.<button onClick={() => setPdfState('idle')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
   </section>;
 }

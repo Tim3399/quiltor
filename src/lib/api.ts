@@ -73,6 +73,11 @@ export const api = {
   },
 };
 
+/** A real Error's own .message, never the "Error: " prefix String(error) adds to one. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function download(name: string, content: string, type = 'text/plain;charset=utf-8') {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const anchor = document.createElement('a');

@@ -16,7 +16,8 @@ ARG QUILTOR_VERSION=dev
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 git \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /usr/sbin/nologin quiltor
 
 WORKDIR /app
 
@@ -41,6 +42,13 @@ LABEL org.opencontainers.image.version="${QUILTOR_VERSION}"
 # actually restricts who can reach it.
 ENV QUILTOR_HOST=0.0.0.0
 ENV QUILTOR_DATA_DIR=/data
+
+# Run as a non-root user: this container handles session cookies and OIDC secrets.
+# /data must be owned by that user *before* VOLUME is declared, since Docker seeds a
+# freshly created volume's ownership from whatever is at that path in the image.
+RUN mkdir -p /data && chown -R quiltor:quiltor /app /data
+USER quiltor
+
 VOLUME ["/data"]
 EXPOSE 8000
 

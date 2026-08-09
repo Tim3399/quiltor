@@ -1,20 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, ConnectionMode, Controls, Handle, MiniMap, Position, addEdge, applyNodeChanges, useUpdateNodeInternals, type Connection, type Edge, type MiniMapNodeProps, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from '@xyflow/react';
 import { Clock3, Download, Grid3X3, LayoutGrid, Link2, MapPin, Pause, Pin, Play, Plus, Redo2, Skull, Star, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
-import type { FigureEdge, FigureNode, FigureState, FigureKind, PresenceEntry, Profile, RelationshipVersion, TimelineMoment } from '../../types';
+import type { FigureEdge, FigureNode, FigureState, FigureKind, PresenceEntry, Profile, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
 import { download } from '../../lib/api';
-import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
 import { figureJourney, journeyHandles, journeyLegs, momentIndex, patchPresence, presenceByPlace, presenceFieldEditor, prunePresence, resolvePresence, stopDateDiff } from './presence';
 import { formatMomentDate } from './date';
+import {
+  GRID_SIZE,
+  alignNodesToGrid,
+  connectionKind,
+  figureIsDeceased,
+  kindLabel,
+  patchRelationship,
+  relationshipHandles,
+  relationshipKey,
+  relationshipLabelEditor,
+  resolveRelationship,
+  resolveRelationshipOverview,
+  semanticZoomTier,
+  type SemanticZoomTier,
+} from './relationships';
 
-export type SemanticZoomTier = 'detail' | 'compact' | 'overview';
 type CardData = { figure: FigureNode; deceased: boolean; guests: FigureNode[]; zoomTier: SemanticZoomTier; zoom: number };
 const nodeTypes = { story: StoryNode };
 const EMPTY_TIMELINE: TimelineMoment[] = [];
 const EMPTY_PRESENCE: PresenceEntry[] = [];
 const EMPTY_NODES: FigureNode[] = [];
-const GRID_SIZE = 48;
 const ELEMENT_TYPES: Array<{ kind: FigureKind; label: string; initialName: string; nodeLabel: string; quick: boolean }> = [
   { kind: 'person', label: 'Figur', initialName: 'Neue Figur', nodeLabel: 'Rolle', quick: true },
   { kind: 'ort', label: 'Ort', initialName: 'Neuer Ort', nodeLabel: 'Ort', quick: true },
@@ -32,7 +45,7 @@ function StoryNode({ data, selected }: NodeProps<Node<CardData>>) {
     <Handle id="neutral-top" className="neutral-handle" type="source" position={Position.Top} />
     <Handle id="journey-top" className="journey-handle" type="source" position={Position.Top} isConnectable={false} />
     <Handle id="journey-bottom" className="journey-handle" type="source" position={Position.Bottom} isConnectable={false} />
-    <span className="node-kind">{item.type === 'ort' ? 'Ort' : item.type === 'konzept' ? 'Konzept' : item.type === 'tier' ? 'Tier' : item.type === 'organisation' ? 'Organisation' : item.type === 'objekt' ? 'Objekt' : item.label || 'Figur'}</span>
+    <span className="node-kind">{item.type !== 'person' ? kindLabel(item.type) : (item.label || 'Figur')}</span>
     <strong>{item.important && <Star className="importance-mark" aria-label="Wichtig" />}{item.name}{data.deceased && <Skull aria-label="Verstorben" />}</strong>{item.sub && <small>{item.sub}</small>}
     {data.guests.length > 0 && <small className="node-guests">{data.guests.slice(0, 3).map(guest => guest.name).join(', ')}{data.guests.length > 3 ? ` +${data.guests.length - 3}` : ''}</small>}
     <Handle id="out" className="directed-handle outgoing-handle" type="source" position={Position.Right} />
@@ -58,16 +71,6 @@ export function minimapColorForKind(kind?: FigureKind) {
   if (kind === 'organisation') return 'var(--minimap-organisation)';
   if (kind === 'objekt') return 'var(--minimap-object)';
   return 'var(--minimap-person)';
-}
-
-export function alignNodesToGrid(nodes: FigureNode[]) {
-  return nodes.map(node => ({ ...node, x: Math.round(node.x / GRID_SIZE) * GRID_SIZE, y: Math.round(node.y / GRID_SIZE) * GRID_SIZE }));
-}
-
-export function semanticZoomTier(zoom: number): SemanticZoomTier {
-  if (zoom < 0.34) return 'overview';
-  if (zoom < 0.68) return 'compact';
-  return 'detail';
 }
 
 type FigureWorkspaceProps = { state: FigureState; onChange: (value: FigureState) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean };
@@ -257,9 +260,9 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     </div>
     {importError && <div className="toast error-box" role="alert">{importError}<button onClick={() => setImportError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
     {connectionError && <div className="toast error-box" role="status">{connectionError}<button onClick={() => setConnectionError('')}><X /><span className="sr-only">Meldung schließen</span></button></div>}
-    {selected && confirmDelete && <ConfirmDialog title="Element löschen" description={`„${selected.name}“ und alle zugehörigen Verbindungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Element löschen" holdDurationMs={5000} onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
+    {selected && confirmDelete && <ConfirmDialog title="Element löschen" description={`„${selected.name}“ und alle zugehörigen Verbindungen werden entfernt. Halte den Löschknopf fünf Sekunden gedrückt.`} confirmLabel="Element löschen" holdDurationMs={DELETE_HOLD_MS} onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
     {pendingImport && <ConfirmDialog title="Diagramm importieren" description={`${pendingImport.nodes.length} Elemente und ${pendingImport.edges.length} Verbindungen ersetzen den aktuellen Stand. Vorher wird automatisch gesichert.`} confirmLabel="Importieren" onConfirm={() => { onChange(pendingImport); setSelectedId(null); setPendingImport(null); }} onClose={() => setPendingImport(null)} />}
-    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ wird aus dem Zeitstreifen entfernt. Beziehungsänderungen an diesem Zeitpunkt fallen auf den vorherigen Stand zurück.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={5000} onConfirm={() => { onChange({ ...state, timeline: timeline.filter(moment => moment.id !== deleteMoment.id), edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); if (activeMomentId === deleteMoment.id) setActiveMomentId(null); }} onClose={() => setDeleteMoment(null)} />}
+    {deleteMoment && <ConfirmDialog title="Zeitpunkt löschen" description={`„${deleteMoment.title}“ wird aus dem Zeitstreifen entfernt. Beziehungsänderungen an diesem Zeitpunkt fallen auf den vorherigen Stand zurück.`} confirmLabel="Zeitpunkt löschen" holdDurationMs={DELETE_HOLD_MS} onConfirm={() => { onChange({ ...state, timeline: timeline.filter(moment => moment.id !== deleteMoment.id), edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); if (activeMomentId === deleteMoment.id) setActiveMomentId(null); }} onClose={() => setDeleteMoment(null)} />}
   </section>;
 }
 
@@ -296,7 +299,7 @@ function FigureInspector({ figure, state, activeMomentId, onPatch, onState, onDe
         const directionLabel = `Richtung umkehren: ${state.nodes.find(node => node.id === resolved.from)?.name || 'Unbekannt'} nach ${state.nodes.find(node => node.id === resolved.to)?.name || 'Unbekannt'}`;
         return <div key={edge.id} className={!resolved.active ? 'outside-moment' : ''}><div>{resolved.gerichtet ? <button type="button" className="relation-direction" aria-label={directionLabel} title={directionLabel} disabled={!resolved.active} onClick={() => patchEdge({ from: resolved.to, to: resolved.from })}>{resolved.from === figure.id ? '→' : '←'}</button> : <span className="relation-undirected" aria-label="Ungerichtete Beziehung" title="Ungerichtete Beziehung">↔</span>}<strong>{other?.name || 'Unbekannt'}</strong>{activeMomentId && <small>{resolved.active ? 'Gilt hier' : 'Hier nicht aktiv'}</small>}</div><label className="relationship-label-editor"><span className="sr-only">Beziehung zu {other?.name}</span><input aria-label={`Beziehung zu ${other?.name}`} value={labelEditor.value} placeholder={labelEditor.inherited || 'Beziehung benennen'} disabled={!resolved.active} onChange={event => patchEdge({ label: event.target.value })} /></label><button className="icon-button danger-text" aria-label="Verbindung löschen" onClick={() => onState({ ...state, edges: state.edges.filter(item => item.id !== edge.id) })}><Trash2 /></button><select aria-label="Linienstil" value={resolved.style || 'solid'} disabled={!resolved.active} onChange={event => patchEdge({ style: event.target.value as (typeof edge.style) })}><option value="solid">Normal</option><option value="dashed">Gestrichelt</option><option value="blood">Lebenskette</option><option value="gold">Gold</option></select><label className="check-field"><input type="checkbox" checked={!!resolved.gerichtet} disabled={!resolved.active} onChange={event => patchEdge({ gerichtet: event.target.checked })} />Gerichtet</label>{activeMomentId && <button className="relation-toggle" onClick={() => patchEdge({ active: !resolved.active })}>{resolved.active ? 'Beziehung endet hier' : 'Ab hier beginnen'}</button>}</div>;
       }) : <p className="muted">Noch keine Beziehungen.</p>}</div>}
-      <button className="danger-text inspector-delete" onClick={onDelete}><Trash2 />{figure.type === 'ort' ? 'Ort' : figure.type === 'konzept' ? 'Konzept' : figure.type === 'tier' ? 'Tier' : figure.type === 'organisation' ? 'Organisation' : figure.type === 'objekt' ? 'Objekt' : 'Figur'} löschen</button>
+      <button className="danger-text inspector-delete" onClick={onDelete}><Trash2 />{kindLabel(figure.type)} löschen</button>
     </div>
   </>;
 }
@@ -333,75 +336,3 @@ function TimelineStrip({ timeline, activeId, playing, onPlay, onSelect, onAdd, o
   return <div className={`timeline-strip ${playing ? 'is-playing' : ''}`} aria-label="Beziehungs-Zeitstreifen"><div className="timeline-heading"><Clock3 /><span>Zeit</span><button className="timeline-play" disabled={!timeline.length} aria-label={playing ? 'Zeitreise pausieren' : 'Zeitreise abspielen'} onClick={onPlay}>{playing ? <Pause /> : <Play />}</button><button className={!activeId ? 'active' : ''} aria-pressed={!activeId} onClick={() => onSelect(null)}>Gesamtsicht</button></div><div className="timeline-track">{timeline.map((moment, index) => <div className="timeline-moment" key={moment.id}><span aria-hidden="true">{index + 1}</span><button className={activeId === moment.id ? 'active' : ''} aria-pressed={activeId === moment.id} onClick={() => onSelect(moment.id)}><b>{moment.title}</b>{moment.date && <small>{formatMomentDate(moment.date)}</small>}</button></div>)}</div><div className="timeline-add"><input aria-label="Neuer Zeitpunkt" value={draft} placeholder="Neuer Zeitpunkt" onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} /><input className="timeline-date" type="date" aria-label="Datum des neuen Zeitpunkts" value={draftDate} onChange={event => setDraftDate(event.target.value)} /><button className="icon-button" disabled={!draft.trim()} aria-label="Zeitpunkt hinzufügen" onClick={add}><Plus /></button></div>{active && <div className="timeline-details"><label><span>Name</span><input value={active.title} onChange={event => onPatch(active.id, { title: event.target.value })} /></label><label><span>Datum · optional</span><input type="date" value={active.date || ''} onChange={event => onPatch(active.id, { date: event.target.value || undefined })} /></label><label><span>Notiz · optional</span><input value={active.note || ''} placeholder="Kapitel, Zeitsprung, Ereignis …" onChange={event => onPatch(active.id, { note: event.target.value })} /></label><button className="icon-button danger-text" aria-label="Zeitpunkt löschen" onClick={() => onDelete(active)}><Trash2 /></button></div>}</div>;
 }
 
-export function resolveRelationship(edge: FigureEdge, timeline: TimelineMoment[], activeId: string | null): FigureEdge & { active: boolean } {
-  const base = { ...edge, active: edge.active !== false };
-  if (!activeId) return base;
-  const activeIndex = timeline.findIndex(moment => moment.id === activeId);
-  const versions = (edge.versions || []).filter(item => {
-    const index = timeline.findIndex(moment => moment.id === item.momentId);
-    return index >= 0 && index <= activeIndex;
-  }).sort((a, b) => timeline.findIndex(moment => moment.id === a.momentId) - timeline.findIndex(moment => moment.id === b.momentId));
-  return versions.reduce<FigureEdge & { active: boolean }>((current, version) => ({ ...current, ...version, id: edge.id, active: version.active }), base);
-}
-
-export function resolveRelationshipOverview(edge: FigureEdge, timeline: TimelineMoment[]): FigureEdge & { active: boolean } {
-  const ordered = [...(edge.versions || [])].sort((a, b) => timeline.findIndex(moment => moment.id === a.momentId) - timeline.findIndex(moment => moment.id === b.momentId));
-  const labels = [edge.label, ...ordered.filter(version => version.active).map(version => version.label)].filter((label): label is string => !!label?.trim());
-  const distinctLabels = labels.filter((label, index) => labels.indexOf(label) === index);
-  const latestActive = [...ordered].reverse().find(version => version.active);
-  return { ...edge, ...(latestActive || {}), id: edge.id, from: edge.from, to: edge.to, label: distinctLabels.join(' → '), active: edge.active !== false || ordered.some(version => version.active) };
-}
-
-export function patchRelationship(edge: FigureEdge, timeline: TimelineMoment[], activeId: string | null, patch: Partial<FigureEdge>): FigureEdge {
-  if (!activeId) return { ...edge, ...patch };
-  const current = resolveRelationship(edge, timeline, activeId);
-  const version: RelationshipVersion = { momentId: activeId, from: current.from, to: current.to, label: current.label, style: current.style, gerichtet: current.gerichtet, active: patch.active ?? current.active };
-  if (patch.from !== undefined) version.from = patch.from;
-  if (patch.to !== undefined) version.to = patch.to;
-  if (patch.label !== undefined) {
-    if (patch.label.trim()) version.label = patch.label;
-    else delete version.label;
-  }
-  if (patch.style !== undefined) version.style = patch.style;
-  if (patch.gerichtet !== undefined) version.gerichtet = patch.gerichtet;
-  return { ...edge, versions: [...(edge.versions || []).filter(item => item.momentId !== activeId), version] };
-}
-
-export function relationshipLabelEditor(edge: FigureEdge, timeline: TimelineMoment[], activeId: string | null) {
-  if (!activeId) return { value: edge.label || '', inherited: '' };
-  const version = edge.versions?.find(item => item.momentId === activeId);
-  const index = timeline.findIndex(moment => moment.id === activeId);
-  const inherited = index > 0 ? resolveRelationship(edge, timeline, timeline[index - 1].id).label || '' : edge.label || '';
-  return { value: version?.label || '', inherited: version?.label ? '' : inherited };
-}
-
-export function figureIsDeceased(figure: FigureNode, timeline: TimelineMoment[], activeId: string | null) {
-  if (!figure.diedMomentId || !activeId) return false;
-  const death = timeline.findIndex(moment => moment.id === figure.diedMomentId);
-  const active = timeline.findIndex(moment => moment.id === activeId);
-  return death >= 0 && active >= death;
-}
-
-export function connectionKind(sourceHandle?: string | null, targetHandle?: string | null): 'directed' | 'undirected' | null {
-  if (sourceHandle === 'out' && targetHandle === 'in') return 'directed';
-  if (sourceHandle?.startsWith('neutral-') && targetHandle?.startsWith('neutral-')) return 'undirected';
-  return null;
-}
-
-export function relationshipKey(from: string, to: string, directed: boolean) {
-  return directed ? `directed:${from}:${to}` : `undirected:${[from, to].sort().join(':')}`;
-}
-
-export function relationshipHandles(edge: FigureEdge, nodes: FigureNode[]) {
-  if (edge.gerichtet) return { from: 'out', to: 'in' };
-  const from = nodes.find(node => node.id === edge.from), to = nodes.find(node => node.id === edge.to);
-  if (!from || !to) return { from: 'neutral-bottom', to: 'neutral-top' };
-  const verticalDistance = to.y - from.y;
-  if (Math.abs(verticalDistance) >= GRID_SIZE) return verticalDistance > 0
-    ? { from: 'neutral-bottom', to: 'neutral-top' }
-    : { from: 'neutral-top', to: 'neutral-bottom' };
-  const graphCenterY = nodes.reduce((sum, node) => sum + node.y, 0) / Math.max(nodes.length, 1);
-  const pairCenterY = (from.y + to.y) / 2;
-  const handle = pairCenterY <= graphCenterY ? 'neutral-top' : 'neutral-bottom';
-  return { from: handle, to: handle };
-}

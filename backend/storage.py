@@ -20,6 +20,10 @@ SCHEMA_VERSION = 3
 MAX_BACKUPS = 40
 BACKUP_INTERVAL = 300
 
+# World ids are uuid.uuid4().hex (lowercase hex, 32 chars) -- the one format every
+# world-id validator in this module (and server.py's resolve_world) should agree on.
+WORLD_ID_RE = re.compile(r"[0-9a-f]{32}")
+
 SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS meta (
@@ -191,7 +195,7 @@ def create_world(title: str, git_url: str = "", owner_sub: str | None = None) ->
 
 def activate_world(world_id: str) -> dict[str, str]:
     global DB, BACKUPS, ACTIVE_WORLD_ID
-    if world_id.isalnum() and len(world_id) == 32:
+    if WORLD_ID_RE.fullmatch(world_id):
         path = WORLDS / f"{world_id}.sqlite3"
     else:
         raise ValueError("Ungültige Welt.")
@@ -235,7 +239,7 @@ def list_assistant_interactions(limit: int = 50, db_path: Path | None = None) ->
 
 def delete_world(world_id: str, owner_sub: str | None = None) -> None:
     """Delete one local world without touching its configured remote repository."""
-    if not re.fullmatch(r"[0-9a-f]{32}", world_id):
+    if not WORLD_ID_RE.fullmatch(world_id):
         raise ValueError("Invalid world identifier.")
     if owner_sub is not None and get_world_owner(world_id) != owner_sub:
         raise PermissionError("This world belongs to a different account.")
@@ -429,8 +433,16 @@ def backup_if_due(force: bool = False, db_path: Path | None = None, backups_dir:
         return
     target = backups_dir / f"backup-{datetime.now():%Y%m%d-%H%M%S-%f}.sqlite3"
     temp = target.with_suffix(".tmp")
-    with connect(db_path) as source, sqlite3.connect(temp) as destination:
-        source.backup(destination)
+    source, destination = connect(db_path), sqlite3.connect(temp)
+    try:
+        with source, destination:
+            source.backup(destination)
+    finally:
+        # sqlite3.Connection's context manager only commits/rolls back a transaction --
+        # it never closes the connection. Without an explicit close(), `temp` stays
+        # open (and locked on Windows), and os.replace() below fails with WinError 32.
+        source.close()
+        destination.close()
     os.replace(temp, target)
     for old in files[: max(0, len(files) - MAX_BACKUPS + 1)]:
         old.unlink(missing_ok=True)
@@ -449,8 +461,13 @@ def restore_backup(name: str, db_path: Path | None = None, backups_dir: Path | N
     source_path = backups_dir / name
     if not source_path.exists(): raise FileNotFoundError(name)
     backup_if_due(force=True, db_path=db_path, backups_dir=backups_dir)
-    with sqlite3.connect(source_path) as source, connect(db_path) as destination:
-        source.backup(destination)
-        destination.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('last_restore_at',?)", (datetime.now().isoformat(),))
-        for kind in ("manuscript", "figures"):
-            destination.execute("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (f"{kind}_revision", str(revision(kind, destination) + 1)))
+    source, destination = sqlite3.connect(source_path), connect(db_path)
+    try:
+        with source, destination:
+            source.backup(destination)
+            destination.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('last_restore_at',?)", (datetime.now().isoformat(),))
+            for kind in ("manuscript", "figures"):
+                destination.execute("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (f"{kind}_revision", str(revision(kind, destination) + 1)))
+    finally:
+        source.close()
+        destination.close()

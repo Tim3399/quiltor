@@ -11,7 +11,7 @@ FIGURES = {"nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}], "
 class ConversationMessagesTests(unittest.TestCase):
     def test_keeps_recent_history_within_the_real_token_budget(self):
         history = [{"role": "user", "content": f"turn {i}"} for i in range(6)]
-        with patch("backend.assistant.count_tokens", return_value=CONVERSATION_HISTORY_TOKEN_BUDGET // 3) as counter:
+        with patch("backend.assistant.runtime.count_tokens", return_value=CONVERSATION_HISTORY_TOKEN_BUDGET // 3) as counter:
             result = conversation_messages(history, "http://mock")
         # Budget fits exactly 3 messages of that size -- the 3 most recent, oldest-first in the output.
         self.assertEqual([item["content"] for item in result], ["turn 3", "turn 4", "turn 5"])
@@ -26,7 +26,7 @@ class ConversationMessagesTests(unittest.TestCase):
         ]
         # Walking newest-first: "newest" fits, "too big to include" doesn't -- stop there,
         # never even consider "old, would fit alone" even though it's small.
-        with patch("backend.assistant.count_tokens", side_effect=[10, CONVERSATION_HISTORY_TOKEN_BUDGET + 1]):
+        with patch("backend.assistant.runtime.count_tokens", side_effect=[10, CONVERSATION_HISTORY_TOKEN_BUDGET + 1]):
             result = conversation_messages(history, "http://mock")
         self.assertEqual([item["content"] for item in result], ["newest"])
 
@@ -36,13 +36,13 @@ class ConversationMessagesTests(unittest.TestCase):
             {"role": "user", "content": ""},
             {"role": "user", "content": "kept"},
         ]
-        with patch("backend.assistant.count_tokens", return_value=1) as counter:
+        with patch("backend.assistant.runtime.count_tokens", return_value=1) as counter:
             result = conversation_messages(history, "http://mock")
         self.assertEqual([item["content"] for item in result], ["kept"])
         counter.assert_called_once()
 
     def test_empty_history_never_calls_the_tokenizer(self):
-        with patch("backend.assistant.count_tokens") as counter:
+        with patch("backend.assistant.runtime.count_tokens") as counter:
             result = conversation_messages(None, "http://mock")
         self.assertEqual(result, [])
         counter.assert_not_called()
@@ -90,8 +90,8 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         runtime = self._runtime()
         plan = {"goal": "info", "steps": [], "searchQueries": [], "requiredKinds": []}
         reply = {"message": "Alles bereit.", "citations": [], "proposals": []}
-        with patch("backend.assistant.count_tokens", return_value=0), \
-             patch("backend.assistant.invoke_chat", side_effect=[plan, reply]) as invoke:
+        with patch("backend.assistant.runtime.count_tokens", return_value=0), \
+             patch("backend.assistant.runtime.invoke_chat", side_effect=[plan, reply]) as invoke:
             result = runtime.complete("Wie geht es Tarek?", {}, FIGURES, history=None)
         self.assertEqual(result["message"], "Alles bereit.")
         self.assertEqual(result["proposals"], [])
@@ -101,8 +101,8 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         runtime = self._runtime()
         empty = {"message": "...", "citations": [], "proposals": []}
         fixed = {"message": "Erledigt.", "citations": [], "proposals": [{"kind": "create_element", "tempId": "new:igor", "element": {"type": "person", "name": "Igor"}}]}
-        with patch("backend.assistant.count_tokens", return_value=0), \
-             patch("backend.assistant.invoke_chat", side_effect=[empty, fixed]) as invoke:
+        with patch("backend.assistant.runtime.count_tokens", return_value=0), \
+             patch("backend.assistant.runtime.invoke_chat", side_effect=[empty, fixed]) as invoke:
             result = runtime.complete("Lege Igor als neue Figur an.", {}, FIGURES, history=None)
         self.assertEqual(invoke.call_count, 2)
         self.assertEqual([item["kind"] for item in result["proposals"]], ["create_element"])
@@ -115,8 +115,8 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         runtime = self._runtime()
         manuscript = {"chapters": [{"id": "c1", "title": "Weit weg", "body": "Ganz andere Worte, die nichts mit der Frage zu tun haben.", "note": ""}]}
         reply = {"message": "ok", "citations": [], "proposals": []}
-        with patch("backend.assistant.count_tokens", return_value=0), \
-             patch("backend.assistant.invoke_chat", return_value=reply) as invoke:
+        with patch("backend.assistant.runtime.count_tokens", return_value=0), \
+             patch("backend.assistant.runtime.invoke_chat", return_value=reply) as invoke:
             runtime.complete("Fasse das bitte allgemein zusammen.", manuscript, FIGURES, history=None, chapter_ids=["c1"])
         sent_content = invoke.call_args[0][1]["messages"][-1]["content"]
         self.assertIn("Ganz andere Worte", sent_content)
@@ -124,8 +124,8 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
     def test_chapter_ids_that_match_nothing_do_not_break_a_normal_request(self):
         runtime = self._runtime()
         reply = {"message": "ok", "citations": [], "proposals": []}
-        with patch("backend.assistant.count_tokens", return_value=0), \
-             patch("backend.assistant.invoke_chat", return_value=reply):
+        with patch("backend.assistant.runtime.count_tokens", return_value=0), \
+             patch("backend.assistant.runtime.invoke_chat", return_value=reply):
             result = runtime.complete("Wie geht es Tarek?", {}, FIGURES, history=None, chapter_ids=["does-not-exist"])
         self.assertEqual(result["message"], "ok")
 
@@ -133,8 +133,8 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         runtime = self._runtime()
         history = [{"role": "user", "content": "Wer ist Tarek?"}, {"role": "assistant", "content": "Ein Ritter."}]
         reply = {"message": "ok", "citations": [], "proposals": []}
-        with patch("backend.assistant.count_tokens", return_value=1), \
-             patch("backend.assistant.invoke_chat", return_value=reply) as invoke:
+        with patch("backend.assistant.runtime.count_tokens", return_value=1), \
+             patch("backend.assistant.runtime.invoke_chat", return_value=reply) as invoke:
             runtime.complete("Und seine Familie?", {}, FIGURES, history=history)
         sent_messages = invoke.call_args[0][1]["messages"]
         roles_and_content = [(item["role"], item["content"]) for item in sent_messages if item["role"] in {"user", "assistant"}][:2]

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FigureEdge, FigureNode, TimelineMoment } from '../../types';
-import { alignNodesToGrid, connectionKind, figureIsDeceased, patchRelationship, relationshipHandles, relationshipKey, relationshipLabelEditor, resolveRelationship, resolveRelationshipOverview, semanticZoomTier } from './FigureWorkspace';
+import { alignNodesToGrid, connectionKind, figureIsDeceased, patchRelationship, relationshipHandles, relationshipKey, relationshipLabelEditor, resolveRelationship, resolveRelationshipOverview, semanticZoomTier } from './relationships';
 
 const timeline: TimelineMoment[] = [
   { id: 'before', title: 'Vorher' },
