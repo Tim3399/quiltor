@@ -7,6 +7,19 @@ async function openBlankWorld(page: import('@playwright/test').Page, title = 'Te
   await page.goto(`/?world=${payload.world.id}`);
 }
 
+test('Weltenauswahl bleibt auch mit vielen Welten vollständig scrollbar', async ({ page }) => {
+  const worlds = Array.from({ length: 30 }, (_, index) => ({ id: `world-${index + 1}`, title: `Welt ${index + 1}`, updated: '2026-08-09T12:00:00Z' }));
+  await page.route('**/api/worlds', route => route.fulfill({ json: { worlds } }));
+  await page.goto('/');
+  const gate = page.locator('.world-gate');
+  const lastWorld = page.locator('.world-open').filter({ hasText: 'Welt 30' });
+  await expect(lastWorld).toBeAttached();
+  await expect.poll(() => gate.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+  await lastWorld.scrollIntoViewIfNeeded();
+  await expect(lastWorld).toBeVisible();
+  expect(await gate.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+});
+
 test('Text, Suche und Figurenboard laden ohne Laufzeitfehler', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

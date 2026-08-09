@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 
 const root = process.cwd();
-const allowed = new Set([join(root, 'src/design/colors.css'), join(root, 'src/design/tokens.css')]);
+const designRoot = join(root, 'src/design');
 const extensions = new Set(['.css', '.html', '.ts', '.tsx']);
 const ignored = new Set(['node_modules', 'dist', 'test-results', 'playwright-report', '.git']);
 
@@ -25,6 +25,8 @@ const propertyChecks = [
   ['Schriftgröße', /\bfont(?:-size)?\s*:\s*([^;{}]+)/gi, false],
 ];
 const zIndex = /\bz-index\s*:\s*(-?\d+)\b/gi;
+const motion = /\b(?:animation(?:-duration)?|transition(?:-duration)?)\s*:\s*([^;{}]+)/gi;
+const blur = /\b(?:backdrop-filter|filter)\s*:\s*([^;{}]*\bblur\([^;{}]+)/gi;
 
 const violations = [];
 
@@ -32,7 +34,7 @@ function visit(path) {
   if (ignored.has(path.split(/[/\\]/).at(-1))) return;
   if (statSync(path).isDirectory()) return readdirSync(path).forEach(name => visit(join(path, name)));
   if (!extensions.has(extname(path))) return;
-  const isDesignFile = allowed.has(path);
+  const isDesignFile = path.startsWith(`${designRoot}/`);
   readFileSync(path, 'utf8').split('\n').forEach((line, index) => {
     if (isDesignFile) return;
     // print layout is a separate rendering context (pt/in units, relative em drop-cap sizing
@@ -53,6 +55,14 @@ function visit(path) {
     zIndex.lastIndex = 0;
     const zMatches = line.match(zIndex);
     if (zMatches) violations.push(`${relative(root, path)}:${index + 1}: [z-index] ${zMatches.join(', ')}`);
+    motion.lastIndex = 0;
+    let motionMatch;
+    while ((motionMatch = motion.exec(line))) {
+      const rawTimes = motionMatch[1].match(/\b\d+(?:\.\d+)?m?s\b/g) || [];
+      if (rawTimes.length) violations.push(`${relative(root, path)}:${index + 1}: [Animation] ${rawTimes.join(', ')}`);
+    }
+    blur.lastIndex = 0;
+    if (blur.test(line) && /blur\(\s*\d/.test(line)) violations.push(`${relative(root, path)}:${index + 1}: [Blur] roher Blur-Wert`);
   });
 }
 

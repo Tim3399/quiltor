@@ -1,0 +1,18 @@
+export const writing = {
+  writingLanguageGerman: 'German (Germany)',
+  writingTools: 'Writing tools',
+  dictionary: 'Dictionary',
+  lookup: 'Look up',
+  synonyms: 'Synonyms',
+  translate: 'Translate',
+  grammar: 'Grammar',
+  checkText: 'Check text',
+  writingDataMissing: 'Language data is not installed.',
+  writingDataInstall: 'Install language data',
+  writingDataError: 'The language data could not be loaded.',
+  writingNoResults: 'No results found.',
+  writingMore: 'Show more',
+  writingCopy: 'Copy',
+  writingInsert: 'Insert at cursor',
+  writingReplace: 'Replace selection',
+} as const;

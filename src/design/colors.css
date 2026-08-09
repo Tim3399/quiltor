@@ -23,6 +23,12 @@
   --control-hover: rgb(0 0 0 / 0.05);
   --control-hover-subtle: rgb(0 0 0 / 0.035);
   --active-surface: rgb(255 255 255 / 0.32);
+  --material-toolbar: rgb(243 241 234 / 0.88);
+  --material-popover: rgb(255 253 248 / 0.94);
+  --material-sheet: rgb(248 246 239 / 0.97);
+  --selection-surface: rgb(201 174 111 / 0.28);
+  --disabled-surface: rgb(79 81 73 / 0.08);
+  --disabled-content: rgb(79 81 73 / 0.52);
   --table-highlight: rgb(150 114 41 / 0.07);
   --overlay: rgb(30 30 25 / 0.32);
   --shadow-color: rgb(31 30 25 / 0.18);
@@ -79,6 +85,12 @@
   --control-hover: rgb(255 255 255 / 0.08);
   --control-hover-subtle: rgb(255 255 255 / 0.055);
   --active-surface: rgb(255 248 232 / 0.065);
+  --material-toolbar: rgb(36 32 27 / 0.88);
+  --material-popover: rgb(45 40 34 / 0.94);
+  --material-sheet: rgb(39 34 29 / 0.97);
+  --selection-surface: rgb(221 185 103 / 0.22);
+  --disabled-surface: rgb(210 200 185 / 0.08);
+  --disabled-content: rgb(210 200 185 / 0.5);
   --table-highlight: rgb(221 185 103 / 0.11);
   --overlay: rgb(0 0 0 / 0.58);
   --shadow-color: rgb(0 0 0 / 0.48);

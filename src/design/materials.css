@@ -1,0 +1,7 @@
+.material-toolbar { background: var(--material-toolbar); backdrop-filter: blur(var(--blur-toolbar)); }
+.material-popover { background: var(--material-popover); backdrop-filter: blur(var(--blur-popover)); }
+.material-sheet { background: var(--material-sheet); backdrop-filter: blur(var(--blur-sheet)); }
+
+@media (prefers-contrast: more) {
+  .material-toolbar, .material-popover, .material-sheet { background: var(--paper); backdrop-filter: none; }
+}

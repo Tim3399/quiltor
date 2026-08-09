@@ -1,4 +1,5 @@
 import type { MessageKey } from './language';
+import type { WritingLanguage } from './language/writing';
 
 export type Workspace = 'text' | 'figures' | 'timeline' | 'places';
 export type SavePhase = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
@@ -11,8 +12,12 @@ export interface Chapter {
   [key: string]: unknown;
 }
 
+export type GrammarMode = 'manual' | 'automatic';
+
 export interface Manuscript {
   chapters: Chapter[];
+  language?: WritingLanguage;
+  grammarMode?: GrammarMode;
   words?: Array<string | { w: string; d?: string }>;
   zeichenAktiv?: string[];
   [key: string]: unknown;

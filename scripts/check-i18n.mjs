@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 
 const root = process.cwd();
-const excludedFiles = new Set([join(root, 'src', 'language')]);
+const languageRoot = join(root, 'src', 'language');
 const ignored = new Set(['node_modules', 'dist', 'test-results', 'playwright-report', '.git']);
 
 // Same escape hatch classNames the runtime MutationObserver in src/language/index.tsx uses
@@ -40,7 +40,7 @@ function scan(file, text) {
 }
 
 function visit(path) {
-  if (excludedFiles.has(path)) return;
+  if (path === languageRoot) return;
   if (ignored.has(path.split(/[/\\]/).at(-1))) return;
   if (statSync(path).isDirectory()) return readdirSync(path).forEach(name => visit(join(path, name)));
   if (extname(path) !== '.tsx') return;
@@ -49,8 +49,30 @@ function visit(path) {
 
 visit(join(root, 'src'));
 if (violations.length) {
-  console.log(`Mögliche hartcodierte deutsche Texte außerhalb von t()-Aufrufen (${violations.length}):\n` + violations.join('\n'));
-  console.log('\nDies ist ein heuristischer, unvollständiger Check (kein echter JSX-Parser) -- manuell prüfen, nicht blind vertrauen.');
+  console.error(`Hartcodierte deutsche Texte außerhalb von t()-Aufrufen (${violations.length}):\n` + violations.join('\n'));
+  process.exitCode = 1;
 } else {
   console.log('Keine offensichtlichen hartcodierten deutschen Texte gefunden.');
+}
+
+function languageKeys(directory) {
+  const keys = new Set();
+  for (const name of readdirSync(directory)) {
+    if (!name.endsWith('.ts') || name === 'index.ts') continue;
+    const text = readFileSync(join(directory, name), 'utf8');
+    for (const match of text.matchAll(/^\s{2}([A-Za-z_$][\w$]*):/gm)) keys.add(match[1]);
+  }
+  return keys;
+}
+
+const deKeys = languageKeys(join(languageRoot, 'de'));
+const enKeys = languageKeys(join(languageRoot, 'en'));
+const missingEn = [...deKeys].filter(key => !enKeys.has(key));
+const missingDe = [...enKeys].filter(key => !deKeys.has(key));
+if (missingEn.length || missingDe.length) {
+  if (missingEn.length) console.error(`Fehlende englische Schlüssel: ${missingEn.join(', ')}`);
+  if (missingDe.length) console.error(`Fehlende deutsche Schlüssel: ${missingDe.join(', ')}`);
+  process.exitCode = 1;
+} else {
+  console.log(`Sprachschlüssel sind vollständig und paarig (${deKeys.size}).`);
 }

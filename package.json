@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:design && tsc -b && vite build",
+    "build": "npm run check:design && npm run check:i18n && tsc -b && vite build",
     "check:design": "node scripts/check-design.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
     "test": "vitest run",

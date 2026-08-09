@@ -1,0 +1,18 @@
+export const writing = {
+  writingLanguageGerman: 'Deutsch (Deutschland)',
+  writingTools: 'Schreibwerkzeuge',
+  dictionary: 'Wörterbuch',
+  lookup: 'Nachschlagen',
+  synonyms: 'Synonyme',
+  translate: 'Übersetzen',
+  grammar: 'Grammatik',
+  checkText: 'Text prüfen',
+  writingDataMissing: 'Sprachdaten sind nicht installiert.',
+  writingDataInstall: 'Sprachdaten installieren',
+  writingDataError: 'Die Sprachdaten konnten nicht geladen werden.',
+  writingNoResults: 'Keine Ergebnisse gefunden.',
+  writingMore: 'Mehr anzeigen',
+  writingCopy: 'Kopieren',
+  writingInsert: 'Am Cursor einfügen',
+  writingReplace: 'Auswahl ersetzen',
+} as const;
