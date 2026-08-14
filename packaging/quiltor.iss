@@ -5,7 +5,7 @@
 ; shortcut, and an uninstaller registered in Windows' "Apps & Features".
 ;
 ; Per-user install (no admin/UAC prompt), same spirit as Quiltor's local-first,
-; no-elevation-needed data directory (%APPDATA%\Quiltor) -- matches how e.g.
+; no-elevation-needed data directory (%USERPROFILE%\Quiltor) -- matches how e.g.
 ; VS Code's user-scope installer behaves.
 ;
 ; MyAppVersion is passed in from build_windows.ps1 via `/DMyAppVersion=X.Y.Z`

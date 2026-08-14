@@ -83,7 +83,7 @@ Only `desktop_platform.py` branches on `sys.platform` — everything else
   this needs (pystray owning the main thread, `webview.start()` moved into the
   background thread pystray's `setup=` callback receives).
 - **Per-user data directory** — `QUILTOR_HOME` defaults to
-  `~/Library/Application Support/Quiltor` (macOS) or `%APPDATA%\Quiltor`
+  `~/Library/Application Support/Quiltor` (macOS) or `%USERPROFILE%\Quiltor`
   (Windows), set by `desktop.py` before `server` is imported (mirrors
   `backend/cli.py`'s `~/.quiltor` default for the pip/pipx CLI, adapted to each
   OS's usual convention since a double-clicked app has no shell profile to set

@@ -21,8 +21,7 @@ def data_home() -> Path:
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / APP_NAME
     if sys.platform == "win32":
-        base = os.environ.get("APPDATA") or str(Path.home())
-        return Path(base) / APP_NAME
+        return Path.home() / APP_NAME
     return Path.home() / ".quiltor"
 
 
