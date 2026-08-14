@@ -167,25 +167,44 @@ def latest_release_asset(pattern: re.Pattern[str]) -> tuple[str, str]:
 
 
 def download(url: str, dest: Path, label: str, on_progress: Callable[[str, int], None] | None = None) -> None:
+    """Downloads to a `.part` file and renames it atomically on success, so a
+    partial/interrupted run never gets mistaken for a finished install.
+
+    Resumes a leftover `.part` file via an HTTP Range request instead of
+    restarting from byte 0 -- these are multi-GB downloads (the model alone is
+    ~2.5GB), so a closed app, a dropped connection, or a killed process used to
+    mean every retry re-downloaded the whole thing from scratch, forever, if it
+    kept getting interrupted before finishing.
+    """
     print(f"Downloading {label} ...")
-
-    def report(block_num: int, block_size: int, total_size: int) -> None:
-        if total_size <= 0:
-            return
-        done = block_num * block_size
-        pct = min(100, done * 100 // total_size)
-        print(f"\r  {pct:3d}% ({done // (1024 * 1024)} MB / {total_size // (1024 * 1024)} MB)", end="", flush=True)
-        if on_progress:
-            on_progress(label, pct)
-
-    # Download to a temp file and rename atomically on success, so a
-    # partial/interrupted run never gets mistaken for a finished install.
     partial = dest.with_name(dest.name + ".part")
-    try:
-        urllib.request.urlretrieve(url, partial, reporthook=report)
-    except BaseException:
-        partial.unlink(missing_ok=True)
-        raise
+    resume_from = partial.stat().st_size if partial.exists() else 0
+
+    request = urllib.request.Request(url)
+    if resume_from:
+        request.add_header("Range", f"bytes={resume_from}-")
+    with urllib.request.urlopen(request, timeout=30) as response:
+        # A server/redirect that ignores Range sends the full content back with
+        # status 200 instead of 206 -- appending that to the existing bytes would
+        # corrupt the file, so treat it as a fresh download instead.
+        resumed = bool(resume_from) and response.status == 206
+        if resume_from and not resumed:
+            resume_from = 0
+        remaining = int(response.headers.get("Content-Length") or 0)
+        total = resume_from + remaining if remaining else 0
+        done = resume_from
+        with open(partial, "ab" if resumed else "wb") as f:
+            while True:
+                chunk = response.read(1 << 20)
+                if not chunk:
+                    break
+                f.write(chunk)
+                done += len(chunk)
+                if total:
+                    pct = min(100, done * 100 // total)
+                    print(f"\r  {pct:3d}% ({done // (1024 * 1024)} MB / {total // (1024 * 1024)} MB)", end="", flush=True)
+                    if on_progress:
+                        on_progress(label, pct)
     print()
     partial.replace(dest)
 
