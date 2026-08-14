@@ -13,7 +13,7 @@ describe('WorldGate', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Neue Welt' }));
     expect(screen.getByRole('dialog', { name: 'Neue Welt' })).toBeInTheDocument();
     expect(onCreate).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByPlaceholderText('Zum Beispiel: Der letzte Garten'), { target: { value: 'Testwelt' } });
+    fireEvent.change(screen.getByPlaceholderText('Der letzte Garten'), { target: { value: 'Testwelt' } });
     fireEvent.click(screen.getByRole('button', { name: 'Welt erstellen' }));
     expect(onCreate).toHaveBeenCalledWith('Testwelt', '');
   });

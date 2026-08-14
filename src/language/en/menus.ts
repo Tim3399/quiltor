@@ -1,6 +1,6 @@
+// Generic action verbs. Everything here is actually used -- unused stock vocabulary does not
+// belong in the catalog.
 export const menus = {
-  menuMore: 'More', menuClose: 'Close', menuActions: 'Actions',
-  cancel: 'Cancel', delete: 'Delete', continue: 'Continue', back: 'Back', next: 'Next',
-  yes: 'Yes', no: 'No', ok: 'OK', confirm: 'Confirm', edit: 'Edit', add: 'Add',
-  remove: 'Remove', save: 'Save', close: 'Close',
+  menuMore: 'More', menuActions: 'Actions',
+  cancel: 'Cancel', delete: 'Delete', close: 'Close',
 } as const;

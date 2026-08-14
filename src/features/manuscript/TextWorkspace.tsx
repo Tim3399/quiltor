@@ -22,7 +22,9 @@ import { kindLabel } from '../figures/relationships';
 export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMentions = 0, onChange, onOpenEntity, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave, viewportMode = window.innerWidth < 720 ? 'compact' : window.innerWidth < 1100 ? 'regular' : 'wide', binderOpen: controlledBinderOpen, onBinderOpen, inspectorOpen: controlledInspectorOpen, onInspectorOpen, sidebarWidth = 246, onSidebarWidth, inspectorWidth = 294, onInspectorWidth }: {
   worldTitle?: string; manuscript: Manuscript; figures: FigureState; orphanedMentions?: number; onChange: (value: Manuscript) => void; onOpenEntity?: (target: { workspace: Workspace; id: string }) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>; viewportMode?: ViewportMode; binderOpen?: boolean; onBinderOpen?: (open: boolean) => void; inspectorOpen?: boolean; onInspectorOpen?: (open: boolean) => void; sidebarWidth?: number; onSidebarWidth?: (width: number) => void; inspectorWidth?: number; onInspectorWidth?: (width: number) => void;
 }) {
-  const { t } = useLanguage();
+  // Aliased: runLookup() has its own `language` parameter for the *manuscript* language, which
+  // is a different thing from the interface language used for number and date formatting.
+  const { t, language: uiLanguage } = useLanguage();
   const [currentId, setCurrentId] = useState(manuscript.chapters[0]?.id ?? '');
   const [inspector, setInspector] = useState<'chapter' | 'helpers'>('chapter');
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -177,7 +179,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     <div className="panel-heading"><span>{t('inspector')}</span><button className="icon-button" onClick={() => setInspectorOpen(false)} aria-label={t('closeInspector')}><PanelRightClose /></button></div>
     <div className="panel-tabs" role="tablist">
       <button role="tab" aria-selected={inspector === 'chapter'} onClick={() => setInspector('chapter')}>{t('chapter')}</button>
-      <button role="tab" aria-selected={inspector === 'helpers'} onClick={() => setInspector('helpers')}>{t('writingHelpers')}</button>
+      <button role="tab" aria-selected={inspector === 'helpers'} onClick={() => setInspector('helpers')}>{t('writingAid')}</button>
     </div>
     {inspector === 'chapter' ? <div className="panel-body">
       <dl className="stats"><div><dt>{t('words')}</dt><dd>{wordCount(current.body)}</dd></div><div><dt>{t('characters')}</dt><dd>{current.body.length}</dd></div><div><dt>{t('standardPages')}</dt><dd>{(wordCount(current.body) / 250).toFixed(1).replace('.', ',')}</dd></div></dl>
@@ -197,7 +199,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <div className="writing-tool-tabs" role="tablist">{(['lookup', 'synonyms', 'translate'] as const).map(tool => <button key={tool} role="tab" aria-selected={selectionTool === tool} onClick={() => { setSelectionTool(tool); setLanguageResults([]); }}>{tool === 'lookup' ? t('dictionary') : tool === 'synonyms' ? t('synonyms') : t('translate')}</button>)}</div>
       {selectionTool && <section className="writing-reference-tool">
         {selectionTool === 'translate' && <div className="ui-segmented" role="radiogroup" aria-label={t('translationDirection')}><button role="radio" aria-checked={writingLanguage === 'de-DE'} onClick={() => { setWritingLanguage('de-DE'); setLanguageResults([]); }}>{t('germanToEnglish')}</button><button role="radio" aria-checked={writingLanguage === 'en-GB'} onClick={() => { setWritingLanguage('en-GB'); setLanguageResults([]); }}>{t('englishToGerman')}</button></div>}
-        <form className="writing-search" onSubmit={event => { event.preventDefault(); runLookup(); }}><input aria-label={t('writingSearchQuery')} value={writingQuery} onChange={event => setWritingQuery(event.target.value)} placeholder={t('writingSearchPlaceholder')} /><button className="primary" disabled={!writingQuery.trim() || languagePhase === 'loading'}>{languagePhase === 'loading' ? t('writingSearching') : t('lookup')}</button></form>
+        <form className="writing-search" onSubmit={event => { event.preventDefault(); runLookup(); }}><input aria-label={t('searchTerm')} value={writingQuery} onChange={event => setWritingQuery(event.target.value)} placeholder={t('writingSearchPlaceholder')} /><button className="primary" disabled={!writingQuery.trim() || languagePhase === 'loading'}>{languagePhase === 'loading' ? t('writingSearching') : t('lookup')}</button></form>
         {!languageStatus?.installed ? <div className="writing-data-state"><p>{t('writingDataMissing')}</p><button onClick={installLanguageData} disabled={languagePhase === 'installing'}>{languagePhase === 'installing' ? t('writingDataInstalling') : t('writingDataInstall')}</button></div> : languagePhase === 'error' ? <p className="error-box" role="alert">{t('writingRequestError')}</p> : languageResults.length ? <div className="writing-results">{languageResults.map((result, index) => <article key={`${result.source}-${result.lemma}-${index}`}><header><strong>{result.lemma}</strong>{result.partOfSpeech && <span>{result.partOfSpeech}</span>}</header>{result.meaning && <p>{result.meaning}</p>}{result.values.length > 0 && <div className="writing-values">{result.values.map(value => <button key={value} onClick={() => insert(value)}>{value}</button>)}</div>}<div className="writing-result-actions"><button onClick={() => void navigator.clipboard.writeText(resultText(result))}>{t('writingCopy')}</button><button onClick={() => insert(resultText(result))}>{t('writingInsert')}</button><button disabled={!writingSelection || writingSelection.chapterId !== current.id || writingSelection.revision !== current.body} onClick={() => replaceSelection(resultText(result))}>{t('writingReplace')}</button></div><details><summary>{t('writingAttribution')}</summary><p>{languageStatus.sources[result.source]?.attribution || result.source} · {languageStatus.sources[result.source]?.license}</p></details></article>)}</div> : writingQuery && languagePhase === 'idle' ? <p className="muted">{t('writingNoResults')}</p> : null}
       </section>}
       <h3>{t('figuresPlaces')}</h3><div className="chip-list">{figures.nodes.map(node => <button key={node.id} onClick={() => insertEntity(node)}>{node.name}</button>)}</div>
@@ -210,7 +212,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
 
   return <section className={`text-workspace ${focus ? 'is-focus' : ''}`} aria-label={t('manuscript')}>
     <div className="context-bar">
-      <div className="context-title"><strong>{current?.title || t('manuscript')}</strong><span>{total.toLocaleString('de-DE')} {t('totalWords')}</span></div>
+      <div className="context-title"><strong>{current?.title || t('manuscript')}</strong><span>{total.toLocaleString(uiLanguage)} {t('totalWords')}</span></div>
       <div className="tool-group"><button className="primary" onClick={add}><FilePlus2 />{t('chapter')}</button></div>
       <div className="tool-group panel-toggles"><button aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}><PanelRight />{t('details')}</button></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoManuscript')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoManuscript')}><Redo2 /></button></div>
@@ -242,9 +244,9 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       </button>
       {focusChapters && <nav className="focus-chapter-list">{manuscript.chapters.map((chapter, index) => <button key={chapter.id} className={chapter.id === current?.id ? 'active' : ''} aria-current={chapter.id === current?.id ? 'page' : undefined} onClick={() => { setCurrentId(chapter.id); requestAnimationFrame(() => editor.current?.focus()); }}><span>{String(index + 1).padStart(2, '0')}</span><strong>{chapter.title || t('untitled')}</strong><small>{wordCount(chapter.body)} {t('words')}</small></button>)}</nav>}
     </aside>}
-    {focus && <aside className={`focus-helper ${focusHelpers ? 'is-open' : ''}`} aria-label={t('focusHelperPanelLabel')}>
-      <button className="focus-helper-toggle" aria-expanded={focusHelpers} onClick={() => setFocusHelpers(!focusHelpers)} title={t('focusHelper')}>
-        {focusHelpers ? <X /> : <Pilcrow />}<span className="sr-only">{focusHelpers ? t('closeFocusHelper') : t('openFocusHelper')}</span>
+    {focus && <aside className={`focus-helper ${focusHelpers ? 'is-open' : ''}`} aria-label={t('writingAidPanelLabel')}>
+      <button className="focus-helper-toggle" aria-expanded={focusHelpers} onClick={() => setFocusHelpers(!focusHelpers)} title={t('writingAid')}>
+        {focusHelpers ? <X /> : <Pilcrow />}<span className="sr-only">{focusHelpers ? t('closeWritingAid') : t('openWritingAid')}</span>
       </button>
       {focusHelpers && <div className="focus-helper-panel">
         <section><h3>{t('figuresPlaces')}</h3><div className="focus-helper-chips">{figures.nodes.map(node => <button key={node.id} onClick={() => insertEntity(node)}>{node.name}</button>)}</div></section>
@@ -254,7 +256,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     </aside>}
     {focus && <button className="exit-focus" onClick={() => onFocus(false)}>{t('leaveFocus')} <kbd>Esc</kbd></button>}
     <article className="print-document" aria-hidden="true" lang="de">
-      <section className="book-title-page"><div><span>{t('novelLabel')}</span><h1>{worldTitle || t('untitledWorld')}</h1><i aria-hidden="true">◆</i></div><footer>{t('manuscriptVersionLabel')} {new Date().toLocaleDateString('de-DE')}</footer></section>
+      <section className="book-title-page"><div><span>{t('novelLabel')}</span><h1>{worldTitle || t('untitledWorld')}</h1><i aria-hidden="true">◆</i></div><footer>{t('manuscriptVersionLabel')} · {new Date().toLocaleDateString(uiLanguage)}</footer></section>
       {manuscript.chapters.map((chapter, chapterIndex) => <section className="book-chapter" key={chapter.id}><header><span>{String(chapterIndex + 1).padStart(2, '0')}</span><h2>{chapter.title || t('untitled')}</h2></header>{chapter.body.trim().split(/\n{2,}/).filter(Boolean).map((paragraph, index) => /^\s*([*⁂◆]|\*\s*\*\s*\*)\s*$/.test(paragraph) ? <div className="scene-break" key={index}>⁂</div> : <p key={index}>{paragraph.replace(/\n/g, ' ')}</p>)}</section>)}
     </article>
     {deleteOpen && current && <ConfirmDialog title={t('deleteChapter')} description={t('deleteChapterDescription').replace('{title}', current.title || t('untitled'))} confirmLabel={t('deleteChapter')} holdDurationMs={DELETE_HOLD_MS} onConfirm={remove} onClose={() => setDeleteOpen(false)} />}

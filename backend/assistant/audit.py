@@ -117,10 +117,10 @@ def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
     inspected = audit["inspected"]
     prefix = (f"Strukturell vollständig geprüft: {inspected['relationships']} Beziehungen mit "
               f"{inspected['relationshipStates']} Zeitständen, {inspected['elements']} Elemente, "
-              f"{inspected['timelineMoments']} Timeline-Zeitpunkte und {inspected['presenceEntries']} Anwesenheits-Einträge.")
+              f"{inspected['timelineMoments']} Zeitpunkte und {inspected['presenceEntries']} Anwesenheits-Einträge.")
     if audit["issues"]:
         return prefix + " Gefunden: " + "; ".join(audit["issues"]) + ". Es wurde nichts geändert."
-    return prefix + " Keine technischen Widersprüche gefunden. Ob Richtung und Beschriftung inhaltlich zur Geschichte passen, ist damit nicht automatisch bewiesen; dafür müssen konkrete Manuskriptstellen als Belege ausgewertet werden."
+    return prefix + " Keine technischen Widersprüche gefunden. Ob Richtung und Beschriftung inhaltlich zur Geschichte passen, ist damit nicht geprüft; dafür müssen konkrete Manuskriptstellen als Belege ausgewertet werden."
 
 
 def audit_reply(audit: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:

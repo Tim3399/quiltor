@@ -126,12 +126,12 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const patchScale = (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => onChange({ ...state, mapScale: { unitsPer100px: 1, unitLabel: t('unitsDefault'), ...state.mapScale, ...patch } });
   const addPlace = () => {
     const center = flow.current?.screenToFlowPosition({ x: innerWidth / 2, y: innerHeight / 2 }) ?? { x: 240, y: 180 };
-    const place: FigureNode = { id: uid('n'), type: 'ort', name: t('newPlaceName'), label: t('place'), sub: '', x: center.x, y: center.y, mapX: center.x, mapY: center.y, accent: 'ink', profile: { extra: [] } };
+    const place: FigureNode = { id: uid('n'), type: 'ort', name: t('newPlace'), label: t('place'), sub: '', x: center.x, y: center.y, mapX: center.x, mapY: center.y, accent: 'ink', profile: { extra: [] } };
     onChange({ ...state, nodes: [...state.nodes, place] }); setSelectedId(place.id);
   };
   const duplicateSelected = () => {
     if (!selected) return;
-    const copy: FigureNode = { ...selected, id: uid('n'), name: t('placeCopyName', { name: selected.name }), x: selected.x + GRID_SIZE, y: selected.y + GRID_SIZE, mapX: placePosition(selected).x + GRID_SIZE, mapY: placePosition(selected).y + GRID_SIZE };
+    const copy: FigureNode = { ...selected, id: uid('n'), name: t('copyName', { name: selected.name }), x: selected.x + GRID_SIZE, y: selected.y + GRID_SIZE, mapX: placePosition(selected).x + GRID_SIZE, mapY: placePosition(selected).y + GRID_SIZE };
     onChange({ ...state, nodes: [...state.nodes, copy] }); setSelectedId(copy.id); setActionsOpen(false);
   };
   const removePlace = () => {
@@ -207,8 +207,8 @@ function PlaceInspector({ nodes, stays, chronicle, timeline, onOpen }: {
         {chronicle.map(row => <div key={row.index}>
           <strong>{row.moment ? <button className="places-link" onClick={() => onOpen({ workspace: 'timeline', id: row.moment!.id })}>{row.moment.title}</button> : t('initialState')}</strong>
           <span>{row.occupants.length ? row.occupants.map(node => node.name).join(', ') : t('nobodyHere')}</span>
-          {!!row.arrived.length && <small>{t('arrived')} {row.arrived.map(node => node.name).join(', ')}</small>}
-          {!!row.left.length && <small>{t('left')} {row.left.map(node => node.name).join(', ')}</small>}
+          {!!row.arrived.length && <small>{t('arrived')}: {row.arrived.map(node => node.name).join(', ')}</small>}
+          {!!row.left.length && <small>{t('left')}: {row.left.map(node => node.name).join(', ')}</small>}
         </div>)}
         {!chronicle.length && <p className="places-section-empty">{t('noMovementYet')}</p>}
       </div>

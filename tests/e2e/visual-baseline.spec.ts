@@ -14,8 +14,8 @@ const figures = {
 async function mockWorkshop(page: Page) {
   await page.route('**/api/version', route => route.fulfill({ json: { ok: true, version: 'baseline' } }));
   await page.route('**/api/whoami', route => route.fulfill({ json: { ok: false } }));
-  await page.route('**/api/worlds', route => route.fulfill({ json: { ok: true, worlds: [{ id: 'baseline', title: 'Der gläserne Atlas', gitUrl: '', updated: '2026-08-09T12:00:00Z' }] } }));
-  await page.route('**/api/worlds/open', route => route.fulfill({ json: { ok: true, world: { id: 'baseline', title: 'Der gläserne Atlas', gitUrl: '', updated: '2026-08-09T12:00:00Z' } } }));
+  await page.route('**/api/worlds', route => route.fulfill({ json: { ok: true, worlds: [{ id: 'baseline', title: 'Der gläserne Atlas', backupUrl: '', updated: '2026-08-09T12:00:00Z' }] } }));
+  await page.route('**/api/worlds/open', route => route.fulfill({ json: { ok: true, world: { id: 'baseline', title: 'Der gläserne Atlas', backupUrl: '', updated: '2026-08-09T12:00:00Z' } } }));
   await page.route('**/api/manuscript*', route => route.request().method() === 'GET' ? route.fulfill({ json: manuscript, headers: { ETag: '"0"' } }) : route.fulfill({ json: { ok: true, revision: 1, zeit: '12:00' } }));
   await page.route('**/api/state*', route => route.request().method() === 'GET' ? route.fulfill({ json: figures, headers: { ETag: '"0"' } }) : route.fulfill({ json: { ok: true, revision: 1, zeit: '12:00' } }));
   await page.route('**/api/assistant/status*', route => route.fulfill({ json: { ok: true, available: false, mode: 'local', reason: 'Baseline', chunks: 3 } }));
@@ -26,7 +26,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript(selected => { localStorage.setItem('quiltor-theme', selected); localStorage.setItem('quiltor-interface-language', 'de'); }, theme);
     await mockWorkshop(page);
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Welche Welt öffnest du?' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Welt öffnen' })).toBeVisible();
     await expect(page).toHaveScreenshot(`${theme}-world-gate.png`, { animations: 'disabled' });
 
     await page.locator('.world-open').click();

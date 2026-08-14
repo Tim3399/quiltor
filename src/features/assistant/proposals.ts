@@ -39,7 +39,7 @@ export function applyAssistantProposals(state: FigureState, proposals: Assistant
       const id = proposalId(proposal.tempId, 't');
       references.set(proposal.tempId, id);
       if (next.timeline.some(moment => moment.id === id)) continue;
-      const moment: TimelineMoment = { id, title: String(proposal.moment.title || t('defaultMomentTitle')).slice(0, 160) };
+      const moment: TimelineMoment = { id, title: String(proposal.moment.title || t('newMoment')).slice(0, 160) };
       if (proposal.moment.date) moment.date = String(proposal.moment.date).slice(0, 20);
       if (proposal.moment.note) moment.note = String(proposal.moment.note).slice(0, 1000);
       next.timeline.push(moment);
@@ -126,7 +126,7 @@ function arrangeNodes(nodes: FigureNode[], edges: FigureEdge[], strategy: 'thema
 }
 
 export function proposalLabel(proposal: AssistantProposal, state: FigureState, t: (key: MessageKey) => string) {
-  const nodeName = (id: string) => state.nodes.find(node => node.id === id)?.name || id.replace('new:', t('newPrefix'));
+  const nodeName = (id: string) => state.nodes.find(node => node.id === id)?.name || id.replace('new:', `${t('newPrefix')}: `);
   if (proposal.kind === 'create_element') return t('createElementLabel').replace('{name}', proposal.element.name || t('withoutName'));
   if (proposal.kind === 'update_element') return t('updateElementLabel').replace('{name}', nodeName(proposal.elementId));
   if (proposal.kind === 'create_timeline_moment') return t('createMomentLabel').replace('{title}', proposal.moment.title || t('untitled'));

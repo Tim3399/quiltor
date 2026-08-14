@@ -128,7 +128,7 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
       </div>
     </header>
     <div className="assistant-scope"><Database /><span><strong>{t('sourcesIndexed').replace('{n}', String(status?.chunks ?? '…'))}</strong><small>{t('sourcesScopeDescription')}</small></span></div>
-    {status && !status.available && <div className="assistant-offline" role="alert"><Bot /><div><strong>{t('localModelUnavailable')}</strong><p>{status.reason}</p><small>{t('stillFullyUsable')}</small>
+    {status && !status.available && <div className="assistant-offline" role="alert"><Bot /><div><strong>{t('localModelUnavailable')}</strong><p>{status.reason}</p>
       {installState?.running
         ? <div className="assistant-progress"><span>{t('installingAssistant').replace('{percent}', String(installState.percent))}</span><div className="assistant-progress-bar"><span style={{ width: `${installState.percent}%` }} /></div></div>
         : status.installed
@@ -140,7 +140,7 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
       {!entries.length && <div className="assistant-empty"><Bot /><h2>{t('assistantGreeting')}</h2><p>{t('assistantGreetingBody')}</p><button onClick={() => setDraft(t('findMissingFiguresPrompt'))}>{t('findMissingFigures')}</button><button onClick={() => setDraft(t('checkTimelinePrompt'))}>{t('checkTimeline')}</button></div>}
       {entries.map(entry => <article className="assistant-exchange" key={entry.id}>
         <p className="assistant-question">{entry.question}</p>
-        {entry.error && <div className="assistant-error" role="alert"><span>{entry.error}</span><button disabled={sending} onClick={() => void send(entry.id)}><RotateCw />{t('retryLabel')}</button></div>}
+        {entry.error && <div className="assistant-error" role="alert"><span>{entry.error}</span><button disabled={sending} onClick={() => void send(entry.id)}><RotateCw />{t('retry')}</button></div>}
         {entry.reply && <div className="assistant-answer"><p>{resolveAssistantMessage(entry.reply, t)}</p>
           {!!entry.reply.clarification?.candidates.length && <div className="assistant-broadscope"><div className="assistant-broadscope-actions">
             {entry.reply.clarification.candidates.map(candidate => <button type="button" disabled={sending} key={candidate.id} onClick={() => void send(undefined, undefined, `${t('whichElementDoYouMean')} ${candidate.name} [${candidate.id}]`)}>{candidate.name}</button>)}

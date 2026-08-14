@@ -74,7 +74,7 @@ export function HistoryDialog({ onClose, flush }: { onClose: () => void; flush: 
   useEffect(() => {
     setResult(null);
     void api.diff(selected, word, all)
-      .then(value => setResult({ diff: value.diff, empty: value.diff ? '' : (value.neu?.length ? `${t('newFiles')}\n${value.neu.join('\n')}` : t('noChanges')) }))
+      .then(value => setResult({ diff: value.diff, empty: value.diff ? '' : (value.neu?.length ? `${t('newFiles')}:\n${value.neu.join('\n')}` : t('noChanges')) }))
       .catch(error => setResult({ diff: '', empty: errorMessage(error) }));
   }, [selected, word, all, t]);
 

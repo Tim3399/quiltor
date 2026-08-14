@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 async function openBlankWorld(page: import('@playwright/test').Page, title = 'Testwelt') {
-  const response = await page.request.post('/api/worlds/create', { data: { title, gitUrl: `https://gitlab.com/example/${crypto.randomUUID()}.git` } });
+  const response = await page.request.post('/api/worlds/create', { data: { title, backupUrl: '' } });
   const payload = await response.json();
   await page.goto(`/?world=${payload.world.id}`);
 }
@@ -142,7 +142,7 @@ test('Inhaltssuche und Befehle teilen eine Palette', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Noch keine Timeline' })).toBeVisible();
   await page.getByRole('button', { name: 'Zeitpunkt hinzufügen' }).click();
   await expect(page.getByRole('heading', { name: 'Neuer Zeitpunkt' })).toBeVisible();
-  if ((page.viewportSize()?.width || 0) > 640) await expect(page.getByRole('navigation', { name: 'Zeitstrahl' })).toBeVisible();
+  if ((page.viewportSize()?.width || 0) > 640) await expect(page.getByRole('navigation', { name: 'Timeline' })).toBeVisible();
   else await expect(page.getByText('1 von 1')).toBeVisible();
   await expect(page.getByText('Nur Änderungen')).toBeVisible();
 });
@@ -270,7 +270,7 @@ test('Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab', async ({ pa
   const minimapBeforeTimeline = await page.locator('.react-flow__minimap').boundingBox();
   await page.getByRole('button', { name: 'Ansicht', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Zeit einblenden', exact: true }).click();
-  const stripBox = await page.getByLabel('Beziehungs-Zeitstreifen').boundingBox();
+  const stripBox = await page.getByLabel('Beziehungen über die Zeit').boundingBox();
   const controlsBox = await page.locator('.react-flow__controls').boundingBox();
   const minimapBox = await page.locator('.react-flow__minimap').boundingBox();
   const overlap = (a: NonNullable<typeof stripBox>, b: NonNullable<typeof stripBox>) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
@@ -346,8 +346,8 @@ test('Kapitelversionen erscheinen direkt neben der Schreibfläche', async ({ pag
   await page.route('**/api/textfassung**', route => route.fulfill({ json: { ok: true, text: 'Historischer Kapiteltext' } }));
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Exportieren' }).click();
-  await page.getByRole('menuitem', { name: 'Versionen' }).click();
-  const history = page.getByRole('complementary', { name: 'Versionen' });
+  await page.getByRole('menuitem', { name: 'Fassungen' }).click();
+  const history = page.getByRole('complementary', { name: 'Fassungen' });
   await expect(history).toBeVisible();
   await expect(history).toContainText('Historischer Kapiteltext');
   await expect(page.getByLabel('Kapiteltext')).toBeVisible();
@@ -421,7 +421,7 @@ test('Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich', 
 test('Startseite lädt eine Welt und übernimmt ihren variablen Titel', async ({ page }) => {
   await page.request.post('/api/worlds/create', { data: { title: 'Öffentliche Testwelt' } });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Welche Welt öffnest du?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welt öffnen' })).toBeVisible();
   await page.locator('.world-open').filter({ hasText: 'Öffentliche Testwelt' }).last().click();
   await expect(page.locator('.brand')).toContainText('Öffentliche Testwelt');
   await expect(page.getByLabel('Kapiteltext')).toBeVisible();
@@ -434,7 +434,7 @@ test('Welt lässt sich erst nach fünf Sekunden Halten lokal löschen', async ({
   await page.goto('/');
   await page.getByRole('button', { name: `${title} – Welt löschen` }).click();
   await expect(page.getByRole('heading', { name: 'Welt lokal löschen' })).toBeVisible();
-  await expect(page.getByText('Ein verbundenes Remote-Repository bleibt erhalten.')).toBeVisible();
+  await expect(page.getByText('Bereits hochgeladene Backups bleiben auf dem Endpunkt erhalten.')).toBeVisible();
 
   const confirm = page.getByRole('button', { name: 'Welt löschen – 5 Sekunden halten' });
   await confirm.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'mouse' });
@@ -448,7 +448,7 @@ test('Sprachwahl erfolgt ausschließlich in der Welt-Auswahl', async ({ page }) 
   await page.request.post('/api/worlds/create', { data: { title: 'Language Test World', gitUrl: 'git@git.example.com:example/language-test.git' } });
   await page.goto('/');
   await page.getByRole('radio', { name: 'Englisch' }).click();
-  await expect(page.getByRole('heading', { name: 'Which world would you like to open?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Open a world' })).toBeVisible();
   await page.locator('.world-open').filter({ hasText: 'Language Test World' }).last().click();
   await expect(page.locator('.workspace-switch').getByRole('button', { name: 'Manuscript', exact: true })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Language' })).toHaveCount(0);

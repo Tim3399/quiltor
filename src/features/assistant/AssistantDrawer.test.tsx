@@ -16,7 +16,7 @@ const FIGURES: FigureState = { nodes: [{ id: 'tarek', x: 0, y: 0, name: 'Tarek V
 const CHAPTERS: Chapter[] = [{ id: 'c1', title: 'Die Krönung', body: '', note: '' }, { id: 'c2', title: 'Am Fluss', body: '', note: '' }];
 const ONLINE = { ok: true, available: true, mode: 'local', reason: '', installed: true, chunks: 3 };
 // Installed but currently not running (e.g. the process crashed) -- distinct from
-// NOT_INSTALLED below, which drives the "Jetzt einrichten" button instead of "Nochmal versuchen".
+// NOT_INSTALLED below, which drives the "Jetzt einrichten" button instead of "Erneut versuchen".
 const OFFLINE = { ok: true, available: false, mode: 'local', reason: 'Lokaler Modell-Prozess ist beendet.', installed: true, chunks: 0 };
 const NOT_INSTALLED = { ok: true, available: false, mode: 'local', reason: 'Lokales Modell ist noch nicht installiert oder gestartet.', installed: false, chunks: 0 };
 
@@ -50,7 +50,7 @@ beforeEach(() => {
 describe('AssistantDrawer', () => {
   it('shows the empty-state prompt and quick actions when there is no history yet', async () => {
     setup();
-    expect(await screen.findByText('Wobei soll ich die Welt pflegen?')).toBeInTheDocument();
+    expect(await screen.findByText('Was soll ich in der Welt nachtragen?')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Fehlende Figuren finden'));
     expect(screen.getByPlaceholderText('Figur anlegen, Beziehung ändern, Timeline prüfen …')).toHaveValue('Lege aus meinen vorhandenen Notizen fehlende Figuren als Vorschläge an.');
     expect(api.assistantChat).not.toHaveBeenCalled();
@@ -59,26 +59,26 @@ describe('AssistantDrawer', () => {
   it('disables input and shows the offline banner when the model is unavailable', async () => {
     vi.mocked(api.assistantStatus).mockResolvedValue(OFFLINE);
     setup();
-    expect(await screen.findByText('Lokales Modell nicht verfügbar')).toBeInTheDocument();
+    expect(await screen.findByText('Lokales Modell nicht erreichbar')).toBeInTheDocument();
     expect(screen.getByText(OFFLINE.reason)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Figur anlegen, Beziehung ändern, Timeline prüfen …')).toBeDisabled();
   });
 
-  it('re-checks availability when "Nochmal versuchen" is clicked', async () => {
+  it('re-checks availability when "Erneut versuchen" is clicked', async () => {
     vi.mocked(api.assistantStatus).mockResolvedValueOnce(OFFLINE).mockResolvedValueOnce(ONLINE);
     setup();
-    await screen.findByText('Lokales Modell nicht verfügbar');
-    fireEvent.click(screen.getByText('Nochmal versuchen'));
-    await waitFor(() => expect(screen.queryByText('Lokales Modell nicht verfügbar')).not.toBeInTheDocument());
+    await screen.findByText('Lokales Modell nicht erreichbar');
+    fireEvent.click(screen.getByText('Erneut versuchen'));
+    await waitFor(() => expect(screen.queryByText('Lokales Modell nicht erreichbar')).not.toBeInTheDocument());
     expect(api.assistantStatus).toHaveBeenCalledTimes(2);
   });
 
-  it('offers "Jetzt einrichten" instead of "Nochmal versuchen" when the model was never installed', async () => {
+  it('offers "Jetzt einrichten" instead of "Erneut versuchen" when the model was never installed', async () => {
     vi.mocked(api.assistantStatus).mockResolvedValue(NOT_INSTALLED);
     setup();
-    await screen.findByText('Lokales Modell nicht verfügbar');
+    await screen.findByText('Lokales Modell nicht erreichbar');
     expect(screen.getByText('Jetzt einrichten')).toBeInTheDocument();
-    expect(screen.queryByText('Nochmal versuchen')).not.toBeInTheDocument();
+    expect(screen.queryByText('Erneut versuchen')).not.toBeInTheDocument();
   });
 
   it('installing shows a progress bar while the install is running', async () => {
@@ -98,7 +98,7 @@ describe('AssistantDrawer', () => {
     setup();
     fireEvent.click(await screen.findByText('Jetzt einrichten'));
     await waitFor(() => expect(api.assistantStatus).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.queryByText('Lokales Modell nicht verfügbar')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Lokales Modell nicht erreichbar')).not.toBeInTheDocument());
   });
 
   it('reopening the drawer mid-install shows the current progress instead of resetting', async () => {
@@ -121,13 +121,13 @@ describe('AssistantDrawer', () => {
     let resolveChat!: (value: AssistantReply) => void;
     vi.mocked(api.assistantChat).mockReturnValue(new Promise(resolve => { resolveChat = resolve; }));
     setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Wer ist Tarek?');
     expect(screen.getByPlaceholderText('Figur anlegen, Beziehung ändern, Timeline prüfen …')).toBeDisabled();
-    expect(screen.getByText(/durchsucht deine Welt/)).toBeInTheDocument();
+    expect(screen.getByText(/durchsuche deine Welt/)).toBeInTheDocument();
     await act(async () => resolveChat(reply({ message: 'Tarek ist ein Ritter.' })));
     expect(await screen.findByText('Tarek ist ein Ritter.')).toBeInTheDocument();
-    expect(screen.queryByText(/durchsucht deine Welt/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/durchsuche deine Welt/)).not.toBeInTheDocument();
   });
 
   it('closing the panel mid-request does not lose the in-flight reply -- it lands once reopened', async () => {
@@ -139,12 +139,12 @@ describe('AssistantDrawer', () => {
     let resolveChat!: (value: AssistantReply) => void;
     vi.mocked(api.assistantChat).mockReturnValue(new Promise(resolve => { resolveChat = resolve; }));
     const { setOpen } = setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Wer ist Tarek?');
-    expect(screen.getByText(/durchsucht deine Welt/)).toBeInTheDocument();
+    expect(screen.getByText(/durchsuche deine Welt/)).toBeInTheDocument();
 
     setOpen(false);
-    expect(screen.queryByText(/durchsucht deine Welt/)).not.toBeInTheDocument(); // hidden, not gone
+    expect(screen.queryByText(/durchsuche deine Welt/)).not.toBeInTheDocument(); // hidden, not gone
     await act(async () => resolveChat(reply({ message: 'Tarek ist ein Ritter.' })));
 
     setOpen(true);
@@ -155,7 +155,7 @@ describe('AssistantDrawer', () => {
   it('shows an error with a retry action, and retry re-sends the same question', async () => {
     vi.mocked(api.assistantChat).mockRejectedValueOnce(new Error('Das lokale Modell ist nicht erreichbar.')).mockResolvedValueOnce(reply({ message: 'Jetzt hat es geklappt.' }));
     setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Wer ist Tarek?');
     expect(await screen.findByText('Das lokale Modell ist nicht erreichbar.')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Erneut versuchen'));
@@ -170,7 +170,7 @@ describe('AssistantDrawer', () => {
     let rejectChat!: (error: unknown) => void;
     vi.mocked(api.assistantChat).mockReturnValue(new Promise((_, reject) => { rejectChat = reject; }));
     setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Wer ist Tarek?');
     fireEvent.click(screen.getByLabelText('Anfrage abbrechen'));
     await act(async () => rejectChat(new DOMException('aborted', 'AbortError')));
@@ -181,7 +181,7 @@ describe('AssistantDrawer', () => {
     const proposals = [{ kind: 'create_element' as const, tempId: 'new:igor', element: { name: 'Igor' } }];
     vi.mocked(api.assistantChat).mockResolvedValue(reply({ proposals }));
     const { onApply } = setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Lege Igor an.');
     const applyButton = await screen.findByText('Übernehmen');
     fireEvent.click(applyButton);
@@ -198,7 +198,7 @@ describe('AssistantDrawer', () => {
     ];
     vi.mocked(api.assistantChat).mockResolvedValue(reply({ proposals, proposalGroup: { id: 'task', title: 'Igor anlegen', proposalIndexes: [0, 1] } }));
     setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Lege Igor als Sohn von Tarek an.');
     const individualButtons = await screen.findAllByText('Im Paket');
     expect(individualButtons).toHaveLength(2);
@@ -209,7 +209,7 @@ describe('AssistantDrawer', () => {
   it('clicking a source navigates to its target', async () => {
     vi.mocked(api.assistantChat).mockResolvedValue(reply({ sources: [{ id: 'element:tarek', kind: 'element', title: 'Tarek Venn', text: '...', target: { workspace: 'figures', id: 'tarek' } }] }));
     const { onNavigate } = setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Wer ist Tarek?');
     fireEvent.click(await screen.findByText('Tarek Venn'));
     expect(onNavigate).toHaveBeenCalledWith({ workspace: 'figures', id: 'tarek' });
@@ -220,7 +220,7 @@ describe('AssistantDrawer', () => {
       .mockResolvedValueOnce(reply({ message: 'Welches Element meinst du?', clarification: { candidates: [{ id: 'tarek', name: 'Tarek Venn', kind: 'person' }] } }))
       .mockResolvedValueOnce(reply({ message: 'Eindeutig.' }));
     setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Ergänze sein Profil.');
     fireEvent.click(await screen.findByRole('button', { name: 'Tarek Venn' }));
     await screen.findByText('Eindeutig.');
@@ -232,7 +232,7 @@ describe('AssistantDrawer', () => {
       .mockResolvedValueOnce(reply({ sources: [{ id: 'element:tarek', kind: 'element', title: 'Tarek', text: '', target: { workspace: 'figures', id: 'tarek' } }] }))
       .mockResolvedValueOnce(reply());
     setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Wer ist Tarek?');
     await screen.findByText('Tarek');
     await askQuestion('Und sein Profil?');
@@ -242,7 +242,7 @@ describe('AssistantDrawer', () => {
   it('persists entries per worldId and starts fresh for a different world', async () => {
     vi.mocked(api.assistantChat).mockResolvedValue(reply({ message: 'Gemerkt.' }));
     const { unmount } = setup('world-a');
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Wer ist Tarek?');
     await screen.findByText('Gemerkt.');
     unmount();
@@ -252,34 +252,34 @@ describe('AssistantDrawer', () => {
     cleanup();
 
     setup('world-b');
-    expect(await screen.findByText('Wobei soll ich die Welt pflegen?')).toBeInTheDocument();
+    expect(await screen.findByText('Was soll ich in der Welt nachtragen?')).toBeInTheDocument();
   });
 
   it('"Neuer Chat" clears the transcript after confirmation', async () => {
     vi.mocked(api.assistantChat).mockResolvedValue(reply({ message: 'Gemerkt.' }));
     setup('world-clear');
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     await askQuestion('Wer ist Tarek?');
     await screen.findByText('Gemerkt.');
     fireEvent.click(screen.getByLabelText('Neuer Chat'));
     fireEvent.click(screen.getByText('Neuer Chat starten'));
-    expect(await screen.findByText('Wobei soll ich die Welt pflegen?')).toBeInTheDocument();
+    expect(await screen.findByText('Was soll ich in der Welt nachtragen?')).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('quiltor-assistant:world-clear') || '[]')).toEqual([]);
   });
 
   it('sends the picked chapters as chapterIds and shows the count in the picker summary', async () => {
     vi.mocked(api.assistantChat).mockResolvedValue(reply());
     setup();
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     fireEvent.click(screen.getByText('1. Die Krönung'));
-    expect(screen.getByText('Kontext: 1 Kapitel erzwungen')).toBeInTheDocument();
+    expect(screen.getByText('Kontext: Kapitelauswahl (1)')).toBeInTheDocument();
     await askQuestion('Fasse das zusammen.');
     expect(vi.mocked(api.assistantChat).mock.calls[0][3]).toEqual(['c1']);
   });
 
   it('does not render the chapter picker when the manuscript has no chapters', async () => {
     setup('world-empty', []);
-    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await screen.findByText('Was soll ich in der Welt nachtragen?');
     expect(screen.queryByText('Kontext: gesamte Welt')).not.toBeInTheDocument();
   });
 });

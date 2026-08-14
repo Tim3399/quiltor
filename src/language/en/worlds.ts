@@ -1,7 +1,7 @@
 export const worlds = {
-  authorWorkshop: 'Writer’s workshop', whichWorld: 'Which world would you like to open?', worldIntro: 'Each world has its own manuscript, character board, and backups.',
-  existingWorlds: 'Existing worlds', newWorld: 'New world', noWorld: 'No worlds yet.', lastChanged: 'Last changed', deleteWorld: 'Delete world', deleteWorldTitle: 'Delete local world', deleteWorldDescription: '“{title}” and its local database, backups, and Git working directory will be deleted. A connected remote repository remains untouched.',
-  newWorldIntro: 'Start with an empty manuscript and a blank character board.', worldTitle: 'World or book title', worldExample: 'For example: The Last Garden', gitRepository: 'Git repository (optional)', gitExample: 'https://git.example.com/name/my-world.git', repositoryRecommended: 'Strongly recommended: Back up each world to its own private repository on GitHub, GitLab, Gitea, or another Git provider.', createWorld: 'Create world',
+  authorWorkshop: 'Writer’s workshop', openWorld: 'Open a world', worldIntro: 'Each world has its own manuscript, its own character board, and its own backups.',
+  existingWorlds: 'Existing worlds', newWorld: 'New world', noWorld: 'No worlds yet.', lastChanged: 'Last changed', deleteWorld: 'Delete world', deleteWorldTitle: 'Delete local world', deleteWorldDescription: '“{title}” is deleted along with its local database, local backups, and local history. Snapshots already uploaded stay on the endpoint.',
+  newWorldIntro: 'Empty manuscript, empty character board.', worldTitle: 'World or book title', worldExample: 'The Last Garden', backupEndpoint: 'Cloud backup (optional)', backupExample: 'https://backup.example.com', backupRecommended: 'Recommended: one backup endpoint per world — the hosted service or your own server.', createWorld: 'Create world',
   loadingWorlds: 'Loading worlds …', openingWorkshop: 'Opening workshop …', unreachable: 'Workshop unavailable', restartServerHint: 'Start the local server with {code} and reload the page.',
   languageChoice: 'Language', germanLanguage: 'German', englishLanguage: 'English',
 } as const;

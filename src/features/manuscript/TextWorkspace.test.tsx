@@ -62,7 +62,7 @@ describe('TextWorkspace', () => {
     const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), inspectorOpen: true });
     const rendered = within(view.container);
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
-    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhelfer' }));
+    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     fireEvent.click(rendered.getByRole('tab', { name: 'Wörterbuch' }));
     fireEvent.change(rendered.getByLabelText('Suchbegriff'), { target: { value: 'Haus' } });
     fireEvent.submit(rendered.getByLabelText('Suchbegriff').closest('form')!);
@@ -76,7 +76,7 @@ describe('TextWorkspace', () => {
     const onChange = vi.fn();
     const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), inspectorOpen: true });
     const rendered = within(view.container);
-    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhelfer' }));
+    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
     fireEvent.click(rendered.getByRole('button', { name: 'Text prüfen' }));
     await waitFor(() => expect(api.checkGrammar).toHaveBeenCalledWith('Hallo Welt', ['Testfigur'], expect.any(AbortSignal)));

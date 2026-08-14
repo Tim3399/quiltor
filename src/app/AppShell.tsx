@@ -25,7 +25,7 @@ export function AppShell({ title, workspace, onWorkspace, navigationAvailable = 
       <nav className="workspace-switch" aria-label={t('workspaceNav')}>
         <button aria-current={workspace === 'text' ? 'page' : undefined} onClick={() => onWorkspace('text')}><FileText />{t('text')}</button>
         <button aria-current={workspace === 'figures' ? 'page' : undefined} onClick={() => onWorkspace('figures')}><Users />{t('figures')}</button>
-        <button aria-current={workspace === 'timeline' ? 'page' : undefined} onClick={() => onWorkspace('timeline')}><Clock3 />{t('timelineNav')}</button>
+        <button aria-current={workspace === 'timeline' ? 'page' : undefined} onClick={() => onWorkspace('timeline')}><Clock3 />{t('timeline')}</button>
         <button aria-current={workspace === 'places' ? 'page' : undefined} onClick={() => onWorkspace('places')}><MapPin />{t('places')}</button>
       </nav>
       <div className="global-actions" role="toolbar" aria-label={t('globalTools')}>
@@ -40,7 +40,7 @@ export function AppShell({ title, workspace, onWorkspace, navigationAvailable = 
         <MenuSeparator />
         <MenuItem onSelect={() => runOverflow(onGit)}><GitBranch />Git</MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => runOverflow(onTheme)}>{theme === 'dark' ? <Sun /> : <Moon />}{theme === 'dark' ? t('themeLightShort') : t('themeDarkShort')}</MenuItem>
+        <MenuItem onSelect={() => runOverflow(onTheme)}>{theme === 'dark' ? <Sun /> : <Moon />}{theme === 'dark' ? t('themeLight') : t('themeDark')}</MenuItem>
         {whoami && onLogout && <><MenuSeparator /><MenuItem onSelect={() => runOverflow(onLogout)}><LogOut />{t('logout')}</MenuItem></>}
       </Menu></Popover>
     </header>

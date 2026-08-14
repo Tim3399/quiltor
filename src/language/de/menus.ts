@@ -1,6 +1,6 @@
+// Generische Aktionsverben. Was hier steht, wird auch benutzt -- ungenutzte Vorratsvokabeln
+// gehören nicht in den Katalog.
 export const menus = {
-  menuMore: 'Mehr', menuClose: 'Schließen', menuActions: 'Aktionen',
-  cancel: 'Abbrechen', delete: 'Löschen', continue: 'Fortfahren', back: 'Zurück', next: 'Weiter',
-  yes: 'Ja', no: 'Nein', ok: 'OK', confirm: 'Bestätigen', edit: 'Bearbeiten', add: 'Hinzufügen',
-  remove: 'Entfernen', save: 'Speichern', close: 'Schließen',
+  menuMore: 'Mehr', menuActions: 'Aktionen',
+  cancel: 'Abbrechen', delete: 'Löschen', close: 'Schließen',
 } as const;

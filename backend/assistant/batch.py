@@ -34,11 +34,11 @@ def _format_minutes(seconds: float) -> str:
 def broad_scope_message(chapter_count: int) -> str:
     low, high = estimate_batch_seconds(chapter_count, 0.7), estimate_batch_seconds(chapter_count, 1.3)
     return (
-        f"Das betrifft alle {chapter_count} Kapitel. Eine einzelne Anfrage würde entweder "
-        f"nicht genug Kontext oder nicht genug Antwortraum bekommen, um das zuverlässig zu "
-        f"erledigen. Ich kann das stattdessen kapitelweise in Gruppen durchgehen -- das dauert "
-        f"lokal geschätzt {_format_minutes(low)}-{_format_minutes(high)} Minuten. Wähle "
-        f"entweder gezielt einzelne Kapitel aus, oder lass mich in Gruppen durchgehen."
+        f"Das betrifft alle {chapter_count} Kapitel. Eine einzelne Anfrage bekäme dafür entweder "
+        f"nicht genug Kontext oder nicht genug Antwortraum. Ich kann stattdessen kapitelweise "
+        f"in Gruppen durchgehen, lokal geschätzt "
+        f"{_format_minutes(low)}-{_format_minutes(high)} Minuten. Wähle einzelne Kapitel aus, "
+        f"oder lass mich in Gruppen durchgehen."
     )
 
 

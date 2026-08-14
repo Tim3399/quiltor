@@ -1,15 +1,17 @@
+// A stored text state is called a “version” throughout. The helper panel is the “writing aid”
+// everywhere, whether it appears in the inspector or in focus mode.
 export const manuscript = {
   manuscript: 'Manuscript', chapter: 'Chapter', chapters: 'Chapters', chapterText: 'Chapter text', chapterTitle: 'Chapter title', words: 'Words', totalWords: 'words total', characters: 'Characters', standardPages: 'Standard pages',
   navigation: 'Navigation', details: 'Details', focus: 'Focus', versions: 'Versions', exportManuscript: 'Export', exportOptions: 'Export options', bookPdf: 'Book PDF', creatingPdf: 'Creating PDF …',
   undoManuscript: 'Undo manuscript change', redoManuscript: 'Redo manuscript change', closeNavigation: 'Close chapter navigation', closeInspector: 'Close inspector',
-  chapterNote: 'Chapter note', moveUp: 'Move up', moveDown: 'Move down', chapterMarkdown: 'Chapter as Markdown', deleteChapter: 'Delete chapter', writingHelpers: 'Writing aids',
+  chapterNote: 'Chapter note', moveUp: 'Move up', moveDown: 'Move down', chapterMarkdown: 'Chapter as Markdown', deleteChapter: 'Delete chapter',
   figuresPlaces: 'Characters & places', ownTerms: 'Custom terms', specialCharacters: 'Special characters', addTerm: 'Add term', newTerm: 'New term',
   previousVersion: 'Previous version', nextToCurrent: 'Shown beside the current text', state: 'Version', loadingVersion: 'Loading version …', noVersion: 'No saved version yet.', closeVersions: 'Close chapter versions',
-  focusHelper: 'Writing aid', openFocusHelper: 'Open writing aid', closeFocusHelper: 'Close writing aid', leaveFocus: 'Leave focus mode',
-  newChapterTitle: 'Chapter {n}', downloadBookPdfHelp: 'Download typeset 6×9-inch book', startWritingPlaceholder: 'Start writing …', versionLoadError: 'The version could not be loaded.', chapterNotYetExisting: 'This chapter did not yet exist at this point in history.',
-  noChapterYet: 'No chapter yet', createFirstChapter: 'Create first chapter', chapterInspectorLabel: 'Chapter inspector', chapterNotePlaceholder: 'What needs to happen in this chapter?', removeTerm: 'Remove {word}',
-  focusChapterPickerLabel: 'Chapter picker (focus mode)', selectChapters: 'Select chapters', closeChapterPicker: 'Close chapter picker', openChapterPicker: 'Open chapter picker', focusHelperPanelLabel: 'Writing aid (focus mode)',
-  novelLabel: 'Novel', untitledWorld: 'Untitled world', manuscriptVersionLabel: 'Manuscript version ·', deleteChapterDescription: '"{title}" will be removed from the manuscript. Hold the delete button for five seconds.', bookPdfError: 'The book PDF could not be generated.',
+  writingAid: 'Writing aid', openWritingAid: 'Open writing aid', closeWritingAid: 'Close writing aid', writingAidPanelLabel: 'Writing aid (focus mode)', leaveFocus: 'Leave focus mode',
+  newChapterTitle: 'Chapter {n}', startWritingPlaceholder: 'Start writing …', versionLoadError: 'The version could not be loaded.', chapterNotYetExisting: 'This chapter did not exist yet in this version.',
+  noChapterYet: 'No chapter yet', createFirstChapter: 'Create first chapter', chapterInspectorLabel: 'Chapter inspector', chapterNotePlaceholder: 'Note on this chapter', removeTerm: 'Remove {word}',
+  focusChapterPickerLabel: 'Chapter picker (focus mode)', selectChapters: 'Select chapters', closeChapterPicker: 'Close chapter picker', openChapterPicker: 'Open chapter picker',
+  novelLabel: 'Novel', untitledWorld: 'Untitled world', manuscriptVersionLabel: 'Manuscript version', deleteChapterDescription: '“{title}” will be removed from the manuscript.', bookPdfError: 'The book PDF could not be generated.',
   ambiguousMentions: 'Ambiguous links', worldObject: 'World object',
   orphanedMentionsRemoved: '{count} orphaned links were removed.', updateEntityMentions: 'Update manuscript?', updateEntityMentionsDescription: '“{from}” was renamed to “{to}”. Replace all linked occurrences in the manuscript?', updateMentions: 'Replace occurrences',
 } as const;

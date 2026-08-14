@@ -44,7 +44,7 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
   }, []);
 
   const addMomentAt = (index: number) => {
-    const moment: TimelineMoment = { id: uid('t'), title: t('timelineNew') };
+    const moment: TimelineMoment = { id: uid('t'), title: t('newMoment') };
     const next = [...timeline]; next.splice(index, 0, moment);
     onChange({ ...state, timeline: next }); setSelectedId(moment.id);
   };
@@ -59,7 +59,7 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
   const moveMoment = (offset: number) => selected && moveMomentTo(selected.id, selectedIndex + offset + (offset > 0 ? 1 : 0));
   const duplicateMoment = () => {
     if (!selected) return;
-    const copy = { ...selected, id: uid('t'), title: t('timelineCopyName', { name: selected.title || t('timelineUntitled') }) };
+    const copy = { ...selected, id: uid('t'), title: t('copyName', { name: selected.title || t('untitled') }) };
     const next = [...timeline]; next.splice(selectedIndex + 1, 0, copy);
     onChange({
       ...state,
@@ -99,20 +99,20 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
   });
 
   return <section className="timeline-workspace" aria-label={t('timeline')}>
-    <div className="context-bar"><div className="context-title"><strong>{t('timeline')}</strong><span>{timeline.length} {t('timelinePoints')} · {state.edges.length} {t('timelineRelations')}</span></div><div className="context-tools">
-      <div className="tool-group"><button className="primary" onClick={() => addMomentAt(selectedIndex >= 0 ? selectedIndex + 1 : timeline.length)}><Plus />{t('timelineAdd')}</button></div>
+    <div className="context-bar"><div className="context-title"><strong>{t('timeline')}</strong><span>{t('nMoments', { n: timeline.length })} · {t('nRelationships', { n: state.edges.length })}</span></div><div className="context-tools">
+      <div className="tool-group"><button className="primary" onClick={() => addMomentAt(selectedIndex >= 0 ? selectedIndex + 1 : timeline.length)}><Plus />{t('addMoment')}</button></div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('timelineUndo')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('timelineRedo')}><Redo2 /></button></div>
     </div></div>
 
     {!timeline.length ? <div className="timeline-manager-empty"><Clock3 /><h2>{t('timelineEmptyTitle')}</h2><p>{t('timelineEmptyHelp')}</p><button onClick={() => addMomentAt(0)}><Plus />{t('timelineFirst')}</button></div> : <>
-      <nav className="story-timeline" aria-label={t('timelineRail')}>
+      <nav className="story-timeline" aria-label={t('timeline')}>
         <div className="story-track"><InsertMomentButton label={t('timelineInsertStart')} onClick={() => addMomentAt(0)} />
           {timeline.map((moment, index) => <div className="story-moment-wrap" key={moment.id}>
             <button draggable className={`story-moment ${moment.id === selectedId ? 'active' : ''}`} aria-current={moment.id === selectedId ? 'step' : undefined}
               onDragStart={() => setDraggedMomentId(moment.id)} onDragEnd={() => setDraggedMomentId(null)}
               onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedMomentId) moveMomentTo(draggedMomentId, index); setDraggedMomentId(null); }}
               onClick={() => setSelectedId(moment.id)}>
-              <GripVertical aria-hidden="true" /><span>{index + 1}</span><strong>{moment.title || t('timelineUntitled')}</strong><small>{moment.date || `${countMomentChanges(state, moment.id)} ${t('timelineChanges')}`}</small>
+              <GripVertical aria-hidden="true" /><span>{index + 1}</span><strong>{moment.title || t('untitled')}</strong><small>{moment.date || t('nChanges', { n: countMomentChanges(state, moment.id) })}</small>
             </button>
             <InsertMomentButton label={t('timelineInsertAfter', { title: moment.title || String(index + 1) })} onClick={() => addMomentAt(index + 1)} />
           </div>)}
@@ -122,11 +122,11 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
       {selected && <div className={`storyboard-layout ${selectedEdge ? 'has-inspector' : ''}`}>
         <main className="storyboard-main">
           <header className="storyboard-header"><div className="storyboard-stepper"><button disabled={selectedIndex <= 0} onClick={() => setSelectedId(timeline[selectedIndex - 1]?.id)} aria-label={t('timelinePrevious')}><ChevronLeft /></button><span>{t('timelineOf', { current: selectedIndex + 1, total: timeline.length })}</span><button disabled={selectedIndex >= timeline.length - 1} onClick={() => setSelectedId(timeline[selectedIndex + 1]?.id)} aria-label={t('timelineNext')}><ChevronRight /></button></div>
-            <div className="storyboard-title"><span>{t('timelinePoint', { number: selectedIndex + 1 })}</span><h1>{selected.title || t('timelineUntitled')}</h1><small>{t('timelineOwnChanges', { count: changes })}</small></div>
-            <div className="storyboard-actions"><button ref={actionsButton} aria-haspopup="menu" aria-expanded={actionsOpen} onClick={() => setActionsOpen(value => !value)}><MoreHorizontal />{t('menuActions')}</button><Popover anchorRef={actionsButton} open={actionsOpen} onClose={() => setActionsOpen(false)} label={t('timelineActions')}><Menu label={t('timelineActions')} onClose={() => setActionsOpen(false)}><MenuItem disabled={selectedIndex === 0} onSelect={() => { moveMoment(-1); setActionsOpen(false); }}><ArrowUp />{t('timelineEarlier')}</MenuItem><MenuItem disabled={selectedIndex === timeline.length - 1} onSelect={() => { moveMoment(1); setActionsOpen(false); }}><ArrowDown />{t('timelineLater')}</MenuItem><MenuItem onSelect={duplicateMoment}><Copy />{t('timelineDuplicate')}</MenuItem><MenuSeparator /><MenuItem onSelect={() => { setDeleteMoment(selected); setActionsOpen(false); }}><Trash2 />{t('timelineDelete')}</MenuItem></Menu></Popover></div>
+            <div className="storyboard-title"><span>{t('timelinePoint', { number: selectedIndex + 1 })}</span><h1>{selected.title || t('untitled')}</h1><small>{t('timelineOwnChanges', { count: changes })}</small></div>
+            <div className="storyboard-actions"><button ref={actionsButton} aria-haspopup="menu" aria-expanded={actionsOpen} onClick={() => setActionsOpen(value => !value)}><MoreHorizontal />{t('menuActions')}</button><Popover anchorRef={actionsButton} open={actionsOpen} onClose={() => setActionsOpen(false)} label={t('timelineActions')}><Menu label={t('timelineActions')} onClose={() => setActionsOpen(false)}><MenuItem disabled={selectedIndex === 0} onSelect={() => { moveMoment(-1); setActionsOpen(false); }}><ArrowUp />{t('timelineEarlier')}</MenuItem><MenuItem disabled={selectedIndex === timeline.length - 1} onSelect={() => { moveMoment(1); setActionsOpen(false); }}><ArrowDown />{t('timelineLater')}</MenuItem><MenuItem onSelect={duplicateMoment}><Copy />{t('timelineDuplicate')}</MenuItem><MenuSeparator /><MenuItem onSelect={() => { setDeleteMoment(selected); setActionsOpen(false); }}><Trash2 />{t('delete')}</MenuItem></Menu></Popover></div>
           </header>
 
-          <section className="timeline-meta-card"><label className="field"><span>{t('timelineName')}</span><input value={selected.title} onChange={event => patchMoment({ title: event.target.value })} /></label><label className="field"><span>{t('timelineDate')}</span><input type="date" value={selected.date || ''} onChange={event => patchMoment({ date: event.target.value || undefined })} /></label><label className="field timeline-note"><span>{t('timelineNote')}</span><textarea value={selected.note || ''} placeholder={t('timelineNotePlaceholder')} onChange={event => patchMoment({ note: event.target.value })} /></label></section>
+          <section className="timeline-meta-card"><label className="field"><span>{t('name')}</span><input value={selected.title} onChange={event => patchMoment({ title: event.target.value })} /></label><label className="field"><span>{t('optionalDate')}</span><input type="date" value={selected.date || ''} onChange={event => patchMoment({ date: event.target.value || undefined })} /></label><label className="field timeline-note"><span>{t('optionalNote')}</span><textarea value={selected.note || ''} placeholder={t('timelineNotePlaceholder')} onChange={event => patchMoment({ note: event.target.value })} /></label></section>
 
           <ManagerSection id="relationships" title={t('relationships')} count={edgeChanges.length} description={mode === 'changes' ? t('timelineRelationsChanged') : t('timelineRelationsState')} open={openSections.has('relationships')} onToggle={() => toggleSection('relationships')}>
             <div className="storyboard-mode-row"><span>{t('timelineRelationshipView')}</span><div className="storyboard-mode" role="group" aria-label={t('timelineView')}><button aria-pressed={mode === 'changes'} onClick={() => setMode('changes')}>{t('timelineOnlyChanges')}</button><button aria-pressed={mode === 'state'} onClick={() => setMode('state')}>{t('timelineWholeState')}</button></div></div>
@@ -141,15 +141,15 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
           <ManagerSection id="life" title={t('timelineLife')} count={lifeChanges.length} description={t('timelineLifeHelp')} open={openSections.has('life')} onToggle={() => toggleSection('life')}>
             <div className="life-event-board"><div className="life-event-roster">{lifeNodes.map(node => <button key={node.id} draggable className={selectedLifeId === node.id ? 'selected' : ''} aria-pressed={selectedLifeId === node.id} onDragStart={event => event.dataTransfer.setData('application/x-quiltor-life', node.id)} onClick={() => setSelectedLifeId(value => value === node.id ? null : node.id)}><strong>{node.name}</strong><small>{node.type === 'tier' ? t('animal') : t('figure')}</small></button>)}</div>
               <button className="death-dropzone" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const id = event.dataTransfer.getData('application/x-quiltor-life'); if (id) markDeath(id); }} onClick={() => selectedLifeId && markDeath(selectedLifeId)}><Skull /><span><strong>{t('timelineDeathHere')}</strong><small>{selectedLifeId ? t('timelineDeathSelected') : t('timelineDeathHelp')}</small></span></button>
-              {!!lifeChanges.length && <div className="life-change-list">{lifeChanges.map(node => <button key={node.id} onClick={() => markDeath(node.id)}><Skull /><span><strong>{node.name}</strong><small>{t('timelineRemoveDeath')}</small></span><X /></button>)}</div>}
+              {!!lifeChanges.length && <div className="life-change-list">{lifeChanges.map(node => <button key={node.id} onClick={() => markDeath(node.id)}><Skull /><span><strong>{node.name}</strong><small>{t('removeDeathMarker')}</small></span><X /></button>)}</div>}
             </div>
           </ManagerSection>
         </main>
         {selectedEdge && !compact && <RelationshipInspector edge={selectedEdge} nodes={state.nodes} timeline={timeline} momentId={selected.id} explicit={edgeChanges.includes(selectedEdge)} onPatch={patch => patchEdge(selectedEdge, patch)} onReset={() => { removeEdgeChange(selectedEdge); setSelectedEdgeId(null); }} onClose={() => setSelectedEdgeId(null)} t={t} />}
       </div>}
     </>}
-    {selected && selectedEdge && compact && <Sheet open label={t('timelineRelation')} onClose={() => setSelectedEdgeId(null)}><RelationshipInspector edge={selectedEdge} nodes={state.nodes} timeline={timeline} momentId={selected.id} explicit={edgeChanges.includes(selectedEdge)} onPatch={patch => patchEdge(selectedEdge, patch)} onReset={() => { removeEdgeChange(selectedEdge); setSelectedEdgeId(null); }} onClose={() => setSelectedEdgeId(null)} t={t} /></Sheet>}
-    {deleteMoment && <ConfirmDialog title={t('timelineDeleteTitle')} description={t('timelineDeleteDescription', { title: deleteMoment.title, count: countMomentChanges(state, deleteMoment.id) })} confirmLabel={t('timelineDeleteConfirm')} holdDurationMs={DELETE_HOLD_MS} onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[Math.min(selectedIndex, remaining.length - 1)]?.id || null); setDeleteMoment(null); }} />}
+    {selected && selectedEdge && compact && <Sheet open label={t('relationship')} onClose={() => setSelectedEdgeId(null)}><RelationshipInspector edge={selectedEdge} nodes={state.nodes} timeline={timeline} momentId={selected.id} explicit={edgeChanges.includes(selectedEdge)} onPatch={patch => patchEdge(selectedEdge, patch)} onReset={() => { removeEdgeChange(selectedEdge); setSelectedEdgeId(null); }} onClose={() => setSelectedEdgeId(null)} t={t} /></Sheet>}
+    {deleteMoment && <ConfirmDialog title={t('deleteMoment')} description={t('timelineDeleteDescription', { title: deleteMoment.title, count: countMomentChanges(state, deleteMoment.id) })} confirmLabel={t('deleteMoment')} holdDurationMs={DELETE_HOLD_MS} onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[Math.min(selectedIndex, remaining.length - 1)]?.id || null); setDeleteMoment(null); }} />}
   </section>;
 }
 
@@ -168,23 +168,23 @@ function RelationshipCard({ edge, nodes, timeline, momentId, explicit, selected,
   const before = index > 0 ? resolveRelationship(edge, timeline, timeline[index - 1].id) : { ...edge, active: edge.active !== false };
   const from = nodes.find(node => node.id === current.from), to = nodes.find(node => node.id === current.to);
   const changedLabel = explicit && before.label !== current.label;
-  return <button className={`relationship-change-card ${selected ? 'selected' : ''} ${!current.active ? 'inactive' : ''}`} onClick={onSelect}><div className="relationship-card-main"><span className="change-badge">{explicit ? current.active ? t('timelineChange') : t('timelineEndsHere') : t('timelineInheritedBadge')}</span><strong>{from?.name || t('timelineUnknown')} <i>{current.gerichtet ? '→' : '↔'}</i> {to?.name || t('timelineUnknown')}</strong><small>{changedLabel ? t('timelineChangedLabel', { before: before.label || t('timelineNoLabel'), after: current.label || t('timelineNoLabel') }) : current.label || t('timelineWithoutLabel')}</small></div><ChevronRight /></button>;
+  return <button className={`relationship-change-card ${selected ? 'selected' : ''} ${!current.active ? 'inactive' : ''}`} onClick={onSelect}><div className="relationship-card-main"><span className="change-badge">{explicit ? current.active ? t('timelineChange') : t('timelineEndsHere') : t('timelineInheritedBadge')}</span><strong>{from?.name || t('unknown')} <i>{current.gerichtet ? '→' : '↔'}</i> {to?.name || t('unknown')}</strong><small>{changedLabel ? t('timelineChangedLabel', { before: before.label || t('timelineNoLabel'), after: current.label || t('timelineNoLabel') }) : current.label || t('timelineWithoutLabel')}</small></div><ChevronRight /></button>;
 }
 
 function RelationshipInspector({ edge, nodes, timeline, momentId, explicit, onPatch, onReset, onClose, t }: { edge: FigureEdge; nodes: FigureNode[]; timeline: TimelineMoment[]; momentId: string; explicit: boolean; onPatch: (patch: Partial<FigureEdge>) => void; onReset: () => void; onClose: () => void; t: Translate }) {
   const resolved = resolveRelationship(edge, timeline, momentId);
   const labelEditor = relationshipLabelEditor(edge, timeline, momentId);
   const from = nodes.find(node => node.id === resolved.from), to = nodes.find(node => node.id === resolved.to);
-  return <aside className="storyboard-inspector" aria-label={t('timelineRelation')}><header><div><span>{t('timelineRelation')}</span><strong>{from?.name || t('timelineUnknown')} {resolved.gerichtet ? '→' : '↔'} {to?.name || t('timelineUnknown')}</strong></div><button className="icon-button" onClick={onClose} aria-label={t('timelineCloseRelation')}><X /></button></header><div className="panel-body">
-    <label className="field"><span>{t('timelineLabelFromHere')}</span><input value={labelEditor.value} placeholder={labelEditor.inherited ? t('timelineInherited', { value: labelEditor.inherited }) : t('timelineRelationPlaceholder')} disabled={!resolved.active} onChange={event => onPatch({ label: event.target.value })} /></label>
-    <div className="relationship-inspector-actions"><button aria-pressed={resolved.active} onClick={() => onPatch({ active: !resolved.active })}>{resolved.active ? t('timelineAppliesHere') : t('timelineEndsHere')}</button><button aria-pressed={!!resolved.gerichtet} disabled={!resolved.active} onClick={() => onPatch({ gerichtet: !resolved.gerichtet })}>{resolved.gerichtet ? t('timelineDirected') : t('timelineUndirected')}</button><button disabled={!resolved.active || !resolved.gerichtet} onClick={() => onPatch({ from: resolved.to, to: resolved.from })}><ArrowLeftRight />{t('timelineReverse')}</button></div>
+  return <aside className="storyboard-inspector" aria-label={t('relationship')}><header><div><span>{t('relationship')}</span><strong>{from?.name || t('unknown')} {resolved.gerichtet ? '→' : '↔'} {to?.name || t('unknown')}</strong></div><button className="icon-button" onClick={onClose} aria-label={t('timelineCloseRelation')}><X /></button></header><div className="panel-body">
+    <label className="field"><span>{t('timelineLabelFromHere')}</span><input value={labelEditor.value} placeholder={labelEditor.inherited ? t('timelineInherited', { value: labelEditor.inherited }) : t('relationship')} disabled={!resolved.active} onChange={event => onPatch({ label: event.target.value })} /></label>
+    <div className="relationship-inspector-actions"><button aria-pressed={resolved.active} onClick={() => onPatch({ active: !resolved.active })}>{resolved.active ? t('timelineAppliesHere') : t('timelineEndsHere')}</button><button aria-pressed={!!resolved.gerichtet} disabled={!resolved.active} onClick={() => onPatch({ gerichtet: !resolved.gerichtet })}>{resolved.gerichtet ? t('directed') : t('undirected')}</button><button disabled={!resolved.active || !resolved.gerichtet} onClick={() => onPatch({ from: resolved.to, to: resolved.from })}><ArrowLeftRight />{t('reverseDirection')}</button></div>
     {explicit ? <button className="secondary-action reset-inheritance" onClick={onReset}><Undo2 />{t('timelineRemoveOwn')}<small>{t('timelineInheritPrevious')}</small></button> : <p className="inherited-note">{t('timelineInheritedHelp')}</p>}
   </div></aside>;
 }
 
 function relationshipName(edge: FigureEdge, nodes: FigureNode[], timeline: TimelineMoment[], momentId: string, t: Translate) {
   const current = resolveRelationship(edge, timeline, momentId), from = nodes.find(node => node.id === current.from), to = nodes.find(node => node.id === current.to);
-  return `${from?.name || t('timelineUnknown')} ${current.gerichtet ? '→' : '↔'} ${to?.name || t('timelineUnknown')} · ${current.label || t('timelineNoLabel')}`;
+  return `${from?.name || t('unknown')} ${current.gerichtet ? '→' : '↔'} ${to?.name || t('unknown')} · ${current.label || t('timelineNoLabel')}`;
 }
 
 function countMomentChanges(state: FigureState, momentId: string) {

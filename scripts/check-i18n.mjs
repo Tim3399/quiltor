@@ -46,13 +46,30 @@ if (violations.length) {
   console.log('Keine hartcodierten sichtbaren UI-Texte gefunden.');
 }
 
+// Strings and line comments have to be removed in a single pass, not by two chained regexes:
+// stripping strings first lets an apostrophe inside a comment ("its own file") open a string
+// that swallows the rest of the file, while stripping comments first eats the // in URLs.
+function withoutStringsAndComments(text) {
+  let out = '';
+  for (let index = 0; index < text.length; index++) {
+    if (text[index] === "'") {
+      while (++index < text.length && text[index] !== "'") if (text[index] === '\\') index++;
+      out += "''";
+    } else if (text[index] === '/' && text[index + 1] === '/') {
+      while (index < text.length && text[index] !== '\n') index++;
+      out += '\n';
+    } else out += text[index];
+  }
+  return out;
+}
+
 function languageKeys(directory) {
   const keys = new Set();
   const duplicates = new Set();
   for (const name of readdirSync(directory)) {
     if (!name.endsWith('.ts') || name === 'index.ts') continue;
     const text = readFileSync(join(directory, name), 'utf8');
-    const structure = text.replace(/'(?:\\.|[^'\\])*'/gs, "''").replace(/\/\/.*$/gm, '');
+    const structure = withoutStringsAndComments(text);
     for (const match of structure.matchAll(/(?:^|[, {\n])\s*([A-Za-z_$][\w$]*)\s*:/gm)) {
       if (keys.has(match[1])) duplicates.add(match[1]);
       keys.add(match[1]);
