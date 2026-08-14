@@ -2,6 +2,7 @@ export const assistant = {
   localOnlySuggestions: 'Local · suggestions only', newChat: 'New chat', closeAssistant: 'Close assistant',
   sourcesIndexed: '{n} sources indexed', sourcesScopeDescription: 'World, manuscript, profiles, relationships, and timeline',
   localModelUnavailable: 'Local model unavailable', stillFullyUsable: 'Quiltor itself remains fully usable.', retry: 'Try again',
+  installAssistant: 'Set up now', installingAssistant: 'Setting up … {percent}%', installAssistantError: 'Setup failed: {error}',
   assistantGreeting: 'What should I help maintain in your world?', assistantGreetingBody: 'I can prepare characters and relationships, create timeline states, and evaluate existing information with sources.',
   findMissingFigures: 'Find missing characters', findMissingFiguresPrompt: 'Based on my existing notes, propose any missing characters.', checkTimeline: 'Check timeline', checkTimelinePrompt: 'Check the relationships and timeline for gaps or contradictions.',
   retryLabel: 'Try again', requestAborted: 'Request aborted.',

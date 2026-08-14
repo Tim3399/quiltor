@@ -70,7 +70,9 @@ export const api = {
   textVersion: (ref: string, chapter: number, title: string) => json<{ ok: boolean; neu?: boolean; text: string }>(withWorldQuery(`/api/textfassung?ref=${encodeURIComponent(ref)}&kapitel=${chapter}&titel=${encodeURIComponent(title)}`)),
   backups: () => json<{ ok: boolean; backups: Array<{ name: string; created: string; size: number }> }>(withWorldQuery('/api/backups')),
   restore: (name: string) => json<{ ok: boolean }>('/api/backups/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ name })) }),
-  assistantStatus: () => json<{ ok: boolean; available: boolean; mode: string; reason: string; chunks: number; backend?: string; contextTokens?: number; model?: string }>(withWorldQuery('/api/assistant/status')),
+  assistantStatus: () => json<{ ok: boolean; available: boolean; mode: string; reason: string; installed: boolean; chunks: number; backend?: string; contextTokens?: number; model?: string }>(withWorldQuery('/api/assistant/status')),
+  assistantInstall: () => json<{ ok: boolean; started: boolean }>('/api/assistant/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  assistantInstallStatus: () => json<{ ok: boolean; running: boolean; phase: string; percent: number; error: string }>('/api/assistant/install/status'),
   assistantChat: (question: string, history: AssistantHistoryMessage[] = [], signal?: AbortSignal, chapterIds?: string[], batch?: { runBatches: boolean; progressId: string }) =>
     json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ question, history, chapterIds, runBatches: batch?.runBatches, progressId: batch?.progressId })), signal }),
   assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; label: string; startedAt: number; updatedAt: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),

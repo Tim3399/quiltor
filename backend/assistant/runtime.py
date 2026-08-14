@@ -136,6 +136,17 @@ class AssistantRuntime:
         self.process: subprocess.Popen[str] | None = started[0] if started else None
         self.log_path: Path | None = started[1] if started else None
 
+    def reload(self) -> None:
+        """Re-attempts starting the local runtime if it isn't already running --
+        picks up a runtime installed after server startup (see the desktop/web UI's
+        "set up now" button, server.py's /api/assistant/install) without requiring
+        a full server restart."""
+        if self.process is not None and self.process.poll() is None:
+            return  # already running
+        started = select.start_runtime(self.base, self.data, self.url)
+        self.process = started[0] if started else None
+        self.log_path = started[1] if started else None
+
     def status(self) -> dict[str, Any]:
         if check_health(self.url):
             backend = "mlx" if self.log_path and "mlx" in self.log_path.name else "llama.cpp"

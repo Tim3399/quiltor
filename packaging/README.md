@@ -96,13 +96,18 @@ Only `desktop_platform.py` branches on `sys.platform` — everything else
   download; Playwright for Python's own driver adds only ~50-90MB, and no system
   Node.js is required. If neither Chrome nor Edge is installed, PDF export fails
   with a clear error message (rare in practice — Windows ships Edge by default).
-- **The local AI assistant's first-run prompt is silent** — `ensure_installed()`
-  (`backend/llm/installer.py`) only asks interactively when `sys.stdin.isatty()`;
-  a windowed build has no console, so it stays quiet and the assistant panel
-  simply reports itself unavailable. Setting it up currently still requires a
-  terminal: `python3 -m backend.llm.installer` (or run it against the venv above)
-  before/instead of using the desktop app. Wiring a "set up assistant" button into
-  the UI itself is a natural follow-up, not yet built.
+- **The local AI assistant's first-run terminal prompt is silent** —
+  `ensure_installed()` (`backend/llm/installer.py`) only asks interactively when
+  `sys.stdin.isatty()`; a windowed build has no console, so it stays quiet and the
+  assistant panel simply reports itself unavailable at first launch. It's no
+  longer terminal-only, though: the assistant panel's "Local model unavailable"
+  banner offers a "Set up now" button (only shown when nothing is installed yet,
+  not when a previously-working install has merely crashed) that triggers the
+  same install in the background with a live progress bar, no terminal needed --
+  see `install_async()`/`read_install_state()` in `backend/llm/installer.py`,
+  the `/api/assistant/install` routes in `server.py`, and
+  `AssistantRuntime.reload()` in `backend/assistant/runtime.py`, which picks up
+  the freshly installed runtime without a server restart.
 
 ## Signing and distribution (v1: unsigned)
 

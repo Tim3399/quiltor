@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, BookOpen, Bot, Check, ChevronDown, Database, Plus, RotateCw, Sparkles, Square, X } from 'lucide-react';
+import { ArrowUp, BookOpen, Bot, Check, ChevronDown, Database, Download, Plus, RotateCw, Sparkles, Square, X } from 'lucide-react';
 import { api, errorMessage } from '../../lib/api';
 import type { AssistantProposal, AssistantReply, AssistantSource, Chapter, FigureState, Workspace } from '../../types';
 import { proposalLabel, scopeAssistantProposals } from './proposals';
@@ -21,7 +21,9 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
   const storageKey = `quiltor-assistant:${worldId}`;
   const [entries, setEntries] = useState<Entry[]>(() => { try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; } });
   const [draft, setDraft] = useState(''), [sending, setSending] = useState(false);
-  const [status, setStatus] = useState<{ available: boolean; reason: string; chunks: number } | null>(null);
+  const [status, setStatus] = useState<{ available: boolean; reason: string; installed: boolean; chunks: number } | null>(null);
+  const [installState, setInstallState] = useState<{ running: boolean; phase: string; percent: number; error: string } | null>(null);
+  const installPollRef = useRef<number | undefined>(undefined);
   const [confirmNewChat, setConfirmNewChat] = useState(false);
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
   const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; label: string } | null>(null);
@@ -31,13 +33,32 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
   const chapterPickerRef = useRef<HTMLDetailsElement>(null);
   const openChapterPicker = () => { const el = chapterPickerRef.current; if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
   const checkStatus = useCallback(() => {
-    api.assistantStatus().then(setStatus).catch(error => setStatus({ available: false, reason: errorMessage(error), chunks: 0 }));
+    api.assistantStatus().then(setStatus).catch(error => setStatus({ available: false, reason: errorMessage(error), installed: false, chunks: 0 }));
   }, []);
   useEffect(() => {
     checkStatus();
     const interval = window.setInterval(checkStatus, STATUS_POLL_MS);
     return () => window.clearInterval(interval);
   }, [checkStatus]);
+  const pollInstall = useCallback(() => {
+    api.assistantInstallStatus().then(state => {
+      setInstallState(state);
+      if (!state.running) {
+        window.clearInterval(installPollRef.current);
+        installPollRef.current = undefined;
+        checkStatus();
+      }
+    }).catch(() => {});
+  }, [checkStatus]);
+  const startInstall = () => {
+    setInstallState({ running: true, phase: '', percent: 0, error: '' });
+    void api.assistantInstall().then(() => {
+      if (installPollRef.current) return;
+      installPollRef.current = window.setInterval(pollInstall, 1000);
+      pollInstall();
+    });
+  };
+  useEffect(() => () => window.clearInterval(installPollRef.current), []);
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(entries.slice(-40))); end.current?.scrollIntoView({ behavior: 'smooth' }); }, [entries, storageKey]);
   useEffect(() => {
     if (typeof matchMedia !== 'function') return;
@@ -95,7 +116,14 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
       </div>
     </header>
     <div className="assistant-scope"><Database /><span><strong>{t('sourcesIndexed').replace('{n}', String(status?.chunks ?? '…'))}</strong><small>{t('sourcesScopeDescription')}</small></span></div>
-    {status && !status.available && <div className="assistant-offline" role="alert"><Bot /><div><strong>{t('localModelUnavailable')}</strong><p>{status.reason}</p><small>{t('stillFullyUsable')}</small><button onClick={checkStatus}><RotateCw />{t('retry')}</button></div></div>}
+    {status && !status.available && <div className="assistant-offline" role="alert"><Bot /><div><strong>{t('localModelUnavailable')}</strong><p>{status.reason}</p><small>{t('stillFullyUsable')}</small>
+      {installState?.running
+        ? <div className="assistant-progress"><span>{t('installingAssistant').replace('{percent}', String(installState.percent))}</span><div className="assistant-progress-bar"><span style={{ width: `${installState.percent}%` }} /></div></div>
+        : status.installed
+          ? <button onClick={checkStatus}><RotateCw />{t('retry')}</button>
+          : <button onClick={startInstall}><Download />{t('installAssistant')}</button>}
+      {installState?.error && <p className="error-box" role="alert">{t('installAssistantError').replace('{error}', installState.error)}</p>}
+    </div></div>}
     <div className="assistant-messages">
       {!entries.length && <div className="assistant-empty"><Bot /><h2>{t('assistantGreeting')}</h2><p>{t('assistantGreetingBody')}</p><button onClick={() => setDraft(t('findMissingFiguresPrompt'))}>{t('findMissingFigures')}</button><button onClick={() => setDraft(t('checkTimelinePrompt'))}>{t('checkTimeline')}</button></div>}
       {entries.map(entry => <article className="assistant-exchange" key={entry.id}>

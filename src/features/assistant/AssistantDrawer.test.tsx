@@ -5,7 +5,7 @@ import { api } from '../../lib/api';
 import { LanguageProvider } from '../../language';
 import type { AssistantReply, Chapter, FigureState } from '../../types';
 
-vi.mock('../../lib/api', () => ({ api: { assistantStatus: vi.fn(), assistantChat: vi.fn() }, errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }));
+vi.mock('../../lib/api', () => ({ api: { assistantStatus: vi.fn(), assistantChat: vi.fn(), assistantInstall: vi.fn(), assistantInstallStatus: vi.fn() }, errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }));
 
 // jsdom doesn't implement scrollIntoView; the drawer calls it on every entries change.
 Element.prototype.scrollIntoView = vi.fn();
@@ -14,8 +14,11 @@ afterEach(cleanup);
 
 const FIGURES: FigureState = { nodes: [{ id: 'tarek', x: 0, y: 0, name: 'Tarek Venn', type: 'person' }], edges: [] };
 const CHAPTERS: Chapter[] = [{ id: 'c1', title: 'Die Krönung', body: '', note: '' }, { id: 'c2', title: 'Am Fluss', body: '', note: '' }];
-const ONLINE = { ok: true, available: true, mode: 'local', reason: '', chunks: 3 };
-const OFFLINE = { ok: true, available: false, mode: 'local', reason: 'Lokales Modell ist noch nicht installiert.', chunks: 0 };
+const ONLINE = { ok: true, available: true, mode: 'local', reason: '', installed: true, chunks: 3 };
+// Installed but currently not running (e.g. the process crashed) -- distinct from
+// NOT_INSTALLED below, which drives the "Jetzt einrichten" button instead of "Nochmal versuchen".
+const OFFLINE = { ok: true, available: false, mode: 'local', reason: 'Lokaler Modell-Prozess ist beendet.', installed: true, chunks: 0 };
+const NOT_INSTALLED = { ok: true, available: false, mode: 'local', reason: 'Lokales Modell ist noch nicht installiert oder gestartet.', installed: false, chunks: 0 };
 
 function reply(patch: Partial<AssistantReply> = {}): AssistantReply {
   return { ok: true, message: 'Alles bereit.', proposals: [], sources: [], ...patch };
@@ -36,6 +39,8 @@ beforeEach(() => {
   localStorage.clear();
   vi.mocked(api.assistantStatus).mockReset().mockResolvedValue(ONLINE);
   vi.mocked(api.assistantChat).mockReset();
+  vi.mocked(api.assistantInstall).mockReset().mockResolvedValue({ ok: true, started: true });
+  vi.mocked(api.assistantInstallStatus).mockReset();
 });
 
 describe('AssistantDrawer', () => {
@@ -60,6 +65,35 @@ describe('AssistantDrawer', () => {
     setup();
     await screen.findByText('Lokales Modell nicht verfügbar');
     fireEvent.click(screen.getByText('Nochmal versuchen'));
+    await waitFor(() => expect(screen.queryByText('Lokales Modell nicht verfügbar')).not.toBeInTheDocument());
+    expect(api.assistantStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers "Jetzt einrichten" instead of "Nochmal versuchen" when the model was never installed', async () => {
+    vi.mocked(api.assistantStatus).mockResolvedValue(NOT_INSTALLED);
+    setup();
+    await screen.findByText('Lokales Modell nicht verfügbar');
+    expect(screen.getByText('Jetzt einrichten')).toBeInTheDocument();
+    expect(screen.queryByText('Nochmal versuchen')).not.toBeInTheDocument();
+  });
+
+  it('installing shows a progress bar while the install is running', async () => {
+    vi.mocked(api.assistantStatus).mockResolvedValue(NOT_INSTALLED);
+    vi.mocked(api.assistantInstallStatus).mockResolvedValue({ ok: true, running: true, phase: 'Runtime', percent: 42, error: '' });
+    setup();
+    fireEvent.click(await screen.findByText('Jetzt einrichten'));
+    expect(await screen.findByText('Wird eingerichtet … 42%')).toBeInTheDocument();
+    expect(api.assistantInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-checks status once the install reports it finished', async () => {
+    vi.mocked(api.assistantStatus).mockResolvedValueOnce(NOT_INSTALLED).mockResolvedValueOnce(ONLINE);
+    // Resolves as already finished on the very first poll (called synchronously
+    // right after assistantInstall()) -- exercises the completion path without
+    // needing the 1s polling interval to actually elapse.
+    vi.mocked(api.assistantInstallStatus).mockResolvedValue({ ok: true, running: false, phase: '', percent: 100, error: '' });
+    setup();
+    fireEvent.click(await screen.findByText('Jetzt einrichten'));
     await waitFor(() => expect(screen.queryByText('Lokales Modell nicht verfügbar')).not.toBeInTheDocument());
     expect(api.assistantStatus).toHaveBeenCalledTimes(2);
   });

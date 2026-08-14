@@ -41,7 +41,7 @@ Der Assistent durchsucht Kapitel, Notizen, Profile, Elemente, Beziehungen und s�
 
 Änderungen an Elementen, Beziehungen und Timeline werden ausschließlich als strukturierte Vorschläge erzeugt. Erst eine ausdrückliche Bestätigung übernimmt sie als einen rückgängig machbaren Undo-Schritt.
 
-Die Modell-Runtime verwendet `llama.cpp` (auf Apple-Silicon-Macs wahlweise MLX, spürbar schneller dort). `python3 server.py` fragt beim ersten Start automatisch nach, falls noch keine Runtime eingerichtet ist, und lädt sie bei Zustimmung nach `runtime/` bzw. `models/` — kein separater Befehl nötig. Wer das explizit oder unbeaufsichtigt (z. B. in einem Skript) auslösen möchte:
+Die Modell-Runtime verwendet `llama.cpp` (auf Apple-Silicon-Macs wahlweise MLX, spürbar schneller dort). `python3 server.py` fragt beim ersten Start automatisch nach, falls noch keine Runtime eingerichtet ist, und lädt sie bei Zustimmung nach `runtime/` bzw. `models/` — kein separater Befehl nötig. Ist die Frage einmal übersprungen worden (oder läuft Quiltor als Fenster-App ohne Terminal, siehe [Desktop-App](#desktop-app)), bietet das Assistenten-Panel selbst einen „Jetzt einrichten"-Button mit Fortschrittsanzeige an, sobald der Assistent als „nicht verfügbar" gemeldet wird. Wer das stattdessen explizit oder unbeaufsichtigt (z. B. in einem Skript) auslösen möchte:
 
 ```bash
 python3 -m backend.llm.installer

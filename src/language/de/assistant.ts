@@ -2,6 +2,7 @@ export const assistant = {
   localOnlySuggestions: 'Lokal · nur Vorschläge', newChat: 'Neuer Chat', closeAssistant: 'Assistent schließen',
   sourcesIndexed: '{n} Quellen indexiert', sourcesScopeDescription: 'Welt, Manuskript, Profile, Beziehungen und Timeline',
   localModelUnavailable: 'Lokales Modell nicht verfügbar', stillFullyUsable: 'Quiltor selbst bleibt vollständig nutzbar.', retry: 'Nochmal versuchen',
+  installAssistant: 'Jetzt einrichten', installingAssistant: 'Wird eingerichtet … {percent}%', installAssistantError: 'Einrichtung fehlgeschlagen: {error}',
   assistantGreeting: 'Wobei soll ich die Welt pflegen?', assistantGreetingBody: 'Ich kann Figuren und Beziehungen vorbereiten, Timeline-Stände anlegen und vorhandene Informationen mit Quellen auswerten.',
   findMissingFigures: 'Fehlende Figuren finden', findMissingFiguresPrompt: 'Lege aus meinen vorhandenen Notizen fehlende Figuren als Vorschläge an.', checkTimeline: 'Timeline prüfen', checkTimelinePrompt: 'Prüfe die Beziehungen und Timeline auf Lücken oder Widersprüche.',
   retryLabel: 'Erneut versuchen', requestAborted: 'Anfrage abgebrochen.',

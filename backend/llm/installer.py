@@ -39,10 +39,12 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Any, Callable
 
 from backend.llm.runtimes import llamacpp
 from backend.llm.shared.platform import force_utf8_streams, is_apple_silicon
@@ -120,19 +122,21 @@ def ensure_installed() -> None:
     print()
 
 
-def install(runtime: str, *, model_repo: str = DEFAULT_MODEL_REPO, model_file: str = DEFAULT_MODEL_FILE, mlx_model_repo: str = DEFAULT_MLX_MODEL_REPO, skip_runtime: bool = False, skip_model: bool = False, skip_smoke_test: bool = False) -> None:
+def install(runtime: str, *, model_repo: str = DEFAULT_MODEL_REPO, model_file: str = DEFAULT_MODEL_FILE, mlx_model_repo: str = DEFAULT_MLX_MODEL_REPO, skip_runtime: bool = False, skip_model: bool = False, skip_smoke_test: bool = False, on_progress: Callable[[str, int], None] | None = None) -> None:
     if runtime == "mlx":
         if not skip_runtime:
-            install_mlx_runtime()
+            install_mlx_runtime(on_progress)
         if not skip_model:
-            install_mlx_model(mlx_model_repo)
+            install_mlx_model(mlx_model_repo, on_progress)
         if not skip_runtime and not skip_model and not skip_smoke_test:
+            if on_progress:
+                on_progress("Smoke test", 0)
             smoke_test_mlx(MLX_MODELS_DIR / mlx_model_repo.split("/")[-1])
     else:
         if not skip_runtime:
-            install_runtime()
+            install_runtime(on_progress)
         if not skip_model:
-            install_model(model_repo, model_file)
+            install_model(model_repo, model_file, on_progress)
 
 
 def platform_asset_pattern() -> re.Pattern[str]:
@@ -162,7 +166,7 @@ def latest_release_asset(pattern: re.Pattern[str]) -> tuple[str, str]:
     raise SystemExit(f"No llama.cpp release asset matched {pattern.pattern!r}. Check https://github.com/{LLAMA_CPP_REPO}/releases/latest")
 
 
-def download(url: str, dest: Path, label: str) -> None:
+def download(url: str, dest: Path, label: str, on_progress: Callable[[str, int], None] | None = None) -> None:
     print(f"Downloading {label} ...")
 
     def report(block_num: int, block_size: int, total_size: int) -> None:
@@ -171,6 +175,8 @@ def download(url: str, dest: Path, label: str) -> None:
         done = block_num * block_size
         pct = min(100, done * 100 // total_size)
         print(f"\r  {pct:3d}% ({done // (1024 * 1024)} MB / {total_size // (1024 * 1024)} MB)", end="", flush=True)
+        if on_progress:
+            on_progress(label, pct)
 
     # Download to a temp file and rename atomically on success, so a
     # partial/interrupted run never gets mistaken for a finished install.
@@ -198,12 +204,14 @@ def _extract_archive(archive: Path, dest: Path) -> None:
         raise SystemExit(f"Don't know how to extract {archive.name}")
 
 
-def install_runtime() -> None:
+def install_runtime(on_progress: Callable[[str, int], None] | None = None) -> None:
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     binary_name = llamacpp.binary_name()
     target = RUNTIME_DIR / binary_name
     if target.exists():
         print(f"runtime already present at {target}, skipping")
+        if on_progress:
+            on_progress("Runtime", 100)
         return
     pattern = platform_asset_pattern()
     name, url = latest_release_asset(pattern)
@@ -217,7 +225,7 @@ def install_runtime() -> None:
         download_dir.mkdir()
         extract_dir.mkdir()
         archive = download_dir / name
-        download(url, archive, name)
+        download(url, archive, name, on_progress)
         _extract_archive(archive, extract_dir)
         # Match the exact binary name only — a loose "llama-server*" prefix
         # also matches sibling libs like llama-server-impl.dll and can pick
@@ -249,18 +257,20 @@ def install_runtime() -> None:
     print(f"Installed {target}")
 
 
-def install_model(repo: str, filename: str) -> None:
+def install_model(repo: str, filename: str, on_progress: Callable[[str, int], None] | None = None) -> None:
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     target = MODELS_DIR / filename
     if target.exists():
         print(f"model already present at {target}, skipping")
+        if on_progress:
+            on_progress("Model", 100)
         return
     url = f"https://huggingface.co/{repo}/resolve/main/{filename}"
-    download(url, target, filename)
+    download(url, target, filename, on_progress)
     print(f"Installed {target}")
 
 
-def install_mlx_runtime() -> None:
+def install_mlx_runtime(on_progress: Callable[[str, int], None] | None = None) -> None:
     if not is_apple_silicon():
         raise SystemExit("MLX is only supported on Apple Silicon Macs. Use --runtime llamacpp instead.")
     if sys.version_info < (3, 10):
@@ -268,7 +278,11 @@ def install_mlx_runtime() -> None:
     venv_python = _venv_python(MLX_VENV_DIR)
     if venv_python.exists():
         print(f"MLX runtime already present at {venv_python}, skipping")
+        if on_progress:
+            on_progress("Runtime", 100)
         return
+    if on_progress:
+        on_progress("Runtime", 0)
     print(f"Creating MLX virtual environment at {MLX_VENV_DIR} ...")
     subprocess.run([sys.executable, "-m", "venv", str(MLX_VENV_DIR)], check=True)
     print("Installing MLX runtime packages (mlx, mlx-lm, llguidance) ...")
@@ -277,12 +291,16 @@ def install_mlx_runtime() -> None:
     # immediate, legible pip error instead of a 40-minute failed source build.
     subprocess.run([str(venv_python), "-m", "pip", "install", "--only-binary=:all:", "-r", str(MLX_REQUIREMENTS)], check=True)
     print(f"Installed MLX runtime at {MLX_VENV_DIR}")
+    if on_progress:
+        on_progress("Runtime", 100)
 
 
-def install_mlx_model(repo: str) -> None:
+def install_mlx_model(repo: str, on_progress: Callable[[str, int], None] | None = None) -> None:
     target_dir = MLX_MODELS_DIR / repo.split("/")[-1]
     if target_dir.exists() and any(target_dir.iterdir()):
         print(f"MLX model already present at {target_dir}, skipping")
+        if on_progress:
+            on_progress("Model", 100)
         return
     print(f"Fetching file list for {repo} ...")
     with urllib.request.urlopen(f"https://huggingface.co/api/models/{repo}/tree/main", timeout=30) as response:
@@ -291,12 +309,16 @@ def install_mlx_model(repo: str) -> None:
     if not files:
         raise SystemExit(f"No files listed for {repo}; check https://huggingface.co/{repo}")
     target_dir.mkdir(parents=True, exist_ok=True)
-    for filename in files:
+    for index, filename in enumerate(files):
         dest = target_dir / filename
         if dest.exists():
             print(f"  {filename} already present, skipping")
             continue
-        download(f"https://huggingface.co/{repo}/resolve/main/{filename}", dest, filename)
+        # Coarse per-file progress (no aggregate byte count across all files known
+        # upfront) -- good enough to show the UI something is happening.
+        base_pct = index * 100 // len(files)
+        download(f"https://huggingface.co/{repo}/resolve/main/{filename}", dest,
+                  filename, (lambda label, pct, base=base_pct: on_progress(label, base + pct // len(files))) if on_progress else None)
     print(f"Installed MLX model at {target_dir}")
 
 
@@ -345,6 +367,46 @@ def smoke_test_mlx(model_dir: Path, timeout: float = 120) -> None:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             process.kill()
+
+
+# Background install for the desktop/web UI's "set up now" button (server.py's
+# /api/assistant/install routes) -- CLI usage above stays synchronous and doesn't
+# touch this. One install at a time process-wide; a second call while one is
+# already running just returns False so the caller keeps polling the existing run
+# instead of racing a second download into the same directories.
+_async_lock = threading.Lock()
+_async_state: dict[str, Any] = {"running": False, "phase": "", "percent": 0, "error": ""}
+
+
+def install_async(runtime: str = "auto") -> bool:
+    with _async_lock:
+        if _async_state["running"]:
+            return False
+        _async_state.update(running=True, phase="", percent=0, error="")
+    resolved = resolve_runtime(runtime)
+
+    def on_progress(phase: str, percent: int) -> None:
+        with _async_lock:
+            _async_state.update(phase=phase, percent=percent)
+
+    def run() -> None:
+        try:
+            install(resolved, on_progress=on_progress)
+            with _async_lock:
+                _async_state.update(running=False, phase="", percent=100, error="")
+        except (SystemExit, Exception) as exc:
+            # Also catches network/subprocess failures the installer surfaces as
+            # SystemExit (e.g. an unsupported platform) -- see ensure_installed().
+            with _async_lock:
+                _async_state.update(running=False, error=str(exc))
+
+    threading.Thread(target=run, daemon=True).start()
+    return True
+
+
+def read_install_state() -> dict[str, Any]:
+    with _async_lock:
+        return dict(_async_state)
 
 
 def _cli() -> None:

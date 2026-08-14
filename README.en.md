@@ -41,7 +41,7 @@ The assistant searches chapters, notes, profiles, elements, relationships, and e
 
 Element, relationship, and timeline changes are returned only as structured proposals. Explicit confirmation applies them as one undoable history step.
 
-The model runtime uses `llama.cpp` (or MLX on Apple Silicon Macs, noticeably faster there). `python3 server.py` asks automatically on first launch if no runtime is set up yet, and downloads it into `runtime/` and `models/` if you agree — no separate command needed. To trigger this explicitly or unattended (e.g. from a script):
+The model runtime uses `llama.cpp` (or MLX on Apple Silicon Macs, noticeably faster there). `python3 server.py` asks automatically on first launch if no runtime is set up yet, and downloads it into `runtime/` and `models/` if you agree — no separate command needed. If that prompt was skipped once (or Quiltor is running as a windowed desktop app with no terminal at all, see [Desktop app](#desktop-app)), the assistant panel itself offers a "Set up now" button with a progress bar whenever the assistant reports itself unavailable. To trigger the same install explicitly or unattended instead (e.g. from a script):
 
 ```bash
 python3 -m backend.llm.installer

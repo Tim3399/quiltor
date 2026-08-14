@@ -50,7 +50,7 @@ from backend import auth, storage
 from backend.assistant import AssistantRuntime, read_progress
 from backend.git_backup import GitBackup, GitContext
 from backend.knowledge import build_knowledge
-from backend.llm.installer import ensure_installed
+from backend.llm.installer import ensure_installed, install_async, is_configured, read_install_state
 from backend.mirror import mirror_profiles, mirror_text, safe_name
 from backend.render import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, render_pdf
 from backend.validation import valid_figures, valid_manuscript
@@ -380,7 +380,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if route == "/api/assistant/status":
             with _lock:
                 manuscript, figures = storage.load_manuscript(db_path), storage.load_figures(db_path)
-            return self.send_json({"ok": True, **ASSISTANT.status(), "chunks": len(build_knowledge(manuscript, figures))})
+            # Cheap no-op when already running -- picks up a runtime that finished
+            # installing since the process started (or since the last poll) without
+            # needing a full server restart.
+            ASSISTANT.reload()
+            return self.send_json({"ok": True, **ASSISTANT.status(), "installed": is_configured(), "chunks": len(build_knowledge(manuscript, figures))})
 
         if route == "/api/assistant/logs":
             with _lock:
@@ -393,6 +397,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # flight on another thread without contending with normal saves.
             progress = read_progress(progress_id) if progress_id else None
             return self.send_json({"ok": progress is not None, "progress": progress})
+
+        if route == "/api/assistant/install/status":
+            # No _lock: reads backend/llm/installer.py's own in-memory progress
+            # registry, not SQLite/manuscript state -- safe to poll mid-download.
+            return self.send_json({"ok": True, **read_install_state()})
 
         if route == "/api/diff":
             ref = (query.get("ref") or ["WORK"])[0]
@@ -578,6 +587,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"ok": True})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
+
+        if route == "/api/assistant/install":
+            # No worldId/world_ctx: the local runtime is one shared process-wide
+            # resource, not scoped to a particular world. install_async() itself
+            # guards against a second concurrent install; `started=False` just
+            # means one was already running, not a failure -- the frontend polls
+            # /api/assistant/install/status either way.
+            started = install_async()
+            return self.send_json({"ok": True, "started": started})
 
         if route == "/api/assistant/chat":
             db_path = None
