@@ -6,22 +6,28 @@
 
 ![Quiltor Manuskriptansicht](docs/screenshots/manuscript.png)
 
-Quiltor verbindet einen ruhigen Kapitel-Editor mit einem visuellen Weltgraphen, einer echten Timeline und einem lokalen Rechercheassistenten. Jede Welt bleibt als eigene SQLite-Datenbank auf deinem Rechner. Git-Backups sind optional, aber empfohlen.
+Quiltor verbindet einen ruhigen Kapitel-Editor mit einem visuellen Weltgraphen, einer Kartenansicht für Orte, einer echten Timeline und einem lokalen Rechercheassistenten. Jede Welt bleibt als eigene SQLite-Datenbank auf deinem Rechner. Git-Backups sind optional, aber empfohlen.
 
 ## Was Quiltor kann
 
-| Schreiben | Welt aufbauen | Zeit verwalten |
-| --- | --- | --- |
-| Kapitel-Editor und Fokusmodus | Figuren, Tiere, Orte, Organisationen, Objekte und Konzepte | Eigener Timeline-Arbeitsbereich |
-| Diskrete Schreibhilfen und Ein-Wort-Autocomplete | Gerichtete und ungerichtete Beziehungen | Beziehungsstatus je Zeitpunkt |
-| Kapitelnotizen, Versionen und Undo/Redo | Raster, Minimap und semantischer Zoom | Richtung, Bezeichnung und Aktivität verändern |
-| Buch-PDF im lesbaren 6 × 9-Zoll-Format | Profile, eigene Felder und wichtige Elemente | Todeszeitpunkte und animierte Wiedergabe |
+| Schreiben | Welt aufbauen | Orte verwalten | Zeit verwalten |
+| --- | --- | --- | --- |
+| Kapitel-Editor und Fokusmodus | Figuren, Tiere, Orte, Organisationen, Objekte und Konzepte | Eigene Kartenansicht mit frei platzierbaren Orten | Eigener Timeline-Arbeitsbereich |
+| Diskrete Schreibhilfen und Ein-Wort-Autocomplete | Gerichtete und ungerichtete Beziehungen | Distanzmessung mit einstellbarem Maßstab | Beziehungsstatus je Zeitpunkt |
+| Kapitelnotizen, Versionen und Undo/Redo | Raster, Minimap und semantischer Zoom | Automatische Aufenthalts- und Reise-Chronik je Ort | Richtung, Bezeichnung und Aktivität verändern |
+| Buch-PDF im lesbaren 6 × 9-Zoll-Format | Profile, eigene Felder und wichtige Elemente | Reisedauer zwischen Orten anhand der Timeline | Todeszeitpunkte und animierte Wiedergabe |
 
 ### Ein Weltgraph statt verstreuter Notizen
 
 Elemente besitzen feste Positionen, während Beziehungen über die Zeit erscheinen, verschwinden oder ihre Bedeutung ändern. Das Board unterstützt ein dezentes Raster, freie Positionierung, automatische Ausrichtung, Minimap und einen reduzierten Übersichtszoom.
 
 ![Quiltor Weltgraph](docs/screenshots/world-graph.png)
+
+### Orte auf der Karte
+
+Orte lassen sich auf einer eigenen Karte frei platzieren, unabhängig von ihrer Position im Weltgraphen. Ein Lineal-Werkzeug misst Distanzen zwischen zwei Orten live und rechnet sie über einen einstellbaren Maßstab in eigene Einheiten um. Wer wann an einem Ort war, wie lange und wann er weiterzog, ergibt sich automatisch aus den Präsenzdaten der Timeline – als Chronik je Ort und als Reiseverlauf je Figur. Karte und Weltgraph teilen sich dieselben Ortsdaten, es gibt keine doppelte Wahrheit.
+
+![Quiltor Kartenansicht der Orte mit Distanzmessung](docs/screenshots/places.png)
 
 ### Timeline direkt im Board
 
@@ -41,7 +47,7 @@ Der Assistent durchsucht Kapitel, Notizen, Profile, Elemente, Beziehungen und s�
 
 Änderungen an Elementen, Beziehungen und Timeline werden ausschließlich als strukturierte Vorschläge erzeugt. Erst eine ausdrückliche Bestätigung übernimmt sie als einen rückgängig machbaren Undo-Schritt.
 
-Die Modell-Runtime verwendet `llama.cpp` (auf Apple-Silicon-Macs wahlweise MLX, spürbar schneller dort). `python3 server.py` fragt beim ersten Start automatisch nach, falls noch keine Runtime eingerichtet ist, und lädt sie bei Zustimmung nach `runtime/` bzw. `models/` — kein separater Befehl nötig. Ist die Frage einmal übersprungen worden (oder läuft Quiltor als Fenster-App ohne Terminal, siehe [Desktop-App](#desktop-app)), bietet das Assistenten-Panel selbst einen „Jetzt einrichten"-Button mit Fortschrittsanzeige an, sobald der Assistent als „nicht verfügbar" gemeldet wird. Wer das stattdessen explizit oder unbeaufsichtigt (z. B. in einem Skript) auslösen möchte:
+Die Modell-Runtime verwendet `llama.cpp` (auf Apple-Silicon-Macs wahlweise MLX, spürbar schneller dort). `python3 server.py` fragt beim ersten Start automatisch nach, falls noch keine Runtime eingerichtet ist, und lädt sie bei Zustimmung nach `runtime/` bzw. `models/` — kein separater Befehl nötig. Ist die Frage einmal übersprungen worden (oder läuft Quiltor als Fenster-App ohne Terminal, siehe [Desktop-App](#desktop-app)), bietet das Assistenten-Panel selbst einen „Jetzt einrichten"-Button mit Fortschrittsanzeige an, sobald der Assistent als „nicht verfügbar" gemeldet wird; dieser Panel-Zustand bleibt auch beim Schließen und erneuten Öffnen des Panels erhalten. Ein unterbrochener Download wird beim nächsten Versuch fortgesetzt statt neu gestartet. Wer das stattdessen explizit oder unbeaufsichtigt (z. B. in einem Skript) auslösen möchte:
 
 ```bash
 python3 -m backend.llm.installer
@@ -200,6 +206,8 @@ Zusätzlich enthält jedes [GitHub Release](https://github.com/Tim3399/quiltor/r
 
 ```bash
 quiltor install   # geführtes Setup: Keycloak (default nein), deutsche Schreibwerkzeuge und lokaler KI-Assistent (jeweils default ja)
+quiltor           # startet Quiltor auf Port 8000, wie python3 server.py
+quiltor run 8080  # anderer Port
 quiltor config set|get|list|unset <KEY> [VALUE]   # Notfall-Zugriff auf jede QUILTOR_*-Variable
 quiltor config path        # zeigt den Pfad der Config-Datei
 quiltor --version
@@ -222,8 +230,7 @@ quiltor --version
 | --- | --- |
 | `Cmd/Ctrl + S` | Sofort speichern |
 | `Cmd/Ctrl + Shift + S` | Git-Dialog öffnen |
-| `Cmd/Ctrl + F` | Kapitel, Elemente und Zeitpunkte durchsuchen |
-| `Cmd/Ctrl + K` | Befehlspalette öffnen |
+| `Cmd/Ctrl + F` oder `Cmd/Ctrl + K` | Suchen & Befehle öffnen – Kapitel, Elemente und Zeitpunkte durchsuchen oder einen Befehl ausführen |
 | `Cmd/Ctrl + Z` | Rückgängig |
 | `Cmd/Ctrl + Shift + Z` | Wiederholen |
 | `Esc` | Fokus- oder temporären Modus verlassen |
@@ -261,6 +268,7 @@ src/
 ├── features/
 │   ├── manuscript/         Editor, Fokusmodus und Schreibhilfen
 │   ├── figures/            Weltgraph und Beziehungslogik
+│   ├── places/             Kartenansicht, Distanzmessung, Aufenthalte und Reisen
 │   ├── timeline/           Timeline-Verwaltung
 │   ├── assistant/          lokaler Chat, Quellen und Vorschläge
 │   ├── tools/              Suche, Verlauf, Git und Backups

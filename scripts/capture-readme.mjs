@@ -28,7 +28,8 @@ const figures = {
     { id: 'mara', x: 80, y: 90, type: 'person', name: 'Mara Venn', label: 'Kartographin', sub: 'Liest Veränderungen in lebenden Karten.', accent: 'gold', important: true, profile: { rolle: 'Protagonistin', herkunft: 'Nordhafen', extra: [] } },
     { id: 'iven', x: 430, y: 90, type: 'person', name: 'Iven Rook', label: 'Archivar', sub: 'Bewahrt die verbotenen Küstenkarten.', accent: 'rose', profile: { rolle: 'Mentor', extra: [] } },
     { id: 'gilde', x: 780, y: 90, type: 'organisation', name: 'Kartographengilde', label: 'Organisation', sub: 'Kontrolliert die offiziellen Seewege.', accent: 'ink', profile: { extra: [] } },
-    { id: 'archiv', x: 250, y: 330, type: 'ort', name: 'Gezeitenarchiv', label: 'Ort', sub: 'Ein gläserner Bau direkt über dem Wasser.', accent: 'moss', profile: { extra: [] } },
+    { id: 'archiv', x: 250, y: 330, type: 'ort', name: 'Gezeitenarchiv', label: 'Ort', sub: 'Ein gläserner Bau direkt über dem Wasser.', accent: 'moss', profile: { extra: [] }, mapX: 220, mapY: 260 },
+    { id: 'leuchtturm', x: 1120, y: 330, type: 'ort', name: 'Leuchtturmklippe', label: 'Ort', sub: 'Letzter fester Punkt vor dem Kartennebel.', accent: 'ink', profile: { extra: [] }, mapX: 860, mapY: 520 },
     { id: 'atlas', x: 620, y: 330, type: 'objekt', name: 'Der gläserne Atlas', label: 'Artefakt', sub: 'Seine Linien reagieren auf kommende Entscheidungen.', accent: 'gold', important: true, profile: { extra: [] } },
     { id: 'lumen', x: 970, y: 330, type: 'tier', name: 'Lumen', label: 'Küstenvogel', sub: 'Findet Wege durch den Kartennebel.', accent: 'moss', profile: { extra: [] } },
   ],
@@ -57,17 +58,27 @@ await page.screenshot({ path: `${output}/manuscript.png` });
 
 await page.getByRole('button', { name: 'Figuren', exact: true }).click();
 await page.getByLabel('Figuren und Beziehungen').waitFor();
-const timeButton = page.getByRole('button', { name: 'Zeit', exact: true });
-if (await timeButton.getAttribute('aria-pressed') === 'true') await timeButton.click();
+const viewMenuButton = page.getByRole('button', { name: 'Ansicht', exact: true });
+await viewMenuButton.click();
+await page.getByRole('menuitem', { name: 'Zeit ausblenden' }).click();
 await page.waitForTimeout(400);
 await page.screenshot({ path: `${output}/world-graph.png` });
 
-await timeButton.click();
+await viewMenuButton.click();
+await page.getByRole('menuitem', { name: 'Zeit einblenden' }).click();
 await page.getByRole('button', { name: 'Öffnung des Atlas' }).click();
 await page.screenshot({ path: `${output}/timeline-playback.png` });
 
 await page.getByRole('button', { name: 'Timeline', exact: true }).click();
-await page.getByRole('button', { name: /Bruch mit der Gilde/ }).click();
+await page.locator('.story-moment').filter({ hasText: 'Bruch mit der Gilde' }).click();
 await page.screenshot({ path: `${output}/timeline-manager.png` });
+
+await page.getByRole('button', { name: 'Orte', exact: true }).click();
+await page.getByLabel('Orte verwalten').waitFor();
+await page.getByRole('button', { name: 'Distanz messen' }).click();
+await page.locator('.story-node').filter({ hasText: 'Gezeitenarchiv' }).click();
+await page.locator('.story-node').filter({ hasText: 'Leuchtturmklippe' }).click();
+await page.waitForTimeout(200);
+await page.screenshot({ path: `${output}/places.png` });
 
 await browser.close();

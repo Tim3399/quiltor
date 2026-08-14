@@ -6,22 +6,28 @@
 
 ![Quiltor manuscript workspace](docs/screenshots/manuscript.png)
 
-Quiltor combines a calm chapter editor with a visual world graph, a proper timeline, and a local research assistant. Every world stays in its own SQLite database on your computer. Git backups are optional, but recommended.
+Quiltor combines a calm chapter editor with a visual world graph, a map view for places, a proper timeline, and a local research assistant. Every world stays in its own SQLite database on your computer. Git backups are optional, but recommended.
 
 ## What Quiltor does
 
-| Writing | Worldbuilding | Time |
-| --- | --- | --- |
-| Chapter editor and focus mode | Characters, animals, places, organizations, objects, and concepts | Dedicated timeline workspace |
-| Discreet writing aids and one-word autocomplete | Directed and undirected relationships | Relationship state per moment |
-| Chapter notes, versions, and undo/redo | Grid, minimap, and semantic zoom | Change direction, label, and activity |
-| Readable 6 × 9 inch book PDF | Profiles, custom fields, and important elements | Death markers and animated playback |
+| Writing | Worldbuilding | Managing places | Time |
+| --- | --- | --- | --- |
+| Chapter editor and focus mode | Characters, animals, places, organizations, objects, and concepts | Dedicated map view with freely placed pins | Dedicated timeline workspace |
+| Discreet writing aids and one-word autocomplete | Directed and undirected relationships | Distance measuring with an adjustable scale | Relationship state per moment |
+| Chapter notes, versions, and undo/redo | Grid, minimap, and semantic zoom | Automatic stay and journey chronicle per place | Change direction, label, and activity |
+| Readable 6 × 9 inch book PDF | Profiles, custom fields, and important elements | Travel duration between places from the timeline | Death markers and animated playback |
 
 ### One world graph instead of scattered notes
 
 Elements keep stable positions while relationships may appear, disappear, or change meaning over time. The board provides a subtle grid, free positioning, automatic alignment, a minimap, and a reduced overview zoom.
 
 ![Quiltor world graph](docs/screenshots/world-graph.png)
+
+### Places on a map
+
+Places can be positioned freely on their own map, independent of where they sit in the world graph. A ruler tool measures the live distance between two places and converts it into your own units via an adjustable scale. Who was at a place, for how long, and when they moved on falls out automatically from the timeline's presence data — as a chronicle per place and a journey per character. The map and the world graph share the same place data, so there is no duplicated source of truth.
+
+![Quiltor map view of places with distance measuring](docs/screenshots/places.png)
 
 ### Timeline playback inside the board
 
@@ -41,7 +47,7 @@ The assistant searches chapters, notes, profiles, elements, relationships, and e
 
 Element, relationship, and timeline changes are returned only as structured proposals. Explicit confirmation applies them as one undoable history step.
 
-The model runtime uses `llama.cpp` (or MLX on Apple Silicon Macs, noticeably faster there). `python3 server.py` asks automatically on first launch if no runtime is set up yet, and downloads it into `runtime/` and `models/` if you agree — no separate command needed. If that prompt was skipped once (or Quiltor is running as a windowed desktop app with no terminal at all, see [Desktop app](#desktop-app)), the assistant panel itself offers a "Set up now" button with a progress bar whenever the assistant reports itself unavailable. To trigger the same install explicitly or unattended instead (e.g. from a script):
+The model runtime uses `llama.cpp` (or MLX on Apple Silicon Macs, noticeably faster there). `python3 server.py` asks automatically on first launch if no runtime is set up yet, and downloads it into `runtime/` and `models/` if you agree — no separate command needed. If that prompt was skipped once (or Quiltor is running as a windowed desktop app with no terminal at all, see [Desktop app](#desktop-app)), the assistant panel itself offers a "Set up now" button with a progress bar whenever the assistant reports itself unavailable; that panel state persists across closing and reopening the panel. An interrupted download resumes instead of starting over on the next attempt. To trigger the same install explicitly or unattended instead (e.g. from a script):
 
 ```bash
 python3 -m backend.llm.installer
@@ -146,6 +152,66 @@ installed Chrome/Edge instead of a bundled download. See
 [`packaging/README.md`](packaging/README.md) for build details, signing, and why
 Mac App Store distribution isn't realistic without a sandboxing rework.
 
+## Web demo with Keycloak
+
+Quiltor can also run as a small multi-user demo on the web: login through an existing Keycloak instance, with every signed-in person seeing only their own worlds. Without the environment variables below, Quiltor stays exactly the local single-user mode described above — the web mode is purely additive and has to be turned on explicitly.
+
+**1. Create a Keycloak client** (in your existing realm):
+
+- Client authentication: on (confidential client, issues a client secret)
+- Standard flow: on · Direct access grants: off
+- Valid redirect URI: `https://<your-domain>/auth/callback`
+- Advanced settings → PKCE method: `S256`
+
+**2. Set environment variables:**
+
+| Variable | Purpose |
+| --- | --- |
+| `QUILTOR_OIDC_ISSUER` | Realm issuer URL, e.g. `https://kc.example.com/realms/quiltor`. **Unset = local mode**, everything else below is skipped. |
+| `QUILTOR_OIDC_CLIENT_ID` | Client ID of the client created above. |
+| `QUILTOR_OIDC_CLIENT_SECRET` | The matching client secret. |
+| `QUILTOR_PUBLIC_URL` | Public base URL, e.g. `https://quiltor.example.com` — must exactly match the redirect URI in the Keycloak client. |
+| `QUILTOR_COOKIE_SECURE` | `auto` (default, based on `X-Forwarded-Proto`) · `0` · `1` — only relevant for local OIDC testing without HTTPS. |
+| `QUILTOR_DATA_DIR` | Already exists; point it at the mounted volume inside the container. |
+
+**3. Start with Docker Compose** ([`docker-compose.yml`](docker-compose.yml)):
+
+```bash
+cp .env.example .env   # then fill in: issuer, client ID/secret, public URL
+docker compose up -d
+```
+
+The `quiltor` service is then only reachable on `127.0.0.1:${QUILTOR_PORT:-8000}` — point your **existing** reverse proxy (the one already serving Keycloak) at it. Caddy and nginx examples live in [`deploy/`](deploy/); both forward `Host` and `X-Forwarded-Proto`, which `server.py` needs to build the exact redirect URI and mark cookies `Secure` correctly.
+
+If you don't have a reverse proxy yet and want this stack to handle TLS itself (automatically via Let's Encrypt), start Caddy alongside it:
+
+```bash
+docker compose --profile with-caddy up -d
+```
+
+That brings up Caddy on port 80/443, terminates TLS for `QUILTOR_PUBLIC_URL`, and forwards internally to `quiltor:8000` ([`deploy/Caddyfile.compose`](deploy/Caddyfile.compose)).
+
+Without Compose, `docker build`/`docker run` also work directly — see [`Dockerfile`](Dockerfile).
+
+The Docker image is based on Microsoft's official Playwright image (instead of a slim Python image) because `/api/book.pdf` renders through a real headless Chromium in web mode too — Node, Playwright, and its system libraries need to be present at runtime, not just at build time.
+
+Sessions live in process memory (no separate session store) — restarting the container signs everyone out; they just log back in. For a small demo, that's an acceptable trade-off.
+
+**Prebuilt images:** every version bump (the `VERSION` file) on `main` automatically triggers a release — prebuilt images then become available at `ghcr.io/tim3399/quiltor:<version>` and `:latest` (Docker image names must be lowercase). In `docker-compose.yml`, `image: ghcr.io/tim3399/quiltor:${QUILTOR_VERSION:-latest}` can be used instead of the local `build:` block to skip building locally.
+
+Each [GitHub release](https://github.com/Tim3399/quiltor/releases) also ships a pip wheel (`pip install quiltor-<version>-py3-none-any.whl`, which then gives you the `quiltor` command).
+
+**The `quiltor` CLI** (pip/pipx installs only, not `python3 server.py`) is built so that you normally never have to set a single environment variable by hand locally — data, runtime, and model land automatically under `~/.quiltor/` (configurable via `QUILTOR_HOME`), and Keycloak/LLM settings are asked for interactively and stored in `~/.quiltor/config.env`. Plain environment variables remain the escape hatch for local edge cases — and the primary configuration path if you deploy with Docker instead (see above):
+
+```bash
+quiltor install   # guided setup: Keycloak (default no), German writing tools and local AI assistant (default yes each)
+quiltor           # starts Quiltor on port 8000, same as python3 server.py
+quiltor run 8080  # different port
+quiltor config set|get|list|unset <KEY> [VALUE]   # emergency access to any QUILTOR_* variable
+quiltor config path        # prints the path of the config file
+quiltor --version
+```
+
 ## Local means local
 
 - Every world has a separate SQLite file under `data/worlds/`.
@@ -163,8 +229,7 @@ Mac App Store distribution isn't realistic without a sandboxing rework.
 | --- | --- |
 | `Cmd/Ctrl + S` | Save immediately |
 | `Cmd/Ctrl + Shift + S` | Open Git |
-| `Cmd/Ctrl + F` | Search chapters, elements, and moments |
-| `Cmd/Ctrl + K` | Open the command palette |
+| `Cmd/Ctrl + F` or `Cmd/Ctrl + K` | Open search & commands – search chapters, elements, and moments, or run a command |
 | `Cmd/Ctrl + Z` | Undo |
 | `Cmd/Ctrl + Shift + Z` | Redo |
 | `Esc` | Leave focus or a temporary mode |
@@ -192,7 +257,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ## Architecture
 
 ```text
-backend/                    SQLite, backups, retrieval, assistant, Git
+backend/                    SQLite, backups, retrieval, assistant, Git, Keycloak login (auth.py)
 mcp/                        read-only and proposal-only MCP server
 desktop.py                  desktop app entry point (native window instead of a browser tab)
 packaging/                  PyInstaller spec, build scripts, and icon assets for the desktop app
@@ -202,6 +267,7 @@ src/
 ├── features/
 │   ├── manuscript/         editor, focus mode, writing aids
 │   ├── figures/            world graph and relationship logic
+│   ├── places/             map view, distance measuring, stays and journeys
 │   ├── timeline/           timeline management
 │   ├── assistant/          local chat, citations, proposals
 │   ├── tools/              search, history, Git, backups
