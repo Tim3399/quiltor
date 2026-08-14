@@ -24,10 +24,11 @@ function reply(patch: Partial<AssistantReply> = {}): AssistantReply {
   return { ok: true, message: 'Alles bereit.', proposals: [], sources: [], ...patch };
 }
 
-function setup(worldId = 'world-1', chapters: Chapter[] = CHAPTERS) {
+function setup(worldId = 'world-1', chapters: Chapter[] = CHAPTERS, open = true) {
   const onApply = vi.fn(), onNavigate = vi.fn(), onClose = vi.fn();
-  const { unmount } = render(<LanguageProvider><AssistantDrawer worldId={worldId} figures={FIGURES} chapters={chapters} onApply={onApply} onNavigate={onNavigate} onClose={onClose} /></LanguageProvider>);
-  return { onApply, onNavigate, onClose, unmount };
+  const { unmount, rerender } = render(<LanguageProvider><AssistantDrawer worldId={worldId} figures={FIGURES} chapters={chapters} open={open} onApply={onApply} onNavigate={onNavigate} onClose={onClose} /></LanguageProvider>);
+  const setOpen = (value: boolean) => rerender(<LanguageProvider><AssistantDrawer worldId={worldId} figures={FIGURES} chapters={chapters} open={value} onApply={onApply} onNavigate={onNavigate} onClose={onClose} /></LanguageProvider>);
+  return { onApply, onNavigate, onClose, unmount, setOpen };
 }
 
 async function askQuestion(question: string) {
@@ -40,7 +41,10 @@ beforeEach(() => {
   vi.mocked(api.assistantStatus).mockReset().mockResolvedValue(ONLINE);
   vi.mocked(api.assistantChat).mockReset();
   vi.mocked(api.assistantInstall).mockReset().mockResolvedValue({ ok: true, started: true });
-  vi.mocked(api.assistantInstallStatus).mockReset();
+  // pollInstall() now runs unconditionally on every mount (see the fix for
+  // install progress surviving a drawer close/reopen), so every test needs a
+  // default resolution here even when it has nothing to do with installing.
+  vi.mocked(api.assistantInstallStatus).mockReset().mockResolvedValue({ ok: true, running: false, phase: '', percent: 0, error: '' });
 });
 
 describe('AssistantDrawer', () => {
@@ -79,7 +83,9 @@ describe('AssistantDrawer', () => {
 
   it('installing shows a progress bar while the install is running', async () => {
     vi.mocked(api.assistantStatus).mockResolvedValue(NOT_INSTALLED);
-    vi.mocked(api.assistantInstallStatus).mockResolvedValue({ ok: true, running: true, phase: 'Runtime', percent: 42, error: '' });
+    vi.mocked(api.assistantInstallStatus)
+      .mockResolvedValueOnce({ ok: true, running: false, phase: '', percent: 0, error: '' }) // mount: nothing running yet
+      .mockResolvedValue({ ok: true, running: true, phase: 'Runtime', percent: 42, error: '' }); // after the click
     setup();
     fireEvent.click(await screen.findByText('Jetzt einrichten'));
     expect(await screen.findByText('Wird eingerichtet … 42%')).toBeInTheDocument();
@@ -88,14 +94,27 @@ describe('AssistantDrawer', () => {
 
   it('re-checks status once the install reports it finished', async () => {
     vi.mocked(api.assistantStatus).mockResolvedValueOnce(NOT_INSTALLED).mockResolvedValueOnce(ONLINE);
-    // Resolves as already finished on the very first poll (called synchronously
-    // right after assistantInstall()) -- exercises the completion path without
-    // needing the 1s polling interval to actually elapse.
     vi.mocked(api.assistantInstallStatus).mockResolvedValue({ ok: true, running: false, phase: '', percent: 100, error: '' });
     setup();
     fireEvent.click(await screen.findByText('Jetzt einrichten'));
+    await waitFor(() => expect(api.assistantStatus).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByText('Lokales Modell nicht verfügbar')).not.toBeInTheDocument());
-    expect(api.assistantStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('reopening the drawer mid-install shows the current progress instead of resetting', async () => {
+    // Regression test: closing the drawer used to lose all install progress
+    // client-side even though backend/llm/installer.py's background thread keeps
+    // the real download running -- reopening must resume watching it, not show
+    // "Jetzt einrichten" again as if nothing were happening.
+    vi.mocked(api.assistantStatus).mockResolvedValue(NOT_INSTALLED);
+    vi.mocked(api.assistantInstallStatus).mockResolvedValue({ ok: true, running: true, phase: 'Runtime', percent: 77, error: '' });
+    const { unmount } = setup();
+    await screen.findByText('Wird eingerichtet … 77%');
+    unmount();
+
+    setup(); // simulates reopening the assistant drawer
+    expect(await screen.findByText('Wird eingerichtet … 77%')).toBeInTheDocument();
+    expect(screen.queryByText('Jetzt einrichten')).not.toBeInTheDocument();
   });
 
   it('shows a sending indicator while a request is in flight, then renders the reply', async () => {
@@ -109,6 +128,28 @@ describe('AssistantDrawer', () => {
     await act(async () => resolveChat(reply({ message: 'Tarek ist ein Ritter.' })));
     expect(await screen.findByText('Tarek ist ein Ritter.')).toBeInTheDocument();
     expect(screen.queryByText(/durchsucht deine Welt/)).not.toBeInTheDocument();
+  });
+
+  it('closing the panel mid-request does not lose the in-flight reply -- it lands once reopened', async () => {
+    // The drawer used to fully unmount on close (App.tsx's `assistantOpen && <...>`),
+    // discarding `sending`/entries state and any in-flight request's eventual result.
+    // It now stays mounted and only its visible markup is gated on `open` (see
+    // AssistantDrawer's final return and App.tsx's `assistantEverOpened`), so a
+    // request started while open keeps running and lands normally after a close/reopen.
+    let resolveChat!: (value: AssistantReply) => void;
+    vi.mocked(api.assistantChat).mockReturnValue(new Promise(resolve => { resolveChat = resolve; }));
+    const { setOpen } = setup();
+    await screen.findByText('Wobei soll ich die Welt pflegen?');
+    await askQuestion('Wer ist Tarek?');
+    expect(screen.getByText(/durchsucht deine Welt/)).toBeInTheDocument();
+
+    setOpen(false);
+    expect(screen.queryByText(/durchsucht deine Welt/)).not.toBeInTheDocument(); // hidden, not gone
+    await act(async () => resolveChat(reply({ message: 'Tarek ist ein Ritter.' })));
+
+    setOpen(true);
+    expect(await screen.findByText('Tarek ist ein Ritter.')).toBeInTheDocument();
+    expect(api.assistantChat).toHaveBeenCalledTimes(1); // resumed watching the same request, didn't resend it
   });
 
   it('shows an error with a retry action, and retry re-sends the same question', async () => {

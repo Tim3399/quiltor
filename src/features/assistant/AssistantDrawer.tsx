@@ -13,8 +13,8 @@ const BATCH_PROGRESS_POLL_MS = 1500;
 
 type Entry = { id: string; question: string; reply?: AssistantReply; error?: string; applied: number[] };
 
-export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigate, onClose }: {
-  worldId: string; figures: FigureState; chapters: Chapter[]; onApply: (proposals: AssistantProposal[]) => void;
+export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onNavigate, onClose }: {
+  worldId: string; figures: FigureState; chapters: Chapter[]; open: boolean; onApply: (proposals: AssistantProposal[]) => void;
   onNavigate: (target: { workspace: Workspace; id: string }) => void; onClose: () => void;
 }) {
   const { t } = useLanguage();
@@ -40,23 +40,33 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     const interval = window.setInterval(checkStatus, STATUS_POLL_MS);
     return () => window.clearInterval(interval);
   }, [checkStatus]);
+  // An install keeps running server-side regardless of whether this drawer is open --
+  // pollInstall() re-syncs with that real state (not just after clicking the button),
+  // so closing and reopening the drawer mid-install shows the actual progress instead
+  // of resetting to the "set up now" button. hadRunningRef tracks whether *this*
+  // component instance actually saw (or triggered) a real install, so a plain mount
+  // where nothing is installing doesn't force an extra, unrelated status re-check.
+  const hadRunningRef = useRef(false);
   const pollInstall = useCallback(() => {
     api.assistantInstallStatus().then(state => {
       setInstallState(state);
-      if (!state.running) {
+      if (state.running) {
+        hadRunningRef.current = true;
+        if (!installPollRef.current) installPollRef.current = window.setInterval(pollInstall, 1000);
+      } else {
         window.clearInterval(installPollRef.current);
         installPollRef.current = undefined;
-        checkStatus();
+        if (hadRunningRef.current) {
+          hadRunningRef.current = false;
+          checkStatus();
+        }
       }
     }).catch(() => {});
   }, [checkStatus]);
+  useEffect(() => { pollInstall(); }, [pollInstall]);
   const startInstall = () => {
     setInstallState({ running: true, phase: '', percent: 0, error: '' });
-    void api.assistantInstall().then(() => {
-      if (installPollRef.current) return;
-      installPollRef.current = window.setInterval(pollInstall, 1000);
-      pollInstall();
-    });
+    void api.assistantInstall().then(() => { hadRunningRef.current = true; pollInstall(); });
   };
   useEffect(() => () => window.clearInterval(installPollRef.current), []);
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(entries.slice(-40))); end.current?.scrollIntoView({ behavior: 'smooth' }); }, [entries, storageKey]);
@@ -170,7 +180,12 @@ export function AssistantDrawer({ worldId, figures, chapters, onApply, onNavigat
     {confirmNewChat && <ConfirmDialog title={t('newChat')} description={t('newChatConfirmDescription')} confirmLabel={t('startNewChat')} onConfirm={() => setEntries([])} onClose={() => setConfirmNewChat(false)} />}
   </>;
   const className = `assistant-drawer ${status && !status.available ? 'has-offline' : ''}`;
-  return compact ? <Sheet open label={t('localAssistant')} onClose={onClose}><div className={className}>{content}</div></Sheet> : <Inspector className={className} aria-label={t('localAssistant')}>{content}</Inspector>;
+  // Stays mounted while closed (App.tsx renders this once assistantEverOpened,
+  // regardless of `open`) so in-flight requests, the sending indicator, and install
+  // progress survive closing the panel -- only the visible markup is gated on `open`.
+  return compact
+    ? <Sheet open={open} label={t('localAssistant')} onClose={onClose}><div className={className}>{content}</div></Sheet>
+    : open ? <Inspector className={className} aria-label={t('localAssistant')}>{content}</Inspector> : null;
 }
 
 function SourceList({ sources, onNavigate }: { sources: AssistantSource[]; onNavigate: (target: { workspace: Workspace; id: string }) => void }) {
