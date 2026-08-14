@@ -149,6 +149,17 @@ ROUTES = {
 }
 
 
+def _default_render_pdf(url: str) -> bytes:
+    return render_pdf(BASE / "scripts" / "render-book-pdf.mjs", BASE, url)
+
+
+# Swappable by desktop.py, which points this at render.render_pdf_system_browser
+# (drives the OS's installed Chrome/Edge via Playwright for Python) instead of this
+# default Node/Playwright-JS subprocess path. Docker and `npm run dev` never touch
+# this and keep using the default unchanged.
+RENDER_PDF = _default_render_pdf
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
 
     def __init__(self, *args, **kwargs):
@@ -463,7 +474,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         if route == "/api/book.pdf":
             port = self.server.server_address[1]
-            script = BASE / "scripts" / "render-book-pdf.mjs"
             try:
                 try:
                     body_payload = self._read_json_body()
@@ -480,7 +490,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     target_url = f"http://127.0.0.1:{port}/?world={ctx.id}&renderToken={render_token}"
                 else:
                     target_url = f"http://127.0.0.1:{port}/?world={storage.ACTIVE_WORLD_ID}"
-                return self.send_pdf(render_pdf(script, BASE, target_url))
+                return self.send_pdf(RENDER_PDF(target_url))
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": f"PDF konnte nicht erzeugt werden: {exc}"}, 500)
 

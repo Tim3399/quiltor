@@ -13,8 +13,14 @@ license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.
 # is the one dependency of the packaged `quiltor` CLI's `run`/`config` commands.
 dependencies = ["typer>=0.12"]
 
+# Only needed for desktop.py (a native-window desktop build, see packaging/) --
+# never required for `python3 server.py`, the plain CLI, or Docker.
+[project.optional-dependencies]
+desktop = ["pywebview>=5.0", "playwright>=1.40", "pystray>=0.19", "Pillow>=10"]
+
 [project.scripts]
 quiltor = "backend.cli:main_entry"
+quiltor-desktop = "desktop:main"
 
 [project.urls]
 Homepage = "https://github.com/Tim3399/quiltor"
@@ -28,12 +34,16 @@ packages = ["backend", "mcp"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "server.py" = "server.py"
+"desktop.py" = "desktop.py"
+"desktop_platform.py" = "desktop_platform.py"
+"desktop_tray.py" = "desktop_tray.py"
 "VERSION" = "VERSION"
 "dist" = "dist"
 "scripts" = "scripts"
+"packaging/icons" = "packaging/icons"
 
 [tool.hatch.build.targets.sdist]
-include = ["backend", "mcp", "server.py", "VERSION", "scripts", "README.md", "LICENSE"]
+include = ["backend", "mcp", "server.py", "desktop.py", "desktop_platform.py", "desktop_tray.py", "VERSION", "scripts", "README.md", "LICENSE"]
 
 [tool.hatch.build.targets.sdist.force-include]
 "dist" = "dist"

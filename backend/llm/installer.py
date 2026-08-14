@@ -94,8 +94,8 @@ def ensure_installed() -> None:
     """Called by server.py at startup. Prompts once, interactively, if nothing is set up yet."""
     if is_configured():
         return
-    if not sys.stdin.isatty():
-        return  # non-interactive context (piped, a service, CI) -- stay silent
+    if sys.stdin is None or not sys.stdin.isatty():
+        return  # non-interactive context (piped, a service, CI, a windowed desktop build) -- stay silent
     runtime = resolve_runtime("auto")
     size = "~2,4 GB" if runtime == "mlx" else "~2,5 GB"
     print()

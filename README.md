@@ -127,6 +127,26 @@ npm run dev
 
 Parallel dazu läuft `python3 server.py --no-open`; Vite leitet API-Anfragen an Port 8000 weiter.
 
+## Desktop-App
+
+Für macOS und Windows gibt es zusätzlich eine echte Doppelklick-App — natives
+Fenster statt Browser-Tab, kein Terminal und keine Python-Installation nötig.
+Selbst bauen:
+
+```bash
+python -m venv .venv-desktop && source .venv-desktop/bin/activate  # Windows: .venv-desktop\Scripts\activate
+pip install -e ".[desktop]" pyinstaller
+
+./packaging/build_macos.sh                     # → packaging/dist/Quiltor.app
+powershell -File packaging/build_windows.ps1    # → packaging/dist/Quiltor/Quiltor.exe
+```
+
+Unsigniert für v1: macOS zeigt "unbekannter Entwickler" (Rechtsklick → Öffnen),
+Windows zeigt SmartScreen (Weitere Informationen → Trotzdem ausführen). Der
+PDF-Export nutzt den bereits installierten Chrome/Edge-Browser statt eines
+gebündelten Downloads. Details zu Build, Signierung und warum ein Mac-App-Store-
+Vertrieb ohne Sandboxing-Umbau nicht realistisch ist: [`packaging/README.md`](packaging/README.md).
+
 ## Web-Demo mit Keycloak
 
 Quiltor kann zusätzlich als kleine Mehrbenutzer-Demo im Web laufen: Login über eine bestehende Keycloak-Instanz, jede angemeldete Person sieht ausschließlich ihre eigenen Welten. Ohne die folgenden Umgebungsvariablen bleibt Quiltor exakt der lokale Einzelnutzer-Modus von oben — der Web-Modus ist rein additiv und muss aktiv eingeschaltet werden.
@@ -232,6 +252,8 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ```text
 backend/                    SQLite, Backups, Retrieval, Assistant, Git, Keycloak-Login (auth.py)
 mcp/                        Read- und Proposal-only MCP-Server
+desktop.py                  Desktop-App-Startpunkt (natives Fenster statt Browser-Tab)
+packaging/                  PyInstaller-Spec, Build-Skripte und Icon-Assets für die Desktop-App
 src/
 ├── app/                    App-Shell und Navigation
 ├── design/                 Farb- und Gestaltungstokens (colors.css, tokens.css)

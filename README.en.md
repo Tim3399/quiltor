@@ -127,6 +127,25 @@ npm run dev
 
 Run `python3 server.py --no-open` alongside Vite; API requests are forwarded to port 8000.
 
+## Desktop app
+
+macOS and Windows also get a real double-click app — a native window instead of a
+browser tab, no terminal or Python install needed. Build it yourself:
+
+```bash
+python -m venv .venv-desktop && source .venv-desktop/bin/activate  # Windows: .venv-desktop\Scripts\activate
+pip install -e ".[desktop]" pyinstaller
+
+./packaging/build_macos.sh                     # → packaging/dist/Quiltor.app
+powershell -File packaging/build_windows.ps1    # → packaging/dist/Quiltor/Quiltor.exe
+```
+
+Unsigned for now: macOS shows "unidentified developer" (right-click → Open once),
+Windows shows SmartScreen (More info → Run anyway). PDF export uses the system's
+installed Chrome/Edge instead of a bundled download. See
+[`packaging/README.md`](packaging/README.md) for build details, signing, and why
+Mac App Store distribution isn't realistic without a sandboxing rework.
+
 ## Local means local
 
 - Every world has a separate SQLite file under `data/worlds/`.
@@ -174,6 +193,8 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ```text
 backend/                    SQLite, backups, retrieval, assistant, Git
 mcp/                        read-only and proposal-only MCP server
+desktop.py                  desktop app entry point (native window instead of a browser tab)
+packaging/                  PyInstaller spec, build scripts, and icon assets for the desktop app
 src/
 ├── app/                    application shell and navigation
 ├── design/                 color and design tokens (colors.css, tokens.css)

@@ -57,3 +57,35 @@ def render_pdf(script: Path, base: Path, url: str, timeout: int = 90) -> bytes:
     finally:
         if target_name:
             Path(target_name).unlink(missing_ok=True)
+
+
+def render_pdf_system_browser(url: str, timeout: int = 90) -> bytes:
+    """Desktop-app PDF render path: drives the OS's already-installed Chrome or Edge
+    through Playwright for Python instead of shelling out to render_pdf()'s Node/
+    Playwright-JS script. Playwright for Python bundles its own small driver (no system
+    Node.js needed) and `channel="chrome"/"msedge"` reuses the installed browser instead
+    of downloading a dedicated Chromium (~250-300MB saved in the frozen desktop build).
+    Only used by desktop.py; Docker/dev keep using render_pdf() above unchanged.
+    """
+    from playwright.sync_api import sync_playwright  # local import: `desktop` extra only
+
+    last_error: Exception | None = None
+    with sync_playwright() as p:
+        for channel in ("chrome", "msedge"):
+            try:
+                browser = p.chromium.launch(channel=channel, headless=True)
+            except Exception as exc:
+                last_error = exc
+                continue
+            try:
+                page = browser.new_page()
+                page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+                page.get_by_label("Kapiteltext").wait_for(timeout=timeout * 1000)
+                page.emulate_media(media="print")
+                return page.pdf(prefer_css_page_size=True, print_background=True, display_header_footer=False)
+            finally:
+                browser.close()
+    raise RuntimeError(
+        "Für den PDF-Export wurde weder Google Chrome noch Microsoft Edge gefunden. "
+        f"Bitte einen der beiden Browser installieren und erneut versuchen ({last_error})."
+    )
