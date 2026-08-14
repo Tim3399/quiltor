@@ -42,7 +42,17 @@ def _figure_journey_stops(figure: dict[str, Any], presence: list[dict[str, Any]]
     return [stop for i, stop in enumerate(stops) if i == 0 or stop["placeId"] != stops[i - 1]["placeId"]]
 
 
-def presence_consistency_issues(figures: dict[str, Any]) -> list[str]:
+# Each issue is tracked as (fallback German text, frontend translation key, key params) so
+# validate_world/presence_consistency_issues can keep returning plain strings (used for
+# logging, agentTrace, and existing test assertions) while audit_reply() below hands the
+# same findings to the frontend as translatable messageItems -- see
+# src/language/{de,en}/assistant.ts's issue* keys, the single source of truth for the text
+# a user actually sees.
+def _issue(text: str, key: str, **params: Any) -> tuple[str, str, dict[str, Any]]:
+    return text, key, params
+
+
+def _presence_issue_entries(figures: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
     """Near-term slice of plan item B.1: flag presence entries that imply a figure changed
     places with a same-day or backward date jump -- pure data already structured today
     (PresenceEntry + TimelineMoment.date), no prose-reading or LLM call involved. Silently
@@ -52,7 +62,7 @@ def presence_consistency_issues(figures: dict[str, Any]) -> list[str]:
     presence = figures.get("presence") or []
     timeline = figures.get("timeline") or []
     moments_by_id = {moment.get("id"): moment for moment in timeline}
-    issues: list[str] = []
+    entries: list[tuple[str, str, dict[str, Any]]] = []
     for figure in nodes:
         name = figure.get("name") or figure.get("id")
         stops = _figure_journey_stops(figure, presence, timeline)
@@ -63,10 +73,14 @@ def presence_consistency_issues(figures: dict[str, Any]) -> list[str]:
             if days is None:
                 continue
             if days < 0:
-                issues.append(f"{name} wechselt laut Anwesenheit den Ort, aber das Zieldatum liegt vor dem Ausgangsdatum")
+                entries.append(_issue(f"{name} wechselt laut Anwesenheit den Ort, aber das Zieldatum liegt vor dem Ausgangsdatum", "issuePresenceBackward", name=name))
             elif days == 0:
-                issues.append(f"{name} wechselt laut Anwesenheit am selben Tag den Ort")
-    return issues
+                entries.append(_issue(f"{name} wechselt laut Anwesenheit am selben Tag den Ort", "issuePresenceSameDay", name=name))
+    return entries
+
+
+def presence_consistency_issues(figures: dict[str, Any]) -> list[str]:
+    return [text for text, _key, _params in _presence_issue_entries(figures)]
 
 
 def validate_world(figures: dict[str, Any]) -> dict[str, Any]:
@@ -74,26 +88,29 @@ def validate_world(figures: dict[str, Any]) -> dict[str, Any]:
     moments = {moment.get("id") for moment in figures.get("timeline") or []}
     edges = figures.get("edges") or []
     presence = figures.get("presence") or []
-    issues: list[str] = []
+    entries: list[tuple[str, str, dict[str, Any]]] = []
     seen: set[tuple[Any, ...]] = set()
     for edge in edges:
+        edge_id = edge.get("id")
         if edge.get("from") not in nodes or edge.get("to") not in nodes:
-            issues.append(f"Beziehung {edge.get('id')} hat einen fehlenden Endpunkt")
+            entries.append(_issue(f"Beziehung {edge_id} hat einen fehlenden Endpunkt", "issueMissingEndpoint", id=edge_id))
         key = (edge.get("from"), edge.get("to")) if edge.get("gerichtet") else tuple(sorted((edge.get("from"), edge.get("to"))))
         duplicate_key = (bool(edge.get("gerichtet")), *key)
         if duplicate_key in seen:
-            issues.append(f"Beziehung {edge.get('id')} ist strukturell doppelt")
+            entries.append(_issue(f"Beziehung {edge_id} ist strukturell doppelt", "issueDuplicateRelationship", id=edge_id))
         seen.add(duplicate_key)
         version_moments: set[Any] = set()
         for version in edge.get("versions") or []:
             moment_id = version.get("momentId")
             if moment_id not in moments:
-                issues.append(f"Beziehung {edge.get('id')} verweist auf einen fehlenden Zeitpunkt {moment_id}")
+                entries.append(_issue(f"Beziehung {edge_id} verweist auf einen fehlenden Zeitpunkt {moment_id}", "issueMissingMoment", id=edge_id, momentId=moment_id))
             if moment_id in version_moments:
-                issues.append(f"Beziehung {edge.get('id')} hat mehrere Stände am selben Zeitpunkt {moment_id}")
+                entries.append(_issue(f"Beziehung {edge_id} hat mehrere Stände am selben Zeitpunkt {moment_id}", "issueDuplicateMomentState", id=edge_id, momentId=moment_id))
             version_moments.add(moment_id)
-    issues.extend(presence_consistency_issues(figures))
-    return {"issues": issues, "inspected": {"elements": len(nodes), "relationships": len(edges), "timelineMoments": len(moments), "relationshipStates": sum(len(edge.get("versions") or []) for edge in edges), "presenceEntries": len(presence)}}
+    entries.extend(_presence_issue_entries(figures))
+    issues = [text for text, _key, _params in entries]
+    issue_items = [{"key": key, "params": params} for _text, key, params in entries]
+    return {"issues": issues, "issueItems": issue_items, "inspected": {"elements": len(nodes), "relationships": len(edges), "timelineMoments": len(moments), "relationshipStates": sum(len(edge.get("versions") or []) for edge in edges), "presenceEntries": len(presence)}}
 
 
 def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
@@ -104,6 +121,17 @@ def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
     if audit["issues"]:
         return prefix + " Gefunden: " + "; ".join(audit["issues"]) + ". Es wurde nichts geändert."
     return prefix + " Keine technischen Widersprüche gefunden. Ob Richtung und Beschriftung inhaltlich zur Geschichte passen, ist damit nicht automatisch bewiesen; dafür müssen konkrete Manuskriptstellen als Belege ausgewertet werden."
+
+
+def audit_reply(audit: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
+    """Same content as audit_message(), plus the messageKey/messageParams/messageItems
+    triple the frontend needs to render it in the interface language (see
+    src/features/assistant/AssistantDrawer.tsx's resolveAssistantMessage)."""
+    inspected = audit["inspected"]
+    params = {"relationships": inspected["relationships"], "relationshipStates": inspected["relationshipStates"], "elements": inspected["elements"], "timelineMoments": inspected["timelineMoments"], "presenceEntries": inspected["presenceEntries"]}
+    if audit["issues"]:
+        return {"message": audit_message(audit, contract), "messageKey": "auditFoundIssues", "messageParams": params, "messageItems": audit["issueItems"]}
+    return {"message": audit_message(audit, contract), "messageKey": "auditNoIssues", "messageParams": params}
 
 
 def validate_proposals(value: Any, figures: dict[str, Any], question: str = "") -> list[dict[str, Any]]:

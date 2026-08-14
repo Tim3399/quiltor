@@ -14,12 +14,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-from backend.assistant.audit import audit_message, validate_proposals, validate_world
+from backend.assistant.audit import audit_reply, validate_proposals, validate_world
 from backend.assistant.batch import (
     BATCH_GROUP_TOKEN_BUDGET,
     _group_chapters_by_budget,
     _merge_accumulated,
-    broad_scope_message,
+    batch_summary_reply,
+    broad_scope_reply,
     estimate_batch_seconds,
 )
 from backend.assistant.contract import (
@@ -68,16 +69,16 @@ def start_progress(progress_id: str, total: int) -> None:
     now = time.time()
     with _progress_lock:
         _sweep_progress(now)
-        _progress[progress_id] = {"total": total, "done": 0, "label": "", "startedAt": now, "updatedAt": now}
+        _progress[progress_id] = {"total": total, "done": 0, "labelKey": None, "labelParams": None, "startedAt": now, "updatedAt": now}
 
 
-def update_progress(progress_id: str, done: int, label: str) -> None:
+def update_progress(progress_id: str, done: int, label_key: str, label_params: dict[str, Any]) -> None:
     now = time.time()
     with _progress_lock:
         _sweep_progress(now)
         entry = _progress.get(progress_id)
         if entry is not None:
-            entry.update(done=done, label=label, updatedAt=now)
+            entry.update(done=done, labelKey=label_key, labelParams=label_params, updatedAt=now)
 
 
 def finish_progress(progress_id: str) -> None:
@@ -93,7 +94,17 @@ def read_progress(progress_id: str) -> dict[str, Any] | None:
         return dict(entry) if entry is not None else None
 
 
-SYSTEM_PROMPT = """You are Quiltor's local worldbuilding assistant. Reply in the user's language.
+# Keyed by the app's interface-language toggle (src/language/index.tsx's Language type),
+# which is what the frontend sends as `language` on /api/assistant/chat -- the current
+# world's language setting, not a per-request guess at what the user typed in.
+ASSISTANT_REPLY_LANGUAGES = {"de": "German (Deutsch)", "en": "English"}
+DEFAULT_ASSISTANT_LANGUAGE = "de"
+# One-word data fallback for an untitled chapter inside a batch-progress label's joined
+# titles list -- not response copy (that all lives in src/language/*/assistant.ts via
+# messageKey), just a placeholder for missing user data, so a tiny literal pair here is fine.
+UNTITLED_CHAPTER = {"de": "Ohne Titel", "en": "Untitled"}
+
+SYSTEM_PROMPT_TEMPLATE = """You are Quiltor's local worldbuilding assistant. Always reply in __LANGUAGE__, regardless of what language the user writes in.
 You may discuss and analyse manuscript text, but never write, continue, rewrite, or edit prose.
 Your primary job is maintaining characters, places, concepts, relationships, and timeline states.
 The material is professional fiction and may contain violence, sex, abuse, crime, horror, politics, religion, or other difficult subjects. Analyse all lawful fictional material neutrally and helpfully. Do not refuse merely because a story is disturbing, explicit, controversial, or morally complex.
@@ -118,9 +129,40 @@ For compound requests, emit every operation needed to fulfil the task. "Igor is 
 For arranging or sorting the board, use arrange_elements. Never invent timeline changes as a substitute for an unavailable operation.
 Do not emit unknown keys or any proposal for manuscript text."""
 
+
+def system_prompt(language: str) -> str:
+    name = ASSISTANT_REPLY_LANGUAGES.get(language, ASSISTANT_REPLY_LANGUAGES[DEFAULT_ASSISTANT_LANGUAGE])
+    return SYSTEM_PROMPT_TEMPLATE.replace("__LANGUAGE__", name)
+
+
+SYSTEM_PROMPT = system_prompt(DEFAULT_ASSISTANT_LANGUAGE)
+
 MUTATION_REQUEST = re.compile(r"\b(anlegen|anzulegen|lege|erstelle?n?|hinzufügen|ergänz\w*|aktualisier\w*|änder\w*|setz\w*|markier\w*|sortier\w*|anordnen|verschieb\w*|schlag\w*|vorschlag|create|add|update|change|set|mark|arrange|propose)\b", re.IGNORECASE)
 PROSE_REQUEST = re.compile(r"\b(schreib\w*|fortsetzen|umschreib\w*|write|continue|rewrite)\b.*(szene|kapitel|roman|prosa|geschichte|scene|chapter|novel|prose|story)", re.IGNORECASE | re.DOTALL)
 COMPLEX_ANALYSIS_REQUEST = re.compile(r"\b(prüf\w*|analysier\w*|widerspr\w*|konsisten\w*|verbind\w*|warum|weshalb|folgen?|mehrere|anhand|manuskript|kapitel|compare|analyse|analyze|why|consisten\w*|contradiction\w*)\b", re.IGNORECASE)
+
+# verify_task_contract() (contract.py) reports "missing" entries as either a proposal kind
+# name or one of the two literal duplicate-issue strings below -- mapped here to
+# src/language/{de,en}/assistant.ts keys so AssistantDrawer.tsx can render them translated.
+MISSING_ITEM_KEYS = {
+    "create_element": "kindCreateElement", "update_element": "kindUpdateElement",
+    "create_timeline_moment": "kindCreateTimelineMoment", "create_relationship": "kindCreateRelationship",
+    "set_relationship_at_moment": "kindSetRelationshipAtMoment", "mark_deceased": "kindMarkDeceased",
+    "arrange_elements": "kindArrangeElements", "set_presence": "kindSetPresence",
+    "duplicate element": "duplicateElementIssue", "duplicate timeline moment": "duplicateMomentIssue",
+}
+
+
+def _missing_items(missing: list[str]) -> list[dict[str, Any]]:
+    return [{"key": MISSING_ITEM_KEYS[item]} for item in missing]
+
+
+def _set_deterministic_message(parsed: dict[str, Any], key: str, params: dict[str, Any] | None = None, items: list[dict[str, Any]] | None = None) -> None:
+    """Every deterministic override of parsed['message'] below must also (re)set the
+    messageKey/messageParams/messageItems triple, since a later branch overwriting the
+    plain-text fallback without touching these would otherwise leave a stale key/params
+    pair from an earlier branch for the frontend to render instead."""
+    parsed["messageKey"], parsed["messageParams"], parsed["messageItems"] = key, params, items
 
 
 def needs_planner(question: str) -> bool:
@@ -175,15 +217,16 @@ class AssistantRuntime:
             except IncompleteResponse as exc:
                 raise RuntimeError("Das lokale Modell hat keine gültige strukturierte Antwort geliefert.") from exc
 
-    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, Any]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None) -> dict[str, Any]:
+    def complete(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, Any]] | None = None, chapter_ids: list[str] | None = None, run_batches: bool = False, progress_id: str | None = None, language: str = DEFAULT_ASSISTANT_LANGUAGE) -> dict[str, Any]:
         started_at = time.monotonic()
         self._invocation_metrics = []
+        prompt = system_prompt(language)
         chunks = build_knowledge(manuscript, figures)
         contract = task_contract(question, figures)
         reference = resolve_reference(question, history, figures)
         if reference and reference.get("clarification"):
             clarification = reference["clarification"]
-            return {"message": clarification["question"], "citations": [], "sources": [], "proposals": [], "clarification": clarification, "agentTrace": [{"step": "clarification", "candidateCount": len(clarification["candidates"])}]}
+            return {"message": "Welches Element meinst du?", "messageKey": "whichElementDoYouMean", "citations": [], "sources": [], "proposals": [], "clarification": clarification, "agentTrace": [{"step": "clarification", "candidateCount": len(clarification["candidates"])}]}
         if reference and reference.get("resolvedId"):
             question = f"{question}\n[Resolved reference: {reference['resolvedId']}]"
         context = retrieve(chunks, question)
@@ -203,23 +246,24 @@ class AssistantRuntime:
             audit = validate_world(figures)
             evidence = [chunk.public() for chunk in chunks if chunk.kind == "relationship"][:12]
             trace.append({"step": "verify", "complete": True, "missing": [], "issues": audit["issues"], "inspected": audit["inspected"]})
-            return {"message": audit_message(audit, contract), "citations": [item["id"] for item in evidence], "sources": evidence, "proposals": [], "agentTrace": trace}
+            return {**audit_reply(audit, contract), "citations": [item["id"] for item in evidence], "sources": evidence, "proposals": [], "agentTrace": trace}
         duplicate = existing_creation_target(question, figures, contract)
         if duplicate:
             source_id = f"element:{duplicate['id']}"
             source = next((chunk.public() for chunk in chunks if chunk.id == source_id), None)
             trace.append({"step": "preflight", "complete": False, "reason": "existing element", "elementId": duplicate["id"]})
-            return {"message": f"„{duplicate.get('name', 'Dieses Element')}“ existiert bereits. Deshalb habe ich kein doppeltes Element vorgeschlagen. Du kannst stattdessen den vorhandenen Steckbrief oder seine Beziehungen ergänzen.", "citations": [source_id], "sources": [source] if source else [], "proposals": [], "agentTrace": trace}
+            duplicate_name = duplicate.get("name", "Dieses Element")
+            return {"message": f"„{duplicate_name}“ existiert bereits. Deshalb habe ich kein doppeltes Element vorgeschlagen. Du kannst stattdessen den vorhandenen Steckbrief oder seine Beziehungen ergänzen.", "messageKey": "duplicateElementExists", "messageParams": {"name": duplicate_name}, "citations": [source_id], "sources": [source] if source else [], "proposals": [], "agentTrace": trace}
         if contract["broad"] and not chapter_ids and not run_batches:
             chapter_count = len({chapter["id"] for chapter in manuscript.get("chapters") or []})
             trace.append({"step": "preflight", "complete": False, "reason": "broad scope", "chapterCount": chapter_count})
             return {
-                "message": broad_scope_message(chapter_count),
+                **broad_scope_reply(chapter_count),
                 "citations": [], "sources": [], "proposals": [], "agentTrace": trace,
                 "broadScope": {"chapterCount": chapter_count, "estimateSeconds": estimate_batch_seconds(chapter_count)},
             }
         if run_batches and not chapter_ids:
-            return self._run_batches(question, manuscript, figures, history, progress_id)
+            return self._run_batches(question, manuscript, figures, history, progress_id, language)
         plan = ({"goal": question, "steps": contract["expected"], "searchQueries": [], "requiredKinds": contract["requiredKinds"], "planner": "deterministic"}
                 if contract["requiredKinds"] or not needs_planner(question) else self._plan(question, context))
         plan.setdefault("planner", "model")
@@ -238,13 +282,13 @@ class AssistantRuntime:
         context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
         world_json = json.dumps(structured_world_state(figures, contract), ensure_ascii=False)
         if PROSE_REQUEST.search(question):
-            return {"message": "Ich schreibe oder vervollständige keine Romanprosa. Ich kann die geplante Szene aber anhand deiner Welt analysieren, Widersprüche finden, beteiligte Figuren und Beziehungen ordnen oder ihre Konsequenzen als Notizen vorbereiten.", "citations": [], "sources": [], "proposals": []}
+            return {"message": "Ich schreibe oder vervollständige keine Romanprosa. Ich kann die geplante Szene aber anhand deiner Welt analysieren, Widersprüche finden, beteiligte Figuren und Beziehungen ordnen oder ihre Konsequenzen als Notizen vorbereiten.", "messageKey": "proseRefusal", "citations": [], "sources": [], "proposals": []}
         mutation_requested = bool(MUTATION_REQUEST.search(question))
         schema = reply_schema(contract["requiredKinds"] or (KINDS if mutation_requested else []))
         conversation = conversation_messages(history, self.url)
         def prompt_for(packed_json: str) -> tuple[str, int, int]:
             content = f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{packed_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"
-            tokens = count_tokens(self.url, SYSTEM_PROMPT + "".join(message["content"] for message in conversation) + content)
+            tokens = count_tokens(self.url, prompt + "".join(message["content"] for message in conversation) + content)
             return content, tokens, MODEL_CONTEXT_TOKENS - tokens - RUNTIME_CONFIG.template_reserve
 
         user_content, prompt_tokens, headroom = prompt_for(context_json)
@@ -271,7 +315,7 @@ class AssistantRuntime:
         max_tokens = min(RUNTIME_CONFIG.base_output_tokens + RUNTIME_CONFIG.output_tokens_per_kind * len(contract["requiredKinds"]), headroom)
         payload = {
             "model": "local", "stream": False, "temperature": 0.2, "max_tokens": max_tokens,
-            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *conversation, {"role": "user", "content": user_content}],
+            "messages": [{"role": "system", "content": prompt}, *conversation, {"role": "user", "content": user_content}],
             "response_format": json_schema_format(schema),
         }
         supported = set(KINDS)
@@ -313,6 +357,7 @@ class AssistantRuntime:
             parsed["proposals"] = validate_proposals([forced] if forced else [], figures, question)
             if parsed["proposals"] and not parsed.get("message"):
                 parsed["message"] = "Ich habe die gewünschte Änderung als prüfbaren Vorschlag vorbereitet."
+                _set_deterministic_message(parsed, "proposalPreparedGeneric")
         verification = verify_task_contract(contract, parsed["proposals"], figures)
         if parsed["proposals"]:
             parsed["message"] = re.sub(r"\b(?:wurde|wird|ist)(?: als [^.!\n]+)? (?:hinzugefügt|angelegt|erstellt|aufgenommen)\b", "ist als Vorschlag vorbereitet", str(parsed.get("message", "")), flags=re.IGNORECASE)
@@ -326,25 +371,32 @@ class AssistantRuntime:
             trace.append({"step": "discard", "proposalReasons": {"semantic_validation": discarded_proposals}, "citationReasons": {"unknown_or_duplicate": discarded_citations}})
         if not parsed["proposals"] and not parsed["citations"] and any(chunk.kind in {"chapter", "chapter-note"} for chunk in context) and not PROSE_REQUEST.search(question):
             parsed["message"] = str(parsed.get("message", "")).rstrip() + "\n\nHinweis: Diese manuskriptbezogene Aussage ist ohne gültige Quellenangabe unbelegt."
+            # Additive to whatever message this is (free-form LLM answer or a deterministic
+            # one) -- AssistantDrawer.tsx appends the translated note after resolving the
+            # base message via messageKey, rather than baking German text into it here.
+            parsed["messageNoteKey"] = "unsourcedManuscriptNote"
         if contract["audit"]:
             audit = validate_world(figures)
-            parsed["message"] = audit_message(audit, contract)
+            parsed.update(audit_reply(audit, contract))
             parsed["proposals"] = []
             parsed["citations"] = [chunk.id for chunk in context if chunk.kind == "relationship"][:12]
             parsed["sources"] = [known[source] for source in parsed["citations"] if source in known]
             verification = {"complete": True, "missing": [], "issues": audit["issues"], "inspected": audit["inspected"]}
         elif not verification["complete"]:
             parsed["message"] = "Ich konnte die Aufgabe noch nicht vollständig als sicheren Vorschlag vorbereiten. Es fehlen: " + ", ".join(verification["missing"]) + ". Es wurde nichts angewendet."
+            _set_deterministic_message(parsed, "taskIncompleteMissing", items=_missing_items(verification["missing"]))
         elif parsed["proposals"]:
             parsed["proposalGroup"] = {"id": "task", "title": proposal_group_title(question), "proposalIndexes": list(range(len(parsed["proposals"])))}
-            parsed["message"] = f"{len(parsed['proposals'])} zusammengehörige Änderung{'en' if len(parsed['proposals']) != 1 else ''} als prüfbarer Vorschlag vorbereitet. Es wurde noch nichts angewendet."
+            proposal_count = len(parsed["proposals"])
+            parsed["message"] = f"{proposal_count} zusammengehörige Änderung{'en' if proposal_count != 1 else ''} als prüfbarer Vorschlag vorbereitet. Es wurde noch nichts angewendet."
+            _set_deterministic_message(parsed, "proposalsPreparedOne" if proposal_count == 1 else "proposalsPreparedMany", params={"n": proposal_count})
         trace.append({"step": "verify", **verification})
         calls = list(getattr(self, "_invocation_metrics", []))
         trace.append({"step": "metrics", "plannerCalls": int(any(item.get("step") == "plan" and item.get("planner") != "deterministic" for item in trace)), "answerCalls": 1, "repairCalls": int(any(item.get("step") == "repair" for item in trace)), "promptTokens": prompt_tokens, "usedContextTokens": prompt_tokens, "contextTokens": MODEL_CONTEXT_TOKENS, "outputBudget": max_tokens, "durationMs": round((time.monotonic() - started_at) * 1000), "finishReason": calls[-1].get("finishReason", "unknown") if calls else "unknown", "runtimeCalls": calls, "tokenCache": TOKEN_CACHE.stats(), "discardedProposals": discarded_proposals, "discardedCitations": discarded_citations})
         parsed["agentTrace"] = trace
         return parsed
 
-    def _run_batches(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, Any]] | None, progress_id: str | None) -> dict[str, Any]:
+    def _run_batches(self, question: str, manuscript: dict[str, Any], figures: dict[str, Any], history: list[dict[str, Any]] | None, progress_id: str | None, language: str = DEFAULT_ASSISTANT_LANGUAGE) -> dict[str, Any]:
         """Explicit, user-approved execution of a broad request: walk the manuscript in
         token-budgeted chapter groups, reusing complete()'s ordinary single-call path per
         group (same chapter-forcing mechanism the manual chapter picker already uses), and
@@ -353,7 +405,8 @@ class AssistantRuntime:
         of proposals is exactly the usability trap batch mode exists to avoid."""
         chapters = manuscript.get("chapters") or []
         groups = _group_chapters_by_budget(chapters, self.url, BATCH_GROUP_TOKEN_BUDGET)
-        titles = {chapter["id"]: chapter.get("title") or "Ohne Titel" for chapter in chapters}
+        untitled = UNTITLED_CHAPTER.get(language, UNTITLED_CHAPTER[DEFAULT_ASSISTANT_LANGUAGE])
+        titles = {chapter["id"]: chapter.get("title") or untitled for chapter in chapters}
         trace: list[dict[str, Any]] = [{"step": "batch_start", "groups": len(groups), "chapters": len(chapters)}]
         accumulated: list[dict[str, Any]] = []
         notes: list[str] = []
@@ -361,22 +414,21 @@ class AssistantRuntime:
             start_progress(progress_id, len(groups))
         try:
             for index, group in enumerate(groups, start=1):
-                label = f"Kapitel {index}/{len(groups)}: " + ", ".join(titles[cid] for cid in group)
+                label_params = {"index": index, "total": len(groups), "titles": ", ".join(titles[cid] for cid in group)}
+                label = f"Kapitel {index}/{len(groups)}: " + label_params["titles"]
                 merged_figures = _merge_accumulated(figures, accumulated)
-                result = self.complete(question, manuscript, merged_figures, history, chapter_ids=group)
+                result = self.complete(question, manuscript, merged_figures, history, chapter_ids=group, language=language)
                 proposals = result.get("proposals") or []
                 accumulated.extend(proposals)
                 if result.get("message"):
                     notes.append(f"{label}: {result['message']}")
                 trace.append({"step": "batch_group", "index": index, "chapterIds": group, "proposalKinds": [item.get("kind") for item in proposals]})
                 if progress_id:
-                    update_progress(progress_id, index, label)
+                    update_progress(progress_id, index, "chapterGroupLabel", label_params)
         finally:
             if progress_id:
                 finish_progress(progress_id)
-        summary = (f"{len(chapters)} Kapitel in {len(groups)} Gruppen verarbeitet, {len(accumulated)} Vorschläge vorbereitet. "
-                   "Jeder Vorschlag kann einzeln geprüft und übernommen werden.")
-        return {"message": summary, "citations": [], "sources": [], "proposals": accumulated, "agentTrace": trace, "batchNotes": notes}
+        return {**batch_summary_reply(len(chapters), len(groups), len(accumulated)), "citations": [], "sources": [], "proposals": accumulated, "agentTrace": trace, "batchNotes": notes}
 
     def _plan(self, question: str, context: list[Any]) -> dict[str, Any]:
         schema = planner_schema(KINDS)

@@ -42,6 +42,29 @@ def broad_scope_message(chapter_count: int) -> str:
     )
 
 
+def broad_scope_reply(chapter_count: int) -> dict[str, Any]:
+    """Same content as broad_scope_message(), plus the messageKey/messageParams the frontend
+    needs to render it in the interface language -- see src/language/{de,en}/assistant.ts's
+    broadScopeMessage key."""
+    low, high = estimate_batch_seconds(chapter_count, 0.7), estimate_batch_seconds(chapter_count, 1.3)
+    return {
+        "message": broad_scope_message(chapter_count),
+        "messageKey": "broadScopeMessage",
+        "messageParams": {"chapterCount": chapter_count, "minMinutes": _format_minutes(low), "maxMinutes": _format_minutes(high)},
+    }
+
+
+def batch_summary_reply(chapter_count: int, group_count: int, proposal_count: int) -> dict[str, Any]:
+    """Same content the batch summary previously hardcoded inline, plus the messageKey the
+    frontend needs -- see src/language/{de,en}/assistant.ts's batchSummary key."""
+    return {
+        "message": (f"{chapter_count} Kapitel in {group_count} Gruppen verarbeitet, {proposal_count} Vorschläge vorbereitet. "
+                    "Jeder Vorschlag kann einzeln geprüft und übernommen werden."),
+        "messageKey": "batchSummary",
+        "messageParams": {"chapters": chapter_count, "groups": group_count, "proposals": proposal_count},
+    }
+
+
 def _group_chapters_by_budget(chapters: list[dict[str, Any]], url: str, budget: int) -> list[list[str]]:
     """Group chapter IDs so each group's combined chapter text stays within budget tokens,
     instead of a flat chapter count -- chapter length varies a lot (a confirmed

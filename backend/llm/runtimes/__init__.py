@@ -93,6 +93,10 @@ def spawn_logged(argv: list[str], data: Path, log_name: str) -> tuple[subprocess
     """Spawn argv with stdout/stderr captured to data/log_name. Returns the process and the log path."""
     log_path = data / log_name
     log = open(log_path, "a", encoding="utf-8")
-    process = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, text=True)
+    # Without this, a console-less parent (the desktop app's windowed build) makes
+    # Windows pop up a new terminal window for the child every time this runs --
+    # CREATE_NO_WINDOW is the documented way to spawn a console subprocess silently.
+    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    process = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, text=True, creationflags=creationflags)
     _bind_lifetime_to_parent(process)
     return process, log_path

@@ -33,5 +33,8 @@ def resolve_reference(question: str, history: list[dict[str, Any]] | None, figur
     if len(candidates) == 1:
         return {"resolvedId": str(candidates[0]["id"])}
     if len(candidates) > 1:
-        return {"clarification": {"question": "Welches Element meinst du?", "candidates": [{"id": str(item["id"]), "name": str(item.get("name") or item.get("title") or item["id"]), "kind": str(item.get("type") or ("moment" if "title" in item else "element"))} for item in candidates[:8]]}}
+        # The "which one do you mean?" wrapper text is UI copy, not backend-owned data --
+        # AssistantRuntime.complete() attaches messageKey="whichElementDoYouMean" for the
+        # frontend to resolve via src/language/{de,en}/assistant.ts.
+        return {"clarification": {"candidates": [{"id": str(item["id"]), "name": str(item.get("name") or item.get("title") or item["id"]), "kind": str(item.get("type") or ("moment" if "title" in item else "element"))} for item in candidates[:8]]}}
     return None

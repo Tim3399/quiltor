@@ -8,6 +8,7 @@ import re
 import shutil
 import socket
 import subprocess
+import sys
 import threading
 import time
 import urllib.parse
@@ -25,7 +26,8 @@ def _java_version(java: str | None) -> int | None:
     if not java:
         return None
     try:
-        result = subprocess.run([java, "-version"], capture_output=True, text=True, timeout=5, check=False)
+        result = subprocess.run([java, "-version"], capture_output=True, text=True, timeout=5, check=False,
+                                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
         match = re.search(r'version "(?:1\.)?(\d+)', result.stderr + result.stdout)
         return int(match.group(1)) if match else None
     except (OSError, subprocess.SubprocessError):
@@ -101,6 +103,7 @@ class LanguageToolManager:
             self.process = subprocess.Popen(
                 [self.java, "-cp", str(self.server_jar), "org.languagetool.server.HTTPServer", "--port", str(self.port)],
                 cwd=self.root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
             url = f"http://127.0.0.1:{self.port}/v2/check"
             for _ in range(40):

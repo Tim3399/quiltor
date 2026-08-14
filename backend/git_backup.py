@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -8,6 +9,67 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+# Manuscript/profile mirrors are always written as "{index:02d} - {title}.md"
+# (see backend/mirror.py's MIRROR_RE) -- this recovers the human title from that.
+_MIRROR_TITLE_RE = re.compile(r"^\d{2,} - (.+)\.md$")
+
+
+def _describe_changes(changes: list[str]) -> str | None:
+    """Turn `git status --porcelain` lines into an author-facing summary, e.g.
+    'Chapter "The Storm" edited' or '2 chapters, 1 profile edited'. Returns None
+    when nothing under manuscripts/ or profiles/ changed (e.g. only the database)."""
+    chapters: list[str] = []
+    profiles: list[str] = []
+    for line in changes:
+        path = line[3:].strip()
+        if " -> " in path:  # renames: "R  old -> new"
+            path = path.split(" -> ", 1)[1]
+        directory, _, name = path.partition("/")
+        match = _MIRROR_TITLE_RE.match(name)
+        if not match:
+            continue
+        if directory == "manuscripts":
+            chapters.append(match.group(1))
+        elif directory == "profiles":
+            profiles.append(match.group(1))
+    if not chapters and not profiles:
+        return None
+    if len(chapters) == 1 and not profiles:
+        return f'Chapter "{chapters[0]}" edited'
+    if len(profiles) == 1 and not chapters:
+        return f'Profile "{profiles[0]}" edited'
+    parts = []
+    if chapters:
+        parts.append(f"{len(chapters)} chapter{'s' if len(chapters) != 1 else ''}")
+    if profiles:
+        parts.append(f"{len(profiles)} profile{'s' if len(profiles) != 1 else ''}")
+    return ", ".join(parts) + " edited"
+
+
+def _parse_porcelain_z(output: str) -> list[str]:
+    """Parse `git status --porcelain -z` into "XY path" / "XY old -> new" strings.
+
+    Plain --porcelain (no -z) quotes any path containing a space on at least some
+    Git-for-Windows builds (regardless of core.quotepath, which only covers non-ASCII
+    bytes) -- that silently broke path parsing for every chapter/profile title, since
+    those are ordinary prose with spaces. -z is NUL-delimited and never quotes."""
+    tokens = output.split("\x00")
+    entries: list[str] = []
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        i += 1
+        if not token:
+            continue
+        code, path = token[:2], token[3:]
+        if code[0] in ("R", "C"):
+            old_path = tokens[i] if i < len(tokens) else ""
+            i += 1
+            entries.append(f"{code} {old_path} -> {path}")
+        else:
+            entries.append(f"{code} {path}")
+    return entries
 
 # Git subprocess timeouts, in seconds. Local metadata reads stay short; anything that
 # scans/writes more content, or touches the network (a push), gets more headroom.
@@ -97,11 +159,11 @@ class GitBackup:
 
         branch = output("rev-parse", "--abbrev-ref", "HEAD") or "main"
         upstream = output("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-        changes = [line for line in self.run(ctx, "status", "--porcelain", "--", ".", timeout=TIMEOUT_WORKING_TREE).stdout.splitlines() if line.strip()]
+        changes = _parse_porcelain_z(self.run(ctx, "status", "--porcelain", "-z", "--", ".", timeout=TIMEOUT_WORKING_TREE).stdout)
         return {"ok": True, "branch": branch, "upstream": upstream, "remote": output("remote", "get-url", "origin"),
                 "identitaet": bool(output("config", "user.name") and output("config", "user.email")),
                 "aenderungen": changes[:60], "anzahl": len(changes), "unveroeffentlicht": 0,
-                "vorschlag": f"Writing backup {datetime.now():%Y-%m-%d %H:%M}"}
+                "vorschlag": _describe_changes(changes) or f"Writing backup {datetime.now():%Y-%m-%d %H:%M}"}
 
     def commit(self, ctx: GitContext, message: str, push: bool) -> dict[str, Any]:
         status = self.status(ctx)

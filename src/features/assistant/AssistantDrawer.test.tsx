@@ -217,7 +217,7 @@ describe('AssistantDrawer', () => {
 
   it('renders clarification candidates and sends the selected id as an explicit follow-up', async () => {
     vi.mocked(api.assistantChat)
-      .mockResolvedValueOnce(reply({ message: 'Welches Element meinst du?', clarification: { question: 'Welches Element meinst du?', candidates: [{ id: 'tarek', name: 'Tarek Venn', kind: 'person' }] } }))
+      .mockResolvedValueOnce(reply({ message: 'Welches Element meinst du?', clarification: { candidates: [{ id: 'tarek', name: 'Tarek Venn', kind: 'person' }] } }))
       .mockResolvedValueOnce(reply({ message: 'Eindeutig.' }));
     setup();
     await screen.findByText('Wobei soll ich die Welt pflegen?');

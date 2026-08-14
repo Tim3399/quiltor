@@ -142,12 +142,19 @@ export type AssistantProposal =
   | { kind: 'set_presence'; elementId: string; placeId: string; momentId?: string }
   | { kind: 'arrange_elements'; strategy: 'thematic' | 'grid' };
 export interface AssistantHistoryMessage { role: 'user' | 'assistant'; content: string; references?: string[] }
+// Deterministic backend replies (backend/assistant/*.py) carry a translation key/params
+// triple instead of literal text -- src/language/{de,en}/assistant.ts is the single source
+// of truth for that text. `message` remains the (German) fallback used for logging and for
+// genuinely free-form LLM-authored text, which the model already produces in the right
+// language per the system prompt -- see resolveAssistantMessage in AssistantDrawer.tsx.
+export interface AssistantMessageItem { key: MessageKey; params?: Record<string, string | number> }
 export interface AssistantReply {
   ok: boolean; message: string; proposals: AssistantProposal[]; sources: AssistantSource[];
+  messageKey?: MessageKey; messageParams?: Record<string, string | number>; messageItems?: AssistantMessageItem[]; messageNoteKey?: MessageKey;
   proposalGroup?: { id: string; title: string; proposalIndexes: number[] };
   agentTrace?: Array<{ step: string; [key: string]: unknown }>;
   broadScope?: { chapterCount: number; estimateSeconds: number };
-  clarification?: { question: string; candidates: Array<{ id: string; name: string; kind: string }> };
+  clarification?: { candidates: Array<{ id: string; name: string; kind: string }> };
 }
 
 export const PROFILE_FIELDS: Array<[keyof Profile, MessageKey, 'short' | 'long']> = [

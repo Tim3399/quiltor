@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, BookOpen, Bot, Check, ChevronDown, Database, Download, Plus, RotateCw, Sparkles, Square, X } from 'lucide-react';
 import { api, errorMessage } from '../../lib/api';
 import type { AssistantProposal, AssistantReply, AssistantSource, Chapter, FigureState, Workspace } from '../../types';
+import type { MessageKey } from '../../language';
 import { proposalLabel, scopeAssistantProposals } from './proposals';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 import { Inspector } from '../../shared/ui/Sidebar';
 import { Sheet } from '../../shared/ui/Sheet';
 import { useLanguage } from '../../language';
+import type { Translate } from '../../language';
 
 const STATUS_POLL_MS = 15000;
 const BATCH_PROGRESS_POLL_MS = 1500;
@@ -26,7 +28,7 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
   const installPollRef = useRef<number | undefined>(undefined);
   const [confirmNewChat, setConfirmNewChat] = useState(false);
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
-  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; label: string } | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; labelKey?: MessageKey; labelParams?: Record<string, string | number> } | null>(null);
   const [compact, setCompact] = useState(() => typeof matchMedia === 'function' && matchMedia('(max-width: 719px)').matches);
   const end = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -92,11 +94,11 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
       // conversation_messages), so there's no need to pre-guess a turn count here.
       const history = entries.filter(entry => entry.id !== id).flatMap(entry => [
         { role: 'user' as const, content: entry.question },
-        ...(entry.reply ? [{ role: 'assistant' as const, content: entry.reply.message, references: replyReferences(entry.reply) }] : []),
+        ...(entry.reply ? [{ role: 'assistant' as const, content: resolveAssistantMessage(entry.reply, t), references: replyReferences(entry.reply) }] : []),
       ]);
       const batch = opts?.batch ? { runBatches: true, progressId: crypto.randomUUID() } : undefined;
       if (batch) {
-        setBatchProgress({ total: 0, done: 0, label: '' });
+        setBatchProgress({ total: 0, done: 0 });
         progressInterval = window.setInterval(() => {
           api.assistantProgress(batch.progressId).then(res => { if (res.progress) setBatchProgress(res.progress); }).catch(() => {});
         }, BATCH_PROGRESS_POLL_MS);
@@ -139,9 +141,9 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
       {entries.map(entry => <article className="assistant-exchange" key={entry.id}>
         <p className="assistant-question">{entry.question}</p>
         {entry.error && <div className="assistant-error" role="alert"><span>{entry.error}</span><button disabled={sending} onClick={() => void send(entry.id)}><RotateCw />{t('retryLabel')}</button></div>}
-        {entry.reply && <div className="assistant-answer"><p>{entry.reply.message}</p>
+        {entry.reply && <div className="assistant-answer"><p>{resolveAssistantMessage(entry.reply, t)}</p>
           {!!entry.reply.clarification?.candidates.length && <div className="assistant-broadscope"><div className="assistant-broadscope-actions">
-            {entry.reply.clarification.candidates.map(candidate => <button type="button" disabled={sending} key={candidate.id} onClick={() => void send(undefined, undefined, `${entry.reply!.clarification!.question} ${candidate.name} [${candidate.id}]`)}>{candidate.name}</button>)}
+            {entry.reply.clarification.candidates.map(candidate => <button type="button" disabled={sending} key={candidate.id} onClick={() => void send(undefined, undefined, `${t('whichElementDoYouMean')} ${candidate.name} [${candidate.id}]`)}>{candidate.name}</button>)}
           </div></div>}
           {entry.reply.broadScope && <div className="assistant-broadscope"><div className="assistant-broadscope-actions">
             <button type="button" onClick={openChapterPicker}>{t('pickChaptersIndividually')}</button>
@@ -155,7 +157,7 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
         </div>}
       </article>)}
       {sending && batchProgress && <div className="assistant-progress">
-        <span>{batchProgress.label || t('processingChapterGroups')} {batchProgress.total ? `(${batchProgress.done}/${batchProgress.total})` : ''}</span>
+        <span>{batchProgress.labelKey ? t(batchProgress.labelKey, batchProgress.labelParams) : t('processingChapterGroups')} {batchProgress.total ? `(${batchProgress.done}/${batchProgress.total})` : ''}</span>
         <div className="assistant-progress-bar"><span style={{ width: `${batchProgress.total ? Math.round((batchProgress.done / batchProgress.total) * 100) : 0}%` }} /></div>
       </div>}
       {sending && !batchProgress && <div className="assistant-thinking"><span /><span /><span />{t('assistantSearchingWorld')}</div>}
@@ -191,6 +193,17 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
 function SourceList({ sources, onNavigate }: { sources: AssistantSource[]; onNavigate: (target: { workspace: Workspace; id: string }) => void }) {
   const { t } = useLanguage();
   return <details className="assistant-sources"><summary><ChevronDown />{t('sources')} · {sources.length}</summary><div>{sources.map(source => <button key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>{source.title}</button>)}</div></details>;
+}
+
+// Deterministic backend replies carry a messageKey/messageParams/messageItems triple
+// instead of literal text (see AssistantReply in types.ts) -- messageItems are individually
+// translated sub-messages (e.g. audit findings) joined into the template's {items}
+// placeholder. `message` remains the fallback for genuinely free-form LLM-authored text.
+function resolveAssistantMessage(reply: AssistantReply, t: Translate): string {
+  const base = reply.messageKey
+    ? t(reply.messageKey, { ...reply.messageParams, ...(reply.messageItems ? { items: reply.messageItems.map(item => t(item.key, item.params)).join('; ') } : {}) })
+    : reply.message;
+  return reply.messageNoteKey ? `${base}\n\n${t(reply.messageNoteKey)}` : base;
 }
 
 function replyReferences(reply: AssistantReply): string[] {

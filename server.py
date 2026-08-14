@@ -47,7 +47,7 @@ from backend.llm.shared.platform import force_utf8_streams
 force_utf8_streams()
 
 from backend import auth, storage
-from backend.assistant import AssistantRuntime, read_progress
+from backend.assistant import ASSISTANT_REPLY_LANGUAGES, DEFAULT_ASSISTANT_LANGUAGE, AssistantRuntime, read_progress
 from backend.git_backup import GitBackup, GitContext
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed, install_async, is_configured, read_install_state
@@ -606,6 +606,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 chapter_ids = [str(item) for item in request.get("chapterIds") or [] if isinstance(item, str)][:50]
                 run_batches = bool(request.get("runBatches"))
                 progress_id = str(request.get("progressId") or "")[:64] or None
+                requested_language = str(request.get("language") or "")
+                language = requested_language if requested_language in ASSISTANT_REPLY_LANGUAGES else DEFAULT_ASSISTANT_LANGUAGE
                 if AUTH_ENABLED:
                     ctx = self._resolve_world_or_respond(session, str(request.get("worldId", "")))
                     if ctx is None:
@@ -615,7 +617,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
                 with _lock:
                     manuscript, figures = storage.load_manuscript(db_path), storage.load_figures(db_path)
-                result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids, run_batches, progress_id)
+                result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids, run_batches, progress_id, language)
                 with _lock:
                     interaction_id = storage.log_assistant_interaction(question, result, db_path=db_path)
                 print(f"  · {datetime.now():%H:%M:%S}  AI request {interaction_id} — {len(result.get('sources', []))} sources, {len(result.get('proposals', []))} proposals", flush=True)

@@ -7,13 +7,16 @@ This module re-exports the combined public surface so existing callers/tests tha
 
 from backend.assistant.audit import (
     audit_message,
+    audit_reply,
     presence_consistency_issues,
     validate_proposals,
     validate_world,
 )
 from backend.assistant.batch import (
     BATCH_GROUP_TOKEN_BUDGET,
+    batch_summary_reply,
     broad_scope_message,
+    broad_scope_reply,
     estimate_batch_seconds,
 )
 from backend.assistant.contract import (
@@ -29,8 +32,10 @@ from backend.assistant.contract import (
     verify_task_contract,
 )
 from backend.assistant.runtime import (
+    ASSISTANT_REPLY_LANGUAGES,
     CONTEXT_SAFETY_MARGIN,
     CONVERSATION_HISTORY_TOKEN_BUDGET,
+    DEFAULT_ASSISTANT_LANGUAGE,
     MODEL_CONTEXT_TOKENS,
     MUTATION_REQUEST,
     PROSE_REQUEST,
@@ -40,21 +45,27 @@ from backend.assistant.runtime import (
     finish_progress,
     read_progress,
     start_progress,
+    system_prompt,
     update_progress,
 )
 
 __all__ = [
+    "ASSISTANT_REPLY_LANGUAGES",
     "AssistantRuntime",
     "BATCH_GROUP_TOKEN_BUDGET",
     "BROAD_SCOPE_REQUEST",
     "CONTEXT_SAFETY_MARGIN",
     "CONVERSATION_HISTORY_TOKEN_BUDGET",
+    "DEFAULT_ASSISTANT_LANGUAGE",
     "MODEL_CONTEXT_TOKENS",
     "MUTATION_REQUEST",
     "PROSE_REQUEST",
     "SYSTEM_PROMPT",
     "audit_message",
+    "audit_reply",
+    "batch_summary_reply",
     "broad_scope_message",
+    "broad_scope_reply",
     "complete_compound_proposals",
     "contract_expectations",
     "conversation_messages",
@@ -68,6 +79,7 @@ __all__ = [
     "start_progress",
     "structured_context",
     "structured_world_state",
+    "system_prompt",
     "task_contract",
     "update_progress",
     "validate_proposals",

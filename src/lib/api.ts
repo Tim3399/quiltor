@@ -1,5 +1,6 @@
 import type { AssistantHistoryMessage, AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo, WritingIssue } from '../types';
 import { languages, readInterfaceLanguage } from '../language';
+import type { MessageKey } from '../language';
 
 export type LanguageLookupMode = 'dictionary' | 'synonyms' | 'translation';
 export type LanguageLookupResult = { lemma: string; partOfSpeech: string; meaning: string; values: string[]; source: string };
@@ -74,8 +75,8 @@ export const api = {
   assistantInstall: () => json<{ ok: boolean; started: boolean }>('/api/assistant/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   assistantInstallStatus: () => json<{ ok: boolean; running: boolean; phase: string; percent: number; error: string }>('/api/assistant/install/status'),
   assistantChat: (question: string, history: AssistantHistoryMessage[] = [], signal?: AbortSignal, chapterIds?: string[], batch?: { runBatches: boolean; progressId: string }) =>
-    json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ question, history, chapterIds, runBatches: batch?.runBatches, progressId: batch?.progressId })), signal }),
-  assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; label: string; startedAt: number; updatedAt: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),
+    json<AssistantReply>('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ question, history, chapterIds, runBatches: batch?.runBatches, progressId: batch?.progressId, language: currentLanguage() })), signal }),
+  assistantProgress: (id: string) => json<{ ok: boolean; progress: { total: number; done: number; labelKey?: MessageKey; labelParams?: Record<string, string | number>; startedAt: number; updatedAt: number } | null }>(`/api/assistant/progress?id=${encodeURIComponent(id)}`),
   languageStatus: () => json<LanguageStatus>('/api/language/status'),
   installLanguageData: () => json<{ ok: boolean; version: string; entries: number }>('/api/language/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   languageLookup: (language: 'de-DE' | 'en-GB', mode: LanguageLookupMode, query: string, signal?: AbortSignal) => json<{ ok: boolean; query: string; language: string; mode: string; version: string; results: LanguageLookupResult[] }>('/api/language/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language, mode, query }), signal }),
