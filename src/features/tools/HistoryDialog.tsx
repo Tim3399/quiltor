@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { api, errorMessage } from '../../lib/api';
-import type { CommitInfo } from '../../types';
+import type { SnapshotInfo } from '../../types';
 import { Sheet } from '../../shared/ui/Sheet';
 import { useFlushedEffect } from '../../hooks/useFlushedEffect';
 import { useLanguage } from '../../language';
 import type { Translate } from '../../language';
-import { describePath, type PathKind } from '../../lib/gitNames';
+import { describePath, type PathKind } from '../../lib/pathNames';
 
 interface DiffSegment { path: string; kind: PathKind; title: string; binary: boolean; lines: string[]; added: number; removed: number }
 
-// Lines git prints purely for its own bookkeeping (blob hashes, file-mode markers, hunk
-// headers) -- an author cares which chapter changed and how, not this plumbing.
+// Diff plumbing lines (blob hashes, file-mode markers, hunk headers) -- an author cares
+// which chapter changed and how, not this bookkeeping.
 const NOISE_RE = /^(index |--- |\+\+\+ |old mode|new mode|deleted file mode|new file mode|similarity index|rename from|rename to|copy from|copy to)/;
 const GAP_MARK = '⋯';
 
@@ -66,7 +66,7 @@ function kindLabel(kind: PathKind, t: Translate): string | null {
 
 export function HistoryDialog({ onClose, flush }: { onClose: () => void; flush: () => Promise<void> }) {
   const { t } = useLanguage();
-  const [commits, setCommits] = useState<CommitInfo[]>([]), [selected, setSelected] = useState('WORK'), [word, setWord] = useState(true), [all, setAll] = useState(false);
+  const [commits, setCommits] = useState<SnapshotInfo[]>([]), [selected, setSelected] = useState('WORK'), [word, setWord] = useState(true), [all, setAll] = useState(false);
   const [result, setResult] = useState<{ diff: string; empty: string } | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
 

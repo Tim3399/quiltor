@@ -46,7 +46,8 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
-from backend.llm.runtimes import llamacpp
+from backend.edition import is_store_build
+from backend.llm.runtimes import bundled_runtime_dir, llamacpp
 from backend.llm.shared.platform import force_utf8_streams, is_apple_silicon
 
 BASE = Path(__file__).resolve().parent.parent.parent
@@ -72,6 +73,10 @@ MLX_MODELS_DIR = MODELS_DIR / "mlx"
 def resolve_runtime(choice: str) -> str:
     if choice != "auto":
         return choice
+    # A Store build never auto-selects MLX: install_mlx_runtime() below builds a
+    # venv and pip-installs into it, which App Store guideline 2.5.2 forbids.
+    if is_store_build():
+        return "llamacpp"
     return "mlx" if is_apple_silicon() else "llamacpp"
 
 
@@ -85,7 +90,10 @@ def is_configured() -> bool:
     """True if a runtime is already installed, or explicitly pointed at via env vars."""
     if os.environ.get("QUILTOR_AI_URL") or os.environ.get("QUILTOR_AI_BINARY"):
         return True
-    if (RUNTIME_DIR / llamacpp.binary_name()).exists() and list(MODELS_DIR.glob("*.gguf")):
+    # resolve_binary() prefers a runtime shipped inside the app bundle over the
+    # downloaded one, so a Store build counts as configured as soon as the
+    # weights are there -- there is no runtime download left to wait for.
+    if llamacpp.resolve_binary(HOME).exists() and list(MODELS_DIR.glob("*.gguf")):
         return True
     if _venv_python(MLX_VENV_DIR).exists():
         return True
@@ -224,8 +232,18 @@ def _extract_archive(archive: Path, dest: Path) -> None:
 
 
 def install_runtime(on_progress: Callable[[str, int], None] | None = None) -> None:
-    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     binary_name = llamacpp.binary_name()
+    bundled = bundled_runtime_dir()
+    if bundled is not None and (bundled / binary_name).exists():
+        # Shipped inside the app bundle (Mac App Store build): there is nothing to
+        # download, and downloading an executable here is precisely what guideline
+        # 2.5.2 forbids. Model weights are still fetched by install_model().
+        print(f"runtime shipped with the app at {bundled / binary_name}, skipping download")
+        if on_progress:
+            on_progress("Runtime", 100)
+        return
+
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     target = RUNTIME_DIR / binary_name
     if target.exists():
         print(f"runtime already present at {target}, skipping")
@@ -290,6 +308,12 @@ def install_model(repo: str, filename: str, on_progress: Callable[[str, int], No
 
 
 def install_mlx_runtime(on_progress: Callable[[str, int], None] | None = None) -> None:
+    if is_store_build():
+        # Creating a venv and pip-installing into it downloads and runs executable
+        # code, which App Store guideline 2.5.2 forbids outright. Refuse loudly
+        # rather than let a Store build ship something that fails review -- the
+        # bundled llama.cpp runtime covers Apple Silicon here, just more slowly.
+        raise SystemExit("The Mac App Store build cannot install the MLX runtime (App Store guideline 2.5.2). Use --runtime llamacpp.")
     if not is_apple_silicon():
         raise SystemExit("MLX is only supported on Apple Silicon Macs. Use --runtime llamacpp instead.")
     if sys.version_info < (3, 10):

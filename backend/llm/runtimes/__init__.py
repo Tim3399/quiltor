@@ -19,6 +19,24 @@ def resolve_port(url: str, default: int = 11435) -> int:
     return urllib.parse.urlsplit(url).port or default
 
 
+def bundled_runtime_dir() -> Path | None:
+    """Directory holding an LLM runtime shipped *inside* the frozen app bundle,
+    or None when there is none (a source checkout, Docker, or a build that
+    downloads its runtime the usual way).
+
+    This is what lets a Mac App Store build satisfy guideline 2.5.2: the
+    executable is already there and signed with our Team ID, so nothing
+    executable ever gets downloaded (see backend/edition.py). Lives here rather
+    than in installer.py because llamacpp.py needs it too, and installer.py
+    already imports llamacpp -- the other direction would be a cycle.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    base = Path(getattr(sys, "_MEIPASS", None) or Path(sys.executable).resolve().parent)
+    candidate = base / "runtime"
+    return candidate if candidate.is_dir() else None
+
+
 def _bind_lifetime_to_parent(process: subprocess.Popen) -> None:
     """Make the OS kill `process` itself if this Python process ever dies.
 

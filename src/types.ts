@@ -115,21 +115,17 @@ export interface FigureState {
   [key: string]: unknown;
 }
 
-export interface GitStatus {
+export interface BackupStatus {
   ok: boolean;
   grund?: string;
-  branch?: string;
-  upstream?: string;
-  remote?: string;
-  identitaet?: boolean;
+  endpoint?: string;
   aenderungen?: string[];
   anzahl?: number;
-  unveroeffentlicht?: number;
   vorschlag?: string;
 }
 
-export interface CommitInfo { hash: string; kurz: string; datum: string; betreff: string }
-export interface WorldInfo { id: string; title: string; gitUrl: string; updated: string }
+export interface SnapshotInfo { hash: string; kurz: string; datum: string; betreff: string }
+export interface WorldInfo { id: string; title: string; backupUrl: string; updated: string }
 
 export interface AssistantSource { id: string; kind: string; title: string; text: string; target: { workspace: Workspace; id: string } }
 export type AssistantProposal =

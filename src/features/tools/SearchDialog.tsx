@@ -10,7 +10,7 @@ export function SearchDialog({ manuscript, figures, onClose, onWorkspace, onSele
   const items = useMemo<CommandPaletteItem[]>(() => {
     const commands: CommandPaletteItem[] = [
       ['text', t('switchToManuscript')], ['figures', t('switchToFigures')], ['timeline', t('switchToTimeline')], ['places', t('switchToPlaces')],
-      ['focus', t('toggleFocus')], ['history', t('openHistory')], ['git', t('openGit')], ['backups', t('openBackups')],
+      ['focus', t('toggleFocus')], ['history', t('openHistory')], ['snapshot', t('openBackupDialog')], ['backups', t('openBackups')],
     ].map(([id, label]) => ({ id: `command-${id}`, label, detail: t('command'), icon: <Command />, onSelect: () => onCommand(id) }));
     const chapters: CommandPaletteItem[] = manuscript.chapters.map(chapter => ({ id: `chapter-${chapter.id}`, label: chapter.title || t('untitled'), detail: chapter.body.slice(0, 120), keywords: [chapter.body, chapter.note], icon: <FileText />, requiresQuery: true, onSelect: () => { onWorkspace('text'); onSelect({ workspace: 'text', id: chapter.id }); } }));
     const nodes: CommandPaletteItem[] = figures.nodes.map(node => ({ id: `node-${node.id}`, label: node.name, detail: node.sub || node.label || kindLabel(node.type ?? 'person', t), keywords: [JSON.stringify(node)], icon: node.type === 'ort' ? <MapPin /> : <UserRound />, requiresQuery: true, onSelect: () => { const targetWorkspace: Workspace = node.type === 'ort' ? 'places' : 'figures'; onWorkspace(targetWorkspace); onSelect({ workspace: targetWorkspace, id: node.id }); } }));

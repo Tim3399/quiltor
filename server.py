@@ -7,7 +7,7 @@ Two workspaces at one address; SQLite is the authoritative store:
   · Characters  Relationship graph and profiles in SQLite
                 readable profiles   → data/profiles/NN - Name.md
   · Text        Manuscript in SQLite
-  · Git         Commit and push from the UI
+  · Backup      Snapshot and upload from the UI
   · History     Human-readable changes
                                      → data/manuscripts/NN - Title.md
 
@@ -48,7 +48,7 @@ force_utf8_streams()
 
 from backend import auth, storage
 from backend.assistant import ASSISTANT_REPLY_LANGUAGES, DEFAULT_ASSISTANT_LANGUAGE, AssistantRuntime, read_progress
-from backend.git_backup import GitBackup, GitContext
+from backend.backup import BackupContext, SnapshotStore
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed, install_async, is_configured, read_install_state
 from backend.mirror import mirror_profiles, mirror_text, safe_name
@@ -64,10 +64,10 @@ DATA = storage.DATA
 BACKUPS = DATA / "backups"
 MANUSCRIPT_DIR = DATA / "manuscripts"
 PROFILE_DIR = DATA / "profiles"
-WORLD_BACKUPS = GitBackup(DATA / "repositories")
+WORLD_BACKUPS = SnapshotStore(DATA / "history")
 # The single "currently open" world's Git backup context (local single-user mode
 # mirrors storage.DB/ACTIVE_WORLD_ID: one process, one active world at a time).
-CURRENT_GIT: GitContext | None = None
+CURRENT_GIT: BackupContext | None = None
 ensure_installed()
 # Where the assistant looks for its runtime/model (backend/llm/installer.py's
 # HOME): BASE for a source checkout / Docker, or QUILTOR_HOME for the packaged
@@ -98,7 +98,7 @@ class WorldContext:
     backups_dir: Path
     manuscripts_dir: Path
     profiles_dir: Path
-    git: GitContext  # always present -- a world without a remote still gets local backup history
+    git: BackupContext  # always present -- a world without an endpoint still gets local history
 
 
 def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
@@ -125,11 +125,10 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
     profiles_dir.mkdir(parents=True, exist_ok=True)
     backups_dir = storage.DATA / "backups" / world_id
     world = next((w for w in storage.list_worlds(owner_sub=session.sub) if w["id"] == world_id), None)
-    repository_url = (world or {}).get("gitUrl", "")
+    endpoint_url = (world or {}).get("backupUrl", "")
     # Every world gets a local backup history, even without a configured remote --
-    # only pushing needs one (see GitBackup._ensure(), which skips remote setup
-    # when repository_url is empty).
-    git_ctx = WORLD_BACKUPS.context(world_id, repository_url, db_path, manuscripts_dir, profiles_dir)
+    # only uploading needs one; an unset endpoint just means history stays local.
+    git_ctx = WORLD_BACKUPS.context(world_id, endpoint_url, db_path, manuscripts_dir, profiles_dir)
     return WorldContext(id=world_id, db_path=db_path, backups_dir=backups_dir,
                          manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, git=git_ctx)
 
@@ -141,6 +140,14 @@ def ensure_dirs() -> None:
     # (unlike the package root a source checkout/Docker uses) may not exist yet.
     for d in (DATA, BACKUPS, MANUSCRIPT_DIR, PROFILE_DIR):
         d.mkdir(parents=True, exist_ok=True)
+    # storage.DB starts out as the .no-active-world sentinel and only becomes a real
+    # world's file once activate_world() reassigns it. Reads still land there before
+    # the first world is opened -- /api/assistant/status polls immediately on load --
+    # and an unschema'd file makes those fail with "no such table" rather than
+    # returning an empty result. Giving the sentinel the schema upholds the invariant
+    # every reader already assumes: any database Quiltor connects to has the schema,
+    # and "no world yet" simply reads as empty.
+    storage.initialize()
 
 
 # ------------------------------------------------------------------ Server
@@ -352,7 +359,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"ok": True, **LANGUAGE.status()})
 
         world_ctx = None
-        if AUTH_ENABLED and route in ("/api/git", "/api/log", "/api/backups", "/api/assistant/status",
+        if AUTH_ENABLED and route in ("/api/backup", "/api/log", "/api/backups", "/api/assistant/status",
                                        "/api/assistant/logs", "/api/diff", "/api/textfassung",
                                        "/api/state", "/api/manuscript"):
             world_ctx = self._resolve_world_or_respond(session, world_id)
@@ -361,10 +368,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         db_path = world_ctx.db_path if world_ctx else None
         git_ctx = world_ctx.git if world_ctx else CURRENT_GIT
 
-        if route == "/api/git":
+        if route == "/api/backup":
             with _lock:
                 if git_ctx is None:
-                    return self.send_json({"ok": False, "grund": "No Git backup is configured for this world."})
+                    return self.send_json({"ok": False, "grund": "No world is open."})
                 return self.send_json(WORLD_BACKUPS.status(git_ctx))
 
         if route == "/api/log":
@@ -409,7 +416,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             wortweise = (query.get("modus") or ["wort"])[0] == "wort"
             with _lock:
                 if git_ctx is None:
-                    return self.send_json({"ok": False, "grund": "No Git backup is configured for this world."})
+                    return self.send_json({"ok": False, "grund": "No world is open."})
                 return self.send_json(WORLD_BACKUPS.diff(git_ctx, ref, nur_text, wortweise))
 
         if route == "/api/textfassung":
@@ -420,7 +427,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"ok": False, "grund": "Kapitel fehlt."})
             with _lock:
                 if git_ctx is None:
-                    return self.send_json({"ok": False, "grund": "No Git backup is configured for this world."})
+                    return self.send_json({"ok": False, "grund": "No world is open."})
                 return self.send_json(WORLD_BACKUPS.chapter_version(git_ctx, ref, int(kap), safe_name(titel)))
 
         if route in ROUTES:
@@ -457,7 +464,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         return self.send_json({"ok": True})
 
                     if route.endswith("/create"):
-                        world = storage.create_world(str(payload.get("title", "")), str(payload.get("gitUrl", "")), owner_sub=owner_sub)
+                        world = storage.create_world(str(payload.get("title", "")), str(payload.get("backupUrl", "")), owner_sub=owner_sub)
                         if not AUTH_ENABLED:
                             world = storage.activate_world(world["id"])
                     else:
@@ -476,8 +483,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
                     if not AUTH_ENABLED:
                         # Every world gets a local backup history, even without a
-                        # configured remote -- see GitBackup._ensure().
-                        CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world.get("gitUrl", ""), storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
+                        # configured endpoint -- history is always local first.
+                        CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world.get("backupUrl", ""), storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
                 return self.send_json({"ok": True, "world": world})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
@@ -542,7 +549,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 503)
 
-        if route == "/api/git":
+        if route == "/api/backup":
             try:
                 wunsch = self._read_json_body()
             except Exception:
@@ -560,7 +567,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not AUTH_ENABLED:
                     git_ctx = CURRENT_GIT
                 if git_ctx is None:
-                    ergebnis = {"ok": False, "grund": "No Git backup is configured for this world.", "log": []}
+                    ergebnis = {"ok": False, "grund": "No world is open.", "log": []}
                 else:
                     ergebnis = WORLD_BACKUPS.commit(git_ctx, nachricht, pushen)
             for zeile in ergebnis.get("log", []):

@@ -169,7 +169,7 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         alice = self._login("user-alice")
         bob = self._login("user-bob")
 
-        status, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "gitUrl": ""},
+        status, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "backupUrl": ""},
                                             cookies={"quiltor_session": alice})
         self.assertEqual(status, 200)
         world = json.loads(body)["world"]
@@ -183,7 +183,7 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
     def test_bob_cannot_open_alices_world(self):
         alice = self._login("user-alice")
         bob = self._login("user-bob")
-        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "gitUrl": ""},
+        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "backupUrl": ""},
                                        cookies={"quiltor_session": alice})
         world = json.loads(body)["world"]
 
@@ -193,7 +193,7 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
     def test_bob_cannot_write_to_alices_manuscript_and_alices_data_is_unchanged(self):
         alice = self._login("user-alice")
         bob = self._login("user-bob")
-        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "gitUrl": ""},
+        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "backupUrl": ""},
                                        cookies={"quiltor_session": alice})
         world = json.loads(body)["world"]
 
@@ -210,7 +210,7 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
 
     def test_alice_can_write_to_her_own_manuscript(self):
         alice = self._login("user-alice")
-        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "gitUrl": ""},
+        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "backupUrl": ""},
                                        cookies={"quiltor_session": alice})
         world = json.loads(body)["world"]
 

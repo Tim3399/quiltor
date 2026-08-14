@@ -1,1 +1,0 @@
-var e=/^\d{2,} - (.+)\.md$/;function t(t){let[n,...r]=t.split(`/`),i=r.join(`/`),a=e.exec(i);return n===`manuscripts`&&a?{kind:`chapter`,title:a[1]}:n===`profiles`&&a?{kind:`profile`,title:a[1]}:t===`world.sqlite3`?{kind:`database`,title:t}:{kind:`other`,title:t}}function n(e){let t=e.slice(3).trim(),n=t.indexOf(` -> `);return n===-1?t:t.slice(n+4)}export{n,t};

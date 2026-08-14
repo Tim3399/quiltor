@@ -1,0 +1,1 @@
+import{V as e,z as t}from"./index-Bc2Mn9Rz.js";var n=e(t(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

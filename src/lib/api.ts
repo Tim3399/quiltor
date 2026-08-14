@@ -1,4 +1,4 @@
-import type { AssistantHistoryMessage, AssistantReply, FigureState, GitStatus, Manuscript, WorldInfo, WritingIssue } from '../types';
+import type { AssistantHistoryMessage, AssistantReply, FigureState, BackupStatus, Manuscript, WorldInfo, WritingIssue } from '../types';
 import { languages, readInterfaceLanguage } from '../language';
 import type { MessageKey } from '../language';
 
@@ -54,7 +54,7 @@ export const api = {
   version: () => json<{ ok: boolean; version: string }>('/api/version'),
   worlds: () => json<{ ok: boolean; worlds: WorldInfo[] }>('/api/worlds'),
   openWorld: (id: string) => json<{ ok: boolean; world: WorldInfo }>('/api/worlds/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
-  createWorld: (title: string, gitUrl: string) => json<{ ok: boolean; world: WorldInfo }>('/api/worlds/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, gitUrl }) }),
+  createWorld: (title: string, backupUrl: string) => json<{ ok: boolean; world: WorldInfo }>('/api/worlds/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, backupUrl }) }),
   deleteWorld: (id: string) => json<{ ok: boolean }>('/api/worlds/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
   whoami: () => json<{ ok: boolean; sub?: string; email?: string; name?: string }>('/api/whoami'),
   logout: () => fetch('/logout', { method: 'POST' }).then(() => undefined),
@@ -62,9 +62,9 @@ export const api = {
   manuscript: () => loadDocument<Manuscript>('/api/manuscript', 'manuscript'),
   saveFigures: (data: FigureState) => saveDocument('/api/state', 'figures', data),
   saveManuscript: (data: Manuscript) => saveDocument('/api/manuscript', 'manuscript', data),
-  gitStatus: () => json<GitStatus>(withWorldQuery('/api/git')),
-  gitCommit: (message: string, push: boolean) => json<{ ok: boolean; grund?: string; log?: string[]; status?: GitStatus }>('/api/git', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ message, push })),
+  backupStatus: () => json<BackupStatus>(withWorldQuery('/api/backup')),
+  saveSnapshot: (message: string, upload: boolean) => json<{ ok: boolean; grund?: string; log?: string[]; status?: BackupStatus }>('/api/backup', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ message, push: upload })),
   }),
   log: () => json<{ ok: boolean; commits: Array<{ hash: string; kurz: string; datum: string; betreff: string }> }>(withWorldQuery('/api/log')),
   diff: (ref = 'WORK', word = true, all = false) => json<{ ok: boolean; diff: string; neu: string[] }>(withWorldQuery(`/api/diff?ref=${encodeURIComponent(ref)}&modus=${word ? 'wort' : 'zeile'}&alles=${all ? 1 : 0}`)),

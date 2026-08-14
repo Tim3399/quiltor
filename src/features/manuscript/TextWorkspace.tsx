@@ -6,7 +6,7 @@ import { download } from '../../lib/api';
 import type { LanguageLookupResult, LanguageStatus } from '../../lib/api';
 import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
 import { api } from '../../lib/api';
-import type { CommitInfo } from '../../types';
+import type { SnapshotInfo } from '../../types';
 import './TextWorkspace.css';
 import { writingVocabulary } from './autocomplete';
 import { useLanguage } from '../../language';
@@ -52,7 +52,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const [grammarPhase, setGrammarPhase] = useState<'idle' | 'checking' | 'installing' | 'unavailable' | 'error'>('idle');
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [commits, setCommits] = useState<CommitInfo[]>([]);
+  const [commits, setCommits] = useState<SnapshotInfo[]>([]);
   const [historyRef, setHistoryRef] = useState('');
   const [historicalText, setHistoricalText] = useState('');
   const [historyState, setHistoryState] = useState<'idle' | 'loading' | 'error'>('idle');

@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Protocol
 
+from backend.edition import is_store_build
 from backend.llm.runtimes import llamacpp, mlx
 from backend.llm.shared.platform import is_apple_silicon
 
@@ -22,7 +23,9 @@ def _preference_order() -> tuple[Runtime, ...]:
     # --runtime mlx); llama.cpp (Metal-accelerated on macOS by default) is
     # the dependable fallback everywhere, including a Mac where MLX was
     # never installed.
-    if is_apple_silicon():
+    # A Store build has no MLX venv to start -- backend/llm/installer.py refuses to
+    # create one there (guideline 2.5.2) -- so don't even probe for it.
+    if is_apple_silicon() and not is_store_build():
         return (mlx, llamacpp)
     return (llamacpp,)
 

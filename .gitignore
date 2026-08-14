@@ -17,11 +17,11 @@ data/**/*.sqlite3
 data/**/*.sqlite3-shm
 data/**/*.sqlite3-wal
 data/worlds/*
-data/repositories/*
+data/history/*
 data/manuscripts/*
 data/profiles/*
 !data/worlds/.gitkeep
-!data/repositories/.gitkeep
+!data/history/.gitkeep
 !data/manuscripts/.gitkeep
 !data/profiles/.gitkeep
 test-results/

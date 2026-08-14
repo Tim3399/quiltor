@@ -25,26 +25,34 @@ pip install pyinstaller
 
 Requires Python 3.11+ (matches `pyproject.toml`'s `requires-python`). The Windows
 installer step additionally needs [Inno Setup](https://jrsoftware.org/isinfo.php)
-(free) installed — `ISCC.exe` on `PATH` or at its default install location; the
-macOS `.dmg` step needs [`create-dmg`](https://github.com/create-dmg/create-dmg)
-(`brew install create-dmg`). Both are optional: the onedir/`.app` build still
-happens without them, just not wrapped into an installer.
+(free) installed — `ISCC.exe` on `PATH` or at its default install location; without
+it the onedir build still happens, just not wrapped into an installer. macOS has no
+such prerequisite — [`create-dmg`](https://github.com/create-dmg/create-dmg)
+(`brew install create-dmg`) is used for a nicer window layout when present, and
+`build_macos.sh` falls back to `hdiutil` otherwise, so a `.dmg` is always produced.
 
 ## Building
 
 ```bash
-./packaging/build_macos.sh                       # → packaging/dist/Quiltor.app (+ .dmg)
-powershell -File packaging/build_windows.ps1      # → packaging/dist/Quiltor/Quiltor.exe (+ Setup.exe)
+./packaging/build_macos.sh                       # → packaging/dist/Quiltor-<version>.dmg
+powershell -File packaging/build_windows.ps1      # → packaging/dist/Quiltor-Setup-<version>.exe
 ```
 
 Both scripts regenerate `packaging/icons/` if missing (`make_icons.py`) and run
-`npm run build` first, so `dist/` is fresh. The Windows onedir build (a folder,
-not a single file — faster startup and far fewer antivirus false positives than
-"onefile") gets wrapped into `Quiltor-Setup-<version>.exe` by
-`packaging/quiltor.iss` (Inno Setup): per-user install (no admin/UAC prompt),
-Start Menu shortcut, optional Desktop shortcut, and an uninstaller registered in
-"Apps & Features". Uninstalling removes the installed program files but leaves
-the per-user data directory (see below) untouched, same as most apps.
+`npm run build` first, so `dist/` is fresh.
+
+The Windows onedir build (a folder, not a single file — faster startup and far
+fewer antivirus false positives than "onefile") gets wrapped into
+`Quiltor-Setup-<version>.exe` by `packaging/quiltor.iss` (Inno Setup): per-user
+install (no admin/UAC prompt), Start Menu shortcut, optional Desktop shortcut, and
+an uninstaller registered in "Apps & Features". Uninstalling removes the installed
+program files but leaves the per-user data directory (see below) untouched, same as
+most apps.
+
+macOS gets the platform-native equivalent: a `.dmg` holding `Quiltor.app` next to an
+`/Applications` symlink to drag it onto. There is no uninstaller because there is
+nothing to unregister — deleting the app is the uninstall, and it likewise leaves
+the per-user data directory alone.
 
 ## Platform-specific vs. shared code
 
@@ -109,34 +117,130 @@ Only `desktop_platform.py` branches on `sys.platform` — everything else
   `AssistantRuntime.reload()` in `backend/assistant/runtime.py`, which picks up
   the freshly installed runtime without a server restart.
 
-## Signing and distribution (v1: unsigned)
+## Signing and distribution
 
-Both builds are unsigned for v1:
+Unsigned builds trip both platforms' gatekeeping: **macOS** shows "Apple could not
+verify... unidentified developer" (right-click → *Open* bypasses it once), **Windows**
+SmartScreen shows "Windows protected your PC" (*More info* → *Run anyway*). Neither
+is acceptable for a build handed to other people.
 
-- **macOS** shows "Apple could not verify... unidentified developer" — the user
-  right-clicks the app → *Open* once to bypass it.
-- **Windows** SmartScreen shows "Windows protected your PC" — *More info* →
-  *Run anyway*.
+### macOS: Developer ID + notarization
 
-To remove those warnings, sign with an **Apple Developer ID** ($99/year) +
-notarize for macOS, and an **Authenticode certificate** for Windows. Neither
-requires any code changes here — it's a signing step added to the build scripts
-once a certificate exists.
+`build_macos.sh` does this already; it just needs credentials. Two environment
+variables switch it on, and it stays a plain unsigned build when they are absent:
 
-### Mac App Store: not realistic without a rework
+```bash
+export QUILTOR_SIGN_IDENTITY="Developer ID Application: Jane Doe (AB12CD34EF)"
+export QUILTOR_NOTARY_PROFILE="quiltor-notary"
+./packaging/build_macos.sh
+```
 
-Two App Store rules conflict with how Quiltor's local AI assistant works today:
+One-time setup:
 
-1. **Guideline 2.5.2** ("apps... may not download or install executable code")
-   — `backend/llm/installer.py` downloads and runs a `llama-server`/MLX binary at
-   first run. That's close to a textbook rejection case.
-2. **App Sandbox** (mandatory for Store apps) restricts filesystem access and
-   subprocess spawning well beyond what Git backups, arbitrary `QUILTOR_HOME`
-   locations, and spawning the LLM runtime as a child process assume today.
+1. Join the **Apple Developer Program** ($99/year) and create a *Developer ID
+   Application* certificate; install it into the login keychain.
+   `security find-identity -v -p codesigning` then prints the identity string.
+2. Create an app-specific password at appleid.apple.com and store notarytool
+   credentials once:
+   ```bash
+   xcrun notarytool store-credentials quiltor-notary \
+       --apple-id you@example.com --team-id AB12CD34EF --password <app-specific-password>
+   ```
 
-Distributing outside the Store with a notarized Developer ID build (see above)
-is the standard path for this kind of local tool — Ollama and LM Studio both do
-the same — and needs no architectural changes.
+What the script then does, in order: signs every nested Mach-O binary inside-out
+(`codesign --deep` is documented as unreliable for a frozen-interpreter bundle this
+shape), signs the app itself with `packaging/entitlements.plist` under the Hardened
+Runtime, notarizes and staples the `.app`, builds the `.dmg`, then signs, notarizes
+and staples that too. Stapling both means the installed copy passes Gatekeeper even
+on a machine that is offline at first launch.
+
+The entitlements are the minimum the Hardened Runtime needs for this app: JIT and
+unsigned executable memory (llama.cpp/MLX compile Metal shaders at runtime),
+disabled library validation (the `llama-server` binary `backend/llm/installer.py`
+downloads at first run is not signed by our Team ID), and dyld environment
+variables (PyInstaller's bootloader). Note that the downloaded runtime is separately
+subject to quarantine — `installer.py` already strips it with `xattr -dr
+com.apple.quarantine`.
+
+### Windows: Authenticode
+
+Still unsigned. Requires an **Authenticode certificate** (OV or, to skip SmartScreen
+reputation-building entirely, EV) and a `signtool sign /fd sha256 /tr <timestamp-url>`
+step in `build_windows.ps1` over both `Quiltor.exe` and the finished `Setup.exe`. No
+code changes beyond that.
+
+## Mac App Store
+
+Not possible with the current build, but the blockers are specific and fixable — it
+needs a second, sandboxed build variant rather than an architectural rewrite.
+
+The often-quoted showstopper, **Guideline 2.5.2**, forbids downloading *executable
+code* — it does not forbid downloading *data*. Model weights are data, so the GGUF
+download at first run is fine (and necessary: the App Store caps apps at 4 GB, and
+`Qwen3-4B-Q4_K_M.gguf` alone is ~2.5 GB). What actually violates 2.5.2 is the
+`llama-server` binary download and the MLX path's `venv` + `pip install`
+(`backend/llm/installer.py`), which install and run executable code.
+
+### The edition switch
+
+`backend/edition.py` is where the two builds diverge. It reports `"store"` when
+macOS exports `APP_SANDBOX_CONTAINER_ID` (which it does for every sandboxed
+process, and the sandbox is mandatory for Store apps), and `"devid"` otherwise — so
+a single build behaves correctly in both contexts with no compile-time flag.
+`QUILTOR_EDITION=store` forces it, which is how the Store code paths are tested on
+a normal checkout:
+
+```bash
+QUILTOR_EDITION=store python3 -m backend.llm.installer   # refuses the MLX runtime
+```
+
+Only three places branch on it, all in the LLM layer. Everything else — storage,
+the server, the frontend — is edition-agnostic and must stay that way.
+
+### Groundwork already in place
+
+1. **Bundled runtime path** — `bundled_runtime_dir()`
+   (`backend/llm/runtimes/__init__.py`) finds a `llama-server` shipped inside the
+   frozen bundle, `llamacpp.resolve_binary()` prefers it over any downloaded copy,
+   and `install_runtime()` skips the download entirely when it is present.
+2. **MLX blocked in Store builds** — `install_mlx_runtime()` refuses outright,
+   `resolve_runtime("auto")` returns `llamacpp` even on Apple Silicon, and
+   `select._preference_order()` does not probe for MLX.
+3. **Sandbox data directory** — needs no code at all: macOS points `HOME` at
+   `~/Library/Containers/<bundle-id>/Data` for sandboxed processes, and
+   `Path.home()` reads `HOME`, so `desktop_platform.data_home()` already resolves
+   into the container. Documented there so nobody "fixes" it later.
+4. **Sandbox entitlements** — written down in `packaging/entitlements-mas.plist`.
+   Nothing consumes it yet.
+5. **Git is gone** — version history and cloud backup no longer shell out to
+   anything (`backend/backup/`). History is a local, content-addressed snapshot
+   store; backup is an HTTPS upload to a configurable endpoint, which the sandbox
+   permits under `network.client`. This also fixes a problem that was never
+   specific to the Store: `/usr/bin/git` on macOS is an Xcode Command Line Tools
+   shim that opens an installer dialog when the tools are absent, and plenty of
+   Windows and Linux machines have no git at all.
+
+Covered by `tests/backend/test_edition.py`, `test_backup_snapshots.py`, and
+`test_backup_remote.py`.
+
+### Still to build
+
+5. **Compile and bundle `llama-server`** for arm64, place it in the bundle, sign it
+   with the same Team ID, and add it to `packaging/quiltor.spec`. The code path that
+   consumes it exists; the binary does not.
+7. **Replace PDF export** — `render_pdf_system_browser()` launches an
+   already-installed Chrome/Edge, which the sandbox forbids. WKWebView's own print
+   operation via a pywebview bridge is the way out. This is the largest remaining
+   piece of work.
+8. **Store signing and submission** — *3rd Party Mac Developer* certificates, an
+   embedded provisioning profile, a `.pkg` via `productbuild`, upload via
+   Transporter. Plus the review paperwork: privacy policy, support URL,
+   `LSApplicationCategoryType`, screenshots — and a check that the PolyForm
+   Noncommercial license is compatible with Apple's standard EULA terms.
+
+Until that exists, a notarized Developer ID `.dmg` (above) is the normal
+distribution channel for a local tool like this — Ollama and LM Studio both ship
+that way.
 
 ## Verifying a build works end-to-end
 

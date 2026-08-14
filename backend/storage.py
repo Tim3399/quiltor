@@ -154,35 +154,42 @@ def list_worlds(owner_sub: str | None = None) -> list[dict[str, str]]:
         try:
             with connect(path) as conn:
                 row = conn.execute("SELECT value FROM meta WHERE key='world_title'").fetchone()
-                repository_row = conn.execute("SELECT value FROM meta WHERE key='git_repository'").fetchone()
+                repository_row = conn.execute("SELECT value FROM meta WHERE key='backup_endpoint'").fetchone()
                 owner_row = conn.execute("SELECT value FROM meta WHERE key='owner_sub'").fetchone()
             if owner_sub is not None and (owner_row[0] if owner_row else "") != owner_sub:
                 continue
             title = row[0] if row else world_id
             repository = repository_row[0] if repository_row else ""
-            result.append({"id": world_id, "title": title, "gitUrl": repository, "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat()})
+            result.append({"id": world_id, "title": title, "backupUrl": repository, "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat()})
         except sqlite3.Error:
             continue
     return result
 
 
-def normalize_git_url(value: str) -> str:
+def normalize_backup_url(value: str) -> str:
+    """Validate a backup endpoint's base URL (see backend/backup/remote.py).
+
+    HTTP is only tolerated on loopback: a backup carries the user's entire
+    manuscript, and sending that unencrypted across a network is not something to
+    let a typo decide. Everything else must be HTTPS.
+    """
     url = value.strip().removesuffix("/")
     if not url:
         return ""
-    web_url = re.fullmatch(r"https?://[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+(?:\.git)?", url)
-    ssh_url = re.fullmatch(r"ssh://[A-Za-z0-9_.-]+@[A-Za-z0-9.-]+(?::\d+)?/[A-Za-z0-9_./-]+(?:\.git)?", url)
-    scp_url = re.fullmatch(r"[A-Za-z0-9_.-]+@[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+(?:\.git)?", url)
-    if not any((web_url, ssh_url, scp_url)):
-        raise ValueError("Enter a valid HTTPS or SSH Git repository URL.")
+    match = re.fullmatch(r"(https?)://([A-Za-z0-9.-]+)(?::(\d+))?(/[A-Za-z0-9_./-]*)?", url)
+    if not match:
+        raise ValueError("Enter a valid backup endpoint URL, e.g. https://backup.example.com")
+    scheme, host = match.group(1), match.group(2)
+    if scheme == "http" and host not in ("localhost", "127.0.0.1", "::1"):
+        raise ValueError("Use https:// for a remote backup endpoint.")
     return url
 
 
-def create_world(title: str, git_url: str = "", owner_sub: str | None = None) -> dict[str, str]:
+def create_world(title: str, backup_url: str = "", owner_sub: str | None = None) -> dict[str, str]:
     clean = " ".join(title.split()).strip()
     if not clean or len(clean) > 100:
         raise ValueError("Der Welttitel muss zwischen 1 und 100 Zeichen lang sein.")
-    repository = normalize_git_url(git_url)
+    repository = normalize_backup_url(backup_url)
     WORLDS.mkdir(exist_ok=True)
     world_id = uuid.uuid4().hex
     path = WORLDS / f"{world_id}.sqlite3"
@@ -190,11 +197,11 @@ def create_world(title: str, git_url: str = "", owner_sub: str | None = None) ->
     with connect(path) as conn:
         conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('world_title',?)", (clean,))
         if repository:
-            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('git_repository',?)", (repository,))
+            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('backup_endpoint',?)", (repository,))
         if owner_sub is not None:
             conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (owner_sub,))
         conn.execute("INSERT INTO chapters(id,position,title,body,note) VALUES(?,0,'','','')", (uuid.uuid4().hex,))
-    return {"id": world_id, "title": clean, "gitUrl": repository, "updated": datetime.now().isoformat()}
+    return {"id": world_id, "title": clean, "backupUrl": repository, "updated": datetime.now().isoformat()}
 
 
 def activate_world(world_id: str) -> dict[str, str]:
@@ -255,7 +262,9 @@ def delete_world(world_id: str, owner_sub: str | None = None) -> None:
     for database_file in (path, Path(f"{path}-wal"), Path(f"{path}-shm")):
         database_file.unlink(missing_ok=True)
     shutil.rmtree(DATA / "backups" / world_id, ignore_errors=True)
-    shutil.rmtree(DATA / "repositories" / world_id, ignore_errors=True)
+    # The world's version history (backend/backup/snapshots.py). Deleting a world
+    # has to take its snapshots with it -- they hold full copies of the manuscript.
+    shutil.rmtree(DATA / "history" / world_id, ignore_errors=True)
 
 
 def migrate(conn: sqlite3.Connection, version: int) -> None:

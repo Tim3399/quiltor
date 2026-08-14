@@ -6,7 +6,7 @@
 
 ![Quiltor Manuskriptansicht](docs/screenshots/manuscript.png)
 
-Quiltor verbindet einen ruhigen Kapitel-Editor mit einem visuellen Weltgraphen, einer Kartenansicht für Orte, einer echten Timeline und einem lokalen Rechercheassistenten. Jede Welt bleibt als eigene SQLite-Datenbank auf deinem Rechner. Git-Backups sind optional, aber empfohlen.
+Quiltor verbindet einen ruhigen Kapitel-Editor mit einem visuellen Weltgraphen, einer Kartenansicht für Orte, einer echten Timeline und einem lokalen Rechercheassistenten. Jede Welt bleibt als eigene SQLite-Datenbank auf deinem Rechner. Ein Cloud-Backup ist optional, aber empfohlen.
 
 ## Was Quiltor kann
 
@@ -73,7 +73,7 @@ npm run test:assistant:local -- --case set-presence  # einzelnes Szenario
 
 ### MCP inklusive
 
-`mcp/quiltor_server.py` stellt Retrieval und Weltpflege zusätzlich als MCP-Server bereit. Schreibähnliche Tools erzeugen nur bestätigungspflichtige Vorschläge. Es gibt absichtlich keine direkten Apply-, Delete-, Git-, Datei- oder Manuskript-Schreibtools.
+`mcp/quiltor_server.py` stellt Retrieval und Weltpflege zusätzlich als MCP-Server bereit. Schreibähnliche Tools erzeugen nur bestätigungspflichtige Vorschläge. Es gibt absichtlich keine direkten Apply-, Delete-, Backup-, Datei- oder Manuskript-Schreibtools.
 
 Die mitgelieferte `.mcp.json` konfiguriert den Server automatisch für Clients, die projektbezogene MCP-Konfiguration unterstützen.
 
@@ -102,7 +102,7 @@ cd quiltor
 python3 server.py
 ```
 
-Quiltor öffnet automatisch [http://localhost:8000](http://localhost:8000) und legt beim ersten Start eine leere Welt an. Ein Repository bei GitHub, GitLab, Gitea oder einem anderen Git-Anbieter ist optional; Zugangsdaten speichert Quiltor nicht, verwendet wird deine lokal konfigurierte Git-Authentifizierung.
+Quiltor öffnet automatisch [http://localhost:8000](http://localhost:8000) und legt beim ersten Start eine leere Welt an. Ein Backup-Endpunkt ist optional — entweder der gehostete Dienst oder dein eigener Server (`deploy/backup-server/`). Das Zugangstoken liegt in `QUILTOR_BACKUP_TOKEN`, nicht in der Welt-Datenbank.
 
 Ist noch kein lokaler Assistent eingerichtet, fragt der Server einmalig nach (`Jetzt einrichten? [j/N]`), bevor er etwas herunterlädt — ~2,5 GB für llama.cpp, ~2,4 GB für MLX auf Apple-Silicon-Macs. Mit „Nein“ (oder einfach Enter) läuft Quiltor unverändert weiter, nur ohne Assistenten-Panel; die Frage kommt beim nächsten Start erneut, bis einmal zugestimmt wurde.
 
@@ -143,15 +143,21 @@ Selbst bauen:
 python -m venv .venv-desktop && source .venv-desktop/bin/activate  # Windows: .venv-desktop\Scripts\activate
 pip install -e ".[desktop]" pyinstaller
 
-./packaging/build_macos.sh                     # → packaging/dist/Quiltor.app
-powershell -File packaging/build_windows.ps1    # → packaging/dist/Quiltor/Quiltor.exe
+./packaging/build_macos.sh                     # → packaging/dist/Quiltor-<version>.dmg
+powershell -File packaging/build_windows.ps1    # → packaging/dist/Quiltor-Setup-<version>.exe
 ```
 
-Unsigniert für v1: macOS zeigt "unbekannter Entwickler" (Rechtsklick → Öffnen),
-Windows zeigt SmartScreen (Weitere Informationen → Trotzdem ausführen). Der
+Beide erzeugen einen fertigen Installer: ein `.dmg` mit `Quiltor.app` und
+`/Applications`-Verknüpfung zum Hineinziehen, bzw. ein `Setup.exe` mit
+Startmenü-Eintrag und Deinstallation.
+
+Standardmäßig unsigniert: macOS zeigt dann "unbekannter Entwickler" (Rechtsklick →
+Öffnen), Windows zeigt SmartScreen (Weitere Informationen → Trotzdem ausführen). Der
+macOS-Build signiert und notarisiert automatisch, sobald `QUILTOR_SIGN_IDENTITY` und
+`QUILTOR_NOTARY_PROFILE` gesetzt sind — dann erscheint gar keine Warnung mehr. Der
 PDF-Export nutzt den bereits installierten Chrome/Edge-Browser statt eines
-gebündelten Downloads. Details zu Build, Signierung und warum ein Mac-App-Store-
-Vertrieb ohne Sandboxing-Umbau nicht realistisch ist: [`packaging/README.md`](packaging/README.md).
+gebündelten Downloads. Details zu Build, Signierung und was ein Mac-App-Store-Build
+zusätzlich braucht: [`packaging/README.md`](packaging/README.md).
 
 ## Web-Demo mit Keycloak
 
@@ -220,16 +226,17 @@ quiltor --version
 - Markdown-Spiegel machen Manuskript und Profile außerhalb der App lesbar.
 - Automatische SQLite-Sicherungen sind lokal wiederherstellbar.
 - Revisionsprüfungen verhindern, dass ein alter Browser-Tab neuere Änderungen überschreibt.
-- Jede Welt führt von Anfang an eine lokale Git-Historie — auch ganz ohne Remote-Repository. Ein Repository-Link (siehe [Schnellstart](#schnellstart)) schaltet zusätzlich `git push` frei; ohne ihn bleibt „Nur committen“ im Git-Dialog verfügbar.
-- Git-Backups liegen vollständig getrennt vom Quiltor-Quellcode.
-- Weltinhalte, Modelle, Backups und Repositories werden nicht öffentlich versioniert.
+- Jede Welt führt von Anfang an einen lokalen Versionsverlauf — auch ganz ohne Backup-Endpunkt. Snapshots sind inhaltsadressiert, unveränderte Kapitel werden also nur einmal gespeichert.
+- Ein hinterlegter Endpunkt schaltet zusätzlich das Hochladen frei; ohne ihn bleibt „Nur sichern“ verfügbar.
+- Der Verlauf braucht kein installiertes `git` und startet keine Unterprozesse.
+- Weltinhalte, Modelle, Backups und Verlauf werden nicht öffentlich versioniert.
 
 ## Bedienung
 
 | Kürzel | Aktion |
 | --- | --- |
 | `Cmd/Ctrl + S` | Sofort speichern |
-| `Cmd/Ctrl + Shift + S` | Git-Dialog öffnen |
+| `Cmd/Ctrl + Shift + S` | Backup-Dialog öffnen |
 | `Cmd/Ctrl + F` oder `Cmd/Ctrl + K` | Suchen & Befehle öffnen – Kapitel, Elemente und Zeitpunkte durchsuchen oder einen Befehl ausführen |
 | `Cmd/Ctrl + Z` | Rückgängig |
 | `Cmd/Ctrl + Shift + Z` | Wiederholen |
@@ -258,7 +265,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ## Architektur
 
 ```text
-backend/                    SQLite, Backups, Retrieval, Assistant, Git, Keycloak-Login (auth.py)
+backend/                    SQLite, Backups, Retrieval, Assistant, Verlauf, Keycloak-Login (auth.py)
 mcp/                        Read- und Proposal-only MCP-Server
 desktop.py                  Desktop-App-Startpunkt (natives Fenster statt Browser-Tab)
 packaging/                  PyInstaller-Spec, Build-Skripte und Icon-Assets für die Desktop-App
@@ -271,7 +278,7 @@ src/
 │   ├── places/             Kartenansicht, Distanzmessung, Aufenthalte und Reisen
 │   ├── timeline/           Timeline-Verwaltung
 │   ├── assistant/          lokaler Chat, Quellen und Vorschläge
-│   ├── tools/              Suche, Verlauf, Git und Backups
+│   ├── tools/              Suche, Verlauf und Backups
 │   └── worlds/             Weltwahl und Erstellung
 ├── hooks/                  Autosave, Theme und Undo/Redo
 ├── language/               deutsche und englische Oberfläche, je ein Ordner pro Sprache mit Dateien pro Anwendungsbereich

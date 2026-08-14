@@ -17,7 +17,15 @@ def data_home() -> Path:
     """Per-user directory Quiltor's data/runtime/model files live under, following
     each OS's own convention -- mirrors backend/cli.py's ~/.quiltor default for the
     pip/pipx CLI, adapted per platform since a double-clicked app has no shell
-    profile to set QUILTOR_HOME by hand."""
+    profile to set QUILTOR_HOME by hand.
+
+    Deliberately has no App Sandbox branch, even though a Mac App Store build
+    (backend/edition.py) must keep its data inside its container: macOS points HOME
+    at ~/Library/Containers/<bundle-id>/Data for sandboxed processes, and
+    Path.home() reads HOME, so the darwin path below already resolves into the
+    container there. Adding an explicit branch would be dead code that only looks
+    like it is doing something.
+    """
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / APP_NAME
     if sys.platform == "win32":

@@ -102,8 +102,8 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(storage.load_manuscript()["chapters"][0]["body"], "Original")
 
     def test_worlds_are_created_and_activated_in_separate_databases(self):
-        first = storage.create_world("Der letzte Garten", "https://github.com/example/garden")
-        second = storage.create_world("Stadt aus Glas", "https://github.com/example/glass-city.git")
+        first = storage.create_world("Der letzte Garten", "https://backup.example.com")
+        second = storage.create_world("Stadt aus Glas", "https://backup.example.com/glass")
         self.assertEqual(first["title"], "Der letzte Garten")
         storage.activate_world(first["id"])
         storage.save_manuscript({"chapters": [{"id": "c1", "title": "Anfang", "body": "Neu", "note": ""}]})
@@ -112,29 +112,35 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(len(storage.load_manuscript()["chapters"]), 1)
         self.assertEqual(storage.load_manuscript()["chapters"][0]["body"], "")
 
-    def test_git_remote_is_optional_and_provider_neutral(self):
+    def test_backup_endpoint_is_optional(self):
         local_only = storage.create_world("Nur lokal")
-        self.assertEqual(local_only["gitUrl"], "")
-        gitlab = storage.create_world("GitLab", "https://gitlab.com/example/world.git")
-        gitea = storage.create_world("Gitea", "git@git.example.org:author/world.git")
-        self.assertEqual(gitlab["gitUrl"], "https://gitlab.com/example/world.git")
-        self.assertEqual(gitea["gitUrl"], "git@git.example.org:author/world.git")
+        self.assertEqual(local_only["backupUrl"], "")
+        hosted = storage.create_world("Gehostet", "https://backup.example.com")
+        self.assertEqual(hosted["backupUrl"], "https://backup.example.com")
+
+    def test_plain_http_backup_endpoints_are_refused_except_on_loopback(self):
+        """A backup carries the whole manuscript; a typo must not be what decides
+        whether it crosses a network unencrypted."""
+        with self.assertRaises(ValueError):
+            storage.create_world("Unsicher", "http://backup.example.com")
+        local = storage.create_world("Eigener Rechner", "http://127.0.0.1:9000")
+        self.assertEqual(local["backupUrl"], "http://127.0.0.1:9000")
 
     def test_world_deletion_removes_local_data_but_not_other_worlds(self):
-        doomed = storage.create_world("Delete me", "https://gitlab.com/example/remote.git")
+        doomed = storage.create_world("Delete me", "https://backup.example.com")
         survivor = storage.create_world("Keep me")
         backup = storage.DATA / "backups" / doomed["id"]
-        repository = storage.DATA / "repositories" / doomed["id"]
+        history = storage.DATA / "history" / doomed["id"]
         backup.mkdir(parents=True)
-        repository.mkdir(parents=True)
+        history.mkdir(parents=True)
         (backup / "snapshot.sqlite3").write_text("backup")
-        (repository / "README.md").write_text("local checkout")
+        (history / "index.jsonl").write_text("{}\n")
 
         storage.delete_world(doomed["id"])
 
         self.assertFalse((storage.WORLDS / f"{doomed['id']}.sqlite3").exists())
         self.assertFalse(backup.exists())
-        self.assertFalse(repository.exists())
+        self.assertFalse(history.exists())
         self.assertTrue((storage.WORLDS / f"{survivor['id']}.sqlite3").exists())
         self.assertEqual([world["title"] for world in storage.list_worlds()], ["Keep me"])
 

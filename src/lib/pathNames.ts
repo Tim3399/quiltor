@@ -1,6 +1,6 @@
 // Manuscript/profile mirrors are always written as "{index:02d} - {title}.md"
 // under manuscripts/ or profiles/ (see backend/mirror.py) -- this recovers a
-// human title from a raw git path so authors never see file paths.
+// human title from a raw path so authors never see file paths.
 const MIRROR_TITLE_RE = /^\d{2,} - (.+)\.md$/;
 
 export type PathKind = 'chapter' | 'profile' | 'database' | 'other';
@@ -16,8 +16,8 @@ export function describePath(path: string): DescribedPath {
   return { kind: 'other', title: path };
 }
 
-// Parses a `git status --porcelain` line ("XY path" or "R  old -> new") into the path.
-export function porcelainPath(line: string): string {
+// Parses a change entry ("XY path", see backend/backup/snapshots.py's _changes()) into the path.
+export function changedPath(line: string): string {
   const path = line.slice(3).trim();
   const arrow = path.indexOf(' -> ');
   return arrow === -1 ? path : path.slice(arrow + 4);

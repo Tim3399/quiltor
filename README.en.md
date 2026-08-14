@@ -6,7 +6,7 @@
 
 ![Quiltor manuscript workspace](docs/screenshots/manuscript.png)
 
-Quiltor combines a calm chapter editor with a visual world graph, a map view for places, a proper timeline, and a local research assistant. Every world stays in its own SQLite database on your computer. Git backups are optional, but recommended.
+Quiltor combines a calm chapter editor with a visual world graph, a map view for places, a proper timeline, and a local research assistant. Every world stays in its own SQLite database on your computer. A cloud backup is optional, but recommended.
 
 ## What Quiltor does
 
@@ -73,7 +73,7 @@ npm run test:assistant:local -- --case set-presence  # one scenario
 
 ### MCP included
 
-`mcp/quiltor_server.py` exposes retrieval and world maintenance to MCP clients. Mutation-like tools only create proposals that require confirmation. There are intentionally no direct apply, delete, Git, filesystem, or manuscript-writing tools.
+`mcp/quiltor_server.py` exposes retrieval and world maintenance to MCP clients. Mutation-like tools only create proposals that require confirmation. There are intentionally no direct apply, delete, backup, filesystem, or manuscript-writing tools.
 
 The bundled `.mcp.json` configures the server for clients that support project-level MCP configuration.
 
@@ -102,7 +102,7 @@ cd quiltor
 python3 server.py
 ```
 
-Quiltor opens [http://localhost:8000](http://localhost:8000) automatically and creates an empty world on first launch. A repository on GitHub, GitLab, Gitea, or another Git provider is optional; Quiltor never stores credentials, it uses your locally configured Git authentication.
+Quiltor opens [http://localhost:8000](http://localhost:8000) automatically and creates an empty world on first launch. A backup endpoint is optional — either the hosted service or your own server (`deploy/backup-server/`). Its access token lives in `QUILTOR_BACKUP_TOKEN`, never in the world database.
 
 If no local assistant is set up yet, the server asks once (`Set it up now? [y/N]`) before downloading anything — about 2.5GB for llama.cpp, about 2.4GB for MLX on Apple Silicon Macs. Answering no (or just pressing Enter) leaves Quiltor working exactly the same, just without the assistant panel; it asks again next launch until you agree once.
 
@@ -142,15 +142,21 @@ browser tab, no terminal or Python install needed. Build it yourself:
 python -m venv .venv-desktop && source .venv-desktop/bin/activate  # Windows: .venv-desktop\Scripts\activate
 pip install -e ".[desktop]" pyinstaller
 
-./packaging/build_macos.sh                     # → packaging/dist/Quiltor.app
-powershell -File packaging/build_windows.ps1    # → packaging/dist/Quiltor/Quiltor.exe
+./packaging/build_macos.sh                     # → packaging/dist/Quiltor-<version>.dmg
+powershell -File packaging/build_windows.ps1    # → packaging/dist/Quiltor-Setup-<version>.exe
 ```
 
-Unsigned for now: macOS shows "unidentified developer" (right-click → Open once),
-Windows shows SmartScreen (More info → Run anyway). PDF export uses the system's
-installed Chrome/Edge instead of a bundled download. See
-[`packaging/README.md`](packaging/README.md) for build details, signing, and why
-Mac App Store distribution isn't realistic without a sandboxing rework.
+Both produce a finished installer: a `.dmg` holding `Quiltor.app` next to an
+`/Applications` symlink to drag it onto, and a `Setup.exe` with a Start Menu entry
+and an uninstaller.
+
+Unsigned by default: macOS then shows "unidentified developer" (right-click → Open
+once), Windows shows SmartScreen (More info → Run anyway). The macOS build signs and
+notarizes automatically once `QUILTOR_SIGN_IDENTITY` and `QUILTOR_NOTARY_PROFILE`
+are set, which removes the warning entirely. PDF export uses the system's installed
+Chrome/Edge instead of a bundled download. See
+[`packaging/README.md`](packaging/README.md) for build details, signing, and what a
+Mac App Store build additionally requires.
 
 ## Web demo with Keycloak
 
@@ -219,8 +225,9 @@ quiltor --version
 - Markdown mirrors keep manuscripts and profiles readable outside the app.
 - Automatic SQLite backups can be restored locally.
 - Revision checks prevent stale browser tabs from overwriting newer changes.
-- Every world keeps a local Git history from the start — even with no remote repository at all. A repository link (see [Quick start](#quick-start)) additionally unlocks `git push`; without one, "Commit only" in the Git dialog is still available.
-- Git backups are fully separated from the Quiltor source repository.
+- Every world keeps a local version history from the start — even with no backup endpoint at all. Snapshots are content-addressed, so an unchanged chapter is stored once.
+- A configured endpoint additionally unlocks uploading; without one, "Save only" is still available.
+- History needs no installed `git` and spawns no subprocesses.
 - World content, models, backups, and repositories are excluded from public version control.
 
 ## Keyboard controls
@@ -228,7 +235,7 @@ quiltor --version
 | Shortcut | Action |
 | --- | --- |
 | `Cmd/Ctrl + S` | Save immediately |
-| `Cmd/Ctrl + Shift + S` | Open Git |
+| `Cmd/Ctrl + Shift + S` | Open backup |
 | `Cmd/Ctrl + F` or `Cmd/Ctrl + K` | Open search & commands – search chapters, elements, and moments, or run a command |
 | `Cmd/Ctrl + Z` | Undo |
 | `Cmd/Ctrl + Shift + Z` | Redo |
@@ -257,7 +264,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ## Architecture
 
 ```text
-backend/                    SQLite, backups, retrieval, assistant, Git, Keycloak login (auth.py)
+backend/                    SQLite, backups, retrieval, assistant, history, Keycloak login (auth.py)
 mcp/                        read-only and proposal-only MCP server
 desktop.py                  desktop app entry point (native window instead of a browser tab)
 packaging/                  PyInstaller spec, build scripts, and icon assets for the desktop app
@@ -270,7 +277,7 @@ src/
 │   ├── places/             map view, distance measuring, stays and journeys
 │   ├── timeline/           timeline management
 │   ├── assistant/          local chat, citations, proposals
-│   ├── tools/              search, history, Git, backups
+│   ├── tools/              search, history, backups
 │   └── worlds/             world selection and creation
 ├── hooks/                  autosave, theme, undo/redo
 ├── language/               German and English interface, one folder per language with a file per application area
