@@ -47,3 +47,4 @@ include = ["backend", "mcp", "server.py", "desktop.py", "desktop_platform.py", "
 
 [tool.hatch.build.targets.sdist.force-include]
 "dist" = "dist"
+"packaging/icons" = "packaging/icons"
