@@ -98,7 +98,7 @@ class WorldContext:
     backups_dir: Path
     manuscripts_dir: Path
     profiles_dir: Path
-    git: GitContext | None
+    git: GitContext  # always present -- a world without a remote still gets local backup history
 
 
 def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
@@ -126,8 +126,10 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
     backups_dir = storage.DATA / "backups" / world_id
     world = next((w for w in storage.list_worlds(owner_sub=session.sub) if w["id"] == world_id), None)
     repository_url = (world or {}).get("gitUrl", "")
-    git_ctx = (WORLD_BACKUPS.context(world_id, repository_url, db_path, manuscripts_dir, profiles_dir)
-               if repository_url else None)
+    # Every world gets a local backup history, even without a configured remote --
+    # only pushing needs one (see GitBackup._ensure(), which skips remote setup
+    # when repository_url is empty).
+    git_ctx = WORLD_BACKUPS.context(world_id, repository_url, db_path, manuscripts_dir, profiles_dir)
     return WorldContext(id=world_id, db_path=db_path, backups_dir=backups_dir,
                          manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, git=git_ctx)
 
@@ -464,10 +466,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             world = storage.activate_world(world_id)
 
                     if not AUTH_ENABLED:
-                        if world.get("gitUrl"):
-                            CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world["gitUrl"], storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
-                        else:
-                            CURRENT_GIT = None
+                        # Every world gets a local backup history, even without a
+                        # configured remote -- see GitBackup._ensure().
+                        CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world.get("gitUrl", ""), storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
                 return self.send_json({"ok": True, "world": world})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)

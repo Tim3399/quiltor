@@ -81,6 +81,28 @@ class GitBackupTest(unittest.TestCase):
         self.assertFalse(old_version["neu"])
         self.assertIn("Alter Text.", old_version["text"])
 
+    def test_world_without_a_remote_still_gets_local_history_but_no_origin(self):
+        # Every world gets a local backup repo even when no gitUrl was ever set --
+        # only an actual remote push needs one configured.
+        ctx = self._world("world-a")  # _world() always passes repository_url=""
+        self._set_identity(ctx)
+        (ctx.manuscripts / "01 - Kapitel.md").write_text("# Kapitel\n\nText.\n", encoding="utf-8")
+
+        status = self.backups.status(ctx)
+        self.assertTrue(status["ok"])
+        self.assertEqual(status["remote"], "")
+
+        commit_only = self.backups.commit(ctx, "Lokaler Stand", push=False)
+        self.assertTrue(commit_only["ok"])
+        self.assertIn("Backup commit created.", commit_only["log"])
+        self.assertEqual(len(self.backups.history(ctx)), 1)
+
+        remote_list = self.backups.run(ctx, "remote")
+        self.assertEqual(remote_list.stdout.strip(), "")
+
+        pushed = self.backups.commit(ctx, "Zweiter Stand", push=True)
+        self.assertFalse(pushed["ok"])
+
     def test_two_worlds_never_cross_talk(self):
         ctx_a = self._world("world-a")
         ctx_b = self._world("world-b")

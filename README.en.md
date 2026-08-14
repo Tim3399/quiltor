@@ -153,6 +153,7 @@ Mac App Store distribution isn't realistic without a sandboxing rework.
 - Markdown mirrors keep manuscripts and profiles readable outside the app.
 - Automatic SQLite backups can be restored locally.
 - Revision checks prevent stale browser tabs from overwriting newer changes.
+- Every world keeps a local Git history from the start — even with no remote repository at all. A repository link (see [Quick start](#quick-start)) additionally unlocks `git push`; without one, "Commit only" in the Git dialog is still available.
 - Git backups are fully separated from the Quiltor source repository.
 - World content, models, backups, and repositories are excluded from public version control.
 

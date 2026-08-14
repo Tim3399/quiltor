@@ -212,6 +212,7 @@ quiltor --version
 - Markdown-Spiegel machen Manuskript und Profile außerhalb der App lesbar.
 - Automatische SQLite-Sicherungen sind lokal wiederherstellbar.
 - Revisionsprüfungen verhindern, dass ein alter Browser-Tab neuere Änderungen überschreibt.
+- Jede Welt führt von Anfang an eine lokale Git-Historie — auch ganz ohne Remote-Repository. Ein Repository-Link (siehe [Schnellstart](#schnellstart)) schaltet zusätzlich `git push` frei; ohne ihn bleibt „Nur committen“ im Git-Dialog verfügbar.
 - Git-Backups liegen vollständig getrennt vom Quiltor-Quellcode.
 - Weltinhalte, Modelle, Backups und Repositories werden nicht öffentlich versioniert.
 

@@ -50,6 +50,10 @@ class GitBackup:
         ctx.root.mkdir(parents=True, exist_ok=True)
         if not (ctx.root / ".git").exists():
             self.run(ctx, "init", "-b", "main")
+        # A world without a configured remote still gets a local-only history --
+        # only manage the "origin" remote when there's a URL to point it at.
+        if not ctx.repository_url:
+            return
         current = self.run(ctx, "remote", "get-url", "origin")
         if current.returncode == 0:
             if current.stdout.strip() != ctx.repository_url:
