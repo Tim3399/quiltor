@@ -30,14 +30,17 @@ try {
     Write-Host "Built packaging/dist/Quiltor/Quiltor.exe"
 
     $version = (Get-Content "VERSION" -Raw).Trim()
-    $iscc = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
-    if (-not $iscc) {
+    $isccCmd = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+    $isccPath = $null
+    if ($isccCmd) {
+        $isccPath = $isccCmd.Path
+    } else {
         $candidate = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-        if (Test-Path $candidate) { $iscc = Get-Item $candidate }
+        if (Test-Path $candidate) { $isccPath = $candidate }
     }
 
-    if ($iscc) {
-        & $iscc.Path "/DMyAppVersion=$version" "packaging\quiltor.iss"
+    if ($isccPath) {
+        & $isccPath "/DMyAppVersion=$version" "packaging\quiltor.iss"
         Write-Host ""
         Write-Host "Built packaging/dist/Quiltor-Setup-$version.exe"
     } else {
