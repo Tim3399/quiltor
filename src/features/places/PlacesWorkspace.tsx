@@ -5,7 +5,8 @@ import type { FigureNode, FigureState, TimelineMoment, Workspace } from '../../t
 import { placeChronicle, placeJourney, stopDateDiff, type PlaceMomentRow, type PlaceStay } from '../figures/presence';
 import { mapDistance, formatDistance } from './placeMap';
 import { useLanguage } from '../../language';
-import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { useShortcut } from '../../shared/ui/shortcuts';
 import { Menu, MenuItem, MenuSeparator } from '../../shared/ui/Menu';
 import { Popover } from '../../shared/ui/Popover';
 import { Inspector } from '../../shared/ui/Sidebar';
@@ -44,6 +45,7 @@ export function PlacesWorkspace(props: PlacesWorkspaceProps) {
 
 function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onOpen }: PlacesWorkspaceProps) {
   const { t } = useLanguage();
+  const keys = useShortcut();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [measuring, setMeasuring] = useState(false);
   const [measurePair, setMeasurePair] = useState<string[]>([]);
@@ -148,12 +150,12 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
       <div className="context-title"><strong>{t('places')}</strong><span>{t('nPlaces').replace('{n}', String(places.length))}</span></div>
       <div className="tool-group"><button className="primary" onClick={addPlace}><Plus />{t('newPlace')}</button></div>
       <div className="tool-group"><button aria-pressed={measuring} className={measuring ? 'active' : ''} onClick={() => { setMeasuring(value => !value); setMeasurePair([]); }}><Ruler />{t('measureDistance')}</button></div>
-      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoPlaces')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoPlaces')}><Redo2 /></button></div>
+      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoPlaces')} title={`${t('undoPlaces')} · ${keys('Z')}`}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoPlaces')} title={`${t('redoPlaces')} · ${keys('Z', { shift: true })}`}><Redo2 /></button></div>
       <div className="tool-group"><button ref={actionsButton} disabled={!selected} aria-label={t('placeActions')} aria-haspopup="menu" aria-expanded={actionsOpen} onClick={() => setActionsOpen(value => !value)}><MoreHorizontal /></button><Popover anchorRef={actionsButton} open={actionsOpen} onClose={() => setActionsOpen(false)} label={t('placeActions')}><Menu label={t('placeActions')} onClose={() => setActionsOpen(false)}><MenuItem onSelect={duplicateSelected}><Copy />{t('duplicatePlace')}</MenuItem><MenuSeparator /><MenuItem onSelect={() => { setDeletePlace(selected); setActionsOpen(false); }}><Trash2 />{t('deletePlace')}</MenuItem></Menu></Popover></div>
     </div>
     <div className="figure-layout">
       <div className={`flow-area places-flow-area ${measuring ? 'is-connecting' : ''}`}>
-        {measuring && <div className="mode-banner"><Ruler />
+        {measuring && <div className="mode-banner" role="status"><Ruler />
           <span>{measurePair.length === 0 ? t('clickFirstPlace') : measurePair.length === 1 ? t('clickSecondPlace') : t('distanceLiveHint')}</span>
           <button onClick={() => { setMeasuring(false); setMeasurePair([]); }}><X /><span className="sr-only">{t('stopMeasuring')}</span></button>
         </div>}
@@ -175,7 +177,7 @@ function PlacesWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
       {!compact && <Inspector className={`inspector places-inspector ${selected ? 'has-selection' : ''}`} aria-label={t('placesInspectorLabel')}>{inspectorContent}</Inspector>}
     </div>
     {compact && selected && <Sheet open label={t('placesInspectorLabel')} onClose={() => setSelectedId(null)}>{inspectorContent}</Sheet>}
-    {deletePlace && <ConfirmDialog title={t('deletePlace')} description={t('deletePlaceDescription', { name: deletePlace.name })} confirmLabel={t('deletePlace')} holdDurationMs={DELETE_HOLD_MS} onClose={() => setDeletePlace(null)} onConfirm={removePlace} />}
+    {deletePlace && <ConfirmDialog title={t('deletePlace')} description={t('deletePlaceDescription', { name: deletePlace.name })} confirmLabel={t('deletePlace')} undoable onClose={() => setDeletePlace(null)} onConfirm={removePlace} />}
   </section>;
 }
 

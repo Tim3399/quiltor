@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ArrowUp, BookOpen, Bot, Check, ChevronDown, Database, Download, Plus, RotateCw, Sparkles, Square, X } from 'lucide-react';
 import { api, errorMessage } from '../../lib/api';
 import type { AssistantProposal, AssistantReply, AssistantSource, Chapter, FigureState, Workspace } from '../../types';
@@ -20,6 +20,9 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
   onNavigate: (target: { workspace: Workspace; id: string }) => void; onClose: () => void;
 }) {
   const { t } = useLanguage();
+  // The visible line above each bar already says what is running and how far along it is, so the
+  // progressbar borrows it as its accessible name instead of repeating the wording in an aria-label.
+  const installProgressId = useId(), batchProgressId = useId();
   const storageKey = `quiltor-assistant:${worldId}`;
   const [entries, setEntries] = useState<Entry[]>(() => { try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; } });
   const [draft, setDraft] = useState(''), [sending, setSending] = useState(false);
@@ -130,7 +133,7 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
     <div className="assistant-scope"><Database /><span><strong>{t('sourcesIndexed').replace('{n}', String(status?.chunks ?? '…'))}</strong><small>{t('sourcesScopeDescription')}</small></span></div>
     {status && !status.available && <div className="assistant-offline" role="alert"><Bot /><div><strong>{t('localModelUnavailable')}</strong><p>{status.reason}</p>
       {installState?.running
-        ? <div className="assistant-progress"><span>{t('installingAssistant').replace('{percent}', String(installState.percent))}</span><div className="assistant-progress-bar"><span style={{ width: `${installState.percent}%` }} /></div></div>
+        ? <div className="assistant-progress"><span id={installProgressId}>{t('installingAssistant').replace('{percent}', String(installState.percent))}</span><div className="assistant-progress-bar" role="progressbar" aria-labelledby={installProgressId} aria-valuenow={installState.percent} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${installState.percent}%` }} /></div></div>
         : status.installed
           ? <button onClick={checkStatus}><RotateCw />{t('retry')}</button>
           : <button onClick={startInstall}><Download />{t('installAssistant')}</button>}
@@ -157,8 +160,8 @@ export function AssistantDrawer({ worldId, figures, chapters, open, onApply, onN
         </div>}
       </article>)}
       {sending && batchProgress && <div className="assistant-progress">
-        <span>{batchProgress.labelKey ? t(batchProgress.labelKey, batchProgress.labelParams) : t('processingChapterGroups')} {batchProgress.total ? `(${batchProgress.done}/${batchProgress.total})` : ''}</span>
-        <div className="assistant-progress-bar"><span style={{ width: `${batchProgress.total ? Math.round((batchProgress.done / batchProgress.total) * 100) : 0}%` }} /></div>
+        <span id={batchProgressId}>{batchProgress.labelKey ? t(batchProgress.labelKey, batchProgress.labelParams) : t('processingChapterGroups')} {batchProgress.total ? `(${batchProgress.done}/${batchProgress.total})` : ''}</span>
+        <div className="assistant-progress-bar" role="progressbar" aria-labelledby={batchProgressId} aria-valuenow={batchProgress.done} aria-valuemin={0} aria-valuemax={batchProgress.total || undefined}><span style={{ width: `${batchProgress.total ? Math.round((batchProgress.done / batchProgress.total) * 100) : 0}%` }} /></div>
       </div>}
       {sending && !batchProgress && <div className="assistant-thinking"><span /><span /><span />{t('assistantSearchingWorld')}</div>}
       <div ref={end} />

@@ -27,7 +27,7 @@ export function CommandPalette({ open, label, inputLabel = label, placeholder, e
   if (!open) return null;
   const select = (item: CommandPaletteItem | undefined) => { if (item && !item.disabled) { onClose(); item.onSelect(); } };
   return <Dialog title={label} onClose={onClose} wide>
-    <label className="ui-command-palette__search"><Search aria-hidden="true" /><span className="sr-only">{inputLabel}</span><input autoFocus role="combobox" aria-expanded="true" aria-controls={`${optionPrefix}-results`} aria-activedescendant={results[active] ? `${optionPrefix}-${results[active].id}` : undefined} value={query} placeholder={placeholder} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={event => {
+    <label className="ui-command-palette__search"><Search aria-hidden="true" /><span className="sr-only">{inputLabel}</span><input data-autofocus role="combobox" aria-expanded="true" aria-controls={`${optionPrefix}-results`} aria-activedescendant={results[active] ? `${optionPrefix}-${results[active].id}` : undefined} value={query} placeholder={placeholder} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setActive(index => Math.max(0, Math.min(results.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); }
       else if (event.key === 'Enter') { event.preventDefault(); select(results[active]); }
     }} /></label>

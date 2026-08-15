@@ -156,10 +156,10 @@
 .prose-editor .cm-line { padding: 0; }
 .prose-editor .cm-placeholder { color: var(--muted); }
 .prose-editor .cm-selectionBackground,
-.prose-editor .cm-content ::selection { background: var(--selection); }
+.prose-editor .cm-content ::selection { background: var(--selection-surface); }
 .prose-editor .entity-mention {
   border-bottom: 1px solid var(--gold);
-  background: var(--selection);
+  background: var(--selection-surface);
 }
 .prose-editor .cm-tooltip {
   border: 1px solid var(--line);
@@ -189,7 +189,7 @@
 .grammar-tool { display: grid; gap: var(--space-8); padding-bottom: var(--space-12); border-bottom: 1px solid var(--line); }
 .grammar-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .grammar-heading h3 { margin: 0; }
-.grammar-issue-card { display: grid; gap: var(--space-8); padding: var(--space-12); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow-soft); }
+.grammar-issue-card { display: grid; gap: var(--space-8); padding: var(--space-12); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--elevation-1) var(--node-shadow); }
 .grammar-issue-card p { margin: 0; }
 .writing-issue { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--danger); text-underline-offset: var(--space-4); cursor: pointer; }
 

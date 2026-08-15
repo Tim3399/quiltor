@@ -92,6 +92,15 @@ describe('adaptive UI primitives', () => {
     expect(trigger).toHaveFocus(); trigger.remove();
   });
 
+  // React's own `autoFocus` prop never reaches the DOM as an attribute, so the overlay's focus frame
+  // used to find nothing and park focus on the container instead -- the search field of the command
+  // palette and the title field of the world sheet both opened unfocused because of it.
+  it('gives first focus to the element an overlay marks with data-autofocus', async () => {
+    const close = () => undefined;
+    render(<Sheet open label="Details" onClose={close}><button>Erste</button><input data-autofocus aria-label="Titel" /></Sheet>);
+    await waitFor(() => expect(screen.getByLabelText('Titel')).toHaveFocus());
+  });
+
   it('filters and executes commands with the keyboard', () => {
     const run = vi.fn(), close = vi.fn();
     render(<LanguageProvider><CommandPalette open label="Befehle" placeholder="Suchen" emptyLabel="Nichts gefunden" onClose={close} items={[{ id: 'one', label: 'Manuskript öffnen', onSelect: run }, { id: 'two', label: 'Timeline öffnen', onSelect: vi.fn() }]} /></LanguageProvider>);

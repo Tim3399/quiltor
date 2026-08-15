@@ -26,7 +26,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8151 npx playwright test tests/e2e/visual-b
 - Adaptive E2E and screenshots: `npm run test:e2e`
 - Whitespace/errors: `git diff --check`
 
-The E2E suite includes Axe WCAG A/AA checks for manuscript, figures, and timeline in light and dark. Keyboard baselines cover global shortcuts, command palette, focus mode, dialogs, destructive hold confirmation, and language choice. Manual screen-reader verification remains required before release because automated role checks cannot validate announcement quality.
+The E2E suite includes Axe WCAG A/AA checks for manuscript, figures, and timeline in light and dark. Keyboard baselines cover global shortcuts, command palette, focus mode, dialogs, both tiers of destructive confirmation, and language choice. Manual screen-reader verification remains required before release because automated role checks cannot validate announcement quality.
 
 ## Performance baseline
 

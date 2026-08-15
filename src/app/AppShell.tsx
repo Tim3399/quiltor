@@ -7,6 +7,7 @@ import { PRODUCT_NAME } from '../config/branding';
 import { useLanguage } from '../language';
 import { Menu, MenuItem, MenuSeparator } from '../shared/ui/Menu';
 import { Popover } from '../shared/ui/Popover';
+import { useShortcut } from '../shared/ui/shortcuts';
 
 export function AppShell({ title, workspace, onWorkspace, navigationAvailable = false, navigationOpen = false, onNavigation, phase, error, retry, theme, onTheme, onSearch, onHistory, onGit, onBackups, onAssistant, whoami, onLogout, version, children }: {
   title: string; workspace: Workspace; onWorkspace: (value: Workspace) => void; phase: SavePhase; error?: string; retry: () => void; theme: Theme; onTheme: () => void;
@@ -15,6 +16,7 @@ export function AppShell({ title, workspace, onWorkspace, navigationAvailable = 
   whoami?: { email?: string; name?: string } | null; onLogout?: () => void; version?: string; children: React.ReactNode;
 }) {
   const { t } = useLanguage();
+  const keys = useShortcut();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowButton = useRef<HTMLButtonElement>(null);
   const closeOverflow = useCallback(() => setOverflowOpen(false), []);
@@ -30,7 +32,7 @@ export function AppShell({ title, workspace, onWorkspace, navigationAvailable = 
       </nav>
       <div className="global-actions" role="toolbar" aria-label={t('globalTools')}>
         <button onClick={onAssistant} aria-label={t('openAssistant')} title={t('localAssistant')}><Sparkles /><span>{t('assistant')}</span></button>
-        <button onClick={onSearch} aria-label={t('openSearch')} title={t('searchCommands')}><Search /><span>{t('search')}</span><kbd>⌘ K</kbd></button>
+        <button onClick={onSearch} aria-label={t('openSearch')} title={t('searchCommands')}><Search /><span>{t('search')}</span><kbd>{keys('K')}</kbd></button>
         <button ref={overflowButton} aria-haspopup="menu" aria-expanded={overflowOpen} onClick={() => setOverflowOpen(value => !value)} aria-label={t('menuMore')} title={t('menuMore')}><MoreHorizontal /></button>
       </div>
       <SaveStatus phase={phase} error={error} onRetry={retry} />

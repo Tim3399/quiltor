@@ -23,7 +23,7 @@
 
 ## Utility workflows
 
-- Dialog foundation and destructive hold confirmation: `src/shared/ui/Dialog.tsx`, `src/shared/ui/ConfirmDialog.tsx`
+- Dialog foundation and graded destructive confirmation: `src/shared/ui/Dialog.tsx`, `src/shared/ui/ConfirmDialog.tsx`
 - History, Git, backup, and search dialogs: `src/features/tools/`
 - Assistant drawer: `src/features/assistant/AssistantDrawer.tsx`
 - World Gate, preferences, world list, creation form, destructive dialog: `src/features/worlds/WorldGate.tsx`
@@ -35,7 +35,15 @@
 - `Cmd/Ctrl+Z` and `Cmd/Ctrl+Shift+Z`: active workspace history outside form fields.
 - `Escape`: dialog/popover/focus-mode exit where applicable.
 - Dialogs trap focus and restore it; menus use arrow keys, Home/End, Enter, and Escape.
-- Destructive world, chapter, and entity deletion retains the five-second hold control.
+- Destructive confirmations are graded by what can be recovered. Deleting a chapter, element, place,
+  moment or relationship goes through the undo stack, so it is a plain `alertdialog` that names the
+  undo shortcut and confirms with one click. Only deleting a world and restoring a backup — neither of
+  which any undo, backup or snapshot survives — keep the press-and-hold control, now at 1.5 seconds
+  (`IRREVERSIBLE_HOLD_MS`).
+- Overlays mark their intended first focus with `data-autofocus`; React never renders its own
+  `autoFocus` prop as an attribute, so `useOverlayFocus` cannot see it.
+- Shortcut labels follow the operating system, detected once in `src/shared/ui/shortcuts.ts`
+  (`IS_APPLE_OS`): `⌘K` on Apple, `Strg+K`/`Ctrl+K` elsewhere depending on interface language.
 - Automated Axe checks currently report no A/AA violations in the tested core views.
 
 ## Localization and design inventories

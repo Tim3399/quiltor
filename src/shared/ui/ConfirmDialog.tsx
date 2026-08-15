@@ -1,19 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Dialog } from './Dialog';
+import { undoShortcut } from './shortcuts';
 import { useLanguage } from '../../language';
 
-// Shared hold-to-confirm duration for destructive actions (delete world/element/chapter/moment).
-export const DELETE_HOLD_MS = 5000;
+// Hold-to-confirm is reserved for the two actions that nothing can take back: deleting a world
+// (backend/storage.py removes the database, the backups and the history in one go) and restoring a
+// backup (it replaces the database and reloads, which drops the undo stack). Everything else routes
+// through useHistoryState and is one undo away, so it gets a plain confirmation instead -- the
+// pattern Apple and Material both use for destructive actions. A five-second hold on a reversible
+// delete only costs time; it buys no safety that the undo stack does not already provide.
+export const IRREVERSIBLE_HOLD_MS = 1500;
 
-export function ConfirmDialog({ title, description, confirmLabel, holdDurationMs = 0, onConfirm, onClose }: {
-  title: string; description: string; confirmLabel: string; holdDurationMs?: number; onConfirm: () => void; onClose: () => void;
+export function ConfirmDialog({ title, description, confirmLabel, holdDurationMs = 0, undoable = false, onConfirm, onClose }: {
+  title: string; description: string; confirmLabel: string; holdDurationMs?: number; undoable?: boolean; onConfirm: () => void; onClose: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const descriptionId = useId();
   const complete = () => { onConfirm(); onClose(); };
-  return <Dialog title={title} onClose={onClose}>
-    <div className="confirm-message"><AlertTriangle aria-hidden="true" /><p>{description}</p></div>
-    <div className="dialog-actions"><button onClick={onClose}>{t('cancel')}</button>{holdDurationMs > 0 ? <HoldButton label={confirmLabel} duration={holdDurationMs} onComplete={complete} /> : <button className="danger-button" onClick={complete}>{confirmLabel}</button>}</div>
+  return <Dialog title={title} onClose={onClose} role="alertdialog" describedById={descriptionId}>
+    <div className="confirm-message"><AlertTriangle aria-hidden="true" /><p id={descriptionId}>{description}{undoable && <><br /><span className="muted">{t('undoHint', { shortcut: undoShortcut(language) })}</span></>}</p></div>
+    {/* Cancel carries the autofocus so the safe option is preselected; useOverlayFocus picks it up. */}
+    <div className="dialog-actions"><button data-autofocus onClick={onClose}>{t('cancel')}</button>{holdDurationMs > 0 ? <HoldButton label={confirmLabel} duration={holdDurationMs} onComplete={complete} /> : <button className="danger-button" onClick={complete}>{confirmLabel}</button>}</div>
   </Dialog>;
 }
 
@@ -31,11 +39,9 @@ function HoldButton({ label, duration, onComplete }: { label: string; duration: 
     }, 40);
   };
   useEffect(() => () => { if (timer.current !== null) window.clearInterval(timer.current); }, []);
-  const remaining = Math.max(1, Math.ceil((duration * (1 - progress)) / 1000));
-  const totalSeconds = Math.round(duration / 1000);
   return <button className={`danger-button hold-button ${startedAt !== null ? 'is-holding' : ''}`} style={{ '--hold-progress': progress } as React.CSSProperties}
-    aria-label={t('holdSecondsAriaLabel').replace('{label}', label).replace('{n}', String(totalSeconds))} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start(); }} onPointerUp={cancel} onPointerCancel={cancel} onPointerLeave={cancel}
+    aria-label={t('holdAriaLabel', { label })} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start(); }} onPointerUp={cancel} onPointerCancel={cancel} onPointerLeave={cancel}
     onKeyDown={event => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { event.preventDefault(); start(); } }} onKeyUp={event => { if (event.key === ' ' || event.key === 'Enter') cancel(); }} onBlur={cancel}>
-    <span>{startedAt === null ? t('holdToConfirm').replace('{label}', label).replace('{n}', String(totalSeconds)) : t('keepHolding').replace('{n}', String(remaining))}</span>
+    <span>{startedAt === null ? t('holdToConfirm', { label }) : t('keepHolding')}</span>
   </button>;
 }

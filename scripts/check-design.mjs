@@ -34,12 +34,31 @@ const blur = /\b(?:backdrop-filter|filter)\s*:\s*([^;{}]*\bblur\([^;{}]+)/gi;
 
 const violations = [];
 
+// A var() pointing at a name nobody defines is invalid at computed-value time, so the property
+// silently falls back to its initial value -- a transparent background, no shadow. That failure mode
+// is invisible in review and survived a token rename here once already (--selection ->
+// --selection-surface). Definitions are collected across every scanned file first, because they also
+// come from inline style objects in .tsx ({ '--hold-progress': progress }), not just CSS blocks.
+const definedCustomProperties = new Set();
+const customPropertyUses = [];
+const definition = /(--[\w-]+)\s*['"]?\s*:/g;
+const usage = /var\(\s*(--[\w-]+)/g;
+
+function collectCustomProperties(path, line, index) {
+  let match;
+  definition.lastIndex = 0;
+  while ((match = definition.exec(line))) definedCustomProperties.add(match[1]);
+  usage.lastIndex = 0;
+  while ((match = usage.exec(line))) customPropertyUses.push([path, index + 1, match[1]]);
+}
+
 function visit(path) {
   if (ignored.has(path.split(/[/\\]/).at(-1))) return;
   if (statSync(path).isDirectory()) return readdirSync(path).forEach(name => visit(join(path, name)));
   if (!extensions.has(extname(path))) return;
   const allowsRawValues = rawValueAuthorities.has(path);
   readFileSync(path, 'utf8').split('\n').forEach((line, index) => {
+    collectCustomProperties(relative(root, path), line, index);
     if (allowsRawValues) return;
     // print layout is a separate rendering context (pt/in units, relative em drop-cap sizing
     // tied to print typography) — not part of the app's screen-facing design token system.
@@ -71,6 +90,13 @@ function visit(path) {
 }
 
 visit(root);
+
+// --xy-* belongs to @xyflow/react and is defined inside the library stylesheet, which is outside the
+// scanned tree; overriding those variables is the documented way to theme the graph.
+for (const [path, line, name] of customPropertyUses) {
+  if (name.startsWith('--xy-') || definedCustomProperties.has(name)) continue;
+  violations.push(`${path}:${line}: [Undefinierte Variable] var(${name})`);
+}
 
 const tokens = readFileSync(join(designRoot, 'tokens.css'), 'utf8');
 const colors = readFileSync(join(designRoot, 'colors.css'), 'utf8');

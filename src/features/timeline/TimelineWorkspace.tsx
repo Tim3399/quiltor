@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, GripVertical, MoreHorizontal, Plus, Redo2, Skull, Trash2, Undo2, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from '../../types';
 import { uid } from '../../types';
-import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { useShortcut } from '../../shared/ui/shortcuts';
 import { Menu, MenuItem, MenuSeparator } from '../../shared/ui/Menu';
 import { Popover } from '../../shared/ui/Popover';
 import { Sheet } from '../../shared/ui/Sheet';
@@ -19,6 +20,7 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
   onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean;
 }) {
   const { t } = useLanguage();
+  const keys = useShortcut();
   const timeline = state.timeline || [];
   const [selectedId, setSelectedId] = useState<string | null>(() => targetId || timeline[0]?.id || null);
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
@@ -101,7 +103,7 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
   return <section className="timeline-workspace" aria-label={t('timeline')}>
     <div className="context-bar"><div className="context-title"><strong>{t('timeline')}</strong><span>{t('nMoments', { n: timeline.length })} · {t('nRelationships', { n: state.edges.length })}</span></div><div className="context-tools">
       <div className="tool-group"><button className="primary" onClick={() => addMomentAt(selectedIndex >= 0 ? selectedIndex + 1 : timeline.length)}><Plus />{t('addMoment')}</button></div>
-      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('timelineUndo')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('timelineRedo')}><Redo2 /></button></div>
+      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('timelineUndo')} title={`${t('timelineUndo')} · ${keys('Z')}`}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('timelineRedo')} title={`${t('timelineRedo')} · ${keys('Z', { shift: true })}`}><Redo2 /></button></div>
     </div></div>
 
     {!timeline.length ? <div className="timeline-manager-empty"><Clock3 /><h2>{t('timelineEmptyTitle')}</h2><p>{t('timelineEmptyHelp')}</p><button onClick={() => addMomentAt(0)}><Plus />{t('timelineFirst')}</button></div> : <>
@@ -149,7 +151,7 @@ export function TimelineWorkspace({ state, onChange, targetId, onUndo, onRedo, c
       </div>}
     </>}
     {selected && selectedEdge && compact && <Sheet open label={t('relationship')} onClose={() => setSelectedEdgeId(null)}><RelationshipInspector edge={selectedEdge} nodes={state.nodes} timeline={timeline} momentId={selected.id} explicit={edgeChanges.includes(selectedEdge)} onPatch={patch => patchEdge(selectedEdge, patch)} onReset={() => { removeEdgeChange(selectedEdge); setSelectedEdgeId(null); }} onClose={() => setSelectedEdgeId(null)} t={t} /></Sheet>}
-    {deleteMoment && <ConfirmDialog title={t('deleteMoment')} description={t('timelineDeleteDescription', { title: deleteMoment.title, count: countMomentChanges(state, deleteMoment.id) })} confirmLabel={t('deleteMoment')} holdDurationMs={DELETE_HOLD_MS} onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[Math.min(selectedIndex, remaining.length - 1)]?.id || null); setDeleteMoment(null); }} />}
+    {deleteMoment && <ConfirmDialog title={t('deleteMoment')} description={t('timelineDeleteDescription', { title: deleteMoment.title, count: countMomentChanges(state, deleteMoment.id) })} confirmLabel={t('deleteMoment')} undoable onClose={() => setDeleteMoment(null)} onConfirm={() => { const remaining = timeline.filter(moment => moment.id !== deleteMoment.id); onChange({ ...state, timeline: remaining, edges: state.edges.map(edge => ({ ...edge, versions: edge.versions?.filter(version => version.momentId !== deleteMoment.id) })), nodes: state.nodes.map(node => node.diedMomentId === deleteMoment.id ? { ...node, diedMomentId: undefined } : node), presence: presence.filter(entry => entry.momentId !== deleteMoment.id) }); setSelectedId(remaining[Math.min(selectedIndex, remaining.length - 1)]?.id || null); setDeleteMoment(null); }} />}
   </section>;
 }
 

@@ -4,7 +4,11 @@
 export const shared = {
   closeDialog: 'Dialog schließen',
   themeChoice: 'Darstellung', themeSystem: 'System', themeLight: 'Hell', themeDark: 'Dunkel',
-  holdSecondsAriaLabel: '{label} – {n} Sekunden halten', holdToConfirm: '{label} · {n} Sek. halten', keepHolding: 'Weiter halten · {n}',
+  // Das Halten schützt nur noch die zwei Aktionen, die keine Rückholmöglichkeit haben. Es steht
+  // deshalb keine Sekundenzahl mehr im Text: der Fortschrittsbalken zeigt die kurze Dauer, und eine
+  // genannte Zahl war bei anderthalb Sekunden ohnehin nur auf- oder abgerundet.
+  holdAriaLabel: '{label} – gedrückt halten zum Bestätigen', holdToConfirm: '{label} · gedrückt halten', keepHolding: 'Weiter halten …',
+  undoHint: 'Lässt sich mit {shortcut} rückgängig machen.',
   unsaved: 'Ungespeichert', saving: 'Speichert …', saved: 'Gespeichert', notSaved: 'Nicht gespeichert', saveFailed: 'Speichern fehlgeschlagen',
   saveConflict: 'Die Seite wurde in einem anderen Tab geändert. Lade sie neu, bevor du weiterschreibst.',
   timeline: 'Timeline', moment: 'Zeitpunkt', moments: 'Zeitpunkte', newMoment: 'Neuer Zeitpunkt', addMoment: 'Zeitpunkt hinzufügen', deleteMoment: 'Zeitpunkt löschen',

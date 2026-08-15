@@ -13,7 +13,11 @@ export function useOverlayFocus(container: RefObject<HTMLElement | null>, active
     const previous = document.activeElement as HTMLElement | null;
     overlayStack.push(id);
     const frame = requestAnimationFrame(() => {
-      const autofocus = container.current?.querySelector<HTMLElement>('[autofocus]');
+      // React implements its `autoFocus` prop by calling focus() on mount -- it never renders an
+      // `autofocus` attribute, so querying for one matched nothing and this frame pulled focus back
+      // onto the container. `data-autofocus` does survive into the DOM, which is why overlays mark
+      // their intended first stop with it.
+      const autofocus = container.current?.querySelector<HTMLElement>('[data-autofocus],[autofocus]');
       (autofocus ?? container.current)?.focus();
     });
     const key = (event: KeyboardEvent) => {

@@ -4,7 +4,11 @@
 export const shared = {
   closeDialog: 'Close dialog',
   themeChoice: 'Theme', themeSystem: 'System', themeLight: 'Light', themeDark: 'Dark',
-  holdSecondsAriaLabel: '{label} – hold for {n} seconds', holdToConfirm: '{label} · hold {n}s', keepHolding: 'Keep holding · {n}',
+  // Holding now guards only the two actions that cannot be taken back. The copy therefore no longer
+  // names a number of seconds: the progress bar shows the short duration, and any number would have
+  // been rounded up or down anyway at one and a half seconds.
+  holdAriaLabel: '{label} – press and hold to confirm', holdToConfirm: '{label} · press and hold', keepHolding: 'Keep holding …',
+  undoHint: 'Can be undone with {shortcut}.',
   unsaved: 'Unsaved', saving: 'Saving …', saved: 'Saved', notSaved: 'Not saved', saveFailed: 'Save failed',
   saveConflict: 'The page was changed in another tab. Reload it before writing on.',
   timeline: 'Timeline', moment: 'Moment', moments: 'Moments', newMoment: 'New moment', addMoment: 'Add moment', deleteMoment: 'Delete moment',

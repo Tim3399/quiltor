@@ -90,8 +90,12 @@ test('Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
   const drawer = (page.viewportSize()?.width || 0) < 720 ? page.getByRole('dialog', { name: 'Lokaler Assistent' }) : page.getByRole('complementary', { name: 'Lokaler Assistent' });
   await expect(drawer).toContainText('7 Quellen indexiert');
   const assistantPanel = (page.viewportSize()?.width || 0) < 720 ? drawer.locator('.assistant-drawer') : drawer;
-  const drawerBox = await assistantPanel.boundingBox(), composerBox = await assistantPanel.locator('footer').boundingBox();
-  expect(drawerBox && composerBox && Math.abs(composerBox.y + composerBox.height - (drawerBox.y + drawerBox.height)) < 1).toBeTruthy();
+  // Unter 720px fährt der Assistent als Bottom-Sheet ein. Eine einmalige Messung trifft sonst die
+  // laufende Animation, deshalb wird bis zum Stillstand gepollt statt einmal abgefragt.
+  await expect.poll(async () => {
+    const drawerBox = await assistantPanel.boundingBox(), composerBox = await assistantPanel.locator('footer').boundingBox();
+    return drawerBox && composerBox ? Math.abs(composerBox.y + composerBox.height - (drawerBox.y + drawerBox.height)) < 1 : false;
+  }).toBe(true);
   await drawer.getByRole('textbox', { name: 'Nachricht an den lokalen Assistenten' }).fill('Lege Ada und Bela mit ihrer Beziehung an.');
   await drawer.getByRole('button', { name: 'Nachricht senden' }).click();
   await expect(drawer).toContainText('Erstes Kapitel');
@@ -218,8 +222,8 @@ test('Verschieben erhält alle Elemente auch nach Autosave und Neuladen', async 
   await expect(page.locator('.story-node')).toHaveCount(12);
 });
 
-test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekunden Halten', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'wide', 'Die zeitbasierte Sicherheitsinteraktion muss nur einmal geprüft werden.');
+test('Elementtypen sind konsistent erreichbar und Löschen bestätigt ohne Halten', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide', 'Der Löschweg muss nur in einer Breite geprüft werden.');
   await openBlankWorld(page);
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Element', exact: true })).toBeVisible();
@@ -230,17 +234,21 @@ test('Elementtypen sind konsistent erreichbar und Löschen erfordert fünf Sekun
   for (const label of ['Tier', 'Organisation', 'Objekt']) await expect(page.getByRole('menuitem', { name: label, exact: true })).toBeVisible();
   await page.getByRole('menuitem', { name: 'Figur', exact: true }).click();
   await expect(page.locator('.story-node')).toHaveCount(1);
+  // useHistoryState fasst Änderungen innerhalb von 650 ms zu einem Schritt zusammen. Ohne diese
+  // Pause landeten Anlegen und Löschen im selben Schritt und das Undo sprang hinter beide zurück.
+  await page.waitForTimeout(900);
   await page.locator('.story-node').click();
   await page.getByRole('button', { name: 'Figur löschen' }).click();
-  const hold = page.getByRole('button', { name: /Element löschen – 5 Sekunden halten/ });
-  const box = await hold.boundingBox();
-  expect(box).not.toBeNull();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await page.mouse.down(); await page.waitForTimeout(800); await page.mouse.up();
-  await expect(page.locator('.story-node')).toHaveCount(1);
-  await page.mouse.down(); await page.waitForTimeout(5200);
+  // Das Element hängt am Undo-Stack, also genügt hier eine Rückfrage: sie nennt den Rückweg und
+  // bestätigt mit einem Klick. Das Halten bleibt den Aktionen vorbehalten, die niemand zurückholt.
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/rückgängig machen/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abbrechen' })).toBeFocused();
+  await dialog.getByRole('button', { name: 'Element löschen' }).click();
   await expect(page.locator('.story-node')).toHaveCount(0);
-  await page.mouse.up();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.story-node')).toHaveCount(1);
 });
 
 test('Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab', async ({ page }, testInfo) => {
@@ -427,7 +435,7 @@ test('Startseite lädt eine Welt und übernimmt ihren variablen Titel', async ({
   await expect(page.getByLabel('Kapiteltext')).toBeVisible();
 });
 
-test('Welt lässt sich erst nach fünf Sekunden Halten lokal löschen', async ({ page }) => {
+test('Welt lässt sich nur durch anhaltendes Halten lokal löschen', async ({ page }) => {
   const title = `Löschtest ${crypto.randomUUID()}`;
   await page.request.post('/api/worlds/create', { data: { title, gitUrl: 'https://gitlab.com/example/remote-remains.git' } });
   await page.request.post('/api/worlds/create', { data: { title: `Aktive Testwelt ${crypto.randomUUID()}` } });
@@ -436,9 +444,16 @@ test('Welt lässt sich erst nach fünf Sekunden Halten lokal löschen', async ({
   await expect(page.getByRole('heading', { name: 'Welt lokal löschen' })).toBeVisible();
   await expect(page.getByText('Bereits hochgeladene Backups bleiben auf dem Endpunkt erhalten.')).toBeVisible();
 
-  const confirm = page.getByRole('button', { name: 'Welt löschen – 5 Sekunden halten' });
+  // Das Halten schützt hier, weil kein Undo greift: Datenbank, Sicherungen und Verlauf sind danach
+  // fort. Der eigentliche Nachweis ist deshalb, dass ein zu frühes Loslassen nichts löscht.
+  const confirm = page.getByRole('button', { name: 'Welt löschen – gedrückt halten zum Bestätigen' });
   await confirm.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'mouse' });
-  await page.waitForTimeout(5200);
+  await page.waitForTimeout(400);
+  await confirm.dispatchEvent('pointerup', { pointerId: 1, pointerType: 'mouse' });
+  await expect(page.getByRole('heading', { name: 'Welt lokal löschen' })).toBeVisible();
+
+  await confirm.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'mouse' });
+  await page.waitForTimeout(1700);
 
   await expect(page.getByRole('heading', { name: 'Welt lokal löschen' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: new RegExp(title) })).toHaveCount(0);

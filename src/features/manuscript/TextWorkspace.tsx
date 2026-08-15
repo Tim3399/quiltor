@@ -4,7 +4,8 @@ import type { Chapter, FigureNode, FigureState, Manuscript, Workspace, WritingIs
 import { uid, wordCount } from '../../types';
 import { download } from '../../lib/api';
 import type { LanguageLookupResult, LanguageStatus } from '../../lib/api';
-import { ConfirmDialog, DELETE_HOLD_MS } from '../../shared/ui/ConfirmDialog';
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
+import { useShortcut } from '../../shared/ui/shortcuts';
 import { api } from '../../lib/api';
 import type { SnapshotInfo } from '../../types';
 import './TextWorkspace.css';
@@ -25,6 +26,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   // Aliased: runLookup() has its own `language` parameter for the *manuscript* language, which
   // is a different thing from the interface language used for number and date formatting.
   const { t, language: uiLanguage } = useLanguage();
+  const keys = useShortcut();
   const [currentId, setCurrentId] = useState(manuscript.chapters[0]?.id ?? '');
   const [inspector, setInspector] = useState<'chapter' | 'helpers'>('chapter');
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -215,7 +217,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <div className="context-title"><strong>{current?.title || t('manuscript')}</strong><span>{total.toLocaleString(uiLanguage)} {t('totalWords')}</span></div>
       <div className="tool-group"><button className="primary" onClick={add}><FilePlus2 />{t('chapter')}</button></div>
       <div className="tool-group panel-toggles"><button aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}><PanelRight />{t('details')}</button></div>
-      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoManuscript')}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoManuscript')}><Redo2 /></button></div>
+      <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoManuscript')} title={`${t('undoManuscript')} · ${keys('Z')}`}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoManuscript')} title={`${t('redoManuscript')} · ${keys('Z', { shift: true })}`}><Redo2 /></button></div>
       <div className="tool-group"><button aria-pressed={focus} onClick={() => onFocus(!focus)}><Focus />{t('focus')}</button></div>
       <div className="tool-group"><button ref={exportButton} aria-haspopup="menu" aria-expanded={exportOpen} onClick={() => setExportOpen(value => !value)}><Download />{t('exportManuscript')}</button></div>
       <Popover anchorRef={exportButton} open={exportOpen} onClose={() => setExportOpen(false)} label={t('exportOptions')}><Menu label={t('exportOptions')} onClose={() => setExportOpen(false)}><MenuItem onSelect={() => { exportAll(); setExportOpen(false); }}><Download />{t('manuscript')}</MenuItem><MenuItem disabled={pdfState === 'loading'} onSelect={() => { void printBook(); setExportOpen(false); }}><Printer />{pdfState === 'loading' ? t('creatingPdf') : t('bookPdf')}</MenuItem><MenuItem onSelect={() => { setHistoryOpen(true); setExportOpen(false); }}><HistoryIcon />{t('versions')}</MenuItem></Menu></Popover>
@@ -259,7 +261,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <section className="book-title-page"><div><span>{t('novelLabel')}</span><h1>{worldTitle || t('untitledWorld')}</h1><i aria-hidden="true">◆</i></div><footer>{t('manuscriptVersionLabel')} · {new Date().toLocaleDateString(uiLanguage)}</footer></section>
       {manuscript.chapters.map((chapter, chapterIndex) => <section className="book-chapter" key={chapter.id}><header><span>{String(chapterIndex + 1).padStart(2, '0')}</span><h2>{chapter.title || t('untitled')}</h2></header>{chapter.body.trim().split(/\n{2,}/).filter(Boolean).map((paragraph, index) => /^\s*([*⁂◆]|\*\s*\*\s*\*)\s*$/.test(paragraph) ? <div className="scene-break" key={index}>⁂</div> : <p key={index}>{paragraph.replace(/\n/g, ' ')}</p>)}</section>)}
     </article>
-    {deleteOpen && current && <ConfirmDialog title={t('deleteChapter')} description={t('deleteChapterDescription').replace('{title}', current.title || t('untitled'))} confirmLabel={t('deleteChapter')} holdDurationMs={DELETE_HOLD_MS} onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
+    {deleteOpen && current && <ConfirmDialog title={t('deleteChapter')} description={t('deleteChapterDescription').replace('{title}', current.title || t('untitled'))} confirmLabel={t('deleteChapter')} undoable onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
     {pdfState === 'error' && <div className="toast error-box" role="alert">{t('bookPdfError')}<button onClick={() => setPdfState('idle')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
   </section>;
 }
