@@ -4,10 +4,15 @@ The protocol is deliberately small enough to reimplement in an afternoon, becaus
 "point Quiltor at your own server" is only a real option if writing that server is
 easy. deploy/backup-server/ is a working reference implementation of exactly this.
 
+    GET    {base}/v1/worlds                             worlds held for this account
     PUT    {base}/v1/worlds/{world}/blobs/{sha256}      raw bytes, idempotent
     PUT    {base}/v1/worlds/{world}/snapshots/{id}      the manifest, as JSON
     GET    {base}/v1/worlds/{world}/snapshots           list of manifests
     GET    {base}/v1/worlds/{world}/blobs/{sha256}      raw bytes
+
+The first one is what makes restoring onto a fresh machine possible at all: with
+no local worlds there is nothing to read a per-world endpoint from, so discovery
+starts from QUILTOR_BACKUP_URL and asks the endpoint what it holds.
 
 Blobs are content-addressed and immutable, so an upload that dies halfway is
 resumed simply by running it again: whatever already arrived is already correct,
@@ -32,6 +37,13 @@ TIMEOUT_BLOB = 120
 
 def _token() -> str:
     return os.environ.get("QUILTOR_BACKUP_TOKEN", "")
+
+
+def default_endpoint() -> str:
+    """The account-wide backup endpoint. A world may override it with its own,
+    but discovery and restore start here, because a machine with no worlds yet
+    has no per-world setting to read."""
+    return os.environ.get("QUILTOR_BACKUP_URL", "").rstrip("/")
 
 
 def _request(method: str, url: str, payload: bytes | None, content_type: str, timeout: int) -> bytes:
@@ -89,6 +101,17 @@ def existing_blobs(ctx: Any) -> list[str]:
     except ValueError:
         return []
     return [str(item) for item in parsed.get("blobs", [])] if isinstance(parsed, dict) else []
+
+
+def worlds(base_url: str) -> list[dict[str, Any]]:
+    """Worlds the endpoint holds backups for, newest activity first.
+
+    Takes a bare URL rather than a BackupContext: the caller restoring onto an
+    empty machine has no world, and therefore no context, yet.
+    """
+    body = _request("GET", f"{base_url.rstrip('/')}/v1/worlds", None, "", TIMEOUT_METADATA)
+    parsed = json.loads(body)
+    return list(parsed.get("worlds", [])) if isinstance(parsed, dict) else []
 
 
 def snapshots(ctx: Any) -> list[dict[str, Any]]:

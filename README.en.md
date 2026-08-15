@@ -102,7 +102,15 @@ cd quiltor
 python3 server.py
 ```
 
-Quiltor opens [http://localhost:8000](http://localhost:8000) automatically and creates an empty world on first launch. A backup endpoint is optional — either the hosted service or your own server (`deploy/backup-server/`). Its access token lives in `QUILTOR_BACKUP_TOKEN`, never in the world database.
+Quiltor opens [http://localhost:8000](http://localhost:8000) automatically and creates an empty world on first launch. A backup endpoint is optional — either the hosted service or your own server (`deploy/backup-server/`):
+
+```bash
+QUILTOR_BACKUP_URL=https://backup.example.com \
+QUILTOR_BACKUP_TOKEN=your-token \
+python3 server.py
+```
+
+`QUILTOR_BACKUP_URL` applies account-wide; an individual world may point somewhere else. The token never goes into the world database. On a fresh machine Quiltor asks the endpoint which worlds it holds and restores one of them completely — database, manuscript, and history.
 
 If no local assistant is set up yet, the server asks once (`Set it up now? [y/N]`) before downloading anything — about 2.5GB for llama.cpp, about 2.4GB for MLX on Apple Silicon Macs. Answering no (or just pressing Enter) leaves Quiltor working exactly the same, just without the assistant panel; it asks again next launch until you agree once.
 

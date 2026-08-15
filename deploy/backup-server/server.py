@@ -72,6 +72,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         token = header[7:].strip() if header.startswith("Bearer ") else ""
         return _accounts().get(token)
 
+    def _world_index(self, account: str) -> list[dict]:
+        """One entry per world this account has backups for, newest activity
+        first. Titles come from the manifests themselves (see the "title" field
+        written by backend/backup/snapshots.py), which is what lets a fresh
+        install show world names instead of directory ids."""
+        root = ROOT / account
+        found = []
+        for world_dir in sorted(p for p in root.iterdir() if p.is_dir()) if root.exists() else []:
+            manifests = []
+            for path in (world_dir / "snapshots").glob("*.json"):
+                try:
+                    manifests.append(json.loads(path.read_text(encoding="utf-8")))
+                except ValueError:
+                    continue
+            if not manifests:
+                continue
+            manifests.sort(key=lambda m: m.get("created", ""))
+            newest = manifests[-1]
+            found.append({"id": world_dir.name, "title": newest.get("title", ""),
+                          "updated": newest.get("created", ""), "snapshots": len(manifests)})
+        found.sort(key=lambda w: w["updated"], reverse=True)
+        return found
+
     def _route(self) -> tuple[str, str, str] | None:
         """/v1/worlds/{world}/{kind}/{name} -> (world, kind, name); name may be ""."""
         parts = [p for p in self.path.split("?")[0].strip("/").split("/") if p]
@@ -131,6 +154,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         account = self._account()
         if account is None:
             return self._reply(401, {"error": "Unknown or missing bearer token."})
+        if self.path.split("?")[0].strip("/") == "v1/worlds":
+            return self._reply(200, {"worlds": self._world_index(account)})
+
         route = self._route()
         if route is None:
             return self._reply(404, {"error": "No such route."})

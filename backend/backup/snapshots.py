@@ -32,6 +32,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+from backend.backup import remote
+
 FORMAT_VERSION = 1
 ENCRYPTION_NONE = "none"
 
@@ -56,6 +58,7 @@ class BackupContext:
     manuscripts: Path
     profiles: Path
     endpoint_url: str = ""
+    title: str = ""
 
 
 def _describe_changes(changes: list[str]) -> str | None:
@@ -139,9 +142,12 @@ class SnapshotStore:
     def __init__(self, history_dir: Path):
         self.history_dir = history_dir
 
-    def context(self, world_id: str, endpoint_url: str, database: Path, manuscripts: Path, profiles: Path) -> BackupContext:
+    def context(self, world_id: str, endpoint_url: str, database: Path, manuscripts: Path, profiles: Path, title: str = "") -> BackupContext:
+        # A world without its own endpoint falls back to the account-wide one, so
+        # configuring the backup service once is enough for every world.
         return BackupContext(root=self.history_dir / world_id, database=database,
-                             manuscripts=manuscripts, profiles=profiles, endpoint_url=endpoint_url)
+                             manuscripts=manuscripts, profiles=profiles,
+                             endpoint_url=endpoint_url or remote.default_endpoint(), title=title)
 
     # ----------------------------------------------------------------- storage
 
@@ -264,6 +270,11 @@ class SnapshotStore:
             "format": FORMAT_VERSION,
             "encryption": ENCRYPTION_NONE,
             "created": created.isoformat(timespec="seconds"),
+            # Identity travels with the manifest so the endpoint is self-describing:
+            # restoring onto an empty machine must be able to show world names, not
+            # the hex ids the storage layout happens to use as directories.
+            "world": ctx.root.name,
+            "title": ctx.title,
             "message": message or _describe_changes(changes) or f"Writing backup {created:%Y-%m-%d %H:%M}",
             "parent": previous_entry["id"] if previous_entry else "",
             "files": manifest,
@@ -278,7 +289,6 @@ class SnapshotStore:
         if push:
             if not ctx.endpoint_url:
                 return {"ok": False, "grund": "No backup endpoint is configured for this world.", "log": log}
-            from backend.backup import remote
             try:
                 remote.push(ctx, entry, lambda digest: self._read_blob(ctx, digest))
             except Exception as exc:
@@ -335,6 +345,57 @@ class SnapshotStore:
                 old.splitlines(), new.splitlines(), lineterm="", n=3,
                 fromfile=f"a/{path}", tofile=f"b/{path}")]
         return "\n".join([header, *body]) if body else ""
+
+    def restore(self, ctx: BackupContext, entry: dict[str, Any], fetch: Callable[[str], bytes] | None = None) -> dict[str, Any]:
+        """Write a snapshot back onto disk, replacing the world's current state.
+
+        `fetch` supplies blobs this machine does not have, which is the whole
+        point when restoring from an endpoint onto a fresh install; it defaults
+        to local-only, for rolling back to an earlier snapshot.
+
+        Every blob is collected *before* anything is overwritten. A restore that
+        dies halfway through downloading would otherwise leave the world as a
+        mix of two states, which is worse than either.
+        """
+        fetch = fetch or (lambda digest: self._read_blob(ctx, digest))
+        ctx.root.mkdir(parents=True, exist_ok=True)
+
+        payloads: dict[str, bytes] = {}
+        for path, digest in sorted(entry.get("files", {}).items()):
+            try:
+                payloads[path] = self._read_blob(ctx, digest)
+            except OSError:
+                payloads[path] = fetch(digest)
+                self._write_blob(ctx, payloads[path])
+
+        database = payloads.pop(DATABASE_NAME, None)
+        if database is not None:
+            ctx.database.parent.mkdir(parents=True, exist_ok=True)
+            ctx.database.write_bytes(database)
+            # A stale write-ahead log would otherwise be replayed on top of the
+            # database we just put in place, silently reviving the old content.
+            for suffix in ("-wal", "-shm"):
+                Path(f"{ctx.database}{suffix}").unlink(missing_ok=True)
+
+        for directory, name in ((ctx.manuscripts, "manuscripts"), (ctx.profiles, "profiles")):
+            directory.mkdir(parents=True, exist_ok=True)
+            expected = set()
+            for path, payload in payloads.items():
+                folder, _, filename = path.partition("/")
+                if folder != name:
+                    continue
+                expected.add(filename)
+                (directory / filename).write_bytes(payload)
+            for stale in directory.glob("*.md"):
+                if stale.name not in expected:
+                    stale.unlink()
+
+        # Record it locally too, so the restored world has the snapshot in its own
+        # history rather than looking like it appeared from nowhere.
+        if not any(existing["id"] == entry["id"] for existing in self.entries(ctx)):
+            with self._index_path(ctx).open("a", encoding="utf-8") as index:
+                index.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        return {"ok": True, "restored": entry["id"], "files": len(entry.get("files", {}))}
 
     def chapter_version(self, ctx: BackupContext, ref: str, chapter_index: int, filename: str) -> dict[str, Any]:
         entry = self._resolve(ctx, ref)

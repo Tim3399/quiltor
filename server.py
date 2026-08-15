@@ -49,6 +49,7 @@ force_utf8_streams()
 from backend import auth, storage
 from backend.assistant import ASSISTANT_REPLY_LANGUAGES, DEFAULT_ASSISTANT_LANGUAGE, AssistantRuntime, read_progress
 from backend.backup import BackupContext, SnapshotStore
+from backend.backup import remote as backup_remote
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed, install_async, is_configured, read_install_state
 from backend.mirror import mirror_profiles, mirror_text, safe_name
@@ -128,9 +129,48 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
     endpoint_url = (world or {}).get("backupUrl", "")
     # Every world gets a local backup history, even without a configured remote --
     # only uploading needs one; an unset endpoint just means history stays local.
-    git_ctx = WORLD_BACKUPS.context(world_id, endpoint_url, db_path, manuscripts_dir, profiles_dir)
+    git_ctx = WORLD_BACKUPS.context(world_id, endpoint_url, db_path, manuscripts_dir, profiles_dir, title=(world or {}).get("title", ""))
     return WorldContext(id=world_id, db_path=db_path, backups_dir=backups_dir,
                          manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, git=git_ctx)
+
+
+def restore_world_from_endpoint(session: "auth.SessionData | None", world_id: str, snapshot_id: str, endpoint: str) -> dict[str, Any]:
+    """Pull one snapshot back from the backup endpoint and write it over the world.
+
+    Restores the SQLite database above all: it is the authoritative store, and the
+    Markdown mirrors are derived from it (they get rewritten on the next save).
+    Callers hold _lock.
+    """
+    db_path = storage.world_db_path(world_id)
+    manuscripts_dir = storage.DATA / "manuscripts" / world_id
+    profiles_dir = storage.DATA / "profiles" / world_id
+    ctx = WORLD_BACKUPS.context(world_id, endpoint, db_path, manuscripts_dir, profiles_dir)
+
+    if world_id == storage.ACTIVE_WORLD_ID:
+        raise ValueError("Close this world before restoring it.")
+    if db_path.exists():
+        # The overwrite must itself be undoable: snapshot whatever is there now,
+        # locally, before replacing it. Nothing is uploaded -- this is a safety
+        # net on this machine, not a new state worth publishing.
+        WORLD_BACKUPS.commit(ctx, "Before restore", push=False)
+
+    available = backup_remote.snapshots(ctx)
+    if not available:
+        raise ValueError("The endpoint holds no snapshots for this world.")
+    entry = next((s for s in reversed(available) if s["id"] == snapshot_id or s["id"].startswith(snapshot_id)), None) if snapshot_id else available[-1]
+    if entry is None:
+        raise ValueError("No such snapshot at the endpoint.")
+
+    result = WORLD_BACKUPS.restore(ctx, entry, fetch=lambda digest: backup_remote.fetch_blob(ctx, digest))
+    storage.initialize(db_path)
+    if AUTH_ENABLED and session is not None:
+        # The restored database carries the owner it had when it was backed up.
+        # Whoever restores it is the owner now, or they would be locked out of
+        # the world they just pulled down.
+        with storage.connect(db_path) as conn:
+            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (session.sub,))
+    print(f"  · {datetime.now():%H:%M:%S}  restored world {world_id} from snapshot {entry['id'][:8]}")
+    return {"ok": True, **result, "title": entry.get("title", ""), "created": entry.get("created", "")}
 
 
 # ---------------------------------------------------------------- Storage
@@ -374,6 +414,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     return self.send_json({"ok": False, "grund": "No world is open."})
                 return self.send_json(WORLD_BACKUPS.status(git_ctx))
 
+        if route == "/api/backup/remote":
+            # Deliberately not world-scoped: this is what a fresh install calls
+            # before it has any world at all, to find out what can be restored.
+            endpoint = backup_remote.default_endpoint()
+            if not endpoint:
+                return self.send_json({"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
+            try:
+                return self.send_json({"ok": True, "endpoint": endpoint, "worlds": backup_remote.worlds(endpoint)})
+            except Exception as exc:
+                return self.send_json({"ok": False, "grund": str(exc)})
+
         if route == "/api/log":
             with _lock:
                 commits = WORLD_BACKUPS.history(git_ctx) if git_ctx else []
@@ -484,7 +535,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     if not AUTH_ENABLED:
                         # Every world gets a local backup history, even without a
                         # configured endpoint -- history is always local first.
-                        CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world.get("backupUrl", ""), storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
+                        CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world.get("backupUrl", ""), storage.DB, MANUSCRIPT_DIR, PROFILE_DIR, title=world.get("title", ""))
                 return self.send_json({"ok": True, "world": world})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
@@ -548,6 +599,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 503)
+
+        if route == "/api/backup/restore":
+            try:
+                wunsch = self._read_json_body()
+            except Exception:
+                wunsch = {}
+            world_id, snapshot_id = str(wunsch.get("worldId", "")), str(wunsch.get("snapshotId", ""))
+            if not storage.WORLD_ID_RE.fullmatch(world_id):
+                return self.send_json({"ok": False, "grund": "Invalid world id."}, 400)
+            endpoint = backup_remote.default_endpoint()
+            if not endpoint:
+                return self.send_json({"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
+            try:
+                with _lock:
+                    return self.send_json(restore_world_from_endpoint(session, world_id, snapshot_id, endpoint))
+            except Exception as exc:
+                return self.send_json({"ok": False, "grund": str(exc)}, 400)
 
         if route == "/api/backup":
             try:
