@@ -6,6 +6,16 @@
 #
 # Run via the build scripts, not directly, so REPO_ROOT resolves correctly:
 #   pyinstaller packaging/quiltor.spec --distpath packaging/dist --workpath packaging/build
+#
+# One spec for all three distributions, with the differences as data in
+# packaging/bundle.py rather than as three near-identical spec files. Set the
+# variant with QUILTOR_EDITION -- the same name the running app honours:
+#
+#   QUILTOR_EDITION=mas pyinstaller packaging/quiltor.spec ...
+#
+# Duplicating this file per edition would mean maintaining the hiddenimports
+# list below in three places, which is precisely the kind of drift the rest of
+# this refactor set out to remove.
 
 import os
 import sys
@@ -23,16 +33,16 @@ import bundle  # noqa: E402
 
 block_cipher = None
 
+EDITION = bundle.build_edition()
+print(f"Building the '{EDITION}' distribution.")
+
 a = Analysis(
     [str(REPO_ROOT / "desktop.py")],
     pathex=[str(REPO_ROOT)],
-    binaries=[],
-    datas=[
-        (str(REPO_ROOT / "dist"), "dist"),
-        (str(REPO_ROOT / "VERSION"), "."),
-        (str(REPO_ROOT / "scripts" / "llm-runtime"), "scripts/llm-runtime"),
-        (str(ICON_DIR / "tray.png"), "packaging/icons"),
-    ],
+    # An inference runtime only where the edition forbids downloading one; the
+    # MLX scripts only where it does not.
+    binaries=bundle.bundled_binaries(EDITION),
+    datas=bundle.data_files(EDITION),
     # server.py/backend are regular local imports PyInstaller's analysis already
     # follows from `import server` in desktop.py; these are libraries whose
     # platform backends are selected dynamically (import machinery PyInstaller's
@@ -50,7 +60,7 @@ a = Analysis(
     ],
     hookspath=[],
     runtime_hooks=[],
-    excludes=[],
+    excludes=bundle.excluded_modules(EDITION),
     cipher=block_cipher,
 )
 

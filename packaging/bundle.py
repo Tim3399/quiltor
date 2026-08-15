@@ -13,9 +13,22 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# The build's per-edition decisions come from the very same policy objects the
+# running app consults (backend/edition/), so what gets packaged and what the
+# code will then be allowed to do cannot drift apart. Excluding Playwright from
+# a build whose renderer still expects it is exactly the failure this prevents.
+sys.path.insert(0, str(REPO_ROOT))
+from backend.edition import contract as edition_contract  # noqa: E402
+from backend.edition import direct as _direct, mas as _mas, msstore as _msstore  # noqa: E402
+
+EDITION_POLICIES: dict[str, edition_contract.EditionPolicy] = {
+    policy.name: policy for policy in (_direct, _mas, _msstore)
+}
 
 BUNDLE_IDENTIFIER = "app.quiltor.desktop"
 APP_NAME = "Quiltor"
@@ -94,3 +107,86 @@ def info_plist() -> dict[str, object]:
         # keeps a reviewer from having to ask.
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
     }
+
+
+# --------------------------------------------------------------- Build variant
+
+
+def build_edition() -> str:
+    """Which distribution this build is for, from QUILTOR_EDITION.
+
+    Same variable the running app honours, which is deliberate: one name to
+    remember, and `QUILTOR_EDITION=mas` means the same thing in both places.
+    They are still separate mechanisms -- at runtime the shipped app decides
+    from the sandbox it finds itself in, not from this.
+    """
+    name = os.environ.get("QUILTOR_EDITION", "").strip().casefold() or edition_contract.DIRECT
+    if name not in EDITION_POLICIES:
+        raise SystemExit(
+            f"Unknown QUILTOR_EDITION={name!r}. Expected one of: {', '.join(EDITION_POLICIES)}")
+    return name
+
+
+def policy(edition: str | None = None) -> edition_contract.EditionPolicy:
+    return EDITION_POLICIES[edition or build_edition()]
+
+
+def excluded_modules(edition: str | None = None) -> list[str]:
+    """Python packages to keep out of this build.
+
+    Playwright goes only where the renderer that uses it cannot run
+    (backend/pdf/system_browser.py needs to launch an installed Chrome, which
+    the App Sandbox refuses). That is worth doing on its own terms: Playwright's
+    driver carries a `node` binary, 128 MB of a 165 MB app, and a
+    general-purpose JavaScript interpreter inside a Store bundle is a known
+    review flashpoint.
+    """
+    if not policy(edition).allows_external_process:
+        return ["playwright"]
+    return []
+
+
+def data_files(edition: str | None = None) -> list[tuple[str, str]]:
+    """(source, destination) pairs for PyInstaller's `datas`."""
+    files = [
+        (str(REPO_ROOT / "dist"), "dist"),
+        (str(REPO_ROOT / "VERSION"), "."),
+        (str(REPO_ROOT / "packaging" / "icons" / "tray.png"), "packaging/icons"),
+    ]
+    # scripts/llm-runtime is the MLX bridge and its pinned requirements. MLX is
+    # installed by building a venv and pip-installing into it, so any build that
+    # may not download executable code can never use it -- shipping the scripts
+    # would be dead weight, and a requirements file promising a pip install is a
+    # poor thing to hand a reviewer.
+    if policy(edition).allows_code_download:
+        files.append((str(REPO_ROOT / "scripts" / "llm-runtime"), "scripts/llm-runtime"))
+    return files
+
+
+def bundled_binaries(edition: str | None = None) -> list[tuple[str, str]]:
+    """The inference runtime, for builds that may not fetch one at first launch.
+
+    Returned as `binaries` rather than `datas` so it lands in the directory
+    `sys._MEIPASS` points at -- which is what backend/llm/runtimes/'s
+    `bundled_runtime_dir()` looks in. Under PyInstaller 6 that is
+    Contents/Frameworks; `datas` would put it in Contents/Resources, where the
+    consumer would never find it.
+
+    Open question for the Store submission: Apple expects nested executables
+    under Contents/MacOS or Contents/Library, and Contents/Frameworks is
+    conventionally for frameworks and dylibs. If codesign or App Review objects,
+    the fix is to move it and teach bundled_runtime_dir() the new location --
+    they have to agree, wherever it ends up.
+    """
+    if policy(edition).allows_code_download:
+        return []  # installs its own on first launch, the normal path
+
+    runtime = REPO_ROOT / "runtime"
+    binaries = [item for item in sorted(runtime.glob("*")) if item.is_file()] if runtime.is_dir() else []
+    if not binaries:
+        raise SystemExit(
+            f"A '{build_edition()}' build may not download an inference runtime, so one has to ship "
+            f"inside it -- but {runtime} is empty. Build llama-server for the target architecture, "
+            f"sign it with the same Team ID, and place it (with its ggml/llama libraries) there. "
+            f"See packaging/README.md.")
+    return [(str(item), "runtime") for item in binaries]

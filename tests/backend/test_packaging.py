@@ -99,6 +99,76 @@ class InfoPlistTests(unittest.TestCase):
         self.assertEqual(restored["CFBundleShortVersionString"], bundle.version())
 
 
+class BuildVariantTests(unittest.TestCase):
+    """What each distribution actually packages.
+
+    Derived from the same policy objects the running app consults, so these also
+    pin that the two cannot drift -- packaging Playwright out of a build whose
+    renderer still expects it would be the interesting failure.
+    """
+
+    def test_the_build_edition_defaults_to_direct(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(bundle.build_edition(), "direct")
+
+    def test_an_unknown_build_edition_fails_loudly(self):
+        with patch.dict(os.environ, {"QUILTOR_EDITION": "appstore"}, clear=True):
+            with self.assertRaises(SystemExit):
+                bundle.build_edition()
+
+    def test_only_the_sandboxed_build_drops_playwright(self):
+        """The Microsoft Store's MSIX package is not sandboxed against launching
+        an installed browser, so it keeps the renderer that needs it."""
+        self.assertEqual(bundle.excluded_modules("direct"), [])
+        self.assertEqual(bundle.excluded_modules("msstore"), [])
+        self.assertIn("playwright", bundle.excluded_modules("mas"))
+
+    def test_the_pdf_renderer_and_the_packaging_agree(self):
+        """The point of deriving both from one policy: if Playwright is excluded,
+        the renderer that imports it must not be the one selected."""
+        from backend import pdf
+        from backend.pdf import system_browser
+
+        for name in ("direct", "mas", "msstore"):
+            with self.subTest(edition=name):
+                excluded = "playwright" in bundle.excluded_modules(name)
+                with patch("backend.edition.allows_external_process",
+                           return_value=bundle.policy(name).allows_external_process):
+                    selected_needs_playwright = pdf.desktop_renderer() is system_browser.render
+                self.assertNotEqual(excluded, selected_needs_playwright)
+
+    def test_mlx_scripts_ship_only_where_mlx_could_be_installed(self):
+        """Installing MLX means building a venv and pip-installing into it, so a
+        build that may not download executable code can never use those scripts."""
+        def ships_mlx(name):
+            return any("llm-runtime" in source for source, _ in bundle.data_files(name))
+
+        self.assertTrue(ships_mlx("direct"))
+        self.assertFalse(ships_mlx("mas"))
+        self.assertFalse(ships_mlx("msstore"))
+
+    def test_every_edition_ships_the_client_and_the_version(self):
+        for name in ("direct", "mas", "msstore"):
+            with self.subTest(edition=name):
+                destinations = [dest for _, dest in bundle.data_files(name)]
+                self.assertIn("dist", destinations)
+                self.assertIn(".", destinations)
+
+    def test_a_direct_build_bundles_no_runtime(self):
+        """It installs its own on first launch -- the normal path, and the only
+        one that keeps the app under the 4 GB Store cap comfortably."""
+        self.assertEqual(bundle.bundled_binaries("direct"), [])
+
+    def test_a_store_build_without_a_runtime_fails_the_build(self):
+        """Better here than as a guideline 2.5.2 rejection, or as an app whose
+        assistant silently never works."""
+        with patch.object(bundle, "REPO_ROOT", Path("/nonexistent")):
+            with patch.dict(os.environ, {"QUILTOR_EDITION": "mas"}, clear=True):
+                with self.assertRaises(SystemExit) as caught:
+                    bundle.bundled_binaries("mas")
+        self.assertIn("runtime", str(caught.exception))
+
+
 class SpecConsistencyTests(unittest.TestCase):
     """The .spec cannot be imported (PyInstaller injects SPECPATH, EXE, BUNDLE
     and friends at exec time), so read it as text and check it wires this module
@@ -116,6 +186,17 @@ class SpecConsistencyTests(unittest.TestCase):
         """Two sources of truth for the identifier is how a signed build ends up
         not matching its provisioning profile."""
         self.assertNotIn(f'"{bundle.BUNDLE_IDENTIFIER}"', self.spec)
+
+    def test_the_spec_takes_its_build_variant_from_the_shared_module(self):
+        self.assertIn("bundle.build_edition()", self.spec)
+        self.assertIn("bundle.data_files(", self.spec)
+        self.assertIn("bundle.excluded_modules(", self.spec)
+        self.assertIn("bundle.bundled_binaries(", self.spec)
+
+    def test_the_spec_no_longer_hard_codes_what_it_packages(self):
+        """One spec for three distributions; the differences are data. Three
+        near-identical spec files would mean maintaining hiddenimports thrice."""
+        self.assertNotIn('"scripts/llm-runtime"', self.spec)
 
     def test_the_target_architecture_is_an_explicit_decision(self):
         """Unset, PyInstaller silently builds for whatever the build machine is

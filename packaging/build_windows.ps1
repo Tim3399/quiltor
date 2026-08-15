@@ -21,6 +21,10 @@ try {
 
     npm run build
 
+    # Pinned, not inherited: this script builds the Inno Setup installer, and a
+    # QUILTOR_EDITION left over in the shell from testing the Store code paths
+    # would otherwise silently produce an MSIX-shaped build here.
+    $env:QUILTOR_EDITION = "direct"
     pyinstaller packaging/quiltor.spec `
         --distpath packaging/dist `
         --workpath packaging/build `

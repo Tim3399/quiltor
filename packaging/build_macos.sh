@@ -123,7 +123,10 @@ fi
 
 npm run build
 
-pyinstaller packaging/quiltor.spec \
+# Pinned, not inherited: this script builds the Developer ID .dmg, and a
+# QUILTOR_EDITION left over in the shell from testing the Store code paths would
+# otherwise silently produce a sandboxed build here.
+QUILTOR_EDITION=direct pyinstaller packaging/quiltor.spec \
     --distpath packaging/dist \
     --workpath packaging/build \
     --noconfirm

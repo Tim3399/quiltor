@@ -312,16 +312,25 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
    obviously not a submission. `QUILTOR_TARGET_ARCH` overrides the architecture,
    which is otherwise arm64 — universal2 would need universal2 wheels for
    Pillow, pywebview and pystray.
+
+   **The build variant** — also *done*. One spec builds all three
+   distributions; `QUILTOR_EDITION` picks which, the same name the running app
+   honours. The differences are data in `packaging/bundle.py`, derived from the
+   very same policy objects in `backend/edition/` the app consults at runtime —
+   so what gets packaged and what the code is then allowed to do cannot drift
+   apart. A Mac App Store build drops Playwright (its renderer cannot run
+   sandboxed anyway); neither store ships `scripts/llm-runtime` (MLX needs a
+   venv and a pip install, which they may not do); and both require a `runtime/`
+   holding a signed `llama-server`, failing the build with an explanation rather
+   than producing an app whose assistant silently never works. Three
+   near-identical spec files were the alternative, and keeping `hiddenimports`
+   correct in three places is the drift this refactor set out to remove. Both
+   build scripts pin `QUILTOR_EDITION=direct`, so a variable left over from
+   testing cannot quietly change what they produce.
 4. **A real app icon.** `make_icons.py` says so itself — it draws a Georgia "Q"
    and its header reads "swap these files out once real branding exists".
    Placeholder artwork is a Guideline 4.0 / 2.3.7 rejection.
-5. **Split the spec per edition** — `packaging/quiltor.spec` is one file for
-   every build. The Store one has to exclude the `browser-pdf` extra (Playwright
-   and its bundled `node`, 128 MB of a 165 MB app — a general-purpose JavaScript
-   interpreter inside a Store bundle is a known review flashpoint) and
-   `scripts/llm-runtime`, which is MLX material a Store build may not use anyway.
-   The dependency split exists already; nothing consumes it yet.
-6. **Store signing and submission** — *3rd Party Mac Developer* certificates, an
+5. **Store signing and submission** — *3rd Party Mac Developer* certificates, an
    embedded provisioning profile, a `.pkg` via `productbuild`, upload via
    Transporter. Plus the review paperwork: privacy policy, support URL,
    `LSApplicationCategoryType`, screenshots — and a check that the PolyForm
