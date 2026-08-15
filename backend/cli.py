@@ -19,7 +19,7 @@ from pathlib import Path
 
 import typer
 
-from backend.llm.shared.platform import force_utf8_streams
+from backend.system import force_utf8_streams
 
 force_utf8_streams()
 

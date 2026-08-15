@@ -7,7 +7,7 @@ from typing import Protocol
 
 from backend.edition import is_store_build
 from backend.llm.runtimes import llamacpp, mlx
-from backend.llm.shared.platform import is_apple_silicon
+from backend.system import is_apple_silicon
 
 
 class Runtime(Protocol):
@@ -25,7 +25,10 @@ def _preference_order() -> tuple[Runtime, ...]:
     # never installed.
     # A Store build has no MLX venv to start -- backend/llm/installer.py refuses to
     # create one there (guideline 2.5.2) -- so don't even probe for it.
-    if is_apple_silicon() and not is_store_build():
+    # is_store_build() is checked first on purpose: is_apple_silicon() can shell
+    # out to sysctl under Rosetta, and a sandboxed build should reach the
+    # llamacpp-only answer without spawning anything at all.
+    if not is_store_build() and is_apple_silicon():
         return (mlx, llamacpp)
     return (llamacpp,)
 

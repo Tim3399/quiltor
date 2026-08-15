@@ -8,13 +8,14 @@ import re
 import shutil
 import socket
 import subprocess
-import sys
 import threading
 import time
 import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
+
+from backend import system
 
 LANGUAGETOOL_VERSION = "6.6"
 LANGUAGETOOL_URL = f"https://languagetool.org/download/LanguageTool-{LANGUAGETOOL_VERSION}.zip"
@@ -27,7 +28,7 @@ def _java_version(java: str | None) -> int | None:
         return None
     try:
         result = subprocess.run([java, "-version"], capture_output=True, text=True, timeout=5, check=False,
-                                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+                                 creationflags=system.spawn_flags())
         match = re.search(r'version "(?:1\.)?(\d+)', result.stderr + result.stdout)
         return int(match.group(1)) if match else None
     except (OSError, subprocess.SubprocessError):
@@ -61,6 +62,11 @@ class LanguageToolManager:
         external_opt_in = os.environ.get("QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN") == "1"
         running = self.process is not None and self.process.poll() is None
         return {
+            # `supported` is the edition's verdict, `available` this machine's:
+            # supported-but-unavailable means "install Java and click the
+            # button", unsupported means the button should not exist. See
+            # backend/language/grammar/unavailable.py.
+            "supported": True, "unsupportedReason": "",
             "available": self.server_jar.exists() and java_version is not None and java_version >= JAVA_MINIMUM,
             "installed": self.server_jar.exists(), "running": running,
             "version": LANGUAGETOOL_VERSION, "javaVersion": java_version,
@@ -103,7 +109,7 @@ class LanguageToolManager:
             self.process = subprocess.Popen(
                 [self.java, "-cp", str(self.server_jar), "org.languagetool.server.HTTPServer", "--port", str(self.port)],
                 cwd=self.root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                creationflags=system.spawn_flags(),
             )
             url = f"http://127.0.0.1:{self.port}/v2/check"
             for _ in range(40):

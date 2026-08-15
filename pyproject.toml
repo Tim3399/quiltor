@@ -35,7 +35,6 @@ packages = ["backend", "mcp"]
 [tool.hatch.build.targets.wheel.force-include]
 "server.py" = "server.py"
 "desktop.py" = "desktop.py"
-"desktop_platform.py" = "desktop_platform.py"
 "desktop_tray.py" = "desktop_tray.py"
 "VERSION" = "VERSION"
 "dist" = "dist"
@@ -43,7 +42,7 @@ packages = ["backend", "mcp"]
 "packaging/icons" = "packaging/icons"
 
 [tool.hatch.build.targets.sdist]
-include = ["backend", "mcp", "server.py", "desktop.py", "desktop_platform.py", "desktop_tray.py", "VERSION", "scripts", "README.md", "LICENSE"]
+include = ["backend", "mcp", "server.py", "desktop.py", "desktop_tray.py", "VERSION", "scripts", "README.md", "LICENSE"]
 
 [tool.hatch.build.targets.sdist.force-include]
 "dist" = "dist"

@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from backend.llm.shared.platform import force_utf8_streams
+from backend.system import force_utf8_streams
 
 force_utf8_streams()
 

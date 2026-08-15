@@ -56,14 +56,21 @@ the per-user data directory alone.
 
 ## Platform-specific vs. shared code
 
-Only `desktop_platform.py` branches on `sys.platform` — everything else
-(`desktop.py`, `desktop_tray.py`) is written once and works on both OSes:
+Only `backend/system/` branches on the OS — everything else (`desktop.py`,
+`desktop_tray.py`, and all of `backend/`) is written once and works on both OSes:
 
-- **`desktop_platform.py`** — the few things that actually differ per OS:
-  the per-user data directory convention (`data_home()`) and how to reveal a
-  folder in the system file manager (`reveal_in_file_manager()`, Finder vs.
-  Explorer). Adding a third OS or changing one of these decisions should only
-  ever touch this one file.
+- **`backend/system/`** — the things that actually differ per OS, one module
+  each (`macos.py`, `windows.py`, `linux.py`) behind the surface named in
+  `contract.py`: the per-user data directory (`data_home()`), revealing a folder
+  in the file manager (`reveal_in_file_manager()`), subprocess creation flags,
+  tying a child process's lifetime to ours, executable naming, and quarantine
+  stripping. `__init__.py` picks one implementation at import time and
+  re-exports it. Adding a third OS means adding one module and one line.
+
+  This replaced an earlier `desktop_platform.py` that claimed the same role in
+  a docstring but had lost it — thirteen OS branches had accumulated in six
+  other modules. `tests/backend/test_system.py` now enforces the rule by parsing
+  every source file, so it cannot quietly rot again.
 - **`desktop.py`** / **`desktop_tray.py`** — orchestration and the tray icon,
   both OS-agnostic; pywebview and pystray abstract the actual
   WebView2-vs-WKWebView and notification-area-vs-menu-bar differences
@@ -87,7 +94,7 @@ Only `desktop_platform.py` branches on `sys.platform` — everything else
   the current structure — no Mac available here to work out and verify the
   fix, so `desktop_tray.py` skips starting the tray on `darwin` rather than
   ship something untested that could hang app startup. See
-  `desktop_platform.TRAY_SUPPORTS_BACKGROUND_THREAD` for the restructuring
+  `backend/system/macos.py`'s `TRAY_SUPPORTS_BACKGROUND_THREAD` for the restructuring
   this needs (pystray owning the main thread, `webview.start()` moved into the
   background thread pystray's `setup=` callback receives).
 - **Per-user data directory** — `QUILTOR_HOME` defaults to
@@ -177,42 +184,75 @@ needs a second, sandboxed build variant rather than an architectural rewrite.
 The often-quoted showstopper, **Guideline 2.5.2**, forbids downloading *executable
 code* — it does not forbid downloading *data*. Model weights are data, so the GGUF
 download at first run is fine (and necessary: the App Store caps apps at 4 GB, and
-`Qwen3-4B-Q4_K_M.gguf` alone is ~2.5 GB). What actually violates 2.5.2 is the
-`llama-server` binary download and the MLX path's `venv` + `pip install`
-(`backend/llm/installer.py`), which install and run executable code.
+`Qwen3-4B-Q4_K_M.gguf` alone is ~2.5 GB). What violates 2.5.2 is the
+`llama-server` binary download, the MLX path's `venv` + `pip install`
+(`backend/llm/installer.py`), and LanguageTool's JAR
+(`backend/language/grammar/languagetool.py`) — all of which install and then run
+executable code.
+
+**The App Sandbox is a second, independent constraint**, and it is easy to
+conflate the two. It forbids executing anything outside our own signed bundle
+regardless of where that came from: the system JVM behind LanguageTool and the
+installed Chrome/Edge behind PDF export both fail on this even though neither is
+downloaded by us. That is why `backend/edition/` exposes the two as separate
+policy questions rather than one "is this the Store?" flag — the Microsoft Store
+build answers them differently.
 
 ### The edition switch
 
-`backend/edition.py` is where the two builds diverge. It reports `"store"` when
-macOS exports `APP_SANDBOX_CONTAINER_ID` (which it does for every sandboxed
-process, and the sandbox is mandatory for Store apps), and `"devid"` otherwise — so
-a single build behaves correctly in both contexts with no compile-time flag.
-`QUILTOR_EDITION=store` forces it, which is how the Store code paths are tested on
-a normal checkout:
+`backend/edition/` is where the builds diverge. Three exist — `direct` (the
+`.dmg`, the Inno Setup `.exe`, Docker, a source checkout), `mas`, and `msstore`
+— detected at runtime from whether the OS reports us inside its own app
+container (`backend/system/`'s `in_os_app_package()`: `APP_SANDBOX_CONTAINER_ID`
+on macOS, `GetCurrentPackageFullName` on Windows). So a single build behaves
+correctly in every context with no compile-time flag, and — the part that
+matters day to day — the restricted paths stay testable on a normal checkout:
 
 ```bash
-QUILTOR_EDITION=store python3 -m backend.llm.installer   # refuses the MLX runtime
+QUILTOR_EDITION=mas python3 -m backend.llm.installer   # refuses to download
 ```
 
-Only three places branch on it, all in the LLM layer. Everything else — storage,
-the server, the frontend — is edition-agnostic and must stay that way.
+Callers ask **policy questions**, not for the edition's name:
+`allows_code_download()` (guideline 2.5.2 — downloading *data* such as model
+weights is a different question and always allowed) and
+`allows_external_process()` (the sandbox refusing to launch the system JVM or an
+installed browser). `is_store_build()` remains for the few places that really do
+mean "any store", such as refusing MLX. A `edition() == "mas"` comparison spread
+through a capability is exactly what this package exists to prevent.
+
+Capabilities that differ by edition follow one shape: a `contract.py`, one module
+per implementation, and an `__init__.py` that selects from policy.
+`backend/language/grammar/` is the worked example — `languagetool.py` versus
+`unavailable.py`.
+
+The frontend is no longer edition-agnostic, and cannot be: it has to hide
+features a build does not have rather than offer buttons that fail. It learns
+this from the data it already fetches — `grammar.supported` in
+`/api/language/status` — not from a separate edition field.
 
 ### Groundwork already in place
 
 1. **Bundled runtime path** — `bundled_runtime_dir()`
    (`backend/llm/runtimes/__init__.py`) finds a `llama-server` shipped inside the
    frozen bundle, `llamacpp.resolve_binary()` prefers it over any downloaded copy,
-   and `install_runtime()` skips the download entirely when it is present.
-2. **MLX blocked in Store builds** — `install_mlx_runtime()` refuses outright,
+   and `install_runtime()` skips the download entirely when it is present. It
+   also refuses outright, rather than downloading, if the edition forbids it and
+   no binary was bundled — the packaging being wrong must not become a guideline
+   violation.
+2. **Grammar checking blocked in Store builds** — LanguageTool downloads a JAR
+   and launches the system JVM: a 2.5.2 violation and a sandbox violation
+   respectively. `backend/language/grammar/` picks `unavailable.py` instead,
+   which reports the feature unsupported so the UI hides it.
+3. **MLX blocked in Store builds** — `install_mlx_runtime()` refuses outright,
    `resolve_runtime("auto")` returns `llamacpp` even on Apple Silicon, and
    `select._preference_order()` does not probe for MLX.
-3. **Sandbox data directory** — needs no code at all: macOS points `HOME` at
+4. **Sandbox data directory** — needs no code at all: macOS points `HOME` at
    `~/Library/Containers/<bundle-id>/Data` for sandboxed processes, and
-   `Path.home()` reads `HOME`, so `desktop_platform.data_home()` already resolves
+   `Path.home()` reads `HOME`, so `backend/system/macos.py`'s `data_home()` already resolves
    into the container. Documented there so nobody "fixes" it later.
-4. **Sandbox entitlements** — written down in `packaging/entitlements-mas.plist`.
+5. **Sandbox entitlements** — written down in `packaging/entitlements-mas.plist`.
    Nothing consumes it yet.
-5. **Git is gone** — version history and cloud backup no longer shell out to
+6. **Git is gone** — version history and cloud backup no longer shell out to
    anything (`backend/backup/`). History is a local, content-addressed snapshot
    store; backup is an HTTPS upload to a configurable endpoint, which the sandbox
    permits under `network.client`. This also fixes a problem that was never
@@ -220,19 +260,36 @@ the server, the frontend — is edition-agnostic and must stay that way.
    shim that opens an installer dialog when the tools are absent, and plenty of
    Windows and Linux machines have no git at all.
 
-Covered by `tests/backend/test_edition.py`, `test_backup_snapshots.py`, and
-`test_backup_remote.py`.
+Covered by `tests/backend/test_edition.py`, `test_system.py`,
+`test_backup_snapshots.py`, and `test_backup_remote.py`.
 
 ### Still to build
 
-5. **Compile and bundle `llama-server`** for arm64, place it in the bundle, sign it
-   with the same Team ID, and add it to `packaging/quiltor.spec`. The code path that
-   consumes it exists; the binary does not.
-7. **Replace PDF export** — `render_pdf_system_browser()` launches an
+1. **Compile and bundle `llama-server`** for arm64, place it in the bundle, sign it
+   with the same Team ID, and add it to the spec. The code path that consumes it
+   exists; the binary does not. Note the placement is a real decision, not a
+   `datas` line: `bundled_runtime_dir()` reads `sys._MEIPASS` (PyInstaller 6 puts
+   that at `Contents/Frameworks`), while Apple wants nested executables under
+   `Contents/MacOS` or `Contents/Library`.
+2. **Replace PDF export** — `render_pdf_system_browser()` launches an
    already-installed Chrome/Edge, which the sandbox forbids. WKWebView's own print
    operation via a pywebview bridge is the way out. This is the largest remaining
-   piece of work.
-8. **Store signing and submission** — *3rd Party Mac Developer* certificates, an
+   piece of work. `NSPrintOperation` rather than `createPDFWithConfiguration`:
+   the latter puts the whole page on one sheet, which a 6 × 9 inch book cannot use.
+3. **Drop Playwright from the Store build** — its driver bundles a `node`
+   binary, 128 MB of a 165 MB app, and shipping a general-purpose JS interpreter
+   is a known review flashpoint. It becomes dead weight once (2) lands.
+4. **`reveal_in_file_manager()` on macOS** (`backend/system/macos.py`) shells out
+   to `/usr/bin/open`, which the sandbox denies; `NSWorkspace`'s
+   `activateFileViewerSelectingURLs:` is the sanctioned route. Currently
+   unreachable there because the tray menu that calls it is disabled on macOS.
+5. **Bundle metadata** — the spec passes neither `info_plist=` nor `version=`,
+   so the built `Info.plist` has nine keys and no `CFBundleVersion` at all. App
+   Store Connect rejects that upload before a human ever sees the app. Also
+   missing: `LSApplicationCategoryType`, `ITSAppUsesNonExemptEncryption`,
+   `NSHumanReadableCopyright`, `LSMinimumSystemVersion`, `CFBundleLocalizations`.
+   And the icon is still `make_icons.py`'s placeholder "Q".
+6. **Store signing and submission** — *3rd Party Mac Developer* certificates, an
    embedded provisioning profile, a `.pkg` via `productbuild`, upload via
    Transporter. Plus the review paperwork: privacy policy, support URL,
    `LSApplicationCategoryType`, screenshots — and a check that the PolyForm

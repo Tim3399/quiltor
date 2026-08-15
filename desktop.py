@@ -7,7 +7,7 @@ build built by packaging/) -- server.py and the plain `quiltor` CLI stay depende
 free/stdlib-only without this file, same as before.
 
 Platform differences (data directory, "reveal in file manager") live in
-desktop_platform.py; this file and desktop_tray.py stay OS-agnostic.
+backend/system/; this file and desktop_tray.py stay OS-agnostic.
 
     python desktop.py
 """
@@ -20,7 +20,7 @@ import threading
 import time
 from pathlib import Path
 
-from desktop_platform import APP_NAME, data_home
+from backend.system import APP_NAME, data_home
 
 DEFAULT_PORT = 8843
 
