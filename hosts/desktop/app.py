@@ -7,9 +7,9 @@ build built by packaging/) -- server.py and the plain `quiltor` CLI stay depende
 free/stdlib-only without this file, same as before.
 
 Platform differences (data directory, "reveal in file manager") live in
-backend/system/; this file and desktop_tray.py stay OS-agnostic.
+backend/system/; this file and tray.py stay OS-agnostic.
 
-    python desktop.py
+    python -m hosts.desktop.app     (or `quiltor-desktop`, or the frozen build)
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def _bundle_base() -> Path:
     directory under PyInstaller, or this file's directory when run from source."""
     if getattr(sys, "frozen", False):
         return Path(getattr(sys, "_MEIPASS", None) or Path(sys.executable).resolve().parent)
-    return Path(__file__).resolve().parent
+    return Path(__file__).resolve().parents[2]  # hosts/desktop/ -> hosts/ -> repository root
 
 
 def _free_port(preferred: int = DEFAULT_PORT) -> int:
@@ -101,7 +101,7 @@ def main() -> None:
         width=1280, height=860, min_size=(960, 640),
     )
 
-    from desktop_tray import start_tray_icon
+    from hosts.desktop.tray import start_tray_icon
 
     tray_icon_path = bundle / "packaging" / "icons" / "tray.png"
     tray = start_tray_icon(

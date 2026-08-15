@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]  # hosts/mcp/ -> hosts/ -> repository root
 sys.path.insert(0, str(ROOT))
 
 from backend import storage  # noqa: E402

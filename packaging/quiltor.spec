@@ -37,14 +37,14 @@ EDITION = bundle.build_edition()
 print(f"Building the '{EDITION}' distribution.")
 
 a = Analysis(
-    [str(REPO_ROOT / "desktop.py")],
+    [str(REPO_ROOT / "hosts" / "desktop" / "app.py")],
     pathex=[str(REPO_ROOT)],
     # An inference runtime only where the edition forbids downloading one; the
     # MLX scripts only where it does not.
     binaries=bundle.bundled_binaries(EDITION),
     datas=bundle.data_files(EDITION),
     # server.py/backend are regular local imports PyInstaller's analysis already
-    # follows from `import server` in desktop.py; these are libraries whose
+    # follows from `import server` in hosts/desktop/app.py; these are libraries whose
     # platform backends are selected dynamically (import machinery PyInstaller's
     # static analysis can't see), so they need to be listed explicitly.
     hiddenimports=[

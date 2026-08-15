@@ -4,7 +4,7 @@ difference internally, so nothing here branches on the OS (backend/system/ is
 where the few things that still have to do it live).
 
 The tray icon lives only as long as the app is running -- closing the window still
-quits the whole app (matches the rest of desktop.py; this isn't a "minimize to
+quits the whole app (matches the rest of app.py; this isn't a "minimize to
 tray and keep running in the background" feature, just quick actions while open).
 """
 from __future__ import annotations

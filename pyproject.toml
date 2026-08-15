@@ -13,7 +13,7 @@ license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.
 # is the one dependency of the packaged `quiltor` CLI's `run`/`config` commands.
 dependencies = ["typer>=0.12"]
 
-# Only needed for desktop.py (a native-window desktop build, see packaging/) --
+# Only needed for hosts/desktop/ (a native-window build, see packaging/) --
 # never required for `python3 server.py`, the plain CLI, or Docker.
 #
 # `desktop` is everything a windowed build always needs. `browser-pdf` is split
@@ -28,8 +28,8 @@ desktop = ["pywebview>=5.0", "pystray>=0.19", "Pillow>=10"]
 browser-pdf = ["playwright>=1.40"]
 
 [project.scripts]
-quiltor = "backend.cli:main_entry"
-quiltor-desktop = "desktop:main"
+quiltor = "hosts.cli.main:main_entry"
+quiltor-desktop = "hosts.desktop.app:main"
 
 [project.urls]
 Homepage = "https://github.com/Tim3399/quiltor"
@@ -39,19 +39,17 @@ path = "VERSION"
 pattern = "(?P<version>.+)"
 
 [tool.hatch.build.targets.wheel]
-packages = ["backend", "mcp"]
+packages = ["backend", "hosts"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "server.py" = "server.py"
-"desktop.py" = "desktop.py"
-"desktop_tray.py" = "desktop_tray.py"
 "VERSION" = "VERSION"
 "dist" = "dist"
 "scripts" = "scripts"
 "packaging/icons" = "packaging/icons"
 
 [tool.hatch.build.targets.sdist]
-include = ["backend", "mcp", "server.py", "desktop.py", "desktop_tray.py", "VERSION", "scripts", "README.md", "LICENSE"]
+include = ["backend", "hosts", "server.py", "VERSION", "scripts", "README.md", "LICENSE"]
 
 [tool.hatch.build.targets.sdist.force-include]
 "dist" = "dist"

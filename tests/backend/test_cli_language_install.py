@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 TYPER_AVAILABLE = importlib.util.find_spec("typer") is not None
 if TYPER_AVAILABLE:
-    from backend import cli
+    from hosts.cli import main as cli
 
 
 @unittest.skipUnless(TYPER_AVAILABLE, "The packaged CLI dependency typer is not installed in the minimal server test environment")
@@ -21,7 +21,7 @@ class CliLanguageInstallTests(unittest.TestCase):
         service.install_grammar.return_value = {"version": "6.6"}
         with tempfile.TemporaryDirectory() as directory, \
              patch.dict(os.environ, {"QUILTOR_HOME": directory}, clear=False), \
-             patch("backend.cli.typer.confirm", return_value=True) as confirm, \
+             patch("hosts.cli.main.typer.confirm", return_value=True) as confirm, \
              patch("backend.language.service.LanguageService", return_value=service):
             cli._install_language_step()
         confirm.assert_called_once_with(
@@ -40,7 +40,7 @@ class CliLanguageInstallTests(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as directory, \
              patch.dict(os.environ, {"QUILTOR_HOME": directory}, clear=False), \
-             patch("backend.cli.typer.confirm", return_value=True), \
+             patch("hosts.cli.main.typer.confirm", return_value=True), \
              patch("backend.language.service.LanguageService", return_value=service):
             cli._install_language_step()
         service.install.assert_not_called()
@@ -48,7 +48,7 @@ class CliLanguageInstallTests(unittest.TestCase):
         service.close.assert_called_once_with()
 
     def test_explicit_no_skips_all_language_installation(self):
-        with patch("backend.cli.typer.confirm", return_value=False), \
+        with patch("hosts.cli.main.typer.confirm", return_value=False), \
              patch("backend.language.service.LanguageService") as service:
             cli._install_language_step()
         service.assert_not_called()

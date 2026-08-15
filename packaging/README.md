@@ -1,6 +1,6 @@
 # Quiltor desktop app
 
-Turns Quiltor into a real double-click app for macOS and Windows: `desktop.py`
+Turns Quiltor into a real double-click app for macOS and Windows: `hosts/desktop/app.py`
 starts the same `server.py` used by `python3 server.py`/`quiltor run` in a
 background thread, waits for it to come up, and shows it in a native OS window
 (WKWebView on macOS, WebView2 on Windows) via [pywebview](https://pywebview.flowrl.com/)
@@ -56,8 +56,8 @@ the per-user data directory alone.
 
 ## Platform-specific vs. shared code
 
-Only `backend/system/` branches on the OS — everything else (`desktop.py`,
-`desktop_tray.py`, and all of `backend/`) is written once and works on both OSes:
+Only `backend/system/` branches on the OS — everything else (`hosts/desktop/app.py`,
+`hosts/desktop/tray.py`, and all of `backend/`) is written once and works on both OSes:
 
 - **`backend/system/`** — the things that actually differ per OS, one module
   each (`macos.py`, `windows.py`, `linux.py`) behind the surface named in
@@ -71,7 +71,7 @@ Only `backend/system/` branches on the OS — everything else (`desktop.py`,
   a docstring but had lost it — thirteen OS branches had accumulated in six
   other modules. `tests/backend/test_system.py` now enforces the rule by parsing
   every source file, so it cannot quietly rot again.
-- **`desktop.py`** / **`desktop_tray.py`** — orchestration and the tray icon,
+- **`hosts/desktop/app.py`** / **`hosts/desktop/tray.py`** — orchestration and the tray icon,
   both OS-agnostic; pywebview and pystray abstract the actual
   WebView2-vs-WKWebView and notification-area-vs-menu-bar differences
   internally.
@@ -81,9 +81,9 @@ Only `backend/system/` branches on the OS — everything else (`desktop.py`,
 
 ## What's different from the browser/CLI build
 
-- **No browser tab** — `desktop.py` passes `no_open=True` to `server.run()` and
+- **No browser tab** — `hosts/desktop/app.py` passes `no_open=True` to `server.run()` and
   opens a pywebview window instead.
-- **A tray icon / menu bar icon** (`desktop_tray.py`, via
+- **A tray icon / menu bar icon** (`hosts/desktop/tray.py`, via
   [pystray](https://github.com/moses-palmer/pystray)) with "Quiltor öffnen"
   (bring the window forward), "Datenordner öffnen" (reveal the per-user data
   directory), and "Beenden" (quit). It exists only while the app is running —
@@ -92,15 +92,15 @@ Only `backend/system/` branches on the OS — everything else (`desktop.py`,
   now**: pystray's macOS backend needs the process's real main thread, same as
   pywebview's does for the window itself, and the two can't both claim it in
   the current structure — no Mac available here to work out and verify the
-  fix, so `desktop_tray.py` skips starting the tray on `darwin` rather than
+  fix, so `hosts/desktop/tray.py` skips starting the tray on `darwin` rather than
   ship something untested that could hang app startup. See
   `backend/system/macos.py`'s `TRAY_SUPPORTS_BACKGROUND_THREAD` for the restructuring
   this needs (pystray owning the main thread, `webview.start()` moved into the
   background thread pystray's `setup=` callback receives).
 - **Per-user data directory** — `QUILTOR_HOME` defaults to
   `~/Library/Application Support/Quiltor` (macOS) or `%USERPROFILE%\Quiltor`
-  (Windows), set by `desktop.py` before `server` is imported (mirrors
-  `backend/cli.py`'s `~/.quiltor` default for the pip/pipx CLI, adapted to each
+  (Windows), set by `hosts/desktop/app.py` before `server` is imported (mirrors
+  `hosts/cli/main.py`'s `~/.quiltor` default for the pip/pipx CLI, adapted to each
   OS's usual convention since a double-clicked app has no shell profile to set
   `QUILTOR_HOME` by hand).
 - **PDF export** uses `backend/pdf/system_browser.py` — Playwright for Python
@@ -113,7 +113,7 @@ Only `backend/system/` branches on the OS — everything else (`desktop.py`,
   export fails with a clear error message (rare in practice — Windows ships Edge
   by default).
 
-  `desktop.py` asks `backend.pdf.desktop_renderer()`, which picks this only when
+  `hosts/desktop/app.py` asks `backend.pdf.desktop_renderer()`, which picks this only when
   the edition permits launching another application. A sandboxed Mac App Store
   build gets `backend/pdf/wkwebview.py` instead — see "Still to build". That is
   also why Playwright now lives in its own `browser-pdf` extra rather than in

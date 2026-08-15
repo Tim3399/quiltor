@@ -7,7 +7,7 @@ Produces:
   packaging/icons/icon.iconset/*.png macOS iconset source images
   packaging/icons/icon.icns          macOS icon (only when run on macOS, via iconutil)
   packaging/icons/tray.png           small icon for the system tray / menu bar,
-                                      loaded at runtime by desktop_tray.py (bundled
+                                      loaded at runtime by hosts/desktop/tray.py (bundled
                                       as a PyInstaller data file, not build-time-only
                                       like the three above)
 

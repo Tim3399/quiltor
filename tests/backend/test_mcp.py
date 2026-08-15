@@ -2,7 +2,7 @@ import unittest
 
 from unittest.mock import patch
 
-from mcp.quiltor_server import TOOLS, _proposal, call_tool, respond
+from hosts.mcp.quiltor_server import TOOLS, _proposal, call_tool, respond
 
 
 class McpTest(unittest.TestCase):
@@ -21,7 +21,7 @@ class McpTest(unittest.TestCase):
 
     def test_structured_read_tools_return_complete_collections(self):
         figures = {"nodes": [{"id": "a", "x": 10, "y": 20}], "edges": [{"id": "e1", "from": "a", "to": "a", "versions": []}], "timeline": [{"id": "t1"}]}
-        with patch("mcp.quiltor_server._world", return_value=({}, figures)):
+        with patch("hosts.mcp.quiltor_server._world", return_value=({}, figures)):
             self.assertEqual(call_tool("list_elements", {"worldId": "world"})["count"], 1)
             self.assertEqual(call_tool("list_relationships", {"worldId": "world"})["count"], 1)
             self.assertEqual(call_tool("list_timeline_moments", {"worldId": "world"})["count"], 1)
@@ -48,7 +48,7 @@ class McpTest(unittest.TestCase):
             "propose_death_marker": {"elementId": "a", "momentId": "t1"},
             "propose_arrange_elements": {"strategy": "thematic"},
         }
-        with patch("mcp.quiltor_server._world", return_value=({}, figures)):
+        with patch("hosts.mcp.quiltor_server._world", return_value=({}, figures)):
             for name, arguments in cases.items():
                 with self.subTest(name=name):
                     result = call_tool(name, {"worldId": "world", **arguments})

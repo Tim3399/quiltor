@@ -73,7 +73,7 @@ npm run test:assistant:local -- --case set-presence  # einzelnes Szenario
 
 ### MCP inklusive
 
-`mcp/quiltor_server.py` stellt Retrieval und Weltpflege zusätzlich als MCP-Server bereit. Schreibähnliche Tools erzeugen nur bestätigungspflichtige Vorschläge. Es gibt absichtlich keine direkten Apply-, Delete-, Backup-, Datei- oder Manuskript-Schreibtools.
+`hosts/mcp/quiltor_server.py` stellt Retrieval und Weltpflege zusätzlich als MCP-Server bereit. Schreibähnliche Tools erzeugen nur bestätigungspflichtige Vorschläge. Es gibt absichtlich keine direkten Apply-, Delete-, Backup-, Datei- oder Manuskript-Schreibtools.
 
 Die mitgelieferte `.mcp.json` konfiguriert den Server automatisch für Clients, die projektbezogene MCP-Konfiguration unterstützen.
 
@@ -273,10 +273,16 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ## Architektur
 
 ```text
+server.py                   die HTTP-Anwendung selbst — was Docker startet und was das Desktop-Fenster umschließt
 backend/                    SQLite, Backups, Retrieval, Assistant, Verlauf, Keycloak-Login (auth.py)
-mcp/                        Read- und Proposal-only MCP-Server
-desktop.py                  Desktop-App-Startpunkt (natives Fenster statt Browser-Tab)
-packaging/                  PyInstaller-Spec, Build-Skripte und Icon-Assets für die Desktop-App
+├── system/                  die einzige Stelle, die nach Betriebssystem verzweigt
+├── edition/                 Vertriebsvariante: direct, mas, msstore — und was sie jeweils darf
+├── pdf/  language/grammar/  Fähigkeiten mit mehreren Implementierungen, ausgewählt aus der Edition
+hosts/                      die Arten, Quiltor zu starten (importieren backend/, nie umgekehrt)
+├── desktop/                 natives Fenster und Tray-Icon
+├── cli/                     `quiltor run` / `quiltor config`
+└── mcp/                     Read- und Proposal-only MCP-Server
+packaging/                  PyInstaller-Spec, Bundle-Metadaten, Build-Skripte und Icon-Assets
 src/
 ├── app/                    App-Shell und Navigation
 ├── design/                 Farb- und Gestaltungstokens (colors.css, tokens.css)

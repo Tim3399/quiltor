@@ -95,7 +95,7 @@ def _mask(key: str, value: str) -> str:
 def _version() -> str:
     # Mirrors server.py's own BASE-relative VERSION lookup without importing
     # the (heavy, side-effectful-at-import-time) server module just for this.
-    version_file = Path(__file__).resolve().parent.parent / "VERSION"
+    version_file = Path(__file__).resolve().parents[2] / "VERSION"
     return version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "dev"
 
 

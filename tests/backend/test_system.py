@@ -23,8 +23,8 @@ SYSTEM_PACKAGE = REPO_ROOT / "backend" / "system"
 OS_BRANCH_NAMES = {"platform", "machine", "mac_ver", "win32_ver", "libc_ver", "uname"}
 
 #: Everything Python we ship or run. Excludes build output and virtualenvs.
-SOURCE_DIRS = ("backend", "mcp", "scripts", "tests")
-SOURCE_FILES = ("server.py", "desktop.py", "desktop_tray.py")
+SOURCE_DIRS = ("backend", "hosts", "packaging", "scripts", "tests")
+SOURCE_FILES = ("server.py",)
 
 
 def _python_sources() -> list[Path]:

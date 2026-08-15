@@ -5,7 +5,7 @@
 The repository-level `.mcp.json` starts the server for clients that support project MCP configuration. Other clients can launch it with:
 
 ```sh
-python3 mcp/quiltor_server.py
+python3 hosts/mcp/quiltor_server.py
 ```
 
 The server uses `QUILTOR_DATA_DIR` when the world data is stored outside the default `data/` directory.

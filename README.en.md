@@ -73,7 +73,7 @@ npm run test:assistant:local -- --case set-presence  # one scenario
 
 ### MCP included
 
-`mcp/quiltor_server.py` exposes retrieval and world maintenance to MCP clients. Mutation-like tools only create proposals that require confirmation. There are intentionally no direct apply, delete, backup, filesystem, or manuscript-writing tools.
+`hosts/mcp/quiltor_server.py` exposes retrieval and world maintenance to MCP clients. Mutation-like tools only create proposals that require confirmation. There are intentionally no direct apply, delete, backup, filesystem, or manuscript-writing tools.
 
 The bundled `.mcp.json` configures the server for clients that support project-level MCP configuration.
 
@@ -272,10 +272,16 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ## Architecture
 
 ```text
+server.py                   the HTTP application itself — what Docker runs and what the desktop window wraps
 backend/                    SQLite, backups, retrieval, assistant, history, Keycloak login (auth.py)
-mcp/                        read-only and proposal-only MCP server
-desktop.py                  desktop app entry point (native window instead of a browser tab)
-packaging/                  PyInstaller spec, build scripts, and icon assets for the desktop app
+├── system/                  the only place that branches on the operating system
+├── edition/                 distribution variant: direct, mas, msstore — and what each may do
+├── pdf/  language/grammar/  capabilities with several implementations, selected from the edition
+hosts/                      the ways to run Quiltor (they import backend/, never the reverse)
+├── desktop/                 native window and tray icon
+├── cli/                     `quiltor run` / `quiltor config`
+└── mcp/                     read-only and proposal-only MCP server
+packaging/                  PyInstaller spec, bundle metadata, build scripts, and icon assets
 src/
 ├── app/                    application shell and navigation
 ├── design/                 color and design tokens (colors.css, tokens.css)
