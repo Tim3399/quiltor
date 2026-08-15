@@ -298,12 +298,23 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
 3. **`reveal_in_file_manager()` on macOS** — *done*, `backend/system/macos.py`
    now uses `NSWorkspace`'s `activateFileViewerSelectingURLs:` and keeps the
    `/usr/bin/open` subprocess only as a fallback for checkouts without pyobjc.
-4. **Bundle metadata** — the spec passes neither `info_plist=` nor `version=`,
-   so the built `Info.plist` has nine keys and no `CFBundleVersion` at all. App
-   Store Connect rejects that upload before a human ever sees the app. Also
-   missing: `LSApplicationCategoryType`, `ITSAppUsesNonExemptEncryption`,
-   `NSHumanReadableCopyright`, `LSMinimumSystemVersion`, `CFBundleLocalizations`.
-   And the icon is still `make_icons.py`'s placeholder "Q".
+
+   **Bundle metadata** — also *done*. `packaging/bundle.py` owns the identity and
+   the `Info.plist`; `quiltor.spec` imports it rather than hard-coding anything.
+   It lives outside the spec because a `.spec` only executes during a real build
+   on a Mac, so nothing in one is tested until someone runs that build — and a
+   missing `CFBundleVersion` is rejected by the uploader, not by review.
+   `tests/backend/test_packaging.py` checks it anywhere.
+
+   `CFBundleVersion` must increase with every upload and is independent of
+   `VERSION` (a rejected build burns a number). CI passes its run number as
+   `QUILTOR_BUILD_NUMBER`; a local build gets `"0"`, which is valid and
+   obviously not a submission. `QUILTOR_TARGET_ARCH` overrides the architecture,
+   which is otherwise arm64 — universal2 would need universal2 wheels for
+   Pillow, pywebview and pystray.
+4. **A real app icon.** `make_icons.py` says so itself — it draws a Georgia "Q"
+   and its header reads "swap these files out once real branding exists".
+   Placeholder artwork is a Guideline 4.0 / 2.3.7 rejection.
 5. **Split the spec per edition** — `packaging/quiltor.spec` is one file for
    every build. The Store one has to exclude the `browser-pdf` extra (Playwright
    and its bundled `node`, 128 MB of a 165 MB app — a general-purpose JavaScript

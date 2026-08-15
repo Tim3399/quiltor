@@ -7,10 +7,19 @@
 # Run via the build scripts, not directly, so REPO_ROOT resolves correctly:
 #   pyinstaller packaging/quiltor.spec --distpath packaging/dist --workpath packaging/build
 
+import os
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(SPECPATH).resolve().parent
 ICON_DIR = REPO_ROOT / "packaging" / "icons"
+
+# The bundle's identity and Info.plist live in a plain module rather than in
+# this file, because a .spec only runs during a real build and is therefore
+# untested until someone runs one on the right machine. Getting CFBundleVersion
+# wrong is not something to find out at upload time.
+sys.path.insert(0, str(REPO_ROOT / "packaging"))
+import bundle  # noqa: E402
 
 block_cipher = None
 
@@ -58,6 +67,10 @@ exe = EXE(
     upx=False,
     console=False,  # windowed app: no console, see desktop.py's _redirect_null_streams()
     icon=str(ICON_DIR / "icon.ico"),
+    # Explicit rather than "whatever the build machine is". arm64 only for now:
+    # universal2 would additionally require universal2 wheels for Pillow,
+    # pywebview and pystray. Overridable so a build host can say otherwise.
+    target_arch=os.environ.get("QUILTOR_TARGET_ARCH") or None,
 )
 
 coll = COLLECT(
@@ -74,5 +87,7 @@ app = BUNDLE(
     coll,
     name="Quiltor.app",
     icon=str(ICON_DIR / "icon.icns") if (ICON_DIR / "icon.icns").exists() else None,
-    bundle_identifier="app.quiltor.desktop",
+    bundle_identifier=bundle.BUNDLE_IDENTIFIER,
+    version=bundle.version(),
+    info_plist=bundle.info_plist(),
 )
