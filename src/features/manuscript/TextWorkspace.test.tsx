@@ -71,7 +71,7 @@ describe('TextWorkspace', () => {
   });
 
   it('ändert bei einer Grammatikprüfung keinen Text ohne bestätigte Ersetzung', async () => {
-    vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {}, grammar: { available: true, installed: true, running: false, version: '6.6', javaVersion: 17, javaRequired: 17, externalConfigured: false, externalEnabled: false, download: { url: '', checksum: '', license: 'LGPL' } } });
+    vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {}, grammar: { supported: true, unsupportedReason: '', available: true, installed: true, running: false, version: '6.6', javaVersion: 17, javaRequired: 17, externalConfigured: false, externalEnabled: false, download: { url: '', checksum: '', license: 'LGPL' } } });
     vi.spyOn(api, 'checkGrammar').mockResolvedValue({ ok: true, language: 'de-DE', issues: [{ id: 'i1', from: 0, to: 5, ruleId: 'SPELL', category: 'Rechtschreibung', message: 'Möglicher Fehler', replacements: ['Hallo'] }] });
     const onChange = vi.fn();
     const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), inspectorOpen: true });
@@ -81,5 +81,19 @@ describe('TextWorkspace', () => {
     fireEvent.click(rendered.getByRole('button', { name: 'Text prüfen' }));
     await waitFor(() => expect(api.checkGrammar).toHaveBeenCalledWith('Hallo Welt', ['Testfigur'], expect.any(AbortSignal)));
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('blendet die Grammatikprüfung aus, wenn die Ausgabe sie nicht unterstützt', async () => {
+    // Store-Builds dürfen LanguageTool weder herunterladen noch die System-JVM
+    // starten (backend/language/grammar/). Statt eines Knopfes, der scheitern
+    // müsste, verschwindet der ganze Abschnitt.
+    vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {}, grammar: { supported: false, unsupportedReason: 'Nicht in dieser Ausgabe enthalten.', available: false, installed: false, running: false, version: '6.6', javaVersion: null, javaRequired: 17, externalConfigured: false, externalEnabled: false, download: { url: '', checksum: '', license: 'LGPL' } } });
+    const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), inspectorOpen: true });
+    const rendered = within(view.container);
+    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
+    await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
+    expect(rendered.queryByRole('button', { name: 'Text prüfen' })).toBeNull();
+    // Die übrigen Schreibhilfen bleiben erreichbar — nur die Grammatik entfällt.
+    expect(rendered.getByRole('tab', { name: 'Wörterbuch' })).toBeTruthy();
   });
 });
