@@ -10,6 +10,10 @@ described. `import server` inside a host is fine and expected: server.py is the
 HTTP application, not a fourth host.
 """
 import ast
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -71,6 +75,69 @@ class DependencyDirectionTests(unittest.TestCase):
                     other = node.module.split(".")[1]
                     with self.subTest(module=str(path.relative_to(REPO_ROOT))):
                         self.assertEqual(other, package, f"{path.name} imports hosts.{other}")
+
+
+class ScriptInvocationTests(unittest.TestCase):
+    """Each host has to survive being run as a plain path.
+
+    Moving these under hosts/ broke exactly this: `python hosts/desktop/app.py`
+    puts hosts/desktop/ on sys.path rather than the repository root, so the
+    module-level `from backend.system import ...` failed with ModuleNotFoundError.
+    The console script, `python -m`, and the frozen build all resolved fine,
+    which is why nothing else noticed.
+    """
+
+    def _runs_as_a_script(self, module: Path) -> None:
+        """Execute the module's top level in a subprocess set up exactly like a
+        path invocation: the module's own directory on sys.path, the repository
+        root nowhere, and the working directory somewhere else entirely.
+
+        Loaded under a name that is not "__main__", so the `if __name__ ==
+        "__main__"` guard does not fire and nothing starts listening -- the
+        module-level imports are what is under test.
+        """
+        probe = (
+            "import importlib.util, pathlib, sys\n"
+            f"path = pathlib.Path({str(module)!r})\n"
+            "sys.path.insert(0, str(path.parent))\n"
+            "spec = importlib.util.spec_from_file_location('_probe', path)\n"
+            "module = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(module)\n"
+        )
+        with tempfile.TemporaryDirectory() as elsewhere:
+            environment = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+            result = subprocess.run([sys.executable, "-c", probe], cwd=elsewhere, env=environment,
+                                    capture_output=True, text=True, timeout=60)
+        name = module.relative_to(REPO_ROOT) if module.is_relative_to(REPO_ROOT) else module
+        self.assertEqual(result.returncode, 0, f"{name} cannot be run by path:\n{result.stderr}")
+
+    def test_the_probe_would_notice_a_missing_guard(self):
+        """A module importing backend/ without putting the repository root on
+        sys.path first must fail this probe -- otherwise the two tests below
+        would pass no matter what."""
+        with tempfile.TemporaryDirectory() as folder:
+            unguarded = Path(folder) / "unguarded.py"
+            unguarded.write_text("from backend import storage\n", encoding="utf-8")
+            with self.assertRaises(AssertionError):
+                self._runs_as_a_script(unguarded)
+
+    def test_the_desktop_host_can_be_run_by_path(self):
+        self._runs_as_a_script(HOSTS / "desktop" / "app.py")
+
+    def test_the_mcp_host_can_be_run_by_path(self):
+        self._runs_as_a_script(HOSTS / "mcp" / "quiltor_server.py")
+
+    def test_the_repo_root_guard_comes_before_the_backend_import(self):
+        """Order is the whole point -- a sys.path fix below the import is dead
+        code. Checked by line number rather than by importing, because importing
+        succeeds here regardless: the test runner already has the root on path."""
+        for module in (HOSTS / "desktop" / "app.py", HOSTS / "mcp" / "quiltor_server.py"):
+            with self.subTest(module=module.name):
+                lines = module.read_text(encoding="utf-8").splitlines()
+                guard = next(i for i, line in enumerate(lines) if "sys.path.insert" in line)
+                first_backend = next(i for i, line in enumerate(lines)
+                                     if line.startswith(("from backend", "import backend")))
+                self.assertLess(guard, first_backend)
 
 
 class EntryPointTests(unittest.TestCase):

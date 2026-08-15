@@ -20,7 +20,17 @@ import threading
 import time
 from pathlib import Path
 
-from backend.system import APP_NAME, data_home
+# Run as a script -- `python hosts/desktop/app.py` -- Python puts hosts/desktop/
+# on sys.path, not the repository root, so backend/ and server.py would not be
+# importable. `python -m hosts.desktop.app`, the console script and the frozen
+# build all resolve them fine; this is for the plain path invocation, which is
+# the obvious thing to try. Same guard hosts/mcp/quiltor_server.py has.
+if not getattr(sys, "frozen", False):
+    _REPO_ROOT = str(Path(__file__).resolve().parents[2])
+    if _REPO_ROOT not in sys.path:
+        sys.path.insert(0, _REPO_ROOT)
+
+from backend.system import APP_NAME, data_home  # noqa: E402
 
 DEFAULT_PORT = 8843
 
