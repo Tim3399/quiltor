@@ -41,6 +41,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from backend.llm.shared.platform import force_utf8_streams
 
@@ -81,6 +82,52 @@ LANGUAGE = LanguageService(DATA)
 MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
 
 _lock = threading.Lock()
+
+# ------------------------------------------------- Local-mode request guard
+#
+# The local build has no authentication at all (AUTH_ENABLED stays false
+# without QUILTOR_OIDC_ISSUER), and loopback is not a security boundary in a
+# browser: any page the user happens to visit can send us a cross-origin
+# request. A plain
+#
+#   <form method="POST" enctype="text/plain"
+#         action="http://127.0.0.1:8843/api/manuscript">
+#
+# is a CORS-"simple" request -- no preflight, so nothing ever asks our
+# permission -- and would overwrite the manuscript. The same-origin policy
+# stops the attacker reading the response, but the write already happened.
+#
+# Three cheap header checks close that, and none of them apply to the
+# reverse-proxied Docker deployment, which binds 0.0.0.0, answers to a real
+# hostname and has OIDC in front of it:
+#
+#   1. Host must be loopback. Without this, DNS rebinding works: an
+#      attacker-controlled name is made to resolve to 127.0.0.1, and their
+#      page becomes same-origin with us -- which also makes reads possible.
+#   2. A cross-origin Origin is refused. Browsers send Origin on every
+#      cross-origin POST, so this is what actually catches the form above. A
+#      *missing* Origin means a non-browser client (curl, the test suite),
+#      which is not the threat being modelled here.
+#   3. JSON bodies must really be Content-Type: application/json -- an HTML
+#      form can only ever send text/plain, urlencoded or multipart, so this
+#      alone already breaks the attack. Enforced in _read_json_body().
+#
+# Checks 1 and 2 compare the *hostname* and ignore the port, deliberately. Vite's
+# dev proxy forwards `/api` without rewriting Host (changeOrigin defaults to
+# false), so `npm run dev` arrives here as localhost:5173 and would otherwise be
+# refused. The cost is that another server on a different loopback port could
+# still post to us -- a far narrower threat than "any website the user visits",
+# and one that already implies something hostile is running locally.
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+BOUND_TO_LOOPBACK = os.environ.get("QUILTOR_HOST", "127.0.0.1") in LOOPBACK_HOSTS
+
+
+def authority_host(authority: str) -> str:
+    """Hostname out of a `name:port` authority, IPv6 brackets stripped."""
+    if authority.startswith("["):
+        closing = authority.find("]")
+        return authority[1:closing] if closing > 0 else authority
+    return authority.rsplit(":", 1)[0] if ":" in authority else authority
 
 # ------------------------------------------------------------- Auth (OIDC)
 
@@ -242,10 +289,38 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         client-controlled Content-Length can't force an unbounded read. Raises
         ValueError/json.JSONDecodeError on an invalid size or malformed JSON --
         callers that want a default instead of propagating wrap this themselves."""
+        # An HTML form can only ever send text/plain, urlencoded or multipart,
+        # so insisting on application/json is what makes cross-site form posts
+        # impossible regardless of the Origin check -- see the guard comment at
+        # the top of this file. Every in-tree client already sets it.
+        media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        if media_type != "application/json":
+            raise ValueError("ungültiger Content-Type")
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0 or length > MAX_BODY:
             raise ValueError("ungültige Größe")
         return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    def reject_foreign_request(self) -> bool:
+        """True -- with a 403 already written -- when this request's Host or
+        Origin says it did not come from the local app itself. No-op for the
+        proxied deployment, where the proxy owns Host and OIDC owns access."""
+        if not BOUND_TO_LOOPBACK:
+            return False
+
+        host = authority_host(self.headers.get("Host", ""))
+        if host and host not in LOOPBACK_HOSTS:
+            self.send_json({"ok": False, "fehler": "unerlaubter Host"}, 403)
+            return True
+
+        origin = (self.headers.get("Origin") or "").strip()
+        # "null" is what a sandboxed iframe or a file:// page sends; it is never
+        # us, so it gets refused alongside any other foreign origin.
+        if origin and (origin == "null"
+                       or authority_host(urlparse(origin).netloc) not in LOOPBACK_HOSTS):
+            self.send_json({"ok": False, "fehler": "unerlaubte Herkunft"}, 403)
+            return True
+        return False
 
     def end_headers(self) -> None:
         # Any Set-Cookie headers queued by the auth routes ride along on whatever
@@ -311,7 +386,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self.send_redirect(authorize_url)
 
     def handle_auth_callback(self) -> None:
-        from urllib.parse import parse_qs, urlparse
         q = parse_qs(urlparse(self.path).query)
         if (q.get("error") or [""])[0]:
             return self.send_redirect("/login?failed=1")
@@ -355,8 +429,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         self._pending_cookies = []
+        if self.reject_foreign_request():
+            return
         route = self.path.split("?")[0]
-        from urllib.parse import parse_qs, urlparse
         query = parse_qs(urlparse(self.path).query)
         world_id = (query.get("world") or [""])[0]
 
@@ -493,6 +568,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def _save(self):
         self._pending_cookies = []
+        if self.reject_foreign_request():
+            return
         route = self.path.split("?")[0]
         session = auth.get_session(self.get_cookie(SESSION_COOKIE)) if AUTH_ENABLED else None
         if AUTH_ENABLED and route != "/logout" and session is None:
