@@ -19,7 +19,7 @@ source .venv-desktop/bin/activate
 # Windows:
 .venv-desktop\Scripts\activate
 
-pip install -e ".[desktop]"
+pip install -e ".[desktop,browser-pdf]"
 pip install pyinstaller
 ```
 
@@ -103,14 +103,21 @@ Only `backend/system/` branches on the OS — everything else (`desktop.py`,
   `backend/cli.py`'s `~/.quiltor` default for the pip/pipx CLI, adapted to each
   OS's usual convention since a double-clicked app has no shell profile to set
   `QUILTOR_HOME` by hand).
-- **PDF export** uses `backend/render.py::render_pdf_system_browser()` — Playwright
-  for Python driving the already-installed system Chrome or Edge
+- **PDF export** uses `backend/pdf/system_browser.py` — Playwright for Python
+  driving the already-installed system Chrome or Edge
   (`channel="chrome"`/`"msedge"`), instead of the Node/Playwright-JS subprocess
-  path (`render_pdf()` + `scripts/render-book-pdf.mjs`) that Docker and
-  `npm run dev` use. This avoids bundling a dedicated ~250-300MB Chromium
-  download; Playwright for Python's own driver adds only ~50-90MB, and no system
-  Node.js is required. If neither Chrome nor Edge is installed, PDF export fails
-  with a clear error message (rare in practice — Windows ships Edge by default).
+  path (`backend/pdf/node_chromium.py` + `scripts/render-book-pdf.mjs`) that
+  Docker and `npm run dev` use. This avoids bundling a dedicated ~250-300MB
+  Chromium download; Playwright for Python's own driver adds only ~50-90MB, and
+  no system Node.js is required. If neither Chrome nor Edge is installed, PDF
+  export fails with a clear error message (rare in practice — Windows ships Edge
+  by default).
+
+  `desktop.py` asks `backend.pdf.desktop_renderer()`, which picks this only when
+  the edition permits launching another application. A sandboxed Mac App Store
+  build gets `backend/pdf/wkwebview.py` instead — see "Still to build". That is
+  also why Playwright now lives in its own `browser-pdf` extra rather than in
+  `desktop`: a Store build must be able to leave it out.
 - **The local AI assistant's first-run terminal prompt is silent** —
   `ensure_installed()` (`backend/llm/installer.py`) only asks interactively when
   `sys.stdin.isatty()`; a windowed build has no console, so it stays quiet and the
@@ -271,24 +278,38 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
    `datas` line: `bundled_runtime_dir()` reads `sys._MEIPASS` (PyInstaller 6 puts
    that at `Contents/Frameworks`), while Apple wants nested executables under
    `Contents/MacOS` or `Contents/Library`.
-2. **Replace PDF export** — `render_pdf_system_browser()` launches an
-   already-installed Chrome/Edge, which the sandbox forbids. WKWebView's own print
-   operation via a pywebview bridge is the way out. This is the largest remaining
-   piece of work. `NSPrintOperation` rather than `createPDFWithConfiguration`:
-   the latter puts the whole page on one sheet, which a 6 × 9 inch book cannot use.
-3. **Drop Playwright from the Store build** — its driver bundles a `node`
-   binary, 128 MB of a 165 MB app, and shipping a general-purpose JS interpreter
-   is a known review flashpoint. It becomes dead weight once (2) lands.
-4. **`reveal_in_file_manager()` on macOS** (`backend/system/macos.py`) shells out
-   to `/usr/bin/open`, which the sandbox denies; `NSWorkspace`'s
-   `activateFileViewerSelectingURLs:` is the sanctioned route. Currently
-   unreachable there because the tray menu that calls it is disabled on macOS.
-5. **Bundle metadata** — the spec passes neither `info_plist=` nor `version=`,
+2. **Write the WKWebView renderer** — `backend/pdf/wkwebview.py` is selected by
+   a Store build but raises `NotImplementedError`; the module documents the full
+   design (main-thread marshalling, offscreen `WKWebView`, `NSPrintOperation`
+   with `NSPrintSaveJob`, and the two known traps). Still the largest remaining
+   piece of work, and it needs a Mac — none of it can be exercised without
+   AppKit and a window server.
+
+   **Decide the minimum macOS version first.** The book layout uses CSS Paged
+   Media (`src/styles.css`): `@page { size: 6in 9in }`, mirrored `@page:left` /
+   `@page:right` margins, `@bottom-center { content: counter(page) }` for the
+   page numbers, and `break-before: right` for recto chapter openings. WebKit
+   only shipped `@page` margin boxes in **Safari 18.2** (December 2024), and
+   WKWebView uses the system WebKit. So page numbers work on macOS 15.2+ and are
+   simply missing below it. Either raise `LSMinimumSystemVersion` to 15.2, or
+   accept unnumbered pages on older Macs — drawing the numbers ourselves is a
+   much larger job. Verify the mirrored margins and forced recto breaks on
+   device at the same time; every existing book PDF was made by Chromium.
+3. **`reveal_in_file_manager()` on macOS** — *done*, `backend/system/macos.py`
+   now uses `NSWorkspace`'s `activateFileViewerSelectingURLs:` and keeps the
+   `/usr/bin/open` subprocess only as a fallback for checkouts without pyobjc.
+4. **Bundle metadata** — the spec passes neither `info_plist=` nor `version=`,
    so the built `Info.plist` has nine keys and no `CFBundleVersion` at all. App
    Store Connect rejects that upload before a human ever sees the app. Also
    missing: `LSApplicationCategoryType`, `ITSAppUsesNonExemptEncryption`,
    `NSHumanReadableCopyright`, `LSMinimumSystemVersion`, `CFBundleLocalizations`.
    And the icon is still `make_icons.py`'s placeholder "Q".
+5. **Split the spec per edition** — `packaging/quiltor.spec` is one file for
+   every build. The Store one has to exclude the `browser-pdf` extra (Playwright
+   and its bundled `node`, 128 MB of a 165 MB app — a general-purpose JavaScript
+   interpreter inside a Store bundle is a known review flashpoint) and
+   `scripts/llm-runtime`, which is MLX material a Store build may not use anyway.
+   The dependency split exists already; nothing consumes it yet.
 6. **Store signing and submission** — *3rd Party Mac Developer* certificates, an
    embedded provisioning profile, a `.pkg` via `productbuild`, upload via
    Transporter. Plus the review paperwork: privacy policy, support URL,

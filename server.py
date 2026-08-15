@@ -54,7 +54,7 @@ from backend.backup import remote as backup_remote
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed, install_async, is_configured, read_install_state
 from backend.mirror import mirror_profiles, mirror_text, safe_name
-from backend.render import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, render_pdf
+from backend.pdf import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, server_renderer
 from backend.validation import valid_figures, valid_manuscript
 from backend.language import LanguageService
 
@@ -245,15 +245,12 @@ ROUTES = {
 }
 
 
-def _default_render_pdf(url: str) -> bytes:
-    return render_pdf(BASE / "scripts" / "render-book-pdf.mjs", BASE, url)
-
-
-# Swappable by desktop.py, which points this at render.render_pdf_system_browser
-# (drives the OS's installed Chrome/Edge via Playwright for Python) instead of this
-# default Node/Playwright-JS subprocess path. Docker and `npm run dev` never touch
-# this and keep using the default unchanged.
-RENDER_PDF = _default_render_pdf
+# The Node/Playwright-JS subprocess path, which is what Docker and `npm run dev`
+# want. desktop.py replaces this with backend.pdf.desktop_renderer() -- a windowed
+# app has no Node, and which renderer it may use is an edition decision. Keeping
+# it a module global is how the host tells the core, and stays the seam until
+# hosts/ exists.
+RENDER_PDF = server_renderer(BASE / "scripts" / "render-book-pdf.mjs", BASE)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):

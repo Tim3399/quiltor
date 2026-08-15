@@ -23,12 +23,24 @@ def data_home() -> Path:
 
 
 def reveal_in_file_manager(path: Path) -> None:
-    # TODO(mas): the App Sandbox denies this. NSWorkspace's
-    # activateFileViewerSelectingURLs: is the sanctioned route and is permitted
-    # for sandboxed apps -- see the plan's Phase 2. Unreachable on macOS today
-    # because the tray menu that calls it is disabled here
-    # (TRAY_SUPPORTS_BACKGROUND_THREAD).
-    subprocess.run(["open", str(path)], check=False)
+    """Show `path` in the Finder.
+
+    NSWorkspace first, because it is the route the App Sandbox actually permits
+    -- `/usr/bin/open` is a LaunchServices client and asking it to launch the
+    Finder from inside a container is denied. It also needs no entitlement:
+    revealing a file the user already owns is not a privileged operation.
+
+    The subprocess stays as a fallback for the source checkout and the CLI,
+    where pyobjc is not installed (it arrives with the `desktop` extra). That
+    branch is never reached in a sandboxed build, which always has it.
+    """
+    try:
+        from AppKit import NSURL, NSWorkspace
+    except ImportError:
+        subprocess.run(["open", str(path)], check=False)
+        return
+    NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_(
+        [NSURL.fileURLWithPath_(str(path))])
 
 
 def spawn_flags() -> int:

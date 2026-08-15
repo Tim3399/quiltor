@@ -8,8 +8,10 @@ which is the convention the previous platform layer had on paper and lost in
 practice.
 """
 import ast
+import builtins
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from backend import system
 from backend.system import contract, linux, macos, windows
@@ -76,6 +78,34 @@ class ContractCompletenessTests(unittest.TestCase):
     def test_binding_a_child_lifetime_is_a_no_op_on_posix(self):
         macos.bind_child_lifetime(object())
         linux.bind_child_lifetime(object())
+
+    def test_revealing_a_folder_prefers_nsworkspace_over_the_open_subprocess(self):
+        """`/usr/bin/open` is a LaunchServices client the App Sandbox denies.
+        NSWorkspace is permitted and needs no entitlement."""
+        workspace = MagicMock()
+        appkit = MagicMock()
+        appkit.NSWorkspace.sharedWorkspace.return_value = workspace
+        with patch.dict("sys.modules", {"AppKit": appkit}):
+            with patch("backend.system.macos.subprocess.run") as spawned:
+                macos.reveal_in_file_manager(Path("/tmp/quiltor"))
+        spawned.assert_not_called()
+        workspace.activateFileViewerSelectingURLs_.assert_called_once()
+
+    def test_revealing_a_folder_falls_back_when_pyobjc_is_absent(self):
+        """A source checkout and the plain CLI have no pyobjc -- it arrives with
+        the desktop extra, via pywebview. Those are never sandboxed, so the
+        subprocess is still correct there."""
+        real_import = builtins.__import__
+
+        def without_appkit(name, *args, **kwargs):
+            if name == "AppKit":
+                raise ImportError("no pyobjc here")
+            return real_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", without_appkit):
+            with patch("backend.system.macos.subprocess.run") as spawned:
+                macos.reveal_in_file_manager(Path("/tmp/quiltor"))
+        self.assertEqual(spawned.call_args.args[0], ["open", "/tmp/quiltor"])
 
 
 class NoOsBranchingOutsideTheSystemPackageTests(unittest.TestCase):

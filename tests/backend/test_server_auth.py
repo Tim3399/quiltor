@@ -9,7 +9,8 @@ import urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 
-from backend import auth, render, storage
+from backend import auth, storage
+from backend.pdf import tokens as render
 import server
 
 
