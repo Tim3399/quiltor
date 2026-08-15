@@ -1,7 +1,7 @@
 """System tray / menu bar icon for the desktop app. One implementation for both
 OSes -- pystray abstracts the actual Windows-notification-area-vs-macOS-menu-bar
-difference internally, so nothing here branches on sys.platform (see
-desktop_platform.py for the few things that still have to).
+difference internally, so nothing here branches on the OS (backend/system/ is
+where the few things that still have to do it live).
 
 The tray icon lives only as long as the app is running -- closing the window still
 quits the whole app (matches the rest of desktop.py; this isn't a "minimize to
@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
-from desktop_platform import TRAY_SUPPORTS_BACKGROUND_THREAD, APP_NAME, reveal_in_file_manager
+from backend.system import APP_NAME, TRAY_SUPPORTS_BACKGROUND_THREAD, reveal_in_file_manager
 
 
 def start_tray_icon(icon_path: Path, data_dir: Path, show_window: Callable[[], None], quit_app: Callable[[], None]) -> "pystray.Icon | None":  # noqa: F821
@@ -50,7 +50,7 @@ def start_tray_icon(icon_path: Path, data_dir: Path, show_window: Callable[[], N
         # this returns -- calling icon.run() (blocking) here would just hang
         # before the window ever opens. No Mac available to verify a fix, so
         # skip the tray there for now rather than ship something untested that
-        # would break app startup outright; see desktop_platform.py for the
+        # would break app startup outright; see backend/system/macos.py for the
         # restructuring this needs (pystray owning main, webview in a thread).
         return None
 

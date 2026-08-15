@@ -46,9 +46,10 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
-from backend.edition import is_store_build
+from backend import system
+from backend.edition import allows_code_download, is_store_build
 from backend.llm.runtimes import bundled_runtime_dir, llamacpp
-from backend.llm.shared.platform import force_utf8_streams, is_apple_silicon
+from backend.system import force_utf8_streams, is_apple_silicon
 
 BASE = Path(__file__).resolve().parent.parent.parent
 # Where to install the (large, writable) runtime + model files. Defaults to
@@ -81,7 +82,9 @@ def resolve_runtime(choice: str) -> str:
 
 
 def _venv_python(venv_dir: Path) -> Path:
-    if platform.system() == "Windows":
+    # venv's own layout, not an OS behaviour -- hence the os_name() check here
+    # rather than a helper in backend/system/.
+    if system.os_name() == "windows":
         return venv_dir / "Scripts" / "python.exe"
     return venv_dir / "bin" / "python3"
 
@@ -148,20 +151,20 @@ def install(runtime: str, *, model_repo: str = DEFAULT_MODEL_REPO, model_file: s
 
 
 def platform_asset_pattern() -> re.Pattern[str]:
-    # As of llama.cpp release packaging, Windows ships .zip assets; macOS and
-    # Linux ship .tar.gz. Getting the extension wrong means the installer
-    # fails outright on that platform (caught in review before this shipped).
-    system = platform.system()
-    machine = platform.machine().lower()
-    if system == "Windows":
-        arch = "arm64" if machine in ("arm64", "aarch64") else "x64"
+    # llama.cpp's own release asset naming, which is why this lives here rather
+    # than in backend/system/: it is a third-party convention that happens to
+    # vary by OS, not an OS behaviour. As of current packaging, Windows ships
+    # .zip assets; macOS and Linux ship .tar.gz. Getting the extension wrong
+    # means the installer fails outright on that platform (caught in review
+    # before this shipped).
+    os_name, arch = system.os_name(), system.machine_arch()
+    if os_name == "windows":
         return re.compile(rf"win-cpu-{arch}\.zip$")
-    if system == "Darwin":
-        return re.compile(r"macos-arm64\.tar\.gz$" if is_apple_silicon() else r"macos-x64\.tar\.gz$")
-    if system == "Linux":
-        arch = "arm64" if machine in ("arm64", "aarch64") else "x64"
+    if os_name == "macos":
+        return re.compile(rf"macos-{arch}\.tar\.gz$")
+    if os_name == "linux":
         return re.compile(rf"ubuntu-{arch}\.tar\.gz$")
-    raise SystemExit(f"Unsupported platform: {system}/{machine}. Set QUILTOR_AI_BINARY to a local llama-server build instead.")
+    raise SystemExit(f"Unsupported platform: {os_name}/{arch}. Set QUILTOR_AI_BINARY to a local llama-server build instead.")
 
 
 def latest_release_asset(pattern: re.Pattern[str]) -> tuple[str, str]:
@@ -250,6 +253,19 @@ def install_runtime(on_progress: Callable[[str, int], None] | None = None) -> No
         if on_progress:
             on_progress("Runtime", 100)
         return
+
+    # Past this point we would fetch an executable off the network and run it.
+    # The check above -- "is a runtime bundled?" -- happens to prevent that for a
+    # correctly built Store package, but it answers a different question, and a
+    # build that simply forgot to bundle the binary would sail past it straight
+    # into a 2.5.2 violation. Ask the edition directly instead, so the guarantee
+    # holds because of the rule rather than by coincidence.
+    if not allows_code_download():
+        raise SystemExit(
+            f"This build must not download a runtime (App Store guideline 2.5.2), and no "
+            f"llama-server ships inside it. Expected one in {bundled_runtime_dir() or 'the app bundle'}; "
+            f"see packaging/README.md on bundling and signing it.")
+
     pattern = platform_asset_pattern()
     name, url = latest_release_asset(pattern)
     with tempfile.TemporaryDirectory() as tmp_name:
@@ -284,13 +300,9 @@ def install_runtime(on_progress: Callable[[str, int], None] | None = None) -> No
                 shutil.copy2(item, RUNTIME_DIR / item.name)
             except OSError as exc:
                 print(f"  ! skipped {item.name}: {exc}")
-        if platform.system() != "Windows":
+        if system.os_name() != "windows":
             target.chmod(target.stat().st_mode | stat.S_IEXEC)
-        if platform.system() == "Darwin":
-            # macOS quarantines downloaded executables; an unquarantined
-            # copy still fails to launch with an unhelpful Gatekeeper
-            # dialog if this is skipped.
-            subprocess.run(["xattr", "-dr", "com.apple.quarantine", str(RUNTIME_DIR)], capture_output=True)
+        system.strip_quarantine(RUNTIME_DIR)
     print(f"Installed {target}")
 
 

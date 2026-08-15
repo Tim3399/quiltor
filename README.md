@@ -102,7 +102,15 @@ cd quiltor
 python3 server.py
 ```
 
-Quiltor öffnet automatisch [http://localhost:8000](http://localhost:8000) und legt beim ersten Start eine leere Welt an. Ein Backup-Endpunkt ist optional — entweder der gehostete Dienst oder dein eigener Server (`deploy/backup-server/`). Das Zugangstoken liegt in `QUILTOR_BACKUP_TOKEN`, nicht in der Welt-Datenbank.
+Quiltor öffnet automatisch [http://localhost:8000](http://localhost:8000) und legt beim ersten Start eine leere Welt an. Ein Backup-Endpunkt ist optional — entweder der gehostete Dienst oder dein eigener Server (`deploy/backup-server/`):
+
+```bash
+QUILTOR_BACKUP_URL=https://backup.example.com \
+QUILTOR_BACKUP_TOKEN=dein-token \
+python3 server.py
+```
+
+`QUILTOR_BACKUP_URL` gilt kontoweit; eine einzelne Welt kann einen abweichenden Endpunkt hinterlegen. Das Token steht nie in der Welt-Datenbank. Auf einem frischen Rechner fragt Quiltor den Endpunkt, welche Welten dort liegen, und stellt eine davon vollständig wieder her — Datenbank, Manuskript und Verlauf.
 
 Ist noch kein lokaler Assistent eingerichtet, fragt der Server einmalig nach (`Jetzt einrichten? [j/N]`), bevor er etwas herunterlädt — ~2,5 GB für llama.cpp, ~2,4 GB für MLX auf Apple-Silicon-Macs. Mit „Nein“ (oder einfach Enter) läuft Quiltor unverändert weiter, nur ohne Assistenten-Panel; die Frage kommt beim nächsten Start erneut, bis einmal zugestimmt wurde.
 
@@ -141,7 +149,7 @@ Selbst bauen:
 
 ```bash
 python -m venv .venv-desktop && source .venv-desktop/bin/activate  # Windows: .venv-desktop\Scripts\activate
-pip install -e ".[desktop]" pyinstaller
+pip install -e ".[desktop,browser-pdf]" pyinstaller
 
 ./packaging/build_macos.sh                     # → packaging/dist/Quiltor-<version>.dmg
 powershell -File packaging/build_windows.ps1    # → packaging/dist/Quiltor-Setup-<version>.exe

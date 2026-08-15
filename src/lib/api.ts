@@ -4,7 +4,13 @@ import type { MessageKey } from '../language';
 
 export type LanguageLookupMode = 'dictionary' | 'synonyms' | 'translation';
 export type LanguageLookupResult = { lemma: string; partOfSpeech: string; meaning: string; values: string[]; source: string };
-export type GrammarStatus = { available: boolean; installed: boolean; running: boolean; version: string; javaVersion: number | null; javaRequired: number; externalConfigured: boolean; externalEnabled: boolean; download: { url: string; checksum: string; license: string } };
+// `supported` is the edition's verdict, `available` this machine's. Supported
+// but unavailable means "install Java, then press the button"; unsupported
+// means the feature does not exist in this build at all — a store build may
+// neither download LanguageTool's JAR nor launch the system JVM, so the UI
+// hides the section rather than offering a button that cannot work. See
+// backend/language/grammar/.
+export type GrammarStatus = { supported: boolean; unsupportedReason: string; available: boolean; installed: boolean; running: boolean; version: string; javaVersion: number | null; javaRequired: number; externalConfigured: boolean; externalEnabled: boolean; download: { url: string; checksum: string; license: string } };
 export type LanguageStatus = { ok: boolean; installed: boolean; stale: boolean; version: string | null; sources: Record<string, { version: string; url: string; checksum: string; license: string; attribution: string }>; grammar?: GrammarStatus };
 
 // api.ts is a plain module used outside React's render cycle (event handlers, fetch

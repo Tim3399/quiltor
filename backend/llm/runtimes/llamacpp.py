@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
+from backend import system
 from backend.llm.runtimes import bundled_runtime_dir, resolve_port, spawn_logged
 
 
 def binary_name() -> str:
-    return "llama-server.exe" if sys.platform == "win32" else "llama-server"
+    return system.executable_name("llama-server")
 
 
 def resolve_binary(base: Path) -> Path:

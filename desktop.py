@@ -2,12 +2,12 @@
 """Desktop launcher: runs the Quiltor server in the background and shows it in a
 native OS window instead of a browser tab.
 
-Optional `desktop` extra (`pip install -e ".[desktop]"`, or the PyInstaller-frozen
+Optional `desktop` extra (`pip install -e ".[desktop,browser-pdf]"`, or the PyInstaller-frozen
 build built by packaging/) -- server.py and the plain `quiltor` CLI stay dependency-
 free/stdlib-only without this file, same as before.
 
 Platform differences (data directory, "reveal in file manager") live in
-desktop_platform.py; this file and desktop_tray.py stay OS-agnostic.
+backend/system/; this file and desktop_tray.py stay OS-agnostic.
 
     python desktop.py
 """
@@ -20,7 +20,7 @@ import threading
 import time
 from pathlib import Path
 
-from desktop_platform import APP_NAME, data_home
+from backend.system import APP_NAME, data_home
 
 DEFAULT_PORT = 8843
 
@@ -80,9 +80,11 @@ def main() -> None:
     os.environ.setdefault("QUILTOR_HOME", str(home))
 
     import server
-    from backend.render import render_pdf_system_browser
+    from backend.pdf import desktop_renderer
 
-    server.RENDER_PDF = render_pdf_system_browser
+    # An installed Chrome/Edge where the edition permits launching one, and
+    # WKWebView's own print operation in a sandboxed Mac App Store build.
+    server.RENDER_PDF = desktop_renderer()
     server.ensure_dirs()
 
     port = _free_port()

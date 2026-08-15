@@ -41,18 +41,20 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
-from backend.llm.shared.platform import force_utf8_streams
+from backend.system import force_utf8_streams
 
 force_utf8_streams()
 
 from backend import auth, storage
 from backend.assistant import ASSISTANT_REPLY_LANGUAGES, DEFAULT_ASSISTANT_LANGUAGE, AssistantRuntime, read_progress
 from backend.backup import BackupContext, SnapshotStore
+from backend.backup import remote as backup_remote
 from backend.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed, install_async, is_configured, read_install_state
 from backend.mirror import mirror_profiles, mirror_text, safe_name
-from backend.render import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, render_pdf
+from backend.pdf import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, server_renderer
 from backend.validation import valid_figures, valid_manuscript
 from backend.language import LanguageService
 
@@ -80,6 +82,52 @@ LANGUAGE = LanguageService(DATA)
 MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
 
 _lock = threading.Lock()
+
+# ------------------------------------------------- Local-mode request guard
+#
+# The local build has no authentication at all (AUTH_ENABLED stays false
+# without QUILTOR_OIDC_ISSUER), and loopback is not a security boundary in a
+# browser: any page the user happens to visit can send us a cross-origin
+# request. A plain
+#
+#   <form method="POST" enctype="text/plain"
+#         action="http://127.0.0.1:8843/api/manuscript">
+#
+# is a CORS-"simple" request -- no preflight, so nothing ever asks our
+# permission -- and would overwrite the manuscript. The same-origin policy
+# stops the attacker reading the response, but the write already happened.
+#
+# Three cheap header checks close that, and none of them apply to the
+# reverse-proxied Docker deployment, which binds 0.0.0.0, answers to a real
+# hostname and has OIDC in front of it:
+#
+#   1. Host must be loopback. Without this, DNS rebinding works: an
+#      attacker-controlled name is made to resolve to 127.0.0.1, and their
+#      page becomes same-origin with us -- which also makes reads possible.
+#   2. A cross-origin Origin is refused. Browsers send Origin on every
+#      cross-origin POST, so this is what actually catches the form above. A
+#      *missing* Origin means a non-browser client (curl, the test suite),
+#      which is not the threat being modelled here.
+#   3. JSON bodies must really be Content-Type: application/json -- an HTML
+#      form can only ever send text/plain, urlencoded or multipart, so this
+#      alone already breaks the attack. Enforced in _read_json_body().
+#
+# Checks 1 and 2 compare the *hostname* and ignore the port, deliberately. Vite's
+# dev proxy forwards `/api` without rewriting Host (changeOrigin defaults to
+# false), so `npm run dev` arrives here as localhost:5173 and would otherwise be
+# refused. The cost is that another server on a different loopback port could
+# still post to us -- a far narrower threat than "any website the user visits",
+# and one that already implies something hostile is running locally.
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+BOUND_TO_LOOPBACK = os.environ.get("QUILTOR_HOST", "127.0.0.1") in LOOPBACK_HOSTS
+
+
+def authority_host(authority: str) -> str:
+    """Hostname out of a `name:port` authority, IPv6 brackets stripped."""
+    if authority.startswith("["):
+        closing = authority.find("]")
+        return authority[1:closing] if closing > 0 else authority
+    return authority.rsplit(":", 1)[0] if ":" in authority else authority
 
 # ------------------------------------------------------------- Auth (OIDC)
 
@@ -128,9 +176,48 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
     endpoint_url = (world or {}).get("backupUrl", "")
     # Every world gets a local backup history, even without a configured remote --
     # only uploading needs one; an unset endpoint just means history stays local.
-    git_ctx = WORLD_BACKUPS.context(world_id, endpoint_url, db_path, manuscripts_dir, profiles_dir)
+    git_ctx = WORLD_BACKUPS.context(world_id, endpoint_url, db_path, manuscripts_dir, profiles_dir, title=(world or {}).get("title", ""))
     return WorldContext(id=world_id, db_path=db_path, backups_dir=backups_dir,
                          manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, git=git_ctx)
+
+
+def restore_world_from_endpoint(session: "auth.SessionData | None", world_id: str, snapshot_id: str, endpoint: str) -> dict[str, Any]:
+    """Pull one snapshot back from the backup endpoint and write it over the world.
+
+    Restores the SQLite database above all: it is the authoritative store, and the
+    Markdown mirrors are derived from it (they get rewritten on the next save).
+    Callers hold _lock.
+    """
+    db_path = storage.world_db_path(world_id)
+    manuscripts_dir = storage.DATA / "manuscripts" / world_id
+    profiles_dir = storage.DATA / "profiles" / world_id
+    ctx = WORLD_BACKUPS.context(world_id, endpoint, db_path, manuscripts_dir, profiles_dir)
+
+    if world_id == storage.ACTIVE_WORLD_ID:
+        raise ValueError("Close this world before restoring it.")
+    if db_path.exists():
+        # The overwrite must itself be undoable: snapshot whatever is there now,
+        # locally, before replacing it. Nothing is uploaded -- this is a safety
+        # net on this machine, not a new state worth publishing.
+        WORLD_BACKUPS.commit(ctx, "Before restore", push=False)
+
+    available = backup_remote.snapshots(ctx)
+    if not available:
+        raise ValueError("The endpoint holds no snapshots for this world.")
+    entry = next((s for s in reversed(available) if s["id"] == snapshot_id or s["id"].startswith(snapshot_id)), None) if snapshot_id else available[-1]
+    if entry is None:
+        raise ValueError("No such snapshot at the endpoint.")
+
+    result = WORLD_BACKUPS.restore(ctx, entry, fetch=lambda digest: backup_remote.fetch_blob(ctx, digest))
+    storage.initialize(db_path)
+    if AUTH_ENABLED and session is not None:
+        # The restored database carries the owner it had when it was backed up.
+        # Whoever restores it is the owner now, or they would be locked out of
+        # the world they just pulled down.
+        with storage.connect(db_path) as conn:
+            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (session.sub,))
+    print(f"  · {datetime.now():%H:%M:%S}  restored world {world_id} from snapshot {entry['id'][:8]}")
+    return {"ok": True, **result, "title": entry.get("title", ""), "created": entry.get("created", "")}
 
 
 # ---------------------------------------------------------------- Storage
@@ -158,15 +245,12 @@ ROUTES = {
 }
 
 
-def _default_render_pdf(url: str) -> bytes:
-    return render_pdf(BASE / "scripts" / "render-book-pdf.mjs", BASE, url)
-
-
-# Swappable by desktop.py, which points this at render.render_pdf_system_browser
-# (drives the OS's installed Chrome/Edge via Playwright for Python) instead of this
-# default Node/Playwright-JS subprocess path. Docker and `npm run dev` never touch
-# this and keep using the default unchanged.
-RENDER_PDF = _default_render_pdf
+# The Node/Playwright-JS subprocess path, which is what Docker and `npm run dev`
+# want. desktop.py replaces this with backend.pdf.desktop_renderer() -- a windowed
+# app has no Node, and which renderer it may use is an edition decision. Keeping
+# it a module global is how the host tells the core, and stays the seam until
+# hosts/ exists.
+RENDER_PDF = server_renderer(BASE / "scripts" / "render-book-pdf.mjs", BASE)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -202,10 +286,38 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         client-controlled Content-Length can't force an unbounded read. Raises
         ValueError/json.JSONDecodeError on an invalid size or malformed JSON --
         callers that want a default instead of propagating wrap this themselves."""
+        # An HTML form can only ever send text/plain, urlencoded or multipart,
+        # so insisting on application/json is what makes cross-site form posts
+        # impossible regardless of the Origin check -- see the guard comment at
+        # the top of this file. Every in-tree client already sets it.
+        media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        if media_type != "application/json":
+            raise ValueError("ungültiger Content-Type")
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0 or length > MAX_BODY:
             raise ValueError("ungültige Größe")
         return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    def reject_foreign_request(self) -> bool:
+        """True -- with a 403 already written -- when this request's Host or
+        Origin says it did not come from the local app itself. No-op for the
+        proxied deployment, where the proxy owns Host and OIDC owns access."""
+        if not BOUND_TO_LOOPBACK:
+            return False
+
+        host = authority_host(self.headers.get("Host", ""))
+        if host and host not in LOOPBACK_HOSTS:
+            self.send_json({"ok": False, "fehler": "unerlaubter Host"}, 403)
+            return True
+
+        origin = (self.headers.get("Origin") or "").strip()
+        # "null" is what a sandboxed iframe or a file:// page sends; it is never
+        # us, so it gets refused alongside any other foreign origin.
+        if origin and (origin == "null"
+                       or authority_host(urlparse(origin).netloc) not in LOOPBACK_HOSTS):
+            self.send_json({"ok": False, "fehler": "unerlaubte Herkunft"}, 403)
+            return True
+        return False
 
     def end_headers(self) -> None:
         # Any Set-Cookie headers queued by the auth routes ride along on whatever
@@ -271,7 +383,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self.send_redirect(authorize_url)
 
     def handle_auth_callback(self) -> None:
-        from urllib.parse import parse_qs, urlparse
         q = parse_qs(urlparse(self.path).query)
         if (q.get("error") or [""])[0]:
             return self.send_redirect("/login?failed=1")
@@ -315,8 +426,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         self._pending_cookies = []
+        if self.reject_foreign_request():
+            return
         route = self.path.split("?")[0]
-        from urllib.parse import parse_qs, urlparse
         query = parse_qs(urlparse(self.path).query)
         world_id = (query.get("world") or [""])[0]
 
@@ -373,6 +485,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if git_ctx is None:
                     return self.send_json({"ok": False, "grund": "No world is open."})
                 return self.send_json(WORLD_BACKUPS.status(git_ctx))
+
+        if route == "/api/backup/remote":
+            # Deliberately not world-scoped: this is what a fresh install calls
+            # before it has any world at all, to find out what can be restored.
+            endpoint = backup_remote.default_endpoint()
+            if not endpoint:
+                return self.send_json({"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
+            try:
+                return self.send_json({"ok": True, "endpoint": endpoint, "worlds": backup_remote.worlds(endpoint)})
+            except Exception as exc:
+                return self.send_json({"ok": False, "grund": str(exc)})
 
         if route == "/api/log":
             with _lock:
@@ -442,6 +565,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def _save(self):
         self._pending_cookies = []
+        if self.reject_foreign_request():
+            return
         route = self.path.split("?")[0]
         session = auth.get_session(self.get_cookie(SESSION_COOKIE)) if AUTH_ENABLED else None
         if AUTH_ENABLED and route != "/logout" and session is None:
@@ -484,7 +609,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     if not AUTH_ENABLED:
                         # Every world gets a local backup history, even without a
                         # configured endpoint -- history is always local first.
-                        CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world.get("backupUrl", ""), storage.DB, MANUSCRIPT_DIR, PROFILE_DIR)
+                        CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world.get("backupUrl", ""), storage.DB, MANUSCRIPT_DIR, PROFILE_DIR, title=world.get("title", ""))
                 return self.send_json({"ok": True, "world": world})
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
@@ -548,6 +673,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"ok": False, "fehler": str(exc)}, 400)
             except Exception as exc:
                 return self.send_json({"ok": False, "fehler": str(exc)}, 503)
+
+        if route == "/api/backup/restore":
+            try:
+                wunsch = self._read_json_body()
+            except Exception:
+                wunsch = {}
+            world_id, snapshot_id = str(wunsch.get("worldId", "")), str(wunsch.get("snapshotId", ""))
+            if not storage.WORLD_ID_RE.fullmatch(world_id):
+                return self.send_json({"ok": False, "grund": "Invalid world id."}, 400)
+            endpoint = backup_remote.default_endpoint()
+            if not endpoint:
+                return self.send_json({"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
+            try:
+                with _lock:
+                    return self.send_json(restore_world_from_endpoint(session, world_id, snapshot_id, endpoint))
+            except Exception as exc:
+                return self.send_json({"ok": False, "grund": str(exc)}, 400)
 
         if route == "/api/backup":
             try:

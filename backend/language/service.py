@@ -5,13 +5,15 @@ from pathlib import Path
 
 from . import storage
 from .installer import install
-from .grammar import LanguageToolManager
+from .grammar import backend_for
 from .registry import MANIFEST_VERSION, SOURCES, manifest
 
 class LanguageService:
     def __init__(self, data_dir: Path):
         self.path = data_dir / "language" / "writing.sqlite3"
-        self.grammar = LanguageToolManager(data_dir)
+        # Which grammar backend exists at all is an edition decision, made once
+        # in backend/language/grammar/__init__.py -- nothing here branches on it.
+        self.grammar = backend_for(data_dir)
 
     def status(self) -> dict:
         installed_version = storage.version(self.path)

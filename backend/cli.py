@@ -19,7 +19,7 @@ from pathlib import Path
 
 import typer
 
-from backend.llm.shared.platform import force_utf8_streams
+from backend.system import force_utf8_streams
 
 force_utf8_streams()
 
@@ -47,7 +47,8 @@ KNOWN_KEYS: dict[str, str] = {
     "QUILTOR_AI_BINARY": "Path to a specific llama-server/MLX binary, overriding the bundled default.",
     "QUILTOR_AI_RUNTIME": "Force a specific local runtime: llamacpp or mlx.",
     "QUILTOR_AI_DEBUG": "Set to any value to enable verbose assistant-runtime logging.",
-    "QUILTOR_BACKUP_TOKEN": "Bearer token for the cloud backup endpoint a world points at.",
+    "QUILTOR_BACKUP_URL": "Account-wide cloud backup endpoint. A world may override it; restoring onto a fresh machine starts here.",
+    "QUILTOR_BACKUP_TOKEN": "Bearer token for the cloud backup endpoint.",
     "QUILTOR_HOME": f"Where runtime/model/data files live. Defaults to {DEFAULT_HOME} for the CLI.",
     "QUILTOR_DATA_DIR": "Directory for worlds, backups, and manuscripts data. Defaults to QUILTOR_HOME/data.",
     "QUILTOR_HOST": "Bind address for the server (default 127.0.0.1).",

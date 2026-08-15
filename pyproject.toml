@@ -15,8 +15,17 @@ dependencies = ["typer>=0.12"]
 
 # Only needed for desktop.py (a native-window desktop build, see packaging/) --
 # never required for `python3 server.py`, the plain CLI, or Docker.
+#
+# `desktop` is everything a windowed build always needs. `browser-pdf` is split
+# out because Playwright is only used by backend/pdf/system_browser.py, and a
+# Mac App Store build cannot use that renderer at all: the sandbox refuses to
+# launch an installed Chrome. Keeping it separate is what lets packaging leave
+# it out there -- worth doing, since Playwright's driver carries its own `node`
+# binary, 128 MB of a 165 MB app, and shipping a general-purpose JavaScript
+# interpreter inside a Store bundle is a known review flashpoint.
 [project.optional-dependencies]
-desktop = ["pywebview>=5.0", "playwright>=1.40", "pystray>=0.19", "Pillow>=10"]
+desktop = ["pywebview>=5.0", "pystray>=0.19", "Pillow>=10"]
+browser-pdf = ["playwright>=1.40"]
 
 [project.scripts]
 quiltor = "backend.cli:main_entry"
@@ -35,7 +44,6 @@ packages = ["backend", "mcp"]
 [tool.hatch.build.targets.wheel.force-include]
 "server.py" = "server.py"
 "desktop.py" = "desktop.py"
-"desktop_platform.py" = "desktop_platform.py"
 "desktop_tray.py" = "desktop_tray.py"
 "VERSION" = "VERSION"
 "dist" = "dist"
@@ -43,7 +51,7 @@ packages = ["backend", "mcp"]
 "packaging/icons" = "packaging/icons"
 
 [tool.hatch.build.targets.sdist]
-include = ["backend", "mcp", "server.py", "desktop.py", "desktop_platform.py", "desktop_tray.py", "VERSION", "scripts", "README.md", "LICENSE"]
+include = ["backend", "mcp", "server.py", "desktop.py", "desktop_tray.py", "VERSION", "scripts", "README.md", "LICENSE"]
 
 [tool.hatch.build.targets.sdist.force-include]
 "dist" = "dist"
