@@ -14,6 +14,6 @@ is an Xcode Command Line Tools shim that opens an installer dialog when the
 tools are absent, and plenty of Windows and Linux machines have no git at all.
 Standard library only, so `python3 server.py` keeps working untouched.
 """
-from backend.backup.snapshots import BackupContext, SnapshotStore
+from backend.core.backup.snapshots import BackupContext, SnapshotStore
 
 __all__ = ["BackupContext", "SnapshotStore"]

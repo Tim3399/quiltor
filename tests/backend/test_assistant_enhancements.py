@@ -7,7 +7,7 @@ from backend.assistant.references import resolve_reference
 from backend.assistant.contract import existing_creation_target, task_contract
 from backend.assistant.schemas import reply_schema
 from backend.assistant.batch import _group_chapters_by_budget, _merge_accumulated
-from backend.knowledge import KnowledgeChunk
+from backend.core.knowledge import KnowledgeChunk
 
 
 class AssistantEnhancementTests(unittest.TestCase):

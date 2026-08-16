@@ -15,8 +15,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from backend.backup import SnapshotStore
-from backend.backup import remote
+from backend.core.backup import SnapshotStore
+from backend.core.backup import remote
 
 REFERENCE_SERVER = Path(__file__).resolve().parents[2] / "deploy" / "backup-server" / "server.py"
 

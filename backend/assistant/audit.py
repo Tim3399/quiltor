@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from backend.assistant.contract import _normal, required_proposal_kinds
-from backend.knowledge import moment_order
+from backend.core.knowledge import moment_order
 
 
 def _moment_date_diff_days(from_date: Any, to_date: Any) -> int | None:

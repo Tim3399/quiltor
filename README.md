@@ -274,10 +274,15 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 
 ```text
 server.py                   die HTTP-Anwendung selbst — was Docker startet und was das Desktop-Fenster umschließt
-backend/                    SQLite, Backups, Retrieval, Assistant, Verlauf, Keycloak-Login (auth.py)
+backend/
+├── core/                    die Domäne: Welten, Kapitel, Figuren, Verlauf, Retrieval —
+│                            kennt weder Betriebssystem noch Vertriebsweg noch Host
 ├── system/                  die einzige Stelle, die nach Betriebssystem verzweigt
 ├── edition/                 Vertriebsvariante: direct, mas, msstore — und was sie jeweils darf
-├── pdf/  language/grammar/  Fähigkeiten mit mehreren Implementierungen, ausgewählt aus der Edition
+├── llm/  language/  pdf/    Fähigkeiten: je ein Contract, mehrere Implementierungen,
+│                            Auswahl aus der Edition
+├── assistant/               liegt über core und nutzt die LLM-Fähigkeit
+└── auth.py                  Keycloak-Login, nur für den gehosteten Betrieb
 hosts/                      die Arten, Quiltor zu starten (importieren backend/, nie umgekehrt)
 ├── desktop/                 natives Fenster und Tray-Icon
 ├── cli/                     `quiltor run` / `quiltor config`

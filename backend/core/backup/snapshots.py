@@ -32,7 +32,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-from backend.backup import remote
+from backend.core.backup import remote
 
 FORMAT_VERSION = 1
 ENCRYPTION_NONE = "none"

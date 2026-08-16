@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from backend.backup import SnapshotStore, remote
+from backend.core.backup import SnapshotStore, remote
 
 REFERENCE_SERVER = Path(__file__).resolve().parents[2] / "deploy" / "backup-server" / "server.py"
 TOKEN, ACCOUNT = "test-token", "tester"

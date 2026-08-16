@@ -1,6 +1,6 @@
 import unittest
 
-from backend.validation import valid_manuscript
+from backend.core.validation import valid_manuscript
 
 
 class ManuscriptMentionValidationTests(unittest.TestCase):

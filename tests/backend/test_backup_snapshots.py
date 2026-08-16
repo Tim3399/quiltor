@@ -11,8 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.backup import SnapshotStore
-from backend.backup.snapshots import BackupContext
+from backend.core.backup import SnapshotStore
+from backend.core.backup.snapshots import BackupContext
 
 
 class SnapshotStoreTest(unittest.TestCase):

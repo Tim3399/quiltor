@@ -36,7 +36,7 @@ from backend.assistant.config import RUNTIME_CONFIG
 from backend.assistant.context import TOKEN_CACHE, pack_chunks
 from backend.assistant.references import resolve_reference
 from backend.assistant.schemas import KINDS, planner_schema, reply_schema
-from backend.knowledge import build_knowledge, retrieve
+from backend.core.knowledge import build_knowledge, retrieve
 from backend.llm import select
 from backend.llm.shared.contract import IncompleteResponse, check_health, count_tokens, invoke_chat, json_schema_format
 

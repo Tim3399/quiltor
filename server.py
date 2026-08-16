@@ -47,15 +47,16 @@ from backend.system import force_utf8_streams
 
 force_utf8_streams()
 
-from backend import auth, storage
+from backend import auth
+from backend.core import storage
 from backend.assistant import ASSISTANT_REPLY_LANGUAGES, DEFAULT_ASSISTANT_LANGUAGE, AssistantRuntime, read_progress
-from backend.backup import BackupContext, SnapshotStore
-from backend.backup import remote as backup_remote
-from backend.knowledge import build_knowledge
+from backend.core.backup import BackupContext, SnapshotStore
+from backend.core.backup import remote as backup_remote
+from backend.core.knowledge import build_knowledge
 from backend.llm.installer import ensure_installed, install_async, is_configured, read_install_state
-from backend.mirror import mirror_profiles, mirror_text, safe_name
+from backend.core.mirror import mirror_profiles, mirror_text, safe_name
 from backend.pdf import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, server_renderer
-from backend.validation import valid_figures, valid_manuscript
+from backend.core.validation import valid_figures, valid_manuscript
 from backend.language import LanguageService
 
 BASE = Path(__file__).resolve().parent

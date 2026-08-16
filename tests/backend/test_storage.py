@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend import mirror, storage
+from backend.core import mirror, storage
 
 
 class StorageTest(unittest.TestCase):

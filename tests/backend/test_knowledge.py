@@ -1,6 +1,6 @@
 import unittest
 
-from backend.knowledge import build_knowledge, moment_order, retrieve, _parts
+from backend.core.knowledge import build_knowledge, moment_order, retrieve, _parts
 
 
 class KnowledgeTest(unittest.TestCase):

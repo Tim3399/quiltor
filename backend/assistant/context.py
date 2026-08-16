@@ -7,7 +7,7 @@ from collections import OrderedDict
 from dataclasses import replace
 from typing import Any, Callable
 
-from backend.knowledge import KnowledgeChunk
+from backend.core.knowledge import KnowledgeChunk
 
 
 class TokenCountCache:

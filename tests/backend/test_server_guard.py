@@ -14,8 +14,8 @@ import threading
 import unittest
 from pathlib import Path
 
-from backend import storage
-from backend.backup import SnapshotStore
+from backend.core import storage
+from backend.core.backup import SnapshotStore
 import server
 
 
