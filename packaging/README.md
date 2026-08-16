@@ -345,10 +345,17 @@ that way.
 1. Launch the built app. It should open a window (no browser, no console/terminal
    window) within a few seconds.
 2. Create or open a world, write something, confirm autosave.
-3. Export a PDF; confirm it opens Chrome/Edge headlessly and downloads correctly.
-4. Quit the app (close the window). Confirm no lingering server process:
+3. Export a PDF; confirm it opens Chrome/Edge headlessly, that a save panel
+   appears, and that the file lands where you pointed it.
+4. Export a chapter as Markdown too. All five exports (book PDF, whole
+   manuscript, single chapter, figures JSON, character profiles) are blob URLs
+   behind an `<a download>`, and they all depend on the same pywebview setting —
+   see `hosts/desktop/app.py::enable_downloads`. Unset, they fail *silently*:
+   no file, no error, no console message. Worth one click per build, because
+   nothing else will tell you.
+5. Quit the app (close the window). Confirm no lingering server process:
    - macOS: Activity Monitor, search "Quiltor"/"python".
    - Windows: Task Manager, search "Quiltor.exe".
-5. Relaunch the app and confirm the world from step 2 is still there (data
+6. Relaunch the app and confirm the world from step 2 is still there (data
    persisted under the per-user data directory listed above, not next to the
    app bundle).
