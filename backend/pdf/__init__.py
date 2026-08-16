@@ -1,33 +1,49 @@
-"""PDF export, in the three forms it can take.
+"""PDF export.
 
 Every renderer loads the app's own print view over loopback and returns PDF
-bytes; they differ only in what does the rendering, and that is decided by the
-host and the edition together:
+bytes. They differ only in what does the rendering:
 
-  - **node_chromium** -- Docker and `npm run dev`. A Node subprocess driving
-    Playwright's downloaded Chromium. Both already have Node and the browsers.
-  - **system_browser** -- the desktop build wherever launching another
-    application is permitted: the `.dmg`, the Inno Setup `.exe`, and the
-    Microsoft Store's MSIX package.
-  - **wkwebview** -- a sandboxed Mac App Store build, which may not launch
-    anything outside its own bundle. Not implemented yet; see the module.
+  - **wkwebview / webview2 / webkitgtk** -- the desktop build on macOS, Windows
+    and Linux respectively, each printing through the engine already drawing the
+    window. Nothing to install, nothing to launch, and the PDF matches what the
+    author was looking at.
+  - **system_browser** -- Playwright driving an installed Chrome or Edge. No
+    longer chosen anywhere by default; kept as the fallback
+    `QUILTOR_PDF_RENDERER=system_browser` selects, since only the macOS native
+    path has actually been executed.
+  - **node_chromium** -- Docker and `npm run dev`, which have Node and the
+    Playwright browsers anyway and no window server to print through.
 
-The host picks the family (a server has no window server to print through, a
-desktop app has no Node), and the edition picks within it. Hence two entry
-points rather than one selector: `server_renderer()` needs paths only the host
-knows, and `desktop_renderer()` asks the edition.
+Two entry points rather than one selector, because the questions differ:
+`server_renderer()` needs filesystem paths only the host knows, while
+`desktop_renderer()` needs the platform.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-from backend import edition, system
-from backend.pdf import node_chromium, system_browser, wkwebview
+import os
+
+from backend import system
+from backend.pdf import node_chromium, system_browser, webkitgtk, webview2, wkwebview
 from backend.pdf.contract import PdfRenderer
 from backend.pdf.tokens import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token
 
-WKWEBVIEW = "wkwebview"
 SYSTEM_BROWSER = "system_browser"
+
+#: The platform's own print engine -- no second browser, nothing to install.
+NATIVE_RENDERERS = {
+    "macos": "wkwebview",
+    "windows": "webview2",
+    "linux": "webkitgtk",
+}
+
+_BY_NAME = {
+    "wkwebview": wkwebview.render,
+    "webview2": webview2.render,
+    "webkitgtk": webkitgtk.render,
+    SYSTEM_BROWSER: system_browser.render,
+}
 
 
 def server_renderer(script: Path, base: Path) -> PdfRenderer:
@@ -38,34 +54,38 @@ def server_renderer(script: Path, base: Path) -> PdfRenderer:
 
 def desktop_renderer_name(os_name: str | None = None, sandboxed: bool | None = None) -> str:
     """Which renderer a windowed build uses. Split out from desktop_renderer()
-    so packaging can ask the same question without duplicating the answer -- see
-    packaging/bundle.py, which drops Playwright wherever this is not
+    so packaging can ask the same question rather than duplicate the answer --
+    see packaging/bundle.py, which drops Playwright wherever this is not
     SYSTEM_BROWSER.
 
-    macOS always prints through WKWebView, sandboxed or not. That is not a
-    concession to the App Store: the window is a WKWebView, so printing with the
-    same engine is what makes the PDF match what the author was looking at, and
-    it removes any dependency on the reader having Chrome installed. "Install
-    Google Chrome to export your book" is a poor thing for a local writing tool
-    to say.
+    Every platform prints with its own engine. The window is already a web view;
+    printing through the same one is what makes the PDF match what the author
+    was looking at, and it asks nothing of the reader's machine. "Install Google
+    Chrome to export your book" is a poor answer from a local writing tool, and
+    on Linux it is not even a reliable one -- no browser is guaranteed there.
 
-    Elsewhere the browser path stays until an equivalent exists -- WebView2's
-    PrintToPdfAsync on Windows, WebKitGTK's print operation on Linux -- except
-    in a sandbox, which may not launch anything outside the bundle at all.
+    QUILTOR_PDF_RENDERER overrides the choice. That exists because only the
+    macOS path has actually been run: setting it to `system_browser` restores
+    the old behaviour on a machine where the native path misbehaves, without
+    waiting for a new build. It needs the `browser-pdf` extra installed.
     """
-    if (os_name or system.os_name()) == "macos":
-        return WKWEBVIEW
-    is_sandboxed = edition.is_sandboxed() if sandboxed is None else sandboxed
-    return WKWEBVIEW if is_sandboxed else SYSTEM_BROWSER
+    override = os.environ.get("QUILTOR_PDF_RENDERER", "").strip()
+    if override:
+        if override not in _BY_NAME:
+            raise SystemExit(f"Unknown QUILTOR_PDF_RENDERER={override!r}. "
+                             f"Expected one of: {', '.join(sorted(_BY_NAME))}")
+        return override
+    return NATIVE_RENDERERS.get(os_name or system.os_name(), SYSTEM_BROWSER)
 
 
 def desktop_renderer() -> PdfRenderer:
     """The renderer for this windowed process."""
-    return wkwebview.render if desktop_renderer_name() == WKWEBVIEW else system_browser.render
+    return _BY_NAME[desktop_renderer_name()]
 
 
 __all__ = [
-    "RENDER_TOKEN_TTL", "SYSTEM_BROWSER", "WKWEBVIEW", "PdfRenderer", "desktop_renderer",
-    "desktop_renderer_name", "issue_render_token", "node_chromium", "redeem_render_token",
-    "server_renderer", "system_browser", "wkwebview",
+    "NATIVE_RENDERERS", "RENDER_TOKEN_TTL", "SYSTEM_BROWSER", "PdfRenderer",
+    "desktop_renderer", "desktop_renderer_name", "issue_render_token", "node_chromium",
+    "redeem_render_token", "server_renderer", "system_browser", "webkitgtk", "webview2",
+    "wkwebview",
 ]

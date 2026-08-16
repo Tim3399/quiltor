@@ -4,7 +4,7 @@
 #
 #   powershell -ExecutionPolicy Bypass -File packaging/build_windows.ps1
 #
-# Requires: a Python 3.11+ venv with `pip install -e ".[desktop,browser-pdf]"` and `pip install
+# Requires: a Python 3.11+ venv with `pip install -e ".[desktop]"` and `pip install
 # pyinstaller` already done in it (see README section "Desktop app" for the one-time
 # setup), and Inno Setup (https://jrsoftware.org/isinfo.php, free) for the installer
 # step -- the onedir build still gets produced without it, just not wrapped into an

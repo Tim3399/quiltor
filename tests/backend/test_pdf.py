@@ -6,43 +6,59 @@ the selection instead, which is the part that decides whether a build reaches
 for something its sandbox would refuse.
 """
 import importlib.util
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from backend import pdf
-from backend.pdf import node_chromium, page_numbers, system_browser, wkwebview
+from backend.pdf import (
+    node_chromium, page_numbers, system_browser, webkitgtk, webview2, wkwebview,
+)
 
 
 class DesktopRendererSelectionTests(unittest.TestCase):
-    def _renderer(self, *, os_name: str, sandboxed: bool):
-        with patch("backend.system.os_name", return_value=os_name):
-            with patch("backend.edition.is_sandboxed", return_value=sandboxed):
+    def _renderer(self, *, os_name: str, environment: dict | None = None):
+        with patch.dict(os.environ, environment or {}, clear=True):
+            with patch("backend.system.os_name", return_value=os_name):
                 return pdf.desktop_renderer()
 
-    def test_macos_always_prints_through_wkwebview(self):
-        """Not a concession to the sandbox -- the window is a WKWebView, so the
-        PDF matches what the author saw, and no reader has to install Chrome to
-        export their book."""
-        for sandboxed in (False, True):
-            with self.subTest(sandboxed=sandboxed):
-                self.assertIs(self._renderer(os_name="macos", sandboxed=sandboxed),
-                              wkwebview.render)
-
-    def test_windows_and_linux_still_drive_the_installed_browser(self):
-        """Until WebView2 and WebKitGTK equivalents exist. Both ship a browser
-        by default, so the dependency is far less intrusive there."""
-        for os_name in ("windows", "linux"):
+    def test_every_platform_prints_with_its_own_engine(self):
+        """No second browser anywhere. The window is already a web view, so the
+        PDF matches what the author saw and nothing has to be installed for it
+        -- which on Linux is not a nicety: no browser is guaranteed there."""
+        for os_name, renderer in (("macos", wkwebview.render),
+                                  ("windows", webview2.render),
+                                  ("linux", webkitgtk.render)):
             with self.subTest(os_name=os_name):
-                self.assertIs(self._renderer(os_name=os_name, sandboxed=False),
-                              system_browser.render)
+                self.assertIs(self._renderer(os_name=os_name), renderer)
 
-    def test_a_sandboxed_build_never_reaches_for_a_browser(self):
-        """Launching an installed Chrome is what the App Sandbox refuses,
-        whatever the platform."""
+    def test_no_platform_reaches_for_an_installed_browser_by_default(self):
         for os_name in ("macos", "windows", "linux"):
             with self.subTest(os_name=os_name):
-                self.assertIs(self._renderer(os_name=os_name, sandboxed=True), wkwebview.render)
+                self.assertIsNot(self._renderer(os_name=os_name), system_browser.render)
+
+    def test_the_escape_hatch_restores_the_browser_path(self):
+        """Only the macOS native path has been executed. If Windows or Linux
+        misbehaves, this gets a working export back without a new build."""
+        for os_name in ("macos", "windows", "linux"):
+            with self.subTest(os_name=os_name):
+                chosen = self._renderer(os_name=os_name,
+                                        environment={"QUILTOR_PDF_RENDERER": "system_browser"})
+                self.assertIs(chosen, system_browser.render)
+
+    def test_an_unknown_override_fails_loudly(self):
+        with patch.dict(os.environ, {"QUILTOR_PDF_RENDERER": "chrome"}, clear=True):
+            with self.assertRaises(SystemExit):
+                pdf.desktop_renderer_name()
+
+    def test_every_native_renderer_is_a_real_module(self):
+        """NATIVE_RENDERERS is a name -> name map; a typo would only surface on
+        the platform that has it."""
+        for os_name, name in pdf.NATIVE_RENDERERS.items():
+            with self.subTest(os_name=os_name):
+                self.assertIn(name, pdf._BY_NAME)
+                self.assertTrue(callable(pdf._BY_NAME[name]))
 
     def test_the_wkwebview_renderer_reports_missing_system_frameworks_clearly(self):
         """Importable everywhere; pyobjc is only touched inside render(). Off a

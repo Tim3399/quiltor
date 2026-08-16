@@ -148,7 +148,7 @@ browser tab, no terminal or Python install needed. Build it yourself:
 
 ```bash
 python -m venv .venv-desktop && source .venv-desktop/bin/activate  # Windows: .venv-desktop\Scripts\activate
-pip install -e ".[desktop]" pyinstaller   # Windows/Linux: ".[desktop,browser-pdf]"
+pip install -e ".[desktop]" pyinstaller
 
 ./packaging/build_macos.sh                     # → packaging/dist/Quiltor-<version>.dmg
 powershell -File packaging/build_windows.ps1    # → packaging/dist/Quiltor-Setup-<version>.exe

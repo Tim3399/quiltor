@@ -116,20 +116,15 @@ class BuildVariantTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 bundle.build_edition()
 
-    def test_a_macos_build_never_ships_playwright(self):
-        """WKWebView prints on macOS whatever the edition, so Playwright's
-        driver -- a `node` binary worth ~128 MB, most of the bundle -- would be
-        along purely for a code path that cannot run."""
-        with patch("backend.system.os_name", return_value="macos"):
-            for name in ("direct", "mas", "msstore"):
-                with self.subTest(edition=name):
-                    self.assertIn("playwright", bundle.excluded_modules(name))
-
-    def test_a_windows_build_keeps_playwright_unless_sandboxed(self):
-        with patch("backend.system.os_name", return_value="windows"):
-            self.assertEqual(bundle.excluded_modules("direct"), [])
-            self.assertEqual(bundle.excluded_modules("msstore"), [])
-            self.assertIn("playwright", bundle.excluded_modules("mas"))
+    def test_no_desktop_build_ships_playwright(self):
+        """Every platform prints with its own engine now, so Playwright's driver
+        -- a `node` binary that was most of the macOS bundle, 166 MB down to
+        37 MB without it -- would be along purely for a path nothing selects."""
+        for os_name in ("macos", "windows", "linux"):
+            with patch("backend.system.os_name", return_value=os_name):
+                for name in ("direct", "mas", "msstore"):
+                    with self.subTest(os=os_name, edition=name):
+                        self.assertIn("playwright", bundle.excluded_modules(name))
 
     def test_the_pdf_renderer_and_the_packaging_agree(self):
         """The point of asking backend/pdf rather than re-deriving: a build must
