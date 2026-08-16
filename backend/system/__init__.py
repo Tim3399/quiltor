@@ -1,16 +1,15 @@
 """The OS layer: the one place in the codebase that knows which operating
 system it is running on.
 
-There used to be a convention that desktop_platform.py was that one place. It
-did not hold -- by the time this package was written there were thirteen
-sys.platform / platform.system() branches scattered across six other modules
-(the LLM installer, both runtime launchers, the grammar service), each one a
-small correct decision made in the wrong file. With a Mac App Store and a
-Microsoft Store build coming, that was going to get worse rather than better.
+Nothing outside this package branches on the OS. Code that needs a per-OS
+answer asks here and gets one.
 
-So the rule is now checkable instead of aspirational: nothing outside this
-package branches on the OS, and tests/backend/test_system.py enforces it. Code
-that needs a per-OS answer asks here and gets one.
+The rule is checkable rather than aspirational: tests/backend/test_system.py
+parses every source file and fails on an OS branch anywhere else. A rule of
+this shape kept only by convention does not survive -- each individual branch
+elsewhere looks like a small correct decision, and they accumulate out of sight.
+With a Mac App Store and a Microsoft Store build in play, the cost of that
+drift is a build behaving differently from the one that was tested.
 
 Adding an OS means adding one module next to macos/windows/linux and one line
 below -- nothing else in the tree changes.

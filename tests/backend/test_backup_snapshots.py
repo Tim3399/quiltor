@@ -1,10 +1,5 @@
-"""Local version history (backend/backup/snapshots.py) and the upload protocol.
-
-Replaces tests/backend/test_git_backup.py: the cases it pinned are ported here so
-the behaviour the History dialog depends on is still covered, minus everything
-that only existed to satisfy `git` (a configured user.name/user.email, an
-initialised repository, a working tree to run `git status` against).
-"""
+"""Local version history (backend/core/backup/snapshots.py) and the upload
+protocol -- in particular the behaviour the History dialog depends on."""
 import json
 import sqlite3
 import tempfile
@@ -58,9 +53,9 @@ class SnapshotStoreTest(unittest.TestCase):
         self.assertEqual(history[0]["kurz"], history[0]["hash"][:8])
 
     def test_committing_twice_without_edits_is_recognised_as_unchanged(self):
-        """The Git implementation could not assert this -- it assumed sqlite's
-        backup() output was not byte-stable. It is, so an unchanged world really
-        does produce no second snapshot."""
+        """sqlite3's backup() output is byte-stable for an unchanged database,
+        which is what lets content addressing recognise "nothing happened" and
+        skip writing a second, identical snapshot."""
         ctx = self._world("world-a")
         self._write(ctx, "# Kapitel\n\nText.\n")
         self.store.commit(ctx, "Erster Stand", push=False)
@@ -91,9 +86,11 @@ class SnapshotStoreTest(unittest.TestCase):
         self.assertIn("Neuer", working["diff"])
 
     def test_diff_output_carries_the_headers_the_history_dialog_parses(self):
-        """src/features/tools/HistoryDialog.tsx keys off 'diff --git a/X b/Y' to
-        split segments, so the header shape is a contract, not an implementation
-        detail."""
+        """src/features/tools/HistoryDialog.tsx splits segments on the
+        'diff --git a/X b/Y' header, so its shape is a contract between the two
+        sides, not an implementation detail. The marker is the conventional
+        unified-diff one, which is also what makes an exported diff render
+        properly in an editor."""
         ctx = self._world("world-a")
         self._write(ctx, "alt\n")
         self.store.commit(ctx, "eins", push=False)

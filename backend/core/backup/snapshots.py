@@ -10,13 +10,12 @@ affordable: an untouched chapter is the same blob in all of them and is stored
 once. index.jsonl being append-only means a crash mid-write can only ever cost
 the newest entry, never corrupt the history behind it.
 
-Snapshot ids are the SHA-256 of the manifest, so they behave like Git's commit
-hashes for the History dialog (full id plus a short prefix) without any of Git
-being involved.
+A snapshot's id is the SHA-256 of its manifest, which makes it both a name and a
+checksum: two snapshots with the same id hold the same world. The History dialog
+shows a short prefix and keeps the full id for lookups.
 
-Format versioning: every entry carries "format" and "encryption". Encryption is
-"none" today; adding it later is a format bump handled at read time, not a
-migration of what is already on disk.
+Every entry carries "format" and "encryption". Encryption is "none" today, and
+adding it is a format bump handled at read time.
 """
 from __future__ import annotations
 
@@ -95,8 +94,8 @@ def _tokenize(text: str) -> list[str]:
 
 
 def _word_diff(old: str, new: str) -> list[str]:
-    """Git's --word-diff=plain output: one text with [-removed-] and {+added+}
-    inline. The History dialog parses exactly these markers (markWords() in
+    """One text with removals as [-this-] and additions as {+that+}, inline.
+    The History dialog parses exactly these markers (markWords() in
     src/features/tools/HistoryDialog.tsx), so the shape is a contract."""
     matcher = difflib.SequenceMatcher(None, _tokenize(old), _tokenize(new), autojunk=False)
     out: list[str] = []
@@ -204,9 +203,8 @@ class SnapshotStore:
 
     def _collect(self, ctx: BackupContext) -> dict[str, bytes]:
         """The world exactly as it stands right now: the database plus the
-        human-readable mirrors. This reads the live files directly -- the Git
-        implementation first copied everything into a working tree, which only
-        existed to give `git status` something to look at."""
+        human-readable mirrors, read straight from where they live. There is no
+        staging copy to keep in sync."""
         files: dict[str, bytes] = {}
         if ctx.database.exists():
             # sqlite3's backup API, not a file copy: the database may have

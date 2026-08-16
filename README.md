@@ -236,7 +236,7 @@ quiltor --version
 - Revisionsprüfungen verhindern, dass ein alter Browser-Tab neuere Änderungen überschreibt.
 - Jede Welt führt von Anfang an einen lokalen Versionsverlauf — auch ganz ohne Backup-Endpunkt. Snapshots sind inhaltsadressiert, unveränderte Kapitel werden also nur einmal gespeichert.
 - Ein hinterlegter Endpunkt schaltet zusätzlich das Hochladen frei; ohne ihn bleibt „Nur sichern“ verfügbar.
-- Der Verlauf braucht kein installiertes `git` und startet keine Unterprozesse.
+- Der Verlauf kommt mit der Standardbibliothek aus und startet keine Unterprozesse.
 - Weltinhalte, Modelle, Backups und Verlauf werden nicht öffentlich versioniert.
 
 ## Bedienung

@@ -10,10 +10,10 @@ operating system, the distribution channel, or the host.** It never imports
 (`llm/`, `language/`, `pdf/`), never imports `hosts/`, and never imports
 `server`. Dependencies point inward, and this is the innermost ring.
 
-That is checked, not merely stated -- see tests/backend/test_core.py. The same
-mistake has already been made once in this codebase, when a platform layer
-claimed in a docstring to be the only place branching on the OS and had thirteen
-branches elsewhere by the time anyone looked.
+That is checked, not merely stated: tests/backend/test_core.py reads every
+import in the package, function-level ones included, and names the reason each
+forbidden target is forbidden. A boundary described only in a docstring erodes
+one reasonable-looking import at a time.
 
 Note what is deliberately *not* here. `backend/assistant/` orchestrates the LLM
 capability and imports `backend.llm`, so it sits above core rather than inside

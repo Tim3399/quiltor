@@ -80,11 +80,11 @@ class DependencyDirectionTests(unittest.TestCase):
 class ScriptInvocationTests(unittest.TestCase):
     """Each host has to survive being run as a plain path.
 
-    Moving these under hosts/ broke exactly this: `python hosts/desktop/app.py`
-    puts hosts/desktop/ on sys.path rather than the repository root, so the
-    module-level `from backend.system import ...` failed with ModuleNotFoundError.
-    The console script, `python -m`, and the frozen build all resolved fine,
-    which is why nothing else noticed.
+    `python hosts/desktop/app.py` puts hosts/desktop/ on sys.path rather than
+    the repository root, so a module-level `from backend.system import ...`
+    fails with ModuleNotFoundError unless the module puts the root there first.
+    The console script, `python -m` and the frozen build all resolve it by
+    other means, so nothing else in the suite would catch a host that forgets.
     """
 
     def _runs_as_a_script(self, module: Path) -> None:

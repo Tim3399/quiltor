@@ -3,9 +3,9 @@
 Two jobs here. First, check that the Windows and Linux implementations are
 actually complete -- they are never imported on the Mac this is usually run on,
 so nothing else would notice a missing function until someone shipped a build.
-Second, enforce that no module outside backend/system/ branches on the OS,
-which is the convention the previous platform layer had on paper and lost in
-practice.
+Second, enforce that no module outside backend/system/ branches on the OS --
+a rule that only holds if something checks it, since each branch elsewhere
+looks like a small correct decision on its own.
 """
 import ast
 import builtins

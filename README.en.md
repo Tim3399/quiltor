@@ -235,7 +235,7 @@ quiltor --version
 - Revision checks prevent stale browser tabs from overwriting newer changes.
 - Every world keeps a local version history from the start — even with no backup endpoint at all. Snapshots are content-addressed, so an unchanged chapter is stored once.
 - A configured endpoint additionally unlocks uploading; without one, "Save only" is still available.
-- History needs no installed `git` and spawns no subprocesses.
+- History runs on the standard library alone and spawns no subprocesses.
 - World content, models, backups, and repositories are excluded from public version control.
 
 ## Keyboard controls

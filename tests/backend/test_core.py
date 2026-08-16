@@ -5,10 +5,10 @@ what Quiltor *is*. Which OS it runs on, which store it shipped through and which
 inference runtime is installed are all questions from further out, and core
 answering any of them is how a domain layer stops being one.
 
-Stated in backend/core/__init__.py, enforced here -- because this codebase has
-already lost that exact bet once, when a platform layer claimed in a docstring
-to be the only place branching on the OS and had thirteen branches elsewhere by
-the time anyone checked.
+Stated in backend/core/__init__.py, enforced here. A layering rule that lives
+only in prose is worth very little: every individual import that crosses it
+looks reasonable in isolation, and by the time the shape is obviously wrong the
+work to undo it is large.
 """
 import ast
 import unittest

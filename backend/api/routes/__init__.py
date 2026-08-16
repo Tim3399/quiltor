@@ -1,8 +1,8 @@
 """The route table.
 
 Each route is a function `(handler, request, app) -> None` that writes exactly
-one response. Registration is declarative, and two things that used to be
-scattered through a 400-line if-chain are now part of it:
+one response. Registration is declarative, so three properties that would
+otherwise sit far from the route they govern are stated with it:
 
   - **`world=True`** means the route needs a per-user world resolved before it
     runs. Under OIDC that resolution can fail with 400/403/404, and the dispatch

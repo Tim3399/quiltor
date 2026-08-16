@@ -67,10 +67,9 @@ Only `backend/system/` branches on the OS — everything else (`hosts/desktop/ap
   stripping. `__init__.py` picks one implementation at import time and
   re-exports it. Adding a third OS means adding one module and one line.
 
-  This replaced an earlier `desktop_platform.py` that claimed the same role in
-  a docstring but had lost it — thirteen OS branches had accumulated in six
-  other modules. `tests/backend/test_system.py` now enforces the rule by parsing
-  every source file, so it cannot quietly rot again.
+  `tests/backend/test_system.py` enforces this by parsing every source file and
+  failing on an OS branch anywhere else. Left to convention the rule does not
+  hold: each branch elsewhere looks like a small correct decision on its own.
 - **`hosts/desktop/app.py`** / **`hosts/desktop/tray.py`** — orchestration and the tray icon,
   both OS-agnostic; pywebview and pystray abstract the actual
   WebView2-vs-WKWebView and notification-area-vs-menu-bar differences
@@ -259,13 +258,10 @@ this from the data it already fetches — `grammar.supported` in
    into the container. Documented there so nobody "fixes" it later.
 5. **Sandbox entitlements** — written down in `packaging/entitlements-mas.plist`.
    Nothing consumes it yet.
-6. **Git is gone** — version history and cloud backup no longer shell out to
-   anything (`backend/backup/`). History is a local, content-addressed snapshot
-   store; backup is an HTTPS upload to a configurable endpoint, which the sandbox
-   permits under `network.client`. This also fixes a problem that was never
-   specific to the Store: `/usr/bin/git` on macOS is an Xcode Command Line Tools
-   shim that opens an installer dialog when the tools are absent, and plenty of
-   Windows and Linux machines have no git at all.
+6. **History and backup need no external tools** — `backend/core/backup/` shells
+   out to nothing. History is a local, content-addressed snapshot store; backup
+   is an HTTPS upload to a configurable endpoint, which the sandbox permits
+   under `network.client`.
 
 Covered by `tests/backend/test_edition.py`, `test_system.py`,
 `test_backup_snapshots.py`, and `test_backup_remote.py`.
@@ -286,10 +282,10 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
    WebKit's print path does not implement CSS `@page` margin boxes, so it
    produces no page numbers — measured, not assumed: a minimal three-page
    document containing nothing but `@bottom-center { content: counter(page) }`
-   prints without them. Nor is that a deployment-target question, despite what
-   an earlier draft of this document claimed: Safari 18.2 shipped margin boxes
-   for Safari's own rendering, not for the embedded `NSPrintOperation` path, and
-   the measurement is from macOS 26.5.2.
+   prints without them. Nor is it a deployment-target question: Safari 18.2
+   shipped margin boxes for Safari's own rendering, not for the embedded
+   `NSPrintOperation` path, and the measurement above is from macOS 26.5.2 —
+   so raising `LSMinimumSystemVersion` would buy nothing.
 
    `backend/pdf/page_numbers.py` draws them on afterwards. Its geometry comes
    from the same CSS and was checked against a Chromium-rendered book: same

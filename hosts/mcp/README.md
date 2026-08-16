@@ -1,6 +1,6 @@
 # Quiltor MCP server
 
-`quiltor_server.py` exposes local world knowledge and safe proposal tools over MCP stdio. It never writes to SQLite, Git, manuscript files, or backups. Mutation-shaped tools only return a proposal with `requiresConfirmation: true` and `applied: false`.
+`quiltor_server.py` exposes local world knowledge and safe proposal tools over MCP stdio. It never writes to SQLite, the snapshot history, manuscript files, or backups. Mutation-shaped tools only return a proposal with `requiresConfirmation: true` and `applied: false`.
 
 The repository-level `.mcp.json` starts the server for clients that support project MCP configuration. Other clients can launch it with:
 
