@@ -48,16 +48,18 @@ from backend.system import force_utf8_streams
 force_utf8_streams()
 
 from backend import auth
+from backend.api import routes as api_routes
 from backend.core import storage
-from backend.assistant import ASSISTANT_REPLY_LANGUAGES, DEFAULT_ASSISTANT_LANGUAGE, AssistantRuntime, read_progress
+from backend.assistant import AssistantRuntime
 from backend.core.backup import BackupContext, SnapshotStore
 from backend.core.backup import remote as backup_remote
-from backend.core.knowledge import build_knowledge
-from backend.llm.installer import ensure_installed, install_async, is_configured, read_install_state
-from backend.core.mirror import mirror_profiles, mirror_text, safe_name
-from backend.pdf import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, server_renderer
+from backend.core.mirror import mirror_profiles, mirror_text
 from backend.core.validation import valid_figures, valid_manuscript
 from backend.language import LanguageService
+from backend.llm.installer import ensure_installed
+# issue_render_token is unused here but reached as `app.issue_render_token` from
+# backend/api/routes/documents.py, which is how routes see the server module.
+from backend.pdf import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, server_renderer  # noqa: F401
 
 BASE = Path(__file__).resolve().parent
 PUBLIC = BASE / "dist"
@@ -253,6 +255,10 @@ ROUTES = {
 # hosts/ exists.
 RENDER_PDF = server_renderer(BASE / "scripts" / "render-book-pdf.mjs", BASE)
 
+# Populates api_routes.GET / api_routes.SAVE. At import time rather than on the
+# first request, so a broken route module fails at startup instead of as a 404.
+api_routes.load()
+
 
 class Handler(http.server.SimpleHTTPRequestHandler):
 
@@ -423,419 +429,72 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"ok": False, "fehler": str(exc)}, 404)
         return None
 
-    # ---------- Routes ----------
+    # ---------- Dispatch ----------
+    #
+    # The routes themselves live in backend/api/routes/, grouped by subject.
+    # What stays here is the order they depend on and must not lose: the
+    # local-mode guard first, then the session (including a render token
+    # redeeming into one), then the authentication gate, then -- only for routes
+    # that asked for it -- resolving the caller's world.
 
-    def do_GET(self):
+    def serve_client(self) -> None:
+        """Hand the request to SimpleHTTPRequestHandler, which serves the built
+        Vite client out of dist/. The fallback for anything not an API route."""
+        if self.path.split("?")[0] == "/":
+            self.path = "/index.html"
+        super().do_GET()
+
+    def _session_for(self, query: dict) -> "auth.SessionData | None":
+        if not AUTH_ENABLED:
+            return None
+        session = auth.get_session(self.get_cookie(SESSION_COOKIE))
+        if session is not None:
+            return session
+        token = (query.get("renderToken") or [""])[0]
+        if not token:
+            return None
+        sub = redeem_render_token(token)
+        if not sub:
+            return None
+        # Scoped to the render itself, not a normal 24h login: this cookie only
+        # exists so the headless render can act as the requesting user for the
+        # one page load it needs.
+        session_id = auth.create_session(sub, "", "", ttl=RENDER_TOKEN_TTL)
+        self._pending_cookies.append(
+            self.cookie_header(SESSION_COOKIE, session_id, max_age=RENDER_TOKEN_TTL))
+        return auth.get_session(session_id)
+
+    def _dispatch(self, table: dict, *, on_miss) -> None:
         self._pending_cookies = []
         if self.reject_foreign_request():
             return
-        route = self.path.split("?")[0]
+        path = self.path.split("?")[0]
         query = parse_qs(urlparse(self.path).query)
-        world_id = (query.get("world") or [""])[0]
+        registration = table.get(path)
+        if registration is not None and registration.auth_only and not AUTH_ENABLED:
+            registration = None  # the local build has no account system at all
 
-        if route == "/api/version":
-            return self.send_json({"ok": True, "version": VERSION})
-
-        session = auth.get_session(self.get_cookie(SESSION_COOKIE)) if AUTH_ENABLED else None
-        if AUTH_ENABLED and session is None:
-            token = (query.get("renderToken") or [""])[0]
-            if token:
-                sub = redeem_render_token(token)
-                if sub:
-                    # Scoped to the render itself, not a normal 24h login: this cookie
-                    # only exists so the headless render subprocess can act as the
-                    # requesting user for the one page load it needs.
-                    new_session_id = auth.create_session(sub, "", "", ttl=RENDER_TOKEN_TTL)
-                    session = auth.get_session(new_session_id)
-                    self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, new_session_id, max_age=RENDER_TOKEN_TTL))
-
-        if AUTH_ENABLED and route not in ("/login", "/auth/callback", "/api/whoami") and session is None:
-            if route.startswith("/api/"):
+        session = self._session_for(query)
+        if AUTH_ENABLED and session is None and not (registration and registration.anonymous):
+            if path.startswith("/api/"):
                 return self.send_json({"ok": False, "fehler": "not authenticated"}, 401)
             return self.send_redirect("/login")
 
-        if AUTH_ENABLED and route == "/login":
-            return self.handle_login()
-        if AUTH_ENABLED and route == "/auth/callback":
-            return self.handle_auth_callback()
-        if AUTH_ENABLED and route == "/api/whoami":
-            if session is None:
-                return self.send_json({"ok": False})
-            return self.send_json({"ok": True, "sub": session.sub, "email": session.email, "name": session.name})
+        if registration is None:
+            return on_miss()
 
-        if route == "/api/worlds":
-            with _lock:
-                worlds = storage.list_worlds(owner_sub=session.sub if AUTH_ENABLED else None)
-                return self.send_json({"ok": True, "worlds": worlds})
-
-        if route == "/api/language/status":
-            return self.send_json({"ok": True, **LANGUAGE.status()})
-
-        world_ctx = None
-        if AUTH_ENABLED and route in ("/api/backup", "/api/log", "/api/backups", "/api/assistant/status",
-                                       "/api/assistant/logs", "/api/diff", "/api/textfassung",
-                                       "/api/state", "/api/manuscript"):
-            world_ctx = self._resolve_world_or_respond(session, world_id)
-            if world_ctx is None:
+        request = api_routes.Request(path=path, query=query, session=session)
+        if registration.world and AUTH_ENABLED:
+            request.world = self._resolve_world_or_respond(session, (query.get("world") or [""])[0])
+            if request.world is None:
                 return
-        db_path = world_ctx.db_path if world_ctx else None
-        git_ctx = world_ctx.git if world_ctx else CURRENT_GIT
+        registration.handler(self, request, sys.modules[__name__])
 
-        if route == "/api/backup":
-            with _lock:
-                if git_ctx is None:
-                    return self.send_json({"ok": False, "grund": "No world is open."})
-                return self.send_json(WORLD_BACKUPS.status(git_ctx))
-
-        if route == "/api/backup/remote":
-            # Deliberately not world-scoped: this is what a fresh install calls
-            # before it has any world at all, to find out what can be restored.
-            endpoint = backup_remote.default_endpoint()
-            if not endpoint:
-                return self.send_json({"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
-            try:
-                return self.send_json({"ok": True, "endpoint": endpoint, "worlds": backup_remote.worlds(endpoint)})
-            except Exception as exc:
-                return self.send_json({"ok": False, "grund": str(exc)})
-
-        if route == "/api/log":
-            with _lock:
-                commits = WORLD_BACKUPS.history(git_ctx) if git_ctx else []
-                return self.send_json({"ok": True, "commits": commits})
-
-        if route == "/api/backups":
-            with _lock:
-                backups_dir = world_ctx.backups_dir if world_ctx else None
-                return self.send_json({"ok": True, "backups": storage.list_backups(backups_dir)})
-
-        if route == "/api/assistant/status":
-            with _lock:
-                manuscript, figures = storage.load_manuscript(db_path), storage.load_figures(db_path)
-            # Cheap no-op when already running -- picks up a runtime that finished
-            # installing since the process started (or since the last poll) without
-            # needing a full server restart.
-            ASSISTANT.reload()
-            return self.send_json({"ok": True, **ASSISTANT.status(), "installed": is_configured(), "chunks": len(build_knowledge(manuscript, figures))})
-
-        if route == "/api/assistant/logs":
-            with _lock:
-                return self.send_json({"ok": True, "interactions": storage.list_assistant_interactions(db_path=db_path)})
-
-        if route == "/api/assistant/progress":
-            progress_id = (query.get("id") or [""])[0]
-            # No _lock: this reads the in-memory progress registry (backend/assistant.py),
-            # not SQLite/manuscript state, so it's safe to poll while a batch run is in
-            # flight on another thread without contending with normal saves.
-            progress = read_progress(progress_id) if progress_id else None
-            return self.send_json({"ok": progress is not None, "progress": progress})
-
-        if route == "/api/assistant/install/status":
-            # No _lock: reads backend/llm/installer.py's own in-memory progress
-            # registry, not SQLite/manuscript state -- safe to poll mid-download.
-            return self.send_json({"ok": True, **read_install_state()})
-
-        if route == "/api/diff":
-            ref = (query.get("ref") or ["WORK"])[0]
-            nur_text = (query.get("alles") or ["0"])[0] != "1"
-            wortweise = (query.get("modus") or ["wort"])[0] == "wort"
-            with _lock:
-                if git_ctx is None:
-                    return self.send_json({"ok": False, "grund": "No world is open."})
-                return self.send_json(WORLD_BACKUPS.diff(git_ctx, ref, nur_text, wortweise))
-
-        if route == "/api/textfassung":
-            ref = (query.get("ref") or ["WORK"])[0]
-            titel = (query.get("titel") or [""])[0]
-            kap = (query.get("kapitel") or [""])[0]
-            if not kap.isdigit():
-                return self.send_json({"ok": False, "grund": "Kapitel fehlt."})
-            with _lock:
-                if git_ctx is None:
-                    return self.send_json({"ok": False, "grund": "No world is open."})
-                return self.send_json(WORLD_BACKUPS.chapter_version(git_ctx, ref, int(kap), safe_name(titel)))
-
-        if route in ROUTES:
-            with _lock:
-                kind = "figures" if route == "/api/state" else "manuscript"
-                data = storage.load_figures(db_path) if kind == "figures" else storage.load_manuscript(db_path)
-                revision = storage.revision(kind, db_path=db_path)
-                return self.send_json(data, headers={"ETag": f'"{revision}"'})
-        if route == "/":
-            self.path = "/index.html"
-        return super().do_GET()
+    def do_GET(self):
+        self._dispatch(api_routes.GET, on_miss=self.serve_client)
 
     def _save(self):
-        self._pending_cookies = []
-        if self.reject_foreign_request():
-            return
-        route = self.path.split("?")[0]
-        session = auth.get_session(self.get_cookie(SESSION_COOKIE)) if AUTH_ENABLED else None
-        if AUTH_ENABLED and route != "/logout" and session is None:
-            return self.send_json({"ok": False, "fehler": "not authenticated"}, 401)
-
-        if AUTH_ENABLED and route == "/logout":
-            return self.handle_logout()
-
-        if route in ("/api/worlds/open", "/api/worlds/create", "/api/worlds/delete"):
-            global CURRENT_GIT
-            try:
-                payload = self._read_json_body()
-                owner_sub = session.sub if AUTH_ENABLED else None
-                with _lock:
-                    if route.endswith("/delete"):
-                        try:
-                            storage.delete_world(str(payload.get("id", "")), owner_sub=owner_sub)
-                        except PermissionError as exc:
-                            return self.send_json({"ok": False, "fehler": str(exc)}, 403)
-                        return self.send_json({"ok": True})
-
-                    if route.endswith("/create"):
-                        world = storage.create_world(str(payload.get("title", "")), str(payload.get("backupUrl", "")), owner_sub=owner_sub)
-                        if not AUTH_ENABLED:
-                            world = storage.activate_world(world["id"])
-                    else:
-                        world_id = str(payload.get("id", ""))
-                        if AUTH_ENABLED:
-                            owner = storage.get_world_owner(world_id)
-                            if owner is None:
-                                return self.send_json({"ok": False, "fehler": "This world does not exist."}, 404)
-                            if owner != session.sub:
-                                return self.send_json({"ok": False, "fehler": "This world belongs to a different account."}, 403)
-                            world = next((w for w in storage.list_worlds(owner_sub=session.sub) if w["id"] == world_id), None)
-                            if world is None:
-                                return self.send_json({"ok": False, "fehler": "This world does not exist."}, 404)
-                        else:
-                            world = storage.activate_world(world_id)
-
-                    if not AUTH_ENABLED:
-                        # Every world gets a local backup history, even without a
-                        # configured endpoint -- history is always local first.
-                        CURRENT_GIT = WORLD_BACKUPS.context(world["id"], world.get("backupUrl", ""), storage.DB, MANUSCRIPT_DIR, PROFILE_DIR, title=world.get("title", ""))
-                return self.send_json({"ok": True, "world": world})
-            except Exception as exc:
-                return self.send_json({"ok": False, "fehler": str(exc)}, 400)
-
-        if route == "/api/book.pdf":
-            port = self.server.server_address[1]
-            try:
-                try:
-                    body_payload = self._read_json_body()
-                except Exception:
-                    body_payload = {}
-                if AUTH_ENABLED:
-                    ctx = self._resolve_world_or_respond(session, str(body_payload.get("worldId", "")))
-                    if ctx is None:
-                        return
-                    # The headless render subprocess can't do an interactive Keycloak
-                    # login, so it gets a short-lived token that redeems into a real
-                    # session cookie on its first request (see redeem_render_token).
-                    render_token = issue_render_token(session.sub)
-                    target_url = f"http://127.0.0.1:{port}/?world={ctx.id}&renderToken={render_token}"
-                else:
-                    target_url = f"http://127.0.0.1:{port}/?world={storage.ACTIVE_WORLD_ID}"
-                return self.send_pdf(RENDER_PDF(target_url))
-            except Exception as exc:
-                return self.send_json({"ok": False, "fehler": f"PDF konnte nicht erzeugt werden: {exc}"}, 500)
-
-        if route == "/api/language/install":
-            try:
-                return self.send_json(LANGUAGE.install())
-            except Exception as exc:
-                return self.send_json({"ok": False, "fehler": str(exc)}, 500)
-
-        if route == "/api/language/lookup":
-            try:
-                request = self._read_json_body()
-                return self.send_json(LANGUAGE.lookup(str(request.get("language", "")), str(request.get("mode", "")), str(request.get("query", ""))))
-            except FileNotFoundError as exc:
-                return self.send_json({"ok": False, "fehler": str(exc), "code": "not_installed"}, 409)
-            except ValueError as exc:
-                return self.send_json({"ok": False, "fehler": str(exc)}, 400)
-            except Exception as exc:
-                return self.send_json({"ok": False, "fehler": str(exc)}, 500)
-
-        if route == "/api/language/grammar/install":
-            try:
-                return self.send_json(LANGUAGE.install_grammar())
-            except Exception as exc:
-                return self.send_json({"ok": False, "fehler": str(exc)}, 500)
-
-        if route == "/api/language/check":
-            try:
-                request = self._read_json_body()
-                words = request.get("customWords", [])
-                if not isinstance(words, list): raise ValueError("invalid project dictionary")
-                return self.send_json(LANGUAGE.check(str(request.get("language", "")), str(request.get("text", "")), words[:5000]))
-            except PermissionError as exc:
-                return self.send_json({"ok": False, "fehler": str(exc), "code": "external_opt_in_required"}, 403)
-            except FileNotFoundError as exc:
-                return self.send_json({"ok": False, "fehler": str(exc), "code": "not_installed"}, 409)
-            except ValueError as exc:
-                return self.send_json({"ok": False, "fehler": str(exc)}, 400)
-            except Exception as exc:
-                return self.send_json({"ok": False, "fehler": str(exc)}, 503)
-
-        if route == "/api/backup/restore":
-            try:
-                wunsch = self._read_json_body()
-            except Exception:
-                wunsch = {}
-            world_id, snapshot_id = str(wunsch.get("worldId", "")), str(wunsch.get("snapshotId", ""))
-            if not storage.WORLD_ID_RE.fullmatch(world_id):
-                return self.send_json({"ok": False, "grund": "Invalid world id."}, 400)
-            endpoint = backup_remote.default_endpoint()
-            if not endpoint:
-                return self.send_json({"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
-            try:
-                with _lock:
-                    return self.send_json(restore_world_from_endpoint(session, world_id, snapshot_id, endpoint))
-            except Exception as exc:
-                return self.send_json({"ok": False, "grund": str(exc)}, 400)
-
-        if route == "/api/backup":
-            try:
-                wunsch = self._read_json_body()
-            except Exception:
-                wunsch = {}
-            nachricht = (wunsch.get("message") or "").strip()
-            pushen = bool(wunsch.get("push"))
-            if AUTH_ENABLED:
-                ctx = self._resolve_world_or_respond(session, str(wunsch.get("worldId", "")))
-                if ctx is None:
-                    return
-                git_ctx = ctx.git
-            with _lock:
-                # Read CURRENT_GIT inside the lock: /api/worlds/open|create can reassign
-                # it concurrently, and reading it earlier would race against that.
-                if not AUTH_ENABLED:
-                    git_ctx = CURRENT_GIT
-                if git_ctx is None:
-                    ergebnis = {"ok": False, "grund": "No world is open.", "log": []}
-                else:
-                    ergebnis = WORLD_BACKUPS.commit(git_ctx, nachricht, pushen)
-            for zeile in ergebnis.get("log", []):
-                print(f"  · {datetime.now():%H:%M:%S}  {zeile}")
-            if not ergebnis.get("ok"):
-                print(f"  ! git: {ergebnis.get('grund','')}".replace("\n", " "))
-            return self.send_json(ergebnis)
-
-        if route == "/api/backups/restore":
-            try:
-                request = self._read_json_body()
-                db_path = backups_dir = manuscripts_dir = profiles_dir = None
-                if AUTH_ENABLED:
-                    ctx = self._resolve_world_or_respond(session, str(request.get("worldId", "")))
-                    if ctx is None:
-                        return
-                    db_path, backups_dir = ctx.db_path, ctx.backups_dir
-                    manuscripts_dir, profiles_dir = ctx.manuscripts_dir, ctx.profiles_dir
-                with _lock:
-                    storage.restore_backup(str(request.get("name", "")), db_path=db_path, backups_dir=backups_dir)
-                    manuscript, figures = storage.load_manuscript(db_path), storage.load_figures(db_path)
-                    mirror_text(manuscript["chapters"], manuscript_dir=manuscripts_dir)
-                    mirror_profiles(figures, profile_dir=profiles_dir)
-                return self.send_json({"ok": True})
-            except Exception as exc:
-                return self.send_json({"ok": False, "fehler": str(exc)}, 400)
-
-        if route == "/api/assistant/install":
-            # No worldId/world_ctx: the local runtime is one shared process-wide
-            # resource, not scoped to a particular world. install_async() itself
-            # guards against a second concurrent install; `started=False` just
-            # means one was already running, not a failure -- the frontend polls
-            # /api/assistant/install/status either way.
-            started = install_async()
-            return self.send_json({"ok": True, "started": started})
-
-        if route == "/api/assistant/chat":
-            db_path = None
-            try:
-                request = self._read_json_body()
-                question = str(request.get("question", "")).strip()
-                history = request.get("history") if isinstance(request.get("history"), list) else []
-                chapter_ids = [str(item) for item in request.get("chapterIds") or [] if isinstance(item, str)][:50]
-                run_batches = bool(request.get("runBatches"))
-                progress_id = str(request.get("progressId") or "")[:64] or None
-                requested_language = str(request.get("language") or "")
-                language = requested_language if requested_language in ASSISTANT_REPLY_LANGUAGES else DEFAULT_ASSISTANT_LANGUAGE
-                if AUTH_ENABLED:
-                    ctx = self._resolve_world_or_respond(session, str(request.get("worldId", "")))
-                    if ctx is None:
-                        return
-                    db_path = ctx.db_path
-                if not question or len(question) > 4000:
-                    raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
-                with _lock:
-                    manuscript, figures = storage.load_manuscript(db_path), storage.load_figures(db_path)
-                result = ASSISTANT.complete(question, manuscript, figures, history[-40:], chapter_ids, run_batches, progress_id, language)
-                with _lock:
-                    interaction_id = storage.log_assistant_interaction(question, result, db_path=db_path)
-                print(f"  · {datetime.now():%H:%M:%S}  AI request {interaction_id} — {len(result.get('sources', []))} sources, {len(result.get('proposals', []))} proposals", flush=True)
-                return self.send_json({"ok": True, "interactionId": interaction_id, **result})
-            except Exception as exc:
-                if "question" in locals() and question:
-                    with _lock:
-                        interaction_id = storage.log_assistant_interaction(question, error=str(exc), db_path=db_path)
-                    print(f"  ! {datetime.now():%H:%M:%S}  AI request {interaction_id} failed — {exc}", flush=True)
-                message = str(exc)
-                error_type = ("context_too_large" if "Kontextfenster" in message else "runtime_unavailable" if "nicht erreichbar" in message or "nicht installiert" in message else "response_truncated" if "nicht rechtzeitig" in message else "validation_error" if "strukturiert" in message or "gültig" in message else "timeout" if "Zeit" in message or "timeout" in message.casefold() else "assistant_error")
-                return self.send_json({"ok": False, "fehler": message, "errorType": error_type}, 503)
-
-        if route not in ROUTES:
-            return self.send_error(404)
-        validate, after = ROUTES[route]
-
-        try:
-            payload = self._read_json_body()
-            # worldId is routing metadata, not document content — always strip it
-            # before validation/storage (regardless of AUTH_ENABLED: the frontend
-            # sends it once any world is open, auth or not) so it never persists
-            # into extra_json.
-            world_id_from_body = str(payload.pop("worldId", "")) if isinstance(payload, dict) else ""
-            if not validate(payload):
-                raise ValueError
-        except Exception:
-            return self.send_json({"ok": False, "fehler": "kein gültiger Zustand"}, 400)
-
-        world_ctx = None
-        if AUTH_ENABLED:
-            world_ctx = self._resolve_world_or_respond(session, world_id_from_body)
-            if world_ctx is None:
-                return
-        db_path = world_ctx.db_path if world_ctx else None
-        backups_dir = world_ctx.backups_dir if world_ctx else None
-        manuscripts_dir = world_ctx.manuscripts_dir if world_ctx else None
-        profiles_dir = world_ctx.profiles_dir if world_ctx else None
-
-        with _lock:
-            try:
-                storage.backup_if_due(db_path=db_path, backups_dir=backups_dir)
-                kind = "manuscript" if route == "/api/manuscript" else "figures"
-                match = self.headers.get("If-Match", "").strip('"')
-                expected = int(match) if match.isdigit() else None
-                updated_revision = storage.save_with_revision(kind, payload, expected, db_path=db_path)
-                if AUTH_ENABLED:
-                    if route == "/api/manuscript":
-                        mirror_text(payload["chapters"], manuscript_dir=manuscripts_dir)
-                    else:
-                        mirror_profiles(payload, profile_dir=profiles_dir)
-                elif after:
-                    after(payload)
-            except storage.ConflictError as exc:
-                return self.send_json({"ok": False, "fehler": str(exc), "code": "conflict"}, 409)
-            except Exception as exc:
-                print(f"  ! Speichern fehlgeschlagen: {exc}")
-                return self.send_json({"ok": False, "fehler": str(exc)}, 500)
-
-        now = datetime.now().strftime("%H:%M:%S")
-        if route == "/api/manuscript":
-            chs = payload["chapters"]
-            woerter = sum(len((c.get("body") or "").split()) for c in chs)
-            print(f"  · {now}  Text gespeichert — {len(chs)} Kapitel, {woerter} Wörter")
-        else:
-            print(f"  · {now}  Figuren gespeichert — "
-                  f"{len(payload['nodes'])} Figuren, {len(payload['edges'])} Verbindungen")
-        return self.send_json({"ok": True, "zeit": now, "revision": updated_revision}, headers={"ETag": f'"{updated_revision}"'})
+        self._dispatch(api_routes.SAVE, on_miss=lambda: self.send_error(404))
 
     do_PUT = _save
     do_POST = _save
