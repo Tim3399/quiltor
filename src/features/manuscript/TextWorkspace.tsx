@@ -42,6 +42,10 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const [focusHelpers, setFocusHelpers] = useState(false);
   const [focusChapters, setFocusChapters] = useState(false);
   const [selection, setSelection] = useState<(EditorTextSelection & { chapterId: string; revision: string }) | null>(null);
+  // Marking text and asking for the lookup actions are two different acts. The menu
+  // opens only for the second one -- right-click or Shift+F10 in the editor, the way
+  // macOS does it -- instead of springing up at every double-click.
+  const [selectionMenuOpen, setSelectionMenuOpen] = useState(false);
   const [writingSelection, setWritingSelection] = useState<(EditorTextSelection & { chapterId: string; revision: string }) | null>(null);
   const [selectionTool, setSelectionTool] = useState<'lookup' | 'synonyms' | 'translate' | null>(null);
   const [writingQuery, setWritingQuery] = useState('');
@@ -91,7 +95,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const total = useMemo(() => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0), [manuscript.chapters]);
   const vocabulary = useMemo(() => writingVocabulary(manuscript, figures), [manuscript.words, figures.nodes]);
   const ambiguousMentions = useMemo(() => current ? scanEntityMentions(current.body, figures.nodes, () => '').ambiguous.filter(candidate => !(current.mentions || []).some(mention => candidate.from < mention.to && candidate.to > mention.from)) : [], [current, figures.nodes]);
-  useEffect(() => { setSelection(null); setWritingSelection(null); setSelectionTool(null); setWritingQuery(''); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); }, [currentId]);
+  useEffect(() => { setSelection(null); setSelectionMenuOpen(false); setWritingSelection(null); setSelectionTool(null); setWritingQuery(''); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); }, [currentId]);
   useEffect(() => { void api.languageStatus().then(setLanguageStatus).catch(() => setLanguagePhase('error')); return () => lookupRequest.current?.abort(); }, []);
   useEffect(() => () => lookupRequest.current?.abort(), [writingSelection?.chapterId, writingSelection?.from, writingSelection?.to, writingSelection?.revision]);
 
@@ -136,14 +140,19 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', stop);
   };
   const lookupMode = (tool: 'lookup' | 'synonyms' | 'translate') => tool === 'lookup' ? 'dictionary' : tool === 'synonyms' ? 'synonyms' : 'translation';
+  const toolLabel = (tool: 'lookup' | 'synonyms' | 'translate') => tool === 'lookup' ? t('dictionary') : tool === 'synonyms' ? t('synonyms') : t('translate');
   const runLookup = (tool = selectionTool, query = writingQuery, language = writingLanguage) => {
     const value = query.trim(); if (!tool || !value || !languageStatus?.installed) return;
     lookupRequest.current?.abort(); const request = new AbortController(); lookupRequest.current = request; setLanguagePhase('loading'); setLanguageResults([]);
     void api.languageLookup(tool === 'translate' ? language : 'de-DE', lookupMode(tool), value, request.signal).then(result => { if (lookupRequest.current === request) { setLanguageResults(result.results); setLanguagePhase('idle'); } }).catch(error => { if (error instanceof DOMException && error.name === 'AbortError') return; setLanguagePhase('error'); });
   };
+  // The selection only counts while it still describes the chapter on screen: switching
+  // chapters or editing the text moves the offsets out from under it.
+  const liveSelection = selection && current && selection.chapterId === current.id && selection.revision === current.body ? selection : null;
   const openWritingTool = (tool: 'lookup' | 'synonyms' | 'translate') => {
-    if (!selection || !current || selection.chapterId !== current.id || selection.revision !== current.body) return;
-    const selectedText = selection;
+    if (!liveSelection) return;
+    const selectedText = liveSelection;
+    setSelectionMenuOpen(false);
     setWritingSelection(selectedText); setSelectionTool(tool); setWritingQuery(selectedText.text); setInspector('helpers'); setInspectorOpen(true);
     requestAnimationFrame(() => runLookup(tool, selectedText.text, writingLanguage));
   };
@@ -201,8 +210,15 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
         {languageStatus?.grammar?.available && grammarPhase === 'idle' && <p className="muted" role="status">{grammarIssues.length ? t('grammarIssueCount').replace('{count}', String(grammarIssues.length)) : t('grammarReady')}</p>}
         {selectedIssue && <article className="grammar-issue-card"><strong>{selectedIssue.category || t('grammar')}</strong><p>{selectedIssue.message}</p><div className="writing-values">{selectedIssue.replacements.map(value => <button key={value} onClick={() => applyIssue(selectedIssue, value)}>{value}</button>)}</div><button onClick={() => setSelectedIssue(null)}>{t('close')}</button></article>}
       </section>}
-      {selectionTool && writingQuery && <section className="writing-selection-state"><span>{selectionTool === 'lookup' ? t('dictionary') : selectionTool === 'synonyms' ? t('synonyms') : t('translate')}</span><strong>{writingQuery}</strong></section>}
-      <div className="writing-tool-tabs" role="tablist">{(['lookup', 'synonyms', 'translate'] as const).map(tool => <button key={tool} role="tab" aria-selected={selectionTool === tool} onClick={() => { setSelectionTool(tool); setLanguageResults([]); }}>{tool === 'lookup' ? t('dictionary') : tool === 'synonyms' ? t('synonyms') : t('translate')}</button>)}</div>
+      {/* What is marked, and the deliberate way to look it up. The panel used to be the
+          only place the marked text appeared, and only after the menu had already opened
+          itself; now the marking is visible first and the lookup is a decision. */}
+      {liveSelection ? <section className="writing-selection-state">
+        <span>{t('selectionLabel')}</span><strong>{liveSelection.text}</strong>
+        <div className="writing-values">{(['lookup', 'synonyms', 'translate'] as const).map(tool => <button key={tool} onClick={() => openWritingTool(tool)}>{toolLabel(tool)}</button>)}</div>
+        <p>{t('selectionMenuHint')}</p>
+      </section> : selectionTool && writingQuery ? <section className="writing-selection-state"><span>{toolLabel(selectionTool)}</span><strong>{writingQuery}</strong></section> : null}
+      <div className="writing-tool-tabs" role="tablist">{(['lookup', 'synonyms', 'translate'] as const).map(tool => <button key={tool} role="tab" aria-selected={selectionTool === tool} onClick={() => { setSelectionTool(tool); setLanguageResults([]); }}>{toolLabel(tool)}</button>)}</div>
       {selectionTool && <section className="writing-reference-tool">
         {selectionTool === 'translate' && <div className="ui-segmented" role="radiogroup" aria-label={t('translationDirection')}><button role="radio" aria-checked={writingLanguage === 'de-DE'} onClick={() => { setWritingLanguage('de-DE'); setLanguageResults([]); }}>{t('germanToEnglish')}</button><button role="radio" aria-checked={writingLanguage === 'en-GB'} onClick={() => { setWritingLanguage('en-GB'); setLanguageResults([]); }}>{t('englishToGerman')}</button></div>}
         <form className="writing-search" onSubmit={event => { event.preventDefault(); runLookup(); }}><input aria-label={t('searchTerm')} value={writingQuery} onChange={event => setWritingQuery(event.target.value)} placeholder={t('writingSearchPlaceholder')} /><button className="primary" disabled={!writingQuery.trim() || languagePhase === 'loading'}>{languagePhase === 'loading' ? t('writingSearching') : t('lookup')}</button></form>
@@ -231,7 +247,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label={t('chapterTitle')} value={current.title} onChange={event => update({ title: event.target.value })} placeholder={t('chapterTitle')} />
-          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} issues={grammarIssues} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => { if (body !== current.body) { setWritingSelection(null); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); } update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) }); }} onSelection={next => setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null)} onIssue={setSelectedIssue} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
+          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} issues={grammarIssues} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => { if (body !== current.body) { setWritingSelection(null); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); } update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) }); }} held={writingSelection && writingSelection.chapterId === current.id && writingSelection.revision === current.body ? { from: writingSelection.from, to: writingSelection.to } : liveSelection ? { from: liveSelection.from, to: liveSelection.to } : null} onSelection={next => { setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null); if (!next) setSelectionMenuOpen(false); }} onSelectionMenu={next => { setSelection({ ...next, chapterId: current.id, revision: current.body }); setSelectionMenuOpen(true); }} onIssue={setSelectedIssue} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
           {historyOpen && <aside className="chapter-history" aria-label={t('versions')}><header><div><strong>{t('previousVersion')}</strong><span>{t('nextToCurrent')}</span></div><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label={t('closeVersions')}><X /></button></header>
             {commits.length ? <label className="field"><span>{t('state')}</span><select value={historyRef} onChange={event => setHistoryRef(event.target.value)}>{commits.map(commit => <option key={commit.hash} value={commit.hash}>{commit.datum} · {commit.betreff}</option>)}</select></label> : historyState !== 'loading' && <p className="muted">{t('noVersion')}</p>}
             {historyState === 'loading' ? <p className="muted">{t('loadingVersion')}</p> : historyState === 'error' ? <div className="error-box">{t('versionLoadError')}</div> : commits.length > 0 && <div className="historical-prose">{historicalText || <em>{t('chapterNotYetExisting')}</em>}</div>}
@@ -241,7 +257,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       {!focus && viewportMode !== 'compact' && inspectorOpen && inspectorPanel && <aside className="inspector drawer-open" aria-label={t('chapterInspectorLabel')} style={{ width: inspectorWidth }}>{onInspectorWidth && <div className="panel-resize-handle panel-resize-handle--start" role="separator" aria-orientation="vertical" aria-label={t('resizeInspector')} aria-valuemin={240} aria-valuemax={380} aria-valuenow={inspectorWidth} tabIndex={0} onPointerDown={event => beginResize('inspector', event)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') onInspectorWidth(inspectorWidth + (event.key === 'ArrowLeft' ? 10 : -10)); }} />}{inspectorPanel}</aside>}
     </div>
     <button ref={selectionAnchor} className="selection-anchor" tabIndex={-1} aria-hidden="true" style={selection ? { left: selection.rect.left, top: selection.rect.top, width: selection.rect.width, height: selection.rect.height } : undefined} onFocus={() => editor.current?.focus()} />
-    <SelectionMenu anchorRef={selectionAnchor} open={!!selection} label={t('writingSelectionActions')} onClose={() => setSelection(null)} actions={[{ id: 'lookup', label: t('lookup'), run: () => openWritingTool('lookup') }, { id: 'synonyms', label: t('synonyms'), run: () => openWritingTool('synonyms') }, { id: 'translate', label: t('translate'), run: () => openWritingTool('translate') }, { id: 'more', label: t('writingMore'), run: () => openWritingTool(selectionTool || 'lookup') }]} />
+    <SelectionMenu anchorRef={selectionAnchor} open={selectionMenuOpen && !!liveSelection} label={t('writingSelectionActions')} onClose={() => setSelectionMenuOpen(false)} actions={[{ id: 'lookup', label: t('lookup'), run: () => openWritingTool('lookup') }, { id: 'synonyms', label: t('synonyms'), run: () => openWritingTool('synonyms') }, { id: 'translate', label: t('translate'), run: () => openWritingTool('translate') }, { id: 'more', label: t('writingMore'), run: () => openWritingTool(selectionTool || 'lookup') }]} />
     {!focus && viewportMode === 'compact' && <Sheet open={binderOpen} label={t('chapters')} onClose={() => setBinderOpen(false)}><div className="binder compact-panel">{binderPanel}</div></Sheet>}
     {!focus && viewportMode === 'compact' && inspectorPanel && <Sheet open={inspectorOpen} label={t('chapterInspectorLabel')} onClose={() => setInspectorOpen(false)}><div className="inspector compact-panel">{inspectorPanel}</div></Sheet>}
     {focus && manuscript.chapters.length > 1 && <aside className={`focus-chapters ${focusChapters ? 'is-open' : ''}`} aria-label={t('focusChapterPickerLabel')}>

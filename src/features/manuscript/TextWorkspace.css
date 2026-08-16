@@ -157,6 +157,9 @@
 .prose-editor .cm-placeholder { color: var(--muted); }
 .prose-editor .cm-selectionBackground,
 .prose-editor .cm-content ::selection { background: var(--selection-surface); }
+/* A browser stops painting ::selection the moment the editor loses focus, so reaching for
+   the writing aid used to make the marked passage look unmarked. This keeps it there. */
+.prose-editor .held-selection { background: var(--selection-surface); }
 .prose-editor .entity-mention {
   border-bottom: 1px solid var(--gold);
   background: var(--selection-surface);

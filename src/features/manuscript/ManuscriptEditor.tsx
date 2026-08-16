@@ -10,6 +10,10 @@ const controlledUpdate = Annotation.define<boolean>();
 const createdMention = Annotation.define<EntityMention>();
 const setMentionDecorations = StateEffect.define<EntityMention[]>();
 const setIssueDecorations = StateEffect.define<WritingIssue[]>();
+// A browser paints ::selection only while the element has focus, so the moment the
+// writer reaches into the inspector the marked passage looks unmarked. This keeps the
+// range the writing aid is working on visible for as long as it is held.
+const setHeldSelection = StateEffect.define<{ from: number; to: number } | null>();
 const mentionDecorations = StateField.define({
   create: () => Decoration.none,
   update(value, transaction) {
@@ -24,6 +28,20 @@ const issueDecorations = StateField.define({
   update(value, transaction) {
     value = value.map(transaction.changes);
     for (const effect of transaction.effects) if (effect.is(setIssueDecorations)) value = Decoration.set(effect.value.map(issue => Decoration.mark({ class: 'writing-issue', attributes: { 'data-writing-issue': issue.id } }).range(issue.from, issue.to)), true);
+    return value;
+  },
+  provide: field => EditorView.decorations.from(field),
+});
+const heldSelectionDecoration = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    value = value.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (!effect.is(setHeldSelection)) continue;
+      value = effect.value && effect.value.to > effect.value.from
+        ? Decoration.set([Decoration.mark({ class: 'held-selection' }).range(effect.value.from, effect.value.to)])
+        : Decoration.none;
+    }
     return value;
   },
   provide: field => EditorView.decorations.from(field),
@@ -56,7 +74,7 @@ export type ManuscriptEditorHandle = {
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
 };
 
-export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentions = [], issues = [], entities = [], editorRef, onChange, onSelection, onIssue, onOpenEntity, describeEntity = entity => entity.sub || entity.label || '' }: {
+export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentions = [], issues = [], entities = [], held = null, editorRef, onChange, onSelection, onSelectionMenu, onIssue, onOpenEntity, describeEntity = entity => entity.sub || entity.label || '' }: {
   value: string;
   label: string;
   placeholder: string;
@@ -64,27 +82,38 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
   mentions?: EntityMention[];
   issues?: WritingIssue[];
   entities?: FigureNode[];
+  /** The passage the writing aid is holding, kept visible while focus is elsewhere. */
+  held?: { from: number; to: number } | null;
   editorRef: React.MutableRefObject<ManuscriptEditorHandle | null>;
   onChange: (value: string, mentions: EntityMention[]) => void;
+  /** Every change of the marked range. Reports what is selected -- nothing more. */
   onSelection: (selection: EditorTextSelection | null) => void;
+  /** Only when the writer asks for the actions: right-click, or Shift+F10. */
+  onSelectionMenu?: (selection: EditorTextSelection) => void;
   onIssue?: (issue: WritingIssue) => void;
   onOpenEntity?: (entity: FigureNode) => void;
   describeEntity?: (entity: FigureNode) => string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
-  const changeRef = useRef(onChange), selectionRef = useRef(onSelection), issueRef = useRef(onIssue), openEntityRef = useRef(onOpenEntity), describeEntityRef = useRef(describeEntity), vocabularyRef = useRef(vocabulary), mentionsRef = useRef(mentions || []), issuesRef = useRef(issues), entitiesRef = useRef(entities || []);
+  const changeRef = useRef(onChange), selectionRef = useRef(onSelection), selectionMenuRef = useRef(onSelectionMenu), issueRef = useRef(onIssue), openEntityRef = useRef(onOpenEntity), describeEntityRef = useRef(describeEntity), vocabularyRef = useRef(vocabulary), mentionsRef = useRef(mentions || []), issuesRef = useRef(issues), entitiesRef = useRef(entities || []);
   const [completion, setCompletion] = useState<CompletionPreview | null>(null);
-  changeRef.current = onChange; selectionRef.current = onSelection; issueRef.current = onIssue; openEntityRef.current = onOpenEntity; describeEntityRef.current = describeEntity; vocabularyRef.current = vocabulary; mentionsRef.current = mentions || []; issuesRef.current = issues; entitiesRef.current = entities || [];
+  changeRef.current = onChange; selectionRef.current = onSelection; selectionMenuRef.current = onSelectionMenu; issueRef.current = onIssue; openEntityRef.current = onOpenEntity; describeEntityRef.current = describeEntity; vocabularyRef.current = vocabulary; mentionsRef.current = mentions || []; issuesRef.current = issues; entitiesRef.current = entities || [];
 
   useLayoutEffect(() => {
     if (!host.current) return;
-    const reportSelection = (instance: EditorView) => {
+    // `asked` separates the two things a selection can mean. Marking text only ever
+    // reports what is marked; the actions menu belongs to the writer's explicit
+    // request for it (right-click, Shift+F10) -- macOS behaviour, and the reason the
+    // panel no longer springs up on an ordinary double-click.
+    const reportSelection = (instance: EditorView, asked = false) => {
       const range = instance.state.selection.main;
       if (range.empty) { selectionRef.current(null); return; }
       const start = instance.coordsAtPos(range.from), end = instance.coordsAtPos(range.to);
       if (!start || !end) { selectionRef.current(null); return; }
-      selectionRef.current({ from: range.from, to: range.to, text: instance.state.sliceDoc(range.from, range.to), rect: { left: Math.min(start.left, end.left), top: Math.min(start.top, end.top), width: Math.max(1, Math.abs(end.right - start.left)), height: Math.max(start.bottom, end.bottom) - Math.min(start.top, end.top) } });
+      const selection = { from: range.from, to: range.to, text: instance.state.sliceDoc(range.from, range.to), rect: { left: Math.min(start.left, end.left), top: Math.min(start.top, end.top), width: Math.max(1, Math.abs(end.right - start.left)), height: Math.max(start.bottom, end.bottom) - Math.min(start.top, end.top) } };
+      selectionRef.current(selection);
+      if (asked) selectionMenuRef.current?.(selection);
     };
     const instance = new EditorView({
       parent: host.current,
@@ -94,6 +123,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
         placeholderExtension(placeholder),
         mentionDecorations,
         issueDecorations,
+        heldSelectionDecoration,
         hoverTooltip((_current, position) => {
           const mention = mentionsRef.current.find(item => position >= item.from && position <= item.to);
           const entity = mention && entitiesRef.current.find(item => item.id === mention.elementId);
@@ -130,7 +160,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
               const word = position === null ? null : current.state.wordAt(position);
               if (word) current.dispatch({ selection: EditorSelection.range(word.from, word.to) });
             }
-            requestAnimationFrame(() => reportSelection(current));
+            requestAnimationFrame(() => reportSelection(current, true));
             return false;
           },
           keydown: (event, current) => {
@@ -138,7 +168,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
             event.preventDefault();
             const range = current.state.selection.main, word = range.empty ? current.state.wordAt(range.head) : null;
             if (word) current.dispatch({ selection: EditorSelection.range(word.from, word.to) });
-            requestAnimationFrame(() => reportSelection(current));
+            requestAnimationFrame(() => reportSelection(current, true));
             requestAnimationFrame(() => requestAnimationFrame(() => [...document.querySelectorAll<HTMLElement>('.ui-popover [role="menuitem"], .ui-sheet [role="menuitem"]')].at(-1)?.focus()));
             return true;
           },
@@ -198,6 +228,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
 
   useEffect(() => { view.current?.dispatch({ effects: setMentionDecorations.of(mentions) }); }, [mentions]);
   useEffect(() => { view.current?.dispatch({ effects: setIssueDecorations.of(issues) }); }, [issues]);
+  useEffect(() => { view.current?.dispatch({ effects: setHeldSelection.of(held) }); }, [held?.from, held?.to]);
 
   return <div className="prose-editor" ref={host}>{completion && <div className="word-completion" role="status" aria-live="polite"><kbd>Tab</kbd><span>{completion.word}{completion.detail && <small>{completion.detail}</small>}</span></div>}</div>;
 }

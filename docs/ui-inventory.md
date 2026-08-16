@@ -40,6 +40,10 @@
   undo shortcut and confirms with one click. Only deleting a world and restoring a backup — neither of
   which any undo, backup or snapshot survives — keep the press-and-hold control, now at 1.5 seconds
   (`IRREVERSIBLE_HOLD_MS`).
+- Marking text in the manuscript never opens anything by itself. The marked passage stays visible
+  (`.held-selection`, painted even once focus moves into the inspector) and is named in the writing
+  aid; dictionary, synonyms and translation are asked for deliberately — right-click or `Shift+F10`
+  in the editor, or the buttons on that selection card. Matches macOS, where a lookup is a request.
 - Overlays mark their intended first focus with `data-autofocus`; React never renders its own
   `autoFocus` prop as an attribute, so `useOverlayFocus` cannot see it.
 - Shortcut labels follow the operating system, detected once in `src/shared/ui/shortcuts.ts`

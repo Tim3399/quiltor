@@ -1,6 +1,10 @@
 export const writing = {
   writingLanguageGerman: 'German (Germany)',
   writingSelectionActions: 'Text selection actions',
+  // The writing aid now shows what is marked first; looking it up is a separate step and
+  // no longer opens by itself on a click.
+  selectionLabel: 'Selection',
+  selectionMenuHint: 'Right-click in the text for the same actions.',
   dictionary: 'Dictionary',
   lookup: 'Look up',
   synonyms: 'Synonyms',

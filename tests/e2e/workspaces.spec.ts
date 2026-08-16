@@ -55,7 +55,12 @@ test('CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil', a
   await expect(page.locator('.cm-placeholder')).toBeVisible();
   await editor.fill('Der Morgen lag still über dem Hafen.');
   await page.locator('.cm-line').selectText();
+  // Markieren allein öffnet nichts mehr -- die Nachschlage-Aktionen sind eine eigene
+  // Anfrage, so wie unter macOS. Sichtbar ist die Markierung trotzdem.
   const selectionMenu = page.getByRole('dialog', { name: 'Aktionen für die Textauswahl' });
+  await expect(selectionMenu).toBeHidden();
+  await expect(page.locator('.held-selection')).toContainText('Der Morgen lag still über dem Hafen.');
+  await page.locator('.cm-line').click({ button: 'right' });
   await expect(selectionMenu).toBeVisible();
   await selectionMenu.getByRole('menuitem', { name: 'Nachschlagen' }).click();
   await expect(page.locator('.writing-selection-state')).toContainText('Der Morgen lag still über dem Hafen.');

@@ -1,6 +1,10 @@
 export const writing = {
   writingLanguageGerman: 'Deutsch (Deutschland)',
   writingSelectionActions: 'Aktionen für die Textauswahl',
+  // Die Schreibhilfe zeigt jetzt zuerst, was markiert ist; das Nachschlagen ist ein
+  // eigener Schritt und öffnet sich nicht mehr von selbst beim Anklicken.
+  selectionLabel: 'Markierung',
+  selectionMenuHint: 'Rechtsklick im Text öffnet dieselben Aktionen.',
   dictionary: 'Wörterbuch',
   lookup: 'Nachschlagen',
   synonyms: 'Synonyme',
