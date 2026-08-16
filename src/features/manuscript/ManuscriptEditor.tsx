@@ -161,7 +161,13 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
               if (word) current.dispatch({ selection: EditorSelection.range(word.from, word.to) });
             }
             requestAnimationFrame(() => reportSelection(current, true));
-            return false;
+            // Without this the browser adds its own menu on top of the one we just
+            // opened -- on macOS a WebKit panel offering "Automatisch ausfüllen" and
+            // "Dienste", covering ours. Returning false alone is not enough: CodeMirror
+            // reads it as "not handled" and lets the event through. Same shape as the
+            // Shift+F10 branch below, which has always got this right.
+            event.preventDefault();
+            return true;
           },
           keydown: (event, current) => {
             if (!(event.shiftKey && event.key === 'F10')) return false;

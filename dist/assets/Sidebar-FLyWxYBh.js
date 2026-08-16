@@ -1,0 +1,1 @@
+import{w as e}from"./index-C5-I1R2s.js";var t=e();function n(e){return(0,t.jsx)(`aside`,{...e,className:`ui-inspector ${e.className||``}`.trim()})}export{n as t};
