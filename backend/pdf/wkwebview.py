@@ -32,30 +32,30 @@ the German aria-label that the Chromium path waits on (`system_browser.py`):
 that only works because a fresh browser profile defaults the UI to German, and
 it would become a 90 s timeout the day that default changes.
 
-Known gap: no page numbers
---------------------------
+Page numbers are added afterwards
+--------------------------------
 `src/styles.css` numbers the book with CSS Paged Media --
 `@bottom-center { content: counter(page) }`. **WebKit's print path does not
-implement `@page` margin boxes**, so those numbers are missing from the output.
+implement `@page` margin boxes**, so nothing WebKit produces carries them.
 Measured, not assumed: a minimal three-page document with nothing but that rule
 prints without them, and the real book renders 24 pages with zero numbers where
 Chromium renders 22 with 21.
 
-This is not a deployment-target question. Safari 18.2 did ship `@page` margin
+Nor is it a deployment-target question. Safari 18.2 did ship `@page` margin
 boxes, but that covers Safari's own rendering, not the embedded
-`NSPrintOperation` path -- the measurement above is from macOS 26.5.2, far
-beyond that. Raising `LSMinimumSystemVersion` would buy nothing.
+`NSPrintOperation` path -- the measurements above are from macOS 26.5.2, far
+beyond that.
 
-The way out is to stamp the numbers onto the finished PDF with PDFKit, matching
-what the CSS asks for (bottom centre, ~7 pt, muted, suppressed on the title
-page). Until that exists, a Store build's book PDF is correct in size, content
-and pagination, but unnumbered.
+So `page_numbers.stamp()` draws them on afterwards, positioned from the same CSS
+and checked against Chromium's real output. See that module.
 """
 from __future__ import annotations
 
 import queue
 import tempfile
 from pathlib import Path
+
+from backend.pdf import page_numbers
 
 PAPER_WIDTH_POINTS = 6 * 72
 PAPER_HEIGHT_POINTS = 9 * 72
@@ -104,7 +104,7 @@ def render(url: str, timeout: int = 90) -> bytes:
     Path(payload).unlink(missing_ok=True)
     if not data:
         raise RuntimeError("Der PDF-Export hat eine leere Datei erzeugt.")
-    return data
+    return page_numbers.stamp(data)
 
 
 def _start(url: str, results: queue.Queue) -> None:

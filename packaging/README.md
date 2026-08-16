@@ -278,27 +278,24 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
    `datas` line: `bundled_runtime_dir()` reads `sys._MEIPASS` (PyInstaller 6 puts
    that at `Contents/Frameworks`), while Apple wants nested executables under
    `Contents/MacOS` or `Contents/Library`.
-2. **Page numbers in the Store build's book PDF.** The WKWebView renderer itself
-   is *done* — `backend/pdf/wkwebview.py`, verified on device: correct 6 × 9 inch
-   pages, all chapters, and it works when called from an HTTP handler thread
-   while pywebview owns the main run loop.
+2. **The Store build's book PDF** — *done*. `backend/pdf/wkwebview.py` renders
+   through WKWebView's print operation, verified on device: correct 6 × 9 inch
+   pages, all chapters, called from an HTTP handler thread while pywebview owns
+   the main run loop.
 
-   What it does not produce is page numbers. `src/styles.css` numbers the book
-   with CSS Paged Media (`@bottom-center { content: counter(page) }`), and
-   **WebKit's print path does not implement `@page` margin boxes**. Measured, not
-   assumed: a minimal three-page document containing nothing but that rule
-   prints without them, and the real book comes out as 24 pages with zero
-   numbers where Chromium gives 22 pages with 21.
+   WebKit's print path does not implement CSS `@page` margin boxes, so it
+   produces no page numbers — measured, not assumed: a minimal three-page
+   document containing nothing but `@bottom-center { content: counter(page) }`
+   prints without them. Nor is that a deployment-target question, despite what
+   an earlier draft of this document claimed: Safari 18.2 shipped margin boxes
+   for Safari's own rendering, not for the embedded `NSPrintOperation` path, and
+   the measurement is from macOS 26.5.2.
 
-   This is *not* a deployment-target question, despite what an earlier draft of
-   this document said. Safari 18.2 did ship `@page` margin boxes, but that is
-   Safari's own rendering, not the embedded `NSPrintOperation` path — the
-   measurement above is from macOS 26.5.2, far beyond that. Raising
-   `LSMinimumSystemVersion` would buy nothing.
-
-   The way out is to stamp the numbers onto the finished PDF with PDFKit
-   (already present via pywebview's pyobjc dependencies), matching what the CSS
-   asks for: bottom centre, ~7 pt, muted, suppressed on the title page.
+   `backend/pdf/page_numbers.py` draws them on afterwards. Its geometry comes
+   from the same CSS and was checked against a Chromium-rendered book: same
+   position to a tenth of a point, including the detail that the number is
+   centred on the *text block* rather than the page, so it alternates by 7.2 pt
+   between recto and verso because the margins mirror for binding.
 3. **`reveal_in_file_manager()` on macOS** — *done*, `backend/system/macos.py`
    now uses `NSWorkspace`'s `activateFileViewerSelectingURLs:` and keeps the
    `/usr/bin/open` subprocess only as a fallback for checkouts without pyobjc.
