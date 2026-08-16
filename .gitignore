@@ -47,6 +47,7 @@ Thumbs.db
 
 # Local AI working notes/plans/memory — not part of the shipped project.
 /ai/
+/.claude/worktrees
 
 # Platform runtimes and model weights are attached to release packages, not Git.
 runtime/*
