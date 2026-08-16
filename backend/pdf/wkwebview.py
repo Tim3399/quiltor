@@ -26,6 +26,11 @@ than from documentation, because almost every step has a trap:
     IIFE. (`callAsyncJavaScript` is the opposite -- it takes a function body.)
   - Methods on an `NSObject` subclass become Objective-C selectors unless
     marked `@objc.python_method`.
+  - **An Objective-C class can only be defined once per process.** Running the
+    `class RenderDelegate(AppKit.NSObject)` statement a second time raises
+    `error('RenderDelegate is overriding existing Objective-C class')`, so the
+    two factories below are cached: without that, the first book PDF of a
+    session works and every one after it fails until the app is restarted.
 
 Readiness is a DOM check for the print root having content, deliberately *not*
 the German aria-label that the Chromium path waits on (`system_browser.py`):
@@ -53,6 +58,7 @@ from __future__ import annotations
 
 import queue
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 
 from backend.pdf import page_numbers
@@ -132,8 +138,11 @@ def _start(url: str, results: queue.Queue) -> None:
         results.put(("error", repr(exc)))
 
 
+@lru_cache(maxsize=1)
 def _navigation_delegate():
-    """Built lazily so importing this module never requires pyobjc."""
+    """Built lazily so importing this module never requires pyobjc -- and exactly
+    once, because the second `class RenderDelegate(...)` in a process is an
+    error, not a redefinition."""
     import AppKit
     import Foundation
     import objc
@@ -203,7 +212,10 @@ def _navigation_delegate():
     return RenderDelegate
 
 
+@lru_cache(maxsize=1)
 def _print_sink():
+    """Cached for the same reason as _navigation_delegate(): one PrintSink class
+    per process, or the second export of a session raises."""
     import AppKit
     import objc
 

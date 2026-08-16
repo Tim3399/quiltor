@@ -84,6 +84,23 @@ class DesktopRendererSelectionTests(unittest.TestCase):
         rescales every page."""
         self.assertEqual((wkwebview.PAPER_WIDTH_POINTS, wkwebview.PAPER_HEIGHT_POINTS), (432, 648))
 
+    def test_the_objective_c_classes_are_built_once_per_process(self):
+        """An Objective-C class name can be registered only once. Rebuilding the
+        delegates per render raised
+
+            error('RenderDelegate is overriding existing Objective-C class')
+
+        which made the first book PDF of a session work and every later one fail
+        until the app was restarted -- observed in the running desktop app, not
+        deduced. Runs anywhere: the factories are only *called* where pyobjc is
+        installed, but the caching is what this checks.
+        """
+        if importlib.util.find_spec("AppKit") is None:
+            self.skipTest("the factories need pyobjc to build anything at all")
+        for factory in (wkwebview._navigation_delegate, wkwebview._print_sink):
+            with self.subTest(factory=factory.__name__):
+                self.assertIs(factory(), factory())
+
     def test_the_readiness_check_is_an_expression_and_locale_independent(self):
         """evaluateJavaScript evaluates an expression, so the check has to be an
         IIFE. And it must not wait on the German aria-label the Chromium path

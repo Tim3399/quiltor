@@ -354,12 +354,15 @@ that way.
 3. Export a PDF; on Windows and Linux confirm it opens Chrome/Edge headlessly,
    on macOS that nothing is launched at all. Then that a save panel
    appears, and that the file lands where you pointed it.
-4. Export a chapter as Markdown too. All five exports (book PDF, whole
-   manuscript, single chapter, figures JSON, character profiles) are blob URLs
-   behind an `<a download>`, and they all depend on the same pywebview setting —
-   see `hosts/desktop/app.py::enable_downloads`. Unset, they fail *silently*:
-   no file, no error, no console message. Worth one click per build, because
-   nothing else will tell you.
+4. Export a chapter as Markdown too, and export the book PDF a *second* time in
+   the same session. All five exports (book PDF, whole manuscript, single
+   chapter, figures JSON, character profiles) go through the same native bridge
+   — `hosts/desktop/bridge/files.py`, reached from `download()` in
+   `src/lib/api.ts`. Nothing here uses pywebview's own `<a download>` handling:
+   with `ALLOW_DOWNLOADS` on, macOS puts up a save panel it can never answer and
+   then terminates the app. The second PDF matters because the macOS print path
+   registers Objective-C classes, which can only happen once per process. Worth
+   one click per build, because nothing else will tell you.
 5. Quit the app (close the window). Confirm no lingering server process:
    - macOS: Activity Monitor, search "Quiltor"/"python".
    - Windows: Task Manager, search "Quiltor.exe".
