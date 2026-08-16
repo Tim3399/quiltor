@@ -6,6 +6,7 @@ export const manuscript = {
   undoManuscript: 'Manuskript rückgängig', redoManuscript: 'Manuskript wiederholen', closeNavigation: 'Kapitelnavigation schließen', closeInspector: 'Inspector schließen',
   chapterNote: 'Kapitelnotiz', moveUp: 'Nach oben', moveDown: 'Nach unten', chapterMarkdown: 'Kapitel als Markdown', deleteChapter: 'Kapitel löschen',
   figuresPlaces: 'Figuren & Orte', ownTerms: 'Eigene Begriffe', specialCharacters: 'Sonderzeichen', addTerm: 'Begriff hinzufügen', newTerm: 'Neuer Begriff',
+  manageTerms: 'Verwalten', ownTermsEmpty: 'Noch keine eigenen Begriffe.', ownTermsIntro: 'Eigene Begriffe gelten der Grammatikprüfung als richtig geschrieben und stehen beim Schreiben zum Einfügen bereit.', chooseSymbols: 'Sonderzeichen auswählen',
   previousVersion: 'Frühere Fassung', nextToCurrent: 'Direkt neben dem aktuellen Text', state: 'Fassung', loadingVersion: 'Fassung wird geladen …', noVersion: 'Noch keine gespeicherte Fassung vorhanden.', closeVersions: 'Kapitelfassungen schließen',
   writingAid: 'Schreibhilfe', openWritingAid: 'Schreibhilfe öffnen', closeWritingAid: 'Schreibhilfe schließen', writingAidPanelLabel: 'Schreibhilfe im Fokusmodus', leaveFocus: 'Fokusmodus verlassen',
   newChapterTitle: 'Kapitel {n}', startWritingPlaceholder: 'Schreib los …', versionLoadError: 'Die Fassung konnte nicht geladen werden.', chapterNotYetExisting: 'Dieses Kapitel existierte in dieser Fassung noch nicht.',

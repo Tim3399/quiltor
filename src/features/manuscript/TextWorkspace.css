@@ -176,25 +176,75 @@
 .entity-mention-card button { grid-column: 2; grid-row: 1 / span 2; align-self: center; min-width: var(--control-compact); min-height: var(--control-compact); }
 .mention-review { display: grid; gap: var(--space-10); }
 .mention-review > div { display: grid; gap: var(--space-6); padding: var(--space-10); border: 1px solid var(--line); border-radius: var(--radius); }
+/* The writing aid: one switch, then exactly one activity. Only the switch stays put --
+   whatever the chosen activity needs to say scrolls beneath it. */
+.helper-panel { min-height: 0; flex: 1; display: flex; flex-direction: column; }
+.helper-modes { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--space-2); margin: var(--space-10) var(--space-16) 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--control-hint); }
+.helper-modes button { min-height: var(--control-compact); padding: 0 var(--space-6); border-radius: var(--radius); background: var(--transparent); color: var(--muted); font-size: var(--font-size-3); cursor: pointer; }
+.helper-modes button[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: var(--elevation-1) var(--shadow-color); }
+
+/* Every control inside the aid used to fall through to the browser's own button and input
+   chrome -- grey, square, 19px tall. It now speaks the same language as the rest of the
+   inspector: paper surface, hairline border, the shared radius and control heights. */
+.helper-panel :is(.writing-search, .writing-data-state, .writing-results) button:not(.icon-button) { min-height: var(--control-compact); padding: 0 var(--space-10); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); cursor: pointer; }
+.helper-panel .ui-button.primary { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.helper-panel input { min-width: 0; min-height: var(--control-compact); padding: 0 var(--space-10); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); }
+
+.writing-lookup, .writing-insert, .grammar-tool { display: grid; align-content: start; gap: var(--space-12); }
+.writing-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-6); align-items: center; }
+.writing-search .icon-button { border: 1px solid var(--line); background: var(--paper); }
 .writing-tool-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
-.writing-tool-tabs button { min-height: var(--control-regular); border-radius: var(--radius); background: var(--transparent); color: var(--muted); }
-.writing-tool-tabs button[aria-selected="true"] { background: var(--selection-surface); color: var(--ink); }
-.writing-reference-tool, .writing-results, .writing-results article { display: grid; gap: var(--space-10); }
-.writing-search { display: grid; grid-template-columns: 1fr auto; gap: var(--space-6); }
-.writing-search input { min-width: 0; min-height: var(--control-regular); }
-.writing-data-state, .writing-results article { padding: var(--space-12); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
-.writing-results article header { display: flex; justify-content: space-between; gap: var(--space-8); }
-.writing-results article header span, .writing-results details { color: var(--muted); font-size: var(--font-size-2); }
-.writing-results article p { margin: 0; }
-.writing-values, .writing-result-actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
-.writing-values button { color: var(--gold-text); background: var(--gold-soft); }
-.writing-result-actions { padding-top: var(--space-6); border-top: 1px solid var(--line); }
-.grammar-tool { display: grid; gap: var(--space-8); padding-bottom: var(--space-12); border-bottom: 1px solid var(--line); }
-.grammar-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
-.grammar-heading h3 { margin: 0; }
-.grammar-issue-card { display: grid; gap: var(--space-8); padding: var(--space-12); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--elevation-1) var(--node-shadow); }
-.grammar-issue-card p { margin: 0; }
+.writing-tool-tabs button { min-height: var(--control-compact); border-radius: var(--radius); background: var(--transparent); color: var(--muted); font-size: var(--font-size-3); cursor: pointer; }
+.writing-tool-tabs button[aria-selected="true"] { background: var(--selection-surface); color: var(--ink); font-weight: 600; }
+.writing-lookup .ui-segmented { justify-content: center; }
+
+.writing-results { display: grid; gap: var(--space-8); }
+.writing-apply-hint { margin: 0; color: var(--muted); font-size: var(--font-size-2); }
+.writing-empty { display: grid; gap: var(--space-6); color: var(--muted); font-size: var(--font-size-3); }
+.writing-empty p { margin: 0; }
+.writing-data-state, .writing-results article { display: grid; gap: var(--space-8); padding: var(--space-10) var(--space-12); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+.writing-results article header { display: flex; align-items: baseline; gap: var(--space-6); }
+.writing-results article header strong { min-width: 0; overflow-wrap: anywhere; font: 600 var(--font-size-5) var(--prose); }
+.writing-results article header span { color: var(--muted); font-size: var(--font-size-2); }
+.writing-results article header .icon-button { margin-left: auto; align-self: center; flex: none; }
+.writing-results article p { margin: 0; color: var(--muted); font-size: var(--font-size-3); }
+.writing-values { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.writing-values button { min-height: var(--control-compact); padding: 0 var(--space-8); border: 1px solid var(--gold-border); border-radius: var(--radius-sm); background: var(--gold-soft); color: var(--gold-text); font: 500 var(--font-size-4) var(--prose); cursor: pointer; }
+.writing-values button:hover { background: var(--selection-surface); }
+/* Attribution is a licence obligation, so it is stated plainly -- once per source that
+   actually produced a result, not folded away behind a disclosure on every card. */
+.writing-attribution { color: var(--muted); font-size: var(--font-size-1); }
+.writing-attribution ul { margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.writing-attribution li { overflow-wrap: anywhere; }
+
+.grammar-heading { display: flex; align-items: center; gap: var(--space-8); }
+.grammar-heading span { min-width: 0; font-size: var(--font-size-2); }
+.grammar-mode { margin: 0; }
+.grammar-issues { display: grid; gap: var(--space-5); margin: 0; padding: 0; list-style: none; }
+.grammar-issues li { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); overflow: hidden; }
+.grammar-issue-row { width: 100%; display: flex; align-items: baseline; gap: var(--space-8); padding: var(--space-8) var(--space-10); border: 0; background: var(--transparent); text-align: left; cursor: pointer; }
+.grammar-issue-row:hover { background: var(--control-hover-subtle); }
+.grammar-issue-row strong { min-width: 0; flex: 1; overflow: hidden; font: 600 var(--font-size-4) var(--prose); text-overflow: ellipsis; white-space: nowrap; }
+.grammar-issue-row span { flex: none; color: var(--muted); font-size: var(--font-size-1); }
+.grammar-issue-row[aria-expanded="true"] { background: var(--selection-surface); }
+.grammar-issue-detail { display: grid; gap: var(--space-8); padding: var(--space-10); border-top: 1px solid var(--line); }
+.grammar-issue-detail p { margin: 0; color: var(--muted); font-size: var(--font-size-3); }
 .writing-issue { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--danger); text-underline-offset: var(--space-4); cursor: pointer; }
+
+.helper-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); }
+.helper-section-heading h3 { margin: 0; }
+.text-action { display: inline-flex; align-items: center; gap: var(--space-5); padding: 0; background: var(--transparent); color: var(--muted); font-size: var(--font-size-2); cursor: pointer; }
+.text-action:hover { color: var(--ink); }
+.text-action svg { width: 13px; }
+
+.writing-insert > h3:not(:first-child),
+.writing-insert > .helper-section-heading:not(:first-child) { margin-top: var(--space-8); }
+
+.terms-sheet { display: grid; gap: var(--space-12); }
+.terms-sheet header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.terms-sheet h2 { margin: 0; font: 600 var(--font-size-6) var(--prose); }
+.terms-sheet p { margin: 0; font-size: var(--font-size-3); }
+.terms-sheet .add-term { margin: 0; }
 
 .selection-anchor {
   position: fixed;
@@ -203,19 +253,6 @@
   opacity: 0;
   pointer-events: none;
 }
-
-.writing-selection-state {
-  display: grid;
-  gap: var(--space-6);
-  margin-bottom: var(--space-18);
-  padding: var(--space-12);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--paper);
-}
-.writing-selection-state span { color: var(--muted); font-size: var(--font-size-2); text-transform: uppercase; letter-spacing: .08em; }
-.writing-selection-state strong { font: 600 var(--font-size-5) var(--prose); }
-.writing-selection-state p { margin: 0; color: var(--muted); font-size: var(--font-size-2); }
 
 .compact-panel {
   display: flex;

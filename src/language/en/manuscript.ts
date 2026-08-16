@@ -6,6 +6,7 @@ export const manuscript = {
   undoManuscript: 'Undo manuscript change', redoManuscript: 'Redo manuscript change', closeNavigation: 'Close chapter navigation', closeInspector: 'Close inspector',
   chapterNote: 'Chapter note', moveUp: 'Move up', moveDown: 'Move down', chapterMarkdown: 'Chapter as Markdown', deleteChapter: 'Delete chapter',
   figuresPlaces: 'Characters & places', ownTerms: 'Custom terms', specialCharacters: 'Special characters', addTerm: 'Add term', newTerm: 'New term',
+  manageTerms: 'Manage', ownTermsEmpty: 'No custom terms yet.', ownTermsIntro: 'Custom terms count as correctly spelled for the grammar check and are ready to insert while you write.', chooseSymbols: 'Choose special characters',
   previousVersion: 'Previous version', nextToCurrent: 'Shown beside the current text', state: 'Version', loadingVersion: 'Loading version …', noVersion: 'No saved version yet.', closeVersions: 'Close chapter versions',
   writingAid: 'Writing aid', openWritingAid: 'Open writing aid', closeWritingAid: 'Close writing aid', writingAidPanelLabel: 'Writing aid (focus mode)', leaveFocus: 'Leave focus mode',
   newChapterTitle: 'Chapter {n}', startWritingPlaceholder: 'Start writing …', versionLoadError: 'The version could not be loaded.', chapterNotYetExisting: 'This chapter did not exist yet in this version.',

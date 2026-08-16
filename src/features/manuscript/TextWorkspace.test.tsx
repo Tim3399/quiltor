@@ -70,6 +70,57 @@ describe('TextWorkspace', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  // Die Schreibhilfe zeigt genau einen Bereich: Nachschlagen, Prüfen oder Einfügen.
+  it('zeigt immer nur einen Bereich der Schreibhilfe', async () => {
+    vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {}, grammar: { supported: true, unsupportedReason: '', available: true, installed: true, running: false, version: '6.6', javaVersion: 17, javaRequired: 17, externalConfigured: false, externalEnabled: false, download: { url: '', checksum: '', license: 'LGPL' } } });
+    const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), inspectorOpen: true });
+    const rendered = within(view.container);
+    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
+    await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
+    // Nachschlagen ist der Startbereich: kein Grammatikknopf, keine Bausteine im Weg.
+    expect(rendered.getByLabelText('Suchbegriff')).toBeTruthy();
+    expect(rendered.queryByRole('button', { name: 'Text prüfen' })).toBeNull();
+    expect(rendered.queryByText('Sonderzeichen')).toBeNull();
+    fireEvent.click(rendered.getByRole('tab', { name: 'Prüfen' }));
+    expect(rendered.getByRole('button', { name: 'Text prüfen' })).toBeTruthy();
+    expect(rendered.queryByLabelText('Suchbegriff')).toBeNull();
+    fireEvent.click(rendered.getByRole('tab', { name: 'Einfügen' }));
+    expect(rendered.getByText('Sonderzeichen')).toBeTruthy();
+    expect(rendered.queryByRole('button', { name: 'Text prüfen' })).toBeNull();
+  });
+
+  // Die Lizenzpflicht bleibt, aber einmal je tatsächlich benutzter Quelle statt je Treffer.
+  it('nennt jede benutzte Quelle genau einmal', async () => {
+    vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: { openthesaurus: { version: '1', url: '', checksum: '', license: 'CC BY-SA 4.0', attribution: 'OpenThesaurus.de' } } });
+    vi.spyOn(api, 'languageLookup').mockResolvedValue({ ok: true, query: 'gehen', language: 'de-DE', mode: 'synonyms', version: 'test', results: [
+      { lemma: 'laufen', partOfSpeech: 'Verb', meaning: '', values: ['laufen', 'schreiten'], source: 'openthesaurus' },
+      { lemma: 'klappen', partOfSpeech: 'Verb', meaning: '', values: ['klappen'], source: 'openthesaurus' },
+    ] });
+    const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), inspectorOpen: true });
+    const rendered = within(view.container);
+    await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
+    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
+    fireEvent.change(rendered.getByLabelText('Suchbegriff'), { target: { value: 'gehen' } });
+    fireEvent.click(rendered.getByRole('tab', { name: 'Synonyme' }));
+    await rendered.findByText('schreiten');
+    expect(rendered.getAllByText(/OpenThesaurus\.de · CC BY-SA 4\.0/)).toHaveLength(1);
+  });
+
+  // Das Projektwörterbuch ist Konfiguration, kein Werkzeug für den laufenden Satz.
+  it('führt eigene Begriffe erst im Verwaltungs-Sheet zum Bearbeiten', async () => {
+    const withTerms = { ...manuscript, words: [{ w: 'Traumweberin', d: '' }] };
+    const view = renderWorkspace({ manuscript: withTerms, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), inspectorOpen: true });
+    const rendered = within(view.container);
+    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
+    fireEvent.click(rendered.getByRole('tab', { name: 'Einfügen' }));
+    expect(rendered.getByRole('button', { name: 'Traumweberin' })).toBeTruthy();
+    expect(screen.queryByLabelText('Neuer Begriff')).toBeNull();
+    fireEvent.click(rendered.getByRole('button', { name: 'Verwalten' }));
+    const sheet = within(screen.getByRole('dialog', { name: 'Eigene Begriffe' }));
+    expect(sheet.getByLabelText('Neuer Begriff')).toBeTruthy();
+    expect(sheet.getByRole('button', { name: 'Traumweberin entfernen' })).toBeTruthy();
+  });
+
   it('ändert bei einer Grammatikprüfung keinen Text ohne bestätigte Ersetzung', async () => {
     vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {}, grammar: { supported: true, unsupportedReason: '', available: true, installed: true, running: false, version: '6.6', javaVersion: 17, javaRequired: 17, externalConfigured: false, externalEnabled: false, download: { url: '', checksum: '', license: 'LGPL' } } });
     vi.spyOn(api, 'checkGrammar').mockResolvedValue({ ok: true, language: 'de-DE', issues: [{ id: 'i1', from: 0, to: 5, ruleId: 'SPELL', category: 'Rechtschreibung', message: 'Möglicher Fehler', replacements: ['Hallo'] }] });
@@ -78,6 +129,7 @@ describe('TextWorkspace', () => {
     const rendered = within(view.container);
     fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
+    fireEvent.click(rendered.getByRole('tab', { name: 'Prüfen' }));
     fireEvent.click(rendered.getByRole('button', { name: 'Text prüfen' }));
     await waitFor(() => expect(api.checkGrammar).toHaveBeenCalledWith('Hallo Welt', ['Testfigur'], expect.any(AbortSignal)));
     expect(onChange).not.toHaveBeenCalled();
@@ -93,7 +145,10 @@ describe('TextWorkspace', () => {
     fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
     expect(rendered.queryByRole('button', { name: 'Text prüfen' })).toBeNull();
+    // Ohne Grammatikprüfung entfällt der ganze Bereich, nicht nur sein Knopf.
+    expect(rendered.queryByRole('tab', { name: 'Prüfen' })).toBeNull();
     // Die übrigen Schreibhilfen bleiben erreichbar — nur die Grammatik entfällt.
     expect(rendered.getByRole('tab', { name: 'Wörterbuch' })).toBeTruthy();
+    expect(rendered.getByRole('tab', { name: 'Einfügen' })).toBeTruthy();
   });
 });

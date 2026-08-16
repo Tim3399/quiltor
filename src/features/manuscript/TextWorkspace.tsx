@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pilcrow, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Copy, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pilcrow, Printer, Redo2, Search, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
 import type { Chapter, FigureNode, FigureState, Manuscript, Workspace, WritingIssue } from '../../types';
 import { uid, wordCount } from '../../types';
 import { download, errorMessage } from '../../lib/api';
@@ -12,6 +12,7 @@ import './TextWorkspace.css';
 import { writingVocabulary } from './autocomplete';
 import { useLanguage } from '../../language';
 import { Sheet } from '../../shared/ui/Sheet';
+import { SegmentedControl } from '../../shared/ui/SegmentedControl';
 import { Menu, MenuItem } from '../../shared/ui/Menu';
 import { Popover } from '../../shared/ui/Popover';
 import { SelectionMenu } from '../../shared/ui/SelectionMenu';
@@ -19,6 +20,14 @@ import type { ViewportMode } from '../../hooks/useWorkspaceLayout';
 import { ManuscriptEditor, type EditorTextSelection, type ManuscriptEditorHandle } from './ManuscriptEditor';
 import { addDeterministicMentions, scanEntityMentions } from './mentions';
 import { kindLabel } from '../figures/relationships';
+
+// The writing aid used to stack five unrelated jobs into one 294px scroll. It now holds
+// three activities and shows exactly one of them: looking a word up, checking the chapter,
+// and inserting a building block. Everything that is configuration rather than something
+// you consult mid-sentence -- managing the project dictionary -- moved into a sheet.
+type HelperMode = 'lookup' | 'check' | 'insert';
+type WritingTool = 'lookup' | 'synonyms' | 'translate';
+const WRITING_TOOLS: WritingTool[] = ['lookup', 'synonyms', 'translate'];
 
 export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMentions = 0, onChange, onOpenEntity, focus, onFocus, targetId, onUndo, onRedo, canUndo = false, canRedo = false, onSave, viewportMode = window.innerWidth < 720 ? 'compact' : window.innerWidth < 1100 ? 'regular' : 'wide', binderOpen: controlledBinderOpen, onBinderOpen, inspectorOpen: controlledInspectorOpen, onInspectorOpen, sidebarWidth = 246, onSidebarWidth, inspectorWidth = 294, onInspectorWidth }: {
   worldTitle?: string; manuscript: Manuscript; figures: FigureState; orphanedMentions?: number; onChange: (value: Manuscript) => void; onOpenEntity?: (target: { workspace: Workspace; id: string }) => void; focus: boolean; onFocus: (value: boolean) => void; targetId?: string; onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean; onSave?: () => Promise<void>; viewportMode?: ViewportMode; binderOpen?: boolean; onBinderOpen?: (open: boolean) => void; inspectorOpen?: boolean; onInspectorOpen?: (open: boolean) => void; sidebarWidth?: number; onSidebarWidth?: (width: number) => void; inspectorWidth?: number; onInspectorWidth?: (width: number) => void;
@@ -47,7 +56,9 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   // macOS does it -- instead of springing up at every double-click.
   const [selectionMenuOpen, setSelectionMenuOpen] = useState(false);
   const [writingSelection, setWritingSelection] = useState<(EditorTextSelection & { chapterId: string; revision: string }) | null>(null);
-  const [selectionTool, setSelectionTool] = useState<'lookup' | 'synonyms' | 'translate' | null>(null);
+  const [helperMode, setHelperMode] = useState<HelperMode>('lookup');
+  const [selectionTool, setSelectionTool] = useState<WritingTool>('lookup');
+  const [termsOpen, setTermsOpen] = useState(false);
   const [writingQuery, setWritingQuery] = useState('');
   const [writingLanguage, setWritingLanguage] = useState<'de-DE' | 'en-GB'>('de-DE');
   const [languageStatus, setLanguageStatus] = useState<LanguageStatus | null>(null);
@@ -95,7 +106,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const total = useMemo(() => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0), [manuscript.chapters]);
   const vocabulary = useMemo(() => writingVocabulary(manuscript, figures), [manuscript.words, figures.nodes]);
   const ambiguousMentions = useMemo(() => current ? scanEntityMentions(current.body, figures.nodes, () => '').ambiguous.filter(candidate => !(current.mentions || []).some(mention => candidate.from < mention.to && candidate.to > mention.from)) : [], [current, figures.nodes]);
-  useEffect(() => { setSelection(null); setSelectionMenuOpen(false); setWritingSelection(null); setSelectionTool(null); setWritingQuery(''); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); }, [currentId]);
+  useEffect(() => { setSelection(null); setSelectionMenuOpen(false); setWritingSelection(null); setWritingQuery(''); setLanguageResults([]); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); }, [currentId]);
   useEffect(() => { void api.languageStatus().then(setLanguageStatus).catch(() => setLanguagePhase('error')); return () => lookupRequest.current?.abort(); }, []);
   useEffect(() => () => lookupRequest.current?.abort(), [writingSelection?.chapterId, writingSelection?.from, writingSelection?.to, writingSelection?.revision]);
 
@@ -139,29 +150,44 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     const stop = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', stop);
   };
-  const lookupMode = (tool: 'lookup' | 'synonyms' | 'translate') => tool === 'lookup' ? 'dictionary' : tool === 'synonyms' ? 'synonyms' : 'translation';
-  const toolLabel = (tool: 'lookup' | 'synonyms' | 'translate') => tool === 'lookup' ? t('dictionary') : tool === 'synonyms' ? t('synonyms') : t('translate');
+  const lookupMode = (tool: WritingTool) => tool === 'lookup' ? 'dictionary' : tool === 'synonyms' ? 'synonyms' : 'translation';
+  const toolLabel = (tool: WritingTool) => tool === 'lookup' ? t('dictionary') : tool === 'synonyms' ? t('synonyms') : t('translate');
+  const modeLabel = (mode: HelperMode) => mode === 'lookup' ? t('helperLookup') : mode === 'check' ? t('helperCheck') : t('helperInsert');
   const runLookup = (tool = selectionTool, query = writingQuery, language = writingLanguage) => {
-    const value = query.trim(); if (!tool || !value || !languageStatus?.installed) return;
+    const value = query.trim(); if (!value || !languageStatus?.installed) return;
     lookupRequest.current?.abort(); const request = new AbortController(); lookupRequest.current = request; setLanguagePhase('loading'); setLanguageResults([]);
     void api.languageLookup(tool === 'translate' ? language : 'de-DE', lookupMode(tool), value, request.signal).then(result => { if (lookupRequest.current === request) { setLanguageResults(result.results); setLanguagePhase('idle'); } }).catch(error => { if (error instanceof DOMException && error.name === 'AbortError') return; setLanguagePhase('error'); });
   };
   // The selection only counts while it still describes the chapter on screen: switching
   // chapters or editing the text moves the offsets out from under it.
   const liveSelection = selection && current && selection.chapterId === current.id && selection.revision === current.body ? selection : null;
-  const openWritingTool = (tool: 'lookup' | 'synonyms' | 'translate') => {
+  // The passage a result would replace: the one the aid is holding while focus sits in the
+  // panel, or -- if the writer marked something else meanwhile -- the fresh marking.
+  const heldSelection = writingSelection && current && writingSelection.chapterId === current.id && writingSelection.revision === current.body ? writingSelection : null;
+  const replaceTarget = heldSelection || liveSelection;
+  const openWritingTool = (tool: WritingTool) => {
     if (!liveSelection) return;
     const selectedText = liveSelection;
     setSelectionMenuOpen(false);
-    setWritingSelection(selectedText); setSelectionTool(tool); setWritingQuery(selectedText.text); setInspector('helpers'); setInspectorOpen(true);
+    setWritingSelection(selectedText); setSelectionTool(tool); setWritingQuery(selectedText.text); setInspector('helpers'); setHelperMode('lookup'); setInspectorOpen(true);
     requestAnimationFrame(() => runLookup(tool, selectedText.text, writingLanguage));
   };
-  const installLanguageData = () => { setLanguagePhase('installing'); void api.installLanguageData().then(() => api.languageStatus()).then(status => { setLanguageStatus(status); setLanguagePhase('idle'); }).catch(() => setLanguagePhase('error')); };
-  const resultText = (result: LanguageLookupResult) => result.values[0] || result.lemma;
-  const replaceSelection = (text: string) => {
-    if (!writingSelection || !current || writingSelection.chapterId !== current.id || writingSelection.revision !== current.body) return;
-    if (editor.current?.replaceSelection(writingSelection.from, writingSelection.to, writingSelection.text, text)) { setSelection(null); setWritingSelection(null); }
+  // Choosing a reference always looks up what is marked right now -- the marking is the
+  // question, the three sources are only the answer's origin.
+  const chooseTool = (tool: WritingTool) => {
+    setSelectionTool(tool);
+    if (liveSelection) setWritingSelection(liveSelection);
+    const query = liveSelection?.text ?? writingQuery;
+    setWritingQuery(query); runLookup(tool, query, writingLanguage);
   };
+  const installLanguageData = () => { setLanguagePhase('installing'); void api.installLanguageData().then(() => api.languageStatus()).then(status => { setLanguageStatus(status); setLanguagePhase('idle'); }).catch(() => setLanguagePhase('error')); };
+  // One gesture instead of three buttons per result: a value goes where the writer is
+  // pointing -- over the marked passage if there is one, otherwise at the cursor.
+  const applyValue = (text: string) => {
+    if (!replaceTarget) return insert(text);
+    if (editor.current?.replaceSelection(replaceTarget.from, replaceTarget.to, replaceTarget.text, text)) { setSelection(null); setWritingSelection(null); }
+  };
+  const resultValues = (result: LanguageLookupResult) => result.values.length ? result.values : [result.lemma];
   const projectWords = () => [...(manuscript.words || []).map(item => typeof item === 'string' ? item : item.w), ...figures.nodes.map(node => node.name)];
   const checkGrammar = () => {
     if (!current || !languageStatus?.grammar?.available) { setGrammarPhase('unavailable'); return; }
@@ -180,6 +206,15 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     if (manuscript.grammarMode !== 'automatic' || !current?.body || !languageStatus?.grammar?.available) return;
     const timeout = window.setTimeout(checkGrammar, 900); return () => { window.clearTimeout(timeout); grammarRequest.current?.abort(); };
   }, [current?.id, current?.body, manuscript.grammarMode, languageStatus?.grammar?.available]);
+  // Marking a passage is the question the lookup answers, so the search field simply shows
+  // it. That replaces the separate "Markierung" card, which said the same thing twice.
+  useEffect(() => { if (liveSelection?.text) setWritingQuery(liveSelection.text); }, [liveSelection?.text, liveSelection?.from]);
+
+  const grammarSupported = languageStatus?.grammar?.supported !== false;
+  const helperModes: HelperMode[] = grammarSupported ? ['lookup', 'check', 'insert'] : ['lookup', 'insert'];
+  const activeMode: HelperMode = helperModes.includes(helperMode) ? helperMode : 'lookup';
+  const lookupSources = [...new Set(languageResults.map(result => result.source))];
+  const projectDictionary = manuscript.words || [];
 
   const binderPanel = <>
     <div className="panel-heading"><span>{t('chapters')}</span><button className="icon-button" onClick={() => setBinderOpen(false)} aria-label={t('closeNavigation')}><PanelLeftClose /></button></div>
@@ -202,33 +237,59 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <div className="stack-actions"><button onClick={() => move(-1)}><ChevronUp />{t('moveUp')}</button><button onClick={() => move(1)}><ChevronDown />{t('moveDown')}</button></div>
       <button className="secondary-action" onClick={() => runExport(download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${current.body}\n`))}><Download />{t('chapterMarkdown')}</button>
       <button className="danger-text" onClick={() => setDeleteOpen(true)}><Trash2 />{t('deleteChapter')}</button>
-    </div> : <div className="panel-body helper-panel">
-      {languageStatus?.grammar?.supported !== false && <section className="grammar-tool"><div className="grammar-heading"><h3>{t('grammar')}</h3><button className="primary" onClick={checkGrammar} disabled={grammarPhase === 'checking'}>{grammarPhase === 'checking' ? t('grammarChecking') : t('checkText')}</button></div>
-        <label className="field"><span>{t('grammarMode')}</span><select value={manuscript.grammarMode || 'manual'} onChange={event => onChange({ ...manuscript, language: 'de-DE', grammarMode: event.target.value as Manuscript['grammarMode'] })}><option value="manual">{t('grammarManual')}</option><option value="automatic">{t('grammarAutomatic')}</option></select></label>
-        {!languageStatus?.grammar?.available && <div className="writing-data-state"><p>{languageStatus?.grammar?.installed ? t('grammarJavaMissing').replace('{version}', String(languageStatus.grammar.javaRequired)) : t('grammarUnavailable')}</p>{!languageStatus?.grammar?.installed && <button onClick={installGrammar} disabled={grammarPhase === 'installing'}>{grammarPhase === 'installing' ? t('grammarInstalling') : t('grammarInstall')}</button>}<small>{t('grammarBrowserFallback')}</small></div>}
+    </div> : <div className="helper-panel">
+      <div className="helper-modes" role="tablist" aria-label={t('writingAidSection')}>
+        {helperModes.map(mode => <button key={mode} role="tab" aria-selected={activeMode === mode} onClick={() => setHelperMode(mode)}>{modeLabel(mode)}</button>)}
+      </div>
+      {activeMode === 'lookup' ? <div className="panel-body writing-lookup">
+        <form className="writing-search" onSubmit={event => { event.preventDefault(); runLookup(); }}>
+          <input aria-label={t('searchTerm')} value={writingQuery} onChange={event => setWritingQuery(event.target.value)} placeholder={t('writingSearchPlaceholder')} />
+          <button className="icon-button" aria-label={t('lookup')} disabled={!writingQuery.trim() || languagePhase === 'loading'}><Search /></button>
+        </form>
+        <div className="writing-tool-tabs" role="tablist" aria-label={t('lookupSources')}>{WRITING_TOOLS.map(tool => <button key={tool} role="tab" aria-selected={selectionTool === tool} onClick={() => chooseTool(tool)}>{toolLabel(tool)}</button>)}</div>
+        {selectionTool === 'translate' && <SegmentedControl label={t('translationDirection')} value={writingLanguage} options={[{ value: 'de-DE', label: t('germanToEnglish') }, { value: 'en-GB', label: t('englishToGerman') }]} onChange={value => { setWritingLanguage(value); runLookup(selectionTool, writingQuery, value); }} />}
+        {!languageStatus?.installed ? <div className="writing-data-state"><p>{t('writingDataMissing')}</p><button className="ui-button" onClick={installLanguageData} disabled={languagePhase === 'installing'}>{languagePhase === 'installing' ? t('writingDataInstalling') : t('writingDataInstall')}</button></div>
+          : languagePhase === 'error' ? <p className="error-box" role="alert">{t('writingRequestError')}</p>
+          : languagePhase === 'loading' ? <p className="muted" role="status">{t('writingSearching')}</p>
+          : languageResults.length ? <div className="writing-results">
+            <p className="writing-apply-hint" role="status">{replaceTarget ? t('valueReplacesSelection') : t('valueInsertsAtCursor')}</p>
+            {languageResults.map((result, index) => <article key={`${result.source}-${result.lemma}-${index}`}>
+              <header><strong>{result.lemma}</strong>{result.partOfSpeech && <span>{result.partOfSpeech}</span>}<button className="icon-button" aria-label={t('writingCopy').replace('{word}', result.lemma)} onClick={() => void navigator.clipboard.writeText(resultValues(result)[0])}><Copy /></button></header>
+              {result.meaning && <p>{result.meaning}</p>}
+              <div className="writing-values">{resultValues(result).map(value => <button key={value} onClick={() => applyValue(value)}>{value}</button>)}</div>
+            </article>)}
+            {/* Attribution is a licensing obligation, so it stays -- but once per source that
+                actually produced a result, plainly visible, instead of a disclosure per card. */}
+            <footer className="writing-attribution"><span>{t('writingAttribution')}</span><ul>{lookupSources.map(source => <li key={source}>{languageStatus.sources[source]?.attribution || source} · {languageStatus.sources[source]?.license}</li>)}</ul></footer>
+          </div>
+          : writingQuery.trim() ? <p className="muted">{t('writingNoResults')}</p>
+          : <div className="writing-empty"><p>{t('lookupEmptyHint')}</p><p>{t('selectionMenuHint')}</p></div>}
+      </div> : activeMode === 'check' ? <div className="panel-body grammar-tool">
+        <div className="grammar-heading">
+          <button className="ui-button primary" onClick={checkGrammar} disabled={grammarPhase === 'checking'}>{grammarPhase === 'checking' ? t('grammarChecking') : t('checkText')}</button>
+          {languageStatus?.grammar?.available && grammarPhase !== 'error' && <span className="muted" role="status">{grammarPhase === 'checking' ? '' : grammarIssues.length ? t('grammarIssueCount').replace('{count}', String(grammarIssues.length)) : t('grammarReady')}</span>}
+        </div>
+        {!languageStatus?.grammar?.available && <div className="writing-data-state"><p>{languageStatus?.grammar?.installed ? t('grammarJavaMissing').replace('{version}', String(languageStatus.grammar.javaRequired)) : t('grammarUnavailable')}</p>{!languageStatus?.grammar?.installed && <button className="ui-button" onClick={installGrammar} disabled={grammarPhase === 'installing'}>{grammarPhase === 'installing' ? t('grammarInstalling') : t('grammarInstall')}</button>}<small>{t('grammarBrowserFallback')}</small></div>}
         {grammarPhase === 'error' && <p className="error-box" role="alert">{t('grammarCheckError')}</p>}
-        {languageStatus?.grammar?.available && grammarPhase === 'idle' && <p className="muted" role="status">{grammarIssues.length ? t('grammarIssueCount').replace('{count}', String(grammarIssues.length)) : t('grammarReady')}</p>}
-        {selectedIssue && <article className="grammar-issue-card"><strong>{selectedIssue.category || t('grammar')}</strong><p>{selectedIssue.message}</p><div className="writing-values">{selectedIssue.replacements.map(value => <button key={value} onClick={() => applyIssue(selectedIssue, value)}>{value}</button>)}</div><button onClick={() => setSelectedIssue(null)}>{t('close')}</button></article>}
-      </section>}
-      {/* What is marked, and the deliberate way to look it up. The panel used to be the
-          only place the marked text appeared, and only after the menu had already opened
-          itself; now the marking is visible first and the lookup is a decision. */}
-      {liveSelection ? <section className="writing-selection-state">
-        <span>{t('selectionLabel')}</span><strong>{liveSelection.text}</strong>
-        <div className="writing-values">{(['lookup', 'synonyms', 'translate'] as const).map(tool => <button key={tool} onClick={() => openWritingTool(tool)}>{toolLabel(tool)}</button>)}</div>
-        <p>{t('selectionMenuHint')}</p>
-      </section> : selectionTool && writingQuery ? <section className="writing-selection-state"><span>{toolLabel(selectionTool)}</span><strong>{writingQuery}</strong></section> : null}
-      <div className="writing-tool-tabs" role="tablist">{(['lookup', 'synonyms', 'translate'] as const).map(tool => <button key={tool} role="tab" aria-selected={selectionTool === tool} onClick={() => { setSelectionTool(tool); setLanguageResults([]); }}>{toolLabel(tool)}</button>)}</div>
-      {selectionTool && <section className="writing-reference-tool">
-        {selectionTool === 'translate' && <div className="ui-segmented" role="radiogroup" aria-label={t('translationDirection')}><button role="radio" aria-checked={writingLanguage === 'de-DE'} onClick={() => { setWritingLanguage('de-DE'); setLanguageResults([]); }}>{t('germanToEnglish')}</button><button role="radio" aria-checked={writingLanguage === 'en-GB'} onClick={() => { setWritingLanguage('en-GB'); setLanguageResults([]); }}>{t('englishToGerman')}</button></div>}
-        <form className="writing-search" onSubmit={event => { event.preventDefault(); runLookup(); }}><input aria-label={t('searchTerm')} value={writingQuery} onChange={event => setWritingQuery(event.target.value)} placeholder={t('writingSearchPlaceholder')} /><button className="primary" disabled={!writingQuery.trim() || languagePhase === 'loading'}>{languagePhase === 'loading' ? t('writingSearching') : t('lookup')}</button></form>
-        {!languageStatus?.installed ? <div className="writing-data-state"><p>{t('writingDataMissing')}</p><button onClick={installLanguageData} disabled={languagePhase === 'installing'}>{languagePhase === 'installing' ? t('writingDataInstalling') : t('writingDataInstall')}</button></div> : languagePhase === 'error' ? <p className="error-box" role="alert">{t('writingRequestError')}</p> : languageResults.length ? <div className="writing-results">{languageResults.map((result, index) => <article key={`${result.source}-${result.lemma}-${index}`}><header><strong>{result.lemma}</strong>{result.partOfSpeech && <span>{result.partOfSpeech}</span>}</header>{result.meaning && <p>{result.meaning}</p>}{result.values.length > 0 && <div className="writing-values">{result.values.map(value => <button key={value} onClick={() => insert(value)}>{value}</button>)}</div>}<div className="writing-result-actions"><button onClick={() => void navigator.clipboard.writeText(resultText(result))}>{t('writingCopy')}</button><button onClick={() => insert(resultText(result))}>{t('writingInsert')}</button><button disabled={!writingSelection || writingSelection.chapterId !== current.id || writingSelection.revision !== current.body} onClick={() => replaceSelection(resultText(result))}>{t('writingReplace')}</button></div><details><summary>{t('writingAttribution')}</summary><p>{languageStatus.sources[result.source]?.attribution || result.source} · {languageStatus.sources[result.source]?.license}</p></details></article>)}</div> : writingQuery && languagePhase === 'idle' ? <p className="muted">{t('writingNoResults')}</p> : null}
-      </section>}
-      <h3>{t('figuresPlaces')}</h3><div className="chip-list">{figures.nodes.map(node => <button key={node.id} onClick={() => insertEntity(node)}>{node.name}</button>)}</div>
-      {!!ambiguousMentions.length && <section className="mention-review"><h3>{t('ambiguousMentions')}</h3>{ambiguousMentions.map(candidate => <div key={`${candidate.from}-${candidate.to}`}><strong>{candidate.surface}</strong><div className="chip-list">{candidate.elementIds.map(id => { const node = figures.nodes.find(item => item.id === id); return node && <button key={id} onClick={() => resolveAmbiguous(candidate, node)}>{node.name} · {node.sub || node.label || t('worldObject')}</button>; })}</div></div>)}</section>}
-      {orphanedMentions > 0 && <p className="muted" role="status">{t('orphanedMentionsRemoved').replace('{count}', String(orphanedMentions))}</p>}
-      <h3>{t('ownTerms')}</h3><div className="chip-list editable-chips">{(manuscript.words || []).map((item, index) => { const word = typeof item === 'string' ? item : item.w; return <span key={`${word}-${index}`}><button onClick={() => insert(word)}>{word}</button><button aria-label={t('removeTerm').replace('{word}', word)} onClick={() => onChange({ ...manuscript, words: (manuscript.words || []).filter((_, i) => i !== index) })}>×</button></span>; })}</div><div className="add-term"><input aria-label={t('newTerm')} value={newWord} onChange={event => setNewWord(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addWord(); }} placeholder={t('addTerm')} /><button onClick={addWord} aria-label={t('addTerm')}>+</button></div>
-      <h3>{t('specialCharacters')}</h3><div className="chip-list symbols">{(manuscript.zeichenAktiv || ['„','“','–','—','…']).map(symbol => <button key={symbol} onClick={() => insert(symbol)}>{symbol}</button>)}<button aria-expanded={symbolPicker} onClick={() => setSymbolPicker(!symbolPicker)}>±</button></div>{symbolPicker && <div className="symbol-picker">{['„','“','‚','‘','»','«','›','‹','–','—','…','·','§','¶','†','°','′','″','×','±','½','¼'].map(symbol => { const active = (manuscript.zeichenAktiv || []).includes(symbol); return <button key={symbol} aria-pressed={active} onClick={() => onChange({ ...manuscript, zeichenAktiv: active ? (manuscript.zeichenAktiv || []).filter(item => item !== symbol) : [...(manuscript.zeichenAktiv || []), symbol] })}>{symbol}</button>; })}</div>}
+        {/* One row per finding, the details of the one in hand expanded. Clicking the wavy
+            underline in the text opens the same row, so both directions lead to one place. */}
+        {!!grammarIssues.length && <ul className="grammar-issues">{grammarIssues.map(issue => {
+          const open = selectedIssue?.id === issue.id;
+          return <li key={issue.id}>
+            <button className="grammar-issue-row" aria-expanded={open} onClick={() => setSelectedIssue(open ? null : issue)}><strong>{current.body.slice(issue.from, issue.to) || t('grammar')}</strong><span>{issue.category || t('grammar')}</span></button>
+            {open && <div className="grammar-issue-detail"><p>{issue.message}</p>{!!issue.replacements.length && <div className="writing-values">{issue.replacements.map(value => <button key={value} onClick={() => applyIssue(issue, value)}>{value}</button>)}</div>}</div>}
+          </li>;
+        })}</ul>}
+        <label className="field grammar-mode"><span>{t('grammarMode')}</span><select value={manuscript.grammarMode || 'manual'} onChange={event => onChange({ ...manuscript, language: 'de-DE', grammarMode: event.target.value as Manuscript['grammarMode'] })}><option value="manual">{t('grammarManual')}</option><option value="automatic">{t('grammarAutomatic')}</option></select></label>
+        {languageStatus?.grammar?.installed && <footer className="writing-attribution"><span>{t('writingAttribution')}</span><ul><li>LanguageTool {languageStatus.grammar.version} · {languageStatus.grammar.download.license}</li></ul></footer>}
+      </div> : <div className="panel-body writing-insert">
+        <h3>{t('figuresPlaces')}</h3><div className="chip-list">{figures.nodes.map(node => <button key={node.id} onClick={() => insertEntity(node)}>{node.name}</button>)}</div>
+        {!!ambiguousMentions.length && <section className="mention-review"><h3>{t('ambiguousMentions')}</h3>{ambiguousMentions.map(candidate => <div key={`${candidate.from}-${candidate.to}`}><strong>{candidate.surface}</strong><div className="chip-list">{candidate.elementIds.map(id => { const node = figures.nodes.find(item => item.id === id); return node && <button key={id} onClick={() => resolveAmbiguous(candidate, node)}>{node.name} · {node.sub || node.label || t('worldObject')}</button>; })}</div></div>)}</section>}
+        {orphanedMentions > 0 && <p className="muted" role="status">{t('orphanedMentionsRemoved').replace('{count}', String(orphanedMentions))}</p>}
+        <div className="helper-section-heading"><h3>{t('ownTerms')}</h3><button className="text-action" onClick={() => setTermsOpen(true)}><SlidersHorizontal />{t('manageTerms')}</button></div>
+        {projectDictionary.length ? <div className="chip-list">{projectDictionary.map((item, index) => { const word = typeof item === 'string' ? item : item.w; return <button key={`${word}-${index}`} onClick={() => insert(word)}>{word}</button>; })}</div> : <p className="muted">{t('ownTermsEmpty')}</p>}
+        <h3>{t('specialCharacters')}</h3><div className="chip-list symbols">{(manuscript.zeichenAktiv || ['„','“','–','—','…']).map(symbol => <button key={symbol} onClick={() => insert(symbol)}>{symbol}</button>)}<button aria-expanded={symbolPicker} aria-label={t('chooseSymbols')} onClick={() => setSymbolPicker(!symbolPicker)}>±</button></div>{symbolPicker && <div className="symbol-picker">{['„','“','‚','‘','»','«','›','‹','–','—','…','·','§','¶','†','°','′','″','×','±','½','¼'].map(symbol => { const active = (manuscript.zeichenAktiv || []).includes(symbol); return <button key={symbol} aria-pressed={active} onClick={() => onChange({ ...manuscript, zeichenAktiv: active ? (manuscript.zeichenAktiv || []).filter(item => item !== symbol) : [...(manuscript.zeichenAktiv || []), symbol] })}>{symbol}</button>; })}</div>}
+      </div>}
     </div>}
   </> : null;
 
@@ -247,7 +308,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label={t('chapterTitle')} value={current.title} onChange={event => update({ title: event.target.value })} placeholder={t('chapterTitle')} />
-          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} issues={grammarIssues} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => { if (body !== current.body) { setWritingSelection(null); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); } update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) }); }} held={writingSelection && writingSelection.chapterId === current.id && writingSelection.revision === current.body ? { from: writingSelection.from, to: writingSelection.to } : liveSelection ? { from: liveSelection.from, to: liveSelection.to } : null} onSelection={next => { setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null); if (!next) setSelectionMenuOpen(false); }} onSelectionMenu={next => { setSelection({ ...next, chapterId: current.id, revision: current.body }); setSelectionMenuOpen(true); }} onIssue={setSelectedIssue} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
+          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} issues={grammarIssues} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => { if (body !== current.body) { setWritingSelection(null); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); } update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) }); }} held={writingSelection && writingSelection.chapterId === current.id && writingSelection.revision === current.body ? { from: writingSelection.from, to: writingSelection.to } : liveSelection ? { from: liveSelection.from, to: liveSelection.to } : null} onSelection={next => { setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null); if (!next) setSelectionMenuOpen(false); }} onSelectionMenu={next => { setSelection({ ...next, chapterId: current.id, revision: current.body }); setSelectionMenuOpen(true); }} onIssue={issue => { setSelectedIssue(issue); setInspector('helpers'); setHelperMode('check'); setInspectorOpen(true); }} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
           {historyOpen && <aside className="chapter-history" aria-label={t('versions')}><header><div><strong>{t('previousVersion')}</strong><span>{t('nextToCurrent')}</span></div><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label={t('closeVersions')}><X /></button></header>
             {commits.length ? <label className="field"><span>{t('state')}</span><select value={historyRef} onChange={event => setHistoryRef(event.target.value)}>{commits.map(commit => <option key={commit.hash} value={commit.hash}>{commit.datum} · {commit.betreff}</option>)}</select></label> : historyState !== 'loading' && <p className="muted">{t('noVersion')}</p>}
             {historyState === 'loading' ? <p className="muted">{t('loadingVersion')}</p> : historyState === 'error' ? <div className="error-box">{t('versionLoadError')}</div> : commits.length > 0 && <div className="historical-prose">{historicalText || <em>{t('chapterNotYetExisting')}</em>}</div>}
@@ -257,7 +318,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       {!focus && viewportMode !== 'compact' && inspectorOpen && inspectorPanel && <aside className="inspector drawer-open" aria-label={t('chapterInspectorLabel')} style={{ width: inspectorWidth }}>{onInspectorWidth && <div className="panel-resize-handle panel-resize-handle--start" role="separator" aria-orientation="vertical" aria-label={t('resizeInspector')} aria-valuemin={240} aria-valuemax={380} aria-valuenow={inspectorWidth} tabIndex={0} onPointerDown={event => beginResize('inspector', event)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') onInspectorWidth(inspectorWidth + (event.key === 'ArrowLeft' ? 10 : -10)); }} />}{inspectorPanel}</aside>}
     </div>
     <button ref={selectionAnchor} className="selection-anchor" tabIndex={-1} aria-hidden="true" style={selection ? { left: selection.rect.left, top: selection.rect.top, width: selection.rect.width, height: selection.rect.height } : undefined} onFocus={() => editor.current?.focus()} />
-    <SelectionMenu anchorRef={selectionAnchor} open={selectionMenuOpen && !!liveSelection} label={t('writingSelectionActions')} onClose={() => setSelectionMenuOpen(false)} actions={[{ id: 'lookup', label: t('lookup'), run: () => openWritingTool('lookup') }, { id: 'synonyms', label: t('synonyms'), run: () => openWritingTool('synonyms') }, { id: 'translate', label: t('translate'), run: () => openWritingTool('translate') }, { id: 'more', label: t('writingMore'), run: () => openWritingTool(selectionTool || 'lookup') }]} />
+    <SelectionMenu anchorRef={selectionAnchor} open={selectionMenuOpen && !!liveSelection} label={t('writingSelectionActions')} onClose={() => setSelectionMenuOpen(false)} actions={[{ id: 'lookup', label: t('lookup'), run: () => openWritingTool('lookup') }, { id: 'synonyms', label: t('synonyms'), run: () => openWritingTool('synonyms') }, { id: 'translate', label: t('translate'), run: () => openWritingTool('translate') }, { id: 'more', label: t('writingMore'), run: () => openWritingTool(selectionTool) }]} />
     {!focus && viewportMode === 'compact' && <Sheet open={binderOpen} label={t('chapters')} onClose={() => setBinderOpen(false)}><div className="binder compact-panel">{binderPanel}</div></Sheet>}
     {!focus && viewportMode === 'compact' && inspectorPanel && <Sheet open={inspectorOpen} label={t('chapterInspectorLabel')} onClose={() => setInspectorOpen(false)}><div className="inspector compact-panel">{inspectorPanel}</div></Sheet>}
     {focus && manuscript.chapters.length > 1 && <aside className={`focus-chapters ${focusChapters ? 'is-open' : ''}`} aria-label={t('focusChapterPickerLabel')}>
@@ -281,6 +342,16 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <section className="book-title-page"><div><span>{t('novelLabel')}</span><h1>{worldTitle || t('untitledWorld')}</h1><i aria-hidden="true">◆</i></div><footer>{t('manuscriptVersionLabel')} · {new Date().toLocaleDateString(uiLanguage)}</footer></section>
       {manuscript.chapters.map((chapter, chapterIndex) => <section className="book-chapter" key={chapter.id}><header><span>{String(chapterIndex + 1).padStart(2, '0')}</span><h2>{chapter.title || t('untitled')}</h2></header>{chapter.body.trim().split(/\n{2,}/).filter(Boolean).map((paragraph, index) => /^\s*([*⁂◆]|\*\s*\*\s*\*)\s*$/.test(paragraph) ? <div className="scene-break" key={index}>⁂</div> : <p key={index}>{paragraph.replace(/\n/g, ' ')}</p>)}</section>)}
     </article>
+    {/* Editing the project dictionary is configuration, not something consulted mid-sentence.
+        It keeps its own surface; the writing aid only offers the finished terms. */}
+    <Sheet open={termsOpen} label={t('ownTerms')} onClose={() => setTermsOpen(false)}>
+      <div className="terms-sheet">
+        <header><h2>{t('ownTerms')}</h2><button className="icon-button" onClick={() => setTermsOpen(false)} aria-label={t('close')}><X /></button></header>
+        <p className="muted">{t('ownTermsIntro')}</p>
+        <div className="add-term"><input data-autofocus aria-label={t('newTerm')} value={newWord} onChange={event => setNewWord(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addWord(); }} placeholder={t('addTerm')} /><button onClick={addWord} aria-label={t('addTerm')}>+</button></div>
+        {projectDictionary.length ? <div className="chip-list editable-chips">{projectDictionary.map((item, index) => { const word = typeof item === 'string' ? item : item.w; return <span key={`${word}-${index}`}><button onClick={() => insert(word)}>{word}</button><button aria-label={t('removeTerm').replace('{word}', word)} onClick={() => onChange({ ...manuscript, words: projectDictionary.filter((_, i) => i !== index) })}>×</button></span>; })}</div> : <p className="muted">{t('ownTermsEmpty')}</p>}
+      </div>
+    </Sheet>
     {deleteOpen && current && <ConfirmDialog title={t('deleteChapter')} description={t('deleteChapterDescription').replace('{title}', current.title || t('untitled'))} confirmLabel={t('deleteChapter')} undoable onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
     {pdfState === 'error' && <div className="toast error-box" role="alert">{t('bookPdfError')}<button onClick={() => setPdfState('idle')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
     {!!exportError && <div className="toast error-box" role="alert">{exportError}<button onClick={() => setExportError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
