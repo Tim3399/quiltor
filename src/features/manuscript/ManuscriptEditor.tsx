@@ -236,5 +236,5 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
   useEffect(() => { view.current?.dispatch({ effects: setIssueDecorations.of(issues) }); }, [issues]);
   useEffect(() => { view.current?.dispatch({ effects: setHeldSelection.of(held) }); }, [held?.from, held?.to]);
 
-  return <div className="prose-editor" ref={host}>{completion && <div className="word-completion" role="status" aria-live="polite"><kbd>Tab</kbd><span>{completion.word}{completion.detail && <small>{completion.detail}</small>}</span></div>}</div>;
+  return <div className="prose-editor" ref={host}>{completion && <div className="word-completion" role="status" aria-live="polite"><kbd>Tab</kbd><span>{completion.word}{completion.detail && <small className="completion-detail">{completion.detail}</small>}</span></div>}</div>;
 }

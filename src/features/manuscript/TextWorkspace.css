@@ -138,6 +138,12 @@
   color: var(--ink);
 }
 
+/* The name and what it is run together in the markup, so the gap is set here rather than
+   with a text node -- "TarekFigur" otherwise. */
+.word-completion .completion-detail {
+  margin-left: var(--space-5);
+}
+
 .prose-editor .cm-editor,
 .prose-editor .cm-scroller,
 .prose-editor .cm-content {
@@ -160,9 +166,19 @@
 /* A browser stops painting ::selection the moment the editor loses focus, so reaching for
    the writing aid used to make the marked passage look unmarked. This keeps it there. */
 .prose-editor .held-selection { background: var(--selection-surface); }
+/* A mention is an aid, not the subject. Every character name carrying a gold underline
+   *and* a filled background turned a page of prose into a page of highlighting, with the
+   eye pulled to the annotations instead of the sentence. At rest a faint line is enough to
+   say "this word is linked"; hovering is when it matters, because that is when the card
+   appears and the word becomes clickable. */
 .prose-editor .entity-mention {
-  border-bottom: 1px solid var(--gold);
-  background: var(--selection-surface);
+  border-bottom: 1px solid var(--gold-border);
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+
+.prose-editor .entity-mention:hover {
+  border-bottom-color: var(--gold);
+  background: var(--gold-soft);
 }
 .prose-editor .cm-tooltip {
   border: 1px solid var(--line);
