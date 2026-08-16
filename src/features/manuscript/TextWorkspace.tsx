@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pilcrow, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
 import type { Chapter, FigureNode, FigureState, Manuscript, Workspace, WritingIssue } from '../../types';
 import { uid, wordCount } from '../../types';
-import { download } from '../../lib/api';
+import { download, errorMessage } from '../../lib/api';
 import type { LanguageLookupResult, LanguageStatus } from '../../lib/api';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 import { useShortcut } from '../../shared/ui/shortcuts';
@@ -59,6 +59,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   const [historicalText, setHistoricalText] = useState('');
   const [historyState, setHistoryState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [pdfState, setPdfState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [exportError, setExportError] = useState('');
   const editor = useRef<ManuscriptEditorHandle | null>(null);
   const lookupRequest = useRef<AbortController | null>(null);
   const grammarRequest = useRef<AbortController | null>(null);
@@ -120,7 +121,10 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     const mention = { id: crypto.randomUUID(), elementId: entity.id, from: candidate.from, to: candidate.to, surface: candidate.surface, source: 'helper' as const, confidence: 1 };
     update({ mentions: [...(current.mentions || []), mention].sort((a, b) => a.from - b.from) });
   };
-  const exportAll = () => download(`Quiltor-Manuskript-${new Date().toISOString().slice(0, 10)}.md`, manuscript.chapters.map(c => `# ${c.title || t('untitled')}\n\n${c.body.trim()}\n`).join('\n'));
+  // Saving an export can fail for real now that the desktop app writes the file itself
+  // (see download() in lib/api.ts) -- a rejected promise here has to reach the reader.
+  const runExport = (task: Promise<void>) => { void task.then(() => setExportError('')).catch(error => setExportError(errorMessage(error))); };
+  const exportAll = () => runExport(download(`Quiltor-Manuskript-${new Date().toISOString().slice(0, 10)}.md`, manuscript.chapters.map(c => `# ${c.title || t('untitled')}\n\n${c.body.trim()}\n`).join('\n')));
   const printBook = async () => { setPdfState('loading'); try { await onSave?.(); await api.bookPdf(); setPdfState('idle'); } catch { setPdfState('error'); } };
   const addWord = () => { const value = newWord.trim(); if (!value) return; const words = manuscript.words || []; if (!words.some(item => (typeof item === 'string' ? item : item.w).toLocaleLowerCase('de-DE') === value.toLocaleLowerCase('de-DE'))) onChange({ ...manuscript, words: [...words, { w: value, d: '' }] }); setNewWord(''); };
   const beginResize = (side: 'sidebar' | 'inspector', event: React.PointerEvent) => {
@@ -187,7 +191,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <dl className="stats"><div><dt>{t('words')}</dt><dd>{wordCount(current.body)}</dd></div><div><dt>{t('characters')}</dt><dd>{current.body.length}</dd></div><div><dt>{t('standardPages')}</dt><dd>{(wordCount(current.body) / 250).toFixed(1).replace('.', ',')}</dd></div></dl>
       <label className="field"><span>{t('chapterNote')}</span><textarea value={current.note} onChange={event => update({ note: event.target.value })} placeholder={t('chapterNotePlaceholder')} /></label>
       <div className="stack-actions"><button onClick={() => move(-1)}><ChevronUp />{t('moveUp')}</button><button onClick={() => move(1)}><ChevronDown />{t('moveDown')}</button></div>
-      <button className="secondary-action" onClick={() => download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${current.body}\n`)}><Download />{t('chapterMarkdown')}</button>
+      <button className="secondary-action" onClick={() => runExport(download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${current.body}\n`))}><Download />{t('chapterMarkdown')}</button>
       <button className="danger-text" onClick={() => setDeleteOpen(true)}><Trash2 />{t('deleteChapter')}</button>
     </div> : <div className="panel-body helper-panel">
       {languageStatus?.grammar?.supported !== false && <section className="grammar-tool"><div className="grammar-heading"><h3>{t('grammar')}</h3><button className="primary" onClick={checkGrammar} disabled={grammarPhase === 'checking'}>{grammarPhase === 'checking' ? t('grammarChecking') : t('checkText')}</button></div>
@@ -263,6 +267,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     </article>
     {deleteOpen && current && <ConfirmDialog title={t('deleteChapter')} description={t('deleteChapterDescription').replace('{title}', current.title || t('untitled'))} confirmLabel={t('deleteChapter')} undoable onConfirm={remove} onClose={() => setDeleteOpen(false)} />}
     {pdfState === 'error' && <div className="toast error-box" role="alert">{t('bookPdfError')}<button onClick={() => setPdfState('idle')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
+    {!!exportError && <div className="toast error-box" role="alert">{exportError}<button onClick={() => setExportError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
   </section>;
 }
 

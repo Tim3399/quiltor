@@ -24,11 +24,11 @@ dependencies = ["typer>=0.12"]
 # binary, 128 MB of a 165 MB app, and shipping a general-purpose JavaScript
 # interpreter inside a Store bundle is a known review flashpoint.
 [project.optional-dependencies]
-# pywebview 5.4 is the floor, not 5.0: earlier releases have the
-# ALLOW_DOWNLOADS setting but no backend that acts on it, so switching it on
-# would be silently useless and every export would stay dead. 5.4 is where
-# cocoa.py gained shouldPerformDownload/DownloadDelegate; edgechromium and gtk
-# gate on the same flag. See hosts/desktop/app.py::enable_downloads.
+# pywebview 5.4 is the floor, not 5.0. Exports do not use pywebview's own
+# download handling at all -- on macOS it hangs the app, see
+# hosts/desktop/bridge/files.py -- they go through a js_api bridge that calls
+# window.create_file_dialog(). 5.4 is the oldest release this was verified
+# against; earlier ones are simply untested here.
 desktop = ["pywebview>=5.4", "pystray>=0.19", "Pillow>=10"]
 
 # PDF export by driving an installed Chrome or Edge -- needed on Windows and

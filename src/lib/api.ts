@@ -91,10 +91,7 @@ export const api = {
   bookPdf: async () => {
     const response = await fetch('/api/book.pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({})) });
     if (!response.ok) { const error = await response.json().catch(() => null); throw new Error(error?.fehler || `HTTP ${response.status}`); }
-    const url = URL.createObjectURL(await response.blob());
-    const anchor = document.createElement('a');
-    anchor.href = url; anchor.download = `Quiltor-Buchfassung-${new Date().toISOString().slice(0, 10)}.pdf`; anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    await saveBlob(`Quiltor-Buchfassung-${new Date().toISOString().slice(0, 10)}.pdf`, await response.blob());
   },
 };
 
@@ -103,9 +100,48 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function download(name: string, content: string, type = 'text/plain;charset=utf-8') {
-  const url = URL.createObjectURL(new Blob([content], { type }));
+// --- Saving an export -------------------------------------------------------
+// In a browser tab an `<a download>` is the only way to hand the user a file.
+// In the desktop window it is the wrong way: a WebView only honours it with
+// downloads switched on, and pywebview's own download handling puts up a modal
+// save panel it can never answer -- on macOS that leaves an unclosable dialog
+// and then kills the app (hosts/desktop/bridge/files.py explains the exact
+// failure). So when the native bridge is there, Python gets the bytes and shows
+// the save panel itself; the anchor stays for the browser.
+
+type SaveVerdict = { ok?: boolean; cancelled?: boolean; error?: string; path?: string };
+type DesktopFileBridge = { save_file: (name: string, content: string, encoding: string) => Promise<SaveVerdict> };
+
+function desktopFiles(): DesktopFileBridge | null {
+  const bridge = (window as { pywebview?: { api?: Partial<DesktopFileBridge> } }).pywebview?.api;
+  return bridge && typeof bridge.save_file === 'function' ? bridge as DesktopFileBridge : null;
+}
+
+/** Bytes as base64, because the js_api bridge carries JSON, not binary. */
+function base64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    // readAsDataURL gives "data:<type>;base64,<payload>" -- only the payload crosses the bridge.
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(new Error(languages[currentLanguage()].exportFailed));
+    reader.readAsDataURL(blob);
+  });
+}
+
+export async function saveBlob(name: string, blob: Blob): Promise<void> {
+  const files = desktopFiles();
+  if (files) {
+    const verdict: SaveVerdict = await files.save_file(name, await base64(blob), 'base64').catch((error: unknown) => ({ error: errorMessage(error) }));
+    // Cancelling the save panel is a decision, not a failure: stay quiet for it.
+    if (verdict?.ok || verdict?.cancelled) return;
+    throw new Error(verdict?.error || languages[currentLanguage()].exportFailed);
+  }
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url; anchor.download = name; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+export function download(name: string, content: string, type = 'text/plain;charset=utf-8'): Promise<void> {
+  return saveBlob(name, new Blob([content], { type }));
 }

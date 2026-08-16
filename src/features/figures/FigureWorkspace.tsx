@@ -3,7 +3,7 @@ import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Connection
 import { Clock3, Download, Grid3X3, LayoutGrid, Link2, MapPin, MoreHorizontal, Pause, Pin, Play, Plus, Redo2, Skull, Star, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react';
 import type { FigureEdge, FigureNode, FigureState, FigureKind, PresenceEntry, Profile, TimelineMoment } from '../../types';
 import { PROFILE_FIELDS, uid } from '../../types';
-import { download } from '../../lib/api';
+import { download, errorMessage } from '../../lib/api';
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog';
 import { useShortcut } from '../../shared/ui/shortcuts';
 import { ContextMenu, Menu, MenuItem, MenuSeparator } from '../../shared/ui/Menu';
@@ -103,6 +103,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
   const [playing, setPlaying] = useState(false);
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
   const [importError, setImportError] = useState('');
+  const [exportError, setExportError] = useState('');
   const [connectionError, setConnectionError] = useState('');
   const [zoomTier, setZoomTier] = useState<SemanticZoomTier>('detail');
   const [viewportZoom, setViewportZoom] = useState(1);
@@ -235,13 +236,16 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     const remainingNodes = state.nodes.filter(node => node.id !== selected.id);
     onChange({ ...state, nodes: remainingNodes, edges: state.edges.filter(edge => edge.from !== selected.id && edge.to !== selected.id), presence: prunePresence(presence, remainingNodes, timeline) }); setSelectedId(null);
   };
-  const exportState = () => download(`quiltor-figuren-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2), 'application/json');
-  const exportProfiles = () => download(`Quiltor-Steckbriefe-${new Date().toISOString().slice(0, 10)}.md`, state.nodes.map(node => {
+  // Saving an export can fail for real now that the desktop app writes the file itself
+  // (see download() in lib/api.ts) -- a rejected promise here has to reach the reader.
+  const runExport = (task: Promise<void>) => { void task.then(() => setExportError('')).catch(error => setExportError(errorMessage(error))); };
+  const exportState = () => runExport(download(`quiltor-figuren-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2), 'application/json'));
+  const exportProfiles = () => runExport(download(`Quiltor-Steckbriefe-${new Date().toISOString().slice(0, 10)}.md`, state.nodes.map(node => {
     const profile = node.profile || {}; const lines = [`# ${node.name}`, '', node.label ? `*${node.label}*` : '', node.sub || '', ''];
     PROFILE_FIELDS.forEach(([key, label]) => { const value = String(profile[key] || '').trim(); if (value) lines.push(`## ${label}`, '', value, ''); });
     (profile.extra || []).forEach(field => { if (field.k || field.v) lines.push(`## ${field.k || t('untitled')}`, '', field.v || '', ''); });
     return lines.filter((line, index) => line || lines[index - 1]).join('\n').trim();
-  }).join('\n\n---\n\n'));
+  }).join('\n\n---\n\n')));
   const importState = async (file?: File) => {
     if (!file) return;
     try {
@@ -280,6 +284,7 @@ function FigureWorkspaceInner({ state, onChange, targetId, onUndo, onRedo, canUn
     </div>
     {nodeMenu && <div className="node-context-menu material-popover" style={{ left: nodeMenu.x, top: nodeMenu.y }} onPointerDown={event => event.stopPropagation()}><ContextMenu label={t('elementActions')} onClose={() => setNodeMenu(null)}><MenuItem onSelect={() => { setSelectedId(nodeMenu.id); setNodeMenu(null); }}><UserRound />{t('openInInspector')}</MenuItem><MenuItem onSelect={() => { setSelectedId(nodeMenu.id); setConnecting(true); setNodeMenu(null); }}><Link2 />{t('connect')}</MenuItem><MenuItem onSelect={() => { const node = state.nodes.find(item => item.id === nodeMenu.id); if (node) patchNode(node.id, { important: !node.important }); setNodeMenu(null); }}><Star />{state.nodes.find(item => item.id === nodeMenu.id)?.important ? t('unmarkImportant') : t('markImportant')}</MenuItem><MenuSeparator /><MenuItem onSelect={() => { setSelectedId(nodeMenu.id); setConfirmDelete(true); setNodeMenu(null); }}><Trash2 />{t('deleteElement')}</MenuItem></ContextMenu></div>}
     {importError && <div className="toast error-box" role="alert">{importError}<button onClick={() => setImportError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
+    {exportError && <div className="toast error-box" role="alert">{exportError}<button onClick={() => setExportError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
     {connectionError && <div className="toast error-box" role="alert">{connectionError}<button onClick={() => setConnectionError('')}><X /><span className="sr-only">{t('closeMessage')}</span></button></div>}
     {selected && confirmDelete && <ConfirmDialog title={t('deleteElement')} description={t('deleteElementDescription').replace('{name}', selected.name)} confirmLabel={t('deleteElement')} undoable onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
     {pendingImport && <ConfirmDialog title={t('importDiagram')} description={t('importDiagramDescription').replace('{nodes}', String(pendingImport.nodes.length)).replace('{edges}', String(pendingImport.edges.length))} confirmLabel={t('importAction')} undoable onConfirm={() => { onChange(pendingImport); setSelectedId(null); setPendingImport(null); }} onClose={() => setPendingImport(null)} />}

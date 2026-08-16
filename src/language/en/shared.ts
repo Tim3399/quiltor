@@ -10,6 +10,9 @@ export const shared = {
   holdAriaLabel: '{label} – press and hold to confirm', holdToConfirm: '{label} · press and hold', keepHolding: 'Keep holding …',
   undoHint: 'Can be undone with {shortcut}.',
   unsaved: 'Unsaved', saving: 'Saving …', saved: 'Saved', notSaved: 'Not saved', saveFailed: 'Save failed',
+  // Raised when an export never reaches its destination -- practically never in the browser, and in
+  // the desktop app whenever the native save bridge could not write the file.
+  exportFailed: 'The export could not be saved.',
   saveConflict: 'The page was changed in another tab. Reload it before writing on.',
   timeline: 'Timeline', moment: 'Moment', moments: 'Moments', newMoment: 'New moment', addMoment: 'Add moment', deleteMoment: 'Delete moment',
   relationship: 'Relationship', relationships: 'Relationships', directed: 'Directed', undirected: 'Undirected', reverseDirection: 'Reverse direction',

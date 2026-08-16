@@ -45,28 +45,27 @@ def _redirect_null_streams() -> None:
             setattr(sys, name, open(os.devnull, "r" if name == "stdin" else "w"))
 
 
-def enable_downloads(webview) -> None:
-    """Let the window actually save a file the page hands it.
+def keep_pywebview_downloads_off(webview) -> None:
+    """Make sure the window never routes a download through pywebview itself.
 
     Every export in Quiltor -- the book PDF, the whole manuscript, a single
-    chapter, the figures JSON, the character profiles -- is a blob URL behind an
-    `<a download>` (src/lib/api.ts). pywebview refuses those unless this is set:
-    ALLOW_DOWNLOADS defaults to False, and each backend gates on it
-    (cocoa.py's decidePolicyForNavigationAction, edgechromium.py, gtk.py).
+    chapter, the figures JSON, the character profiles -- goes through the
+    FileBridge instead (hosts/desktop/bridge/files.py, and `download()` in
+    src/lib/api.ts on the page side). ALLOW_DOWNLOADS already defaults to False,
+    so this asserts the default rather than changing it; it exists because
+    turning it on looks like the obvious fix and is in fact the worse bug.
 
-    Without it the click does nothing at all -- no file, no error, no console
-    message. Every export in the shipped desktop app was silently a no-op.
-
-    Switched on, each backend routes the download through the OS's own save
-    panel, which is also exactly what a sandboxed Mac App Store build needs:
-    a location the user picked, covered by the
-    com.apple.security.files.user-selected.read-write entitlement already
-    declared in packaging/entitlements-mas.plist.
+    On macOS pywebview's DownloadDelegate puts up an application-modal
+    NSSavePanel and then fails to call WebKit's completion handler -- pyobjc
+    cannot invoke the block, having no signature for it -- so the export
+    produces nothing and the uncaught NSInternalInconsistencyException that
+    follows terminates the app. The full trace is in the bridge's module
+    docstring.
 
     Takes the module as an argument rather than importing it, so this stays
     testable without the desktop extra installed.
     """
-    webview.settings["ALLOW_DOWNLOADS"] = True
+    webview.settings["ALLOW_DOWNLOADS"] = False
 
 
 def _bundle_base() -> Path:
@@ -130,12 +129,18 @@ def main() -> None:
 
     import webview
 
-    enable_downloads(webview)
+    from hosts.desktop.bridge import FileBridge
 
+    keep_pywebview_downloads_off(webview)
+
+    # The page hands its exports to this instead of downloading them itself.
+    files = FileBridge()
     window = webview.create_window(
         APP_NAME, f"http://127.0.0.1:{port}/",
         width=1280, height=860, min_size=(960, 640),
+        js_api=files,
     )
+    files.attach(window)
 
     from hosts.desktop.tray import start_tray_icon
 
