@@ -21,10 +21,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from backend import edition
+from backend import edition, system
 from backend.pdf import node_chromium, system_browser, wkwebview
 from backend.pdf.contract import PdfRenderer
 from backend.pdf.tokens import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token
+
+WKWEBVIEW = "wkwebview"
+SYSTEM_BROWSER = "system_browser"
 
 
 def server_renderer(script: Path, base: Path) -> PdfRenderer:
@@ -33,19 +36,36 @@ def server_renderer(script: Path, base: Path) -> PdfRenderer:
     return node_chromium.renderer(script, base)
 
 
-def desktop_renderer() -> PdfRenderer:
-    """The renderer for a windowed desktop process.
+def desktop_renderer_name(os_name: str | None = None, sandboxed: bool | None = None) -> str:
+    """Which renderer a windowed build uses. Split out from desktop_renderer()
+    so packaging can ask the same question without duplicating the answer -- see
+    packaging/bundle.py, which drops Playwright wherever this is not
+    SYSTEM_BROWSER.
 
-    `allows_external_process()` is the whole question: driving an installed
-    Chrome or Edge means launching an executable outside our bundle, which only
-    the sandbox refuses. The Microsoft Store build keeps the browser path.
+    macOS always prints through WKWebView, sandboxed or not. That is not a
+    concession to the App Store: the window is a WKWebView, so printing with the
+    same engine is what makes the PDF match what the author was looking at, and
+    it removes any dependency on the reader having Chrome installed. "Install
+    Google Chrome to export your book" is a poor thing for a local writing tool
+    to say.
+
+    Elsewhere the browser path stays until an equivalent exists -- WebView2's
+    PrintToPdfAsync on Windows, WebKitGTK's print operation on Linux -- except
+    in a sandbox, which may not launch anything outside the bundle at all.
     """
-    if edition.allows_external_process():
-        return system_browser.render
-    return wkwebview.render
+    if (os_name or system.os_name()) == "macos":
+        return WKWEBVIEW
+    is_sandboxed = edition.is_sandboxed() if sandboxed is None else sandboxed
+    return WKWEBVIEW if is_sandboxed else SYSTEM_BROWSER
+
+
+def desktop_renderer() -> PdfRenderer:
+    """The renderer for this windowed process."""
+    return wkwebview.render if desktop_renderer_name() == WKWEBVIEW else system_browser.render
 
 
 __all__ = [
-    "RENDER_TOKEN_TTL", "PdfRenderer", "desktop_renderer", "issue_render_token",
-    "node_chromium", "redeem_render_token", "server_renderer", "system_browser", "wkwebview",
+    "RENDER_TOKEN_TTL", "SYSTEM_BROWSER", "WKWEBVIEW", "PdfRenderer", "desktop_renderer",
+    "desktop_renderer_name", "issue_render_token", "node_chromium", "redeem_render_token",
+    "server_renderer", "system_browser", "wkwebview",
 ]

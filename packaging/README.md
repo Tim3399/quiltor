@@ -19,7 +19,8 @@ source .venv-desktop/bin/activate
 # Windows:
 .venv-desktop\Scripts\activate
 
-pip install -e ".[desktop,browser-pdf]"
+pip install -e ".[desktop]"                 # macOS
+pip install -e ".[desktop,browser-pdf]"     # Windows / Linux: PDF export needs Playwright
 pip install pyinstaller
 ```
 
@@ -102,21 +103,31 @@ Only `backend/system/` branches on the OS — everything else (`hosts/desktop/ap
   `hosts/cli/main.py`'s `~/.quiltor` default for the pip/pipx CLI, adapted to each
   OS's usual convention since a double-clicked app has no shell profile to set
   `QUILTOR_HOME` by hand).
-- **PDF export** uses `backend/pdf/system_browser.py` — Playwright for Python
-  driving the already-installed system Chrome or Edge
-  (`channel="chrome"`/`"msedge"`), instead of the Node/Playwright-JS subprocess
-  path (`backend/pdf/node_chromium.py` + `scripts/render-book-pdf.mjs`) that
-  Docker and `npm run dev` use. This avoids bundling a dedicated ~250-300MB
-  Chromium download; Playwright for Python's own driver adds only ~50-90MB, and
-  no system Node.js is required. If neither Chrome nor Edge is installed, PDF
-  export fails with a clear error message (rare in practice — Windows ships Edge
-  by default).
+- **PDF export** — `hosts/desktop/app.py` asks `backend.pdf.desktop_renderer()`,
+  and the answer depends on the platform:
 
-  `hosts/desktop/app.py` asks `backend.pdf.desktop_renderer()`, which picks this only when
-  the edition permits launching another application. A sandboxed Mac App Store
-  build gets `backend/pdf/wkwebview.py` instead — see "Still to build". That is
-  also why Playwright now lives in its own `browser-pdf` extra rather than in
-  `desktop`: a Store build must be able to leave it out.
+  **macOS: `backend/pdf/wkwebview.py`**, sandboxed or not. The window already is
+  a WKWebView, so printing with the same engine is what makes the PDF match what
+  the author was looking at, and it asks nothing of the reader's machine — "to
+  export your book, install Google Chrome" is a poor thing for a local writing
+  tool to say. It also keeps Playwright out of the bundle entirely, which is
+  most of the download: its driver ships a `node` binary of its own.
+
+  **Windows and Linux: `backend/pdf/system_browser.py`** — Playwright for Python
+  driving the installed Chrome or Edge (`channel="chrome"`/`"msedge"`). Both
+  platforms ship a browser by default, so the dependency is far less intrusive,
+  and Playwright's own driver (~50-90MB) is much smaller than the dedicated
+  Chromium download it avoids. If neither browser is present, export fails with
+  a clear message. The equivalents that would remove this too are WebView2's
+  `PrintToPdfAsync` and WebKitGTK's print operation.
+
+  **Docker and `npm run dev`: `backend/pdf/node_chromium.py`** +
+  `scripts/render-book-pdf.mjs`. Both already have Node and the Playwright
+  browsers, so there is nothing to bundle and nothing to find.
+
+  This is why Playwright lives in its own `browser-pdf` extra rather than in
+  `desktop`: a macOS build leaves it out, and `packaging/bundle.py` asks
+  `backend.pdf` which renderer this build uses rather than deciding separately.
 - **The local AI assistant's first-run terminal prompt is silent** —
   `ensure_installed()` (`backend/llm/installer.py`) only asks interactively when
   `sys.stdin.isatty()`; a windowed build has no console, so it stays quiet and the
@@ -342,7 +353,8 @@ that way.
 1. Launch the built app. It should open a window (no browser, no console/terminal
    window) within a few seconds.
 2. Create or open a world, write something, confirm autosave.
-3. Export a PDF; confirm it opens Chrome/Edge headlessly, that a save panel
+3. Export a PDF; on Windows and Linux confirm it opens Chrome/Edge headlessly,
+   on macOS that nothing is launched at all. Then that a save panel
    appears, and that the file lands where you pointed it.
 4. Export a chapter as Markdown too. All five exports (book PDF, whole
    manuscript, single chapter, figures JSON, character profiles) are blob URLs

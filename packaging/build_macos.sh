@@ -4,7 +4,7 @@
 #
 #   ./packaging/build_macos.sh
 #
-# Requires: a Python 3.11+ venv with `pip install -e ".[desktop,browser-pdf]"` and
+# Requires: a Python 3.11+ venv with `pip install -e ".[desktop]"` and
 # `pip install pyinstaller` already done in it (see README section "Desktop app" for
 # the one-time setup).
 #

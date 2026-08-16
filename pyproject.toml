@@ -30,6 +30,11 @@ dependencies = ["typer>=0.12"]
 # cocoa.py gained shouldPerformDownload/DownloadDelegate; edgechromium and gtk
 # gate on the same flag. See hosts/desktop/app.py::enable_downloads.
 desktop = ["pywebview>=5.4", "pystray>=0.19", "Pillow>=10"]
+
+# PDF export by driving an installed Chrome or Edge -- needed on Windows and
+# Linux only. macOS prints through WKWebView (backend/pdf/wkwebview.py), so a
+# Mac build wants `.[desktop]` alone and is ~128 MB smaller for it: Playwright
+# ships its own `node` binary, which would otherwise be most of the bundle.
 browser-pdf = ["playwright>=1.40"]
 
 [project.scripts]

@@ -15,20 +15,34 @@ from backend.pdf import node_chromium, page_numbers, system_browser, wkwebview
 
 
 class DesktopRendererSelectionTests(unittest.TestCase):
-    def _renderer(self, *, external_process: bool):
-        with patch("backend.edition.allows_external_process", return_value=external_process):
-            return pdf.desktop_renderer()
+    def _renderer(self, *, os_name: str, sandboxed: bool):
+        with patch("backend.system.os_name", return_value=os_name):
+            with patch("backend.edition.is_sandboxed", return_value=sandboxed):
+                return pdf.desktop_renderer()
 
-    def test_a_build_allowed_to_launch_apps_drives_the_installed_browser(self):
-        """The .dmg, the .exe, and the Microsoft Store's MSIX package: none of
-        them are sandboxed against launching Chrome."""
-        self.assertIs(self._renderer(external_process=True), system_browser.render)
+    def test_macos_always_prints_through_wkwebview(self):
+        """Not a concession to the sandbox -- the window is a WKWebView, so the
+        PDF matches what the author saw, and no reader has to install Chrome to
+        export their book."""
+        for sandboxed in (False, True):
+            with self.subTest(sandboxed=sandboxed):
+                self.assertIs(self._renderer(os_name="macos", sandboxed=sandboxed),
+                              wkwebview.render)
 
-    def test_a_sandboxed_build_gets_the_wkwebview_renderer(self):
-        """Launching an installed Chrome is what the App Sandbox refuses, so a
-        Mac App Store build must not reach system_browser even though it would
-        work perfectly on the developer's own machine."""
-        self.assertIs(self._renderer(external_process=False), wkwebview.render)
+    def test_windows_and_linux_still_drive_the_installed_browser(self):
+        """Until WebView2 and WebKitGTK equivalents exist. Both ship a browser
+        by default, so the dependency is far less intrusive there."""
+        for os_name in ("windows", "linux"):
+            with self.subTest(os_name=os_name):
+                self.assertIs(self._renderer(os_name=os_name, sandboxed=False),
+                              system_browser.render)
+
+    def test_a_sandboxed_build_never_reaches_for_a_browser(self):
+        """Launching an installed Chrome is what the App Sandbox refuses,
+        whatever the platform."""
+        for os_name in ("macos", "windows", "linux"):
+            with self.subTest(os_name=os_name):
+                self.assertIs(self._renderer(os_name=os_name, sandboxed=True), wkwebview.render)
 
     def test_the_wkwebview_renderer_reports_missing_system_frameworks_clearly(self):
         """Importable everywhere; pyobjc is only touched inside render(). Off a

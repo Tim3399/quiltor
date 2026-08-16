@@ -116,26 +116,35 @@ class BuildVariantTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 bundle.build_edition()
 
-    def test_only_the_sandboxed_build_drops_playwright(self):
-        """The Microsoft Store's MSIX package is not sandboxed against launching
-        an installed browser, so it keeps the renderer that needs it."""
-        self.assertEqual(bundle.excluded_modules("direct"), [])
-        self.assertEqual(bundle.excluded_modules("msstore"), [])
-        self.assertIn("playwright", bundle.excluded_modules("mas"))
+    def test_a_macos_build_never_ships_playwright(self):
+        """WKWebView prints on macOS whatever the edition, so Playwright's
+        driver -- a `node` binary worth ~128 MB, most of the bundle -- would be
+        along purely for a code path that cannot run."""
+        with patch("backend.system.os_name", return_value="macos"):
+            for name in ("direct", "mas", "msstore"):
+                with self.subTest(edition=name):
+                    self.assertIn("playwright", bundle.excluded_modules(name))
+
+    def test_a_windows_build_keeps_playwright_unless_sandboxed(self):
+        with patch("backend.system.os_name", return_value="windows"):
+            self.assertEqual(bundle.excluded_modules("direct"), [])
+            self.assertEqual(bundle.excluded_modules("msstore"), [])
+            self.assertIn("playwright", bundle.excluded_modules("mas"))
 
     def test_the_pdf_renderer_and_the_packaging_agree(self):
-        """The point of deriving both from one policy: if Playwright is excluded,
-        the renderer that imports it must not be the one selected."""
+        """The point of asking backend/pdf rather than re-deriving: a build must
+        never drop the library its own renderer imports, nor carry one it does
+        not."""
         from backend import pdf
-        from backend.pdf import system_browser
 
-        for name in ("direct", "mas", "msstore"):
-            with self.subTest(edition=name):
-                excluded = "playwright" in bundle.excluded_modules(name)
-                with patch("backend.edition.allows_external_process",
-                           return_value=bundle.policy(name).allows_external_process):
-                    selected_needs_playwright = pdf.desktop_renderer() is system_browser.render
-                self.assertNotEqual(excluded, selected_needs_playwright)
+        for os_name in ("macos", "windows", "linux"):
+            for name in ("direct", "mas", "msstore"):
+                with self.subTest(os=os_name, edition=name):
+                    with patch("backend.system.os_name", return_value=os_name):
+                        excluded = "playwright" in bundle.excluded_modules(name)
+                        selected = pdf.desktop_renderer_name(
+                            os_name=os_name, sandboxed=bundle.policy(name).sandboxed)
+                    self.assertNotEqual(excluded, selected == pdf.SYSTEM_BROWSER)
 
     def test_mlx_scripts_ship_only_where_mlx_could_be_installed(self):
         """Installing MLX means building a venv and pip-installing into it, so a

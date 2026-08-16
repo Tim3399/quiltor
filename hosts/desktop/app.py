@@ -2,7 +2,7 @@
 """Desktop launcher: runs the Quiltor server in the background and shows it in a
 native OS window instead of a browser tab.
 
-Optional `desktop` extra (`pip install -e ".[desktop,browser-pdf]"`, or the PyInstaller-frozen
+Optional `desktop` extra (`pip install -e ".[desktop]"`, or the PyInstaller-frozen
 build built by packaging/) -- server.py and the plain `quiltor` CLI stay dependency-
 free/stdlib-only without this file, same as before.
 

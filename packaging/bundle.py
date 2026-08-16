@@ -134,14 +134,18 @@ def policy(edition: str | None = None) -> edition_contract.EditionPolicy:
 def excluded_modules(edition: str | None = None) -> list[str]:
     """Python packages to keep out of this build.
 
-    Playwright goes only where the renderer that uses it cannot run
-    (backend/pdf/system_browser.py needs to launch an installed Chrome, which
-    the App Sandbox refuses). That is worth doing on its own terms: Playwright's
-    driver carries a `node` binary, 128 MB of a 165 MB app, and a
-    general-purpose JavaScript interpreter inside a Store bundle is a known
-    review flashpoint.
+    Playwright ships only where the renderer that needs it is the one being
+    used. backend/pdf decides that, and is asked rather than second-guessed, so
+    a build can never drop the library its own renderer imports.
+
+    On macOS the answer is always "leave it out": WKWebView prints there, and
+    Playwright's driver carries a `node` binary worth ~128 MB -- most of the
+    bundle, for a code path that never runs.
     """
-    if not policy(edition).allows_external_process:
+    from backend import pdf, system
+
+    if pdf.desktop_renderer_name(os_name=system.os_name(),
+                                 sandboxed=policy(edition).sandboxed) != pdf.SYSTEM_BROWSER:
         return ["playwright"]
     return []
 
