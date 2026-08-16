@@ -7,7 +7,7 @@ const ignored = new Set(['node_modules', 'dist', 'test-results', 'playwright-rep
 
 // Product UI must be localized regardless of its source language. Technical labels that are
 // intentionally language-neutral are explicit here instead of being silently ignored.
-const allowedLiteralText = new Set(['Aa', 'Esc', 'Git', 'JSON', 'Tab', '⌘ F', '⌘ K', 'python3 server.py']);
+const allowedLiteralText = new Set(['Aa', 'Esc', 'JSON', 'Tab', '⌘ F', '⌘ K', 'python3 server.py']);
 const humanText = /[A-Za-zÄÖÜäöüß]/;
 const attr = /\b(?:aria-label|title|placeholder)=["']([^"'{}]*)["']/g;
 const jsxText = />([^<>{}\n]{2,})<\/[A-Za-z]/g;

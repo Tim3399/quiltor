@@ -73,7 +73,7 @@ def _open_or_create(handler, request: Request, app, *, creating: bool) -> None:
             if not app.AUTH_ENABLED:
                 # Every world gets a local backup history, even without a
                 # configured endpoint -- history is always local first.
-                app.CURRENT_GIT = app.WORLD_BACKUPS.context(
+                app.CURRENT_BACKUP = app.WORLD_BACKUPS.context(
                     world["id"], world.get("backupUrl", ""), storage.DB,
                     app.MANUSCRIPT_DIR, app.PROFILE_DIR, title=world.get("title", ""))
         handler.send_json({"ok": True, "world": world})

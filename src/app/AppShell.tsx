@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Clock3, DatabaseBackup, GitBranch, History, LogOut, MapPin, Search, Sparkles, Users, FileText, Moon, Sun, MoreHorizontal, PanelLeft } from 'lucide-react';
+import { Clock3, DatabaseBackup, History, LogOut, MapPin, Save, Search, Sparkles, Users, FileText, Moon, Sun, MoreHorizontal, PanelLeft } from 'lucide-react';
 import type { Theme } from '../hooks/useTheme';
 import type { SavePhase, Workspace } from '../types';
 import { SaveStatus } from '../shared/ui/SaveStatus';
@@ -9,10 +9,10 @@ import { Menu, MenuItem, MenuSeparator } from '../shared/ui/Menu';
 import { Popover } from '../shared/ui/Popover';
 import { useShortcut } from '../shared/ui/shortcuts';
 
-export function AppShell({ title, workspace, onWorkspace, navigationAvailable = false, navigationOpen = false, onNavigation, phase, error, retry, theme, onTheme, onSearch, onHistory, onGit, onBackups, onAssistant, whoami, onLogout, version, children }: {
+export function AppShell({ title, workspace, onWorkspace, navigationAvailable = false, navigationOpen = false, onNavigation, phase, error, retry, theme, onTheme, onSearch, onHistory, onSnapshot, onBackups, onAssistant, whoami, onLogout, version, children }: {
   title: string; workspace: Workspace; onWorkspace: (value: Workspace) => void; phase: SavePhase; error?: string; retry: () => void; theme: Theme; onTheme: () => void;
   navigationAvailable?: boolean; navigationOpen?: boolean; onNavigation?: () => void;
-  onSearch: () => void; onHistory: () => void; onGit: () => void; onBackups: () => void; onAssistant: () => void;
+  onSearch: () => void; onHistory: () => void; onSnapshot: () => void; onBackups: () => void; onAssistant: () => void;
   whoami?: { email?: string; name?: string } | null; onLogout?: () => void; version?: string; children: React.ReactNode;
 }) {
   const { t } = useLanguage();
@@ -40,7 +40,7 @@ export function AppShell({ title, workspace, onWorkspace, navigationAvailable = 
         <MenuItem onSelect={() => runOverflow(onHistory)}><History />{t('history')}</MenuItem>
         <MenuItem onSelect={() => runOverflow(onBackups)}><DatabaseBackup />{t('backups')}</MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => runOverflow(onGit)}><GitBranch />Git</MenuItem>
+        <MenuItem onSelect={() => runOverflow(onSnapshot)}><Save />{t('snapshotSave')}</MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => runOverflow(onTheme)}>{theme === 'dark' ? <Sun /> : <Moon />}{theme === 'dark' ? t('themeLight') : t('themeDark')}</MenuItem>
         {whoami && onLogout && <><MenuSeparator /><MenuItem onSelect={() => runOverflow(onLogout)}><LogOut />{t('logout')}</MenuItem></>}

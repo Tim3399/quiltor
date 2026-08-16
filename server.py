@@ -70,9 +70,9 @@ BACKUPS = DATA / "backups"
 MANUSCRIPT_DIR = DATA / "manuscripts"
 PROFILE_DIR = DATA / "profiles"
 WORLD_BACKUPS = SnapshotStore(DATA / "history")
-# The single "currently open" world's Git backup context (local single-user mode
+# The single "currently open" world's snapshot context (local single-user mode
 # mirrors storage.DB/ACTIVE_WORLD_ID: one process, one active world at a time).
-CURRENT_GIT: BackupContext | None = None
+CURRENT_BACKUP: BackupContext | None = None
 ensure_installed()
 # Where the assistant looks for its runtime/model (backend/llm/installer.py's
 # HOME): BASE for a source checkout / Docker, or QUILTOR_HOME for the packaged
@@ -149,7 +149,7 @@ class WorldContext:
     backups_dir: Path
     manuscripts_dir: Path
     profiles_dir: Path
-    git: BackupContext  # always present -- a world without an endpoint still gets local history
+    backup: BackupContext  # always present -- a world without an endpoint still gets local history
 
 
 def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
@@ -179,9 +179,9 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
     endpoint_url = (world or {}).get("backupUrl", "")
     # Every world gets a local backup history, even without a configured remote --
     # only uploading needs one; an unset endpoint just means history stays local.
-    git_ctx = WORLD_BACKUPS.context(world_id, endpoint_url, db_path, manuscripts_dir, profiles_dir, title=(world or {}).get("title", ""))
+    backup_ctx = WORLD_BACKUPS.context(world_id, endpoint_url, db_path, manuscripts_dir, profiles_dir, title=(world or {}).get("title", ""))
     return WorldContext(id=world_id, db_path=db_path, backups_dir=backups_dir,
-                         manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, git=git_ctx)
+                         manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, backup=backup_ctx)
 
 
 def restore_world_from_endpoint(session: "auth.SessionData | None", world_id: str, snapshot_id: str, endpoint: str) -> dict[str, Any]:

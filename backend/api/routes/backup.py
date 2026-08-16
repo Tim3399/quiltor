@@ -12,7 +12,7 @@ from backend.core.mirror import mirror_profiles, mirror_text, safe_name
 def _context(request: Request, app):
     """The snapshot context for this request: per-world under OIDC, the single
     process-wide open world otherwise."""
-    return request.world.git if request.world else app.CURRENT_GIT
+    return request.world.backup if request.world else app.CURRENT_BACKUP
 
 
 @get("/api/backup", world=True)
@@ -92,13 +92,13 @@ def snapshot(handler, request: Request, app) -> None:
         world_ctx = handler._resolve_world_or_respond(request.session, str(payload.get("worldId", "")))
         if world_ctx is None:
             return
-        context = world_ctx.git
+        context = world_ctx.backup
 
     with app._lock:
-        # CURRENT_GIT is read inside the lock: /api/worlds/open|create can
+        # CURRENT_BACKUP is read inside the lock: /api/worlds/open|create can
         # reassign it concurrently, and reading it earlier would race that.
         if not app.AUTH_ENABLED:
-            context = app.CURRENT_GIT
+            context = app.CURRENT_BACKUP
         if context is None:
             result = {"ok": False, "grund": "No world is open.", "log": []}
         else:
@@ -107,7 +107,7 @@ def snapshot(handler, request: Request, app) -> None:
     for line in result.get("log", []):
         print(f"  · {datetime.now():%H:%M:%S}  {line}")
     if not result.get("ok"):
-        print(f"  ! git: {result.get('grund', '')}".replace("\n", " "))
+        print(f"  ! Sicherung: {result.get('grund', '')}".replace("\n", " "))
     handler.send_json(result)
 
 

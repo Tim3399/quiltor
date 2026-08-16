@@ -1,6 +1,6 @@
 """Human-readable Markdown mirrors of the SQLite-authoritative manuscript and character
-profiles -- these exist purely for reading, backups, and Git history, never as a second
-source of truth (SQLite always wins on load)."""
+profiles -- these exist purely for reading, backups, and the snapshot history, never as a
+second source of truth (SQLite always wins on load)."""
 
 from __future__ import annotations
 

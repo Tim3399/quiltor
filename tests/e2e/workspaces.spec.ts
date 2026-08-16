@@ -63,11 +63,11 @@ test('CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil', a
   await expect(page.getByText(/Sprachdaten sind nicht installiert|Keine Ergebnisse gefunden/)).toBeVisible();
 });
 
-test('Shortcuts unterscheiden Speichern und Git', async ({ page }) => {
+test('Shortcuts unterscheiden Speichern und Sicherung', async ({ page }) => {
   await openBlankWorld(page);
   await page.keyboard.press('Control+Shift+S');
-  await expect(page.getByRole('dialog', { name: /Git/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Committen & pushen' })).toBeEnabled();
+  await expect(page.getByRole('dialog', { name: /Arbeitsstand sichern/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sichern & hochladen' })).toBeEnabled();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+S');
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -117,7 +117,7 @@ test('Befehlspalette führt alle sichtbaren Aktionen atomar aus', async ({ page 
   await open(); await page.getByRole('dialog').getByRole('option', { name: /Fokusmodus umschalten/ }).click();
   await expect(page.getByRole('button', { name: /Fokusmodus verlassen/ })).toBeVisible();
   await page.keyboard.press('Escape');
-  for (const command of ['Verlauf öffnen', 'Git öffnen', 'Sicherungen öffnen']) {
+  for (const command of ['Verlauf öffnen', 'Sicherung öffnen', 'Sicherungen öffnen']) {
     await open(); await page.getByRole('dialog').getByRole('option', { name: new RegExp(command) }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: /schließen/i }).click();
@@ -437,7 +437,7 @@ test('Startseite lädt eine Welt und übernimmt ihren variablen Titel', async ({
 
 test('Welt lässt sich nur durch anhaltendes Halten lokal löschen', async ({ page }) => {
   const title = `Löschtest ${crypto.randomUUID()}`;
-  await page.request.post('/api/worlds/create', { data: { title, gitUrl: 'https://gitlab.com/example/remote-remains.git' } });
+  await page.request.post('/api/worlds/create', { data: { title, backupUrl: 'https://backup.example.com/remote-remains' } });
   await page.request.post('/api/worlds/create', { data: { title: `Aktive Testwelt ${crypto.randomUUID()}` } });
   await page.goto('/');
   await page.getByRole('button', { name: `${title} – Welt löschen` }).click();
@@ -460,7 +460,7 @@ test('Welt lässt sich nur durch anhaltendes Halten lokal löschen', async ({ pa
 });
 
 test('Sprachwahl erfolgt ausschließlich in der Welt-Auswahl', async ({ page }) => {
-  await page.request.post('/api/worlds/create', { data: { title: 'Language Test World', gitUrl: 'git@git.example.com:example/language-test.git' } });
+  await page.request.post('/api/worlds/create', { data: { title: 'Language Test World', backupUrl: 'https://backup.example.com/language-test' } });
   await page.goto('/');
   await page.getByRole('radio', { name: 'Englisch' }).click();
   await expect(page.getByRole('heading', { name: 'Open a world' })).toBeVisible();
