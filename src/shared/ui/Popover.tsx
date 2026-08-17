@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { Sheet } from './Sheet';
 
 function useCompactLayout() {
@@ -54,6 +55,12 @@ export function Popover({ anchorRef, open, onClose, children, label = '' }: { an
   }, [open, compact, anchorRef]);
 
   if (!open) return null;
-  if (compact) return <Sheet open label={label} onClose={onClose}><div className="ui-popover-sheet">{children}</div></Sheet>;
-  return <div ref={panel} className="ui-popover material-popover" role="dialog" aria-label={label || undefined} style={position}>{children}</div>;
+  // Das Panel haengt am document.body statt an seinem Ausloeser. Sonst erbt es dessen
+  // Stapelkontext: die Werkzeugleiste traegt `z-index:var(--z-sticky)`, und ein darin
+  // geborenes Popover kam nie ueber die Schublade daneben, egal wie hoch --z-popover steht.
+  // Ein hoeherer z-index an der Leiste haette denselben Streit nur vertagt.
+  // Die Koordinaten bleiben gleich: sie kommen aus getBoundingClientRect() des Ausloesers
+  // und werden auf ein `position:fixed` angewandt -- beides bezieht sich auf das Fenster.
+  if (compact) return createPortal(<Sheet open label={label} onClose={onClose}><div className="ui-popover-sheet">{children}</div></Sheet>, document.body);
+  return createPortal(<div ref={panel} className="ui-popover material-popover" role="dialog" aria-label={label || undefined} style={position}>{children}</div>, document.body);
 }
