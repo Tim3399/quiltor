@@ -72,14 +72,23 @@ class RouteTableTests(unittest.TestCase):
         anonymous = {path for table in (routes.GET, routes.SAVE)
                      for path, entry in table.items() if entry.anonymous}
         self.assertEqual(anonymous,
-                         {"/api/version", "/login", "/auth/callback", "/api/whoami", "/logout"})
+                         {"/api/version", "/login", "/auth/callback", "/logout"})
 
-    def test_the_account_routes_vanish_without_oidc(self):
-        """The local single-user build answers 404 for these; pinned end to end
-        in test_server_auth.ServerAuthDisabledControlTest."""
+    def test_whoami_is_neither_anonymous_nor_account_only(self):
+        """Every request has a session now, so "who is asking" always has an
+        answer -- and always needs one to give, which is why it is not
+        anonymous either."""
+        entry = routes.GET["/api/whoami"]
+        self.assertFalse(entry.anonymous)
+        self.assertFalse(entry.auth_only)
+
+    def test_the_account_routes_vanish_when_there_is_only_one_user(self):
+        """Choosing an account and putting it down again are the only things a
+        single-user instance has no version of; it answers 404 for these,
+        pinned end to end in test_server_auth.LocalIdentityServerTest."""
         auth_only = {path for table in (routes.GET, routes.SAVE)
                      for path, entry in table.items() if entry.auth_only}
-        self.assertEqual(auth_only, {"/login", "/auth/callback", "/api/whoami", "/logout"})
+        self.assertEqual(auth_only, {"/login", "/auth/callback", "/logout"})
         self.assertNotIn("/api/version", auth_only)
 
     def test_routes_never_import_the_server_module(self):

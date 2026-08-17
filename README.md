@@ -119,7 +119,27 @@ Weitere Startoptionen:
 ```bash
 python3 server.py 8080            # anderer Port
 python3 server.py 8080 --no-open  # Browser nicht automatisch öffnen
+python3 server.py --print-token   # Zugriffstoken dieses Starts anzeigen
 ```
+
+### Wer darf zugreifen
+
+Es gibt keinen Betrieb „ohne Authentifizierung“. Jede Anfrage hat eine Sitzung — die Frage ist nur, wer die Nutzer sind. Ohne `QUILTOR_OIDC_ISSUER` gilt die **lokale Identität**: genau ein Nutzer, nämlich die Person an diesem Rechner, kein Login, keine Anmeldeseite, keine Konten.
+
+Erkannt wirst du auf drei Wegen, in dieser Reihenfolge geprüft:
+
+1. `Authorization: Bearer <token>` — für Skripte und den MCP-Server.
+2. `?token=<token>` in der URL — um einen Browser ohne Cookie einmal einzulassen; die Antwort ist eine Weiterleitung, die den Parameter wieder entfernt.
+3. Die **Loopback-Verbindung** — der Normalfall für Desktop-App, CLI und `python3 server.py`. Wer den Port auf `127.0.0.1` erreicht, ist die Person, die wir ohnehin authentifizieren würden; hier ist gar kein Token nötig.
+
+Das Token entsteht bei **jedem Prozessstart neu**, lebt ausschließlich im Arbeitsspeicher und wird nie auf die Festplatte geschrieben — auch nicht in `~/.quiltor/config.env`. Es erscheint nirgends, weder im Startbanner noch in einem Log, außer du fragst ausdrücklich mit `--print-token` danach (`quiltor run --print-token` beim CLI). Ein Neustart macht ausgegebene Token-Links ungültig; das ist Absicht, denn ein Token, das seinen Prozess überlebt, wäre ein dauerhaftes Passwort.
+
+| Variable | Zweck |
+| --- | --- |
+| `QUILTOR_MASTER_TOKEN` | Gibt das Token fest vor, statt es je Start neu zu würfeln. Gedacht für Tests und für Instanzen, die nicht auf Loopback lauschen. Gehört **nicht** in `~/.quiltor/config.env` (Klartextdatei) — als echte Umgebungsvariable setzen, und `quiltor config set` kennt den Schlüssel bewusst nicht. |
+| `QUILTOR_HOST` | Bind-Adresse, Standard `127.0.0.1`. Siehe der Hinweis direkt darunter. |
+
+> **Verhaltensänderung:** Eine Instanz, die **nicht** auf Loopback gebunden ist (`QUILTOR_HOST=0.0.0.0`) und **kein** OIDC konfiguriert hat, verlangt jetzt das Token — Weg 3 entfällt dort ja. Früher war so eine Instanz völlig ungeschützt. Wer `QUILTOR_HOST=0.0.0.0` ohne Keycloak nutzt, muss also ab sofort bei jeder Anfrage einen Token mitgeben und dafür `QUILTOR_MASTER_TOKEN` setzen (sonst kennt niemand den frisch gewürfelten Wert) — oder eben Keycloak einrichten, siehe [Web-Demo mit Keycloak](#web-demo-mit-keycloak).
 
 ### Problembehebung
 
@@ -169,7 +189,7 @@ zusätzlich braucht: [`packaging/README.md`](packaging/README.md).
 
 ## Web-Demo mit Keycloak
 
-Quiltor kann zusätzlich als kleine Mehrbenutzer-Demo im Web laufen: Login über eine bestehende Keycloak-Instanz, jede angemeldete Person sieht ausschließlich ihre eigenen Welten. Ohne die folgenden Umgebungsvariablen bleibt Quiltor exakt der lokale Einzelnutzer-Modus von oben — der Web-Modus ist rein additiv und muss aktiv eingeschaltet werden.
+Quiltor kann zusätzlich als kleine Mehrbenutzer-Demo im Web laufen: Login über eine bestehende Keycloak-Instanz, jede angemeldete Person sieht ausschließlich ihre eigenen Welten. Ohne die folgenden Umgebungsvariablen bleibt es bei der lokalen Identität von oben — ein Nutzer, kein Login. Getauscht wird also nicht „Auth an/aus“, sondern nur, wer die Nutzer sind; Keycloak ist rein additiv und muss aktiv eingeschaltet werden.
 
 **1. Keycloak-Client anlegen** (im vorhandenen Realm):
 
@@ -182,11 +202,13 @@ Quiltor kann zusätzlich als kleine Mehrbenutzer-Demo im Web laufen: Login über
 
 | Variable | Zweck |
 | --- | --- |
-| `QUILTOR_OIDC_ISSUER` | Realm-Issuer-URL, z. B. `https://kc.example.com/realms/quiltor`. **Ungesetzt = lokaler Modus**, alles Weitere entfällt. |
+| `QUILTOR_OIDC_ISSUER` | Realm-Issuer-URL, z. B. `https://kc.example.com/realms/quiltor`. **Ungesetzt = lokale Identität** (ein Nutzer, kein Login), alles Weitere entfällt. |
 | `QUILTOR_OIDC_CLIENT_ID` | Client-ID des oben angelegten Clients. |
 | `QUILTOR_OIDC_CLIENT_SECRET` | Zugehöriges Client-Secret. |
 | `QUILTOR_PUBLIC_URL` | Öffentliche Basis-URL, z. B. `https://quiltor.example.com` — muss exakt zur Redirect-URI im Keycloak-Client passen. |
 | `QUILTOR_COOKIE_SECURE` | `auto` (Standard, anhand `X-Forwarded-Proto`) · `0` · `1` — nur für lokales OIDC-Testen ohne HTTPS relevant. |
+| `QUILTOR_HOST` | Bind-Adresse, Standard `127.0.0.1`; das Docker-Image setzt `0.0.0.0`, weil die Loopback-Schnittstelle eines Containers von außen gar nicht erreichbar ist. Ohne OIDC verlangt eine nicht auf Loopback gebundene Instanz das Token — siehe [Wer darf zugreifen](#wer-darf-zugreifen). |
+| `QUILTOR_MASTER_TOKEN` | Nur ohne OIDC relevant: gibt das lokale Zugriffstoken fest vor, statt es je Start neu zu erzeugen. Für Tests und für Instanzen ohne Loopback-Bindung. Gehört **nicht** in `~/.quiltor/config.env`. |
 | `QUILTOR_DATA_DIR` | Bereits vorhanden; im Container auf das gemountete Volume zeigen lassen. |
 
 **3. Starten mit Docker Compose** ([`docker-compose.yml`](docker-compose.yml)):
@@ -222,6 +244,7 @@ Zusätzlich enthält jedes [GitHub Release](https://github.com/Tim3399/quiltor/r
 quiltor install   # geführtes Setup: Keycloak (default nein), deutsche Schreibwerkzeuge und lokaler KI-Assistent (jeweils default ja)
 quiltor           # startet Quiltor auf Port 8000, wie python3 server.py
 quiltor run 8080  # anderer Port
+quiltor run --print-token   # Zugriffstoken dieses Starts anzeigen (siehe „Wer darf zugreifen“)
 quiltor config set|get|list|unset <KEY> [VALUE]   # Notfall-Zugriff auf jede QUILTOR_*-Variable
 quiltor config path        # zeigt den Pfad der Config-Datei
 quiltor --version
@@ -231,13 +254,19 @@ quiltor --version
 
 - Jede Welt besitzt eine eigene SQLite-Datei unter `data/worlds/`.
 - SQLite ist die einzige maßgebliche Datenquelle.
-- Markdown-Spiegel machen Manuskript und Profile außerhalb der App lesbar.
+- Markdown-Spiegel machen Manuskript und Profile außerhalb der App lesbar — je Welt ein eigener Ordner: `data/manuscripts/<welt-id>/` und `data/profiles/<welt-id>/`.
 - Automatische SQLite-Sicherungen sind lokal wiederherstellbar.
 - Revisionsprüfungen verhindern, dass ein alter Browser-Tab neuere Änderungen überschreibt.
 - Jede Welt führt von Anfang an einen lokalen Versionsverlauf — auch ganz ohne Backup-Endpunkt. Snapshots sind inhaltsadressiert, unveränderte Kapitel werden also nur einmal gespeichert.
 - Ein hinterlegter Endpunkt schaltet zusätzlich das Hochladen frei; ohne ihn bleibt „Nur sichern“ verfügbar.
 - Der Verlauf kommt mit der Standardbibliothek aus und startet keine Unterprozesse.
 - Weltinhalte, Modelle, Backups und Verlauf werden nicht öffentlich versioniert.
+
+### Beim Aktualisieren von einer älteren Version
+
+- **Authentifizierung ist immer an.** Den Betrieb „ohne Auth“ gibt es nicht mehr; lokal übernimmt die lokale Identität, siehe [Wer darf zugreifen](#wer-darf-zugreifen). Betroffen ist in der Praxis nur, wer `QUILTOR_HOST=0.0.0.0` ohne Keycloak betreibt: diese Instanz verlangt jetzt ein Token.
+- **Die Markdown-Spiegel liegen jetzt je Welt in einem eigenen Ordner.** Lokal wandern sie von `data/manuscripts/*.md` nach `data/manuscripts/<welt-id>/*.md`, analog `data/profiles/`. Verloren geht dabei nichts — die Dateien entstehen beim nächsten Speichern im neuen Ordner neu. Die alten flachen Dateien bleiben allerdings als Karteileichen liegen und werden **nicht** automatisch migriert oder gelöscht; wer aufräumen will, tut das von Hand, nachdem die neuen Ordner gefüllt sind. Die maßgebliche Datenquelle war und ist SQLite.
+- **Der Server kennt kein „diese Welt ist gerade offen“ mehr.** Es gibt keinen prozessweiten offenen Weltzustand; damit ist auch die Prüfung „Close this world before restoring it“ beim Zurückholen aus dem Backup-Endpunkt entfallen. Wiederherstellen funktioniert jetzt ohne diesen Zwischenschritt.
 
 ## Bedienung
 
@@ -282,7 +311,8 @@ backend/
 ├── llm/  language/  pdf/    Fähigkeiten: je ein Contract, mehrere Implementierungen,
 │                            Auswahl aus der Edition
 ├── assistant/               liegt über core und nutzt die LLM-Fähigkeit
-└── auth.py                  Keycloak-Login, nur für den gehosteten Betrieb
+├── identity.py              wer der Anfragende ist: lokale Identität oder OIDC — es gibt immer eine
+└── auth.py                  Keycloak-Login und Sitzungen, nur für den gehosteten Betrieb
 hosts/                      die Arten, Quiltor zu starten (importieren backend/, nie umgekehrt)
 ├── desktop/                 natives Fenster und Tray-Icon
 ├── cli/                     `quiltor run` / `quiltor config`

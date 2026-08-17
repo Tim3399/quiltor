@@ -1,9 +1,13 @@
-"""Version probe and the OIDC login flow.
+"""Version probe, "who am I", and the OIDC login flow.
 
-Everything except `/api/version` is `auth_only`: without QUILTOR_OIDC_ISSUER
-these routes do not exist at all and the server answers 404, exactly as it did
-before there was a route table. The local single-user build should not hint at
-an account system it does not have.
+`/api/version` and `/api/whoami` exist everywhere: there is always a session, so
+there is always an answer to who is asking, and the frontend uses `multiUser` in
+that answer to decide whether accounts are a thing here at all.
+
+`/login`, `/auth/callback` and `/logout` are `auth_only` -- they are the steps of
+choosing an account and putting it down again, which a single-user instance has
+no version of. It answers 404 for them rather than hinting at an account system
+it does not have.
 """
 from __future__ import annotations
 
@@ -27,15 +31,17 @@ def auth_callback(handler, request: Request, app) -> None:
     handler.handle_auth_callback()
 
 
-@get("/api/whoami", anonymous=True, auth_only=True)
+@get("/api/whoami")
 def whoami(handler, request: Request, app) -> None:
-    """Anonymous on purpose: the frontend calls it to find out *whether* anyone
-    is signed in, so an unauthenticated caller gets `{"ok": false}` rather than
-    a 401."""
-    if request.session is None:
-        return handler.send_json({"ok": False})
+    """Who is asking, and whether that was ever a choice.
+
+    Reaching this route means the dispatch already resolved a session, so there
+    is no unauthenticated caller to answer -- `multiUser` is what the frontend
+    needs, to know whether to offer signing out at all.
+    """
     handler.send_json({"ok": True, "sub": request.session.sub,
-                       "email": request.session.email, "name": request.session.name})
+                       "email": request.session.email, "name": request.session.name,
+                       "multiUser": app.IDENTITY.multi_user})
 
 
 @save("/logout", anonymous=True, auth_only=True)

@@ -62,7 +62,9 @@ export const api = {
   openWorld: (id: string) => json<{ ok: boolean; world: WorldInfo }>('/api/worlds/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
   createWorld: (title: string, backupUrl: string) => json<{ ok: boolean; world: WorldInfo }>('/api/worlds/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, backupUrl }) }),
   deleteWorld: (id: string) => json<{ ok: boolean }>('/api/worlds/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
-  whoami: () => json<{ ok: boolean; sub?: string; email?: string; name?: string }>('/api/whoami'),
+  // multiUser is false when this instance has exactly one user; /logout does not
+  // exist there, so the menu must not offer signing out of anything.
+  whoami: () => json<{ ok: boolean; sub?: string; email?: string; name?: string; multiUser?: boolean }>('/api/whoami'),
   logout: () => fetch('/logout', { method: 'POST' }).then(() => undefined),
   figures: () => loadDocument<FigureState>('/api/state', 'figures'),
   manuscript: () => loadDocument<Manuscript>('/api/manuscript', 'manuscript'),

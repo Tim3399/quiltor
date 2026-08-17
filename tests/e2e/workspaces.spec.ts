@@ -397,11 +397,14 @@ test('Minimap unterscheidet Elementarten und das Raster lässt sich lösen', asy
 test('Verschieben erhält alle Elemente auch nach Autosave und Neuladen', async ({ page }) => {
   const response = await page.request.post('/api/worlds/create', { data: { title: `Drag Regression ${crypto.randomUUID()}` } });
   const created = await response.json();
-  const initial = await page.request.get('/api/state');
+  // Both calls name the world, exactly as src/lib/api.ts does for every request:
+  // creating a world no longer makes it the process's "active" one, so a request
+  // that names none has no world at all and is answered with a 400.
+  const initial = await page.request.get(`/api/state?world=${created.world.id}`);
   const revision = initial.headers()['etag'] || '"0"';
   const nodes = Array.from({ length: 12 }, (_, index) => ({ id: `n${index}`, x: 100 + (index % 4) * 240, y: 100 + Math.floor(index / 4) * 150, type: 'person', name: `Figur ${index}` }));
   const edges = Array.from({ length: 11 }, (_, index) => ({ id: `e${index}`, from: `n${index}`, to: `n${index + 1}`, label: `Beziehung ${index}`, gerichtet: index % 2 === 0 }));
-  await page.request.put('/api/state', { headers: { 'If-Match': revision }, data: { nodes, edges } });
+  await page.request.put('/api/state', { headers: { 'If-Match': revision }, data: { worldId: created.world.id, nodes, edges } });
   await page.goto(`/?world=${created.world.id}`);
   await page.getByRole('button', { name: 'Figuren', exact: true }).click();
   await expect(page.locator('.story-node')).toHaveCount(12);

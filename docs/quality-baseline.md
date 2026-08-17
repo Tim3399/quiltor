@@ -21,7 +21,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8151 npx playwright test tests/e2e/visual-b
 ## Quality gates
 
 - Frontend unit/component tests: `npm test`
-- Backend tests: `env -u QUILTOR_OIDC_ISSUER python3 -m unittest discover -s tests/backend -p 'test_*.py'`
+- Backend tests: `env -u QUILTOR_OIDC_ISSUER python3 -m unittest discover -s tests/backend -p 'test_*.py'` — unsetting the issuer runs the suite against the local identity (one user, no login page), not without authentication: every request has a session either way, and the OIDC identity is simply the other one of the two.
 - Build, design, and i18n: `npm run build`
 - Adaptive E2E and screenshots: `npm run test:e2e`
 - Whitespace/errors: `git diff --check`

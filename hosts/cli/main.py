@@ -37,7 +37,7 @@ CONFIG_PATH = DEFAULT_HOME / "config.env"
 
 # name -> short description, shown by `quiltor config list`/`get`/`set --help`.
 KNOWN_KEYS: dict[str, str] = {
-    "QUILTOR_OIDC_ISSUER": "Keycloak/OIDC realm issuer URL. Unset = local single-user mode.",
+    "QUILTOR_OIDC_ISSUER": "Keycloak/OIDC realm issuer URL. Unset = the local identity: one user, no login page.",
     "QUILTOR_OIDC_CLIENT_ID": "OIDC client ID.",
     "QUILTOR_OIDC_CLIENT_SECRET": "OIDC client secret.",
     "QUILTOR_PUBLIC_URL": "Public base URL Quiltor is reachable at (must match the OIDC redirect URI).",
@@ -51,9 +51,23 @@ KNOWN_KEYS: dict[str, str] = {
     "QUILTOR_BACKUP_TOKEN": "Bearer token for the cloud backup endpoint.",
     "QUILTOR_HOME": f"Where runtime/model/data files live. Defaults to {DEFAULT_HOME} for the CLI.",
     "QUILTOR_DATA_DIR": "Directory for worlds, backups, and manuscripts data. Defaults to QUILTOR_HOME/data.",
-    "QUILTOR_HOST": "Bind address for the server (default 127.0.0.1).",
+    "QUILTOR_HOST": (
+        "Bind address for the server (default 127.0.0.1). Anything else stops being a loopback-only "
+        "instance, and a non-loopback instance without OIDC demands the master token on every request "
+        "(Authorization: Bearer <token> or ?token=<token>) -- see `quiltor run --print-token`."
+    ),
 }
 SECRET_KEYS = {"QUILTOR_OIDC_CLIENT_SECRET", "QUILTOR_BACKUP_TOKEN"}
+
+# QUILTOR_MASTER_TOKEN is deliberately absent from KNOWN_KEYS, and must stay
+# absent. config.env is plain text with no mode of its own, while the whole
+# point of the local master token is that it is never written to disk: it is
+# minted fresh per process and lives only in memory (backend/identity.py's
+# LocalIdentity.__init__ explains why). Saving it here would turn a secret that
+# dies with its process into a lasting credential sitting in a file -- exactly
+# the thing the design goes out of its way to avoid. Supply it as a real
+# environment variable when a test or a non-loopback deployment needs a token it
+# can predict; do not "add it for completeness".
 
 
 def _read_config() -> dict[str, str]:
@@ -108,22 +122,28 @@ def main(
         typer.echo(_version())
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
-        _start_server(8000, False)
+        _start_server(8000, False, False)
 
 
-def _start_server(port: int, no_open: bool) -> None:
+def _start_server(port: int, no_open: bool, print_token: bool) -> None:
     _load_config()
     import server
-    server.run(port=port, no_open=no_open)
+    server.run(port=port, no_open=no_open, print_token=print_token)
 
 
 @app.command()
 def run(
     port: int = typer.Argument(8000, help="Port to listen on."),
     no_open: bool = typer.Option(False, "--no-open", help="Do not open a browser tab on startup."),
+    print_token: bool = typer.Option(
+        False,
+        "--print-token",
+        help="Print this run's local access token in the startup banner. It is new every start, "
+             "lives only in memory, and appears nowhere without this flag.",
+    ),
 ) -> None:
     """Start the server (same as `python3 server.py`)."""
-    _start_server(port, no_open)
+    _start_server(port, no_open, print_token)
 
 
 @config_app.command("list")
@@ -190,7 +210,11 @@ def install() -> None:
 def _install_keycloak_step() -> None:
     current = _read_config()
     if not typer.confirm("Mehrbenutzer-Modus mit Keycloak-Login einrichten?", default=False):
-        typer.echo("Übersprungen — Quiltor bleibt im lokalen Einzelnutzer-Modus.")
+        typer.echo(
+            "Übersprungen — Quiltor läuft mit der lokalen Identität: ein Nutzer, kein Login, "
+            "aber sehr wohl authentifiziert. Erkannt wirst du über die Loopback-Verbindung; "
+            "von außerhalb braucht es den Token aus `quiltor run --print-token`."
+        )
         return
     issuer = typer.prompt("Realm-Issuer-URL (QUILTOR_OIDC_ISSUER)", default=current.get("QUILTOR_OIDC_ISSUER", ""), show_default=False)
     client_id = typer.prompt("Client-ID (QUILTOR_OIDC_CLIENT_ID)", default=current.get("QUILTOR_OIDC_CLIENT_ID", ""), show_default=False)

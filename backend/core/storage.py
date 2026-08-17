@@ -20,6 +20,17 @@ DB = DATA / ".no-active-world.sqlite3"
 BACKUPS = DATA / "backups"
 WORLDS = DATA / "worlds"
 ACTIVE_WORLD_ID = ""
+
+# The sub of the local single-user identity, and the owner every world gets when
+# nobody claimed it. The empty string is load-bearing, not a placeholder: it is
+# what initialize() has always written into meta.owner_sub, so naming it changes
+# nothing about existing databases -- it only gives the value somewhere to be
+# referred to from (backend/identity.py's LocalIdentity.MASTER_SUB).
+#
+# Every ownership check in this module is spelled `if owner_sub is not None`
+# precisely so that "" is a real owner rather than "no owner". Keep it that way.
+LOCAL_OWNER = ""
+
 SCHEMA_VERSION = 3
 MAX_BACKUPS = 40
 BACKUP_INTERVAL = 300
@@ -274,9 +285,10 @@ def migrate(conn: sqlite3.Connection, version: int) -> None:
     if version < 2:
         conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('last_restore_at','')")
     if version < 3:
-        # Worlds created before multi-tenancy land unowned ('') — invisible to every
-        # user once owner_sub filtering is in effect, on purpose (not auto-claimed).
-        conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('owner_sub','')")
+        # Worlds created before multi-tenancy land on LOCAL_OWNER ('') — invisible to
+        # every OIDC user once owner_sub filtering is in effect, on purpose (not
+        # auto-claimed), and exactly the owner the local single-user identity uses.
+        conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('owner_sub',?)", (LOCAL_OWNER,))
     conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
 
 

@@ -3,13 +3,13 @@
 Quiltor — small local writing server
 
 Two workspaces at one address; SQLite is the authoritative store:
-  · Worlds                            → data/worlds/*.sqlite3
+  · Worlds                            → data/worlds/<world-id>.sqlite3
   · Characters  Relationship graph and profiles in SQLite
-                readable profiles   → data/profiles/NN - Name.md
+                readable profiles   → data/profiles/<world-id>/NN - Name.md
   · Text        Manuscript in SQLite
   · Backup      Snapshot and upload from the UI
   · History     Human-readable changes
-                                     → data/manuscripts/NN - Title.md
+                                     → data/manuscripts/<world-id>/NN - Title.md
 
 Starten:
     python3 server.py                 # port 8000, opens the browser
@@ -23,10 +23,13 @@ AI assistant is set up yet, you'll be asked once whether to download one
 (llama.cpp + a GGUF model, or MLX on Apple Silicon) — answer no and Quiltor
 runs exactly the same, just without the assistant panel.
 
-Setting QUILTOR_OIDC_ISSUER switches on Keycloak login and per-user world
-isolation for a hosted web demo — see README for the required env vars. With
-it unset (the default), Quiltor behaves exactly like the local single-user
-tool described above.
+Every request has a session, in both shapes Quiltor runs in; what differs is
+only who the users are. Setting QUILTOR_OIDC_ISSUER installs the OIDC identity:
+Keycloak login, accounts, per-user world isolation — see README for the required
+env vars. With it unset (the default), the local identity is installed instead:
+one user, the person at this machine, recognised by a loopback connection, a
+`?token=` link or a Bearer token, and no login page at all. Which one is
+installed is the module global IDENTITY; backend/identity.py holds both.
 """
 
 import http.cookies
@@ -47,19 +50,21 @@ from backend.system import force_utf8_streams
 
 force_utf8_streams()
 
-from backend import auth
+from backend import auth, identity
 from backend.api import routes as api_routes
 from backend.core import storage
 from backend.assistant import AssistantRuntime
 from backend.core.backup import BackupContext, SnapshotStore
 from backend.core.backup import remote as backup_remote
-from backend.core.mirror import mirror_profiles, mirror_text
 from backend.core.validation import valid_figures, valid_manuscript
+from backend.identity import SESSION_COOKIE
 from backend.language import LanguageService
 from backend.llm.installer import ensure_installed
 # issue_render_token is unused here but reached as `app.issue_render_token` from
 # backend/api/routes/documents.py, which is how routes see the server module.
-from backend.pdf import RENDER_TOKEN_TTL, issue_render_token, redeem_render_token, server_renderer  # noqa: F401
+# redeem_render_token is now called by backend/identity.py; it stays re-exported
+# because the render-token tests drive it through the server module.
+from backend.pdf import issue_render_token, redeem_render_token, server_renderer  # noqa: F401
 
 BASE = Path(__file__).resolve().parent
 PUBLIC = BASE / "dist"
@@ -67,12 +72,7 @@ VERSION_FILE = BASE / "VERSION"
 VERSION = VERSION_FILE.read_text(encoding="utf-8").strip() if VERSION_FILE.exists() else "dev"
 DATA = storage.DATA
 BACKUPS = DATA / "backups"
-MANUSCRIPT_DIR = DATA / "manuscripts"
-PROFILE_DIR = DATA / "profiles"
 WORLD_BACKUPS = SnapshotStore(DATA / "history")
-# The single "currently open" world's snapshot context (local single-user mode
-# mirrors storage.DB/ACTIVE_WORLD_ID: one process, one active world at a time).
-CURRENT_BACKUP: BackupContext | None = None
 ensure_installed()
 # Where the assistant looks for its runtime/model (backend/llm/installer.py's
 # HOME): BASE for a source checkout / Docker, or QUILTOR_HOME for the packaged
@@ -88,10 +88,13 @@ _lock = threading.Lock()
 
 # ------------------------------------------------- Local-mode request guard
 #
-# The local build has no authentication at all (AUTH_ENABLED stays false
-# without QUILTOR_OIDC_ISSUER), and loopback is not a security boundary in a
-# browser: any page the user happens to visit can send us a cross-origin
-# request. A plain
+# This is CSRF defence, not authentication -- the two are separate jobs and this
+# one is not made redundant by the other. Every request now resolves to a
+# session (see IDENTITY below), and locally that session is handed out to
+# anything that reaches the loopback port, which is exactly the problem: a
+# browser sends our cookie along with a cross-origin request, so the attacker's
+# page borrows the local user's identity rather than needing one. Loopback is
+# not a security boundary in a browser. A plain
 #
 #   <form method="POST" enctype="text/plain"
 #         action="http://127.0.0.1:8843/api/manuscript">
@@ -132,11 +135,17 @@ def authority_host(authority: str) -> str:
         return authority[1:closing] if closing > 0 else authority
     return authority.rsplit(":", 1)[0] if ":" in authority else authority
 
-# ------------------------------------------------------------- Auth (OIDC)
+# ---------------------------------------------------------------- Identity
 
-AUTH_ENABLED = auth.OIDC_ENABLED
+#: Who the users of this process are. Chosen once at import, from the one thing
+#: that actually differs between the deployments; everything else asks the
+#: object rather than re-deriving the mode. backend/identity.py documents both.
+IDENTITY = identity.OidcIdentity() if auth.OIDC_ENABLED else identity.LocalIdentity()
+
 PUBLIC_URL = os.environ.get("QUILTOR_PUBLIC_URL", "").rstrip("/")
-SESSION_COOKIE = "quiltor_session"
+# SESSION_COOKIE is imported from backend/identity.py, which owns it: the
+# identity is what writes and reads that cookie. Re-exported here because the
+# routes reach it as `app.SESSION_COOKIE`.
 LOGIN_STATE_COOKIE = "quiltor_login_state"
 
 
@@ -155,6 +164,10 @@ class WorldContext:
 def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
     """Resolve a per-request world context for the session's own world, or raise.
 
+    The single way to a world's data, in every deployment: there is no
+    process-wide "active world" any more, so every request that touches a
+    document names the world it means and gets its paths from here.
+
     ValueError -> malformed id, PermissionError -> owned by someone else,
     FileNotFoundError -> no such world. Callers map these to 400/403/404.
     """
@@ -167,9 +180,15 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
         raise PermissionError("This world belongs to a different account.")
     db_path = storage.world_db_path(world_id)
     storage.initialize(db_path)
-    # storage.DATA, not the server-module DATA/MANUSCRIPT_DIR/PROFILE_DIR constants:
-    # those are frozen at import time and won't follow a reassigned storage.DATA
-    # (as tests do, and as QUILTOR_DATA_DIR does before the very first import).
+    # storage.DATA, not the server module's own DATA constant: that one is frozen
+    # at import time and won't follow a reassigned storage.DATA (as tests do, and
+    # as QUILTOR_DATA_DIR does before the very first import).
+    #
+    # Every world's Markdown mirrors live under its own id, local instances
+    # included -- they used to be written flat into data/manuscripts/ when there
+    # was one active world per process. Nothing migrates the old flat files: they
+    # are derived from SQLite and the next save writes them again in the new
+    # place. The stale copies are harmless and can simply be deleted.
     manuscripts_dir = storage.DATA / "manuscripts" / world_id
     profiles_dir = storage.DATA / "profiles" / world_id
     manuscripts_dir.mkdir(parents=True, exist_ok=True)
@@ -184,7 +203,7 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
                          manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, backup=backup_ctx)
 
 
-def restore_world_from_endpoint(session: "auth.SessionData | None", world_id: str, snapshot_id: str, endpoint: str) -> dict[str, Any]:
+def restore_world_from_endpoint(session: "auth.SessionData", world_id: str, snapshot_id: str, endpoint: str) -> dict[str, Any]:
     """Pull one snapshot back from the backup endpoint and write it over the world.
 
     Restores the SQLite database above all: it is the authoritative store, and the
@@ -196,8 +215,6 @@ def restore_world_from_endpoint(session: "auth.SessionData | None", world_id: st
     profiles_dir = storage.DATA / "profiles" / world_id
     ctx = WORLD_BACKUPS.context(world_id, endpoint, db_path, manuscripts_dir, profiles_dir)
 
-    if world_id == storage.ACTIVE_WORLD_ID:
-        raise ValueError("Close this world before restoring it.")
     if db_path.exists():
         # The overwrite must itself be undoable: snapshot whatever is there now,
         # locally, before replacing it. Nothing is uploaded -- this is a safety
@@ -213,12 +230,12 @@ def restore_world_from_endpoint(session: "auth.SessionData | None", world_id: st
 
     result = WORLD_BACKUPS.restore(ctx, entry, fetch=lambda digest: backup_remote.fetch_blob(ctx, digest))
     storage.initialize(db_path)
-    if AUTH_ENABLED and session is not None:
-        # The restored database carries the owner it had when it was backed up.
-        # Whoever restores it is the owner now, or they would be locked out of
-        # the world they just pulled down.
-        with storage.connect(db_path) as conn:
-            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (session.sub,))
+    # The restored database carries the owner it had when it was backed up.
+    # Whoever restores it is the owner now, or they would be locked out of the
+    # world they just pulled down. Locally that writes storage.LOCAL_OWNER --
+    # exactly the owner every local world already carries.
+    with storage.connect(db_path) as conn:
+        conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (session.sub,))
     print(f"  · {datetime.now():%H:%M:%S}  restored world {world_id} from snapshot {entry['id'][:8]}")
     return {"ok": True, **result, "title": entry.get("title", ""), "created": entry.get("created", "")}
 
@@ -228,23 +245,27 @@ def restore_world_from_endpoint(session: "auth.SessionData | None", world_id: st
 def ensure_dirs() -> None:
     # parents=True: DATA's parent is QUILTOR_HOME for a pip/pipx install, which
     # (unlike the package root a source checkout/Docker uses) may not exist yet.
-    for d in (DATA, BACKUPS, MANUSCRIPT_DIR, PROFILE_DIR):
+    # DATA/BACKUPS only: the manuscript and profile mirrors live per world now and
+    # resolve_world() creates each world's pair (with its parents) on first use.
+    for d in (DATA, BACKUPS):
         d.mkdir(parents=True, exist_ok=True)
-    # storage.DB starts out as the .no-active-world sentinel and only becomes a real
-    # world's file once activate_world() reassigns it. Reads still land there before
-    # the first world is opened -- /api/assistant/status polls immediately on load --
-    # and an unschema'd file makes those fail with "no such table" rather than
-    # returning an empty result. Giving the sentinel the schema upholds the invariant
-    # every reader already assumes: any database Quiltor connects to has the schema,
-    # and "no world yet" simply reads as empty.
+    # storage.DB is the .no-active-world sentinel, and the HTTP layer never reads
+    # it -- every request names its world. It stays schema'd for the callers that
+    # have no session and no request at all: the MCP server and the seed scripts
+    # still switch the process-global database, and any read before they do lands
+    # here. Any database Quiltor connects to has the schema; "no world yet" then
+    # simply reads as empty instead of raising "no such table".
     storage.initialize()
 
 
 # ------------------------------------------------------------------ Server
 
+# The validator for each of the two document routes. Just the validator: where
+# the Markdown mirror is written follows from the request's world, so it is no
+# longer something the table can carry.
 ROUTES = {
-    "/api/state":      (valid_figures, lambda p: mirror_profiles(p, PROFILE_DIR)),
-    "/api/manuscript": (valid_manuscript, lambda p: mirror_text(p["chapters"], MANUSCRIPT_DIR)),
+    "/api/state":      valid_figures,
+    "/api/manuscript": valid_manuscript,
 }
 
 
@@ -350,6 +371,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         morsel = jar.get(name)
         return morsel.value if morsel else None
 
+    def server_bound_to_loopback(self) -> bool:
+        """Whether this process listens on loopback only.
+
+        A handler method purely so backend/identity.py can ask: backend/ must
+        stay importable from the CLI and the MCP server, which start no HTTP
+        server, so it may not import this module (backend/api/__init__.py,
+        pinned by tests/backend/test_hosts.py). The handler is the one object
+        both sides already share, so it carries the answer across.
+        """
+        return BOUND_TO_LOOPBACK
+
     def cookie_secure(self) -> bool:
         override = os.environ.get("QUILTOR_COOKIE_SECURE", "auto")
         if override == "1":
@@ -429,13 +461,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"ok": False, "fehler": str(exc)}, 404)
         return None
 
+    def world_from_body(self, session, payload) -> "WorldContext | None":
+        """The world named by the body's `worldId`. None means the answer has
+        already been written. Separate from registration.world because the id
+        only exists here once the body has been read -- five save routes carry
+        it there instead of in the query string, and they all resolve it the
+        same way. A payload that is not an object resolves like an empty id: a
+        400, which is what a request naming no world deserves.
+        """
+        world_id = str(payload.get("worldId", "")) if isinstance(payload, dict) else ""
+        return self._resolve_world_or_respond(session, world_id)
+
     # ---------- Dispatch ----------
     #
     # The routes themselves live in backend/api/routes/, grouped by subject.
     # What stays here is the order they depend on and must not lose: the
-    # local-mode guard first, then the session (including a render token
-    # redeeming into one), then the authentication gate, then -- only for routes
-    # that asked for it -- resolving the caller's world.
+    # cross-origin guard first, then the identity resolving the session
+    # (including a render token or a `?token=` redeeming into one), then the
+    # gate for requests that resolved to nobody, then -- only for routes that
+    # asked for it -- resolving the caller's world.
 
     def serve_client(self) -> None:
         """Hand the request to SimpleHTTPRequestHandler, which serves the built
@@ -444,47 +488,46 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.path = "/index.html"
         super().do_GET()
 
-    def _session_for(self, query: dict) -> "auth.SessionData | None":
-        if not AUTH_ENABLED:
-            return None
-        session = auth.get_session(self.get_cookie(SESSION_COOKIE))
-        if session is not None:
-            return session
-        token = (query.get("renderToken") or [""])[0]
-        if not token:
-            return None
-        sub = redeem_render_token(token)
-        if not sub:
-            return None
-        # Scoped to the render itself, not a normal 24h login: this cookie only
-        # exists so the headless render can act as the requesting user for the
-        # one page load it needs.
-        session_id = auth.create_session(sub, "", "", ttl=RENDER_TOKEN_TTL)
-        self._pending_cookies.append(
-            self.cookie_header(SESSION_COOKIE, session_id, max_age=RENDER_TOKEN_TTL))
-        return auth.get_session(session_id)
-
     def _dispatch(self, table: dict, *, on_miss) -> None:
+        # Before anything else, and before the identity is consulted: a request
+        # from a foreign Host or Origin is refused outright, so a cross-site
+        # page never gets as far as borrowing the local user's session.
         self._pending_cookies = []
+        # Both are per-request state on an object that http.server may reuse for
+        # a second request on the same connection; cleared together so a bounce
+        # can never leak into the request after it.
+        setattr(self, identity.REDIRECT_ATTR, None)
         if self.reject_foreign_request():
             return
         path = self.path.split("?")[0]
         query = parse_qs(urlparse(self.path).query)
         registration = table.get(path)
-        if registration is not None and registration.auth_only and not AUTH_ENABLED:
-            registration = None  # the local build has no account system at all
+        if registration is not None and registration.auth_only and not IDENTITY.multi_user:
+            registration = None  # nothing to choose between when there is one user
 
-        session = self._session_for(query)
-        if AUTH_ENABLED and session is None and not (registration and registration.anonymous):
+        # _pending_cookies must already exist here: resolving queues the session
+        # cookie onto this very response.
+        session = IDENTITY.resolve(self)
+        redirect = getattr(self, identity.REDIRECT_ATTR, None)
+        if redirect is not None:
+            # A secret came in through the query string. The cookie above is
+            # already queued and rides along on the 302 (end_headers sends
+            # _pending_cookies), so the bounced request arrives logged in.
+            return self.send_redirect(redirect)
+        if session is None and not (registration and registration.anonymous):
             if path.startswith("/api/"):
                 return self.send_json({"ok": False, "fehler": "not authenticated"}, 401)
-            return self.send_redirect("/login")
+            if IDENTITY.login_url:
+                return self.send_redirect(IDENTITY.login_url)
+            # No login page to send anyone to: the request simply is not this
+            # machine's owner, and there is nothing they could do about it here.
+            return self.send_json({"ok": False, "fehler": "not authenticated"}, 403)
 
         if registration is None:
             return on_miss()
 
         request = api_routes.Request(path=path, query=query, session=session)
-        if registration.world and AUTH_ENABLED:
+        if registration.world:
             request.world = self._resolve_world_or_respond(session, (query.get("world") or [""])[0])
             if request.world is None:
                 return
@@ -505,7 +548,7 @@ class Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-def run(port: int = 8000, no_open: bool = False) -> None:
+def run(port: int = 8000, no_open: bool = False, print_token: bool = False) -> None:
     ensure_dirs()
     url = f"http://localhost:{port}/"
 
@@ -513,12 +556,23 @@ def run(port: int = 8000, no_open: bool = False) -> None:
     print(f"  Quiltor · Autorenwerkstatt · v{VERSION}")
     print("  " + "─" * 52)
     print(f"  Adresse    {url}")
-    print(f"  Datenbank  {storage.DB}")
-    print(f"  Manuscripts {MANUSCRIPT_DIR}")
-    print(f"  Profiles    {PROFILE_DIR}")
+    # The worlds directory, not a single database file: there is no process-wide
+    # open world any more, so "the" database is not a thing this process has.
+    print(f"  Welten      {storage.WORLDS}")
     print(f"  Backups     {BACKUPS}")
-    if AUTH_ENABLED:
-        print(f"  Auth        Keycloak ({auth.ISSUER})")
+    # Always printed: there is always an identity, and which one is in force is
+    # the single most useful thing to know about a running instance. Never the
+    # token -- a secret on a terminal is a secret in a scrollback buffer.
+    if IDENTITY.multi_user:
+        print(f"  Identity    Keycloak ({auth.ISSUER})")
+    else:
+        print("  Identity    lokal (ein Nutzer)")
+    if print_token:
+        # Only ever on request (--print-token), and only for this process: the
+        # token dies with it, so a copied line is not a lasting credential.
+        token = getattr(IDENTITY, "token", "")
+        print(f"  Token       {token}" if token else
+              "  Token       — diese Instanz hat keine lokale Identität")
     print("  Stop        Ctrl+C")
     print("  " + "─" * 52)
     print()
@@ -547,9 +601,14 @@ def run(port: int = 8000, no_open: bool = False) -> None:
 def main() -> None:
     argv = sys.argv[1:]
     no_open = "--no-open" in argv
+    # The only way the local token is ever shown, and it prints *this* process's
+    # secret at startup rather than in a separate run: the token is generated
+    # per process, so one printed by any other invocation would be worthless.
+    # Without the flag it appears nowhere -- not in the banner, not in a log.
+    print_token = "--print-token" in argv
     positional = [a for a in argv if not a.startswith("--")]
     port = int(positional[0]) if positional else 8000
-    run(port=port, no_open=no_open)
+    run(port=port, no_open=no_open, print_token=print_token)
 
 
 if __name__ == "__main__":

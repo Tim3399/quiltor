@@ -164,6 +164,26 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(len(storage.list_worlds(owner_sub="carol")), 0)
         self.assertEqual(len(storage.list_worlds()), 2)
 
+    def test_local_owner_is_the_empty_string(self):
+        """Not an accident and not a placeholder to be tidied up later.
+
+        Every ownership check in storage.py reads `if owner_sub is not None`, so
+        the empty string is a perfectly ordinary owner that filters like any
+        other. Rewriting one of those checks as `if owner_sub:` would silently
+        turn the local single user into "no filtering at all" -- no error, no
+        failing test, just every world visible to everyone. Pinning the value
+        here makes the choice deliberate.
+        """
+        self.assertEqual(storage.LOCAL_OWNER, "")
+
+    def test_local_owner_worlds_are_filtered_like_any_other_owner(self):
+        mine = storage.create_world("Lokale Welt", owner_sub=storage.LOCAL_OWNER)
+        theirs = storage.create_world("Fremde Welt", owner_sub="alice")
+        listed = [w["id"] for w in storage.list_worlds(owner_sub=storage.LOCAL_OWNER)]
+        self.assertEqual(listed, [mine["id"]])
+        self.assertNotIn(theirs["id"], listed)
+        self.assertEqual(storage.get_world_owner(mine["id"]), storage.LOCAL_OWNER)
+
     def test_create_world_stamps_owner_sub(self):
         world = storage.create_world("Welt", owner_sub="alice")
         self.assertEqual(storage.get_world_owner(world["id"]), "alice")

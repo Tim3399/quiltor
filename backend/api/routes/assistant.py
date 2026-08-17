@@ -58,10 +58,18 @@ def install(handler, request: Request, app) -> None:
 
 @save("/api/assistant/chat")
 def chat(handler, request: Request, app) -> None:
-    db_path = None
     question = ""
     try:
         payload = handler._read_json_body()
+    except Exception as exc:
+        return handler.send_json({"ok": False, "fehler": str(exc), "errorType": _classify(str(exc))}, 503)
+    # Before anything else, so the failed-interaction log below already knows
+    # which world's database to write to.
+    world = handler.world_from_body(request.session, payload)
+    if world is None:
+        return
+    db_path = world.db_path
+    try:
         question = str(payload.get("question", "")).strip()
         history = payload.get("history") if isinstance(payload.get("history"), list) else []
         chapter_ids = [str(item) for item in payload.get("chapterIds") or [] if isinstance(item, str)][:50]
@@ -69,11 +77,6 @@ def chat(handler, request: Request, app) -> None:
         progress_id = str(payload.get("progressId") or "")[:64] or None
         requested = str(payload.get("language") or "")
         language = requested if requested in ASSISTANT_REPLY_LANGUAGES else DEFAULT_ASSISTANT_LANGUAGE
-        if app.AUTH_ENABLED:
-            world_ctx = handler._resolve_world_or_respond(request.session, str(payload.get("worldId", "")))
-            if world_ctx is None:
-                return
-            db_path = world_ctx.db_path
         if not question or len(question) > 4000:
             raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
         with app._lock:

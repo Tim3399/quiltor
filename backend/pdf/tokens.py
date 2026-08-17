@@ -1,10 +1,12 @@
 """Short-lived, single-use tokens that let a headless render act as the
 requesting user for exactly one page load.
 
-Only the hosted deployment needs these: the render runs in a separate browser
-process that cannot do an interactive Keycloak login of its own. The desktop
-build has no authentication at all, so nothing here is reached there -- but the
-renderers do not need to know that, they just carry whatever URL they are given.
+The hosted deployment is what needs them: the render runs in a separate browser
+process with no cookie of its own, and it cannot do an interactive Keycloak
+login. A single-user instance would usually recognise that process anyway --
+it connects over loopback -- but the token path is common to both identities
+rather than conditional, so the render URL is built the same way everywhere.
+The renderers know none of this; they carry whatever URL they are given.
 """
 
 from __future__ import annotations

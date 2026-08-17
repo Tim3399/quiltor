@@ -9,11 +9,14 @@ otherwise sit far from the route they govern are stated with it:
     handles that once instead of at each call site.
   - **`anonymous=True`** means the route is reachable without a session: the
     version probe and the login flow itself.
-  - **`auth_only=True`** means the route does not exist at all unless OIDC is
-    configured. The local single-user build must answer 404 for `/login`,
-    `/auth/callback`, `/api/whoami` and `/logout` -- not a redirect, not an
-    empty JSON object. It is pinned by
-    tests/backend/test_server_auth.py::ServerAuthDisabledControlTest.
+  - **`auth_only=True`** means the route only exists where there is more than
+    one user (`app.IDENTITY.multi_user`). These are the routes that have nothing
+    to do when there is only ever one identity: `/login` and `/auth/callback`
+    are steps of choosing an account, and `/logout` is putting one down again.
+    A single-user instance answers 404 for them -- not a redirect, not an empty
+    JSON object, because pretending to have an account system is worse than not
+    having one. It is pinned by
+    tests/backend/test_server_auth.py::LocalIdentityServerTest.
 
 The `app` argument is the `server` module. See this package's parent for why the
 routes are handed it rather than importing it.

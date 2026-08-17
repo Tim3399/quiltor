@@ -1,11 +1,14 @@
 """The local-mode request guard in server.py.
 
-The desktop/CLI build has no authentication at all, and loopback is not a
-security boundary in a browser: any page the user visits can send us a
-cross-origin request, and a plain HTML form is a CORS-"simple" request that
-never triggers a preflight. These pin the three header checks that close
-that -- Host, Origin, and Content-Type -- plus the fact that none of them fire
-for the reverse-proxied deployment, which binds 0.0.0.0 and has OIDC in front.
+This is CSRF defence, not authentication, and having an identity does not make
+it redundant -- it makes it load-bearing. A local instance hands its session to
+whatever reaches the loopback port, and a browser attaches our cookie to
+cross-origin requests too, so any page the user visits could borrow that session
+rather than needing one of its own. A plain HTML form is a CORS-"simple" request
+that never triggers a preflight. These pin the three header checks that close
+that -- Host, Origin, and Content-Type -- that the Host check fires before the
+identity is ever consulted, plus the fact that none of them apply to the
+reverse-proxied deployment, which binds 0.0.0.0 and has OIDC in front.
 """
 import http.client
 import json
@@ -14,13 +17,14 @@ import threading
 import unittest
 from pathlib import Path
 
+from backend import identity
 from backend.core import storage
 from backend.core.backup import SnapshotStore
 import server
 
 
 class _LiveLocalServerTestCase(unittest.TestCase):
-    """A real server.Server in local mode: AUTH_ENABLED off, storage redirected
+    """A real server.Server with the local identity installed, storage redirected
     into a temporary directory so world creation touches nothing real."""
 
     def setUp(self):
@@ -34,11 +38,10 @@ class _LiveLocalServerTestCase(unittest.TestCase):
         storage.WORLDS = root / "worlds"
         storage.ACTIVE_WORLD_ID = ""
 
-        self.original_server = (server.AUTH_ENABLED, server.MANUSCRIPT_DIR, server.PROFILE_DIR,
-                                server.WORLD_BACKUPS, server.BOUND_TO_LOOPBACK)
-        server.AUTH_ENABLED = False
-        server.MANUSCRIPT_DIR = root / "manuscripts"
-        server.PROFILE_DIR = root / "profiles"
+        self.original_server = (server.IDENTITY, server.WORLD_BACKUPS, server.BOUND_TO_LOOPBACK)
+        server.IDENTITY = identity.LocalIdentity()
+        # No mirror directories to redirect: they follow storage.DATA per world
+        # (server.resolve_world), so pointing storage at the temp root is enough.
         server.WORLD_BACKUPS = SnapshotStore(root / "history")
         server.BOUND_TO_LOOPBACK = True
 
@@ -51,8 +54,7 @@ class _LiveLocalServerTestCase(unittest.TestCase):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join(timeout=5)
-        (server.AUTH_ENABLED, server.MANUSCRIPT_DIR, server.PROFILE_DIR,
-         server.WORLD_BACKUPS, server.BOUND_TO_LOOPBACK) = self.original_server
+        (server.IDENTITY, server.WORLD_BACKUPS, server.BOUND_TO_LOOPBACK) = self.original_server
         storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = self.original_storage
         self.temp.cleanup()
 
@@ -122,6 +124,24 @@ class ForeignRequestTests(_LiveLocalServerTestCase):
     def test_the_guard_covers_reads_not_just_writes(self):
         status, _ = self._request("GET", "/api/worlds", headers={"Origin": "https://evil.example"})
         self.assertEqual(status, 403)
+
+    def test_a_foreign_host_is_refused_before_the_identity_is_consulted(self):
+        """Order, not just outcome. A wrong Bearer token would make the identity
+        answer 403 "not authenticated" all by itself, so the *message* is what
+        says which check ran: a request that fails the guard never reaches the
+        identity at all, and no session is minted for it."""
+        status, body = self._request("GET", "/api/worlds",
+                                     headers={"Host": "rebind.example",
+                                              "Authorization": "Bearer falsch"})
+        self.assertEqual(status, 403)
+        self.assertEqual(body["fehler"], "unerlaubter Host")
+
+    def test_a_foreign_origin_is_refused_even_though_loopback_would_have_logged_in(self):
+        """Without the guard this exact request resolves to the local user --
+        the connection is loopback, which is the whole point of the attack."""
+        status, body = self._request("GET", "/api/worlds", headers={"Origin": "https://evil.example"})
+        self.assertEqual(status, 403)
+        self.assertEqual(body["fehler"], "unerlaubte Herkunft")
 
 
 class BodyContentTypeTests(_LiveLocalServerTestCase):

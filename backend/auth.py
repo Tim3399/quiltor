@@ -1,7 +1,10 @@
 """OIDC (Keycloak) relying-party client and opaque session store for the web demo.
 
-Only active when QUILTOR_OIDC_ISSUER is set. The local single-user tool never
-depends on anything here beyond the OIDC_ENABLED flag.
+The OIDC half -- discovery, the code exchange, claim checks -- is only active
+when QUILTOR_OIDC_ISSUER is set, and OIDC_ENABLED is what backend/identity.py
+reads to decide which identity a process gets. The session store below is not
+OIDC-specific and both deployments use it: the local identity keeps its one
+session here too, because "a request has a session" is true everywhere.
 
 Security model: the authorization `code` is the only OIDC artifact that ever
 touches the browser. It is exchanged for tokens via a direct server-to-server

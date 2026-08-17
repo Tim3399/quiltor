@@ -48,7 +48,10 @@ export function App() {
   const [pendingRename, setPendingRename] = useState<{ id: string; from: string; to: string } | null>(null);
   const [whoami, setWhoami] = useState<{ email?: string; name?: string } | null>(null);
   const workspaceLayout = useWorkspaceLayout(world?.id, workspace);
-  useEffect(() => { api.whoami().then(result => setWhoami(result.ok ? result : null)).catch(() => setWhoami(null)); }, []);
+  // Non-null means "there is an account to sign out of", which is what the shell
+  // renders. /api/whoami now always answers -- a single-user instance has an
+  // identity too -- so multiUser, not ok, is the question being asked here.
+  useEffect(() => { api.whoami().then(result => setWhoami(result.ok && result.multiUser ? result : null)).catch(() => setWhoami(null)); }, []);
   const logout = useCallback(() => { void api.logout().then(() => { location.href = '/login'; }); }, []);
   const [version, setVersion] = useState('');
   useEffect(() => { api.version().then(result => setVersion(result.version)).catch(() => {}); }, []);

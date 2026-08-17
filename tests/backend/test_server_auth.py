@@ -9,7 +9,7 @@ import urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 
-from backend import auth
+from backend import auth, identity
 from backend.core import storage
 from backend.pdf import tokens as render
 import server
@@ -29,9 +29,9 @@ def _cookie_name_value(set_cookie_header: str) -> tuple[str, str]:
 
 class _LiveAuthServerTestCase(unittest.TestCase):
     """Base class only — no test_* methods here, so it contributes no tests of its
-    own. Spins up a real server.Server with AUTH_ENABLED forced on and Keycloak
-    mocked at the auth.discover/auth.exchange_code boundary; subclasses add tests
-    that share this fixture via self._request/self._login."""
+    own. Spins up a real server.Server with the OIDC identity installed and
+    Keycloak mocked at the auth.discover/auth.exchange_code boundary; subclasses
+    add tests that share this fixture via self._request/self._login."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -43,8 +43,8 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         storage.WORLDS = root / "worlds"
         storage.ACTIVE_WORLD_ID = ""
 
-        self.original_auth_enabled = server.AUTH_ENABLED
-        server.AUTH_ENABLED = True
+        self.original_identity = server.IDENTITY
+        server.IDENTITY = identity.OidcIdentity()
         self.original_issuer_config = (auth.ISSUER, auth.CLIENT_ID, auth.CLIENT_SECRET)
         auth.ISSUER = "https://kc.example.com/realms/quiltor"
         auth.CLIENT_ID = "quiltor-demo"
@@ -68,7 +68,7 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         self.httpd.server_close()
         self.thread.join(timeout=5)
         self.discover_patch.stop()
-        server.AUTH_ENABLED = self.original_auth_enabled
+        server.IDENTITY = self.original_identity
         auth.ISSUER, auth.CLIENT_ID, auth.CLIENT_SECRET = self.original_issuer_config
         auth._discovery_cache.clear()
         auth.SESSIONS.clear()
@@ -163,6 +163,9 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)["ok"])
         status, _, body, _ = self._request("GET", "/api/whoami", cookies={"quiltor_session": session_value})
+        # /api/whoami is no longer anonymous: with the session gone, the request
+        # has no identity at all and the dispatch answers before the route runs.
+        self.assertEqual(status, 401)
         self.assertFalse(json.loads(body)["ok"])
 
     # ---------- Per-user world isolation ----------
@@ -271,13 +274,19 @@ class RenderTokenHttpTests(_LiveAuthServerTestCase):
         token = server.issue_render_token("user-alice")
         self._request("GET", f"/api/whoami?renderToken={token}")
         status, _, body, _ = self._request("GET", f"/api/whoami?renderToken={token}")
-        # Second use has no valid session and no valid token left, so it's anonymous.
+        # Second use has no valid session and no valid token left, so the
+        # request has no identity and never reaches the route.
+        self.assertEqual(status, 401)
         self.assertFalse(json.loads(body)["ok"])
 
 
-class ServerAuthDisabledControlTest(unittest.TestCase):
-    """Pins that the whole auth feature is inert unless QUILTOR_OIDC_ISSUER is set —
-    the local single-user tool must stay byte-identical."""
+class LocalIdentityServerTest(unittest.TestCase):
+    """The other half of the same server, wired to the local identity.
+
+    Not "auth off": there is a session here too, it just belongs to the one
+    person at this machine. What is genuinely absent is the *choice* of account,
+    which is why /login stays a 404 while /api/whoami now always answers.
+    """
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -289,7 +298,14 @@ class ServerAuthDisabledControlTest(unittest.TestCase):
         storage.WORLDS = root / "worlds"
         storage.ACTIVE_WORLD_ID = ""
         storage.initialize()
-        self.assertFalse(server.AUTH_ENABLED, "This control test assumes QUILTOR_OIDC_ISSUER is unset in the test environment.")
+
+        auth.SESSIONS.clear()
+        self.addCleanup(auth.SESSIONS.clear)
+        self.original_server = (server.IDENTITY, server.BOUND_TO_LOOPBACK)
+        server.IDENTITY = identity.LocalIdentity()
+        self.token = server.IDENTITY.token
+        server.BOUND_TO_LOOPBACK = True
+
         self.httpd = server.Server(("127.0.0.1", 0), server.Handler)
         self.port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
@@ -299,24 +315,77 @@ class ServerAuthDisabledControlTest(unittest.TestCase):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join(timeout=5)
+        server.IDENTITY, server.BOUND_TO_LOOPBACK = self.original_server
         storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = self.original_storage
         self.temp.cleanup()
 
-    def _get(self, path: str):
+    def _get(self, path: str, headers: dict | None = None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
-        conn.request("GET", path)
+        conn.request("GET", path, headers=dict(headers or {}))
         resp = conn.getresponse()
-        status = resp.status
+        status, raw = resp.status, resp.read()
+        conn.close()
+        try:
+            return status, json.loads(raw)
+        except ValueError:
+            return status, {}  # a 404 comes from the static fallback as HTML
+
+    def test_a_loopback_request_needs_no_header_at_all(self):
+        """The everyday desktop case: whoever reaches the port is the user."""
+        status, body = self._get("/api/worlds")
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+
+    def test_whoami_answers_and_says_there_is_only_one_user(self):
+        status, body = self._get("/api/whoami")
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertFalse(body["multiUser"])
+        self.assertEqual(body["sub"], identity.LocalIdentity.MASTER_SUB)
+
+    def test_the_account_routes_still_do_not_exist(self):
+        """There is exactly one identity, so there is nothing to log in to or
+        out of. A 404 says that; a redirect would imply an account system."""
+        for path in ("/login", "/auth/callback"):
+            with self.subTest(path=path):
+                self.assertEqual(self._get(path)[0], 404)
+
+    def test_a_bearer_token_is_accepted_when_loopback_is_not_available(self):
+        server.BOUND_TO_LOOPBACK = False
+        status, body = self._get("/api/whoami", headers={"Authorization": f"Bearer {self.token}"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["sub"], identity.LocalIdentity.MASTER_SUB)
+
+    def test_without_loopback_and_without_a_token_there_is_no_identity(self):
+        """A published instance without accounts is not open to everyone: the
+        loopback shortcut is what falls away, and the token is what remains."""
+        server.BOUND_TO_LOOPBACK = False
+        status, body = self._get("/api/whoami")
+        self.assertEqual(status, 401)
+        self.assertFalse(body["ok"])
+
+    def test_a_browser_request_without_an_identity_gets_403_not_a_login_redirect(self):
+        """There is no login page to send anyone to, so a non-API request has to
+        be refused outright rather than bounced to a route that does not exist."""
+        server.BOUND_TO_LOOPBACK = False
+        status, body = self._get("/")
+        self.assertEqual(status, 403)
+        self.assertFalse(body["ok"])
+
+    def test_a_query_token_logs_in_and_bounces_the_secret_out_of_the_url(self):
+        server.BOUND_TO_LOOPBACK = False
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn.request("GET", f"/api/whoami?token={self.token}")
+        resp = conn.getresponse()
+        status, headers = resp.status, resp.getheaders()
         resp.read()
         conn.close()
-        return status
-
-    def test_worlds_route_needs_no_session_when_auth_is_disabled(self):
-        self.assertEqual(self._get("/api/worlds"), 200)
-
-    def test_login_and_whoami_routes_do_not_exist_when_auth_is_disabled(self):
-        self.assertEqual(self._get("/login"), 404)
-        self.assertEqual(self._get("/api/whoami"), 404)
+        self.assertEqual(status, 302)
+        self.assertEqual(dict(headers)["Location"], "/api/whoami")
+        # The redirect has to carry the cookie, or the bounced request arrives
+        # with neither the token nor a session and loops.
+        self.assertTrue(any(k.lower() == "set-cookie" and v.startswith("quiltor_session=")
+                            for k, v in headers))
 
 
 if __name__ == "__main__":

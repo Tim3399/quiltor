@@ -119,7 +119,27 @@ Other start options:
 ```bash
 python3 server.py 8080            # custom port
 python3 server.py 8080 --no-open  # do not open a browser
+python3 server.py --print-token   # show this run's access token
 ```
+
+### Who gets in
+
+There is no "authentication off" mode. Every request has a session — the only question is who the users are. Without `QUILTOR_OIDC_ISSUER`, the **local identity** is in force: exactly one user, the person at this machine, with no login, no sign-in page, and no accounts.
+
+You are recognised in one of three ways, checked in this order:
+
+1. `Authorization: Bearer <token>` — for scripts and the MCP server.
+2. `?token=<token>` in the URL — to let a browser that has no cookie yet in once; the response is a redirect that strips the parameter again.
+3. A **loopback connection** — the ordinary case for the desktop app, the CLI, and `python3 server.py`. Whoever can reach the port on `127.0.0.1` is the person we would be authenticating anyway, so no token is needed there at all.
+
+The token is generated **fresh on every process start**, lives only in memory, and is never written to disk — not even to `~/.quiltor/config.env`. It appears nowhere, neither in the startup banner nor in a log, unless you ask for it explicitly with `--print-token` (`quiltor run --print-token` on the CLI). A restart invalidates any token link you handed out; that is deliberate, because a token that outlives its process is a lasting password.
+
+| Variable | Purpose |
+| --- | --- |
+| `QUILTOR_MASTER_TOKEN` | Pins the token instead of minting a new one per start. Meant for tests and for instances that do not listen on loopback. It does **not** belong in `~/.quiltor/config.env` (a plain-text file) — set it as a real environment variable; `quiltor config set` deliberately does not know the key. |
+| `QUILTOR_HOST` | Bind address, `127.0.0.1` by default. See the note right below. |
+
+> **Behaviour change:** an instance that is **not** bound to loopback (`QUILTOR_HOST=0.0.0.0`) and has **no** OIDC configured now demands the token — way 3 simply does not apply there. Such an instance used to be completely unprotected. So if you run `QUILTOR_HOST=0.0.0.0` without Keycloak, you now have to send a token with every request, and set `QUILTOR_MASTER_TOKEN` so that anybody knows the freshly minted value — or set up Keycloak instead, see [Web demo with Keycloak](#web-demo-with-keycloak).
 
 ### Troubleshooting
 
@@ -168,7 +188,7 @@ Mac App Store build additionally requires.
 
 ## Web demo with Keycloak
 
-Quiltor can also run as a small multi-user demo on the web: login through an existing Keycloak instance, with every signed-in person seeing only their own worlds. Without the environment variables below, Quiltor stays exactly the local single-user mode described above — the web mode is purely additive and has to be turned on explicitly.
+Quiltor can also run as a small multi-user demo on the web: login through an existing Keycloak instance, with every signed-in person seeing only their own worlds. Without the environment variables below, the local identity described above stays in force — one user, no login. What changes is not "auth on/off" but only who the users are; Keycloak is purely additive and has to be turned on explicitly.
 
 **1. Create a Keycloak client** (in your existing realm):
 
@@ -181,11 +201,13 @@ Quiltor can also run as a small multi-user demo on the web: login through an exi
 
 | Variable | Purpose |
 | --- | --- |
-| `QUILTOR_OIDC_ISSUER` | Realm issuer URL, e.g. `https://kc.example.com/realms/quiltor`. **Unset = local mode**, everything else below is skipped. |
+| `QUILTOR_OIDC_ISSUER` | Realm issuer URL, e.g. `https://kc.example.com/realms/quiltor`. **Unset = the local identity** (one user, no login), everything else below is skipped. |
 | `QUILTOR_OIDC_CLIENT_ID` | Client ID of the client created above. |
 | `QUILTOR_OIDC_CLIENT_SECRET` | The matching client secret. |
 | `QUILTOR_PUBLIC_URL` | Public base URL, e.g. `https://quiltor.example.com` — must exactly match the redirect URI in the Keycloak client. |
 | `QUILTOR_COOKIE_SECURE` | `auto` (default, based on `X-Forwarded-Proto`) · `0` · `1` — only relevant for local OIDC testing without HTTPS. |
+| `QUILTOR_HOST` | Bind address, `127.0.0.1` by default; the Docker image sets `0.0.0.0` because a container's loopback interface is not reachable from outside at all. Without OIDC, an instance not bound to loopback demands the token — see [Who gets in](#who-gets-in). |
+| `QUILTOR_MASTER_TOKEN` | Only relevant without OIDC: pins the local access token instead of generating one per start. For tests and for instances not bound to loopback. It does **not** belong in `~/.quiltor/config.env`. |
 | `QUILTOR_DATA_DIR` | Already exists; point it at the mounted volume inside the container. |
 
 **3. Start with Docker Compose** ([`docker-compose.yml`](docker-compose.yml)):
@@ -221,6 +243,7 @@ Each [GitHub release](https://github.com/Tim3399/quiltor/releases) also ships a 
 quiltor install   # guided setup: Keycloak (default no), German writing tools and local AI assistant (default yes each)
 quiltor           # starts Quiltor on port 8000, same as python3 server.py
 quiltor run 8080  # different port
+quiltor run --print-token   # show this run's access token (see "Who gets in")
 quiltor config set|get|list|unset <KEY> [VALUE]   # emergency access to any QUILTOR_* variable
 quiltor config path        # prints the path of the config file
 quiltor --version
@@ -230,13 +253,19 @@ quiltor --version
 
 - Every world has a separate SQLite file under `data/worlds/`.
 - SQLite is the only authoritative data source.
-- Markdown mirrors keep manuscripts and profiles readable outside the app.
+- Markdown mirrors keep manuscripts and profiles readable outside the app — one folder per world: `data/manuscripts/<world-id>/` and `data/profiles/<world-id>/`.
 - Automatic SQLite backups can be restored locally.
 - Revision checks prevent stale browser tabs from overwriting newer changes.
 - Every world keeps a local version history from the start — even with no backup endpoint at all. Snapshots are content-addressed, so an unchanged chapter is stored once.
 - A configured endpoint additionally unlocks uploading; without one, "Save only" is still available.
 - History runs on the standard library alone and spawns no subprocesses.
 - World content, models, backups, and repositories are excluded from public version control.
+
+### Upgrading from an older version
+
+- **Authentication is always on.** There is no "without auth" mode any more; locally the local identity takes over, see [Who gets in](#who-gets-in). In practice this only affects anyone running `QUILTOR_HOST=0.0.0.0` without Keycloak: that instance now demands a token.
+- **The Markdown mirrors now live in one folder per world.** Locally they move from `data/manuscripts/*.md` to `data/manuscripts/<world-id>/*.md`, and likewise for `data/profiles/`. Nothing is lost — the files are written again in the new folder on the next save. The old flat files do stay behind as leftovers, though, and are **not** migrated or deleted automatically; delete them by hand once the new folders have filled up if you want to tidy up. SQLite was and remains the authoritative source.
+- **The server no longer has a notion of "this world is currently open".** There is no process-wide open world, and with it the "Close this world before restoring it" check on restoring from the backup endpoint is gone. Restoring now works without that intermediate step.
 
 ## Keyboard controls
 
@@ -281,7 +310,8 @@ backend/
 ├── llm/  language/  pdf/    capabilities: one contract, several implementations,
 │                            selected from the edition
 ├── assistant/               sits above core and uses the LLM capability
-└── auth.py                  Keycloak login, for the hosted deployment only
+├── identity.py              who the requester is: local identity or OIDC — there is always one
+└── auth.py                  Keycloak login and sessions, for the hosted deployment only
 hosts/                      the ways to run Quiltor (they import backend/, never the reverse)
 ├── desktop/                 native window and tray icon
 ├── cli/                     `quiltor run` / `quiltor config`
