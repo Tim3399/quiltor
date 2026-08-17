@@ -73,7 +73,10 @@ class GitRepoTestCase(unittest.TestCase):
             shutil.copy(REPO_ROOT / name, self.repo / name)
         self._git("init", "-q", ".")
         self._git("add", "-A")
-        self._git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "initial")
+        # Identity and signing forced off: whatever the developer running this
+        # has in ~/.gitconfig must not decide whether the suite passes.
+        self._git("-c", "user.email=t@example.com", "-c", "user.name=t",
+                  "-c", "commit.gpgsign=false", "commit", "-qm", "initial")
 
     def _git(self, *args):
         return subprocess.run(["git", *args], cwd=self.repo, check=True,
