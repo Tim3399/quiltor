@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-async function openBlankWorld(page: import('@playwright/test').Page, title = 'Testwelt') {
-  const response = await page.request.post('/api/worlds/create', { data: { title, backupUrl: '' } });
+async function openBlankWorld(page: import('@playwright/test').Page, title = 'Testwelt', backupUrl = '') {
+  const response = await page.request.post('/api/worlds/create', { data: { title, backupUrl } });
   const payload = await response.json();
   await page.goto(`/?world=${payload.world.id}`);
 }
@@ -63,16 +63,106 @@ test('CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil', a
   await page.locator('.cm-line').click({ button: 'right' });
   await expect(selectionMenu).toBeVisible();
   await selectionMenu.getByRole('menuitem', { name: 'Nachschlagen' }).click();
-  await expect(page.locator('.writing-selection-state')).toContainText('Der Morgen lag still über dem Hafen.');
+  // Die Schreibhilfe hat keine eigene Markierungskarte mehr (.writing-selection-state ist fort).
+  // Die Markierung *ist* die Frage, also steht sie im Suchfeld der Schreibhilfe.
+  await expect(page.getByRole('textbox', { name: 'Suchbegriff' })).toHaveValue('Der Morgen lag still über dem Hafen.');
   await expect(editor).toHaveText('Der Morgen lag still über dem Hafen.');
   await expect(page.getByText(/Sprachdaten sind nicht installiert|Keine Ergebnisse gefunden/)).toBeVisible();
 });
 
-test('Shortcuts unterscheiden Speichern und Sicherung', async ({ page }) => {
+test('Kapitel- und Schreibhilfe-Spalte lassen sich aus der Werkzeugleiste umschalten', async ({ page }) => {
   await openBlankWorld(page);
+  await expect(page.getByLabel('Kapiteltext')).toBeVisible();
+  const toggles = page.locator('.panel-toggles');
+  const chapters = toggles.getByRole('button', { name: 'Kapitel', exact: true });
+  const aid = toggles.getByRole('button', { name: 'Schreibhilfe', exact: true });
+  await expect(chapters).toBeVisible();
+  await expect(aid).toBeVisible();
+  const width = page.viewportSize()?.width || 0;
+
+  if (width >= 1100) {
+    // Breit ist Platz für beides: die Spalten stehen nebeneinander und schließen sich nicht aus.
+    await expect(chapters).toHaveAttribute('aria-pressed', 'true');
+    await expect(aid).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('aside.binder')).toHaveCount(1);
+    await expect(page.locator('aside.inspector')).toHaveCount(1);
+    await chapters.click();
+    await expect(page.locator('aside.binder')).toHaveCount(0);
+    await expect(page.locator('aside.inspector')).toHaveCount(1);
+    await chapters.click();
+    await expect(page.locator('aside.binder')).toHaveCount(1);
+  } else if (width < 720) {
+    // Unter 720px sind beide Spalten Sheets. Ein Sheet ist modal, also muss das eine zu sein,
+    // bevor das andere aufgeht -- deshalb hier über den Schließen-Knopf statt über die Leiste.
+    await expect(page.locator('aside.binder')).toHaveCount(0);
+    await chapters.click();
+    const binderSheet = page.getByRole('dialog', { name: 'Kapitel' });
+    await expect(binderSheet).toBeVisible();
+    await expect(binderSheet.getByLabel('Kapitelnotiz')).toBeVisible();
+    await page.getByRole('button', { name: 'Kapitelnavigation schließen' }).click();
+    await expect(binderSheet).toHaveCount(0);
+    await aid.click();
+    const aidSheet = page.getByRole('dialog', { name: 'Schreibhilfe' });
+    await expect(aidSheet).toBeVisible();
+    await expect(aidSheet.getByRole('tab', { name: 'Nachschlagen' })).toBeVisible();
+  } else {
+    // 720-1100: beide Spalten liegen als Schublade über dem Text, also kann nur eine offen sein.
+    await expect(chapters).toHaveAttribute('aria-pressed', 'true');
+    await expect(aid).toHaveAttribute('aria-pressed', 'false');
+    await aid.click();
+    await expect(aid).toHaveAttribute('aria-pressed', 'true');
+    await expect(chapters).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('aside.binder')).toHaveCount(0);
+    await expect(page.locator('aside.inspector')).toHaveCount(1);
+    await chapters.click();
+    await expect(chapters).toHaveAttribute('aria-pressed', 'true');
+    await expect(aid).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('aside.inspector')).toHaveCount(0);
+  }
+});
+
+test('Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide', 'Der Weg zu den Kapiteleigenschaften ist in einer Breite geprüft; die Spaltenlogik hat einen eigenen Test.');
+  await openBlankWorld(page);
+  await expect(page.getByLabel('Kapiteltext')).toBeVisible();
+
+  // Der Titel steht über dem Text, nicht mehr rechts in einer Eigenschaftenspalte.
+  const title = page.getByRole('textbox', { name: 'Kapiteltitel' });
+  await expect(title).toBeVisible();
+  await expect(page.locator('.editor-document .chapter-title')).toHaveCount(1);
+
+  // Die Zählungen sind Status und stehen in der Statuszeile.
+  const stats = page.locator('.context-bar .chapter-stats');
+  await expect(stats).toContainText('Wörter');
+  await expect(stats).toContainText('Zeichen');
+  await expect(stats).toContainText('Normseiten');
+
+  // Die Notiz liegt links unter der Kapitelliste.
+  await expect(page.locator('aside.binder').getByLabel('Kapitelnotiz')).toBeVisible();
+
+  // Der zweigeteilte Inspektor ist fort: rechts gibt es nur noch die Schreibhilfe.
+  await expect(page.getByRole('tab', { name: 'Kapitel', exact: true })).toHaveCount(0);
+  await expect(page.locator('aside.inspector')).toContainText('Schreibhilfe');
+
+  // Verschieben, Export und Löschen hängen am ⋯ neben dem Titel.
+  await page.getByRole('button', { name: 'Kapitelaktionen' }).click();
+  const menu = page.getByRole('menu', { name: 'Kapitelaktionen' });
+  for (const item of ['Nach oben', 'Nach unten', 'Kapitel als Markdown', 'Kapitel löschen']) {
+    await expect(menu.getByRole('menuitem', { name: item, exact: true })).toBeVisible();
+  }
+  await page.keyboard.press('Escape');
+});
+
+test('Shortcuts unterscheiden Speichern und Sicherung', async ({ page }) => {
+  // Seit die Sicherung auf Schnappschuss + Endpunkt umgestellt ist, hängt "Hochladen" an zwei
+  // Bedingungen: eingerichteter Endpunkt und beschriebener Stand. Die Welt bringt deshalb eine
+  // Backup-URL mit -- ohne sie prüfte der Test nur noch, dass der Knopf grundsätzlich tot ist.
+  await openBlankWorld(page, 'Testwelt', 'https://backup.example.com/shortcut-test');
   await page.keyboard.press('Control+Shift+S');
-  await expect(page.getByRole('dialog', { name: /Arbeitsstand sichern/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sichern & hochladen' })).toBeEnabled();
+  const dialog = page.getByRole('dialog', { name: /Arbeitsstand sichern/ });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Was hat sich geändert?').fill('Zwischenstand aus dem Test');
+  await expect(dialog.getByRole('button', { name: 'Sichern & hochladen' })).toBeEnabled();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+S');
   await expect(page.getByRole('dialog')).toHaveCount(0);
