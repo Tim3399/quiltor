@@ -59,6 +59,21 @@ describe('TextWorkspace', () => {
     expect(onInspectorWidth).toHaveBeenCalledWith(304);
   });
 
+  it('lässt beide Spalten auf demselben Weg wieder aufmachen', () => {
+    // Zugeklappt gab es keinen Weg zurück: die Kapitelspalte hatte einen
+    // Schließknopf, aber der einzige Öffner war ein unbeschriftetes Symbol in
+    // der Titelleiste. Beide Spalten hängen jetzt an einem Schalterpaar.
+    const onBinderOpen = vi.fn(), onInspectorOpen = vi.fn();
+    const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), viewportMode: 'wide', binderOpen: false, inspectorOpen: false, onBinderOpen, onInspectorOpen });
+    const rendered = within(view.container);
+    const chapters = rendered.getByRole('button', { name: 'Kapitel' });
+    expect(chapters).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(chapters);
+    expect(onBinderOpen).toHaveBeenCalledWith(true);
+    fireEvent.click(rendered.getByRole('button', { name: 'Schreibhilfe' }));
+    expect(onInspectorOpen).toHaveBeenCalledWith(true);
+  });
+
   // Die rechte Spalte macht nur noch eine Sache. Alles Kapitelbezogene ist links oder über
   // dem Text; der frühere Reiterwechsel im Inspector entfällt ersatzlos.
   it('hält im rechten Panel nur noch die Schreibhilfe', () => {

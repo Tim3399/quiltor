@@ -1,7 +1,7 @@
 // Ein gespeicherter Textstand heißt durchgehend „Fassung“ -- nicht Version, nicht Stand.
 // Das Hilfspanel heißt überall „Schreibhilfe“, egal ob im Inspector oder im Fokusmodus.
 export const manuscript = {
-  manuscript: 'Manuskript', chapter: 'Kapitel', chapters: 'Kapitel', chapterText: 'Kapiteltext', chapterTitle: 'Kapiteltitel', words: 'Wörter', totalWords: 'Wörter gesamt', characters: 'Zeichen', standardPages: 'Normseiten',
+  manuscript: 'Manuskript', chapter: 'Kapitel', chapters: 'Kapitel', newChapter: 'Neues Kapitel', chapterText: 'Kapiteltext', chapterTitle: 'Kapiteltitel', words: 'Wörter', totalWords: 'Wörter gesamt', characters: 'Zeichen', standardPages: 'Normseiten',
   navigation: 'Navigation', focus: 'Fokus', versions: 'Fassungen', exportManuscript: 'Exportieren', exportOptions: 'Exportoptionen', bookPdf: 'Buch-PDF', creatingPdf: 'Erzeuge PDF …',
   undoManuscript: 'Manuskript rückgängig', redoManuscript: 'Manuskript wiederholen', closeNavigation: 'Kapitelnavigation schließen', resizeWritingAid: 'Schreibhilfe breiter oder schmaler ziehen',
   chapterNote: 'Kapitelnotiz', chapterActions: 'Kapitelaktionen', moveUp: 'Nach oben', moveDown: 'Nach unten', chapterMarkdown: 'Kapitel als Markdown', deleteChapter: 'Kapitel löschen',

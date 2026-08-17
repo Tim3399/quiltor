@@ -313,8 +313,17 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
           <div><dt>{t('totalWords')}</dt><dd>{total.toLocaleString(uiLanguage)}</dd></div>
         </dl>
       </div>
-      <div className="tool-group"><button className="primary" onClick={add}><FilePlus2 />{t('chapter')}</button></div>
-      <div className="tool-group panel-toggles"><button aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}><PanelRight />{t('writingAid')}</button></div>
+      {/* "Neues Kapitel", not "Kapitel": beside the column toggle of the same name, one word
+          for both would have read as two ways to the same place. */}
+      <div className="tool-group"><button className="primary" onClick={add}><FilePlus2 />{t('newChapter')}</button></div>
+      {/* Both columns are reached the same way. The chapter column used to be openable only
+          from the unlabelled icon in the app bar, which was survivable while it held nothing
+          but a list -- now it carries the note as well, and closing it looked one-way: the
+          panel has its own close button, but nothing in sight said how to get it back. */}
+      <div className="tool-group panel-toggles">
+        <button aria-pressed={binderOpen} onClick={() => setBinderOpen(!binderOpen)}><PanelLeft />{t('chapters')}</button>
+        <button aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}><PanelRight />{t('writingAid')}</button>
+      </div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoManuscript')} title={`${t('undoManuscript')} · ${keys('Z')}`}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoManuscript')} title={`${t('redoManuscript')} · ${keys('Z', { shift: true })}`}><Redo2 /></button></div>
       <div className="tool-group"><button aria-pressed={focus} onClick={() => onFocus(!focus)}><Focus />{t('focus')}</button></div>
       <div className="tool-group"><button ref={exportButton} aria-haspopup="menu" aria-expanded={exportOpen} onClick={() => setExportOpen(value => !value)}><Download />{t('exportManuscript')}</button></div>

@@ -1,7 +1,7 @@
 // A stored text state is called a “version” throughout. The helper panel is the “writing aid”
 // everywhere, whether it appears in the inspector or in focus mode.
 export const manuscript = {
-  manuscript: 'Manuscript', chapter: 'Chapter', chapters: 'Chapters', chapterText: 'Chapter text', chapterTitle: 'Chapter title', words: 'Words', totalWords: 'words total', characters: 'Characters', standardPages: 'Standard pages',
+  manuscript: 'Manuscript', chapter: 'Chapter', chapters: 'Chapters', newChapter: 'New chapter', chapterText: 'Chapter text', chapterTitle: 'Chapter title', words: 'Words', totalWords: 'words total', characters: 'Characters', standardPages: 'Standard pages',
   navigation: 'Navigation', focus: 'Focus', versions: 'Versions', exportManuscript: 'Export', exportOptions: 'Export options', bookPdf: 'Book PDF', creatingPdf: 'Creating PDF …',
   undoManuscript: 'Undo manuscript change', redoManuscript: 'Redo manuscript change', closeNavigation: 'Close chapter navigation', resizeWritingAid: 'Drag to resize the writing aid',
   chapterNote: 'Chapter note', chapterActions: 'Chapter actions', moveUp: 'Move up', moveDown: 'Move down', chapterMarkdown: 'Chapter as Markdown', deleteChapter: 'Delete chapter',
