@@ -9,7 +9,7 @@
 
 ## Manuscript
 
-- Context toolbar, chapter binder, editor, chapter inspector, helper inspector, focus-side panels, completion popover, chapter-history panel: `src/features/manuscript/TextWorkspace.tsx`
+- Context toolbar, chapter binder (list, note), editor with its title and ⋯ menu, writing-aid inspector, focus-side panels, completion popover, chapter-history panel: `src/features/manuscript/TextWorkspace.tsx`
 - Destructive chapter dialog: shared `ConfirmDialog`
 
 ## Figures and graph
