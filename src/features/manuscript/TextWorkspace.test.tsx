@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
@@ -5,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TextWorkspace } from './TextWorkspace';
 import { LanguageProvider } from '../../language';
 import { api } from '../../lib/api';
+import type { Manuscript } from '../../types';
 
 const manuscript = { chapters: [{ id: 'c1', title: 'Prolog', body: 'Hallo Welt', note: '' }] };
 const figures = { nodes: [{ id: 'n1', x: 0, y: 0, name: 'Testfigur' }], edges: [] };
@@ -52,9 +54,80 @@ describe('TextWorkspace', () => {
     const onSidebarWidth = vi.fn(), onInspectorWidth = vi.fn();
     renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), viewportMode: 'wide', binderOpen: true, inspectorOpen: true, sidebarWidth: 246, inspectorWidth: 294, onSidebarWidth, onInspectorWidth });
     fireEvent.keyDown(screen.getByRole('separator', { name: 'Navigation breiter oder schmaler ziehen' }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('separator', { name: 'Inspector breiter oder schmaler ziehen' }), { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Schreibhilfe breiter oder schmaler ziehen' }), { key: 'ArrowLeft' });
     expect(onSidebarWidth).toHaveBeenCalledWith(256);
     expect(onInspectorWidth).toHaveBeenCalledWith(304);
+  });
+
+  // Die rechte Spalte macht nur noch eine Sache. Alles Kapitelbezogene ist links oder über
+  // dem Text; der frühere Reiterwechsel im Inspector entfällt ersatzlos.
+  it('hält im rechten Panel nur noch die Schreibhilfe', () => {
+    const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), viewportMode: 'wide', binderOpen: true, inspectorOpen: true });
+    const aid = within(view.container.querySelector('.inspector')!);
+    expect(view.container.querySelector('.panel-tabs')).toBeNull();
+    expect(aid.getByRole('tab', { name: 'Nachschlagen' })).toBeTruthy();
+    expect(aid.queryByRole('tab', { name: 'Kapitel' })).toBeNull();
+    expect(aid.queryByLabelText('Kapitelnotiz')).toBeNull();
+    expect(aid.queryByRole('button', { name: 'Kapitel löschen' })).toBeNull();
+    expect(aid.queryByRole('button', { name: 'Nach oben' })).toBeNull();
+  });
+
+  // Die Notiz gehört dem Kapitel, das die Liste auswählt -- also steht sie unter der Liste.
+  it('speichert die Kapitelnotiz aus der linken Spalte', () => {
+    const onChange = vi.fn();
+    const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), viewportMode: 'wide', binderOpen: true, inspectorOpen: true });
+    const binder = within(view.container.querySelector('.binder')!);
+    fireEvent.change(binder.getByLabelText('Kapitelnotiz'), { target: { value: 'Die Unruhe nur andeuten.' } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [expect.objectContaining({ id: 'c1', note: 'Die Unruhe nur andeuten.' })] }));
+  });
+
+  // Die Zählwerte waren nur sichtbar, wenn der Kapitelreiter offen war. Jetzt stehen sie in
+  // der Statuszeile der Kontextleiste und folgen dem Text.
+  it('zeigt Wörter, Zeichen und Normseiten in der Statuszeile', async () => {
+    // TextWorkspace ist gesteuert: ohne einen Zustand, der onChange zurückspielt, könnte der
+    // Test nur die Startwerte sehen und nicht, dass sie dem Text folgen.
+    function Stateful() {
+      const [value, setValue] = useState<Manuscript>(manuscript);
+      return <TextWorkspace manuscript={value} figures={figures} onChange={setValue} focus={false} onFocus={vi.fn()} viewportMode="wide" binderOpen inspectorOpen />;
+    }
+    const view = render(<LanguageProvider><Stateful /></LanguageProvider>);
+    const status = within(view.container.querySelector('.context-bar')!);
+    expect(status.getByText('Wörter').nextSibling).toHaveTextContent('2');
+    expect(status.getByText('Zeichen').nextSibling).toHaveTextContent('10');
+    expect(status.getByText('Normseiten').nextSibling).toHaveTextContent('0,0');
+    const editor = view.container.querySelector('.cm-content') as HTMLElement;
+    editor.textContent = 'Ein Satz mehr im Kapitel';
+    fireEvent.input(editor, { inputType: 'insertText', data: 'Ein Satz mehr im Kapitel' });
+    await waitFor(() => expect(status.getByText('Zeichen').nextSibling).toHaveTextContent('24'));
+    expect(status.getByText('Wörter').nextSibling).toHaveTextContent('5');
+  });
+
+  // Umsortieren und Löschen laufen über onChange, nicht über die Editor-Handle -- also greifen
+  // sie unter jsdom wirklich. Der Markdown-Export tut das nicht: er schreibt eine Datei über
+  // download(). Dieser Test belegt darum nur, dass der Eintrag da ist, nicht dass er exportiert.
+  it('führt Kapitelbefehle im Menü neben dem Titel', async () => {
+    const twoChapters = { chapters: [...manuscript.chapters, { id: 'c2', title: 'Aufbruch', body: 'Der Weg beginnt.', note: '' }] };
+    const onChange = vi.fn();
+    const view = renderWorkspace({ manuscript: twoChapters, figures, onChange, focus: false, onFocus: vi.fn(), viewportMode: 'wide', binderOpen: true, inspectorOpen: true });
+    fireEvent.click(within(view.container).getByRole('button', { name: 'Kapitelaktionen' }));
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Nach unten' })).toBeTruthy());
+    expect(screen.getByRole('menuitem', { name: 'Nach oben' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Kapitel als Markdown' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Kapitel löschen' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Nach unten' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [expect.objectContaining({ id: 'c2' }), expect.objectContaining({ id: 'c1' })] }));
+  });
+
+  it('löscht ein Kapitel erst nach der Bestätigung aus dem Menü heraus', async () => {
+    const onChange = vi.fn();
+    const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), viewportMode: 'wide', binderOpen: true, inspectorOpen: true });
+    fireEvent.click(within(view.container).getByRole('button', { name: 'Kapitelaktionen' }));
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Kapitel löschen' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Kapitel löschen' }));
+    const dialog = within(await screen.findByRole('alertdialog'));
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(dialog.getByRole('button', { name: 'Kapitel löschen' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [] }));
   });
 
   it('ändert beim freien Nachschlagen keinen Manuskripttext ohne Ergebnisaktion', async () => {
@@ -64,7 +137,6 @@ describe('TextWorkspace', () => {
     const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), inspectorOpen: true });
     const rendered = within(view.container);
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
-    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     fireEvent.click(rendered.getByRole('tab', { name: 'Wörterbuch' }));
     fireEvent.change(rendered.getByLabelText('Suchbegriff'), { target: { value: 'Haus' } });
     fireEvent.submit(rendered.getByLabelText('Suchbegriff').closest('form')!);
@@ -77,7 +149,6 @@ describe('TextWorkspace', () => {
     vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {}, grammar: { supported: true, unsupportedReason: '', available: true, installed: true, running: false, version: '6.6', javaVersion: 17, javaRequired: 17, externalConfigured: false, externalEnabled: false, download: { url: '', checksum: '', license: 'LGPL' } } });
     const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), inspectorOpen: true });
     const rendered = within(view.container);
-    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
     // Nachschlagen ist der Startbereich: kein Grammatikknopf, keine Bausteine im Weg.
     expect(rendered.getByLabelText('Suchbegriff')).toBeTruthy();
@@ -101,7 +172,6 @@ describe('TextWorkspace', () => {
     const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), inspectorOpen: true });
     const rendered = within(view.container);
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
-    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     fireEvent.change(rendered.getByLabelText('Suchbegriff'), { target: { value: 'gehen' } });
     fireEvent.click(rendered.getByRole('tab', { name: 'Synonyme' }));
     await rendered.findByText('schreiten');
@@ -113,7 +183,6 @@ describe('TextWorkspace', () => {
     const withTerms = { ...manuscript, words: [{ w: 'Traumweberin', d: '' }] };
     const view = renderWorkspace({ manuscript: withTerms, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), inspectorOpen: true });
     const rendered = within(view.container);
-    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     fireEvent.click(rendered.getByRole('tab', { name: 'Einfügen' }));
     expect(rendered.getByRole('button', { name: 'Traumweberin' })).toBeTruthy();
     expect(screen.queryByLabelText('Neuer Begriff')).toBeNull();
@@ -129,7 +198,6 @@ describe('TextWorkspace', () => {
     const onChange = vi.fn();
     const view = renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn(), inspectorOpen: true });
     const rendered = within(view.container);
-    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
     fireEvent.click(rendered.getByRole('tab', { name: 'Prüfen' }));
     fireEvent.click(rendered.getByRole('button', { name: 'Text prüfen' }));
@@ -144,7 +212,6 @@ describe('TextWorkspace', () => {
     vi.spyOn(api, 'languageStatus').mockResolvedValue({ ok: true, installed: true, stale: false, version: 'test', sources: {}, grammar: { supported: false, unsupportedReason: 'Nicht in dieser Ausgabe enthalten.', available: false, installed: false, running: false, version: '6.6', javaVersion: null, javaRequired: 17, externalConfigured: false, externalEnabled: false, download: { url: '', checksum: '', license: 'LGPL' } } });
     const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn(), inspectorOpen: true });
     const rendered = within(view.container);
-    fireEvent.click(rendered.getByRole('tab', { name: 'Schreibhilfe' }));
     await waitFor(() => expect(api.languageStatus).toHaveBeenCalled());
     expect(rendered.queryByRole('button', { name: 'Text prüfen' })).toBeNull();
     // Ohne Grammatikprüfung entfällt der ganze Bereich, nicht nur sein Knopf.

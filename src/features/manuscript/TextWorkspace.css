@@ -268,6 +268,28 @@
 .terms-sheet p { margin: 0; font-size: var(--font-size-3); }
 .terms-sheet .add-term { margin: 0; }
 
+/* The chapter counters read as a status line under the chapter name. The shared .context-title
+   is a fixed-width, single-line label elsewhere; here it grows and wraps, so three counters and
+   the manuscript total still fit when the window is narrow. */
+.text-workspace .context-title { min-width: 0; height: auto; flex: 1 1 280px; flex-direction: column; align-items: stretch; }
+.text-workspace .chapter-stats { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-10); margin: 0; }
+.text-workspace .chapter-stats > div { display: flex; align-items: baseline; gap: var(--space-4); padding: 0; border: 0; }
+.text-workspace .chapter-stats dd { margin: 0; font-size: var(--font-size-2); font-weight: 600; }
+
+/* The chapter's own commands hang off its name: the title keeps the whole line, the menu button
+   sits at its end without pushing the heading off the measure. */
+.chapter-headline { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-8); }
+.chapter-menu-button { flex: none; color: var(--muted); opacity: .5; }
+.chapter-headline:hover .chapter-menu-button,
+.chapter-menu-button:focus-visible,
+.chapter-menu-button[aria-expanded="true"] { opacity: 1; }
+
+/* The note is the chapter's own text, so it stays with the list that picks the chapter. It is a
+   footnote to the list, not a second panel: fixed and small, with the list keeping the room. */
+.binder-note { margin: 0; padding: var(--space-10) var(--space-14); border-top: 1px solid var(--line); }
+.binder-note > span { margin-bottom: var(--space-4); }
+.binder-note textarea { min-height: 64px; font-size: var(--font-size-3); }
+
 .selection-anchor {
   position: fixed;
   z-index: var(--z-hint);
