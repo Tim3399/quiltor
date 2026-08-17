@@ -14,6 +14,18 @@ permissions:
   contents: write
   packages: write
 
+# Build everything first, publish once. Every artifact job depends on
+# version-check alone and hands its output to actions/upload-artifact;
+# tag-and-release runs last, needs all of them, and only then creates the tag,
+# the Release and the :latest image tag.
+#
+# The order matters more than it looks. Publishing first and building after --
+# which is what this was -- means the first failure of a build leaves a tag and
+# a Release already pushed, and re-running the workflow is no help: version-check
+# finds the tag, sets should_release=false, and skips every job while reporting
+# green. Recovery is deleting a tag by hand or knowing to use "Re-run failed
+# jobs" in the Actions UI. Building first costs nothing (the jobs run in
+# parallel either way) and makes a failed release a no-op you fix and push again.
 jobs:
   version-check:
     runs-on: ubuntu-latest
@@ -44,36 +56,12 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-  tag-and-release:
-    needs: version-check
-    if: needs.version-check.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Create and push tag
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.version-check.outputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "v$VERSION" -m "Release v$VERSION"
-          git push origin "refs/tags/v$VERSION"
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "v${{ needs.version-check.outputs.version }}" \
-            --title "v${{ needs.version-check.outputs.version }}" \
-            --generate-notes
-
   docker:
     needs: version-check
     if: needs.version-check.outputs.should_release == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      repo: ${{ steps.image.outputs.repo }}
     steps:
       - uses: actions/checkout@v4
 
@@ -89,18 +77,29 @@ jobs:
         id: image
         run: echo "repo=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
+      # The version tag is pushed here; the moving tag is not. docker/build-push-action
+      # pushes as it builds, so it is the one artifact that cannot wait for the other
+      # jobs -- but ":latest" is the only tag anybody pulls by accident, and moving it
+      # is a cheap registry-side operation that tag-and-release does at the end.
+      #
+      # The alternative -- push: false, export the image with
+      # `outputs: type=docker,dest=image.tar`, and load-and-push it from
+      # tag-and-release -- was rejected: it pumps a few hundred MB through the
+      # artifact store on every release and throws away the layer deduplication the
+      # registry already does, to avoid publishing an immutable :X.Y.Z tag that
+      # nothing points at until :latest moves and that a re-run overwrites byte for
+      # byte anyway.
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           build-args: |
             QUILTOR_VERSION=${{ needs.version-check.outputs.version }}
-          tags: |
-            ${{ steps.image.outputs.repo }}:${{ needs.version-check.outputs.version }}
-            ${{ steps.image.outputs.repo }}:latest
+          tags: ${{ steps.image.outputs.repo }}:${{ needs.version-check.outputs.version }}
 
   wheel:
-    needs: [version-check, tag-and-release]
+    needs: version-check
+    if: needs.version-check.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -120,19 +119,21 @@ jobs:
       - run: python -m pip install --upgrade build
       - run: python -m build --outdir pkg-dist
 
-      - name: Upload wheel + sdist to the Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "v${{ needs.version-check.outputs.version }}" \
-            pkg-dist/*.whl pkg-dist/*.tar.gz --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          if-no-files-found: error
+          path: |
+            pkg-dist/*.whl
+            pkg-dist/*.tar.gz
 
   # The two artifacts users actually install. Both run packaging/build_macos.sh
   # and packaging/build_windows.ps1 unchanged -- the same commands documented in
   # packaging/README.md and run by hand on a laptop -- so there is no second,
   # CI-only build path that can drift from the one a developer can reproduce.
   macos-app:
-    needs: [version-check, tag-and-release]
+    needs: version-check
+    if: needs.version-check.outputs.should_release == 'true'
     # Must be an Apple-silicon image: packaging/quiltor.spec builds arm64 only
     # (universal2 would need universal2 wheels for Pillow, pywebview and
     # pystray). Asserted below rather than trusted, since which hardware
@@ -250,15 +251,14 @@ jobs:
           test "$(uname -m)" = "arm64" \
             || { echo "::error::This runner is $(uname -m); quiltor.spec builds arm64 only."; exit 1; }
           ./packaging/build_macos.sh
-
-      - name: Upload the .dmg to the Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
           DMG="packaging/dist/Quiltor-${{ needs.version-check.outputs.version }}.dmg"
           test -f "$DMG" || { echo "::error::$DMG was not produced."; exit 1; }
-          gh release upload "v${{ needs.version-check.outputs.version }}" "$DMG" --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          if-no-files-found: error
+          path: packaging/dist/Quiltor-${{ needs.version-check.outputs.version }}.dmg
 
       # The keychain lives in RUNNER_TEMP and dies with the runner anyway, but
       # deleting it explicitly keeps a private key off disk for whatever gets
@@ -272,7 +272,8 @@ jobs:
           fi
 
   windows-app:
-    needs: [version-check, tag-and-release]
+    needs: version-check
+    if: needs.version-check.outputs.should_release == 'true'
     runs-on: windows-latest
     env:
       QUILTOR_BUILD_NUMBER: ${{ github.run_number }}
@@ -305,12 +306,74 @@ jobs:
       - name: Build the installer
         run: powershell -ExecutionPolicy Bypass -File packaging/build_windows.ps1
 
-      - name: Upload the installer to the Release
+      # build_windows.ps1 skips the installer step when Inno Setup is absent and
+      # still exits 0, so the artifact's existence is checked rather than assumed.
+      - name: Check the installer exists
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           SETUP="packaging/dist/Quiltor-Setup-${{ needs.version-check.outputs.version }}.exe"
           test -f "$SETUP" || { echo "::error::$SETUP was not produced -- see the build step's log."; exit 1; }
-          gh release upload "v${{ needs.version-check.outputs.version }}" "$SETUP" --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          if-no-files-found: error
+          path: packaging/dist/Quiltor-Setup-${{ needs.version-check.outputs.version }}.exe
+
+  # Last, and only if every build above succeeded. Until this job runs, a
+  # release that fails has left nothing behind to clean up: no tag, no Release,
+  # and a :latest still pointing at the previous version.
+  tag-and-release:
+    needs: [version-check, docker, wheel, macos-app, windows-app]
+    if: needs.version-check.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create and push tag
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.version-check.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "refs/tags/v$VERSION"
+
+      # Created with its assets in one call rather than a create followed by
+      # uploads: a Release that exists but is missing the installer is the
+      # version of this that looks finished and is not.
+      - name: Create GitHub Release with every artifact attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.version-check.outputs.version }}"
+          ls -l release-assets
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes \
+            release-assets/*
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Retagging a manifest that is already in the registry -- no rebuild, no
+      # pull, no push of any layer. This is the moment :latest starts pointing
+      # at the new version, and it is deliberately the last thing that happens.
+      - name: Move the :latest image tag
+        run: |
+          set -euo pipefail
+          REPO="${{ needs.docker.outputs.repo }}"
+          VERSION="${{ needs.version-check.outputs.version }}"
+          docker buildx imagetools create -t "$REPO:latest" "$REPO:$VERSION"

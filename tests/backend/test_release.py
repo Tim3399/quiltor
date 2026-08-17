@@ -221,16 +221,6 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("packaging/build_macos.sh", self.workflow)
         self.assertIn("packaging/build_windows.ps1", self.workflow)
 
-    def test_the_desktop_jobs_wait_for_the_release_to_exist(self):
-        """They upload into the release tag-and-release creates. Starting
-        before it exists is a race that fails only sometimes."""
-        for job in ("macos-app", "windows-app"):
-            with self.subTest(job=job):
-                self.assertIn(f"\n  {job}:\n", self.workflow)
-                after = self.workflow.split(f"\n  {job}:\n", 1)[1]
-                self.assertIn("needs: [version-check, tag-and-release]",
-                              after[:after.index("steps:")])
-
     def test_signing_is_configuration_rather_than_a_second_code_path(self):
         """The build script decides from QUILTOR_SIGN_IDENTITY /
         QUILTOR_NOTARY_PROFILE, so the workflow only supplies them. Adding the
@@ -255,6 +245,79 @@ class ReleaseWorkflowTests(unittest.TestCase):
         just quietly not have a Windows installer in it."""
         self.assertIn('test -f "$SETUP"', self.workflow)
         self.assertIn('test -f "$DMG"', self.workflow)
+
+
+class PublishAfterBuildTests(unittest.TestCase):
+    """Nothing outside this repository may change until every build succeeded.
+
+    This used to be the other way round: tag-and-release ran first and each
+    build uploaded into the Release it had made. The first failing build then
+    left a pushed tag and a published Release behind, and re-running the
+    workflow did not help -- version-check finds the tag, sets
+    should_release=false, and skips every job while reporting green. Recovery
+    meant deleting a tag by hand.
+
+    So the ordering is the point, and an ordering that only exists by
+    arrangement is one edit away from being lost. These tests fail if any of
+    the three outward-facing acts can start before the desktop apps are built.
+    """
+
+    BUILDS = ("docker", "wheel", "macos-app", "windows-app")
+
+    def setUp(self):
+        self.workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    def _job(self, name: str) -> str:
+        """The body of one top-level job, from its key to the next one."""
+        header = f"\n  {name}:\n"
+        self.assertIn(header, self.workflow, f"no job {name!r} in release.yml")
+        rest = self.workflow.split(header, 1)[1]
+        following = [rest.index(f"\n  {other}:\n") for other in self.BUILDS + ("tag-and-release", "version-check")
+                     if f"\n  {other}:\n" in rest]
+        return rest[:min(following)] if following else rest
+
+    def _publisher(self, needle: str) -> str:
+        """Which job contains a given outward-facing command."""
+        owners = [name for name in self.BUILDS + ("tag-and-release", "version-check")
+                  if needle in self._job(name)]
+        self.assertEqual(len(owners), 1, f"{needle!r} should live in exactly one job, found {owners}")
+        return owners[0]
+
+    def test_the_tag_the_release_and_latest_are_all_published_by_one_job(self):
+        for needle in ("git push origin", "gh release create", "imagetools create"):
+            with self.subTest(publishes=needle):
+                self.assertEqual(self._publisher(needle), "tag-and-release")
+
+    def _needs(self, name: str) -> str:
+        """Only the dependency declaration -- a job may well mention another in
+        a comment without waiting for it, and docker's does."""
+        for line in self._job(name).split("\n"):
+            if line.strip().startswith("needs:"):
+                return line
+        self.fail(f"job {name!r} declares no needs:")
+
+    def test_the_publishing_job_waits_for_every_build(self):
+        needs = self._needs("tag-and-release")
+        for build in self.BUILDS:
+            with self.subTest(build=build):
+                self.assertIn(build, needs, f"tag-and-release may start without {build}")
+
+    def test_no_build_job_waits_for_the_publishing_job(self):
+        """The old order in reverse: a build that needs tag-and-release is a
+        build that runs after the tag exists."""
+        for build in self.BUILDS:
+            with self.subTest(build=build):
+                self.assertNotIn("tag-and-release", self._needs(build))
+
+    def test_the_desktop_apps_reach_the_release_as_artifacts(self):
+        """They cannot upload into a Release that does not exist yet, so they
+        hand their output over instead. Dropping this is how the apps silently
+        stop being attached."""
+        for job in ("macos-app", "windows-app"):
+            with self.subTest(job=job):
+                body = self._job(job)
+                self.assertIn("actions/upload-artifact", body)
+                self.assertNotIn("gh release upload", body)
 
 
 if __name__ == "__main__":
