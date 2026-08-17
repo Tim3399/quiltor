@@ -1,1 +1,0 @@
-import{J as e,X as t}from"./index-BaXTmlw9.js";var n=t(e(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

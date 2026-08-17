@@ -321,8 +321,8 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
           but a list -- now it carries the note as well, and closing it looked one-way: the
           panel has its own close button, but nothing in sight said how to get it back. */}
       <div className="tool-group panel-toggles">
-        <button aria-pressed={binderOpen} onClick={() => setBinderOpen(!binderOpen)}><PanelLeft />{t('chapters')}</button>
-        <button aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}><PanelRight />{t('writingAid')}</button>
+        <button aria-pressed={binderOpen} onClick={() => setBinderOpen(!binderOpen)} aria-label={t('chapters')} title={t('chapters')}><PanelLeft /><span>{t('chapters')}</span></button>
+        <button aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)} aria-label={t('writingAid')} title={t('writingAid')}><PanelRight /><span>{t('writingAid')}</span></button>
       </div>
       <div className="tool-group"><button disabled={!canUndo} onClick={onUndo} aria-label={t('undoManuscript')} title={`${t('undoManuscript')} · ${keys('Z')}`}><Undo2 /></button><button disabled={!canRedo} onClick={onRedo} aria-label={t('redoManuscript')} title={`${t('redoManuscript')} · ${keys('Z', { shift: true })}`}><Redo2 /></button></div>
       <div className="tool-group"><button aria-pressed={focus} onClick={() => onFocus(!focus)}><Focus />{t('focus')}</button></div>

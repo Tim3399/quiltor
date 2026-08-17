@@ -348,3 +348,13 @@
     box-shadow: var(--shadow-drawer-left);
   }
 }
+
+/* Die beiden Spaltenschalter tragen ihre Beschriftung nur, solange sie in die Zeile passt.
+   Mit ihnen und "Neues Kapitel" brach die Kontextleiste ab etwa 1050px um und liess
+   "Exportieren" allein in einer zweiten Zeile stehen. Unter der Schwelle bleibt das Symbol,
+   und aria-label und title tragen den Namen weiter -- die Schalter waren ueberhaupt erst
+   nötig, weil die Kapitelspalte nur an einem unbeschrifteten Symbol hing, und breit, wo
+   der Platz da ist, bleibt die Beschriftung deshalb stehen. */
+@media (max-width: 1180px) {
+  .panel-toggles button span { display: none; }
+}
