@@ -350,11 +350,19 @@
 }
 
 /* Die beiden Spaltenschalter tragen ihre Beschriftung nur, solange sie in die Zeile passt.
-   Mit ihnen und "Neues Kapitel" brach die Kontextleiste ab etwa 1050px um und liess
-   "Exportieren" allein in einer zweiten Zeile stehen. Unter der Schwelle bleibt das Symbol,
-   und aria-label und title tragen den Namen weiter -- die Schalter waren ueberhaupt erst
-   nötig, weil die Kapitelspalte nur an einem unbeschrifteten Symbol hing, und breit, wo
-   der Platz da ist, bleibt die Beschriftung deshalb stehen. */
-@media (max-width: 1180px) {
+   Unter der Schwelle bleibt das Symbol, und aria-label und title tragen den Namen weiter --
+   die Schalter waren ueberhaupt erst noetig, weil die Kapitelspalte nur an einem
+   unbeschrifteten Symbol hing, und breit, wo der Platz da ist, bleibt die Beschriftung stehen.
+
+   Die Schwelle ist 1099px und nicht der gemessene Umbruchpunkt, weil 1100px die Grenze ist,
+   ab der die App "wide" heisst (useWorkspaceLayout: <720 compact, <1100 regular, sonst wide).
+   Damit traegt genau der breite Modus die Woerter, und die Regel haengt an einer Zahl, die es
+   im Code ohnehin schon gibt, statt an einer zweiten daneben.
+   Gemessen (Kontextleiste bleibt einzeilig ab): mit Beschriftung 998px auf Deutsch, 970px auf
+   Englisch; ohne Beschriftung 878px bzw. 844px. Deutsch ist also der enge Fall, und 1099px
+   laesst ihm rund 100px Luft -- genug fuer andere Schriftmasse, ohne in "wide" hineinzureichen.
+   Der Umbruchpunkt haengt nicht am Inhalt: lange Kapiteltitel und grosse Zaehlerstaende
+   verschieben ihn nicht, weil .context-title schrumpft und die Knopfgruppen ihn bestimmen. */
+@media (max-width: 1099px) {
   .panel-toggles button span { display: none; }
 }

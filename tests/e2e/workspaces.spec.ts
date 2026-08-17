@@ -7,6 +7,46 @@ async function openBlankWorld(page: import('@playwright/test').Page, title = 'Te
   await page.goto(`/?world=${payload.world.id}`);
 }
 
+// Die drei Playwright-Projekte fahren 1440, 900 und 390px. Dazwischen liegen die Breiten, an
+// denen die Kontextleiste tatsächlich kippt -- der abgeschnittene Knopf saß bei 406px, der
+// Zeilenumbruch bei 998px. Statt für jede davon ein viertes Projekt anzulegen (das die ganze
+// Suite ein weiteres Mal fährt und vierzehn zusätzliche Vergleichsbilder verlangt), prüft ein
+// Test die Leiste über die ganze Spanne. Er braucht kein Bild, nur Geometrie.
+test('Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide', 'Der Test stellt die Fensterbreite selbst; er darf nur einmal laufen.');
+  await openBlankWorld(page);
+  await expect(page.getByLabel('Kapiteltext')).toBeVisible();
+
+  for (const width of [320, 360, 390, 406, 414, 500, 719, 720, 878, 900, 998, 1099, 1100, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    // Kein Knopf der Kontextleiste darf hinter dem Fensterrand liegen. Genau das war bei 390px
+    // der Fall: "Neues Kapitel" stand bei x 355-396, weil die Leiste das ganze Fenster auf
+    // 406px aufzog. (Die App-Leiste hat davon unabhängig einen eigenen Boden von rund 398px --
+    // das ist ein anderer, älterer Befund und hier ausdrücklich nicht mitgeprüft.)
+    const clipped = await page.locator('.context-bar button').evaluateAll((buttons, limit) =>
+      buttons.filter(button => { const box = button.getBoundingClientRect(); return box.width > 0 && (box.right > limit + 0.5 || box.left < -0.5); })
+        .map(button => (button.textContent || button.getAttribute('aria-label') || '?').trim()), width);
+    expect(clipped, `abgeschnittene Knöpfe bei ${width}px`).toEqual([]);
+  }
+
+  // Ab "wide" (1100px, dieselbe Grenze wie in useWorkspaceLayout) tragen die Spaltenschalter
+  // ihre Wörter -- sie existieren, weil die Kapitelspalte an einem stummen Symbol hing.
+  const chapters = page.locator('.panel-toggles').getByRole('button', { name: 'Kapitel', exact: true });
+  const aid = page.locator('.panel-toggles').getByRole('button', { name: 'Schreibhilfe', exact: true });
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await expect(chapters.locator('span')).toBeVisible();
+  await expect(aid.locator('span')).toBeVisible();
+
+  // Direkt darunter bleibt nur das Symbol -- der Name muss dann über aria-label weiterleben,
+  // sonst wäre der Schalter wieder das stumme Symbol, das er ersetzen sollte.
+  await page.setViewportSize({ width: 1099, height: 900 });
+  await expect(chapters.locator('span')).toBeHidden();
+  await expect(aid.locator('span')).toBeHidden();
+  await expect(chapters).toBeVisible();
+  await expect(chapters).toHaveAttribute('aria-label', 'Kapitel');
+  await expect(aid).toHaveAttribute('aria-label', 'Schreibhilfe');
+});
+
 test('Weltenauswahl bleibt auch mit vielen Welten vollständig scrollbar', async ({ page }) => {
   const worlds = Array.from({ length: 30 }, (_, index) => ({ id: `world-${index + 1}`, title: `Welt ${index + 1}`, updated: '2026-08-09T12:00:00Z' }));
   await page.route('**/api/worlds', route => route.fulfill({ json: { worlds } }));
