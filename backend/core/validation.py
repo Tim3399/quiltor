@@ -77,5 +77,28 @@ def valid_manuscript(payload: Any) -> bool:
                 return False
             previous_to = end
             mention_ids.add(mention["id"])
+        if not _valid_marks(chapter):
+            return False
         ids.append(chapter["id"])
     return len(ids) == len(set(ids))
+
+
+def _valid_marks(chapter: dict) -> bool:
+    """Bold and italic are ranges over the body, exactly like a mention -- and held to the
+    same standard: inside the text, in order, and never overlapping their own kind (the
+    editor merges those into one range). Bold over italic is fine, they are separate kinds."""
+    marks = chapter.get("marks", [])
+    if not isinstance(marks, list) or len(marks) > 10_000:
+        return False
+    body_length = len(chapter.get("body", ""))
+    previous_to: dict[str, int] = {}
+    for mark in sorted(marks, key=lambda item: item.get("from", -1) if isinstance(item, dict) else -1):
+        if not isinstance(mark, dict) or mark.get("kind") not in {"bold", "italic"}:
+            return False
+        start, end = mark.get("from"), mark.get("to")
+        if type(start) is not int or type(end) is not int or start < 0 or end <= start or end > body_length:
+            return False
+        if start < previous_to.get(mark["kind"], -1):
+            return False
+        previous_to[mark["kind"]] = end
+    return True

@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { EditorSelection } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { TextWorkspace } from './TextWorkspace';
 import { LanguageProvider } from '../../language';
@@ -150,5 +152,35 @@ describe('TextWorkspace', () => {
     // Die übrigen Schreibhilfen bleiben erreichbar — nur die Grammatik entfällt.
     expect(rendered.getByRole('tab', { name: 'Wörterbuch' })).toBeTruthy();
     expect(rendered.getByRole('tab', { name: 'Einfügen' })).toBeTruthy();
+  });
+
+  it('setzt in der Buchfassung Auszeichnungen als <strong> und <em>', () => {
+    // Die Bereiche zählen ab Kapitelanfang, die Absätze sind Ausschnitte daraus --
+    // und die Szenentrennung bleibt eine Szenentrennung.
+    const formatted = { chapters: [{ id: 'c1', title: 'Prolog', body: 'Hallo Welt\n\n*\n\nZweiter Absatz', note: '', marks: [{ from: 6, to: 10, kind: 'italic' as const }, { from: 15, to: 22, kind: 'bold' as const }] }] };
+    const view = renderWorkspace({ manuscript: formatted, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn() });
+    const book = view.container.querySelector('.print-document')!;
+    expect(book.querySelector('em')).toHaveTextContent('Welt');
+    expect(book.querySelector('strong')).toHaveTextContent('Zweiter');
+    expect(book.querySelector('.scene-break')).toHaveTextContent('⁂');
+    expect(book.querySelectorAll('.book-chapter p')[0]).toHaveTextContent('Hallo Welt');
+  });
+
+  it('bietet im Auswahlmenü Ausschneiden, Kopieren, Fett und Kursiv an', async () => {
+    // Der Editor unterdrückt WebKits eigenes Kontextmenü, also trägt unseres die
+    // gewöhnlichen Befehle mit. Einfügen fehlt bewusst: das kann nur der Browser.
+    // jsdom hat kein Layout, also weiß der Editor ohne diesen Ersatz nicht, wo die
+    // Markierung auf dem Bildschirm liegt -- und meldet dann gar keine.
+    vi.spyOn(EditorView.prototype, 'coordsAtPos').mockReturnValue({ left: 0, right: 40, top: 0, bottom: 16 });
+    const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn() });
+    const rendered = within(view.container);
+    const editor = rendered.getByLabelText('Kapiteltext');
+    EditorView.findFromDOM(view.container.querySelector('.cm-editor')!)!.dispatch({ selection: EditorSelection.range(6, 10) });
+    fireEvent.keyDown(editor, { key: 'F10', shiftKey: true });
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /Fett/ })).toBeTruthy());
+    expect(screen.getByRole('menuitem', { name: /Kursiv/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Ausschneiden/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Kopieren/ })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /Einfügen/ })).toBeNull();
   });
 });

@@ -2,4 +2,5 @@
 // Feature-specific phrasing (even if reused across features) belongs in shared.ts instead.
 export const common = {
   ready: 'Ready', name: 'Name', unknown: 'Unknown', untitled: 'Untitled', loading: 'Loading …',
+  cut: 'Cut', copy: 'Copy',
 } as const;

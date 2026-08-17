@@ -1,6 +1,10 @@
 export const writing = {
   writingLanguageGerman: 'German (Germany)',
   writingSelectionActions: 'Text selection actions',
+  // Marks are ranges over the text, never characters in it -- the manuscript holds prose, no
+  // asterisks. Only the export writes Markdown markers.
+  formatBold: 'Bold',
+  formatItalic: 'Italic',
   // The writing aid shows exactly one section at a time: look up, check, insert. What is
   // marked appears in the search field -- a separate selection card said the same thing twice.
   helperLookup: 'Look up',

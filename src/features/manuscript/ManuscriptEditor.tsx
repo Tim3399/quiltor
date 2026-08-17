@@ -3,12 +3,14 @@ import { Annotation, EditorSelection, EditorState, StateEffect, StateField } fro
 import { Decoration, keymap, placeholder as placeholderExtension, EditorView, hoverTooltip } from '@codemirror/view';
 import type { WordCompletion } from './autocomplete';
 import { completeOneWord } from './autocomplete';
-import type { EntityMention, FigureNode, WritingIssue } from '../../types';
+import type { EntityMention, FigureNode, TextMark, TextMarkKind, WritingIssue } from '../../types';
 import { mapMentions } from './mentions';
+import { mapMarks, normalizeMarks, toggleMark } from './marks';
 
 const controlledUpdate = Annotation.define<boolean>();
 const createdMention = Annotation.define<EntityMention>();
 const setMentionDecorations = StateEffect.define<EntityMention[]>();
+const setMarkDecorations = StateEffect.define<TextMark[]>();
 const setIssueDecorations = StateEffect.define<WritingIssue[]>();
 // A browser paints ::selection only while the element has focus, so the moment the
 // writer reaches into the inspector the marked passage looks unmarked. This keeps the
@@ -19,6 +21,18 @@ const mentionDecorations = StateField.define({
   update(value, transaction) {
     value = value.map(transaction.changes);
     for (const effect of transaction.effects) if (effect.is(setMentionDecorations)) value = Decoration.set(effect.value.map(mention => Decoration.mark({ class: 'entity-mention', attributes: { 'data-mention-id': mention.id } }).range(mention.from, mention.to)), true);
+    return value;
+  },
+  provide: field => EditorView.decorations.from(field),
+});
+// Bold and italic are ranges over the body, never characters in it, so they are drawn the
+// same way a mention is -- and, like a mention, they are mapped through every edit so that
+// typing in front of a marked passage moves the mark along instead of leaving it behind.
+const markDecorations = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    value = value.map(transaction.changes);
+    for (const effect of transaction.effects) if (effect.is(setMarkDecorations)) value = Decoration.set(normalizeMarks(effect.value, transaction.newDoc.length).map(mark => Decoration.mark({ class: `text-${mark.kind}` }).range(mark.from, mark.to)), true);
     return value;
   },
   provide: field => EditorView.decorations.from(field),
@@ -72,20 +86,24 @@ export type ManuscriptEditorHandle = {
   insert: (text: string) => void;
   insertEntity: (entity: FigureNode) => void;
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
+  /** Bold or italic over a range -- the marked one by default. */
+  toggleMark: (kind: TextMarkKind, range?: { from: number; to: number }) => boolean;
+  cut: (from: number, to: number) => void;
 };
 
-export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentions = [], issues = [], entities = [], held = null, editorRef, onChange, onSelection, onSelectionMenu, onIssue, onOpenEntity, describeEntity = entity => entity.sub || entity.label || '' }: {
+export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentions = [], marks = [], issues = [], entities = [], held = null, editorRef, onChange, onSelection, onSelectionMenu, onIssue, onOpenEntity, describeEntity = entity => entity.sub || entity.label || '' }: {
   value: string;
   label: string;
   placeholder: string;
   vocabulary: string[];
   mentions?: EntityMention[];
+  marks?: TextMark[];
   issues?: WritingIssue[];
   entities?: FigureNode[];
   /** The passage the writing aid is holding, kept visible while focus is elsewhere. */
   held?: { from: number; to: number } | null;
   editorRef: React.MutableRefObject<ManuscriptEditorHandle | null>;
-  onChange: (value: string, mentions: EntityMention[]) => void;
+  onChange: (value: string, mentions: EntityMention[], marks: TextMark[]) => void;
   /** Every change of the marked range. Reports what is selected -- nothing more. */
   onSelection: (selection: EditorTextSelection | null) => void;
   /** Only when the writer asks for the actions: right-click, or Shift+F10. */
@@ -96,9 +114,9 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
-  const changeRef = useRef(onChange), selectionRef = useRef(onSelection), selectionMenuRef = useRef(onSelectionMenu), issueRef = useRef(onIssue), openEntityRef = useRef(onOpenEntity), describeEntityRef = useRef(describeEntity), vocabularyRef = useRef(vocabulary), mentionsRef = useRef(mentions || []), issuesRef = useRef(issues), entitiesRef = useRef(entities || []);
+  const changeRef = useRef(onChange), selectionRef = useRef(onSelection), selectionMenuRef = useRef(onSelectionMenu), issueRef = useRef(onIssue), openEntityRef = useRef(onOpenEntity), describeEntityRef = useRef(describeEntity), vocabularyRef = useRef(vocabulary), mentionsRef = useRef(mentions || []), marksRef = useRef(marks || []), issuesRef = useRef(issues), entitiesRef = useRef(entities || []);
   const [completion, setCompletion] = useState<CompletionPreview | null>(null);
-  changeRef.current = onChange; selectionRef.current = onSelection; selectionMenuRef.current = onSelectionMenu; issueRef.current = onIssue; openEntityRef.current = onOpenEntity; describeEntityRef.current = describeEntity; vocabularyRef.current = vocabulary; mentionsRef.current = mentions || []; issuesRef.current = issues; entitiesRef.current = entities || [];
+  changeRef.current = onChange; selectionRef.current = onSelection; selectionMenuRef.current = onSelectionMenu; issueRef.current = onIssue; openEntityRef.current = onOpenEntity; describeEntityRef.current = describeEntity; vocabularyRef.current = vocabulary; mentionsRef.current = mentions || []; marksRef.current = marks || []; issuesRef.current = issues; entitiesRef.current = entities || [];
 
   useLayoutEffect(() => {
     if (!host.current) return;
@@ -115,6 +133,19 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
       selectionRef.current(selection);
       if (asked) selectionMenuRef.current?.(selection);
     };
+    // Toggling changes no character, so it is not a document change: the new ranges go
+    // straight to whoever owns the text and come back as the `marks` prop. The decoration
+    // effect is dispatched here as well so the passage changes weight under the cursor
+    // rather than one React round-trip later.
+    const applyMark = (instance: EditorView, kind: TextMarkKind, range?: { from: number; to: number }) => {
+      const target = range ?? instance.state.selection.main;
+      if (target.to <= target.from) return false;
+      const next = toggleMark(marksRef.current, target.from, target.to, kind);
+      marksRef.current = next;
+      instance.dispatch({ effects: setMarkDecorations.of(next) });
+      changeRef.current(instance.state.doc.toString(), mentionsRef.current, next);
+      return true;
+    };
     const instance = new EditorView({
       parent: host.current,
       state: EditorState.create({ doc: value, extensions: [
@@ -122,6 +153,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
         EditorView.contentAttributes.of({ 'aria-label': label, spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true' }),
         placeholderExtension(placeholder),
         mentionDecorations,
+        markDecorations,
         issueDecorations,
         heldSelectionDecoration,
         hoverTooltip((_current, position) => {
@@ -136,6 +168,12 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
             dom.append(title, detail, button); return { dom };
           } };
         }),
+        // Formatting belongs to the editor, not to the window: App.tsx's global handler
+        // would fire in every field of the app, including ones where bold means nothing.
+        keymap.of([
+          { key: 'Mod-b', preventDefault: true, run: current => applyMark(current, 'bold') },
+          { key: 'Mod-i', preventDefault: true, run: current => applyMark(current, 'italic') },
+        ]),
         keymap.of([{ key: 'Tab', run: current => {
           const range = current.state.selection.main;
           if (!range.empty) return false;
@@ -185,14 +223,16 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
             setCompletion(range.empty ? entityCompletion(update.state.doc.toString(), range.head, entitiesRef.current, describeEntityRef.current) || completeOneWord(update.state.doc.toString(), range.head, vocabularyRef.current) : null);
             selectionRef.current(null);
             if (!update.transactions.some(transaction => transaction.annotation(controlledUpdate))) {
-              let nextMentions = mentionsRef.current;
+              let nextMentions = mentionsRef.current, nextMarks = marksRef.current;
               for (const transaction of update.transactions) {
                 nextMentions = mapMentions(nextMentions, transaction.changes, transaction.newDoc.toString());
+                nextMarks = mapMarks(nextMarks, transaction.changes, transaction.newDoc.length);
                 const mention = transaction.annotation(createdMention);
                 if (mention) nextMentions = [...nextMentions.filter(item => item.to <= mention.from || item.from >= mention.to), mention].sort((a, b) => a.from - b.from);
               }
               mentionsRef.current = nextMentions;
-              changeRef.current(update.state.doc.toString(), nextMentions);
+              marksRef.current = nextMarks;
+              changeRef.current(update.state.doc.toString(), nextMentions, nextMarks);
             }
           } else if (update.selectionSet) {
             const range = update.state.selection.main;
@@ -221,6 +261,11 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
         instance.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input' });
         instance.focus(); return true;
       },
+      toggleMark: (kind, range) => { const applied = applyMark(instance, kind, range); instance.focus(); return applied; },
+      cut: (from, to) => {
+        instance.dispatch({ changes: { from, to, insert: '' }, selection: { anchor: from }, userEvent: 'delete.cut' });
+        instance.focus();
+      },
     };
     return () => { selectionRef.current(null); editorRef.current = null; view.current = null; instance.destroy(); };
   }, [editorRef, label, placeholder]);
@@ -233,6 +278,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
   }, [value]);
 
   useEffect(() => { view.current?.dispatch({ effects: setMentionDecorations.of(mentions) }); }, [mentions]);
+  useEffect(() => { view.current?.dispatch({ effects: setMarkDecorations.of(marks) }); }, [marks]);
   useEffect(() => { view.current?.dispatch({ effects: setIssueDecorations.of(issues) }); }, [issues]);
   useEffect(() => { view.current?.dispatch({ effects: setHeldSelection.of(held) }); }, [held?.from, held?.to]);
 

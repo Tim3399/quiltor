@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Copy, Download, FilePlus2, Focus, History as HistoryIcon, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Pilcrow, Printer, Redo2, Search, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
 import type { Chapter, FigureNode, FigureState, Manuscript, Workspace, WritingIssue } from '../../types';
 import { uid, wordCount } from '../../types';
@@ -19,6 +19,7 @@ import { SelectionMenu } from '../../shared/ui/SelectionMenu';
 import type { ViewportMode } from '../../hooks/useWorkspaceLayout';
 import { ManuscriptEditor, type EditorTextSelection, type ManuscriptEditorHandle } from './ManuscriptEditor';
 import { addDeterministicMentions, scanEntityMentions } from './mentions';
+import { bodyParagraphs, markdownBody, markedSegments } from './marks';
 import { kindLabel } from '../figures/relationships';
 
 // The writing aid used to stack five unrelated jobs into one 294px scroll. It now holds
@@ -139,7 +140,10 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   // Saving an export can fail for real now that the desktop app writes the file itself
   // (see download() in lib/api.ts) -- a rejected promise here has to reach the reader.
   const runExport = (task: Promise<void>) => { void task.then(() => setExportError('')).catch(error => setExportError(errorMessage(error))); };
-  const exportAll = () => runExport(download(`Quiltor-Manuskript-${new Date().toISOString().slice(0, 10)}.md`, manuscript.chapters.map(c => `# ${c.title || t('untitled')}\n\n${c.body.trim()}\n`).join('\n')));
+  // Markdown is the format on the way out, so the ranges become markers here -- and only
+  // here. Chapter.body itself stays plain text for the grammar check, the mention scanner
+  // and the assistant.
+  const exportAll = () => runExport(download(`Quiltor-Manuskript-${new Date().toISOString().slice(0, 10)}.md`, manuscript.chapters.map(c => `# ${c.title || t('untitled')}\n\n${markdownBody(c.body, c.marks).trim()}\n`).join('\n')));
   const printBook = async () => { setPdfState('loading'); try { await onSave?.(); await api.bookPdf(); setPdfState('idle'); } catch { setPdfState('error'); } };
   const addWord = () => { const value = newWord.trim(); if (!value) return; const words = manuscript.words || []; if (!words.some(item => (typeof item === 'string' ? item : item.w).toLocaleLowerCase('de-DE') === value.toLocaleLowerCase('de-DE'))) onChange({ ...manuscript, words: [...words, { w: value, d: '' }] }); setNewWord(''); };
   const beginResize = (side: 'sidebar' | 'inspector', event: React.PointerEvent) => {
@@ -235,7 +239,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <dl className="stats"><div><dt>{t('words')}</dt><dd>{wordCount(current.body)}</dd></div><div><dt>{t('characters')}</dt><dd>{current.body.length}</dd></div><div><dt>{t('standardPages')}</dt><dd>{(wordCount(current.body) / 250).toFixed(1).replace('.', ',')}</dd></div></dl>
       <label className="field"><span>{t('chapterNote')}</span><textarea value={current.note} onChange={event => update({ note: event.target.value })} placeholder={t('chapterNotePlaceholder')} /></label>
       <div className="stack-actions"><button onClick={() => move(-1)}><ChevronUp />{t('moveUp')}</button><button onClick={() => move(1)}><ChevronDown />{t('moveDown')}</button></div>
-      <button className="secondary-action" onClick={() => runExport(download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${current.body}\n`))}><Download />{t('chapterMarkdown')}</button>
+      <button className="secondary-action" onClick={() => runExport(download(`${current.title || t('chapter')}.md`, `# ${current.title}\n\n${markdownBody(current.body, current.marks)}\n`))}><Download />{t('chapterMarkdown')}</button>
       <button className="danger-text" onClick={() => setDeleteOpen(true)}><Trash2 />{t('deleteChapter')}</button>
     </div> : <div className="helper-panel">
       <div className="helper-modes" role="tablist" aria-label={t('writingAidSection')}>
@@ -308,7 +312,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       <article className="editor-scroll">
         {current ? <div className={`editor-page ${historyOpen ? 'has-chapter-history' : ''}`}>
           <div className="editor-document"><input className="chapter-title" aria-label={t('chapterTitle')} value={current.title} onChange={event => update({ title: event.target.value })} placeholder={t('chapterTitle')} />
-          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} issues={grammarIssues} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions) => { if (body !== current.body) { setWritingSelection(null); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); } update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes) }); }} held={writingSelection && writingSelection.chapterId === current.id && writingSelection.revision === current.body ? { from: writingSelection.from, to: writingSelection.to } : liveSelection ? { from: liveSelection.from, to: liveSelection.to } : null} onSelection={next => { setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null); if (!next) setSelectionMenuOpen(false); }} onSelectionMenu={next => { setSelection({ ...next, chapterId: current.id, revision: current.body }); setSelectionMenuOpen(true); }} onIssue={issue => { setSelectedIssue(issue); setInspector('helpers'); setHelperMode('check'); setInspectorOpen(true); }} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
+          <ManuscriptEditor key={current.id} value={current.body} mentions={current.mentions} marks={current.marks} issues={grammarIssues} entities={figures.nodes} label={t('chapterText')} placeholder={t('startWritingPlaceholder')} vocabulary={vocabulary} editorRef={editor} onChange={(body, mentions, marks) => { if (body !== current.body) { setWritingSelection(null); setGrammarIssues([]); setSelectedIssue(null); grammarRequest.current?.abort(); } update({ body, mentions: addDeterministicMentions(body, mentions, figures.nodes), marks }); }} held={writingSelection && writingSelection.chapterId === current.id && writingSelection.revision === current.body ? { from: writingSelection.from, to: writingSelection.to } : liveSelection ? { from: liveSelection.from, to: liveSelection.to } : null} onSelection={next => { setSelection(next ? { ...next, chapterId: current.id, revision: current.body } : null); if (!next) setSelectionMenuOpen(false); }} onSelectionMenu={next => { setSelection({ ...next, chapterId: current.id, revision: current.body }); setSelectionMenuOpen(true); }} onIssue={issue => { setSelectedIssue(issue); setInspector('helpers'); setHelperMode('check'); setInspectorOpen(true); }} onOpenEntity={node => onOpenEntity?.({ workspace: node.type === 'ort' ? 'places' : 'figures', id: node.id })} describeEntity={node => `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ''}`} /></div>
           {historyOpen && <aside className="chapter-history" aria-label={t('versions')}><header><div><strong>{t('previousVersion')}</strong><span>{t('nextToCurrent')}</span></div><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label={t('closeVersions')}><X /></button></header>
             {commits.length ? <label className="field"><span>{t('state')}</span><select value={historyRef} onChange={event => setHistoryRef(event.target.value)}>{commits.map(commit => <option key={commit.hash} value={commit.hash}>{commit.datum} · {commit.betreff}</option>)}</select></label> : historyState !== 'loading' && <p className="muted">{t('noVersion')}</p>}
             {historyState === 'loading' ? <p className="muted">{t('loadingVersion')}</p> : historyState === 'error' ? <div className="error-box">{t('versionLoadError')}</div> : commits.length > 0 && <div className="historical-prose">{historicalText || <em>{t('chapterNotYetExisting')}</em>}</div>}
@@ -318,7 +322,19 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
       {!focus && viewportMode !== 'compact' && inspectorOpen && inspectorPanel && <aside className="inspector drawer-open" aria-label={t('chapterInspectorLabel')} style={{ width: inspectorWidth }}>{onInspectorWidth && <div className="panel-resize-handle panel-resize-handle--start" role="separator" aria-orientation="vertical" aria-label={t('resizeInspector')} aria-valuemin={240} aria-valuemax={380} aria-valuenow={inspectorWidth} tabIndex={0} onPointerDown={event => beginResize('inspector', event)} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') onInspectorWidth(inspectorWidth + (event.key === 'ArrowLeft' ? 10 : -10)); }} />}{inspectorPanel}</aside>}
     </div>
     <button ref={selectionAnchor} className="selection-anchor" tabIndex={-1} aria-hidden="true" style={selection ? { left: selection.rect.left, top: selection.rect.top, width: selection.rect.width, height: selection.rect.height } : undefined} onFocus={() => editor.current?.focus()} />
-    <SelectionMenu anchorRef={selectionAnchor} open={selectionMenuOpen && !!liveSelection} label={t('writingSelectionActions')} onClose={() => setSelectionMenuOpen(false)} actions={[{ id: 'lookup', label: t('lookup'), run: () => openWritingTool('lookup') }, { id: 'synonyms', label: t('synonyms'), run: () => openWritingTool('synonyms') }, { id: 'translate', label: t('translate'), run: () => openWritingTool('translate') }, { id: 'more', label: t('writingMore'), run: () => openWritingTool(selectionTool) }]} />
+    {/* Since the editor suppresses WebKit's own context menu, ours has to carry the ordinary
+        commands as well. Paste is deliberately absent: WebKit refuses clipboard reads to web
+        content, and ⌘V goes through the browser regardless. */}
+    <SelectionMenu anchorRef={selectionAnchor} open={selectionMenuOpen && !!liveSelection} label={t('writingSelectionActions')} onClose={() => setSelectionMenuOpen(false)} actions={[
+      { id: 'cut', label: t('cut'), shortcut: keys('X'), run: () => { if (liveSelection) { void navigator.clipboard.writeText(liveSelection.text); editor.current?.cut(liveSelection.from, liveSelection.to); } } },
+      { id: 'copy', label: t('copy'), shortcut: keys('C'), run: () => { if (liveSelection) void navigator.clipboard.writeText(liveSelection.text); } },
+      { id: 'bold', label: t('formatBold'), shortcut: keys('B'), separatorBefore: true, run: () => { if (liveSelection) editor.current?.toggleMark('bold', liveSelection); } },
+      { id: 'italic', label: t('formatItalic'), shortcut: keys('I'), run: () => { if (liveSelection) editor.current?.toggleMark('italic', liveSelection); } },
+      { id: 'lookup', label: t('lookup'), separatorBefore: true, run: () => openWritingTool('lookup') },
+      { id: 'synonyms', label: t('synonyms'), run: () => openWritingTool('synonyms') },
+      { id: 'translate', label: t('translate'), run: () => openWritingTool('translate') },
+      { id: 'more', label: t('writingMore'), run: () => openWritingTool(selectionTool) },
+    ]} />
     {!focus && viewportMode === 'compact' && <Sheet open={binderOpen} label={t('chapters')} onClose={() => setBinderOpen(false)}><div className="binder compact-panel">{binderPanel}</div></Sheet>}
     {!focus && viewportMode === 'compact' && inspectorPanel && <Sheet open={inspectorOpen} label={t('chapterInspectorLabel')} onClose={() => setInspectorOpen(false)}><div className="inspector compact-panel">{inspectorPanel}</div></Sheet>}
     {focus && manuscript.chapters.length > 1 && <aside className={`focus-chapters ${focusChapters ? 'is-open' : ''}`} aria-label={t('focusChapterPickerLabel')}>
@@ -340,7 +356,7 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
     {focus && <button className="exit-focus" onClick={() => onFocus(false)}>{t('leaveFocus')} <kbd>Esc</kbd></button>}
     <article className="print-document" aria-hidden="true" lang="de">
       <section className="book-title-page"><div><span>{t('novelLabel')}</span><h1>{worldTitle || t('untitledWorld')}</h1><i aria-hidden="true">◆</i></div><footer>{t('manuscriptVersionLabel')} · {new Date().toLocaleDateString(uiLanguage)}</footer></section>
-      {manuscript.chapters.map((chapter, chapterIndex) => <section className="book-chapter" key={chapter.id}><header><span>{String(chapterIndex + 1).padStart(2, '0')}</span><h2>{chapter.title || t('untitled')}</h2></header>{chapter.body.trim().split(/\n{2,}/).filter(Boolean).map((paragraph, index) => /^\s*([*⁂◆]|\*\s*\*\s*\*)\s*$/.test(paragraph) ? <div className="scene-break" key={index}>⁂</div> : <p key={index}>{paragraph.replace(/\n/g, ' ')}</p>)}</section>)}
+      {manuscript.chapters.map((chapter, chapterIndex) => <section className="book-chapter" key={chapter.id}><header><span>{String(chapterIndex + 1).padStart(2, '0')}</span><h2>{chapter.title || t('untitled')}</h2></header>{bodyParagraphs(chapter.body).map((paragraph, index) => /^\s*([*⁂◆]|\*\s*\*\s*\*)\s*$/.test(paragraph.text) ? <div className="scene-break" key={index}>⁂</div> : <p key={index}>{printedRuns(paragraph, chapter.marks)}</p>)}</section>)}
     </article>
     {/* Editing the project dictionary is configuration, not something consulted mid-sentence.
         It keeps its own surface; the writing aid only offers the finished terms. */}
@@ -359,3 +375,18 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
 }
 
 function FileTextIcon() { return <span className="empty-glyph" aria-hidden="true">Aa</span>; }
+
+// The book page prints the formatting as formatting. Marks index the whole body while a
+// paragraph is a slice of it, so each paragraph passes its own start offset; replacing the
+// single newlines with spaces stays inside a run because it swaps one character for one.
+function printedRuns(paragraph: { text: string; from: number }, marks: Chapter['marks']) {
+  return markedSegments(paragraph.text, paragraph.from, marks).map((segment, index) => {
+    const text = segment.text.replace(/\n/g, ' ');
+    if (segment.bold && segment.italic) return <em key={index}><strong>{text}</strong></em>;
+    if (segment.bold) return <strong key={index}>{text}</strong>;
+    if (segment.italic) return <em key={index}>{text}</em>;
+    // Plain runs stay bare text: an extra <span> around the opening words would sit
+    // between the paragraph and its ::first-letter drop cap.
+    return <Fragment key={index}>{text}</Fragment>;
+  });
+}

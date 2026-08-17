@@ -14,12 +14,24 @@ export interface EntityMention {
   confidence: number;
 }
 
+export type TextMarkKind = 'bold' | 'italic';
+// Formatting is stored the way a mention is: a range over the body, never a character in
+// it. `**` inside Chapter.body would reach LanguageTool, the mention scanner, wordCount and
+// the assistant's retrieval corpus -- all four read the raw text. Markers appear only on the
+// way out, in the Markdown exports and the book PDF.
+export interface TextMark {
+  from: number;
+  to: number;
+  kind: TextMarkKind;
+}
+
 export interface Chapter {
   id: string;
   title: string;
   body: string;
   note: string;
   mentions?: EntityMention[];
+  marks?: TextMark[];
   [key: string]: unknown;
 }
 

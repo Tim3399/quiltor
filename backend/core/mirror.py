@@ -25,6 +25,58 @@ def safe_name(title: str) -> str:
     return (name or "Ohne Titel")[:70]
 
 
+def markdown_body(body: str, marks) -> str:
+    """Bold and italic live as ranges next to the body (see TextMark in src/types.ts), never
+    as characters in it -- the grammar check, the mention scanner and the assistant all read
+    the raw text. The mirror is Markdown, so here the ranges become `**fett**`/`*kursiv*`.
+
+    Mirrors markdownBody() in src/features/manuscript/marks.ts; the two exports have to read
+    the same, and neither side has a place to share code with the other."""
+    if not isinstance(marks, list) or not body:
+        return body
+    bold = bytearray(len(body))
+    italic = bytearray(len(body))
+    for mark in marks:
+        if not isinstance(mark, dict) or mark.get("kind") not in ("bold", "italic"):
+            continue
+        start, end = mark.get("from"), mark.get("to")
+        if type(start) is not int or type(end) is not int:
+            continue
+        span = (bold if mark["kind"] == "bold" else italic)
+        for index in range(max(0, start), min(end, len(body))):
+            span[index] = 1
+    if not any(bold) and not any(italic):
+        return body
+
+    out, run_start = [], 0
+    for index in range(1, len(body) + 1):
+        same = index < len(body) and bold[index] == bold[run_start] and italic[index] == italic[run_start]
+        if same:
+            continue
+        out.append(_emphasize(body[run_start:index], bold[run_start], italic[run_start]))
+        run_start = index
+    return "".join(out)
+
+
+def _emphasize(text: str, bold: int, italic: int) -> str:
+    """Markdown emphasis cannot cross a blank line and its delimiters must not sit against
+    whitespace, so a run is split at paragraph breaks and trimmed before it is wrapped."""
+    if not bold and not italic:
+        return text
+    open_marker = ("**" if bold else "") + ("*" if italic else "")
+    close_marker = ("*" if italic else "") + ("**" if bold else "")
+    pieces = re.split(r"(\n\s*\n)", text)
+    wrapped = []
+    for piece in pieces:
+        if not piece.strip() or re.fullmatch(r"\n\s*\n", piece):
+            wrapped.append(piece)
+            continue
+        lead = piece[: len(piece) - len(piece.lstrip())]
+        tail = piece[len(piece.rstrip()):]
+        wrapped.append(f"{lead}{open_marker}{piece.strip()}{close_marker}{tail}")
+    return "".join(wrapped)
+
+
 def mirror_text(chapters, manuscript_dir: Path) -> None:
     """Write every chapter to Markdown for reading, backups, and versioning."""
     manuscript_dir.mkdir(parents=True, exist_ok=True)
@@ -33,7 +85,7 @@ def mirror_text(chapters, manuscript_dir: Path) -> None:
         title = ch.get("title") or f"Kapitel {i}"
         fname = f"{i:02d} - {safe_name(title)}.md"
         expected_files.add(fname)
-        body = ch.get("body") or ""
+        body = markdown_body(ch.get("body") or "", ch.get("marks") or [])
         note = (ch.get("note") or "").strip()
         text = f"# {title}\n\n{body.rstrip()}\n"
         if note:

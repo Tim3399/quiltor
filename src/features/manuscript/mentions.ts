@@ -1,5 +1,6 @@
 import type { ChangeSet } from '@codemirror/state';
 import type { Chapter, EntityMention, FigureNode, Manuscript } from '../../types';
+import { marksAfterReplacement } from './marks';
 
 export type AmbiguousMentionCandidate = { from: number; to: number; surface: string; elementIds: string[] };
 
@@ -70,14 +71,18 @@ export function replaceEntityMentions(manuscript: Manuscript, elementId: string,
   return { ...manuscript, chapters: manuscript.chapters.map(chapter => {
     const targets = (chapter.mentions || []).filter(mention => mention.elementId === elementId).sort((a, b) => b.from - a.from);
     if (!targets.length) return chapter;
-    let body = chapter.body, mentions = chapter.mentions || [];
+    let body = chapter.body, mentions = chapter.mentions || [], marks = chapter.marks;
     for (const target of targets) {
       const delta = replacement.length - (target.to - target.from);
       body = body.slice(0, target.from) + replacement + body.slice(target.to);
       mentions = mentions.map(mention => mention.id === target.id
         ? { ...mention, to: mention.from + replacement.length, surface: replacement }
         : mention.from >= target.to ? { ...mention, from: mention.from + delta, to: mention.to + delta } : mention);
+      // A rename rewrites the body behind the editor's back, so bold and italic have to be
+      // carried over here too -- otherwise they would point at the wrong words, or past the
+      // end of the text, and the backend would refuse the save.
+      if (marks?.length) marks = marksAfterReplacement(marks, target.from, target.to, replacement.length, body.length);
     }
-    return { ...chapter, body, mentions: mentions.sort((a, b) => a.from - b.from) };
+    return { ...chapter, body, mentions: mentions.sort((a, b) => a.from - b.from), ...(marks ? { marks } : {}) };
   }) };
 }

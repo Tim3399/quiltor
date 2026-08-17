@@ -1,6 +1,10 @@
 export const writing = {
   writingLanguageGerman: 'Deutsch (Deutschland)',
   writingSelectionActions: 'Aktionen für die Textauswahl',
+  // Auszeichnungen liegen als Bereiche über dem Text, nie als Zeichen darin -- im Manuskript
+  // steht Prosa, keine Sternchen. Erst der Export schreibt Markdown-Marker.
+  formatBold: 'Fett',
+  formatItalic: 'Kursiv',
   // Die Schreibhilfe zeigt genau einen Bereich auf einmal: Nachschlagen, Prüfen, Einfügen.
   // Was markiert ist, steht im Suchfeld -- eine eigene Markierungskarte sagte dasselbe zweimal.
   helperLookup: 'Nachschlagen',

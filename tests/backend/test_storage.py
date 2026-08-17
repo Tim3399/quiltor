@@ -22,7 +22,9 @@ class StorageTest(unittest.TestCase):
 
     def test_sqlite_round_trips_unknown_fields(self):
         manuscript_input = {
-            "chapters": [{"id": "c1", "title": "Eins", "body": "Hallo Welt", "note": "N", "mood": "still", "mentions": [{"id": "m1", "elementId": "n1", "from": 0, "to": 5, "surface": "Hallo", "source": "helper", "confidence": 1}]}],
+            "chapters": [{"id": "c1", "title": "Eins", "body": "Hallo Welt", "note": "N", "mood": "still",
+                          "mentions": [{"id": "m1", "elementId": "n1", "from": 0, "to": 5, "surface": "Hallo", "source": "helper", "confidence": 1}],
+                          "marks": [{"from": 6, "to": 10, "kind": "italic"}]}],
             "words": [{"w": "Arcène", "d": "Ort"}], "zeichenAktiv": ["…"], "future": True,
         }
         figures_input = {
@@ -43,7 +45,11 @@ class StorageTest(unittest.TestCase):
         mirror_dir = storage.DATA / "manuskript"
         mirror.mirror_text(manuscript["chapters"], mirror_dir)
         exported = next(mirror_dir.glob("*.md")).read_text(encoding="utf-8")
-        self.assertIn("Hallo Welt", exported)
+        # Der Kapiteltext bleibt in der Datenbank reine Prosa; erst der Markdown-Spiegel
+        # schreibt die Auszeichnungsbereiche als Marker.
+        self.assertEqual(manuscript["chapters"][0]["body"], "Hallo Welt")
+        self.assertEqual(manuscript["chapters"][0]["marks"], [{"from": 6, "to": 10, "kind": "italic"}])
+        self.assertIn("Hallo *Welt*", exported)
         self.assertNotIn("elementId", exported)
         self.assertNotIn('"m1"', exported)
         self.assertTrue(manuscript["future"])

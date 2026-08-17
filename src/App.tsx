@@ -11,6 +11,10 @@ import { applyAssistantProposals } from './features/assistant/proposals';
 import { useLanguage } from './language';
 import { useWorkspaceLayout } from './hooks/useWorkspaceLayout';
 import { addDeterministicMentions, reconcileMentions, replaceEntityMentions } from './features/manuscript/mentions';
+// A world file that was written by an older build, restored from a backup, or edited by hand
+// can hold ranges that no longer fit its text -- clamped once on load, because the backend
+// refuses a manuscript whose marks point past the body and every later save would fail.
+import { normalizeMarks } from './features/manuscript/marks';
 import { ConfirmDialog } from './shared/ui/ConfirmDialog';
 
 const TextWorkspace = lazy(() => import('./features/manuscript/TextWorkspace').then(module => ({ default: module.TextWorkspace })));
@@ -62,7 +66,7 @@ export function App() {
 
   const loadWorld = async (selected: Promise<{ ok: boolean; world: WorldInfo }>) => {
     setLoadError('');
-    try { const result = await selected; setActiveWorld(result.world.id); const [m, f] = await Promise.all([api.manuscript(), api.figures()]); const reconciled = reconcileMentions(m, f.nodes); const linked = { ...reconciled.manuscript, chapters: reconciled.manuscript.chapters.map(chapter => ({ ...chapter, mentions: addDeterministicMentions(chapter.body, chapter.mentions || [], f.nodes) })) }; setOrphanedMentions(reconciled.orphanedCount); manuscriptHistory.load(linked); figureHistory.load(f); setWorld(result.world); }
+    try { const result = await selected; setActiveWorld(result.world.id); const [m, f] = await Promise.all([api.manuscript(), api.figures()]); const reconciled = reconcileMentions(m, f.nodes); const linked = { ...reconciled.manuscript, chapters: reconciled.manuscript.chapters.map(chapter => ({ ...chapter, mentions: addDeterministicMentions(chapter.body, chapter.mentions || [], f.nodes), ...(chapter.marks ? { marks: normalizeMarks(chapter.marks, chapter.body.length) } : {}) })) }; setOrphanedMentions(reconciled.orphanedCount); manuscriptHistory.load(linked); figureHistory.load(f); setWorld(result.world); }
     catch (error) { setLoadError(errorMessage(error)); }
   };
   const changeFigures = useCallback((next: FigureState) => {

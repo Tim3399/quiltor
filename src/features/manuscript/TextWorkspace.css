@@ -176,6 +176,12 @@
   transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease;
 }
 
+/* Formatting is stored as ranges over the body; this is the only place the writer sees it
+   while writing. Weight and slant, nothing else -- no colour, no underline: a marked
+   passage has to read as prose, not as an annotation. */
+.prose-editor .text-bold { font-weight: 700; }
+.prose-editor .text-italic { font-style: italic; }
+
 .prose-editor .entity-mention:hover {
   border-bottom-color: var(--gold);
   background: var(--gold-soft);

@@ -14,12 +14,13 @@ beforeEach(() => {
 
 function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEditor>> = {}) {
   const onSelection = vi.fn(), onSelectionMenu = vi.fn(), onChange = vi.fn();
+  const handle = createRef<ManuscriptEditorHandle>() as React.MutableRefObject<ManuscriptEditorHandle | null>;
   const view = render(<ManuscriptEditor
     value="Hallo Welt" label="Kapiteltext" placeholder="" vocabulary={[]}
-    editorRef={createRef<ManuscriptEditorHandle>() as React.MutableRefObject<ManuscriptEditorHandle | null>}
+    editorRef={handle}
     onChange={onChange} onSelection={onSelection} onSelectionMenu={onSelectionMenu} {...props} />);
   const editor = EditorView.findFromDOM(view.container.querySelector('.cm-editor')!)!;
-  return { ...view, editor, onSelection, onSelectionMenu };
+  return { ...view, editor, handle, onSelection, onSelectionMenu, onChange };
 }
 
 describe('ManuscriptEditor selection', () => {
@@ -53,6 +54,35 @@ describe('ManuscriptEditor selection', () => {
     await waitFor(() => expect(onSelection).toHaveBeenCalledWith(expect.objectContaining({ text: 'Welt' })));
     editor.dispatch({ selection: EditorSelection.cursor(3) });
     await waitFor(() => expect(onSelection).toHaveBeenLastCalledWith(null));
+  });
+
+  it('zeichnet Fett und Kursiv als Bereiche über dem Text', () => {
+    const { container } = renderEditor({ marks: [{ from: 0, to: 5, kind: 'bold' }, { from: 6, to: 10, kind: 'italic' }] });
+    expect(container.querySelector('.text-bold')).toHaveTextContent('Hallo');
+    expect(container.querySelector('.text-italic')).toHaveTextContent('Welt');
+    // Im Text selbst stehen keine Sternchen -- sonst würden Grammatikprüfung,
+    // Erwähnungssuche und Wortzählung sie mitlesen.
+    expect(container.querySelector('.cm-content')).toHaveTextContent('Hallo Welt');
+  });
+
+  it('setzt Fett und Kursiv per Tastenkürzel und nimmt sie damit auch wieder weg', () => {
+    const { editor, onChange } = renderEditor();
+    editor.dispatch({ selection: EditorSelection.range(6, 10) });
+    // jsdom kennt keinen Mac, dort ist CodeMirrors "Mod" also Strg -- im Programm ⌘.
+    fireEvent.keyDown(editor.contentDOM, { key: 'b', ctrlKey: true });
+    expect(onChange).toHaveBeenLastCalledWith('Hallo Welt', [], [{ from: 6, to: 10, kind: 'bold' }]);
+    fireEvent.keyDown(editor.contentDOM, { key: 'i', ctrlKey: true });
+    expect(onChange).toHaveBeenLastCalledWith('Hallo Welt', [], [{ from: 6, to: 10, kind: 'bold' }, { from: 6, to: 10, kind: 'italic' }]);
+    fireEvent.keyDown(editor.contentDOM, { key: 'b', ctrlKey: true });
+    expect(onChange).toHaveBeenLastCalledWith('Hallo Welt', [], [{ from: 6, to: 10, kind: 'italic' }]);
+  });
+
+  it('nimmt eine Auszeichnung mit, wenn davor geschrieben wird', () => {
+    // Der Bereich hängt am Text, nicht an der Zeichenposition: was vorne dazukommt,
+    // schiebt ihn nach hinten, statt ihn liegenzulassen.
+    const { editor, onChange } = renderEditor({ marks: [{ from: 6, to: 10, kind: 'italic' }] });
+    editor.dispatch({ changes: { from: 0, insert: 'Ach, ' }, userEvent: 'input' });
+    expect(onChange).toHaveBeenLastCalledWith('Ach, Hallo Welt', [], [{ from: 11, to: 15, kind: 'italic' }]);
   });
 
   it('hält die gemerkte Textstelle sichtbar, während der Fokus woanders ist', () => {
