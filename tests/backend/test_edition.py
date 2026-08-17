@@ -24,13 +24,20 @@ class EditionDetectionTests(unittest.TestCase):
                 self.assertFalse(edition.is_store_build())
 
     def test_an_os_app_container_on_macos_means_the_mac_app_store(self):
-        """macOS exports APP_SANDBOX_CONTAINER_ID into every sandboxed process,
-        and the sandbox is mandatory for Store apps -- so one build behaves
-        correctly in both contexts, with no compile-time flag."""
-        with patch.dict("os.environ", {"APP_SANDBOX_CONTAINER_ID": "app.quiltor.desktop"}, clear=True):
-            with patch("backend.system.os_name", return_value="macos"):
-                self.assertEqual(edition.edition(), edition.MAS)
-                self.assertTrue(edition.is_store_build())
+        """Which store an app container implies follows from the platform.
+
+        This used to set APP_SANDBOX_CONTAINER_ID and let the real
+        in_os_app_package() read it, which passes on a Mac and fails everywhere
+        else -- backend.system selects the Linux implementation on the CI
+        runner, and that one answers False whatever the environment says. The
+        env var is macOS's signal and is pinned where it lives, in
+        test_system.py; what belongs here is only the mapping from "in a
+        container" to an edition."""
+        with patch.dict("os.environ", {}, clear=True):
+            with patch("backend.system.in_os_app_package", return_value=True):
+                with patch("backend.system.os_name", return_value="macos"):
+                    self.assertEqual(edition.edition(), edition.MAS)
+                    self.assertTrue(edition.is_store_build())
 
     def test_an_os_app_container_on_windows_means_the_microsoft_store(self):
         with patch.dict("os.environ", {}, clear=True):

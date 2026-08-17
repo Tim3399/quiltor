@@ -43,6 +43,23 @@ class ContractCompletenessTests(unittest.TestCase):
             with self.subTest(module=module.__name__):
                 self.assertIsInstance(module, contract.SystemModule)
 
+    def test_the_sandbox_container_id_is_what_marks_a_mac_app_store_build(self):
+        """macOS exports APP_SANDBOX_CONTAINER_ID into every sandboxed process,
+        and the App Sandbox is mandatory for Store apps -- so its presence is
+        the signal, and one build behaves correctly in either context with no
+        compile-time flag.
+
+        Called on the module rather than through backend.system, which selects
+        by the running OS: this is a claim about macOS and has to hold when the
+        suite runs on Linux, as it does in CI. Reading an environment variable
+        needs no Mac. Linux answers False regardless, because no Linux store
+        build exists."""
+        with patch.dict("os.environ", {"APP_SANDBOX_CONTAINER_ID": "app.quiltor.desktop"}, clear=True):
+            self.assertTrue(macos.in_os_app_package())
+            self.assertFalse(linux.in_os_app_package())
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertFalse(macos.in_os_app_package())
+
     def test_every_os_module_implements_the_whole_surface(self):
         """isinstance() against a runtime_checkable Protocol only checks that the
         names exist, and only for the members it can see -- so spell the surface
