@@ -183,4 +183,23 @@ describe('TextWorkspace', () => {
     expect(screen.getByRole('menuitem', { name: /Kopieren/ })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: /Einfügen/ })).toBeNull();
   });
+
+  it('meldet es, wenn die Zwischenablage den Text ablehnt', async () => {
+    // WKWebView darf writeText verweigern. Vorher verschwand die Ablehnung stumm; jetzt
+    // erfährt der Schreibende davon -- und Ausschneiden löscht die Stelle erst auf die
+    // Zusage der Zwischenablage hin, statt einen Absatz zu entfernen, den niemand mehr
+    // einfügen kann. Dass das Löschen ausbleibt, prüft dieser Test nicht: über die
+    // Editor-Handle laufende Menübefehle greifen unter jsdom nicht.
+    vi.spyOn(EditorView.prototype, 'coordsAtPos').mockReturnValue({ left: 0, right: 40, top: 0, bottom: 16 });
+    const writeText = vi.fn().mockRejectedValue(new Error('NotAllowedError'));
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const view = renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn() });
+    const editor = within(view.container).getByLabelText('Kapiteltext');
+    EditorView.findFromDOM(view.container.querySelector('.cm-editor')!)!.dispatch({ selection: EditorSelection.range(6, 10) });
+    fireEvent.keyDown(editor, { key: 'F10', shiftKey: true });
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /Ausschneiden/ })).toBeTruthy());
+    fireEvent.click(screen.getByRole('menuitem', { name: /Ausschneiden/ }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Zwischenablage/));
+    expect(writeText).toHaveBeenCalledWith('Welt');
+  });
 });

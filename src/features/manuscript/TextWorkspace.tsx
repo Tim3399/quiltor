@@ -140,6 +140,12 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
   // Saving an export can fail for real now that the desktop app writes the file itself
   // (see download() in lib/api.ts) -- a rejected promise here has to reach the reader.
   const runExport = (task: Promise<void>) => { void task.then(() => setExportError('')).catch(error => setExportError(errorMessage(error))); };
+  // Resolves only when the text is really on the clipboard. WKWebView may refuse the write,
+  // and the caller has to know: Cut deletes the passage on the strength of this promise.
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    try { await navigator.clipboard.writeText(text); setExportError(''); return true; }
+    catch { setExportError(t('clipboardRefused')); return false; }
+  };
   // Markdown is the format on the way out, so the ranges become markers here -- and only
   // here. Chapter.body itself stays plain text for the grammar check, the mention scanner
   // and the assistant.
@@ -326,8 +332,11 @@ export function TextWorkspace({ worldTitle, manuscript, figures, orphanedMention
         commands as well. Paste is deliberately absent: WebKit refuses clipboard reads to web
         content, and ⌘V goes through the browser regardless. */}
     <SelectionMenu anchorRef={selectionAnchor} open={selectionMenuOpen && !!liveSelection} label={t('writingSelectionActions')} onClose={() => setSelectionMenuOpen(false)} actions={[
-      { id: 'cut', label: t('cut'), shortcut: keys('X'), run: () => { if (liveSelection) { void navigator.clipboard.writeText(liveSelection.text); editor.current?.cut(liveSelection.from, liveSelection.to); } } },
-      { id: 'copy', label: t('copy'), shortcut: keys('C'), run: () => { if (liveSelection) void navigator.clipboard.writeText(liveSelection.text); } },
+      // Cut removes the passage only once the clipboard has actually taken it. WKWebView can
+      // refuse writeText, and a cut that deletes a paragraph the writer can no longer paste
+      // back is lost work -- so a rejection leaves the text where it is and says so.
+      { id: 'cut', label: t('cut'), shortcut: keys('X'), run: () => { if (liveSelection) { const { from, to, text } = liveSelection; void copyToClipboard(text).then(ok => { if (ok) editor.current?.cut(from, to); }); } } },
+      { id: 'copy', label: t('copy'), shortcut: keys('C'), run: () => { if (liveSelection) void copyToClipboard(liveSelection.text); } },
       { id: 'bold', label: t('formatBold'), shortcut: keys('B'), separatorBefore: true, run: () => { if (liveSelection) editor.current?.toggleMark('bold', liveSelection); } },
       { id: 'italic', label: t('formatItalic'), shortcut: keys('I'), run: () => { if (liveSelection) editor.current?.toggleMark('italic', liveSelection); } },
       { id: 'lookup', label: t('lookup'), separatorBefore: true, run: () => openWritingTool('lookup') },

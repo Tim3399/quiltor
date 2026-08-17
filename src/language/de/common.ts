@@ -3,4 +3,5 @@
 export const common = {
   ready: 'Bereit', name: 'Name', unknown: 'Unbekannt', untitled: 'Ohne Titel', loading: 'Lade …',
   cut: 'Ausschneiden', copy: 'Kopieren',
+  clipboardRefused: 'Die Zwischenablage hat den Text nicht angenommen — nichts wurde ausgeschnitten.',
 } as const;
