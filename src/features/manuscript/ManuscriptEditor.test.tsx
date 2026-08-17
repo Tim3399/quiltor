@@ -23,6 +23,8 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEdito
   return { ...view, editor, handle, onSelection, onSelectionMenu, onChange };
 }
 
+const tarek = { id: 't', x: 0, y: 0, type: 'person' as const, name: 'Tarek', sub: 'Bäcker' };
+
 describe('ManuscriptEditor selection', () => {
   it('meldet eine Markierung, ohne dafür das Aktionsmenü zu öffnen', async () => {
     // Der Bericht ist die Information "das ist markiert". Das Menü mit Wörterbuch,
@@ -83,6 +85,31 @@ describe('ManuscriptEditor selection', () => {
     const { editor, onChange } = renderEditor({ marks: [{ from: 6, to: 10, kind: 'italic' }] });
     editor.dispatch({ changes: { from: 0, insert: 'Ach, ' }, userEvent: 'input' });
     expect(onChange).toHaveBeenLastCalledWith('Ach, Hallo Welt', [], [{ from: 11, to: 15, kind: 'italic' }]);
+  });
+
+  it('schlägt eine Figur auch bei einem Vertipper vor und trennt Name und Beschreibung mit Abstand', async () => {
+    const { container, editor } = renderEditor({ value: '', entities: [tarek] });
+    editor.dispatch({ changes: { from: 0, insert: 'Tarke' }, selection: { anchor: 5 } });
+    await waitFor(() => expect(container.querySelector('.word-completion')).not.toBeNull());
+    const hint = container.querySelector('.word-completion span')!;
+    expect(hint).toHaveTextContent('Tarek');
+    // Kein Leerzeichen im Markup: der Abstand kommt aus .completion-detail.
+    expect(hint.querySelector('.completion-detail')).toHaveTextContent('Bäcker');
+  });
+
+  it('ersetzt den Vertipper mit Tab und merkt sich die Erwähnung', async () => {
+    const { container, editor, onChange } = renderEditor({ value: '', entities: [tarek] });
+    editor.dispatch({ changes: { from: 0, insert: 'Tarke' }, selection: { anchor: 5 } });
+    fireEvent.keyDown(container.querySelector('.cm-content')!, { key: 'Tab' });
+    expect(editor.state.doc.toString()).toBe('Tarek');
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('Tarek', [expect.objectContaining({ elementId: 't', surface: 'Tarek', from: 0, to: 5 })], []));
+  });
+
+  it('lässt ein richtig geschriebenes Wort in Ruhe', async () => {
+    const { container, editor } = renderEditor({ value: '', entities: [tarek] });
+    editor.dispatch({ changes: { from: 0, insert: 'Fenster' }, selection: { anchor: 7 } });
+    await waitFor(() => expect(editor.state.doc.toString()).toBe('Fenster'));
+    expect(container.querySelector('.word-completion')).toBeNull();
   });
 
   it('hält die gemerkte Textstelle sichtbar, während der Fokus woanders ist', () => {

@@ -3,6 +3,7 @@ import { Annotation, EditorSelection, EditorState, StateEffect, StateField } fro
 import { Decoration, keymap, placeholder as placeholderExtension, EditorView, hoverTooltip } from '@codemirror/view';
 import type { WordCompletion } from './autocomplete';
 import { completeOneWord } from './autocomplete';
+import { entityCompletion } from './entityCompletion';
 import type { EntityMention, FigureNode, TextMark, TextMarkKind, WritingIssue } from '../../types';
 import { mapMentions } from './mentions';
 import { mapMarks, normalizeMarks, toggleMark } from './marks';
@@ -61,17 +62,11 @@ const heldSelectionDecoration = StateField.define({
   provide: field => EditorView.decorations.from(field),
 });
 
-type CompletionPreview = WordCompletion & { detail?: string };
+type CompletionPreview = WordCompletion & { entity?: FigureNode; detail?: string };
 
-function entityCompletion(value: string, caret: number, entities: FigureNode[], describe: (entity: FigureNode) => string): CompletionPreview | null {
-  const prefix = value.slice(0, caret).match(/[\p{L}\p{N}'’-]+$/u)?.[0] || '';
-  if (prefix.length < 2) return null;
-  const grouped = new Map<string, FigureNode[]>();
-  for (const entity of entities) { const key = entity.name.toLocaleLowerCase('de-DE'); grouped.set(key, [...(grouped.get(key) || []), entity]); }
-  const match = [...grouped.entries()].filter(([name, nodes]) => nodes.length === 1 && name.length > prefix.length && name.startsWith(prefix.toLocaleLowerCase('de-DE'))).sort(([a], [b]) => a.localeCompare(b, 'de-DE'))[0];
-  if (!match) return null;
-  const entity = match[1][0];
-  return { word: entity.name, start: caret - prefix.length, end: caret, detail: describe(entity) };
+function suggest(value: string, caret: number, entities: FigureNode[], vocabulary: string[], describe: (entity: FigureNode) => string): CompletionPreview | null {
+  const match = entityCompletion(value, caret, entities, vocabulary);
+  return match ? { ...match, detail: describe(match.entity) } : completeOneWord(value, caret, vocabulary);
 }
 
 export type EditorTextSelection = {
@@ -177,11 +172,9 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
         keymap.of([{ key: 'Tab', run: current => {
           const range = current.state.selection.main;
           if (!range.empty) return false;
-          const text = current.state.doc.toString(), entity = entityCompletion(text, range.head, entitiesRef.current, describeEntityRef.current);
-          const next = entity || completeOneWord(text, range.head, vocabularyRef.current);
+          const next = suggest(current.state.doc.toString(), range.head, entitiesRef.current, vocabularyRef.current, describeEntityRef.current);
           if (!next) return false;
-          const matchedEntity = entity && entitiesRef.current.find(item => item.name === entity.word);
-          const mention = matchedEntity ? { id: crypto.randomUUID(), elementId: matchedEntity.id, from: next.start, to: next.start + next.word.length, surface: next.word, source: 'completion' as const, confidence: 1 } : undefined;
+          const mention = next.entity ? { id: crypto.randomUUID(), elementId: next.entity.id, from: next.start, to: next.start + next.word.length, surface: next.word, source: 'completion' as const, confidence: 1 } : undefined;
           current.dispatch({ changes: { from: next.start, to: next.end, insert: next.word }, selection: { anchor: next.start + next.word.length }, annotations: mention ? createdMention.of(mention) : undefined, userEvent: 'input.complete' });
           return true;
         } }]),
@@ -220,7 +213,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
         EditorView.updateListener.of(update => {
           if (update.docChanged) {
             const range = update.state.selection.main;
-            setCompletion(range.empty ? entityCompletion(update.state.doc.toString(), range.head, entitiesRef.current, describeEntityRef.current) || completeOneWord(update.state.doc.toString(), range.head, vocabularyRef.current) : null);
+            setCompletion(range.empty ? suggest(update.state.doc.toString(), range.head, entitiesRef.current, vocabularyRef.current, describeEntityRef.current) : null);
             selectionRef.current(null);
             if (!update.transactions.some(transaction => transaction.annotation(controlledUpdate))) {
               let nextMentions = mentionsRef.current, nextMarks = marksRef.current;
@@ -236,7 +229,7 @@ export function ManuscriptEditor({ value, label, placeholder, vocabulary, mentio
             }
           } else if (update.selectionSet) {
             const range = update.state.selection.main;
-            setCompletion(range.empty ? entityCompletion(update.state.doc.toString(), range.head, entitiesRef.current, describeEntityRef.current) || completeOneWord(update.state.doc.toString(), range.head, vocabularyRef.current) : null);
+            setCompletion(range.empty ? suggest(update.state.doc.toString(), range.head, entitiesRef.current, vocabularyRef.current, describeEntityRef.current) : null);
             requestAnimationFrame(() => reportSelection(update.view));
           }
         }),
