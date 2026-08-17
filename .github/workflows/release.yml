@@ -126,3 +126,191 @@ jobs:
         run: |
           gh release upload "v${{ needs.version-check.outputs.version }}" \
             pkg-dist/*.whl pkg-dist/*.tar.gz --clobber
+
+  # The two artifacts users actually install. Both run packaging/build_macos.sh
+  # and packaging/build_windows.ps1 unchanged -- the same commands documented in
+  # packaging/README.md and run by hand on a laptop -- so there is no second,
+  # CI-only build path that can drift from the one a developer can reproduce.
+  macos-app:
+    needs: [version-check, tag-and-release]
+    # Must be an Apple-silicon image: packaging/quiltor.spec builds arm64 only
+    # (universal2 would need universal2 wheels for Pillow, pywebview and
+    # pystray). Asserted below rather than trusted, since which hardware
+    # macos-latest points at is GitHub's decision, not ours.
+    runs-on: macos-latest
+    env:
+      # packaging/bundle.py turns this into CFBundleVersion, which Apple
+      # requires to increase with every upload and which is independent of
+      # VERSION. Unset it is "0" for every build forever, which App Store
+      # Connect rejects on the second submission. run_number only ever goes up.
+      QUILTOR_BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"  # the floor in pyproject.toml
+
+      # Exactly packaging/README.md's "One-time setup", minus the venv: the
+      # runner is already a throwaway environment.
+      - name: Desktop build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[desktop]"
+          python -m pip install pyinstaller
+
+      # One step, two outcomes, no second build path. build_macos.sh already
+      # signs only when QUILTOR_SIGN_IDENTITY is set and notarizes only when
+      # QUILTOR_NOTARY_PROFILE is set too, so all this does is put those in the
+      # environment when the secrets exist -- and nothing at all when they do
+      # not, which is today. Creating the secrets (see packaging/README.md,
+      # "Signing in CI") is therefore the only step between an unsigned release
+      # and a notarized one: no YAML change, and no unsigned path that quietly
+      # rots because nobody exercises it.
+      - name: Apple code signing (no-op without the secrets)
+        env:
+          CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CERTIFICATE_P12:-}" ]; then
+            echo "::notice::No APPLE_CERTIFICATE_P12 secret -- building unsigned."
+            echo "::notice::Gatekeeper will warn on the .dmg; see packaging/README.md."
+            exit 0
+          fi
+
+          KEYCHAIN="$RUNNER_TEMP/quiltor-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERTIFICATE="$RUNNER_TEMP/certificate.p12"
+
+          printf '%s' "$CERTIFICATE_P12" | base64 --decode > "$CERTIFICATE"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          # A keychain re-locks after five minutes idle by default, and
+          # notarization waits on Apple for rather longer than that.
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERTIFICATE" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$CERTIFICATE"
+          # codesign is a different process from the one that imported the key,
+          # so without a partition list macOS asks permission per signature --
+          # and on a runner with no window server that is a hang, not a dialog.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          # Prepended, not substituted: replacing the search list would drop the
+          # system roots and with them the chain the certificate validates against.
+          # The word splitting is the point -- -s takes one argument per keychain.
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          # Read back rather than configured as a sixth secret -- a freshly
+          # created keychain holds exactly the certificate just imported, so the
+          # identity string cannot be stale or mistyped.
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" \
+            | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1)"
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No *valid* Developer ID Application identity in the imported"
+            echo "::error::certificate. If the listing below shows one as CSSMERR_TP_NOT_TRUSTED,"
+            echo "::error::the .p12 is missing its issuer chain -- re-export it from Keychain"
+            echo "::error::Access with the certificate and its private key selected together."
+            security find-identity -p codesigning "$KEYCHAIN"
+            exit 1
+          fi
+          echo "Signing as: $IDENTITY"
+          echo "QUILTOR_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
+          if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] && [ -n "${APPLE_APP_PASSWORD:-}" ]; then
+            xcrun notarytool store-credentials "quiltor-notary" \
+              --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" --keychain "$KEYCHAIN"
+            echo "QUILTOR_NOTARY_PROFILE=quiltor-notary" >> "$GITHUB_ENV"
+            echo "QUILTOR_NOTARY_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Signed but not notarized (APPLE_ID / APPLE_TEAM_ID /"
+            echo "::warning::APPLE_APP_PASSWORD missing). Gatekeeper still warns on first launch."
+          fi
+
+      # create-dmg is deliberately not installed. It lays the .dmg window out
+      # via AppleScript, which wants a logged-in Finder; build_macos.sh falls
+      # back to hdiutil, which needs nothing and produces the same installable
+      # disk image with default icon placement.
+      - name: Build the .dmg
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "arm64" \
+            || { echo "::error::This runner is $(uname -m); quiltor.spec builds arm64 only."; exit 1; }
+          ./packaging/build_macos.sh
+
+      - name: Upload the .dmg to the Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DMG="packaging/dist/Quiltor-${{ needs.version-check.outputs.version }}.dmg"
+          test -f "$DMG" || { echo "::error::$DMG was not produced."; exit 1; }
+          gh release upload "v${{ needs.version-check.outputs.version }}" "$DMG" --clobber
+
+      # The keychain lives in RUNNER_TEMP and dies with the runner anyway, but
+      # deleting it explicitly keeps a private key off disk for whatever gets
+      # added to this job later -- and runs even when the build failed.
+      - name: Remove the signing keychain
+        if: always()
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/quiltor-signing.keychain-db"
+          if [ -f "$KEYCHAIN" ]; then
+            security delete-keychain "$KEYCHAIN"
+          fi
+
+  windows-app:
+    needs: [version-check, tag-and-release]
+    runs-on: windows-latest
+    env:
+      QUILTOR_BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Desktop build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[desktop]"
+          python -m pip install pyinstaller
+
+      # ISCC.exe is what turns the onedir build into Quiltor-Setup-<version>.exe.
+      # Chocolatey puts it at the default location build_windows.ps1 already
+      # falls back to, so the script needs no CI-specific path.
+      - name: Inno Setup
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build the installer
+        run: powershell -ExecutionPolicy Bypass -File packaging/build_windows.ps1
+
+      - name: Upload the installer to the Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SETUP="packaging/dist/Quiltor-Setup-${{ needs.version-check.outputs.version }}.exe"
+          test -f "$SETUP" || { echo "::error::$SETUP was not produced -- see the build step's log."; exit 1; }
+          gh release upload "v${{ needs.version-check.outputs.version }}" "$SETUP" --clobber

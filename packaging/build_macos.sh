@@ -19,6 +19,12 @@
 #                            --team-id ... --password <app-specific-password>`.
 #                           Requires QUILTOR_SIGN_IDENTITY (Apple only notarizes
 #                           Developer-ID-signed code).
+#   QUILTOR_NOTARY_KEYCHAIN Path of the keychain holding that profile. Only needed
+#                           when it is not the login keychain, which is the case in
+#                           CI: .github/workflows/release.yml imports the certificate
+#                           into a throwaway keychain under RUNNER_TEMP and stores the
+#                           profile there, and notarytool looks in the login keychain
+#                           unless told otherwise (the search list does not apply).
 #
 # Without them the build is unsigned and macOS Gatekeeper shows "Apple could not
 # verify..." -- usable for local testing, not for handing to other people. With
@@ -35,6 +41,7 @@ ENTITLEMENTS="packaging/entitlements.plist"
 
 SIGN_IDENTITY="${QUILTOR_SIGN_IDENTITY:-}"
 NOTARY_PROFILE="${QUILTOR_NOTARY_PROFILE:-}"
+NOTARY_KEYCHAIN="${QUILTOR_NOTARY_KEYCHAIN:-}"
 
 if [ -n "$NOTARY_PROFILE" ] && [ -z "$SIGN_IDENTITY" ]; then
     echo "QUILTOR_NOTARY_PROFILE is set but QUILTOR_SIGN_IDENTITY is not." >&2
@@ -81,7 +88,14 @@ notarize() {
     fi
 
     echo "Notarizing $target (this takes a few minutes)..."
-    xcrun notarytool submit "$upload" --keychain-profile "$NOTARY_PROFILE" --wait
+    # Spelled out twice rather than assembled, because an empty "${array[@]}"
+    # under `set -u` is an error in the bash 3.2 that ships with macOS.
+    if [ -n "$NOTARY_KEYCHAIN" ]; then
+        xcrun notarytool submit "$upload" --keychain-profile "$NOTARY_PROFILE" \
+            --keychain "$NOTARY_KEYCHAIN" --wait
+    else
+        xcrun notarytool submit "$upload" --keychain-profile "$NOTARY_PROFILE" --wait
+    fi
     [ "$upload" = "$target" ] || rm -f "$upload"
     xcrun stapler staple "$target"
 }

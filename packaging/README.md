@@ -41,6 +41,11 @@ powershell -File packaging/build_windows.ps1      # → packaging/dist/Quiltor-S
 Both scripts regenerate `packaging/icons/` if missing (`make_icons.py`) and run
 `npm run build` first, so `dist/` is fresh.
 
+**You normally do not need to run either.** `.github/workflows/release.yml` runs
+both on every release and attaches the `.dmg` and the `Setup.exe` to the GitHub
+Release — see "Releasing" below. Build by hand to try a change before it ships,
+or to reproduce something CI did.
+
 The Windows onedir build (a folder, not a single file — faster startup and far
 fewer antivirus false positives than "onefile") gets wrapped into
 `Quiltor-Setup-<version>.exe` by `packaging/quiltor.iss` (Inno Setup): per-user
@@ -53,6 +58,62 @@ macOS gets the platform-native equivalent: a `.dmg` holding `Quiltor.app` next t
 `/Applications` symlink to drag it onto. There is no uninstaller because there is
 nothing to unregister — deleting the app is the uninstall, and it likewise leaves
 the per-user data directory alone.
+
+## Releasing
+
+Raising the version is the whole manual step. Everything else follows from it.
+
+```bash
+python3 packaging/set_version.py minor    # or major / patch / an explicit 2.15.0
+# equivalently, if you are already in npm's world:
+npm run set-version -- minor
+```
+
+That writes the version into the three files that have to agree — `VERSION`,
+`package.json`, and `package-lock.json`, which carries it twice. They are not
+redundant copies to keep in sync out of tidiness: `release.yml`'s `version-check`
+job fails the release when `VERSION` and `package.json` disagree, and `npm ci`
+refuses to run at all when `package.json` and its lockfile do.
+
+The script refuses two things, both of which otherwise fail quietly rather than
+loudly:
+
+- **A dirty working tree.** The bump wants to be one small reviewable commit;
+  buried in unrelated edits nobody can see at a glance that all the numbers moved
+  together.
+- **A version that is not strictly ahead** of the current one. Re-releasing an
+  existing version is not an error you find out about — `release.yml` sees the tag
+  already exists, sets `should_release=false`, and skips every downstream job. The
+  run is green and nothing shipped.
+
+It writes the files and stops. Commit that, merge it to `main`, and the push to
+`main` touching `VERSION` is what starts `.github/workflows/release.yml`:
+
+| job | produces |
+| --- | --- |
+| `version-check` | the version, and the decision whether to release at all |
+| `tag-and-release` | the `vX.Y.Z` tag and a GitHub Release with generated notes |
+| `docker` | `ghcr.io/tim3399/quiltor:X.Y.Z` and `:latest` |
+| `wheel` | the wheel and sdist, attached to the Release |
+| `macos-app` | `Quiltor-X.Y.Z.dmg`, attached to the Release |
+| `windows-app` | `Quiltor-Setup-X.Y.Z.exe`, attached to the Release |
+
+`macos-app` and `windows-app` run `build_macos.sh` and `build_windows.ps1`
+unchanged — the same commands documented above — so there is no CI-only build
+path that can drift from the one you can reproduce on a laptop. Two details are
+CI-specific and worth knowing:
+
+- **`QUILTOR_BUILD_NUMBER` is the workflow's run number.** It becomes
+  `CFBundleVersion`, which Apple requires to increase with every upload and which
+  is independent of `VERSION` (a rejected build burns a number). Locally it is
+  unset and the bundle gets `"0"` — valid, and obviously not a submission.
+- **`create-dmg` is not installed on the runner.** It positions the icons via
+  AppleScript, which wants a logged-in Finder session; `build_macos.sh` falls back
+  to `hdiutil`, which needs nothing. The disk image is the same, minus the window
+  layout.
+
+`release.yml` deliberately does not depend on `test.yml`: the tests already ran on
+the pull request that changed `VERSION`. See the comment at the top of `test.yml`.
 
 ## Platform-specific vs. shared code
 
@@ -184,12 +245,69 @@ variables (PyInstaller's bootloader). Note that the downloaded runtime is separa
 subject to quarantine — `installer.py` already strips it with `xattr -dr
 com.apple.quarantine`.
 
+### Signing in CI
+
+The release workflow's `macos-app` job produces a **usable unsigned `.dmg`
+today**, with no Apple Developer account anywhere. It signs and notarizes the
+moment the secrets below exist, and there is no second code path to keep alive:
+the job's "Apple code signing" step exits immediately when
+`APPLE_CERTIFICATE_P12` is empty, and otherwise sets exactly the two environment
+variables `build_macos.sh` already reads. **Creating the secrets is the only
+step.** No workflow edit, no re-plumbing.
+
+Create them under *Settings → Secrets and variables → Actions → New repository
+secret*:
+
+| secret | what goes in it |
+| --- | --- |
+| `APPLE_CERTIFICATE_P12` | the *Developer ID Application* certificate **and its private key**, exported from Keychain Access as a `.p12`, then base64-encoded: `base64 -i certificate.p12 \| pbcopy` |
+| `APPLE_CERTIFICATE_PASSWORD` | the password set during that `.p12` export |
+| `APPLE_ID` | the Apple ID of the developer account (notarization only) |
+| `APPLE_TEAM_ID` | the ten-character team ID, e.g. `AB12CD34EF` (notarization only) |
+| `APPLE_APP_PASSWORD` | an app-specific password from appleid.apple.com, **not** the account password (notarization only) |
+
+The first two are enough to sign. Add the other three to notarize as well, which
+is what actually removes the Gatekeeper warning — signing alone does not. With
+only the first two the job signs and prints a warning saying so.
+
+Three things that go wrong the first time:
+
+- **Export the certificate together with its private key.** Selecting only the
+  certificate in Keychain Access produces a `.p12` that imports fine and then
+  cannot sign anything.
+- **The `.p12` must carry its issuer chain**, or `security find-identity -v`
+  reports zero valid identities even though the certificate is there — the job
+  fails with that listing and this explanation rather than producing a build
+  signed by nothing. Keychain Access includes the chain when the certificate and
+  key are exported together.
+- **Do not generate the `.p12` with a modern `openssl pkcs12 -export`.** Its
+  default AES-256/PBKDF2 encryption is unreadable by macOS's `security import`,
+  which reports it as a wrong password. Keychain Access writes the format macOS
+  can read.
+
+There is no signing identity in the repository and no fallback that pretends
+otherwise: an unsigned build says so in its own log and in the Release.
+
+Mechanically, the job imports the `.p12` into a throwaway keychain under
+`RUNNER_TEMP` (never the runner's login keychain), sets a key partition list so
+`codesign` is not blocked waiting for a permission dialog no one can answer,
+reads the identity string back out of that keychain rather than taking it as a
+sixth secret, stores the notarytool profile in the same keychain, and deletes the
+keychain in an `if: always()` step. `QUILTOR_NOTARY_KEYCHAIN` exists for that last
+part: `notarytool` looks in the login keychain unless it is told where the profile
+lives.
+
 ### Windows: Authenticode
 
-Still unsigned. Requires an **Authenticode certificate** (OV or, to skip SmartScreen
-reputation-building entirely, EV) and a `signtool sign /fd sha256 /tr <timestamp-url>`
-step in `build_windows.ps1` over both `Quiltor.exe` and the finished `Setup.exe`. No
-code changes beyond that.
+Still unsigned, in CI as much as locally. Requires an **Authenticode certificate**
+(OV or, to skip SmartScreen reputation-building entirely, EV) and a `signtool sign
+/fd sha256 /tr <timestamp-url>` step in `build_windows.ps1` over both `Quiltor.exe`
+and the finished `Setup.exe`. No code changes beyond that.
+
+Worth doing the same way as macOS when it happens: put the decision in
+`build_windows.ps1` behind an environment variable it reads, and let the workflow
+supply it from a secret. Then the `windows-app` job needs no change either, and
+the local and CI builds stay the same build.
 
 ## Mac App Store
 

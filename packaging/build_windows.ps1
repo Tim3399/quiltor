@@ -29,6 +29,10 @@ try {
         --distpath packaging/dist `
         --workpath packaging/build `
         --noconfirm
+    # $ErrorActionPreference does not apply to native commands: without this the
+    # script would keep going after a failed freeze, hand ISCC an empty folder,
+    # and still exit 0 -- a green CI job with no installer in it.
+    if ($LASTEXITCODE -ne 0) { throw "pyinstaller failed with exit code $LASTEXITCODE." }
 
     Write-Host ""
     Write-Host "Built packaging/dist/Quiltor/Quiltor.exe"
@@ -45,6 +49,7 @@ try {
 
     if ($isccPath) {
         & $isccPath "/DMyAppVersion=$version" "packaging\quiltor.iss"
+        if ($LASTEXITCODE -ne 0) { throw "ISCC.exe failed with exit code $LASTEXITCODE." }
         Write-Host ""
         Write-Host "Built packaging/dist/Quiltor-Setup-$version.exe"
     } else {
