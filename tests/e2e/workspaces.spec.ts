@@ -70,6 +70,33 @@ test('CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil', a
   await expect(page.getByText(/Sprachdaten sind nicht installiert|Keine Ergebnisse gefunden/)).toBeVisible();
 });
 
+test('Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide', 'Die Auszeichnung hängt nicht an der Fensterbreite.');
+  await openBlankWorld(page);
+  const editor = page.getByLabel('Kapiteltext');
+  await editor.fill('Der Morgen lag still über dem Hafen.');
+  const selectionMenu = page.getByRole('dialog', { name: 'Aktionen für die Textauswahl' });
+
+  await page.locator('.cm-line').selectText();
+  await page.locator('.cm-line').click({ button: 'right' });
+  await selectionMenu.getByRole('menuitem', { name: 'Fett' }).click();
+  await expect(page.locator('.prose-editor .text-bold')).toContainText('Der Morgen lag still über dem Hafen.');
+
+  await page.locator('.cm-line').selectText();
+  await page.locator('.cm-line').click({ button: 'right' });
+  await selectionMenu.getByRole('menuitem', { name: 'Kursiv' }).click();
+  await expect(page.locator('.prose-editor .text-italic')).toContainText('Der Morgen lag still über dem Hafen.');
+
+  // Die Auszeichnung ist kein Zeichen im Text, sondern ein Bereich neben ihm (Chapter.marks).
+  // Der Beweis dafür ist, dass der Text unverändert bleibt und die Bereiche das Speichern überstehen.
+  await expect(editor).toHaveText('Der Morgen lag still über dem Hafen.');
+  await expect(page.locator('.save-saved')).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Kapiteltext')).toHaveText('Der Morgen lag still über dem Hafen.');
+  await expect(page.locator('.prose-editor .text-bold')).toContainText('Der Morgen lag still über dem Hafen.');
+  await expect(page.locator('.prose-editor .text-italic')).toContainText('Der Morgen lag still über dem Hafen.');
+});
+
 test('Kapitel- und Schreibhilfe-Spalte lassen sich aus der Werkzeugleiste umschalten', async ({ page }) => {
   await openBlankWorld(page);
   await expect(page.getByLabel('Kapiteltext')).toBeVisible();
