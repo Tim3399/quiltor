@@ -47,6 +47,42 @@ test('Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters', async
   await expect(aid).toHaveAttribute('aria-label', 'Schreibhilfe');
 });
 
+test('Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn zu verdecken', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide', 'Der Test stellt die Fensterbreite selbst; er darf nur einmal laufen.');
+  await openBlankWorld(page);
+  await expect(page.getByLabel('Kapiteltext')).toBeVisible();
+  const binder = page.locator('aside.binder');
+  const editorPage = page.locator('.editor-page');
+
+  for (const width of [720, 800, 900, 1000, 1099]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(binder).toBeVisible();
+    const [binderBox, pageBox] = [await binder.boundingBox(), await editorPage.boundingBox()];
+    // Der Kern der Entscheidung: die Spalte endet dort, wo die Schreibfläche anfängt.
+    // Vorher lag sie darüber und schnitt den linken Rand jeder Zeile ab.
+    expect(binderBox!.x + binderBox!.width, `Spalte überlappt den Text bei ${width}px`).toBeLessThanOrEqual(pageBox!.x + 0.5);
+    // Und die Schreibfläche darf dabei nicht seitwärts scrollen müssen.
+    const scrollsX = await page.locator('.cm-scroller').evaluate(el => el.scrollWidth > el.clientWidth + 1);
+    expect(scrollsX, `Editor scrollt waagerecht bei ${width}px`).toBe(false);
+  }
+});
+
+test('Der Speicherstand weicht schmal ins Menü aus, der Fehler aber nie', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide', 'Der Test stellt die Fensterbreite selbst; er darf nur einmal laufen.');
+  await openBlankWorld(page);
+  await expect(page.getByLabel('Kapiteltext')).toBeVisible();
+
+  await page.setViewportSize({ width: 400, height: 844 });
+  await expect(page.locator('.app-bar .save-status')).toBeVisible();
+
+  // Ab hier fehlt der App-Leiste der Platz; der ruhige Stand zieht ins ⋯-Menü um.
+  await page.setViewportSize({ width: 399, height: 844 });
+  await expect(page.locator('.app-bar .save-status')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Mehr' }).click();
+  await expect(page.getByRole('dialog').locator('.save-status')).toBeVisible();
+  await page.keyboard.press('Escape');
+});
+
 test('Weltenauswahl bleibt auch mit vielen Welten vollständig scrollbar', async ({ page }) => {
   const worlds = Array.from({ length: 30 }, (_, index) => ({ id: `world-${index + 1}`, title: `Welt ${index + 1}`, updated: '2026-08-09T12:00:00Z' }));
   await page.route('**/api/worlds', route => route.fulfill({ json: { worlds } }));
@@ -547,12 +583,22 @@ test('Autosave überlebt Reload und meldet konkurrierende Änderungen', async ({
   await page.route('**/api/state*', route => route.fulfill({ json: { nodes: [], edges: [] }, headers: { ETag: '"0"' } }));
   await openBlankWorld(page);
   await page.getByLabel('Kapiteltext').fill('Nach Reload vorhanden');
-  await expect(page.locator('.save-saved')).toBeVisible();
+  // Unter 400px ist in der App-Leiste kein Platz mehr für den ruhigen Speicherstand; er steht
+  // dort im ⋯-Menü. Gemeldet wird er also weiterhin, nur eine Ebene tiefer.
+  if ((page.viewportSize()?.width || 0) < 400) {
+    await page.getByRole('button', { name: 'Mehr' }).click();
+    await expect(page.getByRole('dialog').locator('.save-saved')).toBeVisible();
+    await page.keyboard.press('Escape');
+  } else {
+    await expect(page.locator('.save-saved')).toBeVisible();
+  }
   await page.reload();
   await expect(page.getByLabel('Kapiteltext')).toHaveText('Nach Reload vorhanden');
   revision += 1;
   await page.getByLabel('Kapiteltext').fill('Konkurrierender Stand');
-  await expect(page.locator('.save-error')).toBeVisible();
+  // Der Fehler dagegen bleibt in jeder Breite in der Leiste stehen -- ein fehlgeschlagenes
+  // Speichern, das man erst hinter einem Menü fände, wäre schlimmer als ein abgeschnittener Knopf.
+  await expect(page.locator('.app-bar .save-error')).toBeVisible();
 });
 
 test('Kernansichten haben keine automatisiert erkennbaren WCAG-A/AA-Verstöße', async ({ page }) => {
