@@ -5,6 +5,7 @@ does not come along, and nothing notices until someone clicks the button. So the
 table is checked against the frontend that calls it: every path in
 src/lib/api.ts must be registered, and every registered path must be reachable.
 """
+
 import re
 import unittest
 from pathlib import Path
@@ -17,9 +18,9 @@ API_CLIENT = REPO_ROOT / "src" / "lib" / "api.ts"
 
 #: Served to the browser rather than called by api.ts, or reached by other means.
 NOT_CALLED_FROM_THE_CLIENT = {
-    "/login",            # a browser navigation
-    "/auth/callback",    # the identity provider redirects here
-    "/api/book.pdf",     # fetched directly, not through the json() helper
+    "/login",  # a browser navigation
+    "/auth/callback",  # the identity provider redirects here
+    "/api/book.pdf",  # fetched directly, not through the json() helper
 }
 
 
@@ -39,7 +40,9 @@ class RouteTableTests(unittest.TestCase):
     def test_every_endpoint_the_frontend_calls_is_registered(self):
         registered = set(routes.GET) | set(routes.SAVE)
         missing = sorted(_client_paths() - registered)
-        self.assertEqual(missing, [], f"the client calls these but no route handles them: {missing}")
+        self.assertEqual(
+            missing, [], f"the client calls these but no route handles them: {missing}"
+        )
 
     def test_the_client_path_scan_finds_something(self):
         """Guards the check above against a regex that stopped matching."""
@@ -63,16 +66,28 @@ class RouteTableTests(unittest.TestCase):
         """Under OIDC these resolve the caller's world before running, which is
         what keeps one account out of another's data. A route dropping off this
         list would read whatever database happens to be active."""
-        expected = {"/api/state", "/api/manuscript", "/api/backup", "/api/log", "/api/backups",
-                    "/api/diff", "/api/textfassung", "/api/assistant/status", "/api/assistant/logs"}
+        expected = {
+            "/api/state",
+            "/api/manuscript",
+            "/api/backup",
+            "/api/log",
+            "/api/backups",
+            "/api/diff",
+            "/api/textfassung",
+            "/api/assistant/status",
+            "/api/assistant/logs",
+        }
         actual = {path for path, entry in routes.GET.items() if entry.world}
         self.assertEqual(actual, expected)
 
     def test_only_the_login_flow_is_reachable_without_a_session(self):
-        anonymous = {path for table in (routes.GET, routes.SAVE)
-                     for path, entry in table.items() if entry.anonymous}
-        self.assertEqual(anonymous,
-                         {"/api/version", "/login", "/auth/callback", "/logout"})
+        anonymous = {
+            path
+            for table in (routes.GET, routes.SAVE)
+            for path, entry in table.items()
+            if entry.anonymous
+        }
+        self.assertEqual(anonymous, {"/api/version", "/login", "/auth/callback", "/logout"})
 
     def test_whoami_is_neither_anonymous_nor_account_only(self):
         """Every request has a session now, so "who is asking" always has an
@@ -86,8 +101,12 @@ class RouteTableTests(unittest.TestCase):
         """Choosing an account and putting it down again are the only things a
         single-user instance has no version of; it answers 404 for these,
         pinned end to end in test_server_auth.LocalIdentityServerTest."""
-        auth_only = {path for table in (routes.GET, routes.SAVE)
-                     for path, entry in table.items() if entry.auth_only}
+        auth_only = {
+            path
+            for table in (routes.GET, routes.SAVE)
+            for path, entry in table.items()
+            if entry.auth_only
+        }
         self.assertEqual(auth_only, {"/login", "/auth/callback", "/logout"})
         self.assertNotIn("/api/version", auth_only)
 

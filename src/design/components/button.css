@@ -1,2 +1,29 @@
-.ui-button { min-height:var(--control-regular);display:inline-flex;align-items:center;justify-content:center;gap:var(--space-7);padding:0 var(--space-12);border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);color:var(--ink);font:inherit;cursor:pointer;transition:background var(--motion-fast) var(--ease-standard),border-color var(--motion-fast) var(--ease-standard) }
-.ui-button:hover:not(:disabled){background:var(--control-hover)}.ui-button:disabled{background:var(--disabled-surface);color:var(--disabled-content);cursor:default}.ui-button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.ui-button {
+  min-height: var(--control-regular);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-7);
+  padding: 0 var(--space-12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+.ui-button:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+.ui-button:disabled {
+  background: var(--disabled-surface);
+  color: var(--disabled-content);
+  cursor: default;
+}
+.ui-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

@@ -16,6 +16,7 @@ icon was produced, only that icon.ico/icon.icns exist at these paths.
 
     python packaging/make_icons.py
 """
+
 from __future__ import annotations
 
 import platform
@@ -37,16 +38,22 @@ GOLD = "#806018"
 
 # Sizes macOS's iconutil expects inside a .iconset (name -> pixel size).
 ICONSET_SIZES = {
-    "icon_16x16.png": 16, "icon_16x16@2x.png": 32,
-    "icon_32x32.png": 32, "icon_32x32@2x.png": 64,
-    "icon_128x128.png": 128, "icon_128x128@2x.png": 256,
-    "icon_256x256.png": 256, "icon_256x256@2x.png": 512,
-    "icon_512x512.png": 512, "icon_512x512@2x.png": 1024,
+    "icon_16x16.png": 16,
+    "icon_16x16@2x.png": 32,
+    "icon_32x32.png": 32,
+    "icon_32x32@2x.png": 64,
+    "icon_128x128.png": 128,
+    "icon_128x128@2x.png": 256,
+    "icon_256x256.png": 256,
+    "icon_256x256@2x.png": 512,
+    "icon_512x512.png": 512,
+    "icon_512x512@2x.png": 1024,
 }
 ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
 _FONT_CANDIDATES = [
-    "georgiab.ttf", "Georgia Bold.ttf",
+    "georgiab.ttf",
+    "Georgia Bold.ttf",
     "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
     "C:/Windows/Fonts/georgiab.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
@@ -75,7 +82,9 @@ def _render_master(size: int = 1024) -> Image.Image:
     ring_width = max(2, round(size * 0.018))
     draw.rounded_rectangle(
         [ring_inset, ring_inset, size - 1 - ring_inset, size - 1 - ring_inset],
-        radius=corner - ring_inset, outline=GOLD, width=ring_width,
+        radius=corner - ring_inset,
+        outline=GOLD,
+        width=ring_width,
     )
 
     font = _load_font(round(size * 0.62))
@@ -111,8 +120,10 @@ def _write_tray_png(master: Image.Image) -> None:
 
 def _write_icns_if_macos() -> None:
     if platform.system() != "Darwin":
-        print("Skipping .icns (needs macOS's iconutil) -- "
-              "run this script again on a Mac, or convert icon.iconset manually.")
+        print(
+            "Skipping .icns (needs macOS's iconutil) -- "
+            "run this script again on a Mac, or convert icon.iconset manually."
+        )
         return
     target = OUT_DIR / "icon.icns"
     subprocess.run(["iconutil", "-c", "icns", str(ICONSET_DIR), "-o", str(target)], check=True)

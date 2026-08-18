@@ -48,7 +48,8 @@ def spawn_logged(argv: list[str], data: Path, log_name: str) -> tuple[subprocess
     """
     log_path = data / log_name
     log = open(log_path, "a", encoding="utf-8")
-    process = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, text=True,
-                               creationflags=system.spawn_flags())
+    process = subprocess.Popen(
+        argv, stdout=log, stderr=subprocess.STDOUT, text=True, creationflags=system.spawn_flags()
+    )
     system.bind_child_lifetime(process)
     return process, log_path

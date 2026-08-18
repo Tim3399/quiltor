@@ -40,8 +40,8 @@
   --motion-slow: 320ms;
   --motion-pulse: 1s;
   --motion-spin: 900ms;
-  --ease-standard: cubic-bezier(.2, 0, 0, 1);
-  --ease-emphasized: cubic-bezier(.2, .8, .2, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
   --blur-toolbar: 16px;
   --blur-dialog: 2px;
   --blur-popover: 24px;
@@ -76,7 +76,7 @@
   /* radius scale — 6 named steps, down from 13 raw values */
   --radius-xs: 4px;
   --radius-sm: 5px;
-  --radius: 7px;   /* default/base, unchanged value, used throughout buttons/panels/dialogs */
+  --radius: 7px; /* default/base, unchanged value, used throughout buttons/panels/dialogs */
   --radius-lg: 9px;
   --radius-xl: 13px;
   --radius-pill: 18px;
@@ -97,10 +97,10 @@
   /* elevation — shape-only tokens; compose with the *-shadow color tokens from colors.css */
   --ring-1: 0 0 0 1px;
   --ring-2: 0 0 0 2px;
-  --elevation-1: 0 2px 8px;   /* compact/zoom-overview card */
-  --elevation-2: 0 3px 12px;  /* resting card */
-  --elevation-3: 0 6px 20px;  /* warning banner */
-  --elevation-4: 0 8px 24px;  /* dropdown / selected / important card */
+  --elevation-1: 0 2px 8px; /* compact/zoom-overview card */
+  --elevation-2: 0 3px 12px; /* resting card */
+  --elevation-3: 0 6px 20px; /* warning banner */
+  --elevation-4: 0 8px 24px; /* dropdown / selected / important card */
   --shadow: 0 18px 60px var(--shadow-color); /* unchanged value, moved from styles.css */
   --shadow-drawer-right: 8px 0 25px var(--drawer-shadow);
   --shadow-drawer-left: -8px 0 25px var(--drawer-shadow);
@@ -124,13 +124,24 @@
 }
 
 @media (max-width: 820px) {
-  :root { --bar: 52px; --layout-gutter: var(--layout-gutter-regular); }
+  :root {
+    --bar: 52px;
+    --layout-gutter: var(--layout-gutter-regular);
+  }
 }
 
 @media (max-width: 719px), (pointer: coarse) {
-  :root { --control-compact: var(--control-touch); --control-regular: var(--control-touch); --layout-gutter: var(--layout-gutter-compact); }
+  :root {
+    --control-compact: var(--control-touch);
+    --control-regular: var(--control-touch);
+    --layout-gutter: var(--layout-gutter-compact);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root { --motion-fast: 1ms; --motion-regular: 1ms; --motion-slow: 1ms; }
+  :root {
+    --motion-fast: 1ms;
+    --motion-regular: 1ms;
+    --motion-slow: 1ms;
+  }
 }

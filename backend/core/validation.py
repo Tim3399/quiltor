@@ -4,13 +4,21 @@ from typing import Any
 
 
 def valid_figures(payload: Any) -> bool:
-    if not isinstance(payload, dict) or not isinstance(payload.get("nodes"), list) or not isinstance(payload.get("edges"), list):
+    if (
+        not isinstance(payload, dict)
+        or not isinstance(payload.get("nodes"), list)
+        or not isinstance(payload.get("edges"), list)
+    ):
         return False
     ids: list[str] = []
     for node in payload["nodes"]:
         if not isinstance(node, dict) or not isinstance(node.get("id"), str) or not node["id"]:
             return False
-        if not isinstance(node.get("name"), str) or not isinstance(node.get("x"), (int, float)) or not isinstance(node.get("y"), (int, float)):
+        if (
+            not isinstance(node.get("name"), str)
+            or not isinstance(node.get("x"), (int, float))
+            or not isinstance(node.get("y"), (int, float))
+        ):
             return False
         if node.get("mapX") is not None and not isinstance(node.get("mapX"), (int, float)):
             return False
@@ -21,7 +29,12 @@ def valid_figures(payload: Any) -> bool:
         return False
     known, edge_ids = set(ids), []
     for edge in payload["edges"]:
-        if not isinstance(edge, dict) or not isinstance(edge.get("id"), str) or edge.get("from") not in known or edge.get("to") not in known:
+        if (
+            not isinstance(edge, dict)
+            or not isinstance(edge.get("id"), str)
+            or edge.get("from") not in known
+            or edge.get("to") not in known
+        ):
             return False
         edge_ids.append(edge["id"])
     if len(edge_ids) != len(set(edge_ids)):
@@ -46,34 +59,70 @@ def valid_figures(payload: Any) -> bool:
 def valid_manuscript(payload: Any) -> bool:
     if not isinstance(payload, dict) or not isinstance(payload.get("chapters"), list):
         return False
-    if payload.get("language", "de-DE") != "de-DE" or payload.get("grammarMode", "manual") not in {"manual", "automatic"}:
+    if payload.get("language", "de-DE") != "de-DE" or payload.get("grammarMode", "manual") not in {
+        "manual",
+        "automatic",
+    }:
         return False
     ids: list[str] = []
     for chapter in payload["chapters"]:
-        if not isinstance(chapter, dict) or not isinstance(chapter.get("id"), str) or not chapter["id"]:
+        if (
+            not isinstance(chapter, dict)
+            or not isinstance(chapter.get("id"), str)
+            or not chapter["id"]
+        ):
             return False
         if any(not isinstance(chapter.get(key, ""), str) for key in ("title", "body", "note")):
             return False
-        if len(chapter["id"]) > 200 or len(chapter.get("title", "")) > 1000 or len(chapter.get("note", "")) > 100_000 or len(chapter.get("body", "")) > 10_000_000:
+        if (
+            len(chapter["id"]) > 200
+            or len(chapter.get("title", "")) > 1000
+            or len(chapter.get("note", "")) > 100_000
+            or len(chapter.get("body", "")) > 10_000_000
+        ):
             return False
         mentions = chapter.get("mentions", [])
         if not isinstance(mentions, list) or len(mentions) > 10_000:
             return False
         previous_to = -1
         mention_ids: set[str] = set()
-        for mention in sorted(mentions, key=lambda item: item.get("from", -1) if isinstance(item, dict) else -1):
+        for mention in sorted(
+            mentions, key=lambda item: item.get("from", -1) if isinstance(item, dict) else -1
+        ):
             if not isinstance(mention, dict):
                 return False
-            if any(not isinstance(mention.get(key), str) or not mention[key] or len(mention[key]) > 500 for key in ("id", "elementId", "surface", "source")):
+            if any(
+                not isinstance(mention.get(key), str) or not mention[key] or len(mention[key]) > 500
+                for key in ("id", "elementId", "surface", "source")
+            ):
                 return False
             if mention["source"] not in {"completion", "helper", "deterministic", "llm-assisted"}:
                 return False
-            start, end, confidence = mention.get("from"), mention.get("to"), mention.get("confidence")
-            if type(start) is not int or type(end) is not int or start < 0 or end <= start or end > len(chapter.get("body", "")):
+            start, end, confidence = (
+                mention.get("from"),
+                mention.get("to"),
+                mention.get("confidence"),
+            )
+            if (
+                type(start) is not int
+                or type(end) is not int
+                or start < 0
+                or end <= start
+                or end > len(chapter.get("body", ""))
+            ):
                 return False
-            if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or confidence < 0 or confidence > 1:
+            if (
+                not isinstance(confidence, (int, float))
+                or isinstance(confidence, bool)
+                or confidence < 0
+                or confidence > 1
+            ):
                 return False
-            if start < previous_to or chapter["body"][start:end] != mention["surface"] or mention["id"] in mention_ids:
+            if (
+                start < previous_to
+                or chapter["body"][start:end] != mention["surface"]
+                or mention["id"] in mention_ids
+            ):
                 return False
             previous_to = end
             mention_ids.add(mention["id"])
@@ -92,11 +141,19 @@ def _valid_marks(chapter: dict) -> bool:
         return False
     body_length = len(chapter.get("body", ""))
     previous_to: dict[str, int] = {}
-    for mark in sorted(marks, key=lambda item: item.get("from", -1) if isinstance(item, dict) else -1):
+    for mark in sorted(
+        marks, key=lambda item: item.get("from", -1) if isinstance(item, dict) else -1
+    ):
         if not isinstance(mark, dict) or mark.get("kind") not in {"bold", "italic"}:
             return False
         start, end = mark.get("from"), mark.get("to")
-        if type(start) is not int or type(end) is not int or start < 0 or end <= start or end > body_length:
+        if (
+            type(start) is not int
+            or type(end) is not int
+            or start < 0
+            or end <= start
+            or end > body_length
+        ):
             return False
         if start < previous_to.get(mark["kind"], -1):
             return False

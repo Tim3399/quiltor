@@ -11,6 +11,7 @@ backend/system/; this file and tray.py stay OS-agnostic.
 
     python -m hosts.desktop.app     (or `quiltor-desktop`, or the frozen build)
 """
+
 from __future__ import annotations
 
 import os
@@ -122,7 +123,9 @@ def main() -> None:
 
     port = _free_port()
     server_thread = threading.Thread(
-        target=server.run, kwargs={"port": port, "no_open": True}, daemon=True,
+        target=server.run,
+        kwargs={"port": port, "no_open": True},
+        daemon=True,
     )
     server_thread.start()
     _wait_until_ready(port)
@@ -136,8 +139,11 @@ def main() -> None:
     # The page hands its exports to this instead of downloading them itself.
     files = FileBridge()
     window = webview.create_window(
-        APP_NAME, f"http://127.0.0.1:{port}/",
-        width=1280, height=860, min_size=(960, 640),
+        APP_NAME,
+        f"http://127.0.0.1:{port}/",
+        width=1280,
+        height=860,
+        min_size=(960, 640),
         js_api=files,
     )
     files.attach(window)
@@ -145,11 +151,16 @@ def main() -> None:
     from hosts.desktop.tray import start_tray_icon
 
     tray_icon_path = bundle / "packaging" / "icons" / "tray.png"
-    tray = start_tray_icon(
-        tray_icon_path, home / "data",
-        show_window=window.restore,
-        quit_app=window.destroy,
-    ) if tray_icon_path.exists() else None
+    tray = (
+        start_tray_icon(
+            tray_icon_path,
+            home / "data",
+            show_window=window.restore,
+            quit_app=window.destroy,
+        )
+        if tray_icon_path.exists()
+        else None
+    )
 
     webview.start()  # blocks until the window closes
 

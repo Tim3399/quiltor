@@ -12,6 +12,7 @@ called. It is deliberately *not* for third-party conventions that merely vary
 by OS (llama.cpp's release asset names, say); those belong with the code that
 knows about that third party, and use os_name()/machine_arch() from here.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -61,8 +62,8 @@ class SystemModule(Protocol):
         it lives here; backend/edition/ is what turns it into a distribution."""
 
     def os_name(self) -> str:
-        """"macos" | "windows" | "linux" -- our own vocabulary, so callers never
+        """ "macos" | "windows" | "linux" -- our own vocabulary, so callers never
         have to remember whether the answer is "Darwin" or "darwin"."""
 
     def machine_arch(self) -> str:
-        """"arm64" | "x64" -- likewise normalised."""
+        """ "arm64" | "x64" -- likewise normalised."""

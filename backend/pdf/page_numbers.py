@@ -24,12 +24,13 @@ Two consequences worth stating, because both are easy to get wrong:
   - **The title page carries no number**, and the counter still counts it, so
     the second page reads "2".
 """
+
 from __future__ import annotations
 
 POINTS_PER_INCH = 72
 PAGE_WIDTH = 6 * POINTS_PER_INCH
-NARROW_MARGIN = 0.68 * POINTS_PER_INCH   # outer edge
-WIDE_MARGIN = 0.78 * POINTS_PER_INCH     # spine side
+NARROW_MARGIN = 0.68 * POINTS_PER_INCH  # outer edge
+WIDE_MARGIN = 0.78 * POINTS_PER_INCH  # spine side
 
 #: Lower edge of the text box, measured from the foot of the page. Chromium's
 #: own numbers sit at y = 25.4 pt; NSAttributedString's box carries about half a
@@ -84,7 +85,8 @@ def _stamp(pdf: bytes) -> bytes:
     import Quartz
 
     source = Quartz.CGPDFDocumentCreateWithProvider(
-        Quartz.CGDataProviderCreateWithCFData(CoreFoundation.CFDataCreate(None, pdf, len(pdf))))
+        Quartz.CGDataProviderCreateWithCFData(CoreFoundation.CFDataCreate(None, pdf, len(pdf)))
+    )
     if source is None:
         raise ValueError("Die gedruckte Datei ist kein lesbares PDF.")
 
@@ -94,15 +96,18 @@ def _stamp(pdf: bytes) -> bytes:
     # context's default, and again per page. Left to default, a CGPDFContext
     # writes US Letter and the 6 x 9 inch book silently becomes 8.5 x 11.
     first_box = Quartz.CGPDFPageGetBoxRect(
-        Quartz.CGPDFDocumentGetPage(source, 1), Quartz.kCGPDFMediaBox)
+        Quartz.CGPDFDocumentGetPage(source, 1), Quartz.kCGPDFMediaBox
+    )
     output = CoreFoundation.CFDataCreateMutable(None, 0)
     context = Quartz.CGPDFContextCreate(
-        Quartz.CGDataConsumerCreateWithCFData(output), first_box, None)
+        Quartz.CGDataConsumerCreateWithCFData(output), first_box, None
+    )
 
     attributes = {
         AppKit.NSFontAttributeName: AppKit.NSFont.systemFontOfSize_(FONT_SIZE),
-        AppKit.NSForegroundColorAttributeName:
-            AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(*INK, 1.0),
+        AppKit.NSForegroundColorAttributeName: AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(
+            *INK, 1.0
+        ),
     }
 
     for index in range(1, page_count + 1):
@@ -122,9 +127,11 @@ def _stamp(pdf: bytes) -> bytes:
             text = AppKit.NSAttributedString.alloc().initWithString_attributes_(label, attributes)
             # Unflipped, drawAtPoint_ takes the lower-left of the text box, which
             # is the same edge BASELINE_FROM_FOOT was measured against.
-            text.drawAtPoint_(Foundation.NSMakePoint(
-                centre_for(index) - text.size().width / 2,
-                box.origin.y + BASELINE_FROM_FOOT))
+            text.drawAtPoint_(
+                Foundation.NSMakePoint(
+                    centre_for(index) - text.size().width / 2, box.origin.y + BASELINE_FROM_FOOT
+                )
+            )
             AppKit.NSGraphicsContext.restoreGraphicsState()
 
         Quartz.CGContextEndPage(context)

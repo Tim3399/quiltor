@@ -3,6 +3,7 @@
 Whether a grammar backend exists at all is an edition decision made in
 backend/language/grammar/; these routes only pass its answers through.
 """
+
 from __future__ import annotations
 
 from backend.api.routes import Request, get, save
@@ -33,9 +34,13 @@ def install_grammar(handler, request: Request, app) -> None:
 def lookup(handler, request: Request, app) -> None:
     try:
         payload = handler._read_json_body()
-        handler.send_json(app.LANGUAGE.lookup(str(payload.get("language", "")),
-                                              str(payload.get("mode", "")),
-                                              str(payload.get("query", ""))))
+        handler.send_json(
+            app.LANGUAGE.lookup(
+                str(payload.get("language", "")),
+                str(payload.get("mode", "")),
+                str(payload.get("query", "")),
+            )
+        )
     except FileNotFoundError as exc:
         handler.send_json({"ok": False, "fehler": str(exc), "code": "not_installed"}, 409)
     except ValueError as exc:
@@ -51,10 +56,15 @@ def check(handler, request: Request, app) -> None:
         words = payload.get("customWords", [])
         if not isinstance(words, list):
             raise ValueError("invalid project dictionary")
-        handler.send_json(app.LANGUAGE.check(str(payload.get("language", "")),
-                                             str(payload.get("text", "")), words[:5000]))
+        handler.send_json(
+            app.LANGUAGE.check(
+                str(payload.get("language", "")), str(payload.get("text", "")), words[:5000]
+            )
+        )
     except PermissionError as exc:
-        handler.send_json({"ok": False, "fehler": str(exc), "code": "external_opt_in_required"}, 403)
+        handler.send_json(
+            {"ok": False, "fehler": str(exc), "code": "external_opt_in_required"}, 403
+        )
     except FileNotFoundError as exc:
         handler.send_json({"ok": False, "fehler": str(exc), "code": "not_installed"}, 409)
     except ValueError as exc:

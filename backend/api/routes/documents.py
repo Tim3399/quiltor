@@ -5,6 +5,7 @@ Both documents are read and written through the same pair of routes, which is
 why the validator is looked up from a table (`app.ROUTES`) rather than branched
 on.
 """
+
 from __future__ import annotations
 
 from backend.api.routes import Request, get, save
@@ -24,8 +25,11 @@ def read_manuscript(handler, request: Request, app) -> None:
 
 def _read(handler, request: Request, app, *, kind: str) -> None:
     with app._lock:
-        data = (storage.load_figures(request.db_path) if kind == "figures"
-                else storage.load_manuscript(request.db_path))
+        data = (
+            storage.load_figures(request.db_path)
+            if kind == "figures"
+            else storage.load_manuscript(request.db_path)
+        )
         revision = storage.revision(kind, db_path=request.db_path)
     handler.send_json(data, headers={"ETag": f'"{revision}"'})
 
@@ -70,7 +74,9 @@ def _write(handler, request: Request, app, *, route: str) -> None:
             kind = "manuscript" if route == "/api/manuscript" else "figures"
             match = handler.headers.get("If-Match", "").strip('"')
             expected = int(match) if match.isdigit() else None
-            updated_revision = storage.save_with_revision(kind, payload, expected, db_path=world.db_path)
+            updated_revision = storage.save_with_revision(
+                kind, payload, expected, db_path=world.db_path
+            )
             if route == "/api/manuscript":
                 mirror_text(payload["chapters"], manuscript_dir=world.manuscripts_dir)
             else:
@@ -87,10 +93,14 @@ def _write(handler, request: Request, app, *, route: str) -> None:
         words = sum(len((c.get("body") or "").split()) for c in chapters)
         print(f"  · {now}  Text gespeichert — {len(chapters)} Kapitel, {words} Wörter")
     else:
-        print(f"  · {now}  Figuren gespeichert — "
-              f"{len(payload['nodes'])} Figuren, {len(payload['edges'])} Verbindungen")
-    handler.send_json({"ok": True, "zeit": now, "revision": updated_revision},
-                      headers={"ETag": f'"{updated_revision}"'})
+        print(
+            f"  · {now}  Figuren gespeichert — "
+            f"{len(payload['nodes'])} Figuren, {len(payload['edges'])} Verbindungen"
+        )
+    handler.send_json(
+        {"ok": True, "zeit": now, "revision": updated_revision},
+        headers={"ETag": f'"{updated_revision}"'},
+    )
 
 
 @save("/api/book.pdf")

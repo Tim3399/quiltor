@@ -14,6 +14,7 @@ Like the Windows renderer this borrows a hidden pywebview window rather than
 building its own view, because a WebKitGTK view needs a running GTK main loop
 and pywebview already owns one.
 """
+
 from __future__ import annotations
 
 import queue
@@ -79,9 +80,12 @@ def _print(window, target: Path, timeout: int) -> None:
     # Custom 6 x 9 inch paper with no printer margins; the page's own @page rule
     # owns the margins, exactly as on the other two platforms.
     paper = Gtk.PaperSize.new_custom(
-        "quiltor-book", "Quiltor book",
-        PAPER_WIDTH_INCHES * POINTS_PER_INCH, PAPER_HEIGHT_INCHES * POINTS_PER_INCH,
-        Gtk.Unit.POINTS)
+        "quiltor-book",
+        "Quiltor book",
+        PAPER_WIDTH_INCHES * POINTS_PER_INCH,
+        PAPER_HEIGHT_INCHES * POINTS_PER_INCH,
+        Gtk.Unit.POINTS,
+    )
     setup = Gtk.PageSetup()
     setup.set_paper_size(paper)
     for edge in ("top", "bottom", "left", "right"):

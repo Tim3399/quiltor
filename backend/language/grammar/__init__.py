@@ -9,6 +9,7 @@ This is the shape every capability in the codebase should have: a contract, one
 module per implementation, and a selector that reads policy rather than
 hard-coding a distribution name.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

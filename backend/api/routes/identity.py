@@ -9,6 +9,7 @@ choosing an account and putting it down again, which a single-user instance has
 no version of. It answers 404 for them rather than hinting at an account system
 it does not have.
 """
+
 from __future__ import annotations
 
 from backend.api.routes import Request, get, save
@@ -39,9 +40,15 @@ def whoami(handler, request: Request, app) -> None:
     is no unauthenticated caller to answer -- `multiUser` is what the frontend
     needs, to know whether to offer signing out at all.
     """
-    handler.send_json({"ok": True, "sub": request.session.sub,
-                       "email": request.session.email, "name": request.session.name,
-                       "multiUser": app.IDENTITY.multi_user})
+    handler.send_json(
+        {
+            "ok": True,
+            "sub": request.session.sub,
+            "email": request.session.email,
+            "name": request.session.name,
+            "multiUser": app.IDENTITY.multi_user,
+        }
+    )
 
 
 @save("/logout", anonymous=True, auth_only=True)

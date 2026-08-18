@@ -1,5 +1,6 @@
 """Linux, and the fallback for any OS without its own module here. See
 backend/system/contract.py for the surface."""
+
 from __future__ import annotations
 
 import platform

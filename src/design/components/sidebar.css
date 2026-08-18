@@ -1,1 +1,12 @@
-.ui-sidebar{width:clamp(var(--sidebar-min),var(--sidebar-ideal),var(--sidebar-max));min-width:var(--sidebar-min);overflow:auto;background:var(--panel)}.ui-inspector{width:clamp(var(--inspector-min),var(--inspector-ideal),var(--inspector-max));min-width:var(--inspector-min);overflow:auto;background:var(--panel)}
+.ui-sidebar {
+  width: clamp(var(--sidebar-min), var(--sidebar-ideal), var(--sidebar-max));
+  min-width: var(--sidebar-min);
+  overflow: auto;
+  background: var(--panel);
+}
+.ui-inspector {
+  width: clamp(var(--inspector-min), var(--inspector-ideal), var(--inspector-max));
+  min-width: var(--inspector-min);
+  overflow: auto;
+  background: var(--panel);
+}

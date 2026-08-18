@@ -38,6 +38,7 @@ to the login without being configured a second time.
 Standard library only, like the rest of Quiltor. Deliberately not a dependency of
 the app -- nothing in backend/ imports this.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -84,17 +85,24 @@ _tokens: dict[str, tuple[float, dict]] = {}
 
 
 def _get_json(url: str) -> dict:
-    with urllib.request.urlopen(url, timeout=HTTP_TIMEOUT, context=ssl.create_default_context()) as response:
+    with urllib.request.urlopen(
+        url, timeout=HTTP_TIMEOUT, context=ssl.create_default_context()
+    ) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def _post_form(url: str, fields: dict[str, str]) -> dict:
     body = urllib.parse.urlencode(fields).encode("ascii")
-    request = urllib.request.Request(url, data=body, headers={
-        "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"})
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+    )
     # Certificate-verified by default, and never anything else: this call carries
     # both a user's bearer token and this server's own client secret.
-    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT, context=ssl.create_default_context()) as response:
+    with urllib.request.urlopen(
+        request, timeout=HTTP_TIMEOUT, context=ssl.create_default_context()
+    ) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -127,8 +135,9 @@ def introspect(token: str) -> dict | None:
         endpoint = discover().get("introspection_endpoint")
         if not endpoint:
             return None
-        result = _post_form(endpoint, {
-            "token": token, "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET})
+        result = _post_form(
+            endpoint, {"token": token, "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET}
+        )
     except (urllib.error.URLError, ValueError, OSError):
         # The issuer is unreachable or answered nonsense. That is not the same as
         # "the token is fine", and refusing is the only safe reading of it.
@@ -150,15 +159,24 @@ def _scopes(claims: dict) -> set[str]:
 
 def metadata_document() -> dict:
     """RFC 9728 protected-resource metadata: which issuer guards this server."""
-    return {"resource": PUBLIC_URL, "authorization_servers": [ISSUER],
-            "scopes_supported": [REQUIRED_SCOPE], "bearer_methods_supported": ["header"]}
+    return {
+        "resource": PUBLIC_URL,
+        "authorization_servers": [ISSUER],
+        "scopes_supported": [REQUIRED_SCOPE],
+        "bearer_methods_supported": ["header"],
+    }
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "QuiltorBackup/1"
 
-    def _reply(self, code: int, payload: dict | bytes, content_type: str = "application/json",
-               headers: dict[str, str] | None = None) -> None:
+    def _reply(
+        self,
+        code: int,
+        payload: dict | bytes,
+        content_type: str = "application/json",
+        headers: dict[str, str] | None = None,
+    ) -> None:
         body = payload if isinstance(payload, bytes) else json.dumps(payload).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", content_type)
@@ -222,8 +240,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 continue
             manifests.sort(key=lambda m: m.get("created", ""))
             newest = manifests[-1]
-            found.append({"id": world_dir.name, "title": newest.get("title", ""),
-                          "updated": newest.get("created", ""), "snapshots": len(manifests)})
+            found.append(
+                {
+                    "id": world_dir.name,
+                    "title": newest.get("title", ""),
+                    "updated": newest.get("created", ""),
+                    "snapshots": len(manifests),
+                }
+            )
         found.sort(key=lambda w: w["updated"], reverse=True)
         return found
 
@@ -267,14 +291,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             try:
                 manifest = json.loads(payload)
-                missing = [d for d in set(manifest.get("files", {}).values())
-                           if not (ROOT / account / world / "blobs" / d).exists()]
+                missing = [
+                    d
+                    for d in set(manifest.get("files", {}).values())
+                    if not (ROOT / account / world / "blobs" / d).exists()
+                ]
             except ValueError:
                 return self._reply(400, {"error": "Snapshot manifest is not valid JSON."})
             if missing:
                 # Refusing here is what keeps the store consistent: a manifest is
                 # a promise that its content is retrievable.
-                return self._reply(409, {"error": f"{len(missing)} referenced blob(s) missing.", "missing": missing[:20]})
+                return self._reply(
+                    409,
+                    {
+                        "error": f"{len(missing)} referenced blob(s) missing.",
+                        "missing": missing[:20],
+                    },
+                )
 
         target.parent.mkdir(parents=True, exist_ok=True)
         staged = target.with_suffix(target.suffix + ".part")
@@ -305,7 +338,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not directory.exists():
                 return self._reply(200, {"blobs": []} if kind == "blobs" else {"snapshots": []})
             if kind == "blobs":
-                return self._reply(200, {"blobs": sorted(p.name for p in directory.iterdir() if DIGEST_RE.match(p.name))})
+                return self._reply(
+                    200,
+                    {
+                        "blobs": sorted(
+                            p.name for p in directory.iterdir() if DIGEST_RE.match(p.name)
+                        )
+                    },
+                )
             manifests = []
             for path in sorted(directory.glob("*.json")):
                 try:
@@ -331,19 +371,25 @@ class Server(socketserver.ThreadingTCPServer):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Quiltor backup endpoint (reference implementation).")
+    parser = argparse.ArgumentParser(
+        description="Quiltor backup endpoint (reference implementation)."
+    )
     parser.add_argument("--port", type=int, default=9000)
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
     # Refusing to start beats starting unprotected: an endpoint holding whole
     # manuscripts has no sensible "no authentication configured" mode, so the
     # configuration is required rather than defaulted.
-    missing = [name for name, value in (
-        ("QUILTOR_BACKUP_OIDC_ISSUER", ISSUER),
-        ("QUILTOR_BACKUP_OIDC_CLIENT_ID", CLIENT_ID),
-        ("QUILTOR_BACKUP_OIDC_CLIENT_SECRET", CLIENT_SECRET),
-        ("QUILTOR_BACKUP_PUBLIC_URL", PUBLIC_URL),
-    ) if not value]
+    missing = [
+        name
+        for name, value in (
+            ("QUILTOR_BACKUP_OIDC_ISSUER", ISSUER),
+            ("QUILTOR_BACKUP_OIDC_CLIENT_ID", CLIENT_ID),
+            ("QUILTOR_BACKUP_OIDC_CLIENT_SECRET", CLIENT_SECRET),
+            ("QUILTOR_BACKUP_PUBLIC_URL", PUBLIC_URL),
+        )
+        if not value
+    ]
     if missing:
         raise SystemExit("Set " + ", ".join(missing) + " before starting.")
     ROOT.mkdir(parents=True, exist_ok=True)

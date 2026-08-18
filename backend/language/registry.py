@@ -33,5 +33,6 @@ SOURCES = {
     },
 }
 
+
 def manifest() -> dict:
     return {"version": MANIFEST_VERSION, "sources": SOURCES}

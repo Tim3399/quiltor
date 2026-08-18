@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SavePhase } from '../types';
-import { useLanguage } from '../language';
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SavePhase } from "../types";
+import { useLanguage } from "../language";
 
 const DEFAULT_AUTOSAVE_DELAY_MS = 800;
 
-export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unknown>, delay = DEFAULT_AUTOSAVE_DELAY_MS) {
+export function useAutosave<T>(
+  value: T | null,
+  save: (value: T) => Promise<unknown>,
+  delay = DEFAULT_AUTOSAVE_DELAY_MS,
+) {
   const { t } = useLanguage();
-  const [phase, setPhase] = useState<SavePhase>('idle');
-  const [error, setError] = useState('');
+  const [phase, setPhase] = useState<SavePhase>("idle");
+  const [error, setError] = useState("");
   const timer = useRef<number | undefined>(undefined);
   const latest = useRef(value);
   const chain = useRef<Promise<unknown>>(Promise.resolve());
@@ -27,15 +31,18 @@ export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unkn
     clearTimeout(timer.current);
     const snapshot = latest.current;
     inFlightSnapshot.current = snapshot;
-    setPhase('saving'); setError('');
+    setPhase("saving");
+    setError("");
     chain.current = chain.current.then(() => save(snapshot));
     try {
       await chain.current;
-      if (latest.current === snapshot) { dirty.current = false; setPhase('saved'); }
-      else setPhase('dirty');
+      if (latest.current === snapshot) {
+        dirty.current = false;
+        setPhase("saved");
+      } else setPhase("dirty");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('saveFailed'));
-      setPhase('error');
+      setError(reason instanceof Error ? reason.message : t("saveFailed"));
+      setPhase("error");
     } finally {
       if (inFlightSnapshot.current === snapshot) inFlightSnapshot.current = null;
     }
@@ -43,9 +50,12 @@ export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unkn
 
   useEffect(() => {
     if (!value) return;
-    if (!initialized.current) { initialized.current = true; return; }
+    if (!initialized.current) {
+      initialized.current = true;
+      return;
+    }
     dirty.current = true;
-    setPhase('dirty');
+    setPhase("dirty");
     clearTimeout(timer.current);
     timer.current = window.setTimeout(() => void flush(), delay);
     return () => clearTimeout(timer.current);
@@ -53,10 +63,10 @@ export function useAutosave<T>(value: T | null, save: (value: T) => Promise<unkn
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (phase === 'dirty' || phase === 'saving' || phase === 'error') event.preventDefault();
+      if (phase === "dirty" || phase === "saving" || phase === "error") event.preventDefault();
     };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
   }, [phase]);
 
   return { phase, error, flush, retry: flush };

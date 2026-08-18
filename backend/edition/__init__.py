@@ -25,6 +25,7 @@ The environment is consulted on every call, so setting QUILTOR_EDITION in a
 test's environment is enough; tests may also patch an individual question where
 that reads better. See tests/backend/test_edition.py.
 """
+
 from __future__ import annotations
 
 import os
@@ -40,7 +41,9 @@ def _detect() -> EditionPolicy:
     override = os.environ.get("QUILTOR_EDITION", "").strip().casefold()
     if override:
         if override not in EDITIONS:
-            raise SystemExit(f"Unknown QUILTOR_EDITION={override!r}. Expected one of: {', '.join(EDITIONS)}")
+            raise SystemExit(
+                f"Unknown QUILTOR_EDITION={override!r}. Expected one of: {', '.join(EDITIONS)}"
+            )
         return _BY_NAME[override]
     # The OS tells us whether we are in its app container (sandbox on macOS,
     # MSIX on Windows); which store that implies follows from the platform.
@@ -55,6 +58,7 @@ def _detect() -> EditionPolicy:
 # import allows_code_download` could never see changed -- and neither could a
 # test. Detection itself is two environment lookups on macOS and one cached
 # Windows API call, so there is nothing to save by memoising it here.
+
 
 def current() -> EditionPolicy:
     """The active policy object, for code that wants to pass the whole thing
@@ -91,7 +95,15 @@ def is_store_build() -> bool:
 
 
 __all__ = [
-    "DIRECT", "EDITIONS", "MAS", "MSSTORE", "EditionPolicy",
-    "allows_code_download", "allows_external_process", "current", "edition",
-    "is_sandboxed", "is_store_build",
+    "DIRECT",
+    "EDITIONS",
+    "MAS",
+    "MSSTORE",
+    "EditionPolicy",
+    "allows_code_download",
+    "allows_external_process",
+    "current",
+    "edition",
+    "is_sandboxed",
+    "is_store_build",
 ]

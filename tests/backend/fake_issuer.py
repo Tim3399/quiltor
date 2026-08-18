@@ -17,6 +17,7 @@ It counts the introspections and token grants it serves, which is what lets a
 test tell "that answer was cached" apart from "it asked again", and "the client
 refreshed" apart from "the client reused what it had".
 """
+
 from __future__ import annotations
 
 import base64
@@ -32,7 +33,9 @@ import urllib.request
 
 
 def _b64(payload: dict) -> str:
-    return base64.urlsafe_b64encode(json.dumps(payload).encode("utf-8")).rstrip(b"=").decode("ascii")
+    return (
+        base64.urlsafe_b64encode(json.dumps(payload).encode("utf-8")).rstrip(b"=").decode("ascii")
+    )
 
 
 class FakeIssuer:
@@ -76,6 +79,7 @@ class FakeIssuer:
         """Play the browser: open the authorization URL and read the code and
         state off the redirect it answers with, without following it -- the
         redirect points at a loopback port the test is not listening on."""
+
         class _NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *args, **kwargs):
                 return None
@@ -86,7 +90,9 @@ class FakeIssuer:
                 location = response.headers["Location"]
         except urllib.error.HTTPError as exc:
             if exc.code >= 400:
-                raise AssertionError(f"authorize refused: {exc.code} {exc.read().decode()}") from exc
+                raise AssertionError(
+                    f"authorize refused: {exc.code} {exc.read().decode()}"
+                ) from exc
             location = exc.headers["Location"]
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query)
         return (query.get("code") or [""])[0], (query.get("state") or [""])[0]
@@ -104,14 +110,23 @@ class FakeIssuer:
         refresh = secrets.token_urlsafe(16)
         self.issue(access, sub=self.account["sub"], scopes=scope)
         self.refresh_tokens[refresh] = {"scope": scope, "account": dict(self.account)}
-        claims = {"iss": self.url, "aud": "quiltor-desktop", "exp": time.time() + 3600,
-                  **self.account}
-        return {"access_token": access, "refresh_token": refresh, "token_type": "Bearer",
-                "expires_in": self.access_ttl, "scope": scope,
-                # Unsigned on purpose: the client decodes it without checking a
-                # signature (see backend/auth.decode_id_token_claims), so a real
-                # signature here would test nothing the client looks at.
-                "id_token": f"{_b64({'alg': 'RS256'})}.{_b64(claims)}.signature-not-checked"}
+        claims = {
+            "iss": self.url,
+            "aud": "quiltor-desktop",
+            "exp": time.time() + 3600,
+            **self.account,
+        }
+        return {
+            "access_token": access,
+            "refresh_token": refresh,
+            "token_type": "Bearer",
+            "expires_in": self.access_ttl,
+            "scope": scope,
+            # Unsigned on purpose: the client decodes it without checking a
+            # signature (see backend/auth.decode_id_token_claims), so a real
+            # signature here would test nothing the client looks at.
+            "id_token": f"{_b64({'alg': 'RS256'})}.{_b64(claims)}.signature-not-checked",
+        }
 
     def start(self) -> "FakeIssuer":
         issuer = self
@@ -128,10 +143,14 @@ class FakeIssuer:
             def do_GET(self) -> None:
                 parts = urllib.parse.urlsplit(self.path)
                 if parts.path == "/.well-known/openid-configuration":
-                    return self._json({"issuer": issuer.url,
-                                       "authorization_endpoint": f"{issuer.url}/authorize",
-                                       "token_endpoint": f"{issuer.url}/token",
-                                       "introspection_endpoint": f"{issuer.url}/introspect"})
+                    return self._json(
+                        {
+                            "issuer": issuer.url,
+                            "authorization_endpoint": f"{issuer.url}/authorize",
+                            "token_endpoint": f"{issuer.url}/token",
+                            "introspection_endpoint": f"{issuer.url}/introspect",
+                        }
+                    )
                 if parts.path == "/authorize":
                     return self._authorize(urllib.parse.parse_qs(parts.query))
                 self.send_error(404)
@@ -148,9 +167,14 @@ class FakeIssuer:
                     # provider must not let through.
                     return self._json({"error": "invalid_request", "detail": "PKCE required"}, 400)
                 code = secrets.token_urlsafe(12)
-                issuer.codes[code] = {"challenge": field("code_challenge"), "redirect_uri": redirect_uri,
-                                      "scope": field("scope")}
-                location = f"{redirect_uri}?{urllib.parse.urlencode({'code': code, 'state': state})}"
+                issuer.codes[code] = {
+                    "challenge": field("code_challenge"),
+                    "redirect_uri": redirect_uri,
+                    "scope": field("scope"),
+                }
+                location = (
+                    f"{redirect_uri}?{urllib.parse.urlencode({'code': code, 'state': state})}"
+                )
                 self.send_response(302)
                 self.send_header("Location", location)
                 self.send_header("Content-Length", "0")
@@ -179,12 +203,15 @@ class FakeIssuer:
                 issuer.token_grants += 1
                 grant = field("grant_type")
                 if grant == "authorization_code":
-                    pending = issuer.codes.pop(field("code"), None)   # single use
+                    pending = issuer.codes.pop(field("code"), None)  # single use
                     if pending is None:
                         return self._json({"error": "invalid_grant"}, 400)
                     digest = hashlib.sha256(field("code_verifier").encode("ascii")).digest()
                     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
-                    if challenge != pending["challenge"] or field("redirect_uri") != pending["redirect_uri"]:
+                    if (
+                        challenge != pending["challenge"]
+                        or field("redirect_uri") != pending["redirect_uri"]
+                    ):
                         return self._json({"error": "invalid_grant"}, 400)
                     return self._json(issuer._grant(pending["scope"]))
                 if grant == "refresh_token":

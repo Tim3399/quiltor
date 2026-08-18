@@ -165,13 +165,22 @@ def list_worlds(owner_sub: str | None = None) -> list[dict[str, str]]:
         try:
             with connect(path) as conn:
                 row = conn.execute("SELECT value FROM meta WHERE key='world_title'").fetchone()
-                repository_row = conn.execute("SELECT value FROM meta WHERE key='backup_endpoint'").fetchone()
+                repository_row = conn.execute(
+                    "SELECT value FROM meta WHERE key='backup_endpoint'"
+                ).fetchone()
                 owner_row = conn.execute("SELECT value FROM meta WHERE key='owner_sub'").fetchone()
             if owner_sub is not None and (owner_row[0] if owner_row else "") != owner_sub:
                 continue
             title = row[0] if row else world_id
             repository = repository_row[0] if repository_row else ""
-            result.append({"id": world_id, "title": title, "backupUrl": repository, "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat()})
+            result.append(
+                {
+                    "id": world_id,
+                    "title": title,
+                    "backupUrl": repository,
+                    "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
+                }
+            )
         except sqlite3.Error:
             continue
     return result
@@ -208,11 +217,23 @@ def create_world(title: str, backup_url: str = "", owner_sub: str | None = None)
     with connect(path) as conn:
         conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('world_title',?)", (clean,))
         if repository:
-            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('backup_endpoint',?)", (repository,))
+            conn.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES('backup_endpoint',?)", (repository,)
+            )
         if owner_sub is not None:
-            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (owner_sub,))
-        conn.execute("INSERT INTO chapters(id,position,title,body,note) VALUES(?,0,'','','')", (uuid.uuid4().hex,))
-    return {"id": world_id, "title": clean, "backupUrl": repository, "updated": datetime.now().isoformat()}
+            conn.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (owner_sub,)
+            )
+        conn.execute(
+            "INSERT INTO chapters(id,position,title,body,note) VALUES(?,0,'','','')",
+            (uuid.uuid4().hex,),
+        )
+    return {
+        "id": world_id,
+        "title": clean,
+        "backupUrl": repository,
+        "updated": datetime.now().isoformat(),
+    }
 
 
 def activate_world(world_id: str) -> dict[str, str]:
@@ -234,29 +255,47 @@ def activate_world(world_id: str) -> dict[str, str]:
     return world
 
 
-def log_assistant_interaction(question: str, response: dict[str, Any] | None = None, error: str = "", db_path: Path | None = None) -> str:
+def log_assistant_interaction(
+    question: str,
+    response: dict[str, Any] | None = None,
+    error: str = "",
+    db_path: Path | None = None,
+) -> str:
     interaction_id = uuid.uuid4().hex
     with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO assistant_interactions(id,created_at,question,response_json,status,error) VALUES(?,?,?,?,?,?)",
-            (interaction_id, datetime.now().isoformat(), question,
-             json.dumps(response, ensure_ascii=False) if response is not None else None,
-             "failed" if error else "completed", error),
+            (
+                interaction_id,
+                datetime.now().isoformat(),
+                question,
+                json.dumps(response, ensure_ascii=False) if response is not None else None,
+                "failed" if error else "completed",
+                error,
+            ),
         )
     return interaction_id
 
 
-def list_assistant_interactions(limit: int = 50, db_path: Path | None = None) -> list[dict[str, Any]]:
+def list_assistant_interactions(
+    limit: int = 50, db_path: Path | None = None
+) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT id,created_at,question,response_json,status,error FROM assistant_interactions ORDER BY created_at DESC LIMIT ?",
             (max(1, min(limit, 200)),),
         ).fetchall()
-    return [{
-        "id": row["id"], "createdAt": row["created_at"], "question": row["question"],
-        "response": json.loads(row["response_json"]) if row["response_json"] else None,
-        "status": row["status"], "error": row["error"],
-    } for row in rows]
+    return [
+        {
+            "id": row["id"],
+            "createdAt": row["created_at"],
+            "question": row["question"],
+            "response": json.loads(row["response_json"]) if row["response_json"] else None,
+            "status": row["status"],
+            "error": row["error"],
+        }
+        for row in rows
+    ]
 
 
 def delete_world(world_id: str, owner_sub: str | None = None) -> None:
@@ -289,7 +328,9 @@ def migrate(conn: sqlite3.Connection, version: int) -> None:
         # every OIDC user once owner_sub filtering is in effect, on purpose (not
         # auto-claimed), and exactly the owner the local single-user identity uses.
         conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('owner_sub',?)", (LOCAL_OWNER,))
-    conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
+    conn.execute(
+        "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),)
+    )
 
 
 class ConflictError(RuntimeError):
@@ -297,24 +338,33 @@ class ConflictError(RuntimeError):
 
 
 def revision(kind: str, conn: sqlite3.Connection | None = None, db_path: Path | None = None) -> int:
-    own = conn is None; db = conn or connect(db_path)
+    own = conn is None
+    db = conn or connect(db_path)
     try:
         row = db.execute("SELECT value FROM meta WHERE key=?", (f"{kind}_revision",)).fetchone()
         return int(row[0]) if row else 0
     finally:
-        if own: db.close()
+        if own:
+            db.close()
 
 
-def save_with_revision(kind: str, state: dict[str, Any], expected: int | None, db_path: Path | None = None) -> int:
+def save_with_revision(
+    kind: str, state: dict[str, Any], expected: int | None, db_path: Path | None = None
+) -> int:
     with connect(db_path) as conn:
         current = revision(kind, conn)
         if expected is not None and expected != current:
             raise ConflictError(f"Stand wurde zwischenzeitlich geändert ({expected} → {current}).")
-        if kind == "manuscript": save_manuscript(state, conn)
-        elif kind == "figures": save_figures(state, conn)
-        else: raise ValueError("Unbekannter Dokumenttyp")
+        if kind == "manuscript":
+            save_manuscript(state, conn)
+        elif kind == "figures":
+            save_figures(state, conn)
+        else:
+            raise ValueError("Unbekannter Dokumenttyp")
         updated = current + 1
-        conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (f"{kind}_revision", str(updated)))
+        conn.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (f"{kind}_revision", str(updated))
+        )
         return updated
 
 
@@ -347,7 +397,9 @@ def load_manuscript(db_path: Path | None = None) -> dict[str, Any]:
         return result
 
 
-def save_manuscript(state: dict[str, Any], conn: sqlite3.Connection | None = None, db_path: Path | None = None) -> None:
+def save_manuscript(
+    state: dict[str, Any], conn: sqlite3.Connection | None = None, db_path: Path | None = None
+) -> None:
     own = conn is None
     db = conn or connect(db_path)
     try:
@@ -356,17 +408,26 @@ def save_manuscript(state: dict[str, Any], conn: sqlite3.Connection | None = Non
             for position, chapter in enumerate(state.get("chapters", [])):
                 db.execute(
                     "INSERT INTO chapters(id,position,title,body,note,extra_json) VALUES(?,?,?,?,?,?)",
-                    (chapter["id"], position, chapter.get("title", ""), chapter.get("body", ""),
-                     chapter.get("note", ""), _extra(chapter, {"id", "title", "body", "note"})),
+                    (
+                        chapter["id"],
+                        position,
+                        chapter.get("title", ""),
+                        chapter.get("body", ""),
+                        chapter.get("note", ""),
+                        _extra(chapter, {"id", "title", "body", "note"}),
+                    ),
                 )
             db.execute(
                 "INSERT OR REPLACE INTO manuscript_settings(id,words_json,characters_json,extra_json) VALUES(1,?,?,?)",
-                (json.dumps(state.get("words", []), ensure_ascii=False),
-                 json.dumps(state.get("zeichenAktiv", []), ensure_ascii=False),
-                 _extra(state, {"chapters", "words", "zeichenAktiv"})),
+                (
+                    json.dumps(state.get("words", []), ensure_ascii=False),
+                    json.dumps(state.get("zeichenAktiv", []), ensure_ascii=False),
+                    _extra(state, {"chapters", "words", "zeichenAktiv"}),
+                ),
             )
     finally:
-        if own: db.close()
+        if own:
+            db.close()
 
 
 def load_figures(db_path: Path | None = None) -> dict[str, Any]:
@@ -379,84 +440,193 @@ def load_figures(db_path: Path | None = None) -> dict[str, Any]:
         for row in conn.execute("SELECT * FROM figures ORDER BY position"):
             node = _decoded(row["extra_json"])
             persisted_kind = node.get("type", row["kind"])
-            node.update(id=row["id"], x=row["x"], y=row["y"], type=persisted_kind, label=row["label"],
-                        name=row["name"], sub=row["subtitle"], accent=row["accent"],
-                        dash=bool(row["dashed"]), pinned=bool(row["pinned"]))
-            profile = conn.execute("SELECT * FROM profiles WHERE figure_id=?", (row["id"],)).fetchone()
+            node.update(
+                id=row["id"],
+                x=row["x"],
+                y=row["y"],
+                type=persisted_kind,
+                label=row["label"],
+                name=row["name"],
+                sub=row["subtitle"],
+                accent=row["accent"],
+                dash=bool(row["dashed"]),
+                pinned=bool(row["pinned"]),
+            )
+            profile = conn.execute(
+                "SELECT * FROM profiles WHERE figure_id=?", (row["id"],)
+            ).fetchone()
             if profile:
                 p = _decoded(profile["extra_json"])
-                p.update(alter=profile["age"], rolle=profile["role"], aussehen=profile["appearance"],
-                         herkunft=profile["origin"], stimme=profile["voice"], notizen=profile["notes"])
-                p["extra"] = [{"k": f["label"], "v": f["value"]} for f in conn.execute(
-                    "SELECT * FROM profile_fields WHERE figure_id=? ORDER BY position", (row["id"],))]
+                p.update(
+                    alter=profile["age"],
+                    rolle=profile["role"],
+                    aussehen=profile["appearance"],
+                    herkunft=profile["origin"],
+                    stimme=profile["voice"],
+                    notizen=profile["notes"],
+                )
+                p["extra"] = [
+                    {"k": f["label"], "v": f["value"]}
+                    for f in conn.execute(
+                        "SELECT * FROM profile_fields WHERE figure_id=? ORDER BY position",
+                        (row["id"],),
+                    )
+                ]
                 node["profile"] = p
             nodes.append(node)
         edges = []
         for row in conn.execute("SELECT * FROM connections ORDER BY rowid"):
             edge = _decoded(row["extra_json"])
-            edge.update(id=row["id"], **{"from": row["source_id"]}, to=row["target_id"],
-                        label=row["label"], style=row["style"], gerichtet=bool(row["directed"]))
+            edge.update(
+                id=row["id"],
+                **{"from": row["source_id"]},
+                to=row["target_id"],
+                label=row["label"],
+                style=row["style"],
+                gerichtet=bool(row["directed"]),
+            )
             edges.append(edge)
         result.update(nodes=nodes, edges=edges)
         return result
 
 
-def save_figures(state: dict[str, Any], conn: sqlite3.Connection | None = None, db_path: Path | None = None) -> None:
+def save_figures(
+    state: dict[str, Any], conn: sqlite3.Connection | None = None, db_path: Path | None = None
+) -> None:
     own = conn is None
     db = conn or connect(db_path)
     try:
         with db:
             db.execute("DELETE FROM connections")
             db.execute("DELETE FROM figures")
-            schema = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='figures'").fetchone()[0]
-            supported_kinds = {kind for kind in ("person", "tier", "ort", "organisation", "objekt", "konzept") if f"'{kind}'" in schema}
+            schema = db.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='figures'"
+            ).fetchone()[0]
+            supported_kinds = {
+                kind
+                for kind in ("person", "tier", "ort", "organisation", "objekt", "konzept")
+                if f"'{kind}'" in schema
+            }
             for position, node in enumerate(state.get("nodes", [])):
                 kind = node.get("type", "person")
-                if kind not in {"person", "tier", "ort", "organisation", "objekt", "konzept"}: kind = "person"
+                if kind not in {"person", "tier", "ort", "organisation", "objekt", "konzept"}:
+                    kind = "person"
                 database_kind = kind if kind in supported_kinds else "person"
                 extra_node = dict(node)
                 if database_kind != kind:
                     extra_node["type"] = kind
-                db.execute("INSERT INTO figures VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (
-                    node["id"], position, float(node.get("x", 0)), float(node.get("y", 0)), database_kind,
-                    node.get("label", ""), node.get("name", "Ohne Namen"), node.get("sub", ""),
-                    node.get("accent", "ink"), int(bool(node.get("dash"))), int(bool(node.get("pinned"))),
-                    _extra(extra_node, {"id", "x", "y", "label", "name", "sub", "accent", "dash", "pinned", "profile"}),
-                ))
+                db.execute(
+                    "INSERT INTO figures VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        node["id"],
+                        position,
+                        float(node.get("x", 0)),
+                        float(node.get("y", 0)),
+                        database_kind,
+                        node.get("label", ""),
+                        node.get("name", "Ohne Namen"),
+                        node.get("sub", ""),
+                        node.get("accent", "ink"),
+                        int(bool(node.get("dash"))),
+                        int(bool(node.get("pinned"))),
+                        _extra(
+                            extra_node,
+                            {
+                                "id",
+                                "x",
+                                "y",
+                                "label",
+                                "name",
+                                "sub",
+                                "accent",
+                                "dash",
+                                "pinned",
+                                "profile",
+                            },
+                        ),
+                    ),
+                )
                 profile = node.get("profile") or {}
-                db.execute("INSERT INTO profiles VALUES(?,?,?,?,?,?,?,?)", (
-                    node["id"], profile.get("alter", ""), profile.get("rolle", ""), profile.get("aussehen", ""),
-                    profile.get("herkunft", ""), profile.get("stimme", ""), profile.get("notizen", ""),
-                    _extra(profile, {"alter", "rolle", "aussehen", "herkunft", "stimme", "notizen", "extra"}),
-                ))
+                db.execute(
+                    "INSERT INTO profiles VALUES(?,?,?,?,?,?,?,?)",
+                    (
+                        node["id"],
+                        profile.get("alter", ""),
+                        profile.get("rolle", ""),
+                        profile.get("aussehen", ""),
+                        profile.get("herkunft", ""),
+                        profile.get("stimme", ""),
+                        profile.get("notizen", ""),
+                        _extra(
+                            profile,
+                            {
+                                "alter",
+                                "rolle",
+                                "aussehen",
+                                "herkunft",
+                                "stimme",
+                                "notizen",
+                                "extra",
+                            },
+                        ),
+                    ),
+                )
                 for index, field in enumerate(profile.get("extra") or []):
-                    db.execute("INSERT INTO profile_fields VALUES(?,?,?,?)", (node["id"], index, field.get("k", ""), field.get("v", "")))
+                    db.execute(
+                        "INSERT INTO profile_fields VALUES(?,?,?,?)",
+                        (node["id"], index, field.get("k", ""), field.get("v", "")),
+                    )
             ids = {node["id"] for node in state.get("nodes", [])}
             for edge in state.get("edges", []):
-                if edge.get("from") not in ids or edge.get("to") not in ids: continue
-                db.execute("INSERT INTO connections VALUES(?,?,?,?,?,?,?)", (
-                    edge["id"], edge["from"], edge["to"], edge.get("label", ""), edge.get("style", "solid"),
-                    int(bool(edge.get("gerichtet"))), _extra(edge, {"id", "from", "to", "label", "style", "gerichtet"}),
-                ))
+                if edge.get("from") not in ids or edge.get("to") not in ids:
+                    continue
+                db.execute(
+                    "INSERT INTO connections VALUES(?,?,?,?,?,?,?)",
+                    (
+                        edge["id"],
+                        edge["from"],
+                        edge["to"],
+                        edge.get("label", ""),
+                        edge.get("style", "solid"),
+                        int(bool(edge.get("gerichtet"))),
+                        _extra(edge, {"id", "from", "to", "label", "style", "gerichtet"}),
+                    ),
+                )
             canvas = state.get("canvasSize") or {"w": 2400, "h": 1600}
             moments = {m.get("id") for m in state.get("timeline") or [] if isinstance(m, dict)}
-            presence = [p for p in state.get("presence") or [] if isinstance(p, dict)
-                        and p.get("elementId") in ids and p.get("placeId") in ids
-                        and (not p.get("momentId") or p.get("momentId") in moments)]
+            presence = [
+                p
+                for p in state.get("presence") or []
+                if isinstance(p, dict)
+                and p.get("elementId") in ids
+                and p.get("placeId") in ids
+                and (not p.get("momentId") or p.get("momentId") in moments)
+            ]
             saved_state = {**state, "presence": presence} if "presence" in state else state
-            db.execute("INSERT OR REPLACE INTO figure_settings VALUES(1,?,?,?)", (
-                int(canvas.get("w", 2400)), int(canvas.get("h", 1600)),
-                _extra(saved_state, {"nodes", "edges", "canvasSize"}),
-            ))
+            db.execute(
+                "INSERT OR REPLACE INTO figure_settings VALUES(1,?,?,?)",
+                (
+                    int(canvas.get("w", 2400)),
+                    int(canvas.get("h", 1600)),
+                    _extra(saved_state, {"nodes", "edges", "canvasSize"}),
+                ),
+            )
     finally:
-        if own: db.close()
+        if own:
+            db.close()
 
 
-def backup_if_due(force: bool = False, db_path: Path | None = None, backups_dir: Path | None = None) -> None:
+def backup_if_due(
+    force: bool = False, db_path: Path | None = None, backups_dir: Path | None = None
+) -> None:
     backups_dir = backups_dir or BACKUPS
     backups_dir.mkdir(exist_ok=True)
     files = sorted(backups_dir.glob("backup-*.sqlite3"))
-    if not force and files and datetime.now().timestamp() - files[-1].stat().st_mtime < BACKUP_INTERVAL:
+    if (
+        not force
+        and files
+        and datetime.now().timestamp() - files[-1].stat().st_mtime < BACKUP_INTERVAL
+    ):
         return
     target = backups_dir / f"backup-{datetime.now():%Y%m%d-%H%M%S-%f}.sqlite3"
     temp = target.with_suffix(".tmp")
@@ -477,8 +647,14 @@ def backup_if_due(force: bool = False, db_path: Path | None = None, backups_dir:
 
 def list_backups(backups_dir: Path | None = None) -> list[dict[str, Any]]:
     backups_dir = backups_dir or BACKUPS
-    return [{"name": path.name, "created": datetime.fromtimestamp(path.stat().st_mtime).isoformat(), "size": path.stat().st_size}
-            for path in sorted(backups_dir.glob("backup-*.sqlite3"), reverse=True)]
+    return [
+        {
+            "name": path.name,
+            "created": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
+            "size": path.stat().st_size,
+        }
+        for path in sorted(backups_dir.glob("backup-*.sqlite3"), reverse=True)
+    ]
 
 
 def restore_backup(name: str, db_path: Path | None = None, backups_dir: Path | None = None) -> None:
@@ -486,15 +662,22 @@ def restore_backup(name: str, db_path: Path | None = None, backups_dir: Path | N
     if Path(name).name != name or not name.startswith("backup-") or not name.endswith(".sqlite3"):
         raise ValueError("Ungültiger Sicherungsname")
     source_path = backups_dir / name
-    if not source_path.exists(): raise FileNotFoundError(name)
+    if not source_path.exists():
+        raise FileNotFoundError(name)
     backup_if_due(force=True, db_path=db_path, backups_dir=backups_dir)
     source, destination = sqlite3.connect(source_path), connect(db_path)
     try:
         with source, destination:
             source.backup(destination)
-            destination.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('last_restore_at',?)", (datetime.now().isoformat(),))
+            destination.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES('last_restore_at',?)",
+                (datetime.now().isoformat(),),
+            )
             for kind in ("manuscript", "figures"):
-                destination.execute("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (f"{kind}_revision", str(revision(kind, destination) + 1)))
+                destination.execute(
+                    "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+                    (f"{kind}_revision", str(revision(kind, destination) + 1)),
+                )
     finally:
         source.close()
         destination.close()

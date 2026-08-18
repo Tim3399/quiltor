@@ -9,6 +9,7 @@ runs somewhere else still has claims in it that can be checked anywhere.
 The claims worth pinning are the silent failures. A release that skips a job,
 or ships an app whose CFBundleVersion never moves, does not turn anything red.
 """
+
 import contextlib
 import io
 import json
@@ -43,7 +44,7 @@ class VersionArithmeticTests(unittest.TestCase):
         self.assertEqual(set_version.next_version("2.14.1", "3.1.4"), "3.1.4")
 
     def test_versions_compare_as_numbers_not_as_strings(self):
-        """"2.9.0" > "2.10.0" as text, which would let a bump go backwards past
+        """ "2.9.0" > "2.10.0" as text, which would let a bump go backwards past
         the ahead-of-current check that exists to stop exactly that."""
         self.assertLess(set_version.parse_version("2.9.0"), set_version.parse_version("2.10.0"))
 
@@ -75,12 +76,22 @@ class GitRepoTestCase(unittest.TestCase):
         self._git("add", "-A")
         # Identity and signing forced off: whatever the developer running this
         # has in ~/.gitconfig must not decide whether the suite passes.
-        self._git("-c", "user.email=t@example.com", "-c", "user.name=t",
-                  "-c", "commit.gpgsign=false", "commit", "-qm", "initial")
+        self._git(
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "initial",
+        )
 
     def _git(self, *args):
-        return subprocess.run(["git", *args], cwd=self.repo, check=True,
-                              capture_output=True, text=True).stdout
+        return subprocess.run(
+            ["git", *args], cwd=self.repo, check=True, capture_output=True, text=True
+        ).stdout
 
     def _run(self, *argv):
         """set_version.main() against the throwaway repo.
@@ -100,7 +111,8 @@ class GitRepoTestCase(unittest.TestCase):
         return {
             "VERSION": (self.repo / set_version.VERSION_FILE).read_text(encoding="utf-8").strip(),
             "package.json": json.loads(
-                (self.repo / set_version.PACKAGE_JSON).read_text(encoding="utf-8"))["version"],
+                (self.repo / set_version.PACKAGE_JSON).read_text(encoding="utf-8")
+            )["version"],
             "lock.root": lock["version"],
             "lock.packages": lock["packages"][""]["version"],
         }
@@ -138,8 +150,9 @@ class ApplyVersionTests(GitRepoTestCase):
         """Everything reading it strips whitespace, but a file without a
         trailing newline makes every later diff show two changed lines."""
         set_version.apply_version(self.target, self.repo)
-        self.assertEqual((self.repo / set_version.VERSION_FILE).read_text(encoding="utf-8"),
-                         self.target + "\n")
+        self.assertEqual(
+            (self.repo / set_version.VERSION_FILE).read_text(encoding="utf-8"), self.target + "\n"
+        )
 
 
 class RefusalTests(GitRepoTestCase):
@@ -272,15 +285,23 @@ class PublishAfterBuildTests(unittest.TestCase):
         header = f"\n  {name}:\n"
         self.assertIn(header, self.workflow, f"no job {name!r} in release.yml")
         rest = self.workflow.split(header, 1)[1]
-        following = [rest.index(f"\n  {other}:\n") for other in self.BUILDS + ("tag-and-release", "version-check")
-                     if f"\n  {other}:\n" in rest]
-        return rest[:min(following)] if following else rest
+        following = [
+            rest.index(f"\n  {other}:\n")
+            for other in self.BUILDS + ("tag-and-release", "version-check")
+            if f"\n  {other}:\n" in rest
+        ]
+        return rest[: min(following)] if following else rest
 
     def _publisher(self, needle: str) -> str:
         """Which job contains a given outward-facing command."""
-        owners = [name for name in self.BUILDS + ("tag-and-release", "version-check")
-                  if needle in self._job(name)]
-        self.assertEqual(len(owners), 1, f"{needle!r} should live in exactly one job, found {owners}")
+        owners = [
+            name
+            for name in self.BUILDS + ("tag-and-release", "version-check")
+            if needle in self._job(name)
+        ]
+        self.assertEqual(
+            len(owners), 1, f"{needle!r} should live in exactly one job, found {owners}"
+        )
         return owners[0]
 
     def test_the_tag_the_release_and_latest_are_all_published_by_one_job(self):
@@ -337,8 +358,9 @@ class PublishAfterBuildTests(unittest.TestCase):
         avoid."""
         body = self._job("tag-and-release")
         create = body.split("gh release create")[0]
-        self.assertIn("missing asset", create,
-                      "nothing checks the assets are all there before publishing")
+        self.assertIn(
+            "missing asset", create, "nothing checks the assets are all there before publishing"
+        )
         self.assertIn(".dmg", create)
         self.assertIn(".exe", create)
         self.assertIn(".whl", create)

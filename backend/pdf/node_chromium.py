@@ -5,6 +5,7 @@ Playwright browsers, so there is nothing to bundle and nothing to find on the
 user's machine. Never used by the desktop builds -- shipping a Node runtime and
 a ~300 MB Chromium inside a `.app` is exactly what system_browser.py avoids.
 """
+
 from __future__ import annotations
 
 import os
@@ -31,11 +32,16 @@ def renderer(script: Path, base: Path):
                 target_name = target.name
             result = subprocess.run(
                 ["node", str(script), target_name],
-                cwd=base, capture_output=True, text=True, timeout=timeout,
+                cwd=base,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
                 env={**os.environ, "QUILTOR_RENDER_URL": url},
             )
             if result.returncode != 0:
-                raise RuntimeError((result.stderr or result.stdout or "PDF-Renderer fehlgeschlagen.").strip())
+                raise RuntimeError(
+                    (result.stderr or result.stdout or "PDF-Renderer fehlgeschlagen.").strip()
+                )
             return Path(target_name).read_bytes()
         finally:
             if target_name:

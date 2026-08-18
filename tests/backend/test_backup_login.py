@@ -6,6 +6,7 @@ but its RFC 9728 metadata document. Nothing here patches urllib -- the point of
 these tests is the wiring between three parties, and a mocked transport would
 let a client that never actually sends a header pass.
 """
+
 import http.server
 import importlib
 import json
@@ -47,8 +48,12 @@ class FakeBackupEndpoint:
                 if self.path == remote.METADATA_PATH and not endpoint.serve_metadata:
                     return self.send_error(404)
                 if self.path == remote.METADATA_PATH:
-                    payload = {"resource": endpoint.url, "authorization_servers": [endpoint.issuer_url],
-                               "scopes_supported": [SCOPE], "bearer_methods_supported": ["header"]}
+                    payload = {
+                        "resource": endpoint.url,
+                        "authorization_servers": [endpoint.issuer_url],
+                        "scopes_supported": [SCOPE],
+                        "bearer_methods_supported": ["header"],
+                    }
                 else:
                     payload = {"worlds": []}
                 body = json.dumps(payload).encode("utf-8")
@@ -148,8 +153,11 @@ class LoginFlowTests(BackupLoginTestCase):
         self.assertIn("code_challenge_method=S256", url)
         self.assertIn("response_type=code", url)
         self.assertIn("offline_access", url, "without it there is no refresh token to renew with")
-        self.assertNotIn(next(iter(backup_login.PENDING.values()))["verifier"], url,
-                         "the PKCE verifier must never leave this process")
+        self.assertNotIn(
+            next(iter(backup_login.PENDING.values()))["verifier"],
+            url,
+            "the PKCE verifier must never leave this process",
+        )
 
     def test_a_state_nobody_issued_is_refused(self):
         url = backup_login.begin(self.base, REDIRECT)
@@ -208,8 +216,11 @@ class StatusCacheTests(BackupLoginTestCase):
         asked = len([1 for path, _ in self.endpoint.seen if path == remote.METADATA_PATH])
         backup_login.status(self.base)
         backup_login.status(self.base)
-        self.assertEqual(len([1 for path, _ in self.endpoint.seen if path == remote.METADATA_PATH]),
-                         asked, "the endpoint was asked again within PROBE_TTL")
+        self.assertEqual(
+            len([1 for path, _ in self.endpoint.seen if path == remote.METADATA_PATH]),
+            asked,
+            "the endpoint was asked again within PROBE_TTL",
+        )
 
     def test_signing_out_shows_at_once_although_the_endpoint_answer_is_cached(self):
         """Only the part that costs network calls is cached. The signed-in half
@@ -237,8 +248,11 @@ class StatusCacheTests(BackupLoginTestCase):
         # tell the dialog to hide the sign-in button over a verdict nobody
         # reached -- and this socket may yet turn out to be a slow live issuer.
         self.assertIsNone(first["issuerReachable"])
-        self.assertLess(waited, backup_login.PROBE_PATIENCE + 2,
-                        "the first open waits for the probe, but only for PROBE_PATIENCE")
+        self.assertLess(
+            waited,
+            backup_login.PROBE_PATIENCE + 2,
+            "the first open waits for the probe, but only for PROBE_PATIENCE",
+        )
 
         # And every open after it answers straight away: the probe from before is
         # still out there, and nobody waits on it twice.
@@ -249,7 +263,7 @@ class StatusCacheTests(BackupLoginTestCase):
 
 class RefreshTests(BackupLoginTestCase):
     def test_an_expired_access_token_is_renewed_with_the_refresh_token(self):
-        self.issuer.access_ttl = 0          # expired the moment it is issued
+        self.issuer.access_ttl = 0  # expired the moment it is issued
         self._login()
         first = json.loads(backup_login.path().read_text(encoding="utf-8"))
         stored = first["endpoints"][self.base]["access_token"]
@@ -262,8 +276,11 @@ class RefreshTests(BackupLoginTestCase):
         self.assertGreater(self.issuer.token_grants, grants)
         self.assertTrue(self.issuer.tokens[renewed]["active"])
         after = json.loads(backup_login.path().read_text(encoding="utf-8"))
-        self.assertEqual(after["endpoints"][self.base]["access_token"], renewed,
-                         "the renewed token has to be kept, or every request repeats the refresh")
+        self.assertEqual(
+            after["endpoints"][self.base]["access_token"],
+            renewed,
+            "the renewed token has to be kept, or every request repeats the refresh",
+        )
 
     def test_a_valid_token_is_reused_rather_than_refreshed(self):
         self._login()
@@ -300,8 +317,9 @@ class StorageTests(BackupLoginTestCase):
 
         self.assertTrue(backup_login.status(self.base)["signedIn"])
         self.assertEqual(backup_login.access_token(self.base), expected)
-        self.assertEqual(self.issuer.token_grants, grants,
-                         "a restart must not need another trip to the issuer")
+        self.assertEqual(
+            self.issuer.token_grants, grants, "a restart must not need another trip to the issuer"
+        )
 
     def test_sign_out_removes_the_file(self):
         self._login()
@@ -322,11 +340,15 @@ class StorageTests(BackupLoginTestCase):
         code, state = self.issuer.authorize(second)
         backup_login.complete(code, state, REDIRECT)
 
-        self.assertNotEqual(backup_login.access_token(self.base), backup_login.access_token(other.url))
+        self.assertNotEqual(
+            backup_login.access_token(self.base), backup_login.access_token(other.url)
+        )
         self.assertEqual(backup_login.status(other.url)["account"], "someone-else")
 
         backup_login.sign_out(other.url)
-        self.assertTrue(backup_login.status(self.base)["signedIn"], "signing out of one hit the other")
+        self.assertTrue(
+            backup_login.status(self.base)["signedIn"], "signing out of one hit the other"
+        )
 
 
 class TokenSourceTests(BackupLoginTestCase):
@@ -345,8 +367,9 @@ class TokenSourceTests(BackupLoginTestCase):
         self._login()
         with patch.object(remote, "TOKEN_SOURCE", backup_login.access_token):
             remote._request("GET", self.base, "/v1/worlds", None, "", 10)
-        self.assertEqual(self.endpoint.header_for("/v1/worlds"),
-                         f"Bearer {backup_login.access_token(self.base)}")
+        self.assertEqual(
+            self.endpoint.header_for("/v1/worlds"), f"Bearer {backup_login.access_token(self.base)}"
+        )
 
     def test_the_metadata_lookup_never_carries_a_token(self):
         """It is the document read *before* there is a token, so asking the token

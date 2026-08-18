@@ -11,6 +11,7 @@ Keep it that way. `if edition.name == "mas"` scattered through a capability is
 the thing this package exists to prevent -- ask a policy question instead, and
 add one here if none of them fits.
 """
+
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable

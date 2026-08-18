@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { wordCount } from './types';
+import { describe, expect, it } from "vitest";
+import { wordCount } from "./types";
 
-describe('wordCount', () => {
-  it('zählt Wörter unabhängig von Leerraum', () => {
-    expect(wordCount('  Eins\n zwei   drei ')).toBe(3);
+describe("wordCount", () => {
+  it("zählt Wörter unabhängig von Leerraum", () => {
+    expect(wordCount("  Eins\n zwei   drei ")).toBe(3);
   });
-  it('behandelt leeren Text korrekt', () => {
-    expect(wordCount('   ')).toBe(0);
+  it("behandelt leeren Text korrekt", () => {
+    expect(wordCount("   ")).toBe(0);
   });
 });

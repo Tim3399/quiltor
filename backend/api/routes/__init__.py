@@ -21,6 +21,7 @@ otherwise sit far from the route they govern are stated with it:
 The `app` argument is the `server` module. See this package's parent for why the
 routes are handed it rather than importing it.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -64,6 +65,7 @@ def _register(table: dict[str, Registration], path: str, **options):
             raise RuntimeError(f"Route {path} is already registered.")
         table[path] = Registration(function, **options)
         return function
+
     return decorate
 
 
@@ -86,5 +88,10 @@ def load() -> None:
     rather than as a 404 much later.
     """
     from backend.api.routes import (  # noqa: F401
-        assistant, backup, documents, identity, language, worlds,
+        assistant,
+        backup,
+        documents,
+        identity,
+        language,
+        worlds,
     )

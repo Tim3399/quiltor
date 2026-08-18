@@ -5,6 +5,7 @@ Testing the two against each other is the point. Either alone could drift into a
 private interpretation of the protocol and still pass; together they pin the thing
 a self-hoster actually has to reimplement.
 """
+
 import hashlib
 import importlib.util
 import json
@@ -87,8 +88,13 @@ class BackupProtocolTest(unittest.TestCase):
         manuscripts.mkdir(parents=True)
         profiles.mkdir(parents=True)
         sqlite3.connect(database).close()
-        return self.store.context(world_id, self.endpoint if endpoint is None else endpoint,
-                                  database, manuscripts, profiles)
+        return self.store.context(
+            world_id,
+            self.endpoint if endpoint is None else endpoint,
+            database,
+            manuscripts,
+            profiles,
+        )
 
     def _stored(self, world="world-a", kind="blobs"):
         directory = self.served / ACCOUNT / world / kind
@@ -129,11 +135,17 @@ class BackupProtocolTest(unittest.TestCase):
         (ctx.manuscripts / "02 - Zwei.md").write_text("zweite fassung\n", encoding="utf-8")
         with patch.object(remote, "_request", wraps=remote._request) as spy:
             self.store.commit(ctx, "zwei", push=True)
-        uploaded = [call.args[2] for call in spy.call_args_list if call.args[0] == "PUT" and "/blobs/" in call.args[2]]
+        uploaded = [
+            call.args[2]
+            for call in spy.call_args_list
+            if call.args[0] == "PUT" and "/blobs/" in call.args[2]
+        ]
 
         unchanged = self.store.entries(ctx)[0]["files"]["manuscripts/01 - Eins.md"]
-        self.assertFalse([path for path in uploaded if unchanged in path],
-                         "an unchanged file was uploaded a second time")
+        self.assertFalse(
+            [path for path in uploaded if unchanged in path],
+            "an unchanged file was uploaded a second time",
+        )
 
     def test_a_wrong_token_is_rejected(self):
         ctx = self._world()
@@ -151,26 +163,45 @@ class BackupProtocolTest(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         self.assertIn("unreachable", result["grund"])
-        self.assertEqual(len(self.store.history(ctx)), 1, "local history must survive a failed upload")
+        self.assertEqual(
+            len(self.store.history(ctx)), 1, "local history must survive a failed upload"
+        )
 
     def test_the_server_refuses_content_that_does_not_match_its_digest(self):
         """Content addressing is only a guarantee if the server enforces it."""
         ctx = self._world()
         fake = "0" * 64
         with self.assertRaises(RuntimeError) as caught:
-            remote._request("PUT", self.endpoint, f"/v1/worlds/world-a/blobs/{fake}",
-                            b"not the content that hashes to zeros", "application/octet-stream", 10)
+            remote._request(
+                "PUT",
+                self.endpoint,
+                f"/v1/worlds/world-a/blobs/{fake}",
+                b"not the content that hashes to zeros",
+                "application/octet-stream",
+                10,
+            )
         self.assertIn("400", str(caught.exception))
 
     def test_the_server_refuses_a_manifest_whose_blobs_are_missing(self):
         """Keeps the store consistent: a manifest is a promise its content can be
         retrieved, so it may only land after the blobs it names."""
         ctx = self._world()
-        manifest = json.dumps({"id": "abc", "created": "2026-01-01T00:00:00",
-                               "files": {"manuscripts/01 - X.md": "a" * 64}}).encode()
+        manifest = json.dumps(
+            {
+                "id": "abc",
+                "created": "2026-01-01T00:00:00",
+                "files": {"manuscripts/01 - X.md": "a" * 64},
+            }
+        ).encode()
         with self.assertRaises(RuntimeError) as caught:
-            remote._request("PUT", self.endpoint, "/v1/worlds/world-a/snapshots/abc",
-                            manifest, "application/json", 10)
+            remote._request(
+                "PUT",
+                self.endpoint,
+                "/v1/worlds/world-a/snapshots/abc",
+                manifest,
+                "application/json",
+                10,
+            )
         self.assertIn("409", str(caught.exception))
 
     def test_worlds_are_stored_separately_at_the_endpoint(self):
@@ -233,8 +264,9 @@ class BackupProtocolTest(unittest.TestCase):
         self.assertEqual(json.loads(body)["worlds"], [], "another account saw these worlds")
 
         _, _, manifests = self._raw("GET", "/v1/worlds/world-a/snapshots", token="other-token")
-        self.assertEqual(json.loads(manifests)["snapshots"], [],
-                         "another account read this world's manifests")
+        self.assertEqual(
+            json.loads(manifests)["snapshots"], [], "another account read this world's manifests"
+        )
 
         # ...and writing under the same world id lands in the other account's own
         # tree, not in this one.
@@ -247,15 +279,21 @@ class BackupProtocolTest(unittest.TestCase):
         self._raw("GET", "/v1/worlds", token=TOKEN)
         after_first = self.issuer.introspections
         self._raw("GET", "/v1/worlds", token=TOKEN)
-        self.assertEqual(self.issuer.introspections, after_first,
-                         "the endpoint asked the issuer again inside the cache window")
+        self.assertEqual(
+            self.issuer.introspections,
+            after_first,
+            "the endpoint asked the issuer again inside the cache window",
+        )
 
         self.reference.TOKEN_TTL = 0.0
         self.reference._tokens.clear()
         self._raw("GET", "/v1/worlds", token=TOKEN)
         self._raw("GET", "/v1/worlds", token=TOKEN)
-        self.assertGreater(self.issuer.introspections, after_first + 1,
-                           "an expired cache entry must be re-checked, or revocation never lands")
+        self.assertGreater(
+            self.issuer.introspections,
+            after_first + 1,
+            "an expired cache entry must be re-checked, or revocation never lands",
+        )
 
 
 if __name__ == "__main__":

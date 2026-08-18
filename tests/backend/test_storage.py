@@ -9,7 +9,13 @@ class StorageTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         root = Path(self.temp.name)
-        self.original = (storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID)
+        self.original = (
+            storage.DATA,
+            storage.DB,
+            storage.BACKUPS,
+            storage.WORLDS,
+            storage.ACTIVE_WORLD_ID,
+        )
         storage.DATA = root
         storage.DB = root / "test.sqlite3"
         storage.BACKUPS = root / "backups"
@@ -17,29 +23,83 @@ class StorageTest(unittest.TestCase):
         storage.ACTIVE_WORLD_ID = ""
 
     def tearDown(self):
-        storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = self.original
+        storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = (
+            self.original
+        )
         self.temp.cleanup()
 
     def test_sqlite_round_trips_unknown_fields(self):
         manuscript_input = {
-            "chapters": [{"id": "c1", "title": "Eins", "body": "Hallo Welt", "note": "N", "mood": "still",
-                          "mentions": [{"id": "m1", "elementId": "n1", "from": 0, "to": 5, "surface": "Hallo", "source": "helper", "confidence": 1}],
-                          "marks": [{"from": 6, "to": 10, "kind": "italic"}]}],
-            "words": [{"w": "Arcène", "d": "Ort"}], "zeichenAktiv": ["…"], "future": True,
+            "chapters": [
+                {
+                    "id": "c1",
+                    "title": "Eins",
+                    "body": "Hallo Welt",
+                    "note": "N",
+                    "mood": "still",
+                    "mentions": [
+                        {
+                            "id": "m1",
+                            "elementId": "n1",
+                            "from": 0,
+                            "to": 5,
+                            "surface": "Hallo",
+                            "source": "helper",
+                            "confidence": 1,
+                        }
+                    ],
+                    "marks": [{"from": 6, "to": 10, "kind": "italic"}],
+                }
+            ],
+            "words": [{"w": "Arcène", "d": "Ort"}],
+            "zeichenAktiv": ["…"],
+            "future": True,
         }
         figures_input = {
-            "nodes": [{"id": "n1", "x": 1, "y": 2, "type": "person", "name": "A", "future": 7, "important": True, "pinned": True,
-                       "diedMomentId": "t2", "profile": {"rolle": "Held", "extra": [{"k": "Motiv", "v": "Heimkehr"}], "future": "yes"}},
-                      {"id": "n2", "x": 3, "y": 4, "type": "person", "name": "B"}],
-            "edges": [{"id": "e1", "from": "n1", "to": "n2", "label": "Freunde", "versions": [{"momentId": "t2", "label": "Feinde", "active": True}]}],
-            "timeline": [{"id": "t1", "title": "Vorher"}, {"id": "t2", "title": "Verrat", "date": "1420-03-12"}],
-            "presence": [{"id": "p1", "elementId": "n1", "placeId": "n2", "momentId": "t2"}, {"id": "p0", "elementId": "n1", "placeId": "n2"}],
-            "canvasSize": {"w": 900, "h": 700}, "future": "kept",
+            "nodes": [
+                {
+                    "id": "n1",
+                    "x": 1,
+                    "y": 2,
+                    "type": "person",
+                    "name": "A",
+                    "future": 7,
+                    "important": True,
+                    "pinned": True,
+                    "diedMomentId": "t2",
+                    "profile": {
+                        "rolle": "Held",
+                        "extra": [{"k": "Motiv", "v": "Heimkehr"}],
+                        "future": "yes",
+                    },
+                },
+                {"id": "n2", "x": 3, "y": 4, "type": "person", "name": "B"},
+            ],
+            "edges": [
+                {
+                    "id": "e1",
+                    "from": "n1",
+                    "to": "n2",
+                    "label": "Freunde",
+                    "versions": [{"momentId": "t2", "label": "Feinde", "active": True}],
+                }
+            ],
+            "timeline": [
+                {"id": "t1", "title": "Vorher"},
+                {"id": "t2", "title": "Verrat", "date": "1420-03-12"},
+            ],
+            "presence": [
+                {"id": "p1", "elementId": "n1", "placeId": "n2", "momentId": "t2"},
+                {"id": "p0", "elementId": "n1", "placeId": "n2"},
+            ],
+            "canvasSize": {"w": 900, "h": 700},
+            "future": "kept",
         }
         storage.initialize()
         storage.save_manuscript(manuscript_input)
         storage.save_figures(figures_input)
-        manuscript = storage.load_manuscript(); figures = storage.load_figures()
+        manuscript = storage.load_manuscript()
+        figures = storage.load_figures()
         self.assertEqual(manuscript["chapters"][0]["mood"], "still")
         self.assertEqual(manuscript["chapters"][0]["mentions"][0]["elementId"], "n1")
         mirror_dir = storage.DATA / "manuskript"
@@ -48,7 +108,9 @@ class StorageTest(unittest.TestCase):
         # Der Kapiteltext bleibt in der Datenbank reine Prosa; erst der Markdown-Spiegel
         # schreibt die Auszeichnungsbereiche als Marker.
         self.assertEqual(manuscript["chapters"][0]["body"], "Hallo Welt")
-        self.assertEqual(manuscript["chapters"][0]["marks"], [{"from": 6, "to": 10, "kind": "italic"}])
+        self.assertEqual(
+            manuscript["chapters"][0]["marks"], [{"from": 6, "to": 10, "kind": "italic"}]
+        )
         self.assertIn("Hallo *Welt*", exported)
         self.assertNotIn("elementId", exported)
         self.assertNotIn('"m1"', exported)
@@ -70,21 +132,29 @@ class StorageTest(unittest.TestCase):
 
     def test_rejecting_orphan_is_enforced_by_database(self):
         storage.initialize()
-        state = {"nodes": [{"id": "n1", "x": 0, "y": 0, "name": "A"}],
-                 "edges": [{"id": "e1", "from": "missing", "to": "n1"}]}
+        state = {
+            "nodes": [{"id": "n1", "x": 0, "y": 0, "name": "A"}],
+            "edges": [{"id": "e1", "from": "missing", "to": "n1"}],
+        }
         storage.save_figures(state)
         self.assertEqual(storage.load_figures()["edges"], [])
 
     def test_presence_entries_without_targets_are_dropped(self):
         storage.initialize()
-        state = {"nodes": [{"id": "n1", "x": 0, "y": 0, "name": "A"}, {"id": "n2", "x": 0, "y": 0, "name": "Ort"}],
-                 "edges": [], "timeline": [{"id": "t1", "title": "Vorher"}],
-                 "presence": [
-                     {"id": "p1", "elementId": "n1", "placeId": "n2", "momentId": "t1"},
-                     {"id": "p2", "elementId": "missing", "placeId": "n2"},
-                     {"id": "p3", "elementId": "n1", "placeId": "missing"},
-                     {"id": "p4", "elementId": "n1", "placeId": "n2", "momentId": "missing-moment"},
-                 ]}
+        state = {
+            "nodes": [
+                {"id": "n1", "x": 0, "y": 0, "name": "A"},
+                {"id": "n2", "x": 0, "y": 0, "name": "Ort"},
+            ],
+            "edges": [],
+            "timeline": [{"id": "t1", "title": "Vorher"}],
+            "presence": [
+                {"id": "p1", "elementId": "n1", "placeId": "n2", "momentId": "t1"},
+                {"id": "p2", "elementId": "missing", "placeId": "n2"},
+                {"id": "p3", "elementId": "n1", "placeId": "missing"},
+                {"id": "p4", "elementId": "n1", "placeId": "n2", "momentId": "missing-moment"},
+            ],
+        }
         storage.save_figures(state)
         self.assertEqual([entry["id"] for entry in storage.load_figures()["presence"]], ["p1"])
 
@@ -94,14 +164,19 @@ class StorageTest(unittest.TestCase):
         first = storage.save_with_revision("manuscript", state, 0)
         self.assertEqual(first, 1)
         with self.assertRaises(storage.ConflictError):
-            storage.save_with_revision("manuscript", {**state, "chapters": [{**state["chapters"][0], "body": "veraltet"}]}, 0)
+            storage.save_with_revision(
+                "manuscript",
+                {**state, "chapters": [{**state["chapters"][0], "body": "veraltet"}]},
+                0,
+            )
         self.assertEqual(storage.load_manuscript()["chapters"][0]["body"], "eins")
 
     def test_backup_can_be_restored(self):
         storage.initialize()
         original = {"chapters": [{"id": "c1", "title": "A", "body": "Original", "note": ""}]}
         storage.save_with_revision("manuscript", original, 0)
-        storage.backup_if_due(); name = storage.list_backups()[0]["name"]
+        storage.backup_if_due()
+        name = storage.list_backups()[0]["name"]
         changed = {"chapters": [{"id": "c1", "title": "A", "body": "Geändert", "note": ""}]}
         storage.save_with_revision("manuscript", changed, 1)
         storage.restore_backup(name)
@@ -112,7 +187,9 @@ class StorageTest(unittest.TestCase):
         second = storage.create_world("Stadt aus Glas", "https://backup.example.com/glass")
         self.assertEqual(first["title"], "Der letzte Garten")
         storage.activate_world(first["id"])
-        storage.save_manuscript({"chapters": [{"id": "c1", "title": "Anfang", "body": "Neu", "note": ""}]})
+        storage.save_manuscript(
+            {"chapters": [{"id": "c1", "title": "Anfang", "body": "Neu", "note": ""}]}
+        )
         self.assertEqual(storage.load_manuscript()["chapters"][0]["body"], "Neu")
         storage.activate_world(second["id"])
         self.assertEqual(len(storage.load_manuscript()["chapters"]), 1)
@@ -206,8 +283,12 @@ class StorageTest(unittest.TestCase):
         world_b = storage.create_world("B")
         path_a = storage.world_db_path(world_a["id"])
         path_b = storage.world_db_path(world_b["id"])
-        storage.save_manuscript({"chapters": [{"id": "c1", "title": "A", "body": "von A", "note": ""}]}, db_path=path_a)
-        storage.save_manuscript({"chapters": [{"id": "c1", "title": "B", "body": "von B", "note": ""}]}, db_path=path_b)
+        storage.save_manuscript(
+            {"chapters": [{"id": "c1", "title": "A", "body": "von A", "note": ""}]}, db_path=path_a
+        )
+        storage.save_manuscript(
+            {"chapters": [{"id": "c1", "title": "B", "body": "von B", "note": ""}]}, db_path=path_b
+        )
         # The global ACTIVE_WORLD_ID/DB never moved — explicit db_path fully bypassed it.
         self.assertEqual(storage.ACTIVE_WORLD_ID, "")
         self.assertEqual(storage.load_manuscript(db_path=path_a)["chapters"][0]["body"], "von A")
@@ -216,13 +297,23 @@ class StorageTest(unittest.TestCase):
     def test_explicit_backups_dir_is_isolated_per_world(self):
         world_a = storage.create_world("A")
         world_b = storage.create_world("B")
-        path_a, backups_a = storage.world_db_path(world_a["id"]), storage.DATA / "backups" / world_a["id"]
-        path_b, backups_b = storage.world_db_path(world_b["id"]), storage.DATA / "backups" / world_b["id"]
+        path_a, backups_a = (
+            storage.world_db_path(world_a["id"]),
+            storage.DATA / "backups" / world_a["id"],
+        )
+        path_b, backups_b = (
+            storage.world_db_path(world_b["id"]),
+            storage.DATA / "backups" / world_b["id"],
+        )
         storage.backup_if_due(force=True, db_path=path_a, backups_dir=backups_a)
         storage.backup_if_due(force=True, db_path=path_b, backups_dir=backups_b)
         self.assertEqual(len(storage.list_backups(backups_dir=backups_a)), 1)
         self.assertEqual(len(storage.list_backups(backups_dir=backups_b)), 1)
-        self.assertNotEqual(storage.list_backups(backups_dir=backups_a)[0]["name"], storage.list_backups(backups_dir=backups_b)[0]["name"])
+        self.assertNotEqual(
+            storage.list_backups(backups_dir=backups_a)[0]["name"],
+            storage.list_backups(backups_dir=backups_b)[0]["name"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

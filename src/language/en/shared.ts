@@ -2,23 +2,49 @@
 // action verbs in menus.ts. Anything only one area needs stays in its own feature file -- only
 // what would otherwise be maintained twice belongs here.
 export const shared = {
-  closeDialog: 'Close dialog',
-  themeChoice: 'Theme', themeSystem: 'System', themeLight: 'Light', themeDark: 'Dark',
+  closeDialog: "Close dialog",
+  themeChoice: "Theme",
+  themeSystem: "System",
+  themeLight: "Light",
+  themeDark: "Dark",
   // Holding now guards only the two actions that cannot be taken back. The copy therefore no longer
   // names a number of seconds: the progress bar shows the short duration, and any number would have
   // been rounded up or down anyway at one and a half seconds.
-  holdAriaLabel: '{label} – press and hold to confirm', holdToConfirm: '{label} · press and hold', keepHolding: 'Keep holding …',
-  undoHint: 'Can be undone with {shortcut}.',
-  unsaved: 'Unsaved', saving: 'Saving …', saved: 'Saved', notSaved: 'Not saved', saveFailed: 'Save failed',
+  holdAriaLabel: "{label} – press and hold to confirm",
+  holdToConfirm: "{label} · press and hold",
+  keepHolding: "Keep holding …",
+  undoHint: "Can be undone with {shortcut}.",
+  unsaved: "Unsaved",
+  saving: "Saving …",
+  saved: "Saved",
+  notSaved: "Not saved",
+  saveFailed: "Save failed",
   // Raised when an export never reaches its destination -- practically never in the browser, and in
   // the desktop app whenever the native save bridge could not write the file.
-  exportFailed: 'The export could not be saved.',
-  saveConflict: 'The page was changed in another tab. Reload it before writing on.',
-  timeline: 'Timeline', moment: 'Moment', moments: 'Moments', newMoment: 'New moment', addMoment: 'Add moment', deleteMoment: 'Delete moment',
-  relationship: 'Relationship', relationships: 'Relationships', directed: 'Directed', undirected: 'Undirected', reverseDirection: 'Reverse direction',
-  newPlace: 'New place', copyName: '{name} – copy', removeDeathMarker: 'Remove death marker',
-  optionalDate: 'Date (optional)', optionalNote: 'Note (optional)', searchTerm: 'Search term',
+  exportFailed: "The export could not be saved.",
+  saveConflict: "The page was changed in another tab. Reload it before writing on.",
+  timeline: "Timeline",
+  moment: "Moment",
+  moments: "Moments",
+  newMoment: "New moment",
+  addMoment: "Add moment",
+  deleteMoment: "Delete moment",
+  relationship: "Relationship",
+  relationships: "Relationships",
+  directed: "Directed",
+  undirected: "Undirected",
+  reverseDirection: "Reverse direction",
+  newPlace: "New place",
+  copyName: "{name} – copy",
+  removeDeathMarker: "Remove death marker",
+  optionalDate: "Date (optional)",
+  optionalNote: "Note (optional)",
+  searchTerm: "Search term",
   // Counters carry the whole phrase so components never concatenate number and word themselves
   // -- otherwise English lower-casing is not controllable from the catalog.
-  nElements: '{n} elements', nRelationships: '{n} relationships', nMoments: '{n} moments', nChanges: '{n} changes', nPlaces: '{n} places',
+  nElements: "{n} elements",
+  nRelationships: "{n} relationships",
+  nMoments: "{n} moments",
+  nChanges: "{n} changes",
+  nPlaces: "{n} places",
 } as const;

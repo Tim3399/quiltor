@@ -14,6 +14,7 @@ drift is a build behaving differently from the one that was tested.
 Adding an OS means adding one module next to macos/windows/linux and one line
 below -- nothing else in the tree changes.
 """
+
 from __future__ import annotations
 
 import sys
@@ -59,8 +60,18 @@ def force_utf8_streams() -> None:
 
 
 __all__ = [
-    "APP_NAME", "SystemModule", "TRAY_SUPPORTS_BACKGROUND_THREAD",
-    "bind_child_lifetime", "data_home", "executable_name", "force_utf8_streams",
-    "in_os_app_package", "is_apple_silicon", "machine_arch", "os_name",
-    "reveal_in_file_manager", "spawn_flags", "strip_quarantine",
+    "APP_NAME",
+    "SystemModule",
+    "TRAY_SUPPORTS_BACKGROUND_THREAD",
+    "bind_child_lifetime",
+    "data_home",
+    "executable_name",
+    "force_utf8_streams",
+    "in_os_app_package",
+    "is_apple_silicon",
+    "machine_arch",
+    "os_name",
+    "reveal_in_file_manager",
+    "spawn_flags",
+    "strip_quarantine",
 ]

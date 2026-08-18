@@ -43,6 +43,7 @@ functions that would have to change.
 
 Standard library only.
 """
+
 from __future__ import annotations
 
 import json
@@ -112,6 +113,7 @@ _probing: dict[str, threading.Thread] = {}
 
 # --------------------------------------------------------------- the endpoint
 
+
 def issuer_for(base_url: str) -> tuple[str, str]:
     """The issuer guarding `base_url`, and the scope it expects.
 
@@ -125,7 +127,8 @@ def issuer_for(base_url: str) -> tuple[str, str]:
     if not issuer:
         raise RuntimeError(
             f"The backup endpoint at {base_url} does not publish an issuer to log in with. "
-            "Endpoints that hand out tokens by hand are used with QUILTOR_BACKUP_TOKEN instead.")
+            "Endpoints that hand out tokens by hand are used with QUILTOR_BACKUP_TOKEN instead."
+        )
     scopes = document.get("scopes_supported") or []
     return issuer, str(scopes[0]) if scopes else DEFAULT_SCOPE
 
@@ -181,6 +184,7 @@ def _probe(base: str) -> tuple[str, str, bool | None]:
 
 # ------------------------------------------------------------------ the login
 
+
 def _purge_expired_pending() -> None:
     now = time.time()
     for key in [k for k, entry in PENDING.items() if now - entry["created_at"] > PENDING_TTL]:
@@ -202,15 +206,25 @@ def begin(base_url: str, redirect_uri: str) -> str:
     state = auth.new_state()
     with _lock:
         _purge_expired_pending()
-        PENDING[state] = {"verifier": verifier, "redirect_uri": redirect_uri, "base_url": base,
-                          "issuer": issuer, "scope": scope, "created_at": time.time()}
+        PENDING[state] = {
+            "verifier": verifier,
+            "redirect_uri": redirect_uri,
+            "base_url": base,
+            "issuer": issuer,
+            "scope": scope,
+            "created_at": time.time(),
+        }
     params = {
-        "response_type": "code", "client_id": CLIENT_ID, "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "client_id": CLIENT_ID,
+        "redirect_uri": redirect_uri,
         # offline_access is what makes the refresh token appear. Without one,
         # "backs up automatically" would last exactly as long as the first access
         # token and then demand a browser again.
-        "scope": f"openid {scope} offline_access", "state": state,
-        "code_challenge": challenge, "code_challenge_method": "S256",
+        "scope": f"openid {scope} offline_access",
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
     }
     return f"{document['authorization_endpoint']}?{urllib.parse.urlencode(params)}"
 
@@ -241,8 +255,14 @@ def complete(code: str, state: str, redirect_uri: str) -> dict[str, Any]:
     if redirect_uri != pending["redirect_uri"]:
         raise ValueError("The login came back on a different redirect than it started with.")
 
-    tokens = auth.exchange_code(code, pending["verifier"], redirect_uri,
-                                issuer=pending["issuer"], client_id=CLIENT_ID, client_secret="")
+    tokens = auth.exchange_code(
+        code,
+        pending["verifier"],
+        redirect_uri,
+        issuer=pending["issuer"],
+        client_id=CLIENT_ID,
+        client_secret="",
+    )
     record = {
         "issuer": pending["issuer"],
         "scope": pending["scope"],
@@ -271,8 +291,11 @@ def _account_of(tokens: dict[str, Any]) -> dict[str, str]:
         claims = auth.decode_id_token_claims(str(tokens.get("id_token", "")))
     except (ValueError, KeyError):
         return {"account": "", "email": "", "name": ""}
-    return {"account": str(claims.get("sub", "")), "email": str(claims.get("email", "")),
-            "name": str(claims.get("name", ""))}
+    return {
+        "account": str(claims.get("sub", "")),
+        "email": str(claims.get("email", "")),
+        "name": str(claims.get("name", "")),
+    }
 
 
 def _refresh(record: dict[str, Any]) -> dict[str, Any] | None:
@@ -288,8 +311,9 @@ def _refresh(record: dict[str, Any]) -> dict[str, Any] | None:
         # auth.refresh_tokens rather than a second copy of the exchange: both
         # halves of this flow then report a provider error in one and the same
         # shape. client_secret="" marks a public client, which sends none.
-        tokens = auth.refresh_tokens(record["refresh_token"], issuer=record["issuer"],
-                                     client_id=CLIENT_ID, client_secret="")
+        tokens = auth.refresh_tokens(
+            record["refresh_token"], issuer=record["issuer"], client_id=CLIENT_ID, client_secret=""
+        )
     except Exception:
         return None
     access = str(tokens.get("access_token", ""))
@@ -377,6 +401,7 @@ def sign_out(base_url: str) -> None:
 # storage interface: a keychain-backed implementation would replace exactly them
 # (see the module docstring).
 
+
 def _key(base_url: str) -> str:
     """The endpoint identity a token is filed under. Same normalisation
     remote._request applies before calling TOKEN_SOURCE, so the lookup there
@@ -452,5 +477,17 @@ def forget_cache() -> None:
         _probing.clear()
 
 
-__all__ = ["CLIENT_ID", "DEFAULT_SCOPE", "PENDING", "access_token", "begin", "complete",
-           "consume_pending", "forget_cache", "issuer_for", "path", "sign_out", "status"]
+__all__ = [
+    "CLIENT_ID",
+    "DEFAULT_SCOPE",
+    "PENDING",
+    "access_token",
+    "begin",
+    "complete",
+    "consume_pending",
+    "forget_cache",
+    "issuer_for",
+    "path",
+    "sign_out",
+    "status",
+]

@@ -8,6 +8,7 @@ The URL, not the manuscript: every renderer loads the app's own print view over
 loopback rather than re-implementing the 6 x 9 inch book layout. That layout
 lives in CSS, in one place, and is what the reader actually sees.
 """
+
 from __future__ import annotations
 
 from typing import Protocol

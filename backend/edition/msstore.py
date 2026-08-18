@@ -12,6 +12,7 @@ into the user's profile at first run sits outside that model, and the bundled
 runtime path exists anyway for the Mac App Store build. Keeping both stores on
 one answer avoids a third code path for no gain.
 """
+
 from __future__ import annotations
 
 from backend.edition.contract import MSSTORE

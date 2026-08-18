@@ -1,6 +1,6 @@
-import type { MessageKey } from './index';
+import type { MessageKey } from "./index";
 
-export type WritingLanguage = 'de-DE';
+export type WritingLanguage = "de-DE";
 
 export type WritingLanguageDefinition = {
   code: WritingLanguage;
@@ -12,14 +12,14 @@ export type WritingLanguageDefinition = {
 };
 
 export const writingLanguages: Record<WritingLanguage, WritingLanguageDefinition> = {
-  'de-DE': {
-    code: 'de-DE',
-    labelKey: 'writingLanguageGerman',
+  "de-DE": {
+    code: "de-DE",
+    labelKey: "writingLanguageGerman",
     grammarAvailable: true,
     dictionaryAvailable: true,
     thesaurusAvailable: true,
-    translationTargets: ['en'],
+    translationTargets: ["en"],
   },
 };
 
-export const defaultWritingLanguage: WritingLanguage = 'de-DE';
+export const defaultWritingLanguage: WritingLanguage = "de-DE";

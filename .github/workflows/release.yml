@@ -189,7 +189,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"  # the floor in pyproject.toml
+          python-version: "3.11" # the floor in pyproject.toml
 
       # Exactly packaging/README.md's "One-time setup", minus the venv: the
       # runner is already a throwaway environment.

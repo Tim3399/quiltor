@@ -17,7 +17,9 @@ class RuntimeLaunchContractTests(unittest.TestCase):
             model.parent.mkdir(parents=True)
             binary.touch()
             model.touch()
-            with patch("backend.llm.runtimes.llamacpp.spawn_logged", return_value=(object(), base / "log")) as spawn:
+            with patch(
+                "backend.llm.runtimes.llamacpp.spawn_logged", return_value=(object(), base / "log")
+            ) as spawn:
                 result = llamacpp.start(base, base / "data", "http://127.0.0.1:8123", None, None)
         self.assertIsNotNone(result)
         argv = spawn.call_args.args[0]
@@ -36,7 +38,9 @@ class RuntimeLaunchContractTests(unittest.TestCase):
             python.touch()
             bridge.touch()
             (model / "config.json").write_text(json.dumps({"model_type": "qwen3"}))
-            with patch("backend.llm.runtimes.mlx.spawn_logged", return_value=(object(), base / "log")) as spawn:
+            with patch(
+                "backend.llm.runtimes.mlx.spawn_logged", return_value=(object(), base / "log")
+            ) as spawn:
                 result = mlx.start(base, base / "data", "http://127.0.0.1:8124", None, None)
         self.assertIsNotNone(result)
         argv = spawn.call_args.args[0]

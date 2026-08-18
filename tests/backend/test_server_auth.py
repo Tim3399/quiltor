@@ -17,7 +17,12 @@ import server
 
 def _make_id_token(claims: dict) -> str:
     def b64(segment: dict) -> str:
-        return base64.urlsafe_b64encode(json.dumps(segment).encode("utf-8")).rstrip(b"=").decode("ascii")
+        return (
+            base64.urlsafe_b64encode(json.dumps(segment).encode("utf-8"))
+            .rstrip(b"=")
+            .decode("ascii")
+        )
+
     return f"{b64({'alg': 'RS256'})}.{b64(claims)}.signature-not-checked"
 
 
@@ -36,7 +41,13 @@ class _LiveAuthServerTestCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         root = Path(self.temp.name)
-        self.original_storage = (storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID)
+        self.original_storage = (
+            storage.DATA,
+            storage.DB,
+            storage.BACKUPS,
+            storage.WORLDS,
+            storage.ACTIVE_WORLD_ID,
+        )
         storage.DATA = root
         storage.DB = root / "test.sqlite3"
         storage.BACKUPS = root / "backups"
@@ -54,7 +65,10 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         auth.PENDING_LOGINS.clear()
         render._tokens.clear()
 
-        self.discovery = {"authorization_endpoint": "https://kc.example.com/auth", "token_endpoint": "https://kc.example.com/token"}
+        self.discovery = {
+            "authorization_endpoint": "https://kc.example.com/auth",
+            "token_endpoint": "https://kc.example.com/token",
+        }
         self.discover_patch = patch.object(auth, "discover", return_value=self.discovery)
         self.discover_patch.start()
 
@@ -74,7 +88,9 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         auth.SESSIONS.clear()
         auth.PENDING_LOGINS.clear()
         render._tokens.clear()
-        storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = self.original_storage
+        storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = (
+            self.original_storage
+        )
         self.temp.cleanup()
 
     def _request(self, method: str, path: str, body=None, headers=None, cookies=None):
@@ -102,11 +118,23 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         state = urllib.parse.parse_qs(urllib.parse.urlparse(location).query)["state"][0]
         self.assertEqual(state, state_cookie_value)
 
-        claims = {"sub": sub, "email": email, "name": name, "iss": auth.ISSUER, "aud": auth.CLIENT_ID, "exp": time.time() + 300}
+        claims = {
+            "sub": sub,
+            "email": email,
+            "name": name,
+            "iss": auth.ISSUER,
+            "aud": auth.CLIENT_ID,
+            "exp": time.time() + 300,
+        }
         id_token = _make_id_token(claims)
-        with patch.object(auth, "exchange_code", return_value={"id_token": id_token, "access_token": "at"}):
+        with patch.object(
+            auth, "exchange_code", return_value={"id_token": id_token, "access_token": "at"}
+        ):
             status, headers, _, set_cookies = self._request(
-                "GET", f"/auth/callback?code=abc&state={state}", cookies={"quiltor_login_state": state_cookie_value})
+                "GET",
+                f"/auth/callback?code=abc&state={state}",
+                cookies={"quiltor_login_state": state_cookie_value},
+            )
         self.assertEqual(status, 302)
         session_cookie = next(c for c in set_cookies if c.startswith("quiltor_session="))
         _, session_value = _cookie_name_value(session_cookie)
@@ -151,8 +179,11 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         status, _, _, set_cookies = self._request("GET", "/login")
         login_state_cookie = next(c for c in set_cookies if c.startswith("quiltor_login_state="))
         _, cookie_value = _cookie_name_value(login_state_cookie)
-        status, headers, _, _ = self._request("GET", "/auth/callback?code=abc&state=wrong-state",
-                                                cookies={"quiltor_login_state": cookie_value})
+        status, headers, _, _ = self._request(
+            "GET",
+            "/auth/callback?code=abc&state=wrong-state",
+            cookies={"quiltor_login_state": cookie_value},
+        )
         self.assertEqual(status, 302)
         self.assertEqual(headers["Location"], "/?authError=state")
         self.assertEqual(len(auth.SESSIONS), 0)
@@ -164,7 +195,9 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
 
     def test_login_then_whoami_returns_the_session_identity(self):
         session_value = self._login("user-alice", email="alice@example.com", name="Alice")
-        status, _, body, _ = self._request("GET", "/api/whoami", cookies={"quiltor_session": session_value})
+        status, _, body, _ = self._request(
+            "GET", "/api/whoami", cookies={"quiltor_session": session_value}
+        )
         self.assertEqual(status, 200)
         payload = json.loads(body)
         self.assertTrue(payload["ok"])
@@ -179,15 +212,22 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         session_value = self._login("user-alice")
         session = auth.get_session(session_value)
         self.assertEqual(session.access_token, "at")
-        self.assertEqual(session.refresh_token, "",
-                         "the exchange returned none, and inventing one would be a lie")
+        self.assertEqual(
+            session.refresh_token,
+            "",
+            "the exchange returned none, and inventing one would be a lie",
+        )
 
     def test_logout_clears_the_session(self):
         session_value = self._login("user-alice")
-        status, _, body, _ = self._request("POST", "/logout", body={}, cookies={"quiltor_session": session_value})
+        status, _, body, _ = self._request(
+            "POST", "/logout", body={}, cookies={"quiltor_session": session_value}
+        )
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)["ok"])
-        status, _, body, _ = self._request("GET", "/api/whoami", cookies={"quiltor_session": session_value})
+        status, _, body, _ = self._request(
+            "GET", "/api/whoami", cookies={"quiltor_session": session_value}
+        )
         # /api/whoami is no longer anonymous: with the session gone, the request
         # has no identity at all and the dispatch answers before the route runs.
         self.assertEqual(status, 401)
@@ -199,8 +239,12 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         alice = self._login("user-alice")
         bob = self._login("user-bob")
 
-        status, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "backupUrl": ""},
-                                            cookies={"quiltor_session": alice})
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Alice's World", "backupUrl": ""},
+            cookies={"quiltor_session": alice},
+        )
         self.assertEqual(status, 200)
         world = json.loads(body)["world"]
 
@@ -213,44 +257,74 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
     def test_bob_cannot_open_alices_world(self):
         alice = self._login("user-alice")
         bob = self._login("user-bob")
-        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "backupUrl": ""},
-                                       cookies={"quiltor_session": alice})
+        _, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Alice's World", "backupUrl": ""},
+            cookies={"quiltor_session": alice},
+        )
         world = json.loads(body)["world"]
 
-        status, _, _, _ = self._request("POST", "/api/worlds/open", body={"id": world["id"]}, cookies={"quiltor_session": bob})
+        status, _, _, _ = self._request(
+            "POST", "/api/worlds/open", body={"id": world["id"]}, cookies={"quiltor_session": bob}
+        )
         self.assertIn(status, (403, 404))
 
     def test_bob_cannot_write_to_alices_manuscript_and_alices_data_is_unchanged(self):
         alice = self._login("user-alice")
         bob = self._login("user-bob")
-        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "backupUrl": ""},
-                                       cookies={"quiltor_session": alice})
+        _, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Alice's World", "backupUrl": ""},
+            cookies={"quiltor_session": alice},
+        )
         world = json.loads(body)["world"]
 
         status, _, _, _ = self._request(
-            "PUT", "/api/manuscript",
-            body={"chapters": [{"id": "c1", "title": "X", "body": "Bob's sneaky edit", "note": ""}], "worldId": world["id"]},
-            headers={"If-Match": '"0"'}, cookies={"quiltor_session": bob})
+            "PUT",
+            "/api/manuscript",
+            body={
+                "chapters": [{"id": "c1", "title": "X", "body": "Bob's sneaky edit", "note": ""}],
+                "worldId": world["id"],
+            },
+            headers={"If-Match": '"0"'},
+            cookies={"quiltor_session": bob},
+        )
         self.assertIn(status, (403, 404))
 
-        status, _, body, _ = self._request("GET", f"/api/manuscript?world={world['id']}", cookies={"quiltor_session": alice})
+        status, _, body, _ = self._request(
+            "GET", f"/api/manuscript?world={world['id']}", cookies={"quiltor_session": alice}
+        )
         self.assertEqual(status, 200)
         manuscript = json.loads(body)
         self.assertEqual(manuscript["chapters"][0]["body"], "")
 
     def test_alice_can_write_to_her_own_manuscript(self):
         alice = self._login("user-alice")
-        _, _, body, _ = self._request("POST", "/api/worlds/create", body={"title": "Alice's World", "backupUrl": ""},
-                                       cookies={"quiltor_session": alice})
+        _, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Alice's World", "backupUrl": ""},
+            cookies={"quiltor_session": alice},
+        )
         world = json.loads(body)["world"]
 
         status, _, body, _ = self._request(
-            "PUT", "/api/manuscript",
-            body={"chapters": [{"id": "c1", "title": "X", "body": "Alice's own text", "note": ""}], "worldId": world["id"]},
-            headers={"If-Match": '"0"'}, cookies={"quiltor_session": alice})
+            "PUT",
+            "/api/manuscript",
+            body={
+                "chapters": [{"id": "c1", "title": "X", "body": "Alice's own text", "note": ""}],
+                "worldId": world["id"],
+            },
+            headers={"If-Match": '"0"'},
+            cookies={"quiltor_session": alice},
+        )
         self.assertEqual(status, 200)
 
-        status, _, body, _ = self._request("GET", f"/api/manuscript?world={world['id']}", cookies={"quiltor_session": alice})
+        status, _, body, _ = self._request(
+            "GET", f"/api/manuscript?world={world['id']}", cookies={"quiltor_session": alice}
+        )
         manuscript = json.loads(body)
         self.assertEqual(manuscript["chapters"][0]["body"], "Alice's own text")
 
@@ -316,7 +390,13 @@ class LocalIdentityServerTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         root = Path(self.temp.name)
-        self.original_storage = (storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID)
+        self.original_storage = (
+            storage.DATA,
+            storage.DB,
+            storage.BACKUPS,
+            storage.WORLDS,
+            storage.ACTIVE_WORLD_ID,
+        )
         storage.DATA = root
         storage.DB = root / "test.sqlite3"
         storage.BACKUPS = root / "backups"
@@ -341,7 +421,9 @@ class LocalIdentityServerTest(unittest.TestCase):
         self.httpd.server_close()
         self.thread.join(timeout=5)
         server.IDENTITY, server.BOUND_TO_LOOPBACK = self.original_server
-        storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = self.original_storage
+        storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = (
+            self.original_storage
+        )
         self.temp.cleanup()
 
     def _get(self, path: str, headers: dict | None = None):
@@ -409,8 +491,9 @@ class LocalIdentityServerTest(unittest.TestCase):
         self.assertEqual(dict(headers)["Location"], "/api/whoami")
         # The redirect has to carry the cookie, or the bounced request arrives
         # with neither the token nor a session and loops.
-        self.assertTrue(any(k.lower() == "set-cookie" and v.startswith("quiltor_session=")
-                            for k, v in headers))
+        self.assertTrue(
+            any(k.lower() == "set-cookie" and v.startswith("quiltor_session=") for k, v in headers)
+        )
 
 
 if __name__ == "__main__":

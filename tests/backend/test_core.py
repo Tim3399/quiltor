@@ -10,6 +10,7 @@ only in prose is worth very little: every individual import that crosses it
 looks reasonable in isolation, and by the time the shape is obviously wrong the
 work to undo it is large.
 """
+
 import ast
 import unittest
 from pathlib import Path
@@ -60,11 +61,18 @@ class CoreIndependenceTests(unittest.TestCase):
                 for forbidden, reason in FORBIDDEN.items():
                     if imported == forbidden or imported.startswith(forbidden + "."):
                         offenders.setdefault(str(path.relative_to(REPO_ROOT)), []).append(
-                            f"{imported} ({reason})")
-        self.assertEqual(offenders, {}, "\n".join([
-            "backend/core/ is the domain and must not know how Quiltor is run or shipped:",
-            *(f"  {path}: {', '.join(hits)}" for path, hits in sorted(offenders.items())),
-        ]))
+                            f"{imported} ({reason})"
+                        )
+        self.assertEqual(
+            offenders,
+            {},
+            "\n".join(
+                [
+                    "backend/core/ is the domain and must not know how Quiltor is run or shipped:",
+                    *(f"  {path}: {', '.join(hits)}" for path, hits in sorted(offenders.items())),
+                ]
+            ),
+        )
 
     def test_core_only_imports_itself_within_backend(self):
         """The positive form of the same rule: any backend import from core has
@@ -90,9 +98,13 @@ class CoreIndependenceTests(unittest.TestCase):
         self.assertFalse((CORE / "assistant").exists())
         reaches_capability = any(
             imported.startswith("backend.llm")
-            for path in assistant.rglob("*.py") if "__pycache__" not in path.parts
-            for imported in _imports(path))
-        self.assertTrue(reaches_capability, "if this is no longer true, reconsider where it belongs")
+            for path in assistant.rglob("*.py")
+            if "__pycache__" not in path.parts
+            for imported in _imports(path)
+        )
+        self.assertTrue(
+            reaches_capability, "if this is no longer true, reconsider where it belongs"
+        )
 
 
 if __name__ == "__main__":

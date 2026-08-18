@@ -14,11 +14,13 @@ CREATE TABLE IF NOT EXISTS entries(
 CREATE INDEX IF NOT EXISTS entries_lookup ON entries(language, mode, query COLLATE NOCASE);
 """
 
+
 def connect(path: Path, readonly: bool = False) -> sqlite3.Connection:
     if readonly:
         return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     return sqlite3.connect(path)
+
 
 def initialize(path: Path, version: str) -> sqlite3.Connection:
     conn = connect(path)
@@ -26,17 +28,54 @@ def initialize(path: Path, version: str) -> sqlite3.Connection:
     conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('version',?)", (version,))
     return conn
 
-def insert(conn: sqlite3.Connection, language: str, mode: str, query: str, lemma: str, part_of_speech: str, meaning: str, values: list[str], source: str) -> None:
-    conn.execute("INSERT INTO entries(language,mode,query,lemma,part_of_speech,meaning,values_json,source) VALUES(?,?,?,?,?,?,?,?)",
-                 (language, mode, query.casefold(), lemma, part_of_speech, meaning, json.dumps(values, ensure_ascii=False), source))
+
+def insert(
+    conn: sqlite3.Connection,
+    language: str,
+    mode: str,
+    query: str,
+    lemma: str,
+    part_of_speech: str,
+    meaning: str,
+    values: list[str],
+    source: str,
+) -> None:
+    conn.execute(
+        "INSERT INTO entries(language,mode,query,lemma,part_of_speech,meaning,values_json,source) VALUES(?,?,?,?,?,?,?,?)",
+        (
+            language,
+            mode,
+            query.casefold(),
+            lemma,
+            part_of_speech,
+            meaning,
+            json.dumps(values, ensure_ascii=False),
+            source,
+        ),
+    )
+
 
 def lookup(path: Path, language: str, mode: str, query: str) -> list[dict]:
     with connect(path, readonly=True) as conn:
-        rows = conn.execute("SELECT lemma,part_of_speech,meaning,values_json,source FROM entries WHERE language=? AND mode=? AND query=? COLLATE NOCASE ORDER BY id LIMIT 50", (language, mode, query.casefold())).fetchall()
-    return [{"lemma": row[0], "partOfSpeech": row[1], "meaning": row[2], "values": json.loads(row[3]), "source": row[4]} for row in rows]
+        rows = conn.execute(
+            "SELECT lemma,part_of_speech,meaning,values_json,source FROM entries WHERE language=? AND mode=? AND query=? COLLATE NOCASE ORDER BY id LIMIT 50",
+            (language, mode, query.casefold()),
+        ).fetchall()
+    return [
+        {
+            "lemma": row[0],
+            "partOfSpeech": row[1],
+            "meaning": row[2],
+            "values": json.loads(row[3]),
+            "source": row[4],
+        }
+        for row in rows
+    ]
+
 
 def version(path: Path) -> str | None:
-    if not path.exists(): return None
+    if not path.exists():
+        return None
     try:
         with connect(path, readonly=True) as conn:
             row = conn.execute("SELECT value FROM metadata WHERE key='version'").fetchone()

@@ -17,6 +17,7 @@ the only place it is ever selected.
 awaited: the calling thread is an HTTP handler thread, and there is no asyncio
 loop here to hand the continuation to.
 """
+
 from __future__ import annotations
 
 import time

@@ -25,7 +25,9 @@ def resolve_binary(base: Path) -> Path:
     return base / "runtime" / binary_name()
 
 
-def start(base: Path, data: Path, url: str, binary_override: str | None, model_override: str | None) -> tuple[subprocess.Popen[str], Path] | None:
+def start(
+    base: Path, data: Path, url: str, binary_override: str | None, model_override: str | None
+) -> tuple[subprocess.Popen[str], Path] | None:
     """Spawn the bundled llama-server if a matching binary and model are present.
 
     Returns None (without raising) when nothing is installed yet -- that's
@@ -40,5 +42,16 @@ def start(base: Path, data: Path, url: str, binary_override: str | None, model_o
     if not binary.exists() or not model or not model.exists():
         return None
     port = resolve_port(url)
-    argv = [str(binary), "-m", str(model), "--host", "127.0.0.1", "--port", str(port), "-c", "8192", "--jinja"]
+    argv = [
+        str(binary),
+        "-m",
+        str(model),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "-c",
+        "8192",
+        "--jinja",
+    ]
     return spawn_logged(argv, data, "llama-server.log")

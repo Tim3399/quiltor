@@ -14,6 +14,7 @@ Two separate rulebooks land on the same two flags:
 
 See packaging/entitlements-mas.plist for the matching sandbox declaration.
 """
+
 from __future__ import annotations
 
 from backend.edition.contract import MAS

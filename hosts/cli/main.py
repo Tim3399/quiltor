@@ -12,6 +12,7 @@ deployments (which never go through this module) and remain the top-priority
 override locally too: `_load_config` uses `setdefault`, so a real env var
 always wins over both the persisted file and the built-in QUILTOR_HOME default.
 """
+
 from __future__ import annotations
 
 import os
@@ -123,7 +124,9 @@ def _version() -> str:
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    version: bool = typer.Option(False, "--version", "-V", help="Show the Quiltor version and exit."),
+    version: bool = typer.Option(
+        False, "--version", "-V", help="Show the Quiltor version and exit."
+    ),
 ) -> None:
     if version:
         typer.echo(_version())
@@ -135,6 +138,7 @@ def main(
 def _start_server(port: int, no_open: bool, print_token: bool) -> None:
     _load_config()
     import server
+
     server.run(port=port, no_open=no_open, print_token=print_token)
 
 
@@ -146,7 +150,7 @@ def run(
         False,
         "--print-token",
         help="Print this run's local access token in the startup banner. It is new every start, "
-             "lives only in memory, and appears nowhere without this flag.",
+        "lives only in memory, and appears nowhere without this flag.",
     ),
 ) -> None:
     """Start the server (same as `python3 server.py`)."""
@@ -223,8 +227,16 @@ def _install_keycloak_step() -> None:
             "von außerhalb braucht es den Token aus `quiltor run --print-token`."
         )
         return
-    issuer = typer.prompt("Realm-Issuer-URL (QUILTOR_OIDC_ISSUER)", default=current.get("QUILTOR_OIDC_ISSUER", ""), show_default=False)
-    client_id = typer.prompt("Client-ID (QUILTOR_OIDC_CLIENT_ID)", default=current.get("QUILTOR_OIDC_CLIENT_ID", ""), show_default=False)
+    issuer = typer.prompt(
+        "Realm-Issuer-URL (QUILTOR_OIDC_ISSUER)",
+        default=current.get("QUILTOR_OIDC_ISSUER", ""),
+        show_default=False,
+    )
+    client_id = typer.prompt(
+        "Client-ID (QUILTOR_OIDC_CLIENT_ID)",
+        default=current.get("QUILTOR_OIDC_CLIENT_ID", ""),
+        show_default=False,
+    )
     client_secret = typer.prompt(
         "Client-Secret (QUILTOR_OIDC_CLIENT_SECRET)",
         default=current.get("QUILTOR_OIDC_CLIENT_SECRET", ""),
@@ -241,25 +253,30 @@ def _install_keycloak_step() -> None:
         default=current.get("QUILTOR_COOKIE_SECURE", "auto"),
     )
     values = dict(current)
-    values.update({
-        "QUILTOR_OIDC_ISSUER": issuer.strip(),
-        "QUILTOR_OIDC_CLIENT_ID": client_id.strip(),
-        "QUILTOR_OIDC_CLIENT_SECRET": client_secret.strip(),
-        "QUILTOR_PUBLIC_URL": public_url.strip(),
-        "QUILTOR_COOKIE_SECURE": cookie_secure.strip(),
-    })
+    values.update(
+        {
+            "QUILTOR_OIDC_ISSUER": issuer.strip(),
+            "QUILTOR_OIDC_CLIENT_ID": client_id.strip(),
+            "QUILTOR_OIDC_CLIENT_SECRET": client_secret.strip(),
+            "QUILTOR_PUBLIC_URL": public_url.strip(),
+            "QUILTOR_COOKIE_SECURE": cookie_secure.strip(),
+        }
+    )
     _write_config(values)
     typer.echo("Gespeichert — Keycloak-Login ist ab dem nächsten `quiltor run` aktiv.")
 
 
 def _install_llm_step() -> None:
-    if not typer.confirm("Lokalen KI-Assistenten einrichten (lädt Runtime + Modell herunter, ~2,5 GB)?", default=True):
+    if not typer.confirm(
+        "Lokalen KI-Assistenten einrichten (lädt Runtime + Modell herunter, ~2,5 GB)?", default=True
+    ):
         typer.echo(
             "Übersprungen. Extern anbindbar per `quiltor config set QUILTOR_AI_URL <url>`, "
             "oder später erneut mit `quiltor install`."
         )
         return
     from backend.llm.installer import install as install_llm, resolve_runtime
+
     runtime = resolve_runtime("auto")
     try:
         install_llm(runtime)
@@ -267,14 +284,22 @@ def _install_llm_step() -> None:
         # Also catches network/subprocess failures the installer surfaces as
         # SystemExit (e.g. an unsupported platform) -- see ensure_installed().
         typer.echo(f"! Einrichtung fehlgeschlagen: {exc}", err=True)
-        typer.echo("Quiltor läuft trotzdem, nur ohne Assistenten. Erneut versuchen mit: quiltor install")
+        typer.echo(
+            "Quiltor läuft trotzdem, nur ohne Assistenten. Erneut versuchen mit: quiltor install"
+        )
 
 
 def _install_language_step() -> None:
-    if not typer.confirm("Deutsche Schreibwerkzeuge einrichten (Wörterbuch, Synonyme, Übersetzung und LanguageTool)?", default=True):
-        typer.echo("Übersprungen. Die Browser-Rechtschreibprüfung bleibt verfügbar. Später erneut mit: quiltor install")
+    if not typer.confirm(
+        "Deutsche Schreibwerkzeuge einrichten (Wörterbuch, Synonyme, Übersetzung und LanguageTool)?",
+        default=True,
+    ):
+        typer.echo(
+            "Übersprungen. Die Browser-Rechtschreibprüfung bleibt verfügbar. Später erneut mit: quiltor install"
+        )
         return
     from backend.language.service import LanguageService
+
     home = Path(os.environ["QUILTOR_HOME"])
     data_dir = Path(os.environ.get("QUILTOR_DATA_DIR", str(home / "data"))).expanduser().resolve()
     service = LanguageService(data_dir)
@@ -289,12 +314,16 @@ def _install_language_step() -> None:
         if grammar["available"]:
             typer.echo(f"✓ LanguageTool {grammar['version']} ist bereits einsatzbereit.")
         else:
-            typer.echo(f"LanguageTool {grammar['version']} wird heruntergeladen und lokal eingerichtet …")
+            typer.echo(
+                f"LanguageTool {grammar['version']} wird heruntergeladen und lokal eingerichtet …"
+            )
             installed = service.install_grammar()
             typer.echo(f"✓ LanguageTool {installed['version']} installiert.")
     except (SystemExit, Exception) as exc:
         typer.echo(f"! Einrichtung der Schreibwerkzeuge fehlgeschlagen: {exc}", err=True)
-        typer.echo("Quiltor läuft mit der Browser-Rechtschreibprüfung weiter. Erneut versuchen mit: quiltor install")
+        typer.echo(
+            "Quiltor läuft mit der Browser-Rechtschreibprüfung weiter. Erneut versuchen mit: quiltor install"
+        )
     finally:
         service.close()
 

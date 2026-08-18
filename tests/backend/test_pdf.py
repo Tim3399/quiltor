@@ -5,6 +5,7 @@ Chromium, one an installed Chrome, one AppKit and a window server. So these pin
 the selection instead, which is the part that decides whether a build reaches
 for something its sandbox would refuse.
 """
+
 import importlib.util
 import os
 import unittest
@@ -13,7 +14,12 @@ from unittest.mock import patch
 
 from backend import pdf
 from backend.pdf import (
-    node_chromium, page_numbers, system_browser, webkitgtk, webview2, wkwebview,
+    node_chromium,
+    page_numbers,
+    system_browser,
+    webkitgtk,
+    webview2,
+    wkwebview,
 )
 
 
@@ -27,9 +33,11 @@ class DesktopRendererSelectionTests(unittest.TestCase):
         """No second browser anywhere. The window is already a web view, so the
         PDF matches what the author saw and nothing has to be installed for it
         -- which on Linux is not a nicety: no browser is guaranteed there."""
-        for os_name, renderer in (("macos", wkwebview.render),
-                                  ("windows", webview2.render),
-                                  ("linux", webkitgtk.render)):
+        for os_name, renderer in (
+            ("macos", wkwebview.render),
+            ("windows", webview2.render),
+            ("linux", webkitgtk.render),
+        ):
             with self.subTest(os_name=os_name):
                 self.assertIs(self._renderer(os_name=os_name), renderer)
 
@@ -43,8 +51,9 @@ class DesktopRendererSelectionTests(unittest.TestCase):
         misbehaves, this gets a working export back without a new build."""
         for os_name in ("macos", "windows", "linux"):
             with self.subTest(os_name=os_name):
-                chosen = self._renderer(os_name=os_name,
-                                        environment={"QUILTOR_PDF_RENDERER": "system_browser"})
+                chosen = self._renderer(
+                    os_name=os_name, environment={"QUILTOR_PDF_RENDERER": "system_browser"}
+                )
                 self.assertIs(chosen, system_browser.render)
 
     def test_an_unknown_override_fails_loudly(self):

@@ -47,7 +47,13 @@ services:
       # below) is what actually terminates TLS and faces the internet.
       - "127.0.0.1:${QUILTOR_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/version', timeout=3)"]
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/version', timeout=3)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -81,7 +87,13 @@ services:
       # The metadata document is the one route answered without a token, which
       # makes it exactly the right readiness probe -- it proves the process is
       # up and configured without needing a credential to ask.
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/.well-known/oauth-protected-resource', timeout=3)"]
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/.well-known/oauth-protected-resource', timeout=3)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

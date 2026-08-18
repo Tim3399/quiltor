@@ -1,4 +1,5 @@
 """macOS. See backend/system/contract.py for the surface."""
+
 from __future__ import annotations
 
 import functools
@@ -40,7 +41,8 @@ def reveal_in_file_manager(path: Path) -> None:
         subprocess.run(["open", str(path)], check=False)
         return
     NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_(
-        [NSURL.fileURLWithPath_(str(path))])
+        [NSURL.fileURLWithPath_(str(path))]
+    )
 
 
 def spawn_flags() -> int:
@@ -69,7 +71,9 @@ def is_apple_silicon() -> bool:
     if platform.machine().lower() in ("arm64", "aarch64"):
         return True
     try:
-        result = subprocess.run(["sysctl", "-n", "sysctl.proc_translated"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(
+            ["sysctl", "-n", "sysctl.proc_translated"], capture_output=True, text=True, timeout=5
+        )
         return result.returncode == 0 and result.stdout.strip() == "1"
     except Exception:
         return False

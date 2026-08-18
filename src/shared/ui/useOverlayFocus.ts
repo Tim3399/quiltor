@@ -1,15 +1,20 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from "react";
 
 const overlayStack: symbol[] = [];
-const focusableSelector = 'button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])';
+const focusableSelector =
+  'button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])';
 
-export function useOverlayFocus(container: RefObject<HTMLElement | null>, active: boolean, onClose: () => void) {
+export function useOverlayFocus(
+  container: RefObject<HTMLElement | null>,
+  active: boolean,
+  onClose: () => void,
+) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!active) return;
-    const id = Symbol('overlay');
+    const id = Symbol("overlay");
     const previous = document.activeElement as HTMLElement | null;
     overlayStack.push(id);
     const frame = requestAnimationFrame(() => {
@@ -17,24 +22,48 @@ export function useOverlayFocus(container: RefObject<HTMLElement | null>, active
       // `autofocus` attribute, so querying for one matched nothing and this frame pulled focus back
       // onto the container. `data-autofocus` does survive into the DOM, which is why overlays mark
       // their intended first stop with it.
-      const autofocus = container.current?.querySelector<HTMLElement>('[data-autofocus],[autofocus]');
+      const autofocus = container.current?.querySelector<HTMLElement>(
+        "[data-autofocus],[autofocus]",
+      );
       (autofocus ?? container.current)?.focus();
     });
     const key = (event: KeyboardEvent) => {
       const visibleModals = [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')];
-      if (visibleModals.length ? visibleModals.at(-1) !== container.current : overlayStack.at(-1) !== id) return;
-      if (event.key === 'Escape') { event.preventDefault(); onCloseRef.current(); return; }
-      if (event.key !== 'Tab' || !container.current) return;
+      if (
+        visibleModals.length
+          ? visibleModals.at(-1) !== container.current
+          : overlayStack.at(-1) !== id
+      )
+        return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !container.current) return;
       const items = [...container.current.querySelectorAll<HTMLElement>(focusableSelector)];
-      if (!items.length) { event.preventDefault(); container.current.focus(); return; }
-      const first = items[0], last = items.at(-1)!;
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === container.current)) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (!items.length) {
+        event.preventDefault();
+        container.current.focus();
+        return;
+      }
+      const first = items[0],
+        last = items.at(-1)!;
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || document.activeElement === container.current)
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    document.addEventListener('keydown', key);
+    document.addEventListener("keydown", key);
     return () => {
       cancelAnimationFrame(frame);
-      document.removeEventListener('keydown', key);
+      document.removeEventListener("keydown", key);
       const index = overlayStack.lastIndexOf(id);
       if (index >= 0) overlayStack.splice(index, 1);
       if (previous?.isConnected) previous.focus();

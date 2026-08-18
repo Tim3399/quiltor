@@ -27,6 +27,7 @@ worked and did not:
 This writes the files and stops. Reviewing and committing the diff stays a
 deliberate act, and pushing it to main is what starts a release.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,7 +57,8 @@ def parse_version(text: str) -> tuple[int, int, int]:
     if len(parts) != 3 or not all(part.isdigit() for part in parts):
         raise ValueError(
             f"{text!r} is not a version. Expected three integers separated by dots, "
-            f"e.g. 2.15.0, or one of: {', '.join(BUMPS)}.")
+            f"e.g. 2.15.0, or one of: {', '.join(BUMPS)}."
+        )
     return tuple(int(part) for part in parts)  # type: ignore[return-value]
 
 
@@ -93,8 +95,8 @@ def uncommitted_changes(repo_root: Path = REPO_ROOT) -> list[str]:
     yet.
     """
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=repo_root, capture_output=True, text=True, check=True)
+        ["git", "status", "--porcelain"], cwd=repo_root, capture_output=True, text=True, check=True
+    )
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
@@ -138,10 +140,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="packaging/set_version.py",
         description="Raise the version in VERSION, package.json and package-lock.json together.",
-        epilog="Pushing the resulting commit to main is what triggers a release.")
+        epilog="Pushing the resulting commit to main is what triggers a release.",
+    )
     parser.add_argument(
-        "version",
-        help=f"an explicit version such as 2.15.0, or one of: {', '.join(BUMPS)}")
+        "version", help=f"an explicit version such as 2.15.0, or one of: {', '.join(BUMPS)}"
+    )
     args = parser.parse_args(argv)
 
     repo_root = REPO_ROOT
@@ -155,8 +158,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if parse_version(target) <= parse_version(current):
         print(f"error: {target} is not ahead of the current version {current}.", file=sys.stderr)
-        print("       Re-releasing an existing version does not fail the release workflow --", file=sys.stderr)
-        print("       it finds the tag already exists and skips every job, green and empty.", file=sys.stderr)
+        print(
+            "       Re-releasing an existing version does not fail the release workflow --",
+            file=sys.stderr,
+        )
+        print(
+            "       it finds the tag already exists and skips every job, green and empty.",
+            file=sys.stderr,
+        )
         return 1
 
     dirty = uncommitted_changes(repo_root)

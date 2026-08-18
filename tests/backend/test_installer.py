@@ -15,10 +15,15 @@ class _FakeResponse:
     def __init__(self, body: bytes, status: int, content_length: int | None = None):
         self._remaining = body
         self.status = status
-        self.headers = {"Content-Length": str(content_length if content_length is not None else len(body))}
+        self.headers = {
+            "Content-Length": str(content_length if content_length is not None else len(body))
+        }
 
     def read(self, n: int = -1) -> bytes:
-        chunk, self._remaining = self._remaining[:n] if n >= 0 else self._remaining, self._remaining[n:] if n >= 0 else b""
+        chunk, self._remaining = (
+            self._remaining[:n] if n >= 0 else self._remaining,
+            self._remaining[n:] if n >= 0 else b"",
+        )
         return chunk
 
     def __enter__(self) -> "_FakeResponse":

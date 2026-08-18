@@ -4,6 +4,7 @@ The case that matters is a machine that has never seen the world: no local
 history, no blobs, and no per-world endpoint setting to read. Everything has to
 come from QUILTOR_BACKUP_URL and the endpoint itself.
 """
+
 import importlib.util
 import os
 import sqlite3
@@ -24,7 +25,9 @@ TOKEN, ACCOUNT = "test-token", "tester"
 
 def _load_reference_server(root: Path, issuer_url: str):
     os.environ["QUILTOR_BACKUP_ROOT"] = str(root)
-    spec = importlib.util.spec_from_file_location("quiltor_backup_reference_restore", REFERENCE_SERVER)
+    spec = importlib.util.spec_from_file_location(
+        "quiltor_backup_reference_restore", REFERENCE_SERVER
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.ROOT = root
@@ -48,7 +51,9 @@ class RestoreTest(unittest.TestCase):
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
         self.endpoint = f"http://127.0.0.1:{self.httpd.server_address[1]}"
-        self._env = patch.dict(os.environ, {"QUILTOR_BACKUP_TOKEN": TOKEN, "QUILTOR_BACKUP_URL": self.endpoint})
+        self._env = patch.dict(
+            os.environ, {"QUILTOR_BACKUP_TOKEN": TOKEN, "QUILTOR_BACKUP_URL": self.endpoint}
+        )
         self._env.start()
 
     def tearDown(self):
@@ -73,17 +78,21 @@ class RestoreTest(unittest.TestCase):
         profiles.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(database)
         conn.execute("CREATE TABLE IF NOT EXISTS note(text TEXT)")
-        conn.commit(); conn.close()
+        conn.commit()
+        conn.close()
         return store.context(world_id, "", database, manuscripts, profiles, title=title)
 
     def _seed_and_upload(self):
         """Machine A writes a world and backs it up."""
         store, home = self._machine("machine-a")
         ctx = self._world(store, home)
-        (ctx.manuscripts / "01 - Kapitel.md").write_text("Der Sturm kam schnell.\n", encoding="utf-8")
+        (ctx.manuscripts / "01 - Kapitel.md").write_text(
+            "Der Sturm kam schnell.\n", encoding="utf-8"
+        )
         conn = sqlite3.connect(ctx.database)
         conn.execute("INSERT INTO note VALUES('original')")
-        conn.commit(); conn.close()
+        conn.commit()
+        conn.close()
         result = store.commit(ctx, "Erster Stand", push=True)
         self.assertTrue(result["ok"], result.get("grund"))
         return store, ctx
@@ -124,8 +133,10 @@ class RestoreTest(unittest.TestCase):
         entry = remote.snapshots(ctx_b)[-1]
         store_b.restore(ctx_b, entry, fetch=lambda digest: remote.fetch_blob(ctx_b, digest))
 
-        self.assertEqual((ctx_b.manuscripts / "01 - Kapitel.md").read_text(encoding="utf-8"),
-                         "Der Sturm kam schnell.\n")
+        self.assertEqual(
+            (ctx_b.manuscripts / "01 - Kapitel.md").read_text(encoding="utf-8"),
+            "Der Sturm kam schnell.\n",
+        )
         conn = sqlite3.connect(ctx_b.database)
         self.assertEqual(conn.execute("SELECT text FROM note").fetchone()[0], "original")
         conn.close()
@@ -185,8 +196,14 @@ class RestoreTest(unittest.TestCase):
 
         entry = remote.snapshots(ctx_b)[-1]
         with self.assertRaises(RuntimeError):
-            store_b.restore(ctx_b, entry, fetch=lambda digest: (_ for _ in ()).throw(RuntimeError("network died")))
-        self.assertEqual((ctx_b.manuscripts / "01 - Kapitel.md").read_text(encoding="utf-8"), "unangetastet\n")
+            store_b.restore(
+                ctx_b,
+                entry,
+                fetch=lambda digest: (_ for _ in ()).throw(RuntimeError("network died")),
+            )
+        self.assertEqual(
+            (ctx_b.manuscripts / "01 - Kapitel.md").read_text(encoding="utf-8"), "unangetastet\n"
+        )
 
     def test_local_rollback_needs_no_endpoint_at_all(self):
         """restore() defaults to local blobs, so going back to an earlier snapshot

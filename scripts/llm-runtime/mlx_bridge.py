@@ -34,7 +34,13 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-STATE: dict[str, Any] = {"ready": False, "error": None, "model": None, "tokenizer": None, "ll_tokenizer": None}
+STATE: dict[str, Any] = {
+    "ready": False,
+    "error": None,
+    "model": None,
+    "tokenizer": None,
+    "ll_tokenizer": None,
+}
 GENERATION_LOCK = threading.Lock()
 GRAMMAR_CACHE: dict[str, Any] = {}
 MAX_PROMPT_TOKENS = 7000
@@ -65,6 +71,7 @@ def _resolve_apply_bitmask() -> Any:
         # is exceptional, so its imports stay lazy here.
         import mlx.core as mx
         import numpy as np
+
         masked = np.array(logits, copy=True)
         masked[np.array(bitmask) == 0] = -np.inf
         return mx.array(masked)
@@ -81,11 +88,18 @@ def load_model(model_dir: str) -> None:
         from mlx_lm.sample_utils import make_sampler
 
         model, tokenizer = load(model_dir)
-        ll_tokenizer = llguidance.hf.from_tokenizer(tokenizer._tokenizer, slices=LLTokenizer.json_slices())
+        ll_tokenizer = llguidance.hf.from_tokenizer(
+            tokenizer._tokenizer, slices=LLTokenizer.json_slices()
+        )
         STATE.update(
-            model=model, tokenizer=tokenizer, ll_tokenizer=ll_tokenizer,
-            LLMatcher=LLMatcher, stream_generate=stream_generate, make_sampler=make_sampler,
-            allocate_token_bitmask=allocate_token_bitmask, fill_next_token_bitmask=fill_next_token_bitmask,
+            model=model,
+            tokenizer=tokenizer,
+            ll_tokenizer=ll_tokenizer,
+            LLMatcher=LLMatcher,
+            stream_generate=stream_generate,
+            make_sampler=make_sampler,
+            allocate_token_bitmask=allocate_token_bitmask,
+            fill_next_token_bitmask=fill_next_token_bitmask,
             apply_bitmask=_resolve_apply_bitmask(),
             ready=True,
         )
@@ -105,7 +119,7 @@ class SchemaProcessor:
     def __call__(self, tokens: Any, logits: Any) -> Any:
         n = tokens.size
         if n > self.consumed:
-            for token_id in tokens[self.consumed:n].tolist():
+            for token_id in tokens[self.consumed : n].tolist():
                 if not self.matcher.consume_token(token_id):
                     raise RuntimeError(self.matcher.get_error())
             self.consumed = n
@@ -126,13 +140,17 @@ def get_grammar(schema: dict[str, Any]) -> Any:
 
 
 def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
-    LLMatcher, stream_generate, make_sampler = STATE["LLMatcher"], STATE["stream_generate"], STATE["make_sampler"]
+    LLMatcher, stream_generate, make_sampler = (
+        STATE["LLMatcher"],
+        STATE["stream_generate"],
+        STATE["make_sampler"],
+    )
     model, tokenizer, ll_tokenizer = STATE["model"], STATE["tokenizer"], STATE["ll_tokenizer"]
     messages = payload.get("messages") or []
     temperature = float(payload.get("temperature", 0.2))
     max_tokens = int(payload.get("max_tokens", 900))
     response_format = payload.get("response_format") or {}
-    schema = ((response_format.get("json_schema") or {}).get("schema"))
+    schema = (response_format.get("json_schema") or {}).get("schema")
     if not isinstance(schema, dict):
         raise ValueError("response_format.json_schema.schema is required")
 
@@ -149,15 +167,28 @@ def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
     with GENERATION_LOCK:
         text = ""
         completion_tokens = 0
-        for response in stream_generate(model, tokenizer, prompt, max_tokens=max_tokens, sampler=sampler, logits_processors=[processor]):
+        for response in stream_generate(
+            model,
+            tokenizer,
+            prompt,
+            max_tokens=max_tokens,
+            sampler=sampler,
+            logits_processors=[processor],
+        ):
             text += response.text
             completion_tokens += 1
             if matcher.is_stopped():
                 break
 
     return {
-        "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": text}}],
-        "usage": {"prompt_tokens": prompt_len, "completion_tokens": completion_tokens, "total_tokens": prompt_len + completion_tokens},
+        "choices": [
+            {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": text}}
+        ],
+        "usage": {
+            "prompt_tokens": prompt_len,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_len + completion_tokens,
+        },
         "model": "mlx-bridge",
         "object": "chat.completion",
     }
@@ -220,7 +251,10 @@ def main() -> None:
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     threading.Thread(target=load_model, args=(args.model,), daemon=True).start()
-    print(f"MLX bridge: listening on http://{args.host}:{args.port} (model loading in background)", flush=True)
+    print(
+        f"MLX bridge: listening on http://{args.host}:{args.port} (model loading in background)",
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

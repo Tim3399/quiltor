@@ -11,7 +11,14 @@ from backend.system import is_apple_silicon
 
 
 class Runtime(Protocol):
-    def start(self, base: Path, data: Path, url: str, binary_override: str | None, model_override: str | None) -> tuple[subprocess.Popen[str], Path] | None: ...
+    def start(
+        self,
+        base: Path,
+        data: Path,
+        url: str,
+        binary_override: str | None,
+        model_override: str | None,
+    ) -> tuple[subprocess.Popen[str], Path] | None: ...
 
 
 RUNTIMES: dict[str, Runtime] = {"llamacpp": llamacpp, "mlx": mlx}
@@ -54,7 +61,9 @@ def start_runtime(base: Path, data: Path, url: str) -> tuple[subprocess.Popen[st
     if forced:
         runtime = RUNTIMES.get(forced)
         if runtime is None:
-            raise SystemExit(f"Unknown QUILTOR_AI_RUNTIME={forced!r}. Expected one of: {', '.join(RUNTIMES)}")
+            raise SystemExit(
+                f"Unknown QUILTOR_AI_RUNTIME={forced!r}. Expected one of: {', '.join(RUNTIMES)}"
+            )
         return runtime.start(base, data, url, binary, model)
     for runtime in _preference_order():
         started = runtime.start(base, data, url, binary, model)

@@ -18,6 +18,7 @@ Real sockets throughout (the fake issuer, a fake endpoint, our own server): the
 subject is wiring between parties, and a mocked transport would let a client
 that never sends a header pass.
 """
+
 import http.client
 import json
 import os
@@ -137,8 +138,10 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         self.assertFalse(answer["hosted"])
         self.assertFalse(answer["signedIn"])
         self.assertEqual(answer["endpoint"], self.base)
-        self.assertTrue(answer["issuerReachable"],
-                        "the issuer is up, so 'you are not signed in' is the whole story")
+        self.assertTrue(
+            answer["issuerReachable"],
+            "the issuer is up, so 'you are not signed in' is the whole story",
+        )
 
     def test_without_an_endpoint_there_is_nothing_to_sign_in_to(self):
         """Not an error: a Quiltor that backs up nowhere is a normal Quiltor."""
@@ -165,22 +168,28 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         self.assertTrue(started["authorizeUrl"].startswith(f"{self.issuer.url}/authorize?"))
         self.assertEqual(started["redirectUri"], f"http://127.0.0.1:{self.port}/backup/callback")
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(started["authorizeUrl"]).query)
-        self.assertEqual(query["redirect_uri"], [started["redirectUri"]],
-                         "the issuer must send the browser back to the port we are listening on")
+        self.assertEqual(
+            query["redirect_uri"],
+            [started["redirectUri"]],
+            "the issuer must send the browser back to the port we are listening on",
+        )
 
     def test_the_whole_flow_over_the_real_routes_ends_signed_in(self):
         self.sign_in()
         token = backup_login.access_token(self.base)
         self.assertTrue(token)
-        self.assertTrue(self.issuer.tokens[token]["active"],
-                        "the endpoint would introspect exactly this token")
+        self.assertTrue(
+            self.issuer.tokens[token]["active"], "the endpoint would introspect exactly this token"
+        )
 
     def test_a_state_nobody_issued_is_refused_at_the_callback(self):
         self.json_of("POST", "/api/backup/login", body={})
         status, headers, raw = self.request("GET", "/backup/callback?code=stolen&state=made-up")
         self.assertEqual(status, 400)
-        self.assertTrue(headers["Content-Type"].startswith("text/html"),
-                        "a browser lands here, so it gets a page and not a JSON fragment")
+        self.assertTrue(
+            headers["Content-Type"].startswith("text/html"),
+            "a browser lands here, so it gets a page and not a JSON fragment",
+        )
         self.assertNotIn(b"Traceback", raw)
         self.assertFalse(self.json_of("GET", "/api/backup/login")["signedIn"])
 
@@ -201,8 +210,9 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         uploader arrives at the endpoint with the token the login produced."""
         self.sign_in()
         self.assertTrue(self.json_of("GET", "/api/backup/remote")["ok"])
-        self.assertEqual(self.endpoint.header_for("/v1/worlds"),
-                         f"Bearer {backup_login.access_token(self.base)}")
+        self.assertEqual(
+            self.endpoint.header_for("/v1/worlds"), f"Bearer {backup_login.access_token(self.base)}"
+        )
 
     def test_a_pasted_token_still_decides_when_nobody_has_signed_in(self):
         """QUILTOR_BACKUP_TOKEN is how a self-hosted endpoint has always been
@@ -218,8 +228,9 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         self.sign_in()
         with patch.dict(os.environ, {"QUILTOR_BACKUP_TOKEN": "hand-issued"}):
             self.json_of("GET", "/api/backup/remote")
-        self.assertEqual(self.endpoint.header_for("/v1/worlds"),
-                         f"Bearer {backup_login.access_token(self.base)}")
+        self.assertEqual(
+            self.endpoint.header_for("/v1/worlds"), f"Bearer {backup_login.access_token(self.base)}"
+        )
 
     def test_signing_out_forgets_the_credential(self):
         self.sign_in()
@@ -247,21 +258,27 @@ class HostedTokenTests(BackupRouteTestCase):
         self.assertTrue(answer["signedIn"])
         self.assertTrue(answer["hosted"])
         self.assertEqual(answer["account"], "hosted-person")
-        self.assertFalse(backup_login.path().exists(),
-                         "nothing was stored on disk -- the session is the credential")
+        self.assertFalse(
+            backup_login.path().exists(),
+            "nothing was stored on disk -- the session is the credential",
+        )
 
     def test_a_session_without_a_usable_token_is_not_called_signed_in(self):
         """A session can carry no credential at all -- one minted by a render
         token never had provider tokens. Claiming "signed in" for it meant the
         dialog offered an upload that could only 401, with nothing on screen
         saying why."""
-        session_id = auth.create_session("hosted-person", "", "")   # no tokens
-        answer = self.json_of("GET", "/api/backup/login",
-                              cookies={identity.SESSION_COOKIE: session_id})
+        session_id = auth.create_session("hosted-person", "", "")  # no tokens
+        answer = self.json_of(
+            "GET", "/api/backup/login", cookies={identity.SESSION_COOKIE: session_id}
+        )
         self.assertFalse(answer["signedIn"])
         self.assertTrue(answer["hosted"])
-        self.assertIn("Sign out", answer.get("grund", ""),
-                      "a refusal names the only remedy this deployment has")
+        self.assertIn(
+            "Sign out",
+            answer.get("grund", ""),
+            "a refusal names the only remedy this deployment has",
+        )
 
     def test_a_lapsed_session_token_is_renewed_before_the_upload(self):
         """A session lives 24h, its access token commonly five minutes. Handing
@@ -272,8 +289,9 @@ class HostedTokenTests(BackupRouteTestCase):
         # The renewal goes to auth's own configured issuer -- in a hosted
         # deployment that is the same realm the endpoint trusts, which is
         # exactly why the session's token is usable there at all.
-        self.enterContext(patch.multiple(auth, ISSUER=self.issuer.url,
-                                         CLIENT_ID="quiltor-web", CLIENT_SECRET=""))
+        self.enterContext(
+            patch.multiple(auth, ISSUER=self.issuer.url, CLIENT_ID="quiltor-web", CLIENT_SECRET="")
+        )
         auth._discovery_cache.clear()
         self.addCleanup(auth._discovery_cache.clear)
 
@@ -281,26 +299,34 @@ class HostedTokenTests(BackupRouteTestCase):
         session = auth.get_session(session_id)
         self.issuer.sign_in_as("hosted-person")
         granted = self.issuer._grant("quiltor.backup")
-        app._remember_tokens(session, {**granted, "expires_in": 0})     # already lapsed
+        app._remember_tokens(session, {**granted, "expires_in": 0})  # already lapsed
         stale = session.access_token
 
         fresh = app.session_backup_token(session)
         self.assertTrue(fresh)
         self.assertNotEqual(fresh, stale, "the lapsed token was handed out unchanged")
-        self.assertGreater(session.access_expires_at, time.time(),
-                           "the renewed token was filed without an expiry, so it lapses instantly")
+        self.assertGreater(
+            session.access_expires_at,
+            time.time(),
+            "the renewed token was filed without an expiry, so it lapses instantly",
+        )
 
     def test_a_dead_refresh_token_clears_the_session_rather_than_pretending(self):
         import server as app
 
         session_id = auth.create_session("hosted-person", "", "")
         session = auth.get_session(session_id)
-        app._remember_tokens(session, {"access_token": "stale", "refresh_token": "no-such-thing",
-                                       "expires_in": 0})
-        self.assertEqual(app.session_backup_token(session), "",
-                         "a token known to be stale must not be sent anyway")
-        answer = self.json_of("GET", "/api/backup/login",
-                              cookies={identity.SESSION_COOKIE: session_id})
+        app._remember_tokens(
+            session, {"access_token": "stale", "refresh_token": "no-such-thing", "expires_in": 0}
+        )
+        self.assertEqual(
+            app.session_backup_token(session),
+            "",
+            "a token known to be stale must not be sent anyway",
+        )
+        answer = self.json_of(
+            "GET", "/api/backup/login", cookies={identity.SESSION_COOKIE: session_id}
+        )
         self.assertFalse(answer["signedIn"], "and the dialog is told the same thing")
 
     def test_there_is_no_browser_flow_to_start(self):
@@ -309,8 +335,12 @@ class HostedTokenTests(BackupRouteTestCase):
         of a deployment that has no browser flow -- and a 4xx would force the
         dialog to catch an exception for one refusal and read a field for the
         next, for the same class of answer."""
-        status, _, raw = self.request("POST", "/api/backup/login", body={},
-                                      cookies={identity.SESSION_COOKIE: self.session_for("t")})
+        status, _, raw = self.request(
+            "POST",
+            "/api/backup/login",
+            body={},
+            cookies={identity.SESSION_COOKIE: self.session_for("t")},
+        )
         self.assertEqual(status, 200)
         answer = json.loads(raw)
         self.assertFalse(answer["ok"])
@@ -320,15 +350,24 @@ class HostedTokenTests(BackupRouteTestCase):
         """The thread-local carrier, end to end: core's uploader is handed no
         session and asks TOKEN_SOURCE, which has to find the session of the
         request being served on this thread."""
-        self.json_of("GET", "/api/backup/remote",
-                     cookies={identity.SESSION_COOKIE: self.session_for("alice-token", "alice")})
+        self.json_of(
+            "GET",
+            "/api/backup/remote",
+            cookies={identity.SESSION_COOKIE: self.session_for("alice-token", "alice")},
+        )
         self.assertEqual(self.endpoint.header_for("/v1/worlds"), "Bearer alice-token")
 
-        self.json_of("GET", "/api/backup/remote",
-                     cookies={identity.SESSION_COOKIE: self.session_for("bob-token", "bob")})
+        self.json_of(
+            "GET",
+            "/api/backup/remote",
+            cookies={identity.SESSION_COOKIE: self.session_for("bob-token", "bob")},
+        )
         headers = [header for path, header in self.endpoint.seen if path == "/v1/worlds"]
-        self.assertEqual(headers[-1], "Bearer bob-token",
-                         "the second request must not have inherited the first one's token")
+        self.assertEqual(
+            headers[-1],
+            "Bearer bob-token",
+            "the second request must not have inherited the first one's token",
+        )
 
     def test_the_local_login_is_not_consulted_here(self):
         """Even with a browser login stored on this machine, a hosted request
@@ -362,8 +401,11 @@ class TokenSourceWiringTests(unittest.TestCase):
         the host supplies the capability. Wired at import, so every path that
         reaches the uploader gets it without arranging for it."""
         self.assertIs(remote.TOKEN_SOURCE, server._backup_token)
-        self.assertIs(server._ENVIRONMENT_TOKEN, remote._token_from_environment,
-                      "core's default has to survive being replaced -- it is the fallback")
+        self.assertIs(
+            server._ENVIRONMENT_TOKEN,
+            remote._token_from_environment,
+            "core's default has to survive being replaced -- it is the fallback",
+        )
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ Two entry points rather than one selector, because the questions differ:
 `server_renderer()` needs filesystem paths only the host knows, while
 `desktop_renderer()` needs the platform.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -72,8 +73,10 @@ def desktop_renderer_name(os_name: str | None = None, sandboxed: bool | None = N
     override = os.environ.get("QUILTOR_PDF_RENDERER", "").strip()
     if override:
         if override not in _BY_NAME:
-            raise SystemExit(f"Unknown QUILTOR_PDF_RENDERER={override!r}. "
-                             f"Expected one of: {', '.join(sorted(_BY_NAME))}")
+            raise SystemExit(
+                f"Unknown QUILTOR_PDF_RENDERER={override!r}. "
+                f"Expected one of: {', '.join(sorted(_BY_NAME))}"
+            )
         return override
     return NATIVE_RENDERERS.get(os_name or system.os_name(), SYSTEM_BROWSER)
 
@@ -84,8 +87,18 @@ def desktop_renderer() -> PdfRenderer:
 
 
 __all__ = [
-    "NATIVE_RENDERERS", "RENDER_TOKEN_TTL", "SYSTEM_BROWSER", "PdfRenderer",
-    "desktop_renderer", "desktop_renderer_name", "issue_render_token", "node_chromium",
-    "redeem_render_token", "server_renderer", "system_browser", "webkitgtk", "webview2",
+    "NATIVE_RENDERERS",
+    "RENDER_TOKEN_TTL",
+    "SYSTEM_BROWSER",
+    "PdfRenderer",
+    "desktop_renderer",
+    "desktop_renderer_name",
+    "issue_render_token",
+    "node_chromium",
+    "redeem_render_token",
+    "server_renderer",
+    "system_browser",
+    "webkitgtk",
+    "webview2",
     "wkwebview",
 ]

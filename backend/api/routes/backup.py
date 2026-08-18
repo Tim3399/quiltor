@@ -6,6 +6,7 @@ because signing in to a foreign service is three separate moments -- asking
 where we stand, starting a browser flow, catching what the browser brings back
 -- plus putting the credential down again.
 """
+
 from __future__ import annotations
 
 import html
@@ -58,8 +59,11 @@ def chapter_version(handler, request: Request, app) -> None:
     if not chapter.isdigit():
         return handler.send_json({"ok": False, "grund": "Kapitel fehlt."})
     with app._lock:
-        handler.send_json(app.WORLD_BACKUPS.chapter_version(
-            request.world.backup, ref, int(chapter), safe_name(title)))
+        handler.send_json(
+            app.WORLD_BACKUPS.chapter_version(
+                request.world.backup, ref, int(chapter), safe_name(title)
+            )
+        )
 
 
 @get("/api/backup/remote")
@@ -69,9 +73,12 @@ def remote_worlds(handler, request: Request, app) -> None:
     endpoint = backup_remote.default_endpoint()
     if not endpoint:
         return handler.send_json(
-            {"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
+            {"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."}
+        )
     try:
-        handler.send_json({"ok": True, "endpoint": endpoint, "worlds": backup_remote.worlds(endpoint)})
+        handler.send_json(
+            {"ok": True, "endpoint": endpoint, "worlds": backup_remote.worlds(endpoint)}
+        )
     except Exception as exc:
         handler.send_json({"ok": False, "grund": str(exc)})
 
@@ -113,11 +120,13 @@ def restore_from_endpoint(handler, request: Request, app) -> None:
     endpoint = backup_remote.default_endpoint()
     if not endpoint:
         return handler.send_json(
-            {"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
+            {"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."}
+        )
     try:
         with app._lock:
             handler.send_json(
-                app.restore_world_from_endpoint(request.session, world_id, snapshot_id, endpoint))
+                app.restore_world_from_endpoint(request.session, world_id, snapshot_id, endpoint)
+            )
     except Exception as exc:
         handler.send_json({"ok": False, "grund": str(exc)}, 400)
 
@@ -133,8 +142,9 @@ def restore_local(handler, request: Request, app) -> None:
         return
     try:
         with app._lock:
-            storage.restore_backup(str(payload.get("name", "")),
-                                   db_path=world.db_path, backups_dir=world.backups_dir)
+            storage.restore_backup(
+                str(payload.get("name", "")), db_path=world.db_path, backups_dir=world.backups_dir
+            )
             manuscript = storage.load_manuscript(world.db_path)
             figures = storage.load_figures(world.db_path)
             mirror_text(manuscript["chapters"], manuscript_dir=world.manuscripts_dir)
@@ -189,12 +199,14 @@ def _page(handler, message: str, code: int) -> None:
     show the user a line of punctuation and an exception would show them our
     file names. A plain page and the reason it failed instead.
     """
-    body = ('<!doctype html><meta charset="utf-8">'
-            "<title>Quiltor — Anmeldung</title>"
-            '<body style="font:16px system-ui;margin:3rem;max-width:34rem">'
-            "<h1>Die Anmeldung ist nicht angekommen</h1>"
-            f"<p>{html.escape(message)}</p>"
-            '<p><a href="/">Zurück zu Quiltor</a></p>').encode("utf-8")
+    body = (
+        '<!doctype html><meta charset="utf-8">'
+        "<title>Quiltor — Anmeldung</title>"
+        '<body style="font:16px system-ui;margin:3rem;max-width:34rem">'
+        "<h1>Die Anmeldung ist nicht angekommen</h1>"
+        f"<p>{html.escape(message)}</p>"
+        '<p><a href="/">Zurück zu Quiltor</a></p>'
+    ).encode("utf-8")
     handler.send_response(code)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
@@ -243,9 +255,15 @@ def login_status(handler, request: Request, app) -> None:
     if not endpoint:
         # Not an error: a Quiltor that backs up nowhere is a normal Quiltor, and
         # the dialog has to say so rather than show a login that leads nowhere.
-        return handler.send_json({"ok": True, "configured": False,
-                                  "hosted": app.IDENTITY.multi_user,
-                                  "endpoint": "", "signedIn": False})
+        return handler.send_json(
+            {
+                "ok": True,
+                "configured": False,
+                "hosted": app.IDENTITY.multi_user,
+                "endpoint": "",
+                "signedIn": False,
+            }
+        )
     if app.IDENTITY.multi_user:
         session = request.session
         # Checked, not claimed. The session is what carries the credential here,
@@ -256,20 +274,36 @@ def login_status(handler, request: Request, app) -> None:
         # a token that has simply lapsed, so asking is what keeps the answer
         # true rather than merely once-true.
         usable = bool(app.session_backup_token(session))
-        return handler.send_json({
-            "ok": True, "configured": True, "hosted": True, "endpoint": endpoint,
-            "signedIn": usable, "account": session.sub, "email": session.email,
-            "name": session.name, "issuer": auth.ISSUER, "scope": "",
-            # Asserted rather than probed: the login that produced this session
-            # went through that issuer, and a "no" here would be actionable by
-            # nobody, since this deployment has no second login to offer.
-            "issuerReachable": True,
-            **({} if usable else {
-                # The only remedy this deployment has, so it is the one named.
-                "grund": "This session carries no valid token for the backup endpoint any more. "
-                         "Sign out and sign in again to get one."})})
-    handler.send_json({"ok": True, "configured": True, "hosted": False,
-                       **backup_login.status(endpoint)})
+        return handler.send_json(
+            {
+                "ok": True,
+                "configured": True,
+                "hosted": True,
+                "endpoint": endpoint,
+                "signedIn": usable,
+                "account": session.sub,
+                "email": session.email,
+                "name": session.name,
+                "issuer": auth.ISSUER,
+                "scope": "",
+                # Asserted rather than probed: the login that produced this session
+                # went through that issuer, and a "no" here would be actionable by
+                # nobody, since this deployment has no second login to offer.
+                "issuerReachable": True,
+                **(
+                    {}
+                    if usable
+                    else {
+                        # The only remedy this deployment has, so it is the one named.
+                        "grund": "This session carries no valid token for the backup endpoint any more. "
+                        "Sign out and sign in again to get one."
+                    }
+                ),
+            }
+        )
+    handler.send_json(
+        {"ok": True, "configured": True, "hosted": False, **backup_login.status(endpoint)}
+    )
 
 
 @save("/api/backup/login")
@@ -289,20 +323,31 @@ def login_begin(handler, request: Request, app) -> None:
         # dialog both catch an exception and read a field for the same class of
         # answer. One shape for every refusal it can encounter.
         return handler.send_json(
-            {"ok": False, "grund": "This instance signs its users in itself, and the backup "
-                                   "endpoint accepts that session."})
+            {
+                "ok": False,
+                "grund": "This instance signs its users in itself, and the backup "
+                "endpoint accepts that session.",
+            }
+        )
     endpoint = _endpoint_for(request, app)
     if not endpoint:
         return handler.send_json(
-            {"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."})
+            {"ok": False, "grund": "No backup endpoint is configured (QUILTOR_BACKUP_URL)."}
+        )
     try:
         authorize_url = backup_login.begin(endpoint, _redirect_uri(handler))
     except Exception as exc:
         # An unreachable endpoint, or one that publishes no issuer: both are the
         # user's to fix, and both read better as one sentence than as a 500.
         return handler.send_json({"ok": False, "grund": str(exc)})
-    handler.send_json({"ok": True, "endpoint": endpoint, "authorizeUrl": authorize_url,
-                       "redirectUri": _redirect_uri(handler)})
+    handler.send_json(
+        {
+            "ok": True,
+            "endpoint": endpoint,
+            "authorizeUrl": authorize_url,
+            "redirectUri": _redirect_uri(handler),
+        }
+    )
 
 
 @save("/api/backup/logout")

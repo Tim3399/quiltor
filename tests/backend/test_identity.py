@@ -6,6 +6,7 @@ cookie. FakeHandler below provides exactly those, which is the point -- if this
 file ever needs a real socket, backend/identity.py has grown a dependency on
 server.py that it is not supposed to have.
 """
+
 import os
 import unittest
 from unittest import mock
@@ -83,7 +84,9 @@ class LocalResolveTests(IdentityTestCase):
             self.local = identity.LocalIdentity()
 
     def test_a_correct_bearer_token_yields_the_master_session(self):
-        handler = FakeHandler("/api/worlds", headers={"Authorization": "Bearer geheim-123"}, loopback=False)
+        handler = FakeHandler(
+            "/api/worlds", headers={"Authorization": "Bearer geheim-123"}, loopback=False
+        )
         session = self.local.resolve(handler)
         self.assertIsNotNone(session)
         self.assertEqual(session.sub, identity.LocalIdentity.MASTER_SUB)
@@ -91,7 +94,9 @@ class LocalResolveTests(IdentityTestCase):
     def test_a_wrong_bearer_token_is_refused_even_on_loopback(self):
         """An explicit credential that does not match is an answer, not an
         invitation to fall through to the loopback shortcut."""
-        handler = FakeHandler("/api/worlds", headers={"Authorization": "Bearer falsch"}, loopback=True)
+        handler = FakeHandler(
+            "/api/worlds", headers={"Authorization": "Bearer falsch"}, loopback=True
+        )
         self.assertIsNone(self.local.resolve(handler))
         self.assertEqual(handler._pending_cookies, [])
 
@@ -125,7 +130,9 @@ class LocalResolveTests(IdentityTestCase):
 
     def test_an_existing_session_cookie_wins_before_any_token_is_looked_at(self):
         session_id = auth.create_session("alice", "a@example.org", "Alice")
-        handler = FakeHandler("/api/worlds", cookies={identity.SESSION_COOKIE: session_id}, loopback=True)
+        handler = FakeHandler(
+            "/api/worlds", cookies={identity.SESSION_COOKIE: session_id}, loopback=True
+        )
         session = self.local.resolve(handler)
         self.assertEqual(session.sub, "alice")
         self.assertEqual(handler._pending_cookies, [])
@@ -139,7 +146,9 @@ class SharedBaseTests(IdentityTestCase):
         session_id = auth.create_session("alice", "a@example.org", "Alice")
         for who in (identity.OidcIdentity(), identity.LocalIdentity()):
             with self.subTest(identity=type(who).__name__):
-                handler = FakeHandler("/", cookies={identity.SESSION_COOKIE: session_id}, loopback=False)
+                handler = FakeHandler(
+                    "/", cookies={identity.SESSION_COOKIE: session_id}, loopback=False
+                )
                 self.assertEqual(who.resolve(handler).sub, "alice")
 
     def test_a_render_token_resolves_for_both_implementations(self):
@@ -170,12 +179,19 @@ class OidcRefusesTheMasterTokenTests(IdentityTestCase):
             self.local = identity.LocalIdentity()
 
     def test_a_bearer_master_token_gets_nothing(self):
-        handler = FakeHandler("/api/worlds", headers={"Authorization": "Bearer geheim-123"}, loopback=False)
+        handler = FakeHandler(
+            "/api/worlds", headers={"Authorization": "Bearer geheim-123"}, loopback=False
+        )
         self.assertIsNone(self.oidc.resolve(handler))
         self.assertEqual(handler._pending_cookies, [])
         # ...while the very same request would have worked locally.
-        self.assertIsNotNone(self.local.resolve(FakeHandler(
-            "/api/worlds", headers={"Authorization": "Bearer geheim-123"}, loopback=False)))
+        self.assertIsNotNone(
+            self.local.resolve(
+                FakeHandler(
+                    "/api/worlds", headers={"Authorization": "Bearer geheim-123"}, loopback=False
+                )
+            )
+        )
 
     def test_a_query_master_token_gets_nothing(self):
         handler = FakeHandler("/?token=geheim-123", loopback=False)

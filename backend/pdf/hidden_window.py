@@ -11,6 +11,7 @@ Consequence worth knowing: this only works inside the desktop host, where
 `webview.start()` is already running. That is the only place these renderers are
 ever selected.
 """
+
 from __future__ import annotations
 
 import time
@@ -45,9 +46,13 @@ def printable_window(url: str, timeout: int):
     except ImportError as exc:  # pragma: no cover - desktop extra only
         raise RuntimeError("Der PDF-Export benötigt die Desktop-Komponenten (pywebview).") from exc
 
-    window = webview.create_window("Quiltor PDF", url, hidden=True,
-                                   width=int(PAPER_WIDTH_INCHES * 96),
-                                   height=int(PAPER_HEIGHT_INCHES * 96))
+    window = webview.create_window(
+        "Quiltor PDF",
+        url,
+        hidden=True,
+        width=int(PAPER_WIDTH_INCHES * 96),
+        height=int(PAPER_HEIGHT_INCHES * 96),
+    )
     try:
         _wait_until_rendered(window, timeout)
         yield window

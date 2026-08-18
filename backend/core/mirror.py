@@ -10,12 +10,12 @@ from pathlib import Path
 MIRROR_RE = re.compile(r"^\d{2,} - .*\.md$")  # writer uses f"{i:02d} - ...", unbounded above 99
 
 PROFILE_FIELDS = [
-    ("alter",       "Alter"),
-    ("rolle",       "Rolle in der Geschichte"),
-    ("aussehen",    "Aussehen"),
-    ("herkunft",    "Herkunft & Vorgeschichte"),
-    ("stimme",      "Stimme & Sprechweise"),
-    ("notizen",     "Notizen"),
+    ("alter", "Alter"),
+    ("rolle", "Rolle in der Geschichte"),
+    ("aussehen", "Aussehen"),
+    ("herkunft", "Herkunft & Vorgeschichte"),
+    ("stimme", "Stimme & Sprechweise"),
+    ("notizen", "Notizen"),
 ]
 
 
@@ -42,7 +42,7 @@ def markdown_body(body: str, marks) -> str:
         start, end = mark.get("from"), mark.get("to")
         if type(start) is not int or type(end) is not int:
             continue
-        span = (bold if mark["kind"] == "bold" else italic)
+        span = bold if mark["kind"] == "bold" else italic
         for index in range(max(0, start), min(end, len(body))):
             span[index] = 1
     if not any(bold) and not any(italic):
@@ -50,7 +50,11 @@ def markdown_body(body: str, marks) -> str:
 
     out, run_start = [], 0
     for index in range(1, len(body) + 1):
-        same = index < len(body) and bold[index] == bold[run_start] and italic[index] == italic[run_start]
+        same = (
+            index < len(body)
+            and bold[index] == bold[run_start]
+            and italic[index] == italic[run_start]
+        )
         if same:
             continue
         out.append(_emphasize(body[run_start:index], bold[run_start], italic[run_start]))
@@ -72,7 +76,7 @@ def _emphasize(text: str, bold: int, italic: int) -> str:
             wrapped.append(piece)
             continue
         lead = piece[: len(piece) - len(piece.lstrip())]
-        tail = piece[len(piece.rstrip()):]
+        tail = piece[len(piece.rstrip()) :]
         wrapped.append(f"{lead}{open_marker}{piece.strip()}{close_marker}{tail}")
     return "".join(wrapped)
 
@@ -133,11 +137,15 @@ def mirror_profiles(state, profile_dir: Path) -> None:
         relationships = []
         for e in edges:
             if e.get("from") == n.get("id"):
-                relationships.append(f"- → {names.get(e.get('to'), '?')}"
-                            + (f" — {e['label']}" if e.get("label") else ""))
+                relationships.append(
+                    f"- → {names.get(e.get('to'), '?')}"
+                    + (f" — {e['label']}" if e.get("label") else "")
+                )
             elif e.get("to") == n.get("id"):
-                relationships.append(f"- ← {names.get(e.get('from'), '?')}"
-                            + (f" — {e['label']}" if e.get("label") else ""))
+                relationships.append(
+                    f"- ← {names.get(e.get('from'), '?')}"
+                    + (f" — {e['label']}" if e.get("label") else "")
+                )
         if relationships:
             lines += ["## Verbindungen im Diagramm", ""] + relationships + [""]
 

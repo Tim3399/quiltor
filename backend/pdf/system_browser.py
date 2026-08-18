@@ -12,6 +12,7 @@ Not usable in a Mac App Store build: the sandbox refuses to launch an executable
 outside our own bundle, and "requires another app to be installed" is its own
 review problem. wkwebview.py is the answer there.
 """
+
 from __future__ import annotations
 
 CHANNELS = ("chrome", "msedge")
@@ -41,7 +42,9 @@ def render(url: str, timeout: int = 90) -> bytes:
                 # Whatever replaces this path must not reintroduce the dependency.
                 page.get_by_label("Kapiteltext").wait_for(timeout=timeout * 1000)
                 page.emulate_media(media="print")
-                return page.pdf(prefer_css_page_size=True, print_background=True, display_header_footer=False)
+                return page.pdf(
+                    prefer_css_page_size=True, print_background=True, display_header_footer=False
+                )
             finally:
                 browser.close()
     raise RuntimeError(

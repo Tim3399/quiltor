@@ -20,21 +20,33 @@ class TokenCountCache:
 
     def count(self, identity: str, text: str, counter: Callable[[str], int]) -> int:
         if identity != self.identity:
-            self.values.clear(); self.bytes = 0; self.identity = identity; self.hits = 0; self.misses = 0
+            self.values.clear()
+            self.bytes = 0
+            self.identity = identity
+            self.hits = 0
+            self.misses = 0
         digest = hashlib.sha256(text.encode()).hexdigest()
         if digest in self.values:
             self.hits += 1
-            value = self.values.pop(digest); self.values[digest] = value
+            value = self.values.pop(digest)
+            self.values[digest] = value
             return value[0]
         self.misses += 1
         tokens, size = counter(text), len(text.encode()) + 96
-        self.values[digest] = (tokens, size); self.bytes += size
+        self.values[digest] = (tokens, size)
+        self.bytes += size
         while self.bytes > self.max_bytes and self.values:
-            _, (_, removed) = self.values.popitem(last=False); self.bytes -= removed
+            _, (_, removed) = self.values.popitem(last=False)
+            self.bytes -= removed
         return tokens
 
     def stats(self) -> dict[str, int]:
-        return {"hits": self.hits, "misses": self.misses, "entries": len(self.values), "bytes": self.bytes}
+        return {
+            "hits": self.hits,
+            "misses": self.misses,
+            "entries": len(self.values),
+            "bytes": self.bytes,
+        }
 
 
 TOKEN_CACHE = TokenCountCache()
@@ -46,12 +58,20 @@ def _truncate(text: str, budget: int, count: Callable[[str], int]) -> str:
     low, high = 0, len(text)
     while low < high:
         middle = (low + high + 1) // 2
-        if count(text[:middle]) <= budget: low = middle
-        else: high = middle - 1
+        if count(text[:middle]) <= budget:
+            low = middle
+        else:
+            high = middle - 1
     return text[:low].rstrip()
 
 
-def pack_chunks(chunks: list[KnowledgeChunk], url: str, budget: int, counter: Callable[[str, str], int], trace: list[dict[str, Any]] | None = None) -> list[KnowledgeChunk]:
+def pack_chunks(
+    chunks: list[KnowledgeChunk],
+    url: str,
+    budget: int,
+    counter: Callable[[str, str], int],
+    trace: list[dict[str, Any]] | None = None,
+) -> list[KnowledgeChunk]:
     """Pack in priority order; include a useful excerpt when one chunk is oversized."""
     count = lambda text: TOKEN_CACHE.count(url, text, lambda value: counter(url, value))
     kept: list[KnowledgeChunk] = []
@@ -60,14 +80,23 @@ def pack_chunks(chunks: list[KnowledgeChunk], url: str, budget: int, counter: Ca
         tokens = count(chunk.text)
         remaining = budget - used
         if tokens <= remaining:
-            kept.append(chunk); used += tokens
+            kept.append(chunk)
+            used += tokens
         elif remaining > 0:
             excerpt = _truncate(chunk.text, remaining, count)
             if excerpt:
-                kept.append(replace(chunk, text=excerpt)); used += count(excerpt)
+                kept.append(replace(chunk, text=excerpt))
+                used += count(excerpt)
             break
         else:
             break
     if trace is not None:
-        trace.append({"step": "context_pack", "budget": budget, "used": used, "sources": [item.id for item in kept]})
+        trace.append(
+            {
+                "step": "context_pack",
+                "budget": budget,
+                "used": used,
+                "sources": [item.id for item in kept],
+            }
+        )
     return kept

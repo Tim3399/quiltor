@@ -54,6 +54,7 @@ beyond that.
 So `page_numbers.stamp()` draws them on afterwards, positioned from the same CSS
 and checked against Chromium's real output. See that module.
 """
+
 from __future__ import annotations
 
 import queue
@@ -94,8 +95,7 @@ def render(url: str, timeout: int = 90) -> bytes:
         raise RuntimeError(UNAVAILABLE) from exc
 
     results: queue.Queue = queue.Queue(maxsize=1)
-    Foundation.NSOperationQueue.mainQueue().addOperationWithBlock_(
-        lambda: _start(url, results))
+    Foundation.NSOperationQueue.mainQueue().addOperationWithBlock_(lambda: _start(url, results))
 
     try:
         kind, payload = results.get(timeout=timeout)
@@ -122,18 +122,21 @@ def _start(url: str, results: queue.Queue) -> None:
     try:
         frame = Foundation.NSMakeRect(0, 0, PAPER_WIDTH_POINTS, PAPER_HEIGHT_POINTS)
         view = WebKit.WKWebView.alloc().initWithFrame_configuration_(
-            frame, WebKit.WKWebViewConfiguration.alloc().init())
+            frame, WebKit.WKWebViewConfiguration.alloc().init()
+        )
 
         window = AppKit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            frame, AppKit.NSWindowStyleMaskBorderless, AppKit.NSBackingStoreBuffered, False)
+            frame, AppKit.NSWindowStyleMaskBorderless, AppKit.NSBackingStoreBuffered, False
+        )
         window.setContentView_(view)
 
         delegate = _navigation_delegate().alloc().initWithWindow_results_(window, results)
         view.setNavigationDelegate_(delegate)
         _alive.extend((view, window, delegate))
 
-        view.loadRequest_(Foundation.NSURLRequest.requestWithURL_(
-            Foundation.NSURL.URLWithString_(url)))
+        view.loadRequest_(
+            Foundation.NSURLRequest.requestWithURL_(Foundation.NSURL.URLWithString_(url))
+        )
     except Exception as exc:  # noqa: BLE001 - the caller is a queue, not a stack
         results.put(("error", repr(exc)))
 
@@ -178,7 +181,8 @@ def _navigation_delegate():
                         self.results.put(("error", "Die Buchansicht wurde nicht fertig aufgebaut."))
                         return
                     Foundation.NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
-                        POLL_INTERVAL_SECONDS, False, lambda timer: self.check(view))
+                        POLL_INTERVAL_SECONDS, False, lambda timer: self.check(view)
+                    )
 
             view.evaluateJavaScript_completionHandler_(READY_JS, handler)
 
@@ -189,14 +193,19 @@ def _navigation_delegate():
                 info = AppKit.NSPrintInfo.sharedPrintInfo().copy()
                 info.setPaperSize_(AppKit.NSMakeSize(PAPER_WIDTH_POINTS, PAPER_HEIGHT_POINTS))
                 # Zero here; the page's own @page rule owns the margins.
-                for setter in ("setTopMargin_", "setBottomMargin_",
-                               "setLeftMargin_", "setRightMargin_"):
+                for setter in (
+                    "setTopMargin_",
+                    "setBottomMargin_",
+                    "setLeftMargin_",
+                    "setRightMargin_",
+                ):
                     getattr(info, setter)(0.0)
                 info.setHorizontalPagination_(AppKit.NSPrintingPaginationModeFit)
                 info.setVerticalPagination_(AppKit.NSPrintingPaginationModeAutomatic)
                 info.setJobDisposition_(AppKit.NSPrintSaveJob)
                 info.dictionary().setObject_forKey_(
-                    Foundation.NSURL.fileURLWithPath_(str(target)), AppKit.NSPrintJobSavingURL)
+                    Foundation.NSURL.fileURLWithPath_(str(target)), AppKit.NSPrintJobSavingURL
+                )
 
                 operation = view.printOperationWithPrintInfo_(info)
                 operation.setShowsPrintPanel_(False)
@@ -205,7 +214,8 @@ def _navigation_delegate():
                 sink = _print_sink().alloc().initWithTarget_results_(target, self.results)
                 _alive.append(sink)  # the operation does not retain its delegate
                 operation.runOperationModalForWindow_delegate_didRunSelector_contextInfo_(
-                    self.window, sink, b"printOperationDidRun:success:contextInfo:", None)
+                    self.window, sink, b"printOperationDidRun:success:contextInfo:", None
+                )
             except Exception as exc:  # noqa: BLE001
                 self.results.put(("error", repr(exc)))
 
@@ -233,6 +243,7 @@ def _print_sink():
                 self.results.put(("error", "Der Druckvorgang hat kein PDF erzeugt."))
 
         printOperationDidRun_success_contextInfo_ = objc.selector(
-            printOperationDidRun_success_contextInfo_, signature=b"v@:@Z^v")
+            printOperationDidRun_success_contextInfo_, signature=b"v@:@Z^v"
+        )
 
     return PrintSink

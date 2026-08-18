@@ -4,11 +4,11 @@ Recorded on 2026-08-09. This document describes the reproducible baseline before
 
 ## Fixed viewports
 
-| Name | Size | Intended layout |
-| --- | ---: | --- |
-| `wide` | 1440 × 900 | navigation, content, and inspector |
-| `regular` | 900 × 760 | one overlaying sidebar at most |
-| `compact` | 390 × 844 | sheet-oriented, touch-sized controls |
+| Name      |       Size | Intended layout                      |
+| --------- | ---------: | ------------------------------------ |
+| `wide`    | 1440 × 900 | navigation, content, and inspector   |
+| `regular` |  900 × 760 | one overlaying sidebar at most       |
+| `compact` |  390 × 844 | sheet-oriented, touch-sized controls |
 
 The values are exported from `playwright.config.ts`. Visual baselines cover World Gate, manuscript, figures, timeline, places, a dialog, and the assistant in light and dark for every viewport.
 

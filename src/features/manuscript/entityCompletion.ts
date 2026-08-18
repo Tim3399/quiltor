@@ -1,4 +1,4 @@
-import type { FigureNode } from '../../types';
+import type { FigureNode } from "../../types";
 
 export type EntityCompletion = { entity: FigureNode; word: string; start: number; end: number };
 
@@ -11,7 +11,11 @@ const wordBefore = /[\p{L}\p{N}'’-]+$/u;
  * -- so `Mueller` stays one insertion away from `Müller` instead of two substitutions.
  */
 export function foldName(value: string): string {
-  return value.toLocaleLowerCase('de-DE').replace(/ß/g, 'ss').normalize('NFD').replace(/\p{M}+/gu, '');
+  return value
+    .toLocaleLowerCase("de-DE")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/\p{M}+/gu, "");
 }
 
 /**
@@ -37,20 +41,30 @@ function editBudget(length: number): number {
  * per candidate instead of a full matrix, on every keystroke.
  */
 export function nameDistance(typed: string, name: string, budget: number): number {
-  const rows = typed.length, over = budget + 1;
+  const rows = typed.length,
+    over = budget + 1;
   if (name.length + budget < rows) return over;
   const width = Math.min(name.length, rows + budget);
-  let twoBack = new Int32Array(width + 1), back = new Int32Array(width + 1), row = new Int32Array(width + 1);
+  let twoBack = new Int32Array(width + 1),
+    back = new Int32Array(width + 1),
+    row = new Int32Array(width + 1);
   for (let column = 0; column <= width; column++) back[column] = column;
   for (let line = 1; line <= rows; line++) {
     row.fill(over);
     row[0] = line;
     let cheapest = row[0];
-    const first = Math.max(1, line - budget), last = Math.min(width, line + budget);
+    const first = Math.max(1, line - budget),
+      last = Math.min(width, line + budget);
     for (let column = first; column <= last; column++) {
       const cost = typed[line - 1] === name[column - 1] ? 0 : 1;
       let value = Math.min(back[column] + 1, row[column - 1] + 1, back[column - 1] + cost);
-      if (line > 1 && column > 1 && typed[line - 1] === name[column - 2] && typed[line - 2] === name[column - 1]) value = Math.min(value, twoBack[column - 2] + 1);
+      if (
+        line > 1 &&
+        column > 1 &&
+        typed[line - 1] === name[column - 2] &&
+        typed[line - 2] === name[column - 1]
+      )
+        value = Math.min(value, twoBack[column - 2] + 1);
       row[column] = value;
       if (value < cheapest) cheapest = value;
     }
@@ -58,7 +72,8 @@ export function nameDistance(typed: string, name: string, budget: number): numbe
     [twoBack, back, row] = [back, row, twoBack];
   }
   let best = over;
-  for (let column = Math.max(0, rows - budget); column <= width; column++) best = Math.min(best, back[column]);
+  for (let column = Math.max(0, rows - budget); column <= width; column++)
+    best = Math.min(best, back[column]);
   return best;
 }
 
@@ -74,26 +89,43 @@ export function nameDistance(typed: string, name: string, budget: number): numbe
  * `vocabulary` is the manuscript's own terms. A word the manuscript already knows is a word the
  * writer meant to write, so it is never corrected into a name.
  */
-export function entityCompletion(value: string, caret: number, entities: FigureNode[], vocabulary: string[] = []): EntityCompletion | null {
-  const prefix = value.slice(0, caret).match(wordBefore)?.[0] || '';
+export function entityCompletion(
+  value: string,
+  caret: number,
+  entities: FigureNode[],
+  vocabulary: string[] = [],
+): EntityCompletion | null {
+  const prefix = value.slice(0, caret).match(wordBefore)?.[0] || "";
   if (prefix.length < 2) return null;
   const grouped = new Map<string, FigureNode[]>();
-  for (const entity of entities) { const key = entity.name.toLocaleLowerCase('de-DE'); grouped.set(key, [...(grouped.get(key) || []), entity]); }
+  for (const entity of entities) {
+    const key = entity.name.toLocaleLowerCase("de-DE");
+    grouped.set(key, [...(grouped.get(key) || []), entity]);
+  }
   // Two figures of the same name are never worth guessing between -- the existing uniqueness guard.
-  const named = [...grouped.entries()].filter(([, nodes]) => nodes.length === 1).sort(([a], [b]) => a.localeCompare(b, 'de-DE'));
-  const lower = prefix.toLocaleLowerCase('de-DE');
+  const named = [...grouped.entries()]
+    .filter(([, nodes]) => nodes.length === 1)
+    .sort(([a], [b]) => a.localeCompare(b, "de-DE"));
+  const lower = prefix.toLocaleLowerCase("de-DE");
   const exact = named.find(([name]) => name.length > lower.length && name.startsWith(lower));
   const entity = exact ? exact[1][0] : closestName(prefix, lower, named, vocabulary);
   return entity ? { entity, word: entity.name, start: caret - prefix.length, end: caret } : null;
 }
 
-function closestName(prefix: string, lower: string, named: [string, FigureNode[]][], vocabulary: string[]): FigureNode | null {
+function closestName(
+  prefix: string,
+  lower: string,
+  named: [string, FigureNode[]][],
+  vocabulary: string[],
+): FigureNode | null {
   const budget = editBudget(prefix.length);
   if (!budget) return null;
   const typed = foldName(prefix);
   if (!typed) return null;
-  if (vocabulary.some(word => foldName(word) === typed)) return null;
-  let best: FigureNode | null = null, closest = budget + 1, ambiguous = false;
+  if (vocabulary.some((word) => foldName(word) === typed)) return null;
+  let best: FigureNode | null = null,
+    closest = budget + 1,
+    ambiguous = false;
   for (const [name, nodes] of named) {
     // Already written, only differently cased -- there is nothing to complete.
     if (name === lower) continue;
@@ -103,8 +135,11 @@ function closestName(prefix: string, lower: string, named: [string, FigureNode[]
     if (folded[0] !== typed[0]) continue;
     const distance = nameDistance(typed, folded, budget);
     if (distance > budget) continue;
-    if (distance < closest) { best = nodes[0]; closest = distance; ambiguous = false; }
-    else if (distance === closest) ambiguous = true;
+    if (distance < closest) {
+      best = nodes[0];
+      closest = distance;
+      ambiguous = false;
+    } else if (distance === closest) ambiguous = true;
   }
   return ambiguous ? null : best;
 }

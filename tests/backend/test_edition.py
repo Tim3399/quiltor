@@ -3,6 +3,7 @@ A Store build cannot be exercised end to end without a sandboxed bundle, so
 these pin the decisions it depends on instead: which runtime gets selected, what
 the installer refuses to do, and where llama-server is looked up.
 """
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,7 +48,9 @@ class EditionDetectionTests(unittest.TestCase):
                     self.assertTrue(edition.is_store_build())
 
     def test_explicit_override_wins_over_autodetection(self):
-        with patch.dict("os.environ", {"APP_SANDBOX_CONTAINER_ID": "x", "QUILTOR_EDITION": "direct"}, clear=True):
+        with patch.dict(
+            "os.environ", {"APP_SANDBOX_CONTAINER_ID": "x", "QUILTOR_EDITION": "direct"}, clear=True
+        ):
             self.assertEqual(edition.edition(), edition.DIRECT)
 
     def test_unknown_edition_fails_loudly(self):
@@ -115,7 +118,9 @@ class BundledRuntimeTests(unittest.TestCase):
     def test_binary_resolves_to_the_download_directory_by_default(self):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)
-            self.assertEqual(llamacpp.resolve_binary(base), base / "runtime" / llamacpp.binary_name())
+            self.assertEqual(
+                llamacpp.resolve_binary(base), base / "runtime" / llamacpp.binary_name()
+            )
 
     def test_a_bundled_runtime_wins_over_a_downloaded_one(self):
         """A build shipping its own signed runtime must never fall back to a stale
@@ -207,7 +212,10 @@ class GrammarBackendSelectionTests(unittest.TestCase):
 
     def test_both_backends_satisfy_the_grammar_contract(self):
         with tempfile.TemporaryDirectory() as folder:
-            for chosen in (grammar.LanguageToolManager(Path(folder)), grammar.UnavailableGrammar(Path(folder))):
+            for chosen in (
+                grammar.LanguageToolManager(Path(folder)),
+                grammar.UnavailableGrammar(Path(folder)),
+            ):
                 with self.subTest(backend=type(chosen).__name__):
                     self.assertIsInstance(chosen, grammar_contract.GrammarBackend)
 

@@ -1,5 +1,6 @@
 """Local version history (backend/core/backup/snapshots.py) and the upload
 protocol -- in particular the behaviour the History dialog depends on."""
+
 import json
 import sqlite3
 import tempfile
@@ -70,8 +71,10 @@ class SnapshotStoreTest(unittest.TestCase):
         for index, text in enumerate(("eins", "zwei", "drei")):
             self._write(ctx, f"# Kapitel\n\n{text}\n")
             self.store.commit(ctx, f"Stand {index}", push=False)
-        self.assertEqual([entry["betreff"] for entry in self.store.history(ctx)],
-                         ["Stand 2", "Stand 1", "Stand 0"])
+        self.assertEqual(
+            [entry["betreff"] for entry in self.store.history(ctx)],
+            ["Stand 2", "Stand 1", "Stand 0"],
+        )
 
     # ----------------------------------------------------------------- diffs
 
@@ -96,7 +99,9 @@ class SnapshotStoreTest(unittest.TestCase):
         self.store.commit(ctx, "eins", push=False)
         self._write(ctx, "neu\n")
         text = self.store.diff(ctx, "WORK", word_diff=False)["diff"]
-        self.assertIn("diff --git a/manuscripts/01 - Kapitel.md b/manuscripts/01 - Kapitel.md", text)
+        self.assertIn(
+            "diff --git a/manuscripts/01 - Kapitel.md b/manuscripts/01 - Kapitel.md", text
+        )
         self.assertIn("@@", text)
 
     def test_word_diff_uses_the_inline_markers_the_frontend_renders(self):
@@ -172,10 +177,12 @@ class SnapshotStoreTest(unittest.TestCase):
         self.store.commit(ctx, "zwei", push=False)
 
         first, second = self.store.entries(ctx)
-        self.assertEqual(first["files"]["manuscripts/01 - Eins.md"],
-                         second["files"]["manuscripts/01 - Eins.md"])
-        self.assertNotEqual(first["files"]["manuscripts/02 - Zwei.md"],
-                            second["files"]["manuscripts/02 - Zwei.md"])
+        self.assertEqual(
+            first["files"]["manuscripts/01 - Eins.md"], second["files"]["manuscripts/01 - Eins.md"]
+        )
+        self.assertNotEqual(
+            first["files"]["manuscripts/02 - Zwei.md"], second["files"]["manuscripts/02 - Zwei.md"]
+        )
 
     def test_entries_carry_a_format_and_encryption_marker(self):
         """Encryption is not implemented yet; the fields exist from the start so
@@ -192,7 +199,9 @@ class SnapshotStoreTest(unittest.TestCase):
         self._write(ctx, "text\n")
         self.store.commit(ctx, "eins", push=False)
         with (ctx.root / "index.jsonl").open("a", encoding="utf-8") as index:
-            index.write('{"id": "half-written', )
+            index.write(
+                '{"id": "half-written',
+            )
         self.assertEqual(len(self.store.entries(ctx)), 1)
 
     def test_two_worlds_never_cross_talk(self):

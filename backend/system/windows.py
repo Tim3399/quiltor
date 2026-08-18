@@ -5,6 +5,7 @@ ctypes.windll) is touched inside function bodies, never at import time, so this
 module imports cleanly on macOS and Linux and the contract test can check it
 there.
 """
+
 from __future__ import annotations
 
 import functools
@@ -68,10 +69,17 @@ def bind_child_lifetime(process: object) -> None:
         ]
 
     class IO_COUNTERS(ctypes.Structure):
-        _fields_ = [(name, ctypes.c_uint64) for name in (
-            "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
-            "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
-        )]
+        _fields_ = [
+            (name, ctypes.c_uint64)
+            for name in (
+                "ReadOperationCount",
+                "WriteOperationCount",
+                "OtherOperationCount",
+                "ReadTransferCount",
+                "WriteTransferCount",
+                "OtherTransferCount",
+            )
+        ]
 
     class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
         _fields_ = [
@@ -92,7 +100,9 @@ def bind_child_lifetime(process: object) -> None:
         return
     info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
     info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-    kernel32.SetInformationJobObject(job, JobObjectExtendedLimitInformation, ctypes.byref(info), ctypes.sizeof(info))
+    kernel32.SetInformationJobObject(
+        job, JobObjectExtendedLimitInformation, ctypes.byref(info), ctypes.sizeof(info)
+    )
     # This handle, unlike `job`, is only needed for the AssignProcessToJobObject
     # call below -- the association outlives it, so it must be closed here or it
     # leaks one handle per runtime launch.

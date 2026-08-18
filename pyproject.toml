@@ -9,6 +9,7 @@ description = "Local-first writing workshop with a private, on-device assistant"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0" }
+
 # The server itself (`python3 server.py`) stays standard-library only; this
 # is the one dependency of the packaged `quiltor` CLI's `run`/`config` commands.
 dependencies = ["typer>=0.12"]
@@ -64,3 +65,20 @@ include = ["backend", "hosts", "server.py", "VERSION", "scripts", "README.md", "
 [tool.hatch.build.targets.sdist.force-include]
 "dist" = "dist"
 "packaging/icons" = "packaging/icons"
+
+
+# ---------------------------------------------------------------- Formatting
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+# Markdown belongs to Prettier. Current Ruff versions can also process Python
+# code blocks in Markdown, so explicitly exclude it to keep formatter ownership
+# unambiguous.
+extend-exclude = ["*.md"]
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
+line-ending = "lf"

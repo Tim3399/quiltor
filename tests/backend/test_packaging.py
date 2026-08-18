@@ -5,6 +5,7 @@ during a real build, on a Mac, with PyInstaller installed -- and a wrong
 Info.plist is rejected by App Store Connect's uploader before a human ever looks
 at the app. Everything checkable without any of that is checked here.
 """
+
 import os
 import plistlib
 import sys
@@ -20,7 +21,9 @@ import bundle  # noqa: E402
 
 class VersionTests(unittest.TestCase):
     def test_the_marketing_version_comes_from_the_VERSION_file(self):
-        self.assertEqual(bundle.version(), (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip())
+        self.assertEqual(
+            bundle.version(), (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        )
 
     def test_the_marketing_version_looks_like_a_version(self):
         self.assertRegex(bundle.version(), r"^\d+\.\d+\.\d+$")
@@ -57,8 +60,12 @@ class InfoPlistTests(unittest.TestCase):
         """The old spec passed no info_plist at all: the built Info.plist had
         nine keys, CFBundleShortVersionString "0.0.0", and no CFBundleVersion --
         which App Store Connect rejects outright."""
-        for key in ("CFBundleShortVersionString", "CFBundleVersion",
-                    "LSApplicationCategoryType", "ITSAppUsesNonExemptEncryption"):
+        for key in (
+            "CFBundleShortVersionString",
+            "CFBundleVersion",
+            "LSApplicationCategoryType",
+            "ITSAppUsesNonExemptEncryption",
+        ):
             with self.subTest(key=key):
                 self.assertIn(key, self.plist)
 
@@ -138,12 +145,14 @@ class BuildVariantTests(unittest.TestCase):
                     with patch("backend.system.os_name", return_value=os_name):
                         excluded = "playwright" in bundle.excluded_modules(name)
                         selected = pdf.desktop_renderer_name(
-                            os_name=os_name, sandboxed=bundle.policy(name).sandboxed)
+                            os_name=os_name, sandboxed=bundle.policy(name).sandboxed
+                        )
                     self.assertNotEqual(excluded, selected == pdf.SYSTEM_BROWSER)
 
     def test_mlx_scripts_ship_only_where_mlx_could_be_installed(self):
         """Installing MLX means building a venv and pip-installing into it, so a
         build that may not download executable code can never use those scripts."""
+
         def ships_mlx(name):
             return any("llm-runtime" in source for source, _ in bundle.data_files(name))
 

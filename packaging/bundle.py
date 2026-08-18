@@ -9,6 +9,7 @@ at upload time -- App Store Connect rejects a missing CFBundleVersion before a
 human ever sees the app. So the decisions live here and
 tests/backend/test_packaging.py checks them anywhere.
 """
+
 from __future__ import annotations
 
 import os
@@ -75,7 +76,8 @@ def build_number() -> str:
     if not re.fullmatch(r"[0-9]+(\.[0-9]+){0,2}", supplied):
         raise SystemExit(
             f"QUILTOR_BUILD_NUMBER={supplied!r} is not a valid CFBundleVersion. "
-            f"Apple wants one to three dot-separated integers, e.g. 1, 1.2 or 1.2.3.")
+            f"Apple wants one to three dot-separated integers, e.g. 1, 1.2 or 1.2.3."
+        )
     return supplied
 
 
@@ -123,7 +125,8 @@ def build_edition() -> str:
     name = os.environ.get("QUILTOR_EDITION", "").strip().casefold() or edition_contract.DIRECT
     if name not in EDITION_POLICIES:
         raise SystemExit(
-            f"Unknown QUILTOR_EDITION={name!r}. Expected one of: {', '.join(EDITION_POLICIES)}")
+            f"Unknown QUILTOR_EDITION={name!r}. Expected one of: {', '.join(EDITION_POLICIES)}"
+        )
     return name
 
 
@@ -144,8 +147,10 @@ def excluded_modules(edition: str | None = None) -> list[str]:
     """
     from backend import pdf, system
 
-    if pdf.desktop_renderer_name(os_name=system.os_name(),
-                                 sandboxed=policy(edition).sandboxed) != pdf.SYSTEM_BROWSER:
+    if (
+        pdf.desktop_renderer_name(os_name=system.os_name(), sandboxed=policy(edition).sandboxed)
+        != pdf.SYSTEM_BROWSER
+    ):
         return ["playwright"]
     return []
 
@@ -186,11 +191,14 @@ def bundled_binaries(edition: str | None = None) -> list[tuple[str, str]]:
         return []  # installs its own on first launch, the normal path
 
     runtime = REPO_ROOT / "runtime"
-    binaries = [item for item in sorted(runtime.glob("*")) if item.is_file()] if runtime.is_dir() else []
+    binaries = (
+        [item for item in sorted(runtime.glob("*")) if item.is_file()] if runtime.is_dir() else []
+    )
     if not binaries:
         raise SystemExit(
             f"A '{build_edition()}' build may not download an inference runtime, so one has to ship "
             f"inside it -- but {runtime} is empty. Build llama-server for the target architecture, "
             f"sign it with the same Team ID, and place it (with its ggml/llama libraries) there. "
-            f"See packaging/README.md.")
+            f"See packaging/README.md."
+        )
     return [(str(item), "runtime") for item in binaries]

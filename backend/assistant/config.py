@@ -16,4 +16,3 @@ class RuntimeConfig:
 
 
 RUNTIME_CONFIG = RuntimeConfig()
-

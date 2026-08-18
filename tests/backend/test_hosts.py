@@ -9,6 +9,7 @@ That rule is the entire reason the split exists, so it is checked rather than
 described. `import server` inside a host is fine and expected: server.py is the
 HTTP application, not a fourth host.
 """
+
 import ast
 import os
 import subprocess
@@ -48,9 +49,14 @@ class DependencyDirectionTests(unittest.TestCase):
             for path in _modules(BACKEND)
             if "hosts" in _imported_names(path)
         }
-        self.assertEqual(offenders, {}, (
-            "backend/ is the application and must stay runnable by every host. "
-            f"These reach back into hosts/: {offenders}"))
+        self.assertEqual(
+            offenders,
+            {},
+            (
+                "backend/ is the application and must stay runnable by every host. "
+                f"These reach back into hosts/: {offenders}"
+            ),
+        )
 
     def test_backend_never_imports_the_server_application_either(self):
         """server.py imports backend, so the reverse would be a cycle -- and it
@@ -106,8 +112,14 @@ class ScriptInvocationTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as elsewhere:
             environment = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-            result = subprocess.run([sys.executable, "-c", probe], cwd=elsewhere, env=environment,
-                                    capture_output=True, text=True, timeout=60)
+            result = subprocess.run(
+                [sys.executable, "-c", probe],
+                cwd=elsewhere,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
         name = module.relative_to(REPO_ROOT) if module.is_relative_to(REPO_ROOT) else module
         self.assertEqual(result.returncode, 0, f"{name} cannot be run by path:\n{result.stderr}")
 
@@ -135,8 +147,11 @@ class ScriptInvocationTests(unittest.TestCase):
             with self.subTest(module=module.name):
                 lines = module.read_text(encoding="utf-8").splitlines()
                 guard = next(i for i, line in enumerate(lines) if "sys.path.insert" in line)
-                first_backend = next(i for i, line in enumerate(lines)
-                                     if line.startswith(("from backend", "import backend")))
+                first_backend = next(
+                    i
+                    for i, line in enumerate(lines)
+                    if line.startswith(("from backend", "import backend"))
+                )
                 self.assertLess(guard, first_backend)
 
 

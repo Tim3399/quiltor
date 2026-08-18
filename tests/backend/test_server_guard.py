@@ -10,6 +10,7 @@ that -- Host, Origin, and Content-Type -- that the Host check fires before the
 identity is ever consulted, plus the fact that none of them apply to the
 reverse-proxied deployment, which binds 0.0.0.0 and has OIDC in front.
 """
+
 import http.client
 import json
 import tempfile
@@ -31,7 +32,13 @@ class _LiveLocalServerTestCase(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         root = Path(self.temp.name)
 
-        self.original_storage = (storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID)
+        self.original_storage = (
+            storage.DATA,
+            storage.DB,
+            storage.BACKUPS,
+            storage.WORLDS,
+            storage.ACTIVE_WORLD_ID,
+        )
         storage.DATA = root
         storage.DB = root / "test.sqlite3"
         storage.BACKUPS = root / "backups"
@@ -55,10 +62,14 @@ class _LiveLocalServerTestCase(unittest.TestCase):
         self.httpd.server_close()
         self.thread.join(timeout=5)
         (server.IDENTITY, server.WORLD_BACKUPS, server.BOUND_TO_LOOPBACK) = self.original_server
-        storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = self.original_storage
+        storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = (
+            self.original_storage
+        )
         self.temp.cleanup()
 
-    def _request(self, method: str, path: str, body=None, headers=None, content_type="application/json"):
+    def _request(
+        self, method: str, path: str, body=None, headers=None, content_type="application/json"
+    ):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
         hdrs = dict(headers or {})
         data = json.dumps(body).encode("utf-8") if body is not None else None
@@ -71,7 +82,9 @@ class _LiveLocalServerTestCase(unittest.TestCase):
         return status, json.loads(raw) if raw else {}
 
     def _create_world(self, **kwargs):
-        return self._request("POST", "/api/worlds/create", body={"title": "Testwelt", "backupUrl": ""}, **kwargs)
+        return self._request(
+            "POST", "/api/worlds/create", body={"title": "Testwelt", "backupUrl": ""}, **kwargs
+        )
 
 
 class RequestsFromTheAppItselfTests(_LiveLocalServerTestCase):
@@ -96,7 +109,9 @@ class RequestsFromTheAppItselfTests(_LiveLocalServerTestCase):
         false by default), so requests arrive claiming localhost:5173 with a
         matching Origin. Comparing hostnames and ignoring ports is what keeps
         the everyday development workflow working."""
-        status, body = self._create_world(headers={"Host": "localhost:5173", "Origin": "http://localhost:5173"})
+        status, body = self._create_world(
+            headers={"Host": "localhost:5173", "Origin": "http://localhost:5173"}
+        )
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
 
@@ -130,16 +145,20 @@ class ForeignRequestTests(_LiveLocalServerTestCase):
         answer 403 "not authenticated" all by itself, so the *message* is what
         says which check ran: a request that fails the guard never reaches the
         identity at all, and no session is minted for it."""
-        status, body = self._request("GET", "/api/worlds",
-                                     headers={"Host": "rebind.example",
-                                              "Authorization": "Bearer falsch"})
+        status, body = self._request(
+            "GET",
+            "/api/worlds",
+            headers={"Host": "rebind.example", "Authorization": "Bearer falsch"},
+        )
         self.assertEqual(status, 403)
         self.assertEqual(body["fehler"], "unerlaubter Host")
 
     def test_a_foreign_origin_is_refused_even_though_loopback_would_have_logged_in(self):
         """Without the guard this exact request resolves to the local user --
         the connection is loopback, which is the whole point of the attack."""
-        status, body = self._request("GET", "/api/worlds", headers={"Origin": "https://evil.example"})
+        status, body = self._request(
+            "GET", "/api/worlds", headers={"Origin": "https://evil.example"}
+        )
         self.assertEqual(status, 403)
         self.assertEqual(body["fehler"], "unerlaubte Herkunft")
 
@@ -148,7 +167,11 @@ class BodyContentTypeTests(_LiveLocalServerTestCase):
     def test_a_form_content_type_is_refused(self):
         """An HTML form can only send text/plain, urlencoded or multipart, so
         insisting on application/json breaks the attack even without Origin."""
-        for media_type in ("text/plain", "application/x-www-form-urlencoded", "multipart/form-data"):
+        for media_type in (
+            "text/plain",
+            "application/x-www-form-urlencoded",
+            "multipart/form-data",
+        ):
             with self.subTest(media_type=media_type):
                 status, body = self._create_world(content_type=media_type)
                 self.assertEqual(status, 400)

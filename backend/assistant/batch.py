@@ -32,7 +32,10 @@ def _format_minutes(seconds: float) -> str:
 
 
 def broad_scope_message(chapter_count: int) -> str:
-    low, high = estimate_batch_seconds(chapter_count, 0.7), estimate_batch_seconds(chapter_count, 1.3)
+    low, high = (
+        estimate_batch_seconds(chapter_count, 0.7),
+        estimate_batch_seconds(chapter_count, 1.3),
+    )
     return (
         f"Das betrifft alle {chapter_count} Kapitel. Eine einzelne Anfrage bekäme dafür entweder "
         f"nicht genug Kontext oder nicht genug Antwortraum. Ich kann stattdessen kapitelweise "
@@ -46,26 +49,43 @@ def broad_scope_reply(chapter_count: int) -> dict[str, Any]:
     """Same content as broad_scope_message(), plus the messageKey/messageParams the frontend
     needs to render it in the interface language -- see src/language/{de,en}/assistant.ts's
     broadScopeMessage key."""
-    low, high = estimate_batch_seconds(chapter_count, 0.7), estimate_batch_seconds(chapter_count, 1.3)
+    low, high = (
+        estimate_batch_seconds(chapter_count, 0.7),
+        estimate_batch_seconds(chapter_count, 1.3),
+    )
     return {
         "message": broad_scope_message(chapter_count),
         "messageKey": "broadScopeMessage",
-        "messageParams": {"chapterCount": chapter_count, "minMinutes": _format_minutes(low), "maxMinutes": _format_minutes(high)},
+        "messageParams": {
+            "chapterCount": chapter_count,
+            "minMinutes": _format_minutes(low),
+            "maxMinutes": _format_minutes(high),
+        },
     }
 
 
-def batch_summary_reply(chapter_count: int, group_count: int, proposal_count: int) -> dict[str, Any]:
+def batch_summary_reply(
+    chapter_count: int, group_count: int, proposal_count: int
+) -> dict[str, Any]:
     """Same content the batch summary previously hardcoded inline, plus the messageKey the
     frontend needs -- see src/language/{de,en}/assistant.ts's batchSummary key."""
     return {
-        "message": (f"{chapter_count} Kapitel in {group_count} Gruppen verarbeitet, {proposal_count} Vorschläge vorbereitet. "
-                    "Jeder Vorschlag kann einzeln geprüft und übernommen werden."),
+        "message": (
+            f"{chapter_count} Kapitel in {group_count} Gruppen verarbeitet, {proposal_count} Vorschläge vorbereitet. "
+            "Jeder Vorschlag kann einzeln geprüft und übernommen werden."
+        ),
         "messageKey": "batchSummary",
-        "messageParams": {"chapters": chapter_count, "groups": group_count, "proposals": proposal_count},
+        "messageParams": {
+            "chapters": chapter_count,
+            "groups": group_count,
+            "proposals": proposal_count,
+        },
     }
 
 
-def _group_chapters_by_budget(chapters: list[dict[str, Any]], url: str, budget: int) -> list[list[str]]:
+def _group_chapters_by_budget(
+    chapters: list[dict[str, Any]], url: str, budget: int
+) -> list[list[str]]:
     """Group chapter IDs so each group's combined chapter text stays within budget tokens,
     instead of a flat chapter count -- chapter length varies a lot (a confirmed
     277-4679 words across one test manuscript), so a fixed "N chapters per call" would
@@ -85,7 +105,9 @@ def _group_chapters_by_budget(chapters: list[dict[str, Any]], url: str, budget: 
     return groups
 
 
-def _merge_accumulated(figures: dict[str, Any], accumulated: list[dict[str, Any]]) -> dict[str, Any]:
+def _merge_accumulated(
+    figures: dict[str, Any], accumulated: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Fold earlier batch groups' create_* proposals into a figures-shaped view so
     validate_proposals's existing dedup logic (existing_names, the duplicate-edge check,
     existing_moments -- all of which read from the `figures` argument) also rejects
@@ -93,14 +115,26 @@ def _merge_accumulated(figures: dict[str, Any], accumulated: list[dict[str, Any]
     or maintain, just a shape translation. Synthesized nodes/moments use their tempId as
     `id`, so a later group's relationship proposal referencing an earlier group's
     newly-created element resolves through the ordinary known_elements check too."""
-    nodes, edges, timeline = list(figures.get("nodes") or []), list(figures.get("edges") or []), list(figures.get("timeline") or [])
+    nodes, edges, timeline = (
+        list(figures.get("nodes") or []),
+        list(figures.get("edges") or []),
+        list(figures.get("timeline") or []),
+    )
     for proposal in accumulated:
         kind = proposal.get("kind")
         if kind == "create_element":
             nodes.append({**(proposal.get("element") or {}), "id": proposal.get("tempId")})
         elif kind == "create_relationship":
             relation = proposal.get("relationship") or {}
-            edges.append({"id": f"temp:edge:{len(edges)}", "from": relation.get("from"), "to": relation.get("to"), "gerichtet": relation.get("directed"), "label": relation.get("label")})
+            edges.append(
+                {
+                    "id": f"temp:edge:{len(edges)}",
+                    "from": relation.get("from"),
+                    "to": relation.get("to"),
+                    "gerichtet": relation.get("directed"),
+                    "label": relation.get("label"),
+                }
+            )
         elif kind == "create_timeline_moment":
             timeline.append({**(proposal.get("moment") or {}), "id": proposal.get("tempId")})
     return {**figures, "nodes": nodes, "edges": edges, "timeline": timeline}

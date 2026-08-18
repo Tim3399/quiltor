@@ -7,8 +7,20 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run check:design && npm run check:i18n && tsc -b && vite build",
+
+    "format": "npm run format:web && npm run format:python && npm run format:docs",
+    "format:web": "biome format --write .",
+    "format:python": "python -m ruff format .",
+    "format:docs": "prettier --write \"**/*.{md,yml,yaml,html}\"",
+
+    "check:format": "npm run check:format:web && npm run check:format:python && npm run check:format:docs",
+    "check:format:web": "biome format .",
+    "check:format:python": "python -m ruff format --check .",
+    "check:format:docs": "prettier --check \"**/*.{md,yml,yaml,html}\"",
+
     "check:design": "node scripts/check-design.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
+
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -25,6 +37,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
+    "@biomejs/biome": "2.5.7",
     "@playwright/test": "1.62.0",
     "@testing-library/jest-dom": "7.0.0",
     "@testing-library/react": "16.3.2",
@@ -33,6 +46,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.4",
     "jsdom": "29.1.1",
+    "prettier": "3.9.6",
     "typescript": "7.0.2",
     "vite": "8.1.5",
     "vitest": "4.1.10"

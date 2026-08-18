@@ -61,6 +61,7 @@ from backend.core.validation import valid_figures, valid_manuscript
 from backend.identity import SESSION_COOKIE
 from backend.language import LanguageService
 from backend.llm.installer import ensure_installed
+
 # issue_render_token is unused here but reached as `app.issue_render_token` from
 # backend/api/routes/documents.py, which is how routes see the server module.
 # redeem_render_token is now called by backend/identity.py; it stays re-exported
@@ -83,7 +84,7 @@ RUNTIME_HOME = Path(os.environ.get("QUILTOR_HOME", str(BASE)))
 ASSISTANT = AssistantRuntime(RUNTIME_HOME, DATA)
 LANGUAGE = LanguageService(DATA)
 
-MAX_BODY = 16 * 1024 * 1024 # 16 MB limit per save request
+MAX_BODY = 16 * 1024 * 1024  # 16 MB limit per save request
 
 _lock = threading.Lock()
 
@@ -135,6 +136,7 @@ def authority_host(authority: str) -> str:
         closing = authority.find("]")
         return authority[1:closing] if closing > 0 else authority
     return authority.rsplit(":", 1)[0] if ":" in authority else authority
+
 
 # ---------------------------------------------------------------- Identity
 
@@ -195,16 +197,33 @@ def resolve_world(session: "auth.SessionData", world_id: str) -> WorldContext:
     manuscripts_dir.mkdir(parents=True, exist_ok=True)
     profiles_dir.mkdir(parents=True, exist_ok=True)
     backups_dir = storage.DATA / "backups" / world_id
-    world = next((w for w in storage.list_worlds(owner_sub=session.sub) if w["id"] == world_id), None)
+    world = next(
+        (w for w in storage.list_worlds(owner_sub=session.sub) if w["id"] == world_id), None
+    )
     endpoint_url = (world or {}).get("backupUrl", "")
     # Every world gets a local backup history, even without a configured remote --
     # only uploading needs one; an unset endpoint just means history stays local.
-    backup_ctx = WORLD_BACKUPS.context(world_id, endpoint_url, db_path, manuscripts_dir, profiles_dir, title=(world or {}).get("title", ""))
-    return WorldContext(id=world_id, db_path=db_path, backups_dir=backups_dir,
-                         manuscripts_dir=manuscripts_dir, profiles_dir=profiles_dir, backup=backup_ctx)
+    backup_ctx = WORLD_BACKUPS.context(
+        world_id,
+        endpoint_url,
+        db_path,
+        manuscripts_dir,
+        profiles_dir,
+        title=(world or {}).get("title", ""),
+    )
+    return WorldContext(
+        id=world_id,
+        db_path=db_path,
+        backups_dir=backups_dir,
+        manuscripts_dir=manuscripts_dir,
+        profiles_dir=profiles_dir,
+        backup=backup_ctx,
+    )
 
 
-def restore_world_from_endpoint(session: "auth.SessionData", world_id: str, snapshot_id: str, endpoint: str) -> dict[str, Any]:
+def restore_world_from_endpoint(
+    session: "auth.SessionData", world_id: str, snapshot_id: str, endpoint: str
+) -> dict[str, Any]:
     """Pull one snapshot back from the backup endpoint and write it over the world.
 
     Restores the SQLite database above all: it is the authoritative store, and the
@@ -225,11 +244,24 @@ def restore_world_from_endpoint(session: "auth.SessionData", world_id: str, snap
     available = backup_remote.snapshots(ctx)
     if not available:
         raise ValueError("The endpoint holds no snapshots for this world.")
-    entry = next((s for s in reversed(available) if s["id"] == snapshot_id or s["id"].startswith(snapshot_id)), None) if snapshot_id else available[-1]
+    entry = (
+        next(
+            (
+                s
+                for s in reversed(available)
+                if s["id"] == snapshot_id or s["id"].startswith(snapshot_id)
+            ),
+            None,
+        )
+        if snapshot_id
+        else available[-1]
+    )
     if entry is None:
         raise ValueError("No such snapshot at the endpoint.")
 
-    result = WORLD_BACKUPS.restore(ctx, entry, fetch=lambda digest: backup_remote.fetch_blob(ctx, digest))
+    result = WORLD_BACKUPS.restore(
+        ctx, entry, fetch=lambda digest: backup_remote.fetch_blob(ctx, digest)
+    )
     storage.initialize(db_path)
     # The restored database carries the owner it had when it was backed up.
     # Whoever restores it is the owner now, or they would be locked out of the
@@ -237,11 +269,19 @@ def restore_world_from_endpoint(session: "auth.SessionData", world_id: str, snap
     # exactly the owner every local world already carries.
     with storage.connect(db_path) as conn:
         conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (session.sub,))
-    print(f"  · {datetime.now():%H:%M:%S}  restored world {world_id} from snapshot {entry['id'][:8]}")
-    return {"ok": True, **result, "title": entry.get("title", ""), "created": entry.get("created", "")}
+    print(
+        f"  · {datetime.now():%H:%M:%S}  restored world {world_id} from snapshot {entry['id'][:8]}"
+    )
+    return {
+        "ok": True,
+        **result,
+        "title": entry.get("title", ""),
+        "created": entry.get("created", ""),
+    }
 
 
 # ---------------------------------------------------------------- Storage
+
 
 def ensure_dirs() -> None:
     # parents=True: DATA's parent is QUILTOR_HOME for a pip/pipx install, which
@@ -265,7 +305,7 @@ def ensure_dirs() -> None:
 # the Markdown mirror is written follows from the request's world, so it is no
 # longer something the table can carry.
 ROUTES = {
-    "/api/state":      valid_figures,
+    "/api/state": valid_figures,
     "/api/manuscript": valid_manuscript,
 }
 
@@ -319,8 +359,9 @@ def _remember_tokens(session: "auth.SessionData", tokens: dict) -> None:
     """
     session.access_token = str(tokens.get("access_token", ""))
     session.refresh_token = str(tokens.get("refresh_token", "") or session.refresh_token)
-    session.access_expires_at = (time.time() + float(tokens.get("expires_in") or 0)
-                                 if "expires_in" in tokens else 0.0)
+    session.access_expires_at = (
+        time.time() + float(tokens.get("expires_in") or 0) if "expires_in" in tokens else 0.0
+    )
 
 
 def session_backup_token(session: "auth.SessionData | None") -> str:
@@ -384,7 +425,6 @@ api_routes.load()
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
-
     def __init__(self, *args, **kwargs):
         # Only the built Vite client is public; databases and mirrors stay private.
         # Never fall back to BASE: that would serve data/worlds/*.sqlite3, backups,
@@ -443,8 +483,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         origin = (self.headers.get("Origin") or "").strip()
         # "null" is what a sandboxed iframe or a file:// page sends; it is never
         # us, so it gets refused alongside any other foreign origin.
-        if origin and (origin == "null"
-                       or authority_host(urlparse(origin).netloc) not in LOOPBACK_HOSTS):
+        if origin and (
+            origin == "null" or authority_host(urlparse(origin).netloc) not in LOOPBACK_HOSTS
+        ):
             self.send_json({"ok": False, "fehler": "unerlaubte Herkunft"}, 403)
             return True
         return False
@@ -551,8 +592,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # still worth having for a self-hoster staring at a failed login.
             print(f"[auth] token exchange failed: {exc}", file=sys.stderr)
             return self.send_redirect("/?authError=exchange")
-        session_id = auth.create_session(str(claims.get("sub", "")), str(claims.get("email", "")),
-                                          str(claims.get("name") or claims.get("preferred_username") or ""))
+        session_id = auth.create_session(
+            str(claims.get("sub", "")),
+            str(claims.get("email", "")),
+            str(claims.get("name") or claims.get("preferred_username") or ""),
+        )
         # Keep the provider's own tokens on the session. In this deployment the
         # backup endpoint is guarded by the very issuer this login just went
         # through, so the access token that came back is already the one that
@@ -564,7 +608,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         session = auth.get_session(session_id)
         if session is not None:
             _remember_tokens(session, tokens)
-        self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, session_id, max_age=auth.SESSION_TTL))
+        self._pending_cookies.append(
+            self.cookie_header(SESSION_COOKIE, session_id, max_age=auth.SESSION_TTL)
+        )
         self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, "", max_age=0))
         return self.send_redirect("/")
 
@@ -711,8 +757,11 @@ def run(port: int = 8000, no_open: bool = False, print_token: bool = False) -> N
         # Only ever on request (--print-token), and only for this process: the
         # token dies with it, so a copied line is not a lasting credential.
         token = getattr(IDENTITY, "token", "")
-        print(f"  Token       {token}" if token else
-              "  Token       — diese Instanz hat keine lokale Identität")
+        print(
+            f"  Token       {token}"
+            if token
+            else "  Token       — diese Instanz hat keine lokale Identität"
+        )
     print("  Stop        Ctrl+C")
     print("  " + "─" * 52)
     print()

@@ -7,6 +7,7 @@ The tray icon lives only as long as the app is running -- closing the window sti
 quits the whole app (matches the rest of app.py; this isn't a "minimize to
 tray and keep running in the background" feature, just quick actions while open).
 """
+
 from __future__ import annotations
 
 import threading
@@ -16,7 +17,9 @@ from typing import Callable
 from backend.system import APP_NAME, TRAY_SUPPORTS_BACKGROUND_THREAD, reveal_in_file_manager
 
 
-def start_tray_icon(icon_path: Path, data_dir: Path, show_window: Callable[[], None], quit_app: Callable[[], None]) -> "pystray.Icon | None":  # noqa: F821
+def start_tray_icon(
+    icon_path: Path, data_dir: Path, show_window: Callable[[], None], quit_app: Callable[[], None]
+) -> "pystray.Icon | None":  # noqa: F821
     """Starts the tray icon and returns it (so callers can .stop() it on quit), or
     None if pystray/PIL aren't available -- the desktop app works fine without a
     tray icon, so a missing optional dependency shouldn't block startup."""

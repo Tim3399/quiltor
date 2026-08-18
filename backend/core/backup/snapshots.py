@@ -17,6 +17,7 @@ shows a short prefix and keeps the full id for lookups.
 Every entry carries "format" and "encryption". Encryption is "none" today, and
 adding it is a format bump handled at read time.
 """
+
 from __future__ import annotations
 
 import difflib
@@ -141,12 +142,25 @@ class SnapshotStore:
     def __init__(self, history_dir: Path):
         self.history_dir = history_dir
 
-    def context(self, world_id: str, endpoint_url: str, database: Path, manuscripts: Path, profiles: Path, title: str = "") -> BackupContext:
+    def context(
+        self,
+        world_id: str,
+        endpoint_url: str,
+        database: Path,
+        manuscripts: Path,
+        profiles: Path,
+        title: str = "",
+    ) -> BackupContext:
         # A world without its own endpoint falls back to the account-wide one, so
         # configuring the backup service once is enough for every world.
-        return BackupContext(root=self.history_dir / world_id, database=database,
-                             manuscripts=manuscripts, profiles=profiles,
-                             endpoint_url=endpoint_url or remote.default_endpoint(), title=title)
+        return BackupContext(
+            root=self.history_dir / world_id,
+            database=database,
+            manuscripts=manuscripts,
+            profiles=profiles,
+            endpoint_url=endpoint_url or remote.default_endpoint(),
+            title=title,
+        )
 
     # ----------------------------------------------------------------- storage
 
@@ -197,7 +211,9 @@ class SnapshotStore:
             return None
         if ref in ("", "WORK", "HEAD", None):
             return entries[-1]
-        return next((e for e in reversed(entries) if e["id"] == ref or e["id"].startswith(ref)), None)
+        return next(
+            (e for e in reversed(entries) if e["id"] == ref or e["id"].startswith(ref)), None
+        )
 
     # ------------------------------------------------------------- world state
 
@@ -211,7 +227,10 @@ class SnapshotStore:
             # in-flight WAL content that a plain read would miss or tear.
             with tempfile.TemporaryDirectory() as folder:
                 target = Path(folder) / DATABASE_NAME
-                with sqlite3.connect(ctx.database) as source, sqlite3.connect(target) as destination:
+                with (
+                    sqlite3.connect(ctx.database) as source,
+                    sqlite3.connect(target) as destination,
+                ):
                     source.backup(destination)
                 files[DATABASE_NAME] = target.read_bytes()
         for directory, name in ((ctx.manuscripts, "manuscripts"), (ctx.profiles, "profiles")):
@@ -250,7 +269,8 @@ class SnapshotStore:
             "endpoint": ctx.endpoint_url,
             "aenderungen": changes[:60],
             "anzahl": len(changes),
-            "vorschlag": _describe_changes(changes) or f"Writing backup {datetime.now():%Y-%m-%d %H:%M}",
+            "vorschlag": _describe_changes(changes)
+            or f"Writing backup {datetime.now():%Y-%m-%d %H:%M}",
         }
 
     def commit(self, ctx: BackupContext, message: str, push: bool) -> dict[str, Any]:
@@ -259,10 +279,16 @@ class SnapshotStore:
         changes = self._changes(current, self._manifest_of(previous_entry))
         log: list[str] = []
         if not changes:
-            return {"ok": True, "log": ["Everything is already backed up."], "status": self.status(ctx)}
+            return {
+                "ok": True,
+                "log": ["Everything is already backed up."],
+                "status": self.status(ctx),
+            }
 
         ctx.root.mkdir(parents=True, exist_ok=True)
-        manifest = {path: self._write_blob(ctx, payload) for path, payload in sorted(current.items())}
+        manifest = {
+            path: self._write_blob(ctx, payload) for path, payload in sorted(current.items())
+        }
         created = datetime.now()
         entry = {
             "format": FORMAT_VERSION,
@@ -273,7 +299,9 @@ class SnapshotStore:
             # the hex ids the storage layout happens to use as directories.
             "world": ctx.root.name,
             "title": ctx.title,
-            "message": message or _describe_changes(changes) or f"Writing backup {created:%Y-%m-%d %H:%M}",
+            "message": message
+            or _describe_changes(changes)
+            or f"Writing backup {created:%Y-%m-%d %H:%M}",
             "parent": previous_entry["id"] if previous_entry else "",
             "files": manifest,
         }
@@ -286,7 +314,11 @@ class SnapshotStore:
 
         if push:
             if not ctx.endpoint_url:
-                return {"ok": False, "grund": "No backup endpoint is configured for this world.", "log": log}
+                return {
+                    "ok": False,
+                    "grund": "No backup endpoint is configured for this world.",
+                    "log": log,
+                }
             try:
                 remote.push(ctx, entry, lambda digest: self._read_blob(ctx, digest))
             except Exception as exc:
@@ -296,15 +328,20 @@ class SnapshotStore:
 
     def history(self, ctx: BackupContext, limit: int = 40) -> list[dict[str, str]]:
         entries = self.entries(ctx)[-limit:]
-        return [{
-            "hash": entry["id"],
-            "kurz": entry["id"][:8],
-            "datum": datetime.fromisoformat(entry["created"]).strftime("%d.%m.%Y %H:%M"),
-            "autor": "",
-            "betreff": entry.get("message", ""),
-        } for entry in reversed(entries)]
+        return [
+            {
+                "hash": entry["id"],
+                "kurz": entry["id"][:8],
+                "datum": datetime.fromisoformat(entry["created"]).strftime("%d.%m.%Y %H:%M"),
+                "autor": "",
+                "betreff": entry.get("message", ""),
+            }
+            for entry in reversed(entries)
+        ]
 
-    def diff(self, ctx: BackupContext, ref: str, text_only: bool = True, word_diff: bool = True) -> dict[str, Any]:
+    def diff(
+        self, ctx: BackupContext, ref: str, text_only: bool = True, word_diff: bool = True
+    ) -> dict[str, Any]:
         if ref in ("", "WORK", None):
             new_files = {path: payload for path, payload in self._collect(ctx).items()}
             base = self._manifest_of(self._resolve(ctx, "HEAD"))
@@ -312,7 +349,9 @@ class SnapshotStore:
             entry = self._resolve(ctx, ref)
             if entry is None:
                 return {"ok": False, "grund": "Invalid revision."}
-            new_files = {path: self._read_blob(ctx, digest) for path, digest in entry["files"].items()}
+            new_files = {
+                path: self._read_blob(ctx, digest) for path, digest in entry["files"].items()
+            }
             parent = self._resolve(ctx, entry["parent"]) if entry.get("parent") else None
             base = self._manifest_of(parent)
 
@@ -326,7 +365,12 @@ class SnapshotStore:
             if old_bytes == new_bytes:
                 continue
             chunks.append(self._render(path, old_bytes, new_bytes, word_diff))
-        return {"ok": True, "diff": "\n".join(chunk for chunk in chunks if chunk), "neu": [], "wortweise": word_diff}
+        return {
+            "ok": True,
+            "diff": "\n".join(chunk for chunk in chunks if chunk),
+            "neu": [],
+            "wortweise": word_diff,
+        }
 
     def _render(self, path: str, old_bytes: bytes, new_bytes: bytes, word_diff: bool) -> str:
         header = f"diff --git a/{path} b/{path}"
@@ -339,12 +383,22 @@ class SnapshotStore:
             marked = [i for i, line in enumerate(lines) if "[-" in line or "{+" in line]
             body = _hunks(lines, marked, context=1)
         else:
-            body = [line.rstrip("\n") for line in difflib.unified_diff(
-                old.splitlines(), new.splitlines(), lineterm="", n=3,
-                fromfile=f"a/{path}", tofile=f"b/{path}")]
+            body = [
+                line.rstrip("\n")
+                for line in difflib.unified_diff(
+                    old.splitlines(),
+                    new.splitlines(),
+                    lineterm="",
+                    n=3,
+                    fromfile=f"a/{path}",
+                    tofile=f"b/{path}",
+                )
+            ]
         return "\n".join([header, *body]) if body else ""
 
-    def restore(self, ctx: BackupContext, entry: dict[str, Any], fetch: Callable[[str], bytes] | None = None) -> dict[str, Any]:
+    def restore(
+        self, ctx: BackupContext, entry: dict[str, Any], fetch: Callable[[str], bytes] | None = None
+    ) -> dict[str, Any]:
         """Write a snapshot back onto disk, replacing the world's current state.
 
         `fetch` supplies blobs this machine does not have, which is the whole
@@ -395,7 +449,9 @@ class SnapshotStore:
                 index.write(json.dumps(entry, ensure_ascii=False) + "\n")
         return {"ok": True, "restored": entry["id"], "files": len(entry.get("files", {}))}
 
-    def chapter_version(self, ctx: BackupContext, ref: str, chapter_index: int, filename: str) -> dict[str, Any]:
+    def chapter_version(
+        self, ctx: BackupContext, ref: str, chapter_index: int, filename: str
+    ) -> dict[str, Any]:
         entry = self._resolve(ctx, ref)
         path = f"manuscripts/{chapter_index:02d} - {filename}.md"
         digest = (entry or {}).get("files", {}).get(path)

@@ -34,6 +34,7 @@ issuer off the endpoint instead of being configured a second time (RFC 9728).
 
 Standard library only.
 """
+
 from __future__ import annotations
 
 import json
@@ -89,7 +90,9 @@ def default_endpoint() -> str:
     return os.environ.get("QUILTOR_BACKUP_URL", "").rstrip("/")
 
 
-def _request(method: str, base: str, path: str, payload: bytes | None, content_type: str, timeout: int) -> bytes:
+def _request(
+    method: str, base: str, path: str, payload: bytes | None, content_type: str, timeout: int
+) -> bytes:
     """One request against the endpoint at `base`.
 
     Base and path are two arguments rather than one finished URL because the
@@ -112,7 +115,9 @@ def _request(method: str, base: str, path: str, payload: bytes | None, content_t
             return response.read()
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace").strip()
-        raise RuntimeError(f"Backup endpoint returned {exc.code} for {method} {url}: {detail or exc.reason}") from exc
+        raise RuntimeError(
+            f"Backup endpoint returned {exc.code} for {method} {url}: {detail or exc.reason}"
+        ) from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Backup endpoint at {url} is unreachable: {exc.reason}") from exc
 
@@ -136,10 +141,22 @@ def push(ctx: Any, entry: dict[str, Any], read_blob: Callable[[str], bytes]) -> 
     for digest in sorted(set(entry["files"].values())):
         if digest in present:
             continue
-        _request("PUT", base, f"/v1/worlds/{world}/blobs/{digest}",
-                 read_blob(digest), "application/octet-stream", TIMEOUT_BLOB)
-    _request("PUT", base, f"/v1/worlds/{world}/snapshots/{entry['id']}",
-             json.dumps(entry, ensure_ascii=False).encode("utf-8"), "application/json", TIMEOUT_METADATA)
+        _request(
+            "PUT",
+            base,
+            f"/v1/worlds/{world}/blobs/{digest}",
+            read_blob(digest),
+            "application/octet-stream",
+            TIMEOUT_BLOB,
+        )
+    _request(
+        "PUT",
+        base,
+        f"/v1/worlds/{world}/snapshots/{entry['id']}",
+        json.dumps(entry, ensure_ascii=False).encode("utf-8"),
+        "application/json",
+        TIMEOUT_METADATA,
+    )
 
 
 def existing_blobs(ctx: Any) -> list[str]:
@@ -171,10 +188,14 @@ def worlds(base_url: str) -> list[dict[str, Any]]:
 def snapshots(ctx: Any) -> list[dict[str, Any]]:
     """Manifests stored at the endpoint, oldest first. Used to restore a world
     onto a machine whose local history is empty."""
-    body = _request("GET", _base(ctx), f"/v1/worlds/{ctx.root.name}/snapshots", None, "", TIMEOUT_METADATA)
+    body = _request(
+        "GET", _base(ctx), f"/v1/worlds/{ctx.root.name}/snapshots", None, "", TIMEOUT_METADATA
+    )
     parsed = json.loads(body)
     return list(parsed.get("snapshots", [])) if isinstance(parsed, dict) else []
 
 
 def fetch_blob(ctx: Any, digest: str) -> bytes:
-    return _request("GET", _base(ctx), f"/v1/worlds/{ctx.root.name}/blobs/{digest}", None, "", TIMEOUT_BLOB)
+    return _request(
+        "GET", _base(ctx), f"/v1/worlds/{ctx.root.name}/blobs/{digest}", None, "", TIMEOUT_BLOB
+    )

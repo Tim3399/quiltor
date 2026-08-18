@@ -5,17 +5,51 @@ from backend.core.knowledge import build_knowledge, moment_order, retrieve, _par
 
 class KnowledgeTest(unittest.TestCase):
     def setUp(self):
-        self.manuscript = {"chapters": [
-            {"id": "c1", "title": "Die Krönung", "body": "Mara entdeckt im Archiv den gefälschten Siegelring. Sie misstraut danach Iven.", "note": "Der Ring stammt aus Asterheim."},
-            {"id": "c2", "title": "Am Fluss", "body": "Bela wartet am stillen Wasser.", "note": ""},
-        ]}
+        self.manuscript = {
+            "chapters": [
+                {
+                    "id": "c1",
+                    "title": "Die Krönung",
+                    "body": "Mara entdeckt im Archiv den gefälschten Siegelring. Sie misstraut danach Iven.",
+                    "note": "Der Ring stammt aus Asterheim.",
+                },
+                {
+                    "id": "c2",
+                    "title": "Am Fluss",
+                    "body": "Bela wartet am stillen Wasser.",
+                    "note": "",
+                },
+            ]
+        }
         self.figures = {
             "nodes": [
-                {"id": "mara", "x": 0, "y": 0, "type": "person", "name": "Mara", "profile": {"rolle": "Archivarin"}},
-                {"id": "iven", "x": 1, "y": 1, "type": "person", "name": "Iven", "profile": {"rolle": "Regent"}},
+                {
+                    "id": "mara",
+                    "x": 0,
+                    "y": 0,
+                    "type": "person",
+                    "name": "Mara",
+                    "profile": {"rolle": "Archivarin"},
+                },
+                {
+                    "id": "iven",
+                    "x": 1,
+                    "y": 1,
+                    "type": "person",
+                    "name": "Iven",
+                    "profile": {"rolle": "Regent"},
+                },
             ],
             "timeline": [{"id": "crown", "title": "Krönung", "date": "1421-03-14"}],
-            "edges": [{"id": "trust", "from": "mara", "to": "iven", "label": "Verbündete", "versions": [{"momentId": "crown", "label": "Misstrauen", "active": True}]}],
+            "edges": [
+                {
+                    "id": "trust",
+                    "from": "mara",
+                    "to": "iven",
+                    "label": "Verbündete",
+                    "versions": [{"momentId": "crown", "label": "Misstrauen", "active": True}],
+                }
+            ],
         }
 
     def test_indexes_every_knowledge_kind(self):
@@ -23,7 +57,10 @@ class KnowledgeTest(unittest.TestCase):
         self.assertEqual(kinds, {"chapter", "chapter-note", "element", "relationship", "timeline"})
 
     def test_retrieves_chapter_evidence_and_graph_context(self):
-        results = retrieve(build_knowledge(self.manuscript, self.figures), "Warum misstraut Mara Iven nach der Krönung?")
+        results = retrieve(
+            build_knowledge(self.manuscript, self.figures),
+            "Warum misstraut Mara Iven nach der Krönung?",
+        )
         identifiers = {chunk.id for chunk in results}
         self.assertIn("chapter:c1:0", identifiers)
         self.assertIn("relationship:trust", identifiers)
@@ -33,10 +70,26 @@ class KnowledgeTest(unittest.TestCase):
         self.assertEqual(build_knowledge({}, {}), [])
 
     def test_relationship_chunk_lists_every_moment_version_line(self):
-        edges = {**self.figures, "edges": [{"id": "trust", "from": "mara", "to": "iven", "label": "Verbündete",
-                                             "versions": [{"momentId": "crown", "label": "Misstrauen", "active": True},
-                                                          {"momentId": "crown", "label": "Bruch", "active": False}]}]}
-        chunk = next(chunk for chunk in build_knowledge(self.manuscript, edges) if chunk.id == "relationship:trust")
+        edges = {
+            **self.figures,
+            "edges": [
+                {
+                    "id": "trust",
+                    "from": "mara",
+                    "to": "iven",
+                    "label": "Verbündete",
+                    "versions": [
+                        {"momentId": "crown", "label": "Misstrauen", "active": True},
+                        {"momentId": "crown", "label": "Bruch", "active": False},
+                    ],
+                }
+            ],
+        }
+        chunk = next(
+            chunk
+            for chunk in build_knowledge(self.manuscript, edges)
+            if chunk.id == "relationship:trust"
+        )
         self.assertIn("Ab Krönung: Misstrauen (aktiv)", chunk.text)
         self.assertIn("Ab Krönung: Bruch (beendet)", chunk.text)
 
@@ -60,11 +113,18 @@ class KnowledgeTest(unittest.TestCase):
         self.assertEqual(results, chunks[:3])
 
     def test_presence_chunk_lists_stops_in_timeline_order_with_place_names(self):
-        figures = {**self.figures, "presence": [
-            {"id": "p1", "elementId": "mara", "placeId": "iven", "momentId": "crown"},
-            {"id": "p0", "elementId": "mara", "placeId": "iven"},
-        ]}
-        chunk = next(chunk for chunk in build_knowledge(self.manuscript, figures) if chunk.id == "presence:mara")
+        figures = {
+            **self.figures,
+            "presence": [
+                {"id": "p1", "elementId": "mara", "placeId": "iven", "momentId": "crown"},
+                {"id": "p0", "elementId": "mara", "placeId": "iven"},
+            ],
+        }
+        chunk = next(
+            chunk
+            for chunk in build_knowledge(self.manuscript, figures)
+            if chunk.id == "presence:mara"
+        )
         self.assertEqual(chunk.kind, "presence")
         lines = chunk.text.splitlines()
         self.assertEqual(lines, ["Ausgangslage: Iven", "Krönung (1421-03-14): Iven"])

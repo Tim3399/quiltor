@@ -7,6 +7,7 @@ Second, enforce that no module outside backend/system/ branches on the OS --
 a rule that only holds if something checks it, since each branch elsewhere
 looks like a small correct decision on its own.
 """
+
 import ast
 import builtins
 import unittest
@@ -54,7 +55,9 @@ class ContractCompletenessTests(unittest.TestCase):
         suite runs on Linux, as it does in CI. Reading an environment variable
         needs no Mac. Linux answers False regardless, because no Linux store
         build exists."""
-        with patch.dict("os.environ", {"APP_SANDBOX_CONTAINER_ID": "app.quiltor.desktop"}, clear=True):
+        with patch.dict(
+            "os.environ", {"APP_SANDBOX_CONTAINER_ID": "app.quiltor.desktop"}, clear=True
+        ):
             self.assertTrue(macos.in_os_app_package())
             self.assertFalse(linux.in_os_app_package())
         with patch.dict("os.environ", {}, clear=True):
@@ -65,9 +68,14 @@ class ContractCompletenessTests(unittest.TestCase):
         names exist, and only for the members it can see -- so spell the surface
         out and check each module has all of it."""
         surface = [name for name in vars(contract.SystemModule).get("__annotations__", {})]
-        surface += [name for name in dir(contract.SystemModule)
-                    if not name.startswith("_") and callable(getattr(contract.SystemModule, name, None))]
-        self.assertIn("data_home", surface)  # guard against the introspection silently finding nothing
+        surface += [
+            name
+            for name in dir(contract.SystemModule)
+            if not name.startswith("_") and callable(getattr(contract.SystemModule, name, None))
+        ]
+        self.assertIn(
+            "data_home", surface
+        )  # guard against the introspection silently finding nothing
         for module in (macos, windows, linux):
             for name in surface:
                 with self.subTest(module=module.__name__, member=name):
@@ -144,8 +152,11 @@ class NoOsBranchingOutsideTheSystemPackageTests(unittest.TestCase):
             # platform.system() / platform.machine() / ...
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 target = node.func
-                if (isinstance(target.value, ast.Name) and target.value.id == "platform"
-                        and target.attr in OS_BRANCH_NAMES):
+                if (
+                    isinstance(target.value, ast.Name)
+                    and target.value.id == "platform"
+                    and target.attr in OS_BRANCH_NAMES
+                ):
                     hits.append(f"line {node.lineno}: platform.{target.attr}()")
         return hits
 
@@ -158,18 +169,25 @@ class NoOsBranchingOutsideTheSystemPackageTests(unittest.TestCase):
             if hits:
                 offenders[str(path.relative_to(REPO_ROOT))] = hits
 
-        self.assertEqual(offenders, {}, "\n".join(
-            [
-                "OS branching belongs in backend/system/. Ask it for an answer "
-                "(os_name(), machine_arch(), spawn_flags(), executable_name(), ...) "
-                "or add a member to its contract:",
-                *(f"  {path}: {', '.join(hits)}" for path, hits in sorted(offenders.items())),
-            ]))
+        self.assertEqual(
+            offenders,
+            {},
+            "\n".join(
+                [
+                    "OS branching belongs in backend/system/. Ask it for an answer "
+                    "(os_name(), machine_arch(), spawn_flags(), executable_name(), ...) "
+                    "or add a member to its contract:",
+                    *(f"  {path}: {', '.join(hits)}" for path, hits in sorted(offenders.items())),
+                ]
+            ),
+        )
 
     def test_the_check_actually_finds_something(self):
         """A scanner that silently matches nothing would pass forever."""
-        self.assertTrue(any(self._offenders(path) for path in sorted(SYSTEM_PACKAGE.glob("*.py"))),
-                        "the OS-branch scanner found no branches even inside backend/system/")
+        self.assertTrue(
+            any(self._offenders(path) for path in sorted(SYSTEM_PACKAGE.glob("*.py"))),
+            "the OS-branch scanner found no branches even inside backend/system/",
+        )
 
 
 if __name__ == "__main__":

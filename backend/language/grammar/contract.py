@@ -3,6 +3,7 @@
 There are two, and which one is used is an edition decision rather than a user
 preference -- see this package's __init__.
 """
+
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable

@@ -35,6 +35,7 @@ file. That is also what a sandboxed Mac App Store build needs: a location the
 user picked, covered by com.apple.security.files.user-selected.read-write in
 packaging/entitlements-mas.plist.
 """
+
 from __future__ import annotations
 
 import base64
@@ -126,7 +127,11 @@ class FileBridge:
             return {"ok": False, "error": "The desktop window is not ready yet."}
 
         try:
-            data = base64.b64decode(content, validate=True) if encoding == BASE64 else str(content).encode("utf-8")
+            data = (
+                base64.b64decode(content, validate=True)
+                if encoding == BASE64
+                else str(content).encode("utf-8")
+            )
         except (binascii.Error, ValueError) as error:
             return {"ok": False, "error": f"The export could not be decoded: {error}"}
 

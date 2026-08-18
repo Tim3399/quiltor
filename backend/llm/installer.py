@@ -114,12 +114,18 @@ def ensure_installed() -> None:
     print()
     print("  Kein lokaler KI-Assistent gefunden.")
     try:
-        answer = input(f"  Jetzt einrichten ({runtime}-Runtime, {size} Download)? [j/N] ").strip().casefold()
+        answer = (
+            input(f"  Jetzt einrichten ({runtime}-Runtime, {size} Download)? [j/N] ")
+            .strip()
+            .casefold()
+        )
     except (EOFError, KeyboardInterrupt):
         print()
         answer = ""
     if answer not in ("j", "ja", "y", "yes"):
-        print("  Übersprungen. Quiltor läuft ohne Assistenten. Später jederzeit mit: python3 -m backend.llm.installer")
+        print(
+            "  Übersprungen. Quiltor läuft ohne Assistenten. Später jederzeit mit: python3 -m backend.llm.installer"
+        )
         print()
         return
     try:
@@ -129,11 +135,23 @@ def ensure_installed() -> None:
         # CalledProcessError, ...) from download()/install_mlx_runtime() -- a
         # flaky connection during setup must not take the whole server down.
         print(f"  ! Einrichtung fehlgeschlagen: {exc}")
-        print("  Quiltor startet trotzdem; der Assistent bleibt bis zur nächsten Einrichtung inaktiv.")
+        print(
+            "  Quiltor startet trotzdem; der Assistent bleibt bis zur nächsten Einrichtung inaktiv."
+        )
     print()
 
 
-def install(runtime: str, *, model_repo: str = DEFAULT_MODEL_REPO, model_file: str = DEFAULT_MODEL_FILE, mlx_model_repo: str = DEFAULT_MLX_MODEL_REPO, skip_runtime: bool = False, skip_model: bool = False, skip_smoke_test: bool = False, on_progress: Callable[[str, int], None] | None = None) -> None:
+def install(
+    runtime: str,
+    *,
+    model_repo: str = DEFAULT_MODEL_REPO,
+    model_file: str = DEFAULT_MODEL_FILE,
+    mlx_model_repo: str = DEFAULT_MLX_MODEL_REPO,
+    skip_runtime: bool = False,
+    skip_model: bool = False,
+    skip_smoke_test: bool = False,
+    on_progress: Callable[[str, int], None] | None = None,
+) -> None:
     if runtime == "mlx":
         if not skip_runtime:
             install_mlx_runtime(on_progress)
@@ -164,7 +182,9 @@ def platform_asset_pattern() -> re.Pattern[str]:
         return re.compile(rf"macos-{arch}\.tar\.gz$")
     if os_name == "linux":
         return re.compile(rf"ubuntu-{arch}\.tar\.gz$")
-    raise SystemExit(f"Unsupported platform: {os_name}/{arch}. Set QUILTOR_AI_BINARY to a local llama-server build instead.")
+    raise SystemExit(
+        f"Unsupported platform: {os_name}/{arch}. Set QUILTOR_AI_BINARY to a local llama-server build instead."
+    )
 
 
 def latest_release_asset(pattern: re.Pattern[str]) -> tuple[str, str]:
@@ -174,10 +194,14 @@ def latest_release_asset(pattern: re.Pattern[str]) -> tuple[str, str]:
     for asset in release.get("assets", []):
         if pattern.search(asset["name"]):
             return asset["name"], asset["browser_download_url"]
-    raise SystemExit(f"No llama.cpp release asset matched {pattern.pattern!r}. Check https://github.com/{LLAMA_CPP_REPO}/releases/latest")
+    raise SystemExit(
+        f"No llama.cpp release asset matched {pattern.pattern!r}. Check https://github.com/{LLAMA_CPP_REPO}/releases/latest"
+    )
 
 
-def download(url: str, dest: Path, label: str, on_progress: Callable[[str, int], None] | None = None) -> None:
+def download(
+    url: str, dest: Path, label: str, on_progress: Callable[[str, int], None] | None = None
+) -> None:
     """Downloads to a `.part` file and renames it atomically on success, so a
     partial/interrupted run never gets mistaken for a finished install.
 
@@ -213,7 +237,11 @@ def download(url: str, dest: Path, label: str, on_progress: Callable[[str, int],
                 done += len(chunk)
                 if total:
                     pct = min(100, done * 100 // total)
-                    print(f"\r  {pct:3d}% ({done // (1024 * 1024)} MB / {total // (1024 * 1024)} MB)", end="", flush=True)
+                    print(
+                        f"\r  {pct:3d}% ({done // (1024 * 1024)} MB / {total // (1024 * 1024)} MB)",
+                        end="",
+                        flush=True,
+                    )
                     if on_progress:
                         on_progress(label, pct)
     print()
@@ -264,7 +292,8 @@ def install_runtime(on_progress: Callable[[str, int], None] | None = None) -> No
         raise SystemExit(
             f"This build must not download a runtime (App Store guideline 2.5.2), and no "
             f"llama-server ships inside it. Expected one in {bundled_runtime_dir() or 'the app bundle'}; "
-            f"see packaging/README.md on bundling and signing it.")
+            f"see packaging/README.md on bundling and signing it."
+        )
 
     pattern = platform_asset_pattern()
     name, url = latest_release_asset(pattern)
@@ -306,7 +335,9 @@ def install_runtime(on_progress: Callable[[str, int], None] | None = None) -> No
     print(f"Installed {target}")
 
 
-def install_model(repo: str, filename: str, on_progress: Callable[[str, int], None] | None = None) -> None:
+def install_model(
+    repo: str, filename: str, on_progress: Callable[[str, int], None] | None = None
+) -> None:
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     target = MODELS_DIR / filename
     if target.exists():
@@ -325,11 +356,17 @@ def install_mlx_runtime(on_progress: Callable[[str, int], None] | None = None) -
         # code, which App Store guideline 2.5.2 forbids outright. Refuse loudly
         # rather than let a Store build ship something that fails review -- the
         # bundled llama.cpp runtime covers Apple Silicon here, just more slowly.
-        raise SystemExit("The Mac App Store build cannot install the MLX runtime (App Store guideline 2.5.2). Use --runtime llamacpp.")
+        raise SystemExit(
+            "The Mac App Store build cannot install the MLX runtime (App Store guideline 2.5.2). Use --runtime llamacpp."
+        )
     if not is_apple_silicon():
-        raise SystemExit("MLX is only supported on Apple Silicon Macs. Use --runtime llamacpp instead.")
+        raise SystemExit(
+            "MLX is only supported on Apple Silicon Macs. Use --runtime llamacpp instead."
+        )
     if sys.version_info < (3, 10):
-        raise SystemExit(f"MLX requires Python 3.10+; this interpreter is {platform.python_version()}. Install a newer Python and re-run.")
+        raise SystemExit(
+            f"MLX requires Python 3.10+; this interpreter is {platform.python_version()}. Install a newer Python and re-run."
+        )
     venv_python = _venv_python(MLX_VENV_DIR)
     if venv_python.exists():
         print(f"MLX runtime already present at {venv_python}, skipping")
@@ -344,7 +381,18 @@ def install_mlx_runtime(on_progress: Callable[[str, int], None] | None = None) -
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
     # --only-binary=:all: turns "no Xcode command line tools" into an
     # immediate, legible pip error instead of a 40-minute failed source build.
-    subprocess.run([str(venv_python), "-m", "pip", "install", "--only-binary=:all:", "-r", str(MLX_REQUIREMENTS)], check=True)
+    subprocess.run(
+        [
+            str(venv_python),
+            "-m",
+            "pip",
+            "install",
+            "--only-binary=:all:",
+            "-r",
+            str(MLX_REQUIREMENTS),
+        ],
+        check=True,
+    )
     print(f"Installed MLX runtime at {MLX_VENV_DIR}")
     if on_progress:
         on_progress("Runtime", 100)
@@ -358,7 +406,9 @@ def install_mlx_model(repo: str, on_progress: Callable[[str, int], None] | None 
             on_progress("Model", 100)
         return
     print(f"Fetching file list for {repo} ...")
-    with urllib.request.urlopen(f"https://huggingface.co/api/models/{repo}/tree/main", timeout=30) as response:
+    with urllib.request.urlopen(
+        f"https://huggingface.co/api/models/{repo}/tree/main", timeout=30
+    ) as response:
         entries = json.load(response)
     files = [entry["path"] for entry in entries if entry.get("type") == "file"]
     if not files:
@@ -372,8 +422,14 @@ def install_mlx_model(repo: str, on_progress: Callable[[str, int], None] | None 
         # Coarse per-file progress (no aggregate byte count across all files known
         # upfront) -- good enough to show the UI something is happening.
         base_pct = index * 100 // len(files)
-        download(f"https://huggingface.co/{repo}/resolve/main/{filename}", dest,
-                  filename, (lambda label, pct, base=base_pct: on_progress(label, base + pct // len(files))) if on_progress else None)
+        download(
+            f"https://huggingface.co/{repo}/resolve/main/{filename}",
+            dest,
+            filename,
+            (lambda label, pct, base=base_pct: on_progress(label, base + pct // len(files)))
+            if on_progress
+            else None,
+        )
     print(f"Installed MLX model at {target_dir}")
 
 
@@ -385,16 +441,34 @@ def smoke_test_mlx(model_dir: Path, timeout: float = 120) -> None:
     port = 18732
     venv_python = _venv_python(MLX_VENV_DIR)
     print("Smoke-testing the MLX bridge (this loads the model once, may take a minute) ...")
-    process = subprocess.Popen([str(venv_python), str(MLX_BRIDGE), "--model", str(model_dir), "--host", "127.0.0.1", "--port", str(port)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    process = subprocess.Popen(
+        [
+            str(venv_python),
+            str(MLX_BRIDGE),
+            "--model",
+            str(model_dir),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
     try:
         deadline = time.monotonic() + timeout
         ready = False
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 output = process.stdout.read() if process.stdout else ""
-                raise SystemExit(f"MLX bridge exited during startup (code {process.returncode}):\n{output}")
+                raise SystemExit(
+                    f"MLX bridge exited during startup (code {process.returncode}):\n{output}"
+                )
             try:
-                with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
+                with urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/health", timeout=1
+                ) as response:
                     if response.status == 200:
                         ready = True
                         break
@@ -402,19 +476,42 @@ def smoke_test_mlx(model_dir: Path, timeout: float = 120) -> None:
                 pass
             time.sleep(1)
         if not ready:
-            raise SystemExit(f"MLX bridge did not become healthy within {timeout:.0f}s. Check data/mlx-server.log once server.py is running, or re-run with --skip-smoke-test to skip this check.")
-        schema = {"type": "object", "required": ["ok"], "additionalProperties": False, "properties": {"ok": {"type": "boolean"}}}
-        payload = {
-            "model": "local", "stream": False, "max_tokens": 50,
-            "messages": [{"role": "user", "content": "Reply with the JSON object {\"ok\": true} and nothing else. /no_think"}],
-            "response_format": {"type": "json_schema", "json_schema": {"name": "smoke_test", "strict": True, "schema": schema}},
+            raise SystemExit(
+                f"MLX bridge did not become healthy within {timeout:.0f}s. Check data/mlx-server.log once server.py is running, or re-run with --skip-smoke-test to skip this check."
+            )
+        schema = {
+            "type": "object",
+            "required": ["ok"],
+            "additionalProperties": False,
+            "properties": {"ok": {"type": "boolean"}},
         }
-        request = urllib.request.Request(f"http://127.0.0.1:{port}/v1/chat/completions", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+        payload = {
+            "model": "local",
+            "stream": False,
+            "max_tokens": 50,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": 'Reply with the JSON object {"ok": true} and nothing else. /no_think',
+                }
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "smoke_test", "strict": True, "schema": schema},
+            },
+        }
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/v1/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
         with urllib.request.urlopen(request, timeout=60) as response:
             result = json.load(response)
         content = json.loads(result["choices"][0]["message"]["content"])
         if content != {"ok": True}:
-            raise SystemExit(f"MLX bridge responded but not with the schema-constrained value expected: {content!r}")
+            raise SystemExit(
+                f"MLX bridge responded but not with the schema-constrained value expected: {content!r}"
+            )
         print("MLX bridge smoke test passed: model loaded and schema-constrained output verified.")
     finally:
         process.terminate()
@@ -465,19 +562,50 @@ def read_install_state() -> dict[str, Any]:
 
 
 def _cli() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--runtime", choices=["auto", "llamacpp", "mlx"], default="auto", help="which backend to install (default: mlx on Apple Silicon, llama.cpp everywhere else)")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--runtime",
+        choices=["auto", "llamacpp", "mlx"],
+        default="auto",
+        help="which backend to install (default: mlx on Apple Silicon, llama.cpp everywhere else)",
+    )
     parser.add_argument("--skip-runtime", action="store_true", help="do not download the runtime")
     parser.add_argument("--skip-model", action="store_true", help="do not download the model")
-    parser.add_argument("--skip-smoke-test", action="store_true", help="skip the post-install MLX verification request (llama.cpp path has no smoke test)")
-    parser.add_argument("--model-repo", default=DEFAULT_MODEL_REPO, help="Hugging Face repo id holding the GGUF file (llama.cpp path)")
-    parser.add_argument("--model-file", default=DEFAULT_MODEL_FILE, help="GGUF filename inside the model repo (llama.cpp path)")
-    parser.add_argument("--mlx-model-repo", default=DEFAULT_MLX_MODEL_REPO, help="Hugging Face repo id holding the MLX model (mlx path)")
+    parser.add_argument(
+        "--skip-smoke-test",
+        action="store_true",
+        help="skip the post-install MLX verification request (llama.cpp path has no smoke test)",
+    )
+    parser.add_argument(
+        "--model-repo",
+        default=DEFAULT_MODEL_REPO,
+        help="Hugging Face repo id holding the GGUF file (llama.cpp path)",
+    )
+    parser.add_argument(
+        "--model-file",
+        default=DEFAULT_MODEL_FILE,
+        help="GGUF filename inside the model repo (llama.cpp path)",
+    )
+    parser.add_argument(
+        "--mlx-model-repo",
+        default=DEFAULT_MLX_MODEL_REPO,
+        help="Hugging Face repo id holding the MLX model (mlx path)",
+    )
     args = parser.parse_args()
 
     runtime = resolve_runtime(args.runtime)
     print(f"Runtime: {runtime}" + (" (auto-detected)" if args.runtime == "auto" else ""))
-    install(runtime, model_repo=args.model_repo, model_file=args.model_file, mlx_model_repo=args.mlx_model_repo, skip_runtime=args.skip_runtime, skip_model=args.skip_model, skip_smoke_test=args.skip_smoke_test)
+    install(
+        runtime,
+        model_repo=args.model_repo,
+        model_file=args.model_file,
+        mlx_model_repo=args.mlx_model_repo,
+        skip_runtime=args.skip_runtime,
+        skip_model=args.skip_model,
+        skip_smoke_test=args.skip_smoke_test,
+    )
     print("\nDone. Start Quiltor with: python3 server.py")
 
 

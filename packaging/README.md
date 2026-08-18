@@ -89,14 +89,14 @@ loudly:
 It writes the files and stops. Commit that, merge it to `main`, and the push to
 `main` touching `VERSION` is what starts `.github/workflows/release.yml`:
 
-| job | produces |
-| --- | --- |
-| `version-check` | the version, and the decision whether to release at all |
+| job               | produces                                                   |
+| ----------------- | ---------------------------------------------------------- |
+| `version-check`   | the version, and the decision whether to release at all    |
 | `tag-and-release` | the `vX.Y.Z` tag and a GitHub Release with generated notes |
-| `docker` | `ghcr.io/tim3399/quiltor:X.Y.Z` and `:latest` |
-| `wheel` | the wheel and sdist, attached to the Release |
-| `macos-app` | `Quiltor-X.Y.Z.dmg`, attached to the Release |
-| `windows-app` | `Quiltor-Setup-X.Y.Z.exe`, attached to the Release |
+| `docker`          | `ghcr.io/tim3399/quiltor:X.Y.Z` and `:latest`              |
+| `wheel`           | the wheel and sdist, attached to the Release               |
+| `macos-app`       | `Quiltor-X.Y.Z.dmg`, attached to the Release               |
+| `windows-app`     | `Quiltor-Setup-X.Y.Z.exe`, attached to the Release         |
 
 `macos-app` and `windows-app` run `build_macos.sh` and `build_windows.ps1`
 unchanged — the same commands documented above — so there is no CI-only build
@@ -131,6 +131,7 @@ Only `backend/system/` branches on the OS — everything else (`hosts/desktop/ap
   `tests/backend/test_system.py` enforces this by parsing every source file and
   failing on an OS branch anywhere else. Left to convention the rule does not
   hold: each branch elsewhere looks like a small correct decision on its own.
+
 - **`hosts/desktop/app.py`** / **`hosts/desktop/tray.py`** — orchestration and the tray icon,
   both OS-agnostic; pywebview and pystray abstract the actual
   WebView2-vs-WKWebView and notification-area-vs-menu-bar differences
@@ -187,6 +188,7 @@ Only `backend/system/` branches on the OS — everything else (`hosts/desktop/ap
   `packaging/bundle.py` asks `backend.pdf` which renderer a build uses rather
   than deciding separately, so a build can never drop the library its own
   renderer imports.
+
 - **The local AI assistant's first-run terminal prompt is silent** —
   `ensure_installed()` (`backend/llm/installer.py`) only asks interactively when
   `sys.stdin.isatty()`; a windowed build has no console, so it stays quiet and the
@@ -203,8 +205,8 @@ Only `backend/system/` branches on the OS — everything else (`hosts/desktop/ap
 ## Signing and distribution
 
 Unsigned builds trip both platforms' gatekeeping: **macOS** shows "Apple could not
-verify... unidentified developer" (right-click → *Open* bypasses it once), **Windows**
-SmartScreen shows "Windows protected your PC" (*More info* → *Run anyway*). Neither
+verify... unidentified developer" (right-click → _Open_ bypasses it once), **Windows**
+SmartScreen shows "Windows protected your PC" (_More info_ → _Run anyway_). Neither
 is acceptable for a build handed to other people.
 
 ### macOS: Developer ID + notarization
@@ -220,8 +222,8 @@ export QUILTOR_NOTARY_PROFILE="quiltor-notary"
 
 One-time setup:
 
-1. Join the **Apple Developer Program** ($99/year) and create a *Developer ID
-   Application* certificate; install it into the login keychain.
+1. Join the **Apple Developer Program** ($99/year) and create a _Developer ID
+   Application_ certificate; install it into the login keychain.
    `security find-identity -v -p codesigning` then prints the identity string.
 2. Create an app-specific password at appleid.apple.com and store notarytool
    credentials once:
@@ -255,16 +257,16 @@ the job's "Apple code signing" step exits immediately when
 variables `build_macos.sh` already reads. **Creating the secrets is the only
 step.** No workflow edit, no re-plumbing.
 
-Create them under *Settings → Secrets and variables → Actions → New repository
-secret*:
+Create them under _Settings → Secrets and variables → Actions → New repository
+secret_:
 
-| secret | what goes in it |
-| --- | --- |
-| `APPLE_CERTIFICATE_P12` | the *Developer ID Application* certificate **and its private key**, exported from Keychain Access as a `.p12`, then base64-encoded: `base64 -i certificate.p12 \| pbcopy` |
-| `APPLE_CERTIFICATE_PASSWORD` | the password set during that `.p12` export |
-| `APPLE_ID` | the Apple ID of the developer account (notarization only) |
-| `APPLE_TEAM_ID` | the ten-character team ID, e.g. `AB12CD34EF` (notarization only) |
-| `APPLE_APP_PASSWORD` | an app-specific password from appleid.apple.com, **not** the account password (notarization only) |
+| secret                       | what goes in it                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APPLE_CERTIFICATE_P12`      | the _Developer ID Application_ certificate **and its private key**, exported from Keychain Access as a `.p12`, then base64-encoded: `base64 -i certificate.p12 \| pbcopy` |
+| `APPLE_CERTIFICATE_PASSWORD` | the password set during that `.p12` export                                                                                                                                |
+| `APPLE_ID`                   | the Apple ID of the developer account (notarization only)                                                                                                                 |
+| `APPLE_TEAM_ID`              | the ten-character team ID, e.g. `AB12CD34EF` (notarization only)                                                                                                          |
+| `APPLE_APP_PASSWORD`         | an app-specific password from appleid.apple.com, **not** the account password (notarization only)                                                                         |
 
 The first two are enough to sign. Add the other three to notarize as well, which
 is what actually removes the Gatekeeper warning — signing alone does not. With
@@ -314,8 +316,8 @@ the local and CI builds stay the same build.
 Not possible with the current build, but the blockers are specific and fixable — it
 needs a second, sandboxed build variant rather than an architectural rewrite.
 
-The often-quoted showstopper, **Guideline 2.5.2**, forbids downloading *executable
-code* — it does not forbid downloading *data*. Model weights are data, so the GGUF
+The often-quoted showstopper, **Guideline 2.5.2**, forbids downloading _executable
+code_ — it does not forbid downloading _data_. Model weights are data, so the GGUF
 download at first run is fine (and necessary: the App Store caps apps at 4 GB, and
 `Qwen3-4B-Q4_K_M.gguf` alone is ~2.5 GB). What violates 2.5.2 is the
 `llama-server` binary download, the MLX path's `venv` + `pip install`
@@ -346,7 +348,7 @@ QUILTOR_EDITION=mas python3 -m backend.llm.installer   # refuses to download
 ```
 
 Callers ask **policy questions**, not for the edition's name:
-`allows_code_download()` (guideline 2.5.2 — downloading *data* such as model
+`allows_code_download()` (guideline 2.5.2 — downloading _data_ such as model
 weights is a different question and always allowed) and
 `allows_external_process()` (the sandbox refusing to launch the system JVM or an
 installed browser). `is_store_build()` remains for the few places that really do
@@ -401,7 +403,7 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
    `datas` line: `bundled_runtime_dir()` reads `sys._MEIPASS` (PyInstaller 6 puts
    that at `Contents/Frameworks`), while Apple wants nested executables under
    `Contents/MacOS` or `Contents/Library`.
-2. **The Store build's book PDF** — *done*. `backend/pdf/wkwebview.py` renders
+2. **The Store build's book PDF** — _done_. `backend/pdf/wkwebview.py` renders
    through WKWebView's print operation, verified on device: correct 6 × 9 inch
    pages, all chapters, called from an HTTP handler thread while pywebview owns
    the main run loop.
@@ -417,13 +419,14 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
    `backend/pdf/page_numbers.py` draws them on afterwards. Its geometry comes
    from the same CSS and was checked against a Chromium-rendered book: same
    position to a tenth of a point, including the detail that the number is
-   centred on the *text block* rather than the page, so it alternates by 7.2 pt
+   centred on the _text block_ rather than the page, so it alternates by 7.2 pt
    between recto and verso because the margins mirror for binding.
-3. **`reveal_in_file_manager()` on macOS** — *done*, `backend/system/macos.py`
+
+3. **`reveal_in_file_manager()` on macOS** — _done_, `backend/system/macos.py`
    now uses `NSWorkspace`'s `activateFileViewerSelectingURLs:` and keeps the
    `/usr/bin/open` subprocess only as a fallback for checkouts without pyobjc.
 
-   **Bundle metadata** — also *done*. `packaging/bundle.py` owns the identity and
+   **Bundle metadata** — also _done_. `packaging/bundle.py` owns the identity and
    the `Info.plist`; `quiltor.spec` imports it rather than hard-coding anything.
    It lives outside the spec because a `.spec` only executes during a real build
    on a Mac, so nothing in one is tested until someone runs that build — and a
@@ -437,7 +440,7 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
    which is otherwise arm64 — universal2 would need universal2 wheels for
    Pillow, pywebview and pystray.
 
-   **The build variant** — also *done*. One spec builds all three
+   **The build variant** — also _done_. One spec builds all three
    distributions; `QUILTOR_EDITION` picks which, the same name the running app
    honours. The differences are data in `packaging/bundle.py`, derived from the
    very same policy objects in `backend/edition/` the app consults at runtime —
@@ -451,10 +454,11 @@ Covered by `tests/backend/test_edition.py`, `test_system.py`,
    correct in three places is the drift this refactor set out to remove. Both
    build scripts pin `QUILTOR_EDITION=direct`, so a variable left over from
    testing cannot quietly change what they produce.
+
 4. **A real app icon.** `make_icons.py` says so itself — it draws a Georgia "Q"
    and its header reads "swap these files out once real branding exists".
    Placeholder artwork is a Guideline 4.0 / 2.3.7 rejection.
-5. **Store signing and submission** — *3rd Party Mac Developer* certificates, an
+5. **Store signing and submission** — _3rd Party Mac Developer_ certificates, an
    embedded provisioning profile, a `.pkg` via `productbuild`, upload via
    Transporter. Plus the review paperwork: privacy policy, support URL,
    `LSApplicationCategoryType`, screenshots — and a check that the PolyForm
@@ -472,7 +476,7 @@ that way.
 3. Export a PDF; on Windows and Linux confirm it opens Chrome/Edge headlessly,
    on macOS that nothing is launched at all. Then that a save panel
    appears, and that the file lands where you pointed it.
-4. Export a chapter as Markdown too, and export the book PDF a *second* time in
+4. Export a chapter as Markdown too, and export the book PDF a _second_ time in
    the same session. All five exports (book PDF, whole manuscript, single
    chapter, figures JSON, character profiles) go through the same native bridge
    — `hosts/desktop/bridge/files.py`, reached from `download()` in

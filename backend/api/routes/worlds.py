@@ -5,6 +5,7 @@ locally storage.LOCAL_OWNER, which is the one user's sub. So ownership is never
 branched on here -- `request.session.sub` is simply the owner, and the checks
 below are the same lines either way (trivially satisfied when there is one user).
 """
+
 from __future__ import annotations
 
 from backend.api.routes import Request, get, save
@@ -14,7 +15,9 @@ from backend.core import storage
 @get("/api/worlds")
 def list_worlds(handler, request: Request, app) -> None:
     with app._lock:
-        handler.send_json({"ok": True, "worlds": storage.list_worlds(owner_sub=request.session.sub)})
+        handler.send_json(
+            {"ok": True, "worlds": storage.list_worlds(owner_sub=request.session.sub)}
+        )
 
 
 @save("/api/worlds/create")
@@ -55,19 +58,29 @@ def _open_or_create(handler, request: Request, app, *, creating: bool) -> None:
         owner = request.session.sub
         with app._lock:
             if creating:
-                world = storage.create_world(str(payload.get("title", "")),
-                                             str(payload.get("backupUrl", "")), owner_sub=owner)
+                world = storage.create_world(
+                    str(payload.get("title", "")),
+                    str(payload.get("backupUrl", "")),
+                    owner_sub=owner,
+                )
             else:
                 world_id = str(payload.get("id", ""))
                 existing = storage.get_world_owner(world_id)
                 if existing is None:
-                    return handler.send_json({"ok": False, "fehler": "This world does not exist."}, 404)
+                    return handler.send_json(
+                        {"ok": False, "fehler": "This world does not exist."}, 404
+                    )
                 if existing != owner:
                     return handler.send_json(
-                        {"ok": False, "fehler": "This world belongs to a different account."}, 403)
-                world = next((w for w in storage.list_worlds(owner_sub=owner) if w["id"] == world_id), None)
+                        {"ok": False, "fehler": "This world belongs to a different account."}, 403
+                    )
+                world = next(
+                    (w for w in storage.list_worlds(owner_sub=owner) if w["id"] == world_id), None
+                )
                 if world is None:
-                    return handler.send_json({"ok": False, "fehler": "This world does not exist."}, 404)
+                    return handler.send_json(
+                        {"ok": False, "fehler": "This world does not exist."}, 404
+                    )
         handler.send_json({"ok": True, "world": world})
     except Exception as exc:
         handler.send_json({"ok": False, "fehler": str(exc)}, 400)

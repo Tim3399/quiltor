@@ -58,13 +58,26 @@ def tail(path: Path, lines: int = 40) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=int, default=1, choices=range(1, 4), metavar="1..3")
-    parser.add_argument("--case", action="append", dest="cases", help="Run only this evaluation case; repeatable.")
+    parser.add_argument(
+        "--case", action="append", dest="cases", help="Run only this evaluation case; repeatable."
+    )
     parser.add_argument("--model", type=Path, default=ROOT / "models" / "Qwen3-4B-Q4_K_M.gguf")
-    parser.add_argument("--runtime", type=Path, default=ROOT / "runtime" / ("llama-server.exe" if os.name == "nt" else "llama-server"))
-    parser.add_argument("--report-dir", type=Path, default=ROOT / "reports" / "assistant-eval", help="Directory for persistent JSON run/comparison reports.")
+    parser.add_argument(
+        "--runtime",
+        type=Path,
+        default=ROOT / "runtime" / ("llama-server.exe" if os.name == "nt" else "llama-server"),
+    )
+    parser.add_argument(
+        "--report-dir",
+        type=Path,
+        default=ROOT / "reports" / "assistant-eval",
+        help="Directory for persistent JSON run/comparison reports.",
+    )
     args = parser.parse_args()
     if not args.runtime.is_file() or not args.model.is_file():
-        raise SystemExit("Bundled llama.cpp runtime/model missing. Run: python3 -m backend.llm.installer --runtime llamacpp")
+        raise SystemExit(
+            "Bundled llama.cpp runtime/model missing. Run: python3 -m backend.llm.installer --runtime llamacpp"
+        )
 
     runtime_process: subprocess.Popen[str] | None = None
     app_process: subprocess.Popen[str] | None = None
@@ -72,16 +85,60 @@ def main() -> None:
         data = Path(temporary)
         runtime_log, app_log = data / "runtime.log", data / "server.log"
         runtime_port, app_port = free_port(), free_port()
-        env = {**os.environ, "QUILTOR_DATA_DIR": str(data), "QUILTOR_AI_URL": f"http://127.0.0.1:{runtime_port}"}
+        env = {
+            **os.environ,
+            "QUILTOR_DATA_DIR": str(data),
+            "QUILTOR_AI_URL": f"http://127.0.0.1:{runtime_port}",
+        }
         try:
-            world_id = subprocess.check_output([sys.executable, str(ROOT / "scripts" / "create-ai-test-world.py")], cwd=ROOT, env=env, text=True).strip()
+            world_id = subprocess.check_output(
+                [sys.executable, str(ROOT / "scripts" / "create-ai-test-world.py")],
+                cwd=ROOT,
+                env=env,
+                text=True,
+            ).strip()
             runtime_stream = runtime_log.open("w")
-            runtime_process = subprocess.Popen([str(args.runtime), "-m", str(args.model), "--host", "127.0.0.1", "--port", str(runtime_port), "-c", "8192", "--jinja"], cwd=ROOT, stdout=runtime_stream, stderr=subprocess.STDOUT, text=True)
-            wait_for(f"http://127.0.0.1:{runtime_port}/health", runtime_process, 120, "llama.cpp runtime")
+            runtime_process = subprocess.Popen(
+                [
+                    str(args.runtime),
+                    "-m",
+                    str(args.model),
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(runtime_port),
+                    "-c",
+                    "8192",
+                    "--jinja",
+                ],
+                cwd=ROOT,
+                stdout=runtime_stream,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            wait_for(
+                f"http://127.0.0.1:{runtime_port}/health", runtime_process, 120, "llama.cpp runtime"
+            )
             app_stream = app_log.open("w")
-            app_process = subprocess.Popen([sys.executable, str(ROOT / "server.py"), str(app_port), "--no-open"], cwd=ROOT, env=env, stdout=app_stream, stderr=subprocess.STDOUT, text=True)
-            wait_for(f"http://127.0.0.1:{app_port}/api/version", app_process, 30, "Quiltor test server")
-            command = [sys.executable, str(ROOT / "scripts" / "evaluate-local-assistant.py"), "--base", f"http://127.0.0.1:{app_port}", "--world", world_id]
+            app_process = subprocess.Popen(
+                [sys.executable, str(ROOT / "server.py"), str(app_port), "--no-open"],
+                cwd=ROOT,
+                env=env,
+                stdout=app_stream,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            wait_for(
+                f"http://127.0.0.1:{app_port}/api/version", app_process, 30, "Quiltor test server"
+            )
+            command = [
+                sys.executable,
+                str(ROOT / "scripts" / "evaluate-local-assistant.py"),
+                "--base",
+                f"http://127.0.0.1:{app_port}",
+                "--world",
+                world_id,
+            ]
             for case in args.cases or []:
                 command.extend(["--case", case])
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -92,11 +149,25 @@ def main() -> None:
                 subprocess.run([*command, "--output", str(output)], cwd=ROOT, env=env, check=True)
                 run_results.append(json.loads(output.read_text()))
             comparison = {
-                "createdAt": datetime.now().isoformat(), "runs": args.runs,
-                "allPassed": all(item["passed"] == item["total"] and item["worldStateUnchanged"] for item in run_results),
-                "passed": [item["passed"] for item in run_results], "totals": [item["total"] for item in run_results],
-                "validProposalWithoutRepairRates": [item["validProposalWithoutRepairRate"] for item in run_results],
-                "averageScenarioSeconds": [round(sum(report["seconds"] for report in item["reports"]) / max(1, len(item["reports"])), 2) for item in run_results],
+                "createdAt": datetime.now().isoformat(),
+                "runs": args.runs,
+                "allPassed": all(
+                    item["passed"] == item["total"] and item["worldStateUnchanged"]
+                    for item in run_results
+                ),
+                "passed": [item["passed"] for item in run_results],
+                "totals": [item["total"] for item in run_results],
+                "validProposalWithoutRepairRates": [
+                    item["validProposalWithoutRepairRate"] for item in run_results
+                ],
+                "averageScenarioSeconds": [
+                    round(
+                        sum(report["seconds"] for report in item["reports"])
+                        / max(1, len(item["reports"])),
+                        2,
+                    )
+                    for item in run_results
+                ],
                 "runReports": [f"{stamp}-run-{run}.json" for run in range(1, args.runs + 1)],
             }
             comparison_path = args.report_dir / f"{stamp}-comparison.json"

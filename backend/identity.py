@@ -23,6 +23,7 @@ stay usable from the CLI and the MCP server, which start no HTTP server at all
 (enforced by tests/backend/test_hosts.py). Everything it needs from the running
 server it asks the handler for.
 """
+
 from __future__ import annotations
 
 import os
@@ -199,6 +200,7 @@ class LocalIdentity(Identity):
 # from a request, and keeping them here means a test can drive the identities
 # with a stub object instead of a running server.
 
+
 def query_of(handler) -> dict[str, list[str]]:
     """The request's query parameters, parsed from the handler's raw path."""
     result: dict[str, list[str]] = {}
@@ -217,10 +219,17 @@ def path_without(handler, name: str) -> str:
 def queue_session_cookie(handler, session_id: str, *, max_age: int) -> None:
     """Queue the session cookie on the response the handler is about to send."""
     handler._pending_cookies.append(
-        handler.cookie_header(SESSION_COOKIE, session_id, max_age=max_age))
+        handler.cookie_header(SESSION_COOKIE, session_id, max_age=max_age)
+    )
 
 
 __all__ = [
-    "REDIRECT_ATTR", "SESSION_COOKIE", "Identity", "LocalIdentity", "OidcIdentity",
-    "path_without", "query_of", "queue_session_cookie",
+    "REDIRECT_ATTR",
+    "SESSION_COOKIE",
+    "Identity",
+    "LocalIdentity",
+    "OidcIdentity",
+    "path_without",
+    "query_of",
+    "queue_session_cookie",
 ]

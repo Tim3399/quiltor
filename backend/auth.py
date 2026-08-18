@@ -37,8 +37,10 @@ CLIENT_ID = os.environ.get("QUILTOR_OIDC_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("QUILTOR_OIDC_CLIENT_SECRET", "")
 OIDC_ENABLED = bool(ISSUER)
 
-SESSION_TTL = 24 * 60 * 60        # a session cookie is honored for 24h of wall-clock time
-PENDING_LOGIN_TTL = 10 * 60       # a login attempt (state + PKCE verifier) must complete within 10 minutes
+SESSION_TTL = 24 * 60 * 60  # a session cookie is honored for 24h of wall-clock time
+PENDING_LOGIN_TTL = (
+    10 * 60
+)  # a login attempt (state + PKCE verifier) must complete within 10 minutes
 
 _lock = threading.Lock()
 _discovery_cache: dict[str, dict[str, Any]] = {}
@@ -78,7 +80,9 @@ class SessionData:
             self.expires_at = self.created_at + SESSION_TTL
 
 
-def _http_json(url: str, data: bytes | None = None, headers: dict[str, str] | None = None) -> dict[str, Any]:
+def _http_json(
+    url: str, data: bytes | None = None, headers: dict[str, str] | None = None
+) -> dict[str, Any]:
     request = urllib.request.Request(url, data=data, headers=headers or {})
     context = ssl.create_default_context()
     try:
@@ -114,11 +118,15 @@ def new_state() -> str:
 
 def _purge_expired_logins() -> None:
     now = time.time()
-    for key in [k for k, entry in PENDING_LOGINS.items() if now - entry["created_at"] > PENDING_LOGIN_TTL]:
+    for key in [
+        k for k, entry in PENDING_LOGINS.items() if now - entry["created_at"] > PENDING_LOGIN_TTL
+    ]:
         PENDING_LOGINS.pop(key, None)
 
 
-def start_login(redirect_uri: str, *, issuer: str | None = None, client_id: str | None = None) -> tuple[str, str]:
+def start_login(
+    redirect_uri: str, *, issuer: str | None = None, client_id: str | None = None
+) -> tuple[str, str]:
     """Build the Keycloak authorize URL and register the pending login server-side.
 
     The returned `state` must ALSO be round-tripped through a short-lived cookie by
@@ -138,11 +146,19 @@ def start_login(redirect_uri: str, *, issuer: str | None = None, client_id: str 
     state = new_state()
     with _lock:
         _purge_expired_logins()
-        PENDING_LOGINS[state] = {"verifier": verifier, "redirect_uri": redirect_uri, "created_at": time.time()}
+        PENDING_LOGINS[state] = {
+            "verifier": verifier,
+            "redirect_uri": redirect_uri,
+            "created_at": time.time(),
+        }
     params = {
-        "response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri,
-        "scope": "openid email profile", "state": state,
-        "code_challenge": challenge, "code_challenge_method": "S256",
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": "openid email profile",
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
     }
     authorize_url = f"{document['authorization_endpoint']}?{urllib.parse.urlencode(params)}"
     return authorize_url, state
@@ -158,8 +174,15 @@ def consume_pending_login(state: str) -> dict[str, Any] | None:
         return PENDING_LOGINS.pop(state, None)
 
 
-def exchange_code(code: str, code_verifier: str, redirect_uri: str, *, issuer: str | None = None,
-                  client_id: str | None = None, client_secret: str | None = None) -> dict[str, Any]:
+def exchange_code(
+    code: str,
+    code_verifier: str,
+    redirect_uri: str,
+    *,
+    issuer: str | None = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+) -> dict[str, Any]:
     """Trade an authorization code for tokens at `issuer`'s token endpoint.
 
     Same defaulting as start_login: with no keywords this is exactly the call it
@@ -173,8 +196,11 @@ def exchange_code(code: str, code_verifier: str, redirect_uri: str, *, issuer: s
     client_id = client_id if client_id is not None else CLIENT_ID
     client_secret = client_secret if client_secret is not None else CLIENT_SECRET
     fields = {
-        "grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri,
-        "client_id": client_id, "code_verifier": code_verifier,
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": redirect_uri,
+        "client_id": client_id,
+        "code_verifier": code_verifier,
     }
     if client_secret:
         fields["client_secret"] = client_secret
@@ -183,8 +209,13 @@ def exchange_code(code: str, code_verifier: str, redirect_uri: str, *, issuer: s
     return _http_json(document["token_endpoint"], data=body, headers=headers)
 
 
-def refresh_tokens(refresh_token: str, *, issuer: str | None = None, client_id: str | None = None,
-                   client_secret: str | None = None) -> dict[str, Any]:
+def refresh_tokens(
+    refresh_token: str,
+    *,
+    issuer: str | None = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+) -> dict[str, Any]:
     """Trade a refresh token for a fresh set at `issuer`'s token endpoint.
 
     The sibling of exchange_code, and public for the same reason: the login flow
@@ -213,7 +244,9 @@ def decode_id_token_claims(id_token: str) -> dict[str, Any]:
     return json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
 
 
-def validate_claims(claims: dict[str, Any], issuer: str | None = None, client_id: str | None = None) -> None:
+def validate_claims(
+    claims: dict[str, Any], issuer: str | None = None, client_id: str | None = None
+) -> None:
     issuer = issuer if issuer is not None else ISSUER
     client_id = client_id if client_id is not None else CLIENT_ID
     if claims.get("iss") != issuer:
@@ -239,7 +272,9 @@ def create_session(sub: str, email: str, name: str, *, ttl: float = SESSION_TTL)
     session_id = secrets.token_urlsafe(32)
     with _lock:
         _purge_expired_sessions()
-        SESSIONS[session_id] = SessionData(sub=sub, email=email, name=name, expires_at=time.time() + ttl)
+        SESSIONS[session_id] = SessionData(
+            sub=sub, email=email, name=name, expires_at=time.time() + ttl
+        )
     return session_id
 
 
@@ -261,7 +296,9 @@ def destroy_session(session_id: str | None) -> None:
         SESSIONS.pop(session_id, None)
 
 
-def end_session_url(id_token_hint: str | None = None, post_logout_redirect_uri: str | None = None) -> str | None:
+def end_session_url(
+    id_token_hint: str | None = None, post_logout_redirect_uri: str | None = None
+) -> str | None:
     """Best-effort RP-initiated logout URL at Keycloak; None if unavailable."""
     try:
         document = discover()

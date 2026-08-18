@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"  # the floor in pyproject.toml, so failures here are real
+          python-version: "3.11" # the floor in pyproject.toml, so failures here are real
 
       # No install step on purpose: server.py and everything under backend/ are
       # standard-library only, and the suite is unittest. If this ever needs a
