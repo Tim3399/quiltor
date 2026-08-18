@@ -129,10 +129,10 @@ class BackupProtocolTest(unittest.TestCase):
         (ctx.manuscripts / "02 - Zwei.md").write_text("zweite fassung\n", encoding="utf-8")
         with patch.object(remote, "_request", wraps=remote._request) as spy:
             self.store.commit(ctx, "zwei", push=True)
-        uploaded = [call.args[1] for call in spy.call_args_list if call.args[0] == "PUT" and "/blobs/" in call.args[1]]
+        uploaded = [call.args[2] for call in spy.call_args_list if call.args[0] == "PUT" and "/blobs/" in call.args[2]]
 
         unchanged = self.store.entries(ctx)[0]["files"]["manuscripts/01 - Eins.md"]
-        self.assertFalse([url for url in uploaded if unchanged in url],
+        self.assertFalse([path for path in uploaded if unchanged in path],
                          "an unchanged file was uploaded a second time")
 
     def test_a_wrong_token_is_rejected(self):
@@ -158,7 +158,7 @@ class BackupProtocolTest(unittest.TestCase):
         ctx = self._world()
         fake = "0" * 64
         with self.assertRaises(RuntimeError) as caught:
-            remote._request("PUT", f"{self.endpoint}/v1/worlds/world-a/blobs/{fake}",
+            remote._request("PUT", self.endpoint, f"/v1/worlds/world-a/blobs/{fake}",
                             b"not the content that hashes to zeros", "application/octet-stream", 10)
         self.assertIn("400", str(caught.exception))
 
@@ -169,7 +169,7 @@ class BackupProtocolTest(unittest.TestCase):
         manifest = json.dumps({"id": "abc", "created": "2026-01-01T00:00:00",
                                "files": {"manuscripts/01 - X.md": "a" * 64}}).encode()
         with self.assertRaises(RuntimeError) as caught:
-            remote._request("PUT", f"{self.endpoint}/v1/worlds/world-a/snapshots/abc",
+            remote._request("PUT", self.endpoint, "/v1/worlds/world-a/snapshots/abc",
                             manifest, "application/json", 10)
         self.assertIn("409", str(caught.exception))
 

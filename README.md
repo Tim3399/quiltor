@@ -105,12 +105,14 @@ python3 server.py
 Quiltor öffnet automatisch [http://localhost:8000](http://localhost:8000) und legt beim ersten Start eine leere Welt an. Ein Backup-Endpunkt ist optional — entweder der gehostete Dienst oder dein eigener Server (`deploy/backup-server/`):
 
 ```bash
-QUILTOR_BACKUP_URL=https://backup.example.com \
-QUILTOR_BACKUP_TOKEN=dein-token \
-python3 server.py
+QUILTOR_BACKUP_URL=https://backup.example.com python3 server.py
 ```
 
-`QUILTOR_BACKUP_URL` gilt kontoweit; eine einzelne Welt kann einen abweichenden Endpunkt hinterlegen. Das Token steht nie in der Welt-Datenbank. Auf einem frischen Rechner fragt Quiltor den Endpunkt, welche Welten dort liegen, und stellt eine davon vollständig wieder her — Datenbank, Manuskript und Verlauf. Wer den Endpunkt selbst betreibt, sichert ihn über Keycloak ab — siehe [Keycloak anbinden](#keycloak-anbinden).
+Mehr als die Adresse braucht es nicht. Beim ersten Hochladen meldest du dich einmal im Browser an; **welchem Keycloak du dich dabei anmeldest, sagt der Endpunkt selbst** — Quiltor liest das bei ihm aus, statt es ein zweites Mal konfiguriert zu bekommen. Die Anmeldung überdauert Neustarts und liegt in `data/backup-login.json`, nur für dich lesbar.
+
+`QUILTOR_BACKUP_TOKEN` gibt es weiterhin, aber nur für Endpunkte, die Token von Hand ausgeben; ein Keycloak-geschützter braucht es nicht.
+
+`QUILTOR_BACKUP_URL` gilt kontoweit; eine einzelne Welt kann einen abweichenden Endpunkt hinterlegen. Kein Token steht je in der Welt-Datenbank. Auf einem frischen Rechner fragt Quiltor den Endpunkt, welche Welten dort liegen, und stellt eine davon vollständig wieder her — Datenbank, Manuskript und Verlauf. Wer den Endpunkt selbst betreibt, sichert ihn über Keycloak ab — siehe [Keycloak anbinden](#keycloak-anbinden).
 
 Ist noch kein lokaler Assistent eingerichtet, fragt der Server einmalig nach (`Jetzt einrichten? [j/N]`), bevor er etwas herunterlädt — ~2,5 GB für llama.cpp, ~2,4 GB für MLX auf Apple-Silicon-Macs. Mit „Nein“ (oder einfach Enter) läuft Quiltor unverändert weiter, nur ohne Assistenten-Panel; die Frage kommt beim nächsten Start erneut, bis einmal zugestimmt wurde.
 
@@ -320,9 +322,10 @@ QUILTOR_BACKUP_OIDC_SCOPE=quiltor.backup   # Vorgabe, kann entfallen
 
 # Quiltor auf dem Rechner der Autorin
 QUILTOR_BACKUP_URL=https://backup.example.com
+QUILTOR_BACKUP_CLIENT_ID=quiltor-desktop   # Vorgabe, kann entfallen
 ```
 
-Auf der Quiltor-Seite genügt tatsächlich die eine Zeile. Welchem Keycloak der Endpunkt vertraut, sagt er nämlich selbst: Unter `GET /.well-known/oauth-protected-resource` veröffentlicht er seinen Autorisierungsserver und den erwarteten Scope. Quiltor liest das vor der ersten Anmeldung aus und schickt die Person zum richtigen Keycloak — der Issuer muss also nicht ein zweites Mal im Client konfiguriert werden, und wenn der Endpunkt die Realm wechselt, folgt der Client von allein.
+Auf der Quiltor-Seite genügt tatsächlich die eine Zeile — `QUILTOR_BACKUP_CLIENT_ID` nur dann, wenn der öffentliche Client aus Schritt 2 anders heißt als `quiltor-desktop`. Welchem Keycloak der Endpunkt vertraut, sagt er nämlich selbst: Unter `GET /.well-known/oauth-protected-resource` veröffentlicht er seinen Autorisierungsserver und den erwarteten Scope. Quiltor liest das vor der ersten Anmeldung aus und schickt die Person zum richtigen Keycloak — der Issuer muss also nicht ein zweites Mal im Client konfiguriert werden, und wenn der Endpunkt die Realm wechselt, folgt der Client von allein.
 
 ### Wenn es nicht funktioniert
 

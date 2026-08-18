@@ -24,6 +24,11 @@ data/profiles/*
 !data/history/.gitkeep
 !data/manuscripts/.gitkeep
 !data/profiles/.gitkeep
+
+# Die Zugangsdaten für den Backup-Dienst (backend/backup_login.py). data/ ist
+# oben nur teilweise ignoriert, also muss diese Datei einzeln genannt werden --
+# und sie ist die eine hier, die ein echtes Geheimnis enthält.
+data/backup-login.json
 test-results/
 playwright-report/
 reports/assistant-eval/*.json

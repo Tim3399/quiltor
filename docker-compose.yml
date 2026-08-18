@@ -16,6 +16,13 @@
 ##        docker compose --profile with-caddy up -d
 ##      This additionally starts Caddy on 80/443, terminating TLS for
 ##      QUILTOR_PUBLIC_URL and forwarding to the quiltor service.
+##
+## The backup endpoint is a separate, optional service:
+##        docker compose --profile with-backup up -d
+## It is deliberately not part of the default set. It is useful without the app
+## container too -- a desktop Quiltor on someone's laptop backs up to it over
+## the internet -- and self-hosters often want it on a different machine than
+## the web demo, or want only it.
 
 services:
   quiltor:
@@ -46,6 +53,40 @@ services:
       retries: 3
       start_period: 10s
 
+  backup:
+    build:
+      context: ./deploy/backup-server
+    image: quiltor-backup:${QUILTOR_VERSION:-dev}
+    profiles: ["with-backup"]
+    restart: unless-stopped
+    environment:
+      # Its own Keycloak client, not the app's: this one never signs anybody in,
+      # it only asks the issuer whether an incoming token is good. Without these
+      # the endpoint refuses to start rather than coming up unprotected.
+      QUILTOR_BACKUP_OIDC_ISSUER: ${QUILTOR_BACKUP_OIDC_ISSUER:?Set QUILTOR_BACKUP_OIDC_ISSUER in .env — see .env.example}
+      QUILTOR_BACKUP_OIDC_CLIENT_ID: ${QUILTOR_BACKUP_OIDC_CLIENT_ID:?Set QUILTOR_BACKUP_OIDC_CLIENT_ID in .env}
+      QUILTOR_BACKUP_OIDC_CLIENT_SECRET: ${QUILTOR_BACKUP_OIDC_CLIENT_SECRET:?Set QUILTOR_BACKUP_OIDC_CLIENT_SECRET in .env}
+      QUILTOR_BACKUP_PUBLIC_URL: ${QUILTOR_BACKUP_PUBLIC_URL:?Set QUILTOR_BACKUP_PUBLIC_URL in .env, e.g. https://backup.example.com}
+      QUILTOR_BACKUP_OIDC_SCOPE: ${QUILTOR_BACKUP_OIDC_SCOPE:-quiltor.backup}
+    volumes:
+      - quiltor-backups:/data
+    networks:
+      - quiltor
+    ports:
+      # Loopback-only, like the app: a reverse proxy terminates TLS in front of
+      # it. Backups travel whole manuscripts, so plain HTTP off this host would
+      # be the wrong default even though the token check does not care.
+      - "127.0.0.1:${QUILTOR_BACKUP_PORT:-9000}:9000"
+    healthcheck:
+      # The metadata document is the one route answered without a token, which
+      # makes it exactly the right readiness probe -- it proves the process is
+      # up and configured without needing a credential to ask.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/.well-known/oauth-protected-resource', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   caddy:
     image: caddy:2-alpine
     profiles: ["with-caddy"]
@@ -69,5 +110,6 @@ networks:
 
 volumes:
   quiltor-data:
+  quiltor-backups:
   caddy-data:
   caddy-config:

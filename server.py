@@ -50,7 +50,7 @@ from backend.system import force_utf8_streams
 
 force_utf8_streams()
 
-from backend import auth, identity
+from backend import auth, backup_login, identity
 from backend.api import routes as api_routes
 from backend.core import storage
 from backend.assistant import AssistantRuntime
@@ -276,6 +276,53 @@ ROUTES = {
 # hosts/ exists.
 RENDER_PDF = server_renderer(BASE / "scripts" / "render-book-pdf.mjs", BASE)
 
+# ------------------------------------------------------------ Backup token
+#
+# The same seam as RENDER_PDF above, for the same reason: backend/core/backup/
+# remote.py describes the protocol and nothing else, and the host hands it the
+# one capability it deliberately does not have -- where a bearer token for an
+# endpoint comes from. Hooked in at import, so every path that reaches core's
+# uploader (a route, the CLI driving this module, a restore) gets the same
+# answer without arranging for it.
+
+#: The session of the request this thread is serving, and nothing between
+#: requests. A module global cannot carry this: Server is a ThreadingTCPServer,
+#: one thread per connection, so several requests with several users are in
+#: flight at once. A thread-local is the narrowest thing that still reaches from
+#: the route down into core's upload code, which is handed no session because it
+#: must not know that sessions exist.
+_REQUEST = threading.local()
+
+#: core's own default -- the QUILTOR_BACKUP_TOKEN environment variable -- kept
+#: before it is replaced below, so the fallback in _backup_token stays that one
+#: implementation instead of a second copy of the variable's name.
+_ENVIRONMENT_TOKEN = backup_remote.TOKEN_SOURCE
+
+
+def _backup_token(base_url: str) -> str:
+    """Der Bearer-Token für diesen Backup-Endpunkt, aus der Herkunft, die dieser
+    Prozess hat. Hosted: das Access-Token der laufenden Session, denn dort hat
+    sich die Person schon bei genau dem Issuer angemeldet, der den Endpunkt
+    bewacht. Lokal: der eigene Login (backend/backup_login.py).
+
+    Hosted has nowhere else to look on purpose. A request that resolved to no
+    session, or to one made before these fields were filled, gets "" -- the
+    endpoint then answers 401 and names the issuer it wants, which is a better
+    outcome than sending some other credential on behalf of a user who never
+    gave one.
+
+    Locally the browser login wins over QUILTOR_BACKUP_TOKEN when there is one,
+    and the environment still decides when there is not: a pasted token is how a
+    self-hosted endpoint has always been used and keeps working untouched, while
+    someone who has just signed in through the dialog means that login.
+    """
+    if IDENTITY.multi_user:
+        return getattr(getattr(_REQUEST, "session", None), "access_token", "") or ""
+    return backup_login.access_token(base_url) or _ENVIRONMENT_TOKEN(base_url)
+
+
+backup_remote.TOKEN_SOURCE = _backup_token
+
 # Populates api_routes.GET / api_routes.SAVE. At import time rather than on the
 # first request, so a broken route module fails at startup instead of as a 404.
 api_routes.load()
@@ -441,6 +488,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"ok": False, "fehler": f"Login failed: {exc}"}, 400)
         session_id = auth.create_session(str(claims.get("sub", "")), str(claims.get("email", "")),
                                           str(claims.get("name") or claims.get("preferred_username") or ""))
+        # Keep the provider's own tokens on the session. In this deployment the
+        # backup endpoint is guarded by the very issuer this login just went
+        # through, so the access token that came back is already the one that
+        # endpoint asks for -- _backup_token hands it straight on and a hosted
+        # user never sees a second login. Set here rather than passed into
+        # create_session: backend/auth.py owns the session store, and *whether*
+        # tokens are worth keeping is this host's judgement, not the store's.
+        # Nobody else can reach the session yet; its cookie goes out below.
+        session = auth.get_session(session_id)
+        if session is not None:
+            session.access_token = str(tokens.get("access_token", ""))
+            session.refresh_token = str(tokens.get("refresh_token", ""))
         self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, session_id, max_age=auth.SESSION_TTL))
         self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, "", max_age=0))
         return self.send_redirect("/")
@@ -531,7 +590,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             request.world = self._resolve_world_or_respond(session, (query.get("world") or [""])[0])
             if request.world is None:
                 return
-        registration.handler(self, request, sys.modules[__name__])
+        # The route may reach core's uploader, which asks TOKEN_SOURCE for a
+        # bearer token and has no session to give it; _backup_token reads it off
+        # here. Cleared in `finally`, because http.server keeps one handler
+        # object and one thread for every request on a kept-alive connection --
+        # a value left behind would be the previous caller's.
+        _REQUEST.session = session
+        try:
+            registration.handler(self, request, sys.modules[__name__])
+        finally:
+            _REQUEST.session = None
 
     def do_GET(self):
         self._dispatch(api_routes.GET, on_miss=self.serve_client)

@@ -157,6 +157,17 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         self.assertEqual(payload["sub"], "user-alice")
         self.assertEqual(payload["email"], "alice@example.com")
 
+    def test_the_session_keeps_the_tokens_the_provider_handed_back(self):
+        """The hosted deployment's backup endpoint is guarded by this very
+        issuer, so the access token that just arrived is the one that endpoint
+        wants. Kept on the session, it is what server._backup_token hands to the
+        uploader -- and why a hosted user never meets a second login."""
+        session_value = self._login("user-alice")
+        session = auth.get_session(session_value)
+        self.assertEqual(session.access_token, "at")
+        self.assertEqual(session.refresh_token, "",
+                         "the exchange returned none, and inventing one would be a lie")
+
     def test_logout_clears_the_session(self):
         session_value = self._login("user-alice")
         status, _, body, _ = self._request("POST", "/logout", body={}, cookies={"quiltor_session": session_value})

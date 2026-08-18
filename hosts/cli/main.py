@@ -48,7 +48,14 @@ KNOWN_KEYS: dict[str, str] = {
     "QUILTOR_AI_RUNTIME": "Force a specific local runtime: llamacpp or mlx.",
     "QUILTOR_AI_DEBUG": "Set to any value to enable verbose assistant-runtime logging.",
     "QUILTOR_BACKUP_URL": "Account-wide cloud backup endpoint. A world may override it; restoring onto a fresh machine starts here.",
-    "QUILTOR_BACKUP_TOKEN": "Bearer token for the cloud backup endpoint.",
+    "QUILTOR_BACKUP_TOKEN": (
+        "Bearer token for a backup endpoint that hands them out by hand. A Keycloak-protected "
+        "endpoint needs none -- you sign in to it once in the browser instead."
+    ),
+    "QUILTOR_BACKUP_CLIENT_ID": (
+        "Public OIDC client this machine signs in to the backup endpoint as (default "
+        "quiltor-desktop). Must match the client registered in the endpoint's realm."
+    ),
     "QUILTOR_HOME": f"Where runtime/model/data files live. Defaults to {DEFAULT_HOME} for the CLI.",
     "QUILTOR_DATA_DIR": "Directory for worlds, backups, and manuscripts data. Defaults to QUILTOR_HOME/data.",
     "QUILTOR_HOST": (

@@ -257,15 +257,21 @@ test('Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab
 });
 
 test('Shortcuts unterscheiden Speichern und Sicherung', async ({ page }) => {
-  // Seit die Sicherung auf Schnappschuss + Endpunkt umgestellt ist, hängt "Hochladen" an zwei
-  // Bedingungen: eingerichteter Endpunkt und beschriebener Stand. Die Welt bringt deshalb eine
-  // Backup-URL mit -- ohne sie prüfte der Test nur noch, dass der Knopf grundsätzlich tot ist.
+  // Der Test prüft die zwei Tastenkürzel, nicht das Hochladen. Er behauptete früher
+  // zusätzlich, ein eingerichteter Endpunkt mache "Sichern & hochladen" aktiv -- das
+  // gilt nicht mehr: der Endpunkt verlangt eine Anmeldung, und ohne sie liefe der
+  // Upload in ein 401. Der Dialog bietet dann die Anmeldung an statt eines Knopfes,
+  // der scheitern würde. Dass der Upload nach Anmeldung wirklich auslöst, steht als
+  // Einheitentest in src/features/tools/SnapshotDialog.test.tsx, wo der Anmeldezustand
+  // ohne echten Keycloak herstellbar ist.
   await openBlankWorld(page, 'Testwelt', 'https://backup.example.com/shortcut-test');
   await page.keyboard.press('Control+Shift+S');
   const dialog = page.getByRole('dialog', { name: /Arbeitsstand sichern/ });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Was hat sich geändert?').fill('Zwischenstand aus dem Test');
-  await expect(dialog.getByRole('button', { name: 'Sichern & hochladen' })).toBeEnabled();
+  // Lokal sichern braucht keinen Endpunkt und keine Anmeldung -- das ist der Weg,
+  // der immer offensteht, und deshalb der belastbare Beleg, dass der Dialog lebt.
+  await expect(dialog.getByRole('button', { name: 'Nur lokal sichern' })).toBeEnabled();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+S');
   await expect(page.getByRole('dialog')).toHaveCount(0);

@@ -55,6 +55,16 @@ class SessionData:
     created_at: float = field(default_factory=time.time)
     expires_at: float = 0.0
 
+    #: The provider's own tokens for this session, empty unless someone kept
+    #: them. The hosted deployment logs its users in at the very issuer that
+    #: also guards the backup endpoint, so the access token it already receives
+    #: is the one that endpoint wants -- keeping it here means a hosted instance
+    #: needs no second login, while the desktop build (which has no OIDC session
+    #: at all) simply leaves the fields empty. Only the fields live here; who
+    #: fills them is server.py's business.
+    access_token: str = ""
+    refresh_token: str = ""
+
     def __post_init__(self) -> None:
         if not self.expires_at:
             self.expires_at = self.created_at + SESSION_TTL
@@ -100,22 +110,29 @@ def _purge_expired_logins() -> None:
         PENDING_LOGINS.pop(key, None)
 
 
-def start_login(redirect_uri: str) -> tuple[str, str]:
+def start_login(redirect_uri: str, *, issuer: str | None = None, client_id: str | None = None) -> tuple[str, str]:
     """Build the Keycloak authorize URL and register the pending login server-side.
 
     The returned `state` must ALSO be round-tripped through a short-lived cookie by
     the caller (server.py) — requiring both the cookie and this server-side entry to
     match on callback is what prevents login-CSRF (see backend/auth.py module docs
     and the plan's security section).
+
+    `issuer`/`client_id` default to this deployment's own configuration, so every
+    existing caller keeps working unchanged. They exist because a process can
+    face more than one issuer: the backup endpoint names its own (see
+    backend/backup_login.py), and a second issuer must be a parameter rather
+    than a second copy of this flow.
     """
-    document = discover()
+    document = discover(issuer)
+    client_id = client_id if client_id is not None else CLIENT_ID
     verifier, challenge = new_pkce_pair()
     state = new_state()
     with _lock:
         _purge_expired_logins()
         PENDING_LOGINS[state] = {"verifier": verifier, "redirect_uri": redirect_uri, "created_at": time.time()}
     params = {
-        "response_type": "code", "client_id": CLIENT_ID, "redirect_uri": redirect_uri,
+        "response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri,
         "scope": "openid email profile", "state": state,
         "code_challenge": challenge, "code_challenge_method": "S256",
     }
@@ -133,12 +150,47 @@ def consume_pending_login(state: str) -> dict[str, Any] | None:
         return PENDING_LOGINS.pop(state, None)
 
 
-def exchange_code(code: str, code_verifier: str, redirect_uri: str) -> dict[str, Any]:
-    document = discover()
-    body = urllib.parse.urlencode({
+def exchange_code(code: str, code_verifier: str, redirect_uri: str, *, issuer: str | None = None,
+                  client_id: str | None = None, client_secret: str | None = None) -> dict[str, Any]:
+    """Trade an authorization code for tokens at `issuer`'s token endpoint.
+
+    Same defaulting as start_login: with no keywords this is exactly the call it
+    always was. A public client (no secret, PKCE only) passes client_secret="",
+    and the field is then left out of the request entirely rather than sent
+    empty -- RFC 6749 has a public client omit it, and an empty client_secret is
+    a value some providers read as a failed authentication attempt rather than
+    as an absent one. PKCE is what proves the caller here, not a secret.
+    """
+    document = discover(issuer)
+    client_id = client_id if client_id is not None else CLIENT_ID
+    client_secret = client_secret if client_secret is not None else CLIENT_SECRET
+    fields = {
         "grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri,
-        "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET, "code_verifier": code_verifier,
-    }).encode("ascii")
+        "client_id": client_id, "code_verifier": code_verifier,
+    }
+    if client_secret:
+        fields["client_secret"] = client_secret
+    body = urllib.parse.urlencode(fields).encode("ascii")
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    return _http_json(document["token_endpoint"], data=body, headers=headers)
+
+
+def refresh_tokens(refresh_token: str, *, issuer: str | None = None, client_id: str | None = None,
+                   client_secret: str | None = None) -> dict[str, Any]:
+    """Trade a refresh token for a fresh set at `issuer`'s token endpoint.
+
+    The sibling of exchange_code, and public for the same reason: the login flow
+    has two halves, and a caller facing a second issuer needs both of them.
+    Without this, obtaining the first token is a supported operation while
+    keeping it alive means reaching into this module's private helpers.
+    """
+    document = discover(issuer)
+    client_id = client_id if client_id is not None else CLIENT_ID
+    client_secret = client_secret if client_secret is not None else CLIENT_SECRET
+    fields = {"grant_type": "refresh_token", "refresh_token": refresh_token, "client_id": client_id}
+    if client_secret:  # omitted for a public client -- see exchange_code
+        fields["client_secret"] = client_secret
+    body = urllib.parse.urlencode(fields).encode("ascii")
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     return _http_json(document["token_endpoint"], data=body, headers=headers)
 

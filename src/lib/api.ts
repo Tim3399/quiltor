@@ -11,6 +11,16 @@ export type LanguageLookupResult = { lemma: string; partOfSpeech: string; meanin
 // hides the section rather than offering a button that cannot work. See
 // backend/language/grammar/.
 export type GrammarStatus = { supported: boolean; unsupportedReason: string; available: boolean; installed: boolean; running: boolean; version: string; javaVersion: number | null; javaRequired: number; externalConfigured: boolean; externalEnabled: boolean; download: { url: string; checksum: string; license: string } };
+// GET /api/backup/login. Three separate facts, because they have three separate
+// remedies and a failed upload looks identical for all of them: `configured` is
+// about this installation (is there an endpoint at all), `signedIn` about the
+// credential on this machine, and `issuerReachable` separates "you are not
+// signed in" from "nobody could sign in right now". `hosted` means the server
+// signs its own users in and its session already carries the token, so there is
+// no browser flow to offer here. See backend/backup_login.py.
+export type BackupLoginStatus = { ok: boolean; grund?: string; configured: boolean; hosted: boolean; endpoint: string; signedIn: boolean; account?: string; email?: string; name?: string; issuer?: string; scope?: string; issuerReachable?: boolean };
+export type BackupLoginStart = { ok: boolean; grund?: string; endpoint?: string; authorizeUrl?: string; redirectUri?: string };
+
 export type LanguageStatus = { ok: boolean; installed: boolean; stale: boolean; version: string | null; sources: Record<string, { version: string; url: string; checksum: string; license: string; attribution: string }>; grammar?: GrammarStatus };
 
 // api.ts is a plain module used outside React's render cycle (event handlers, fetch
@@ -74,6 +84,19 @@ export const api = {
   saveSnapshot: (message: string, upload: boolean) => json<{ ok: boolean; grund?: string; log?: string[]; status?: BackupStatus }>('/api/backup', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(withWorldBody({ message, push: upload })),
   }),
+  // World-scoped like backupStatus, and for the same reason: a world may carry
+  // its own backupUrl, so "are we signed in?" and "where does this upload go?"
+  // have to be asked about the same endpoint or the dialog answers about a
+  // server the upload never touches.
+  backupLoginStatus: () => json<BackupLoginStatus>(withWorldQuery('/api/backup/login')),
+  // Answers with a URL instead of a 302 on purpose: this is a fetch, so a redirect
+  // would be followed here and the issuer's login form would arrive as a response
+  // body nobody can fill in. The caller opens `authorizeUrl` in a real window.
+  // Note that a refused start (no endpoint, endpoint publishes no issuer) comes
+  // back as HTTP 200 with ok:false, so callers have to read `ok`, not just catch.
+  backupLoginBegin: () => json<BackupLoginStart>(withWorldQuery('/api/backup/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  // Local only: the token stays valid at the issuer until it expires or is revoked there.
+  backupLogout: () => json<{ ok: boolean; signedIn: boolean }>(withWorldQuery('/api/backup/logout'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   log: () => json<{ ok: boolean; commits: Array<{ hash: string; kurz: string; datum: string; betreff: string }> }>(withWorldQuery('/api/log')),
   diff: (ref = 'WORK', word = true, all = false) => json<{ ok: boolean; diff: string; neu: string[] }>(withWorldQuery(`/api/diff?ref=${encodeURIComponent(ref)}&modus=${word ? 'wort' : 'zeile'}&alles=${all ? 1 : 0}`)),
   textVersion: (ref: string, chapter: number, title: string) => json<{ ok: boolean; neu?: boolean; text: string }>(withWorldQuery(`/api/textfassung?ref=${encodeURIComponent(ref)}&kapitel=${chapter}&titel=${encodeURIComponent(title)}`)),
