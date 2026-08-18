@@ -5,6 +5,7 @@ Testing the two against each other is the point. Either alone could drift into a
 private interpretation of the protocol and still pass; together they pin the thing
 a self-hoster actually has to reimplement.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -12,27 +13,43 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
 from backend.core.backup import SnapshotStore
 from backend.core.backup import remote
+from fake_issuer import FakeIssuer
 
 REFERENCE_SERVER = Path(__file__).resolve().parents[2] / "deploy" / "backup-server" / "server.py"
 
 TOKEN = "test-token"
+# The account is the token's subject now, not a name the client picks. Keeping
+# the old value as the sub means these tests still assert about the same
+# directory -- what changed is who decides it.
 ACCOUNT = "tester"
+SCOPE = "quiltor.backup"
 
 
-def _load_reference_server(root: Path):
+def _load_reference_server(root: Path, issuer_url: str):
     """Imported by path: deploy/ is deliberately not a package, since nothing in
     backend/ may depend on the server implementation."""
     os.environ["QUILTOR_BACKUP_ROOT"] = str(root)
-    os.environ["QUILTOR_BACKUP_TOKENS"] = f"{ACCOUNT}:{TOKEN}"
     spec = importlib.util.spec_from_file_location("quiltor_backup_reference", REFERENCE_SERVER)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    # Reassigned after import, the same way ROOT always was: the module reads its
+    # configuration once, so a test points it somewhere instead of arranging the
+    # environment before the import.
     module.ROOT = root
+    module.ISSUER = issuer_url
+    module.CLIENT_ID = "quiltor-backup"
+    module.CLIENT_SECRET = "shhh"
+    module.REQUIRED_SCOPE = SCOPE
+    module.PUBLIC_URL = "https://backup.example.test"
+    module._discovery.clear()
+    module._tokens.clear()
     return module
 
 
@@ -41,7 +58,9 @@ class BackupProtocolTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.served = self.root / "served"
-        self.reference = _load_reference_server(self.served)
+        self.issuer = FakeIssuer().start()
+        self.issuer.issue(TOKEN, sub=ACCOUNT)
+        self.reference = _load_reference_server(self.served, self.issuer.url)
 
         self.httpd = self.reference.Server(("127.0.0.1", 0), self.reference.Handler)
         self.port = self.httpd.server_address[1]
@@ -58,6 +77,7 @@ class BackupProtocolTest(unittest.TestCase):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join(timeout=5)
+        self.issuer.stop()
         self.temp.cleanup()
 
     def _world(self, world_id="world-a", endpoint=None):
@@ -160,6 +180,82 @@ class BackupProtocolTest(unittest.TestCase):
             self.store.commit(ctx, world_id, push=True)
         self.assertEqual(len(self._stored("world-a", "snapshots")), 1)
         self.assertEqual(len(self._stored("world-b", "snapshots")), 1)
+
+    # ------------------------------------------------------------- identity
+    #
+    # The endpoint derives the account from the token instead of being told it.
+    # These pin that it really does, because the whole ownership story rests on
+    # it: a client that could name its own account could name someone else's.
+
+    def _raw(self, method: str, path: str, token: str | None = None, body: bytes | None = None):
+        """One request without going through remote.py, so the HTTP details
+        (status, WWW-Authenticate) can be asserted directly."""
+        request = urllib.request.Request(f"{self.endpoint}{path}", data=body, method=method)
+        if token is not None:
+            request.add_header("Authorization", f"Bearer {token}")
+        if body is not None:
+            request.add_header("Content-Type", "application/octet-stream")
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                return response.status, dict(response.headers), response.read()
+        except urllib.error.HTTPError as error:
+            return error.code, dict(error.headers), error.read()
+
+    def test_a_request_without_a_token_is_refused_and_points_at_the_metadata(self):
+        status, headers, _ = self._raw("GET", "/v1/worlds")
+        self.assertEqual(status, 401)
+        self.assertIn("resource_metadata", headers.get("WWW-Authenticate", ""))
+        self.assertIn("/.well-known/oauth-protected-resource", headers["WWW-Authenticate"])
+
+    def test_a_token_without_the_required_scope_is_forbidden_not_unauthorized(self):
+        """403, not 401, and the difference is a diagnosis: logging in again
+        cannot help, so telling the client to would misdescribe the problem."""
+        self.issuer.issue("scopeless", sub="someone-else", scopes="openid profile")
+        status, _, body = self._raw("GET", "/v1/worlds", token="scopeless")
+        self.assertEqual(status, 403)
+        self.assertIn("scope", json.loads(body)["error"])
+
+    def test_the_metadata_document_names_the_issuer_without_a_token(self):
+        status, _, body = self._raw("GET", "/.well-known/oauth-protected-resource")
+        self.assertEqual(status, 200)
+        document = json.loads(body)
+        self.assertEqual(document["authorization_servers"], [self.issuer.url])
+        self.assertIn(SCOPE, document["scopes_supported"])
+
+    def test_two_subjects_cannot_see_or_overwrite_each_others_worlds(self):
+        ctx = self._world()
+        (ctx.manuscripts / "01 - Kapitel.md").write_text("Geheim.\n", encoding="utf-8")
+        self.store.commit(ctx, "eins", push=True)
+
+        self.issuer.issue("other-token", sub="somebody-else")
+        status, _, body = self._raw("GET", "/v1/worlds", token="other-token")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["worlds"], [], "another account saw these worlds")
+
+        _, _, manifests = self._raw("GET", "/v1/worlds/world-a/snapshots", token="other-token")
+        self.assertEqual(json.loads(manifests)["snapshots"], [],
+                         "another account read this world's manifests")
+
+        # ...and writing under the same world id lands in the other account's own
+        # tree, not in this one.
+        payload = b"fremd"
+        digest = hashlib.sha256(payload).hexdigest()
+        self._raw("PUT", f"/v1/worlds/world-a/blobs/{digest}", token="other-token", body=payload)
+        self.assertNotIn(digest, self._stored())
+
+    def test_the_verdict_on_a_token_is_cached_and_expires(self):
+        self._raw("GET", "/v1/worlds", token=TOKEN)
+        after_first = self.issuer.introspections
+        self._raw("GET", "/v1/worlds", token=TOKEN)
+        self.assertEqual(self.issuer.introspections, after_first,
+                         "the endpoint asked the issuer again inside the cache window")
+
+        self.reference.TOKEN_TTL = 0.0
+        self.reference._tokens.clear()
+        self._raw("GET", "/v1/worlds", token=TOKEN)
+        self._raw("GET", "/v1/worlds", token=TOKEN)
+        self.assertGreater(self.issuer.introspections, after_first + 1,
+                           "an expired cache entry must be re-checked, or revocation never lands")
 
 
 if __name__ == "__main__":

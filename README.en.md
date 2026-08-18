@@ -110,7 +110,7 @@ QUILTOR_BACKUP_TOKEN=your-token \
 python3 server.py
 ```
 
-`QUILTOR_BACKUP_URL` applies account-wide; an individual world may point somewhere else. The token never goes into the world database. On a fresh machine Quiltor asks the endpoint which worlds it holds and restores one of them completely — database, manuscript, and history.
+`QUILTOR_BACKUP_URL` applies account-wide; an individual world may point somewhere else. The token never goes into the world database. On a fresh machine Quiltor asks the endpoint which worlds it holds and restores one of them completely — database, manuscript, and history. If you run the endpoint yourself, you secure it with Keycloak — see [Connecting Keycloak](#connecting-keycloak).
 
 If no local assistant is set up yet, the server asks once (`Set it up now? [y/N]`) before downloading anything — about 2.5GB for llama.cpp, about 2.4GB for MLX on Apple Silicon Macs. Answering no (or just pressing Enter) leaves Quiltor working exactly the same, just without the assistant panel; it asks again next launch until you agree once.
 
@@ -188,7 +188,7 @@ Mac App Store build additionally requires.
 
 ## Web demo with Keycloak
 
-Quiltor can also run as a small multi-user demo on the web: login through an existing Keycloak instance, with every signed-in person seeing only their own worlds. Without the environment variables below, the local identity described above stays in force — one user, no login. What changes is not "auth on/off" but only who the users are; Keycloak is purely additive and has to be turned on explicitly.
+Quiltor can also run as a small multi-user demo on the web: login through an existing Keycloak instance, with every signed-in person seeing only their own worlds. Without the environment variables below, the local identity described above stays in force — one user, no login. What changes is not "auth on/off" but only who the users are; Keycloak is purely additive and has to be turned on explicitly. The backup endpoint is a separate matter with its own clients — see [Connecting Keycloak](#connecting-keycloak).
 
 **1. Create a Keycloak client** (in your existing realm):
 
@@ -248,6 +248,88 @@ quiltor config set|get|list|unset <KEY> [VALUE]   # emergency access to any QUIL
 quiltor config path        # prints the path of the config file
 quiltor --version
 ```
+
+## Connecting Keycloak
+
+Keycloak appears in **two** places in Quiltor, and the most common mistake is to treat them as the same one. The first is signing in to a hosted Quiltor instance; the second is the backup endpoint. Both speak authorization code with PKCE, and both may live in the same realm — but they have their own clients, their own redirect URIs, and their own environment variables.
+
+| | Signing in to the instance | Backup endpoint |
+| --- | --- | --- |
+| What for | Multi-user operation on the web: everyone sees only their own worlds | Access to the backup service that receives worlds and hands them back |
+| Required? | No — without an issuer the local identity applies: one user, no sign-in page | Yes — without Keycloak the endpoint does not start |
+| Clients | one confidential client | two: the backup server (confidential) and Quiltor (public) |
+| Redirect URI | `<QUILTOR_PUBLIC_URL>/auth/callback` | `http://127.0.0.1/*` (loopback, changing port) |
+| Variables | `QUILTOR_OIDC_*`, `QUILTOR_PUBLIC_URL` | `QUILTOR_BACKUP_OIDC_*`, `QUILTOR_BACKUP_PUBLIC_URL` |
+
+Quiltor ships no Keycloak of its own, and `docker-compose.yml` starts none. Both paths assume your Keycloak instance already runs elsewhere.
+
+### Signing in to the instance
+
+This is the path for running Quiltor in Docker behind a reverse proxy; the client settings and the full variable table are above under [Web demo with Keycloak](#web-demo-with-keycloak). In short: a confidential client using authorization code with PKCE, redirect URI `<QUILTOR_PUBLIC_URL>/auth/callback`, configured through `QUILTOR_OIDC_ISSUER`, `QUILTOR_OIDC_CLIENT_ID`, `QUILTOR_OIDC_CLIENT_SECRET`, and `QUILTOR_PUBLIC_URL`. Leave the issuer unset and Quiltor runs on the local identity — one user, no sign-in page. None of that applies to the backup endpoint: it has its own clients and its own variables, even when the same realm sits behind both.
+
+### The backup endpoint: two clients in the same realm
+
+The backup endpoint has no choice, it requires Keycloak. You do not sign in to the endpoint itself but to Keycloak; the endpoint only ever sees the access token you send along and asks whether it is valid. That takes two clients in the same realm.
+
+**1. The backup server as a confidential client** (e.g. `quiltor-backup-server`):
+
+- Client authentication: on (issues a client secret)
+- Standard flow: off · Direct access grants: off — this client signs nobody in, it only verifies
+- It passes every incoming access token to Keycloak for introspection ([RFC 7662](https://www.rfc-editor.org/rfc/rfc7662)) and decides from the answer. Its client ID and secret are purely its own credentials for the introspection endpoint.
+
+**2. Quiltor as a public client** (e.g. `quiltor-desktop`) — this is what you sign in with locally to reach the backup service:
+
+- Client authentication: off (public client, no secret — a secret shipped to a thousand machines is not a secret)
+- Standard flow: on · Direct access grants: off
+- Advanced settings → PKCE method: `S256`
+- Valid redirect URI: `http://127.0.0.1/*` — the note right below explains the asterisk
+- Client scopes: assign `quiltor.backup` (step 3)
+
+> **The loopback port is not fixed.** The desktop host takes port 8843 when it is free and any free port otherwise — so the redirect URI is not even known before startup. [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) therefore requires the authorization server to accept **any** port for loopback addresses. In Keycloak that means a redirect pattern like `http://127.0.0.1/*` instead of a fixed port. Without it, signing in dies on an uninformative Keycloak error page, and nothing on that page says why.
+
+**3. Create the `quiltor.backup` client scope and assign it:**
+
+- Client scopes → *Create client scope*: name `quiltor.backup`, type `Optional`, protocol `openid-connect`, *Include in token scope*: on
+- On the Quiltor client from step 2, go to *Client scopes* → *Add client scope* and add the same scope as `Optional`. Quiltor then requests it explicitly at sign-in, which is the only way it ends up in the token.
+- If not everyone in the realm should be allowed to back up: create a realm role `quiltor-backup`, add it to the client scope under *Scope*, and grant it only to the accounts that qualify. Keycloak grants a scope per client, not per person — the role is where it becomes personal.
+
+The scope is not decoration. The backup server does not merely check whether a token is valid, it checks whether it carries this scope. Without that second check, any token from the same realm would unlock the endpoint — including one issued for an entirely different application that has nothing to do with Quiltor. The scope, not the validity of the token, is the actual protection against unauthorized use.
+
+**4. Set the backup server's environment variables:**
+
+| Variable | Purpose |
+| --- | --- |
+| `QUILTOR_BACKUP_OIDC_ISSUER` | Realm issuer URL, e.g. `https://kc.example.com/realms/quiltor` — the same realm that issues the tokens. |
+| `QUILTOR_BACKUP_OIDC_CLIENT_ID` | Client ID of the backup server from step 1. |
+| `QUILTOR_BACKUP_OIDC_CLIENT_SECRET` | The matching secret; it authenticates the server against the introspection endpoint. |
+| `QUILTOR_BACKUP_PUBLIC_URL` | Public base URL of the endpoint, e.g. `https://backup.example.com`. |
+| `QUILTOR_BACKUP_OIDC_SCOPE` | Optional: the scope a token has to carry. Defaults to `quiltor.backup`. |
+
+If any of the first four is missing, the backup server does not start. That is deliberate — a backup endpoint that comes up without authentication by accident would be worse than one that does not come up at all.
+
+A short example for both sides:
+
+```bash
+# Backup server (deploy/backup-server/)
+QUILTOR_BACKUP_OIDC_ISSUER=https://kc.example.com/realms/quiltor
+QUILTOR_BACKUP_OIDC_CLIENT_ID=quiltor-backup-server
+QUILTOR_BACKUP_OIDC_CLIENT_SECRET=…copied from Keycloak…
+QUILTOR_BACKUP_PUBLIC_URL=https://backup.example.com
+QUILTOR_BACKUP_OIDC_SCOPE=quiltor.backup   # the default, can be omitted
+
+# Quiltor on the author's machine
+QUILTOR_BACKUP_URL=https://backup.example.com
+```
+
+That single line really is enough on the Quiltor side. Which Keycloak the endpoint trusts is something it states itself: under `GET /.well-known/oauth-protected-resource` it publishes its authorization server and the scope it expects. Quiltor reads that before the first sign-in and sends the person to the right Keycloak — so the issuer does not have to be configured a second time in the client, and if the endpoint moves to a different realm, the client follows on its own.
+
+### When it doesn't work
+
+| Symptom | Cause |
+| --- | --- |
+| Keycloak shows an error page after you click sign in, and Quiltor never gets an answer | The redirect pattern is missing or names a fixed port. Enter `http://127.0.0.1/*` on the public client, see the note above. |
+| The endpoint answers **403**, not 401 | The difference is the diagnosis: 401 means "no token, or an expired one", 403 means "valid token, but without the required scope". So check whether `quiltor.backup` is assigned to the Quiltor client and whether the signed-in person holds the role that unlocks it. |
+| Introspection fails even though signing in worked a moment ago | Wrong issuer: the token comes from a different realm than the one `QUILTOR_BACKUP_OIDC_ISSUER` names. Check both sides against the same realm URL, including the `/realms/<name>` part. |
 
 ## Local means local
 

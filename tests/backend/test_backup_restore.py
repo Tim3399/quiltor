@@ -14,18 +14,26 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend.core.backup import SnapshotStore, remote
+from fake_issuer import FakeIssuer
 
 REFERENCE_SERVER = Path(__file__).resolve().parents[2] / "deploy" / "backup-server" / "server.py"
+# ACCOUNT is the token's subject, which the endpoint reads off the token rather
+# than taking from the request -- see deploy/backup-server/server.py::_account.
 TOKEN, ACCOUNT = "test-token", "tester"
 
 
-def _load_reference_server(root: Path):
+def _load_reference_server(root: Path, issuer_url: str):
     os.environ["QUILTOR_BACKUP_ROOT"] = str(root)
-    os.environ["QUILTOR_BACKUP_TOKENS"] = f"{ACCOUNT}:{TOKEN}"
     spec = importlib.util.spec_from_file_location("quiltor_backup_reference_restore", REFERENCE_SERVER)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.ROOT = root
+    module.ISSUER = issuer_url
+    module.CLIENT_ID = "quiltor-backup"
+    module.CLIENT_SECRET = "shhh"
+    module.PUBLIC_URL = "https://backup.example.test"
+    module._discovery.clear()
+    module._tokens.clear()
     return module
 
 
@@ -33,7 +41,9 @@ class RestoreTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        self.reference = _load_reference_server(self.root / "served")
+        self.issuer = FakeIssuer().start()
+        self.issuer.issue(TOKEN, sub=ACCOUNT)
+        self.reference = _load_reference_server(self.root / "served", self.issuer.url)
         self.httpd = self.reference.Server(("127.0.0.1", 0), self.reference.Handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
@@ -46,6 +56,7 @@ class RestoreTest(unittest.TestCase):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join(timeout=5)
+        self.issuer.stop()
         self.temp.cleanup()
 
     def _machine(self, name: str):

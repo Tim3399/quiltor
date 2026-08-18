@@ -110,7 +110,7 @@ QUILTOR_BACKUP_TOKEN=dein-token \
 python3 server.py
 ```
 
-`QUILTOR_BACKUP_URL` gilt kontoweit; eine einzelne Welt kann einen abweichenden Endpunkt hinterlegen. Das Token steht nie in der Welt-Datenbank. Auf einem frischen Rechner fragt Quiltor den Endpunkt, welche Welten dort liegen, und stellt eine davon vollständig wieder her — Datenbank, Manuskript und Verlauf.
+`QUILTOR_BACKUP_URL` gilt kontoweit; eine einzelne Welt kann einen abweichenden Endpunkt hinterlegen. Das Token steht nie in der Welt-Datenbank. Auf einem frischen Rechner fragt Quiltor den Endpunkt, welche Welten dort liegen, und stellt eine davon vollständig wieder her — Datenbank, Manuskript und Verlauf. Wer den Endpunkt selbst betreibt, sichert ihn über Keycloak ab — siehe [Keycloak anbinden](#keycloak-anbinden).
 
 Ist noch kein lokaler Assistent eingerichtet, fragt der Server einmalig nach (`Jetzt einrichten? [j/N]`), bevor er etwas herunterlädt — ~2,5 GB für llama.cpp, ~2,4 GB für MLX auf Apple-Silicon-Macs. Mit „Nein“ (oder einfach Enter) läuft Quiltor unverändert weiter, nur ohne Assistenten-Panel; die Frage kommt beim nächsten Start erneut, bis einmal zugestimmt wurde.
 
@@ -189,7 +189,7 @@ zusätzlich braucht: [`packaging/README.md`](packaging/README.md).
 
 ## Web-Demo mit Keycloak
 
-Quiltor kann zusätzlich als kleine Mehrbenutzer-Demo im Web laufen: Login über eine bestehende Keycloak-Instanz, jede angemeldete Person sieht ausschließlich ihre eigenen Welten. Ohne die folgenden Umgebungsvariablen bleibt es bei der lokalen Identität von oben — ein Nutzer, kein Login. Getauscht wird also nicht „Auth an/aus“, sondern nur, wer die Nutzer sind; Keycloak ist rein additiv und muss aktiv eingeschaltet werden.
+Quiltor kann zusätzlich als kleine Mehrbenutzer-Demo im Web laufen: Login über eine bestehende Keycloak-Instanz, jede angemeldete Person sieht ausschließlich ihre eigenen Welten. Ohne die folgenden Umgebungsvariablen bleibt es bei der lokalen Identität von oben — ein Nutzer, kein Login. Getauscht wird also nicht „Auth an/aus“, sondern nur, wer die Nutzer sind; Keycloak ist rein additiv und muss aktiv eingeschaltet werden. Der Backup-Endpunkt ist davon eine getrennte Sache mit eigenen Clients — siehe [Keycloak anbinden](#keycloak-anbinden).
 
 **1. Keycloak-Client anlegen** (im vorhandenen Realm):
 
@@ -249,6 +249,88 @@ quiltor config set|get|list|unset <KEY> [VALUE]   # Notfall-Zugriff auf jede QUI
 quiltor config path        # zeigt den Pfad der Config-Datei
 quiltor --version
 ```
+
+## Keycloak anbinden
+
+Keycloak kommt in Quiltor an **zwei** Stellen vor, und die häufigste Verwechslung besteht darin, sie für dieselbe zu halten. Die eine ist die Anmeldung an einer gehosteten Quiltor-Instanz, die andere der Backup-Endpunkt. Beide sprechen Authorization Code mit PKCE, beide dürfen in derselben Realm liegen — aber sie haben eigene Clients, eigene Redirect-URIs und eigene Umgebungsvariablen.
+
+| | Anmeldung an der Instanz | Backup-Endpunkt |
+| --- | --- | --- |
+| Wofür | Mehrbenutzer-Betrieb im Web: jede Person sieht nur ihre eigenen Welten | Zugang zum Backup-Dienst, der Welten entgegennimmt und zurückgibt |
+| Pflicht? | Nein — ohne Issuer gilt die lokale Identität: ein Nutzer, keine Anmeldeseite | Ja — ohne Keycloak startet der Endpunkt nicht |
+| Clients | ein vertraulicher Client | zwei: der Backup-Server (vertraulich) und Quiltor (öffentlich) |
+| Redirect-URI | `<QUILTOR_PUBLIC_URL>/auth/callback` | `http://127.0.0.1/*` (Loopback, wechselnder Port) |
+| Variablen | `QUILTOR_OIDC_*`, `QUILTOR_PUBLIC_URL` | `QUILTOR_BACKUP_OIDC_*`, `QUILTOR_BACKUP_PUBLIC_URL` |
+
+Quiltor bringt kein eigenes Keycloak mit, und `docker-compose.yml` startet auch keines. Beide Wege setzen eine Keycloak-Instanz voraus, die anderswo bereits läuft.
+
+### Anmeldung an der Instanz
+
+Das ist der Weg für den Docker-Betrieb hinter einem Reverse Proxy; die Client-Einstellungen und die vollständige Variablentabelle stehen oben unter [Web-Demo mit Keycloak](#web-demo-mit-keycloak). Kurz: ein vertraulicher Client mit Authorization Code und PKCE, Redirect-URI `<QUILTOR_PUBLIC_URL>/auth/callback`, konfiguriert über `QUILTOR_OIDC_ISSUER`, `QUILTOR_OIDC_CLIENT_ID`, `QUILTOR_OIDC_CLIENT_SECRET` und `QUILTOR_PUBLIC_URL`. Bleibt der Issuer ungesetzt, läuft Quiltor mit der lokalen Identität — ein Nutzer, keine Anmeldeseite. Für den Backup-Endpunkt gilt davon nichts: Er hat seine eigenen Clients und seine eigenen Variablen, auch wenn dieselbe Realm dahintersteht.
+
+### Der Backup-Endpunkt: zwei Clients in derselben Realm
+
+Der Backup-Endpunkt hat keine Wahl, er verlangt Keycloak. Angemeldet wird man sich dabei nicht bei ihm, sondern bei Keycloak; der Endpunkt sieht nur das mitgeschickte Access-Token und fragt nach, ob es gilt. Dafür braucht es zwei Clients in derselben Realm.
+
+**1. Backup-Server als vertraulicher Client** (z. B. `quiltor-backup-server`):
+
+- Client-Authentifizierung: an (liefert ein Client-Secret)
+- Standard Flow: aus · Direct Access Grants: aus — dieser Client meldet niemanden an, er prüft nur
+- Er reicht jedes ankommende Access-Token per Introspection ([RFC 7662](https://www.rfc-editor.org/rfc/rfc7662)) an Keycloak weiter und entscheidet anhand der Antwort. Client-ID und Secret sind ausschließlich seine eigenen Zugangsdaten für den Introspection-Endpunkt.
+
+**2. Quiltor als öffentlicher Client** (z. B. `quiltor-desktop`) — damit meldet man sich lokal am Backup-Dienst an:
+
+- Client-Authentifizierung: aus (öffentlicher Client, kein Secret — ein Secret, das auf tausend Rechnern ausgeliefert wird, ist keines)
+- Standard Flow: an · Direct Access Grants: aus
+- Erweiterte Einstellungen → PKCE-Methode: `S256`
+- Gültige Redirect-URI: `http://127.0.0.1/*` — der Hinweis direkt darunter erklärt den Stern
+- Client-Scopes: `quiltor.backup` zuweisen (Schritt 3)
+
+> **Der Loopback-Port steht nicht fest.** Der Desktop-Host nimmt Port 8843, wenn er frei ist, und sonst einen beliebigen freien Port — die Redirect-URI ist vor dem Start also gar nicht bekannt. [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) verlangt deshalb, dass der Authorization Server bei Loopback-Adressen **jeden** Port akzeptiert. In Keycloak heißt das ein Redirect-Muster wie `http://127.0.0.1/*` statt einer festen Portangabe. Fehlt es, bricht die Anmeldung mit einer nichtssagenden Keycloak-Fehlerseite ab, und worauf sie hinauswill, steht nirgends.
+
+**3. Client-Scope `quiltor.backup` anlegen und zuweisen:**
+
+- Client scopes → *Create client scope*: Name `quiltor.backup`, Typ `Optional`, Protokoll `openid-connect`, *Include in token scope*: an
+- Beim Quiltor-Client aus Schritt 2 unter *Client scopes* → *Add client scope* denselben Scope als `Optional` eintragen. Quiltor fordert ihn bei der Anmeldung ausdrücklich an, und nur dann steht er später im Token.
+- Soll nicht jede Person in der Realm sichern dürfen: eine Realm-Rolle `quiltor-backup` anlegen, sie im Client-Scope unter *Scope* eintragen und nur an die berechtigten Konten vergeben. Keycloak vergibt einen Scope pro Client, nicht pro Person — die Rolle ist die Stelle, an der es persönlich wird.
+
+Der Scope ist kein Zierrat. Der Backup-Server prüft nicht bloß, ob ein Token gültig ist, sondern ob es diesen Scope trägt. Ohne die zweite Prüfung sperrte jedes beliebige Token derselben Realm den Endpunkt auf — auch eines, das für eine ganz andere Anwendung ausgestellt wurde und mit Quiltor nichts zu tun hat. Der Scope ist damit der eigentliche Schutz gegen unbefugte Nutzung, nicht die Gültigkeit des Tokens.
+
+**4. Umgebungsvariablen des Backup-Servers setzen:**
+
+| Variable | Zweck |
+| --- | --- |
+| `QUILTOR_BACKUP_OIDC_ISSUER` | Realm-Issuer-URL, z. B. `https://kc.example.com/realms/quiltor` — dieselbe Realm, die die Token ausstellt. |
+| `QUILTOR_BACKUP_OIDC_CLIENT_ID` | Client-ID des Backup-Servers aus Schritt 1. |
+| `QUILTOR_BACKUP_OIDC_CLIENT_SECRET` | Zugehöriges Secret; damit authentifiziert er sich beim Introspection-Endpunkt. |
+| `QUILTOR_BACKUP_PUBLIC_URL` | Öffentliche Basis-URL des Endpunkts, z. B. `https://backup.example.com`. |
+| `QUILTOR_BACKUP_OIDC_SCOPE` | Optional: der Scope, den ein Token tragen muss. Vorgabe `quiltor.backup`. |
+
+Fehlt eine der ersten vier, startet der Backup-Server nicht. Das ist Absicht — ein Backup-Endpunkt, der versehentlich ohne Authentifizierung hochkommt, wäre schlimmer als einer, der gar nicht läuft.
+
+Ein knappes Beispiel für beide Seiten:
+
+```bash
+# Backup-Server (deploy/backup-server/)
+QUILTOR_BACKUP_OIDC_ISSUER=https://kc.example.com/realms/quiltor
+QUILTOR_BACKUP_OIDC_CLIENT_ID=quiltor-backup-server
+QUILTOR_BACKUP_OIDC_CLIENT_SECRET=…aus Keycloak kopiert…
+QUILTOR_BACKUP_PUBLIC_URL=https://backup.example.com
+QUILTOR_BACKUP_OIDC_SCOPE=quiltor.backup   # Vorgabe, kann entfallen
+
+# Quiltor auf dem Rechner der Autorin
+QUILTOR_BACKUP_URL=https://backup.example.com
+```
+
+Auf der Quiltor-Seite genügt tatsächlich die eine Zeile. Welchem Keycloak der Endpunkt vertraut, sagt er nämlich selbst: Unter `GET /.well-known/oauth-protected-resource` veröffentlicht er seinen Autorisierungsserver und den erwarteten Scope. Quiltor liest das vor der ersten Anmeldung aus und schickt die Person zum richtigen Keycloak — der Issuer muss also nicht ein zweites Mal im Client konfiguriert werden, und wenn der Endpunkt die Realm wechselt, folgt der Client von allein.
+
+### Wenn es nicht funktioniert
+
+| Symptom | Ursache |
+| --- | --- |
+| Keycloak zeigt nach dem Klick auf „Anmelden“ eine Fehlerseite, Quiltor bekommt nie eine Antwort | Das Redirect-Muster fehlt oder nennt einen festen Port. Beim öffentlichen Client `http://127.0.0.1/*` eintragen, siehe den Hinweis oben. |
+| Der Endpunkt antwortet **403**, nicht 401 | Der Unterschied ist die Diagnose: 401 heißt „kein oder abgelaufenes Token“, 403 heißt „gültiges Token, aber ohne den verlangten Scope“. Also prüfen, ob `quiltor.backup` beim Quiltor-Client zugewiesen ist und ob die angemeldete Person die Rolle hat, die ihn freischaltet. |
+| Introspection schlägt fehl, obwohl die Anmeldung eben noch geklappt hat | Falscher Issuer: Das Token stammt aus einer anderen Realm als der, die `QUILTOR_BACKUP_OIDC_ISSUER` nennt. Beide Seiten auf dieselbe Realm-URL prüfen, einschließlich des `/realms/<name>`-Teils. |
 
 ## Lokal heißt lokal
 
