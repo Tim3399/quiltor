@@ -10,5 +10,6 @@ import { assistant } from './assistant';
 import { places } from './places';
 import { writing } from './writing';
 import { menus } from './menus';
+import { auth } from './auth';
 
-export const en = { ...common, ...shared, ...shell, ...worlds, ...manuscript, ...figures, ...timeline, ...tools, ...assistant, ...places, ...writing, ...menus } as const;
+export const en = { ...common, ...shared, ...shell, ...worlds, ...manuscript, ...figures, ...timeline, ...tools, ...assistant, ...places, ...writing, ...menus, ...auth } as const;

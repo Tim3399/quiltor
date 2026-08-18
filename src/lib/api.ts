@@ -44,10 +44,23 @@ function withWorldBody<T extends object>(data: T): T & { worldId?: string } {
   return activeWorldId ? { ...data, worldId: activeWorldId } : data;
 }
 
+/** Thrown by json() instead of a plain Error, so a caller that cares about
+ * *why* a request failed (SignInGate's 401 check, specifically) doesn't have
+ * to match on message text -- which is what the response body's `fehler`
+ * already is, and stays free to change wording without breaking a check. */
+export class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init });
   const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(data?.fehler || data?.grund || `HTTP ${response.status}`);
+  if (!response.ok) throw new HttpError(response.status, data?.fehler || data?.grund || `HTTP ${response.status}`);
   return data as T;
 }
 

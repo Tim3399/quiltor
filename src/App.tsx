@@ -1,11 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AppShell } from './app/AppShell';
-import { api, errorMessage, setActiveWorld } from './lib/api';
+import { api, errorMessage, setActiveWorld, HttpError } from './lib/api';
 import { useAutosave } from './hooks/useAutosave';
 import type { FigureState, Manuscript, Workspace, WorldInfo } from './types';
 import { useHistoryState } from './hooks/useHistoryState';
 import { useTheme } from './hooks/useTheme';
 import { WorldGate } from './features/worlds/WorldGate';
+import { SignInGate } from './features/auth/SignInGate';
 import { PRODUCT_MARK } from './config/branding';
 import { applyAssistantProposals } from './features/assistant/proposals';
 import { useLanguage } from './language';
@@ -36,6 +37,11 @@ export function App() {
   const manuscriptHistory = useHistoryState<Manuscript>(), figureHistory = useHistoryState<FigureState>();
   const manuscript = manuscriptHistory.value, figures = figureHistory.value;
   const [worlds, setWorlds] = useState<WorldInfo[] | null>(null), [world, setWorld] = useState<WorldInfo | null>(null);
+  // Set instead of loadError when the /api/worlds fetch 401s: that is not a
+  // broken server, it is a visitor with no session, and gets its own screen
+  // (SignInGate) rather than the generic fatal-state one below.
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [authError] = useState(() => new URLSearchParams(location.search).get('authError'));
   const [overlay, setOverlay] = useState<Overlay>(null), [focus, setFocus] = useState(false), [loadError, setLoadError] = useState('');
   const [assistantOpen, setAssistantOpen] = useState(false);
   // Stays true forever once the assistant has been opened once, so closing it later
@@ -77,7 +83,10 @@ export function App() {
     if (renamed) { const previous = figures.nodes.find(node => node.id === renamed.id)!; setPendingRename({ id: renamed.id, from: previous.name, to: renamed.name }); }
     figureHistory.change(next);
   }, [figures, figureHistory.change]);
-  useEffect(() => { api.worlds().then(result => { setWorlds(result.worlds); const requested = new URLSearchParams(location.search).get('world'); if (requested) void loadWorld(api.openWorld(requested)); }).catch(error => { setWorlds([]); setLoadError(errorMessage(error)); }); }, []);
+  useEffect(() => { api.worlds().then(result => { setWorlds(result.worlds); const requested = new URLSearchParams(location.search).get('world'); if (requested) void loadWorld(api.openWorld(requested)); }).catch(error => { if (error instanceof HttpError && error.status === 401) { setNeedsSignIn(true); return; } setWorlds([]); setLoadError(errorMessage(error)); }); }, []);
+  // ?authError (and ?world, read above) has done its job once read; stripped
+  // so a reload doesn't show the same failed-login message again.
+  useEffect(() => { if (authError) history.replaceState(null, '', location.pathname); }, [authError]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       const modifier = event.metaKey || event.ctrlKey;
@@ -92,6 +101,7 @@ export function App() {
   }, [focus, flushAll, workspace, manuscriptHistory.undo, manuscriptHistory.redo, figureHistory.undo, figureHistory.redo]);
 
   const [restartPrefix, restartSuffix] = t('restartServerHint').split('{code}');
+  if (needsSignIn) return <SignInGate authError={authError} />;
   if (worlds === null) return <main className="loading-state"><div className="loading-mark">{PRODUCT_MARK}</div><p>{t('loadingWorlds')}</p></main>;
   if (!world) return <WorldGate worlds={worlds} theme={preference} onTheme={setPreference} error={loadError} onOpen={id => loadWorld(api.openWorld(id))} onCreate={(title, backupUrl) => loadWorld(api.createWorld(title, backupUrl))} onDelete={async id => { await api.deleteWorld(id); const result = await api.worlds(); setWorlds(result.worlds); }} />;
   if (loadError) return <main className="fatal-state"><h1>{t('unreachable')}</h1><p>{loadError}</p><p>{restartPrefix}<code>python3 server.py</code>{restartSuffix}</p></main>;

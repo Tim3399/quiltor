@@ -120,10 +120,16 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
 
     # ---------- Unauthenticated access ----------
 
-    def test_unauthenticated_root_redirects_to_login(self):
+    def test_unauthenticated_root_loads_the_app_shell(self):
+        """No session, no API route -- the app shell itself (dist/index.html)
+        is not gated, so React gets to run and show its own sign-in screen
+        (SignInGate) instead of the browser bouncing to Keycloak before a
+        single line of app code executes. See _dispatch's `registration is
+        None and IDENTITY.multi_user` branch."""
         status, headers, _, _ = self._request("GET", "/")
-        self.assertEqual(status, 302)
-        self.assertEqual(headers["Location"], "/login")
+        self.assertEqual(status, 200)
+        content_type = next(v for k, v in headers.items() if k.lower() == "content-type")
+        self.assertIn("text/html", content_type)
 
     def test_unauthenticated_api_call_gets_401_json_not_a_redirect(self):
         status, _, body, _ = self._request("GET", "/api/worlds")
@@ -140,13 +146,21 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         self.assertTrue(any(c.startswith("quiltor_login_state=") for c in set_cookies))
 
     def test_callback_with_mismatched_state_is_rejected_without_creating_a_session(self):
+        """Sent back to the app, not a JSON dead end -- SignInGate reads
+        ?authError off the URL and shows something to read and a retry."""
         status, _, _, set_cookies = self._request("GET", "/login")
         login_state_cookie = next(c for c in set_cookies if c.startswith("quiltor_login_state="))
         _, cookie_value = _cookie_name_value(login_state_cookie)
-        status, _, body, _ = self._request("GET", "/auth/callback?code=abc&state=wrong-state",
-                                            cookies={"quiltor_login_state": cookie_value})
-        self.assertEqual(status, 400)
+        status, headers, _, _ = self._request("GET", "/auth/callback?code=abc&state=wrong-state",
+                                                cookies={"quiltor_login_state": cookie_value})
+        self.assertEqual(status, 302)
+        self.assertEqual(headers["Location"], "/?authError=state")
         self.assertEqual(len(auth.SESSIONS), 0)
+
+    def test_callback_with_a_provider_error_redirects_with_a_reason(self):
+        status, headers, _, _ = self._request("GET", "/auth/callback?error=access_denied")
+        self.assertEqual(status, 302)
+        self.assertEqual(headers["Location"], "/?authError=provider")
 
     def test_login_then_whoami_returns_the_session_identity(self):
         session_value = self._login("user-alice", email="alice@example.com", name="Alice")

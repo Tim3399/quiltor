@@ -524,23 +524,33 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self.send_redirect(authorize_url)
 
     def handle_auth_callback(self) -> None:
+        # Every failure below sends the browser back to "/" with a reason code
+        # instead of a bare JSON error: the frontend has nothing to render a
+        # JSON blob into at this point (no world is open, often no session),
+        # but it can always show its own sign-in screen again, this time with
+        # an explanation. See src/features/auth/SignInGate.tsx, which reads
+        # ?authError= off the URL.
         q = parse_qs(urlparse(self.path).query)
         if (q.get("error") or [""])[0]:
-            return self.send_redirect("/login?failed=1")
+            return self.send_redirect("/?authError=provider")
         code = (q.get("code") or [""])[0]
         state = (q.get("state") or [""])[0]
         cookie_state = self.get_cookie(LOGIN_STATE_COOKIE)
         if not code or not state or not cookie_state or state != cookie_state:
-            return self.send_json({"ok": False, "fehler": "Invalid login state."}, 400)
+            return self.send_redirect("/?authError=state")
         pending = auth.consume_pending_login(state)
         if pending is None:
-            return self.send_json({"ok": False, "fehler": "Login expired or already used."}, 400)
+            return self.send_redirect("/?authError=expired")
         try:
             tokens = auth.exchange_code(code, pending["verifier"], pending["redirect_uri"])
             claims = auth.decode_id_token_claims(tokens["id_token"])
             auth.validate_claims(claims)
         except Exception as exc:
-            return self.send_json({"ok": False, "fehler": f"Login failed: {exc}"}, 400)
+            # The reason travels no further than this log line now that the
+            # response is a redirect, not a JSON body with the message in it --
+            # still worth having for a self-hoster staring at a failed login.
+            print(f"[auth] token exchange failed: {exc}", file=sys.stderr)
+            return self.send_redirect("/?authError=exchange")
         session_id = auth.create_session(str(claims.get("sub", "")), str(claims.get("email", "")),
                                           str(claims.get("name") or claims.get("preferred_username") or ""))
         # Keep the provider's own tokens on the session. In this deployment the
@@ -630,6 +640,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if session is None and not (registration and registration.anonymous):
             if path.startswith("/api/"):
                 return self.send_json({"ok": False, "fehler": "not authenticated"}, 401)
+            if registration is None and IDENTITY.multi_user:
+                # No API route, no session: this is the app shell itself
+                # (index.html, its JS/CSS) rather than data -- let it load
+                # unauthenticated so the app can render its own sign-in screen
+                # (src/features/auth/SignInGate.tsx) instead of never getting
+                # far enough to show anything at all. Data stays behind
+                # /api/*, guarded above, unaffected by this.
+                return on_miss()
             if IDENTITY.login_url:
                 return self.send_redirect(IDENTITY.login_url)
             # No login page to send anyone to: the request simply is not this
