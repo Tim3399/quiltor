@@ -97,6 +97,38 @@ jobs:
             QUILTOR_VERSION=${{ needs.version-check.outputs.version }}
           tags: ${{ steps.image.outputs.repo }}:${{ needs.version-check.outputs.version }}
 
+  # The backup endpoint's image, published separately from the app's: it has
+  # its own Dockerfile (deploy/backup-server) and is deployed independently
+  # (self-hosters may run only this, on a different host than the app -- see
+  # docker-compose.yml's `with-backup` profile). Depends on version-check
+  # alone, like `docker` above, so a failure here cannot block the app image.
+  docker-backup:
+    needs: version-check
+    if: needs.version-check.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      repo: ${{ steps.image.outputs.repo }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Compute lowercase image repository
+        id: image
+        run: echo "repo=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-backup" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./deploy/backup-server
+          push: true
+          tags: ${{ steps.image.outputs.repo }}:${{ needs.version-check.outputs.version }}
+
   wheel:
     needs: version-check
     if: needs.version-check.outputs.should_release == 'true'
@@ -325,7 +357,7 @@ jobs:
   # release that fails has left nothing behind to clean up: no tag, no Release,
   # and a :latest still pointing at the previous version.
   tag-and-release:
-    needs: [version-check, docker, wheel, macos-app, windows-app]
+    needs: [version-check, docker, docker-backup, wheel, macos-app, windows-app]
     if: needs.version-check.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -391,6 +423,7 @@ jobs:
       - name: Move the :latest image tag
         run: |
           set -euo pipefail
-          REPO="${{ needs.docker.outputs.repo }}"
           VERSION="${{ needs.version-check.outputs.version }}"
-          docker buildx imagetools create -t "$REPO:latest" "$REPO:$VERSION"
+          for REPO in "${{ needs.docker.outputs.repo }}" "${{ needs.docker-backup.outputs.repo }}"; do
+            docker buildx imagetools create -t "$REPO:latest" "$REPO:$VERSION"
+          done
