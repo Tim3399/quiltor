@@ -65,6 +65,14 @@ class SessionData:
     access_token: str = ""
     refresh_token: str = ""
 
+    #: When `access_token` stops being accepted, or 0.0 if the provider did not
+    #: say. Kept because a session outlives its access token by a wide margin --
+    #: a session is good for SESSION_TTL, an access token for whatever the realm
+    #: says, commonly five minutes. Without this the token here would silently
+    #: rot while the session stayed perfectly valid, and anything using it would
+    #: start failing for no visible reason.
+    access_expires_at: float = 0.0
+
     def __post_init__(self) -> None:
         if not self.expires_at:
             self.expires_at = self.created_at + SESSION_TTL

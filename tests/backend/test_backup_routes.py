@@ -23,6 +23,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -248,6 +249,59 @@ class HostedTokenTests(BackupRouteTestCase):
         self.assertEqual(answer["account"], "hosted-person")
         self.assertFalse(backup_login.path().exists(),
                          "nothing was stored on disk -- the session is the credential")
+
+    def test_a_session_without_a_usable_token_is_not_called_signed_in(self):
+        """A session can carry no credential at all -- one minted by a render
+        token never had provider tokens. Claiming "signed in" for it meant the
+        dialog offered an upload that could only 401, with nothing on screen
+        saying why."""
+        session_id = auth.create_session("hosted-person", "", "")   # no tokens
+        answer = self.json_of("GET", "/api/backup/login",
+                              cookies={identity.SESSION_COOKIE: session_id})
+        self.assertFalse(answer["signedIn"])
+        self.assertTrue(answer["hosted"])
+        self.assertIn("Sign out", answer.get("grund", ""),
+                      "a refusal names the only remedy this deployment has")
+
+    def test_a_lapsed_session_token_is_renewed_before_the_upload(self):
+        """A session lives 24h, its access token commonly five minutes. Handing
+        the stored string out regardless is why a hosted upload would start
+        failing a few minutes after signing in."""
+        import server as app
+
+        # The renewal goes to auth's own configured issuer -- in a hosted
+        # deployment that is the same realm the endpoint trusts, which is
+        # exactly why the session's token is usable there at all.
+        self.enterContext(patch.multiple(auth, ISSUER=self.issuer.url,
+                                         CLIENT_ID="quiltor-web", CLIENT_SECRET=""))
+        auth._discovery_cache.clear()
+        self.addCleanup(auth._discovery_cache.clear)
+
+        session_id = auth.create_session("hosted-person", "", "")
+        session = auth.get_session(session_id)
+        self.issuer.sign_in_as("hosted-person")
+        granted = self.issuer._grant("quiltor.backup")
+        app._remember_tokens(session, {**granted, "expires_in": 0})     # already lapsed
+        stale = session.access_token
+
+        fresh = app.session_backup_token(session)
+        self.assertTrue(fresh)
+        self.assertNotEqual(fresh, stale, "the lapsed token was handed out unchanged")
+        self.assertGreater(session.access_expires_at, time.time(),
+                           "the renewed token was filed without an expiry, so it lapses instantly")
+
+    def test_a_dead_refresh_token_clears_the_session_rather_than_pretending(self):
+        import server as app
+
+        session_id = auth.create_session("hosted-person", "", "")
+        session = auth.get_session(session_id)
+        app._remember_tokens(session, {"access_token": "stale", "refresh_token": "no-such-thing",
+                                       "expires_in": 0})
+        self.assertEqual(app.session_backup_token(session), "",
+                         "a token known to be stale must not be sent anyway")
+        answer = self.json_of("GET", "/api/backup/login",
+                              cookies={identity.SESSION_COOKIE: session_id})
+        self.assertFalse(answer["signedIn"], "and the dialog is told the same thing")
 
     def test_there_is_no_browser_flow_to_start(self):
         """Refused, but with 200 and ok=False like every other refusal this route

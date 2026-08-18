@@ -248,14 +248,26 @@ def login_status(handler, request: Request, app) -> None:
                                   "endpoint": "", "signedIn": False})
     if app.IDENTITY.multi_user:
         session = request.session
+        # Checked, not claimed. The session is what carries the credential here,
+        # and it can carry none: one minted by a render token never had provider
+        # tokens, and a refresh that failed clears them. Answering "signed in"
+        # for those meant the dialog offered an upload that could only 401, with
+        # nothing on screen admitting why. app.session_backup_token also renews
+        # a token that has simply lapsed, so asking is what keeps the answer
+        # true rather than merely once-true.
+        usable = bool(app.session_backup_token(session))
         return handler.send_json({
             "ok": True, "configured": True, "hosted": True, "endpoint": endpoint,
-            "signedIn": True, "account": session.sub, "email": session.email,
+            "signedIn": usable, "account": session.sub, "email": session.email,
             "name": session.name, "issuer": auth.ISSUER, "scope": "",
             # Asserted rather than probed: the login that produced this session
             # went through that issuer, and a "no" here would be actionable by
             # nobody, since this deployment has no second login to offer.
-            "issuerReachable": True})
+            "issuerReachable": True,
+            **({} if usable else {
+                # The only remedy this deployment has, so it is the one named.
+                "grund": "This session carries no valid token for the backup endpoint any more. "
+                         "Sign out and sign in again to get one."})})
     handler.send_json({"ok": True, "configured": True, "hosted": False,
                        **backup_login.status(endpoint)})
 

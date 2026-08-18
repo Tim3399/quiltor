@@ -39,6 +39,7 @@ import os
 import socketserver
 import sys
 import threading
+import time
 import webbrowser
 from dataclasses import dataclass
 from datetime import datetime
@@ -298,6 +299,60 @@ _REQUEST = threading.local()
 #: implementation instead of a second copy of the variable's name.
 _ENVIRONMENT_TOKEN = backup_remote.TOKEN_SOURCE
 
+#: Renew a session's access token this many seconds before it lapses, so an
+#: upload that starts just under the wire does not die halfway through. Same
+#: value and same reason as backend/backup_login.REFRESH_LEEWAY.
+TOKEN_LEEWAY = 30
+
+
+def _remember_tokens(session: "auth.SessionData", tokens: dict) -> None:
+    """Put a provider's token response onto a session.
+
+    `expires_in` is what makes the difference between a token and a token we
+    know the age of: without it the session would keep handing out a string
+    that stopped working minutes ago.
+
+    An *absent* `expires_in` leaves the expiry at 0.0, which reads as "unknown"
+    rather than "expired" -- see session_backup_token. A present one is used
+    even when it is zero, because a provider saying zero is saying the token is
+    spent, which is not the same as saying nothing.
+    """
+    session.access_token = str(tokens.get("access_token", ""))
+    session.refresh_token = str(tokens.get("refresh_token", "") or session.refresh_token)
+    session.access_expires_at = (time.time() + float(tokens.get("expires_in") or 0)
+                                 if "expires_in" in tokens else 0.0)
+
+
+def session_backup_token(session: "auth.SessionData | None") -> str:
+    """A usable access token for `session`, renewing it if it has lapsed.
+
+    This exists because a session outlives its access token by a long way: 24
+    hours against the five minutes a realm typically grants. Handing the stored
+    string out unconditionally means a hosted user's uploads start failing a few
+    minutes after signing in, with nothing on screen admitting it.
+
+    An unknown expiry (0.0, provider sent no `expires_in`) is treated as usable
+    and left to the endpoint to judge -- refreshing on every request because we
+    were not told an age would be worse than occasionally sending a stale token.
+    """
+    if session is None or not session.access_token:
+        return ""
+    fresh = not session.access_expires_at or time.time() < session.access_expires_at - TOKEN_LEEWAY
+    if fresh or not session.refresh_token:
+        return session.access_token
+    try:
+        # Two requests racing here both refresh, and the loser's tokens simply
+        # replace the winner's -- wasteful, never wrong, and not worth a lock
+        # around a network call held across every upload.
+        _remember_tokens(session, auth.refresh_tokens(session.refresh_token))
+    except Exception:
+        # The refresh token is dead too. Say nothing rather than send a token
+        # known to be stale: the endpoint's 401 is the honest answer, and
+        # /api/backup/login reports the same state to the dialog.
+        session.access_token = ""
+        return ""
+    return session.access_token
+
 
 def _backup_token(base_url: str) -> str:
     """Der Bearer-Token für diesen Backup-Endpunkt, aus der Herkunft, die dieser
@@ -317,7 +372,7 @@ def _backup_token(base_url: str) -> str:
     someone who has just signed in through the dialog means that login.
     """
     if IDENTITY.multi_user:
-        return getattr(getattr(_REQUEST, "session", None), "access_token", "") or ""
+        return session_backup_token(getattr(_REQUEST, "session", None))
     return backup_login.access_token(base_url) or _ENVIRONMENT_TOKEN(base_url)
 
 
@@ -498,8 +553,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # Nobody else can reach the session yet; its cookie goes out below.
         session = auth.get_session(session_id)
         if session is not None:
-            session.access_token = str(tokens.get("access_token", ""))
-            session.refresh_token = str(tokens.get("refresh_token", ""))
+            _remember_tokens(session, tokens)
         self._pending_cookies.append(self.cookie_header(SESSION_COOKIE, session_id, max_age=auth.SESSION_TTL))
         self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, "", max_age=0))
         return self.send_redirect("/")

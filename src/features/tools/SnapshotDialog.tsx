@@ -33,8 +33,13 @@ export function SnapshotDialog({ onClose, flush }: { onClose: () => void; flush:
   // out. Reading that as "unreachable" would hide the sign-in button over a
   // question nobody has answered yet, so it gets its own state and a retry.
   const needsSignIn = !!login?.configured && !login.signedIn, canUpload = !!status?.endpoint && !!login?.signedIn;
-  const checking = needsSignIn && login.issuerReachable == null && rechecks < RECHECK_TRIES;
-  const canSignIn = needsSignIn && login.issuerReachable === true;
+  // A hosted instance has no browser flow of its own: its session is the
+  // credential. So a hosted "not signed in" is not something to offer a login
+  // for -- the session's token lapsed and could not be renewed, and the only
+  // remedy is signing out of Quiltor itself and back in.
+  const staleSession = needsSignIn && !!login.hosted;
+  const checking = needsSignIn && !staleSession && login.issuerReachable == null && rechecks < RECHECK_TRIES;
+  const canSignIn = needsSignIn && !staleSession && login.issuerReachable === true;
   useFlushedEffect(flush, () => { void loadLogin(); return api.backupStatus().then(value => { setStatus(value); setMessage(value.vorschlag || ''); }).catch(error => setStatus({ ok: false, grund: errorMessage(error) })); });
   useEffect(() => {
     if (!waiting) return;
@@ -54,7 +59,8 @@ export function SnapshotDialog({ onClose, flush }: { onClose: () => void; flush:
   return <Dialog title={t('snapshotSave')} onClose={onClose}>
     {!status ? <p>{t('loadingBackupStatus')}</p> : !status.ok ? <div className="error-box" role="alert">{status.grund}</div> : <>
       <label className="field"><span>{t('snapshotMessage')}</span><textarea value={message} onChange={event => setMessage(event.target.value)} /></label>
-      {needsSignIn && (checking ? <p className="muted" role="status">{t('backupIssuerChecking')}</p>
+      {needsSignIn && (staleSession ? <div className="error-box" role="alert">{t('backupSessionExpired')}</div>
+        : checking ? <p className="muted" role="status">{t('backupIssuerChecking')}</p>
         : canSignIn ? <p className="muted">{t('backupSignInHint')}</p>
         : <div className="error-box" role="alert">{t('backupIssuerUnreachable')}</div>)}
       {waiting && <p className="muted" role="status">{t('backupSignInWaiting')}</p>}
