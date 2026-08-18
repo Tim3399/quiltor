@@ -2,25 +2,21 @@
   "name": "quiltor",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "npm run check:design && npm run check:i18n && tsc -b && vite build",
-
     "format": "npm run format:web && npm run format:python && npm run format:docs",
     "format:web": "biome format --write .",
     "format:python": "python -m ruff format .",
     "format:docs": "prettier --write \"**/*.{md,yml,yaml,html}\"",
-
     "check:format": "npm run check:format:web && npm run check:format:python && npm run check:format:docs",
     "check:format:web": "biome format .",
     "check:format:python": "python -m ruff format --check .",
     "check:format:docs": "prettier --check \"**/*.{md,yml,yaml,html}\"",
-
     "check:design": "node scripts/check-design.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
-
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
