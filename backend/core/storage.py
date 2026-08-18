@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-BASE = Path(__file__).resolve().parent.parent
+BASE = Path(__file__).resolve().parent.parent.parent
 # QUILTOR_DATA_DIR wins outright (Docker sets it explicitly); QUILTOR_HOME is
 # the packaged CLI's per-user default (see backend/llm/installer.py's HOME);
 # with neither set, a source checkout / Docker keeps using BASE/data as before.
