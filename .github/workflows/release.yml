@@ -333,9 +333,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Named, not "everything". Not every artifact of this run is a release
+      # asset: docker/build-push-action@v6 uploads a build record of its own
+      # (`<owner>~<repo>~<id>.dockerbuild`), and downloading all of them both
+      # failed outright and would have attached that record to the public
+      # Release -- the create step globs release-assets/*, so whatever lands
+      # here ships. This is the three artifacts the build jobs upload on
+      # purpose; the check below is what notices when one of them is missing,
+      # since a glob over fewer files is not an error by itself.
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
+          pattern: "{python-package,macos-dmg,windows-installer}"
           merge-multiple: true
 
       - name: Create and push tag
@@ -357,6 +366,14 @@ jobs:
           set -euo pipefail
           VERSION="${{ needs.version-check.outputs.version }}"
           ls -l release-assets
+          # Every asset named before anything is published. The glob below would
+          # happily create a Release out of whatever did arrive, and a Release
+          # missing the installer is precisely the failure this workflow is
+          # ordered to avoid -- it looks finished.
+          for asset in "Quiltor-$VERSION.dmg" "Quiltor-Setup-$VERSION.exe"; do
+            test -f "release-assets/$asset" || { echo "missing asset: $asset" >&2; exit 1; }
+          done
+          ls release-assets/*.whl >/dev/null || { echo "missing asset: the wheel" >&2; exit 1; }
           gh release create "v$VERSION" --title "v$VERSION" --generate-notes \
             release-assets/*
 

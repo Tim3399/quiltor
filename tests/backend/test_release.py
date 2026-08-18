@@ -319,6 +319,30 @@ class PublishAfterBuildTests(unittest.TestCase):
                 self.assertIn("actions/upload-artifact", body)
                 self.assertNotIn("gh release upload", body)
 
+    def test_only_the_intended_artifacts_are_downloaded_for_the_release(self):
+        """Downloading everything took down a release once: docker's
+        build-push-action uploads a build record of its own, which failed to
+        extract -- and had it not, the create step's glob would have attached it
+        to the public Release. The download names what it wants instead."""
+        body = self._job("tag-and-release")
+        self.assertIn("pattern:", body)
+        for artifact in ("python-package", "macos-dmg", "windows-installer"):
+            self.assertIn(artifact, body, f"{artifact} is no longer downloaded for the Release")
+        self.assertNotIn("dockerbuild", body.split("pattern:")[1].split("\n")[0])
+
+    def test_a_missing_asset_stops_the_release_before_it_is_published(self):
+        """The create step globs release-assets/*, so fewer files is not an
+        error by itself -- it is a Release that exists and is missing the
+        installer, which is the outcome this whole workflow is ordered to
+        avoid."""
+        body = self._job("tag-and-release")
+        create = body.split("gh release create")[0]
+        self.assertIn("missing asset", create,
+                      "nothing checks the assets are all there before publishing")
+        self.assertIn(".dmg", create)
+        self.assertIn(".exe", create)
+        self.assertIn(".whl", create)
+
 
 if __name__ == "__main__":
     unittest.main()
