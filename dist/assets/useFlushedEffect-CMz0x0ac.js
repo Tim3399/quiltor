@@ -1,0 +1,1 @@
+import{Y as e,Z as t}from"./index-CZPyW8RI.js";var n=t(e(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};
