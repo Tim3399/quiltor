@@ -15,10 +15,12 @@ export type GrammarStatus = { supported: boolean; unsupportedReason: string; ava
 // remedies and a failed upload looks identical for all of them: `configured` is
 // about this installation (is there an endpoint at all), `signedIn` about the
 // credential on this machine, and `issuerReachable` separates "you are not
-// signed in" from "nobody could sign in right now". `hosted` means the server
-// signs its own users in and its session already carries the token, so there is
-// no browser flow to offer here. See backend/backup_login.py.
-export type BackupLoginStatus = { ok: boolean; grund?: string; configured: boolean; hosted: boolean; endpoint: string; signedIn: boolean; account?: string; email?: string; name?: string; issuer?: string; scope?: string; issuerReachable?: boolean };
+// signed in" from "nobody could sign in right now" — and is three-valued: null
+// means the lookup has not come back yet, which is neither, and must not be
+// shown as a refusal. `hosted` means the server signs its own users in and its
+// session already carries the token, so there is no browser flow to offer here.
+// See backend/backup_login.py.
+export type BackupLoginStatus = { ok: boolean; grund?: string; configured: boolean; hosted: boolean; endpoint: string; signedIn: boolean; account?: string; email?: string; name?: string; issuer?: string; scope?: string; issuerReachable?: boolean | null };
 export type BackupLoginStart = { ok: boolean; grund?: string; endpoint?: string; authorizeUrl?: string; redirectUri?: string };
 
 export type LanguageStatus = { ok: boolean; installed: boolean; stale: boolean; version: string | null; sources: Record<string, { version: string; url: string; checksum: string; license: string; attribution: string }>; grammar?: GrammarStatus };

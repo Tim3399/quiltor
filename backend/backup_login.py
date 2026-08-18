@@ -144,15 +144,22 @@ def _run_probe(base: str) -> None:
         _probes[base] = (time.time(), result)
 
 
-def _probe(base: str) -> tuple[str, str, bool]:
+def _probe(base: str) -> tuple[str, str, bool | None]:
     """The cached (issuer, scope, reachable) for `base`, refreshed when stale.
 
     Exactly one call ever waits: the one that finds nothing recorded at all and
     starts the lookup. Every other call answers from what is known -- a stale
-    entry, or "not reachable" while the first lookup is still out -- and lets the
+    entry, or "still looking" while the first lookup is out -- and lets the
     running probe finish in the background. That is what keeps a dead endpoint
     from costing PROBE_PATIENCE on every single open of the dialog, while a live
     one is still answered accurately the very first time it is asked about.
+
+    `reachable` is deliberately three-valued: True, False, or None for "not
+    known yet". A slow-but-live issuer that has not answered within
+    PROBE_PATIENCE is not the same thing as one that refused, and reporting
+    False for it would tell the dialog to hide the sign-in button over a
+    question nobody has answered. None says so, and the next call -- by then
+    holding the finished probe -- says something definite.
     """
     now = time.time()
     with _lock:
@@ -169,7 +176,7 @@ def _probe(base: str) -> tuple[str, str, bool]:
         running.join(PROBE_PATIENCE)
         with _lock:
             stamped = _probes.get(base)
-    return stamped[1] if stamped is not None else ("", "", False)
+    return stamped[1] if stamped is not None else ("", "", None)
 
 
 # ------------------------------------------------------------------ the login
@@ -323,7 +330,10 @@ def status(base_url: str) -> dict[str, Any]:
 
     `issuerReachable` separates "you are not signed in" from "nobody could sign
     in right now", which are different problems with different remedies and look
-    identical from a failed upload.
+    identical from a failed upload. It is three-valued: null means the lookup has
+    not come back yet, which is neither of those and must not be reported as the
+    second -- a slow issuer would otherwise hide the sign-in button behind an
+    answer nobody gave.
     """
     base = _key(base_url)
     record = _read(base)

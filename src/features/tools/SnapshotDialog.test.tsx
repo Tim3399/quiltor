@@ -60,6 +60,30 @@ describe('SnapshotDialog', () => {
     expect(screen.getByRole('button', { name: /Sichern & hochladen/ })).toBeDisabled();
   });
 
+  it('sagt "wird geprüft", solange der Anmeldedienst noch keine Antwort gegeben hat', async () => {
+    // null heißt nicht "nicht erreichbar", sondern "noch nicht beantwortet". Der
+    // Unterschied zählt: ein langsamer, aber lebender Anmeldedienst darf nicht
+    // dazu führen, dass der Knopf verschwindet und als Fehler dasteht.
+    backupLoginStatus.mockResolvedValue(loginStatus({ issuerReachable: null }));
+    show();
+    expect(await screen.findByText(/wird gerade geprüft/)).toBeInTheDocument();
+    expect(screen.queryByText(/antwortet gerade nicht/)).not.toBeInTheDocument();
+    // Der Anmeldeknopf bleibt sichtbar, nur noch nicht drückbar -- die Anzeige
+    // nimmt kein Urteil vorweg, das der Server noch gar nicht gefällt hat.
+    expect(screen.getByRole('button', { name: /Bei der Sicherung anmelden/ })).toBeDisabled();
+  });
+
+  it('bietet die Anmeldung an, sobald die Prüfung zurückkommt', async () => {
+    backupLoginStatus.mockResolvedValueOnce(loginStatus({ issuerReachable: null }))
+                     .mockResolvedValue(loginStatus({ issuerReachable: true }));
+    show();
+    expect(await screen.findByText(/wird gerade geprüft/)).toBeInTheDocument();
+    // Auf den Zustandswechsel warten, nicht auf das Element: der Knopf steht die
+    // ganze Zeit da, er ist nur erst deaktiviert.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Bei der Sicherung anmelden/ }))
+      .toBeEnabled(), { timeout: 5000 });
+  });
+
   it('lädt hoch und zeigt das Konto, sobald angemeldet', async () => {
     backupLoginStatus.mockResolvedValue(loginStatus({ signedIn: true, email: 'autorin@example.org' }));
     show();

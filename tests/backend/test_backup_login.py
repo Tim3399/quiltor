@@ -193,7 +193,9 @@ class LoginFlowTests(BackupLoginTestCase):
         # than a person ever could.
         backup_login.forget_cache()
         unreachable = backup_login.status(self.base)
-        self.assertFalse(unreachable["issuerReachable"])
+        # False, not None: a refused connection is an answer, and the dialog may
+        # act on it. None is reserved for "the lookup has not come back".
+        self.assertIs(unreachable["issuerReachable"], False)
 
 
 class StatusCacheTests(BackupLoginTestCase):
@@ -230,14 +232,18 @@ class StatusCacheTests(BackupLoginTestCase):
         started = time.monotonic()
         first = backup_login.status(base)
         waited = time.monotonic() - started
-        self.assertFalse(first["issuerReachable"])
+        # None, not False, and the distinction is the whole point: nothing has
+        # refused here, the question is simply still open. Answering False would
+        # tell the dialog to hide the sign-in button over a verdict nobody
+        # reached -- and this socket may yet turn out to be a slow live issuer.
+        self.assertIsNone(first["issuerReachable"])
         self.assertLess(waited, backup_login.PROBE_PATIENCE + 2,
                         "the first open waits for the probe, but only for PROBE_PATIENCE")
 
         # And every open after it answers straight away: the probe from before is
         # still out there, and nobody waits on it twice.
         started = time.monotonic()
-        self.assertFalse(backup_login.status(base)["issuerReachable"])
+        self.assertIsNone(backup_login.status(base)["issuerReachable"])
         self.assertLess(time.monotonic() - started, 0.5)
 
 
