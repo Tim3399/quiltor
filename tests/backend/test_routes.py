@@ -25,9 +25,19 @@ NOT_CALLED_FROM_THE_CLIENT = {
 
 
 def _client_paths() -> set[str]:
-    """Every '/api/...' literal the frontend fetches."""
+    """Every literal /api/... path the frontend fetches.
+
+    The scan is deliberately independent of JavaScript quote style so a
+    formatter changing single quotes to double quotes cannot disable it.
+    """
     source = API_CLIENT.read_text(encoding="utf-8")
-    return {match for match in re.findall(r"'(/api/[a-zA-Z0-9/_.-]+)'", source)}
+    pattern = re.compile(
+        r"""(?P<quote>["'`])(?P<path>/api/[A-Za-z0-9/_.-]+)(?P=quote)"""
+    )
+    return {
+        match.group("path")
+        for match in pattern.finditer(source)
+    }
 
 
 class RouteTableTests(unittest.TestCase):
