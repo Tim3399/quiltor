@@ -237,6 +237,22 @@ export interface AssistantReply {
   clarification?: { candidates: Array<{ id: string; name: string; kind: string }> };
 }
 
+export type AssistantJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export interface AssistantJobState {
+  id: string;
+  status: AssistantJobStatus;
+  progressId?: string | null;
+  result?: AssistantReply | null;
+  error: string;
+  errorType: string;
+  httpStatus?: number | null;
+  interactionId?: string | null;
+  cancelRequested: boolean;
+  createdAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}
+
 export const PROFILE_FIELDS: Array<[keyof Profile, MessageKey, "short" | "long"]> = [
   ["alter", "profileAge", "short"],
   ["rolle", "profileRoleInStory", "long"],

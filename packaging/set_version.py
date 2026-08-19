@@ -112,11 +112,7 @@ def uncommitted_changes(repo_root: Path = REPO_ROOT) -> list[str]:
         check=True,
     )
 
-    return [
-        line
-        for line in result.stdout.splitlines()
-        if line.strip()
-    ]
+    return [line for line in result.stdout.splitlines() if line.strip()]
 
 
 def _write_text_lf(path: Path, content: str) -> None:
@@ -206,19 +202,13 @@ def apply_version(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="packaging/set_version.py",
-        description=(
-            "Raise the version in VERSION, package.json and "
-            "package-lock.json together."
-        ),
+        description=("Raise the version in VERSION, package.json and package-lock.json together."),
         epilog="Pushing the resulting commit to main is what triggers a release.",
     )
 
     parser.add_argument(
         "version",
-        help=(
-            f"an explicit version such as 2.15.0, "
-            f"or one of: {', '.join(BUMPS)}"
-        ),
+        help=(f"an explicit version such as 2.15.0, or one of: {', '.join(BUMPS)}"),
     )
 
     args = parser.parse_args(argv)
@@ -246,14 +236,12 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         print(
-            "       Re-releasing an existing version does not fail the "
-            "release workflow --",
+            "       Re-releasing an existing version does not fail the release workflow --",
             file=sys.stderr,
         )
 
         print(
-            "       it finds the tag already exists and skips every job, "
-            "green and empty.",
+            "       it finds the tag already exists and skips every job, green and empty.",
             file=sys.stderr,
         )
 
@@ -302,19 +290,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  updated {name}")
 
     print()
-    print(
-        "Next: review the diff, commit it, and merge it to main."
-    )
+    print("Next: review the diff, commit it, and merge it to main.")
 
-    print(
-        f"  git commit -m 'chore: release v{target}' "
-        f"-- {' '.join(written)}"
-    )
+    print(f"  git commit -m 'chore: release v{target}' -- {' '.join(written)}")
 
-    print(
-        "Pushing that to main is what runs "
-        ".github/workflows/release.yml."
-    )
+    print("Pushing that to main is what runs .github/workflows/release.yml.")
 
     return 0
 

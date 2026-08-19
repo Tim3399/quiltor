@@ -31,13 +31,8 @@ def _client_paths() -> set[str]:
     formatter changing single quotes to double quotes cannot disable it.
     """
     source = API_CLIENT.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"""(?P<quote>["'`])(?P<path>/api/[A-Za-z0-9/_.-]+)(?P=quote)"""
-    )
-    return {
-        match.group("path")
-        for match in pattern.finditer(source)
-    }
+    pattern = re.compile(r"""(?P<quote>["'`])(?P<path>/api/[A-Za-z0-9/_.-]+)(?P=quote)""")
+    return {match.group("path") for match in pattern.finditer(source)}
 
 
 class RouteTableTests(unittest.TestCase):
@@ -72,6 +67,13 @@ class RouteTableTests(unittest.TestCase):
                 self.assertIn(path, routes.GET)
                 self.assertIn(path, routes.SAVE)
 
+    def test_assistant_job_routes_are_registered_with_the_expected_methods(self):
+        self.assertIn("/api/assistant/job", routes.GET)
+        self.assertIn("/api/assistant/jobs", routes.SAVE)
+        self.assertIn("/api/assistant/job/cancel", routes.SAVE)
+        # Kept for older clients, but it is now serialized through the same job runner.
+        self.assertIn("/api/assistant/chat", routes.SAVE)
+
     def test_world_scoped_routes_are_the_ones_that_need_a_world(self):
         """Under OIDC these resolve the caller's world before running, which is
         what keeps one account out of another's data. A route dropping off this
@@ -86,6 +88,7 @@ class RouteTableTests(unittest.TestCase):
             "/api/textfassung",
             "/api/assistant/status",
             "/api/assistant/logs",
+            "/api/assistant/job",
         }
         actual = {path for path, entry in routes.GET.items() if entry.world}
         self.assertEqual(actual, expected)
