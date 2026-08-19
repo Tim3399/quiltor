@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from backend import identity
+from backend.assistant.jobs import AssistantJobRunner
 from backend.core import storage
 import server
 
@@ -38,9 +39,18 @@ class _LiveServerTestCase(unittest.TestCase):
         storage.WORLDS = root / "worlds"
         storage.ACTIVE_WORLD_ID = ""
 
-        self.original_server = (server.IDENTITY, server.BOUND_TO_LOOPBACK)
+        self.original_server = (
+            server.IDENTITY,
+            server.BOUND_TO_LOOPBACK,
+            server.ASSISTANT_JOBS,
+        )
         server.IDENTITY = identity.LocalIdentity()
         server.BOUND_TO_LOOPBACK = True
+        server.ASSISTANT_JOBS = AssistantJobRunner(
+            server.ASSISTANT,
+            root,
+            interaction_logger=server._log_assistant_interaction,
+        )
         server.ensure_dirs()
 
         self.httpd = server.Server(("127.0.0.1", 0), server.Handler)
@@ -52,7 +62,8 @@ class _LiveServerTestCase(unittest.TestCase):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join(timeout=5)
-        server.IDENTITY, server.BOUND_TO_LOOPBACK = self.original_server
+        server.ASSISTANT_JOBS.close()
+        server.IDENTITY, server.BOUND_TO_LOOPBACK, server.ASSISTANT_JOBS = self.original_server
         storage.DATA, storage.DB, storage.BACKUPS, storage.WORLDS, storage.ACTIVE_WORLD_ID = (
             self.original_storage
         )
@@ -101,9 +112,8 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
             "sources": [],
             "agentTrace": [],
         }
-        with patch.object(
-            server, "ASSISTANT", MagicMock(complete=MagicMock(return_value=mock_reply))
-        ) as assistant:
+        assistant = MagicMock(complete=MagicMock(return_value=mock_reply))
+        with patch.object(server.ASSISTANT_JOBS, "assistant", assistant):
             status, body = self._post(
                 "/api/assistant/chat", {"question": "Wie geht es Tarek?", "history": []}
             )
@@ -126,15 +136,15 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
             "sources": [],
             "agentTrace": [],
         }
-        with patch.object(
-            server, "ASSISTANT", MagicMock(complete=MagicMock(return_value=mock_reply))
-        ):
+        assistant = MagicMock(complete=MagicMock(return_value=mock_reply))
+        with patch.object(server.ASSISTANT_JOBS, "assistant", assistant):
             self._post("/api/assistant/chat", {"question": "Wie geht es Tarek?", "history": []})
         self.assertEqual(len(self._interactions()), 1)
         self.assertEqual(storage.list_assistant_interactions(), [])  # the sentinel stays empty
 
     def test_a_chat_without_a_world_is_refused_before_the_assistant_runs(self):
-        with patch.object(server, "ASSISTANT", MagicMock()) as assistant:
+        assistant = MagicMock()
+        with patch.object(server.ASSISTANT_JOBS, "assistant", assistant):
             status, body = self._request(
                 "POST", "/api/assistant/chat", {"question": "Wer ist Tarek?"}
             )
@@ -143,7 +153,8 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
         assistant.complete.assert_not_called()
 
     def test_a_chat_naming_an_unknown_world_is_refused(self):
-        with patch.object(server, "ASSISTANT", MagicMock()) as assistant:
+        assistant = MagicMock()
+        with patch.object(server.ASSISTANT_JOBS, "assistant", assistant):
             status, body = self._request(
                 "POST", "/api/assistant/chat", {"question": "Wer ist Tarek?", "worldId": "0" * 32}
             )
@@ -152,18 +163,20 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
         assistant.complete.assert_not_called()
 
     def test_empty_question_is_rejected_without_calling_the_assistant(self):
-        with patch.object(server, "ASSISTANT", MagicMock()) as assistant:
+        assistant = MagicMock()
+        with patch.object(server.ASSISTANT_JOBS, "assistant", assistant):
             status, body = self._post("/api/assistant/chat", {"question": "   ", "history": []})
-        self.assertEqual(status, 503)
+        self.assertEqual(status, 400)
         self.assertFalse(body["ok"])
         assistant.complete.assert_not_called()
 
     def test_oversized_question_is_rejected_without_calling_the_assistant(self):
-        with patch.object(server, "ASSISTANT", MagicMock()) as assistant:
+        assistant = MagicMock()
+        with patch.object(server.ASSISTANT_JOBS, "assistant", assistant):
             status, body = self._post(
                 "/api/assistant/chat", {"question": "x" * 4001, "history": []}
             )
-        self.assertEqual(status, 503)
+        self.assertEqual(status, 400)
         self.assertFalse(body["ok"])
         assistant.complete.assert_not_called()
 
@@ -176,9 +189,8 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
             "agentTrace": [],
         }
         long_history = [{"role": "user", "content": f"turn {i}"} for i in range(60)]
-        with patch.object(
-            server, "ASSISTANT", MagicMock(complete=MagicMock(return_value=mock_reply))
-        ) as assistant:
+        assistant = MagicMock(complete=MagicMock(return_value=mock_reply))
+        with patch.object(server.ASSISTANT_JOBS, "assistant", assistant):
             self._post("/api/assistant/chat", {"question": "Und jetzt?", "history": long_history})
         sent_history = assistant.complete.call_args[0][3]
         self.assertEqual(len(sent_history), 40)
@@ -186,15 +198,10 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
         self.assertEqual(sent_history[-1]["content"], "turn 59")
 
     def test_assistant_failure_is_logged_with_failed_status_and_returns_503(self):
-        with patch.object(
-            server,
-            "ASSISTANT",
-            MagicMock(
-                complete=MagicMock(
-                    side_effect=RuntimeError("Das lokale Modell ist nicht erreichbar.")
-                )
-            ),
-        ):
+        assistant = MagicMock(
+            complete=MagicMock(side_effect=RuntimeError("Das lokale Modell ist nicht erreichbar."))
+        )
+        with patch.object(server.ASSISTANT_JOBS, "assistant", assistant):
             status, body = self._post(
                 "/api/assistant/chat", {"question": "Wie geht es Tarek?", "history": []}
             )

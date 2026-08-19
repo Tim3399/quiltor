@@ -388,7 +388,7 @@ export const api = {
     signal?: AbortSignal,
     chapterIds?: string[],
     batch?: AssistantBatchRequest,
-    idempotencyKey = crypto.randomUUID(),
+    idempotencyKey: string = crypto.randomUUID(),
     onJobCreated?: (job: AssistantJobState) => void,
   ): Promise<AssistantReply> => {
     const created = await createAssistantJob(
