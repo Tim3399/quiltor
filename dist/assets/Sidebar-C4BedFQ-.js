@@ -1,0 +1,1 @@
+import{A as e}from"./index-ogNfys4r.js";var t=e();function n(e){return(0,t.jsx)(`aside`,{...e,className:`ui-inspector ${e.className||``}`.trim()})}export{n as t};
