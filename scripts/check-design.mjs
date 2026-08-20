@@ -18,6 +18,7 @@ const ignored = new Set([
   "test-results",
   "playwright-report",
   ".git",
+  ".claude",
   ".venv-desktop",
   "build",
 ]);

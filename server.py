@@ -53,8 +53,9 @@ force_utf8_streams()
 
 from backend import auth, backup_login, identity
 from backend.api import routes as api_routes
-from backend.core import storage
 from backend.assistant import AssistantRuntime
+from backend.assistant.jobs import AssistantJobRunner
+from backend.core import storage
 from backend.core.backup import BackupContext, SnapshotStore
 from backend.core.backup import remote as backup_remote
 from backend.core.validation import valid_figures, valid_manuscript
@@ -87,6 +88,28 @@ LANGUAGE = LanguageService(DATA)
 MAX_BODY = 16 * 1024 * 1024  # 16 MB limit per save request
 
 _lock = threading.Lock()
+
+
+def _log_assistant_interaction(question, response=None, error="", db_path=None):
+    """Serialize assistant-history writes with the rest of the server's world I/O."""
+
+    with _lock:
+        return storage.log_assistant_interaction(
+            question,
+            response,
+            error=error,
+            db_path=db_path,
+        )
+
+
+# Explicit process lifecycle: routes receive this runner through the server module
+# instead of constructing worker infrastructure on demand. The store itself stays
+# lazy, so merely importing server.py in tests does not create assistant-jobs.sqlite3.
+ASSISTANT_JOBS = AssistantJobRunner(
+    ASSISTANT,
+    DATA,
+    interaction_logger=_log_assistant_interaction,
+)
 
 # ------------------------------------------------- Local-mode request guard
 #
@@ -736,6 +759,7 @@ class Server(socketserver.ThreadingTCPServer):
 
 def run(port: int = 8000, no_open: bool = False, print_token: bool = False) -> None:
     ensure_dirs()
+    ASSISTANT_JOBS.start()
     url = f"http://localhost:{port}/"
 
     print()
@@ -783,6 +807,7 @@ def run(port: int = 8000, no_open: bool = False, print_token: bool = False) -> N
     except KeyboardInterrupt:
         print("\n  Stopped. Your work is stored in data/\n")
     finally:
+        ASSISTANT_JOBS.close()
         ASSISTANT.close()
         LANGUAGE.close()
 

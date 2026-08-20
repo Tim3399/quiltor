@@ -1,5 +1,6 @@
 import type {
   AssistantHistoryMessage,
+  AssistantJobState,
   AssistantReply,
   FigureState,
   BackupStatus,
@@ -150,6 +151,123 @@ async function saveDocument<T extends object>(url: string, kind: keyof typeof re
   return result as { ok: boolean; zeit: string; revision: number };
 }
 
+const ASSISTANT_JOBS_PATH = "/api/assistant/jobs";
+const ASSISTANT_JOB_PATH = "/api/assistant/job";
+const ASSISTANT_JOB_CANCEL_PATH = "/api/assistant/job/cancel";
+const ASSISTANT_JOB_POLL_MS = 1000;
+
+type AssistantBatchRequest = { runBatches: boolean; progressId: string };
+type AssistantJobCreateResult = {
+  ok: boolean;
+  created: boolean;
+  job: AssistantJobState;
+};
+
+function abortError(): DOMException {
+  return new DOMException("The operation was aborted.", "AbortError");
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError();
+}
+
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  return new Promise((resolve, reject) => {
+    const timer = globalThis.setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    const abort = () => {
+      globalThis.clearTimeout(timer);
+      reject(abortError());
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
+async function createAssistantJob(
+  question: string,
+  history: AssistantHistoryMessage[],
+  signal: AbortSignal | undefined,
+  chapterIds: string[] | undefined,
+  batch: AssistantBatchRequest | undefined,
+  idempotencyKey: string,
+): Promise<AssistantJobCreateResult> {
+  const request = () =>
+    json<AssistantJobCreateResult>(ASSISTANT_JOBS_PATH, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+      },
+      body: JSON.stringify(
+        withWorldBody({
+          question,
+          history,
+          chapterIds,
+          runBatches: batch?.runBatches,
+          progressId: batch?.progressId,
+          language: currentLanguage(),
+        }),
+      ),
+      signal,
+    });
+
+  try {
+    return await request();
+  } catch (error) {
+    // A connection can die after the server committed the job but before the
+    // browser received the 202. Retrying once with the SAME key is precisely
+    // what the idempotent endpoint is for. HTTP errors are authoritative and
+    // are never retried here.
+    if (signal?.aborted || error instanceof HttpError) throw error;
+    return request();
+  }
+}
+
+async function getAssistantJob(id: string, signal?: AbortSignal): Promise<AssistantJobState> {
+  const response = await json<{ ok: boolean; job: AssistantJobState }>(
+    withWorldQuery(`${ASSISTANT_JOB_PATH}?id=${encodeURIComponent(id)}`),
+    { signal },
+  );
+  return response.job;
+}
+
+async function cancelAssistantJob(id: string): Promise<AssistantJobState> {
+  const response = await json<{ ok: boolean; job: AssistantJobState }>(ASSISTANT_JOB_CANCEL_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(withWorldBody({ id })),
+  });
+  return response.job;
+}
+
+function replyFromAssistantJob(job: AssistantJobState): AssistantReply {
+  if (job.status === "completed" && job.result) return job.result;
+  if (job.status === "cancelled") throw abortError();
+  if (job.status === "failed")
+    throw new HttpError(job.httpStatus || 503, job.error || "Assistant-Anfrage fehlgeschlagen.");
+  throw new Error(`Assistant job ${job.id} is not terminal.`);
+}
+
+async function waitForAssistantJob(id: string, signal?: AbortSignal): Promise<AssistantReply> {
+  while (true) {
+    throwIfAborted(signal);
+    try {
+      const job = await getAssistantJob(id, signal);
+      if (job.status === "completed" || job.status === "failed" || job.status === "cancelled")
+        return replyFromAssistantJob(job);
+    } catch (error) {
+      // A long-running local inference should survive a short browser/proxy
+      // disconnect. Authoritative HTTP failures still surface immediately; only
+      // transport failures are retried while the caller remains interested.
+      if (signal?.aborted || error instanceof HttpError) throw error;
+    }
+    await delay(ASSISTANT_JOB_POLL_MS, signal);
+  }
+}
+
 export const api = {
   version: () => json<{ ok: boolean; version: string }>("/api/version"),
   worlds: () => json<{ ok: boolean; worlds: WorldInfo[] }>("/api/worlds"),
@@ -261,28 +379,35 @@ export const api = {
     json<{ ok: boolean; running: boolean; phase: string; percent: number; error: string }>(
       "/api/assistant/install/status",
     ),
-  assistantChat: (
+  assistantJobStatus: getAssistantJob,
+  assistantJobCancel: cancelAssistantJob,
+  assistantWait: waitForAssistantJob,
+  assistantChat: async (
     question: string,
     history: AssistantHistoryMessage[] = [],
     signal?: AbortSignal,
     chapterIds?: string[],
-    batch?: { runBatches: boolean; progressId: string },
-  ) =>
-    json<AssistantReply>("/api/assistant/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        withWorldBody({
-          question,
-          history,
-          chapterIds,
-          runBatches: batch?.runBatches,
-          progressId: batch?.progressId,
-          language: currentLanguage(),
-        }),
-      ),
+    batch?: AssistantBatchRequest,
+    idempotencyKey: string = crypto.randomUUID(),
+    onJobCreated?: (job: AssistantJobState) => void,
+  ): Promise<AssistantReply> => {
+    const created = await createAssistantJob(
+      question,
+      history,
       signal,
-    }),
+      chapterIds,
+      batch,
+      idempotencyKey,
+    );
+    onJobCreated?.(created.job);
+    if (
+      created.job.status === "completed" ||
+      created.job.status === "failed" ||
+      created.job.status === "cancelled"
+    )
+      return replyFromAssistantJob(created.job);
+    return waitForAssistantJob(created.job.id, signal);
+  },
   assistantProgress: (id: string) =>
     json<{
       ok: boolean;

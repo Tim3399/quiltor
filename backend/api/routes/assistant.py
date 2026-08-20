@@ -1,8 +1,9 @@
-"""The local assistant: status, logs, progress, runtime install, and chat."""
+"""The local assistant: status, logs, progress, runtime install, jobs, and chat."""
 
 from __future__ import annotations
 
-from datetime import datetime
+import uuid
+from typing import Any
 
 from backend.api.routes import Request, get, save
 from backend.assistant import (
@@ -10,16 +11,17 @@ from backend.assistant import (
     DEFAULT_ASSISTANT_LANGUAGE,
     read_progress,
 )
+from backend.assistant.jobs import (
+    IdempotencyConflict,
+    assistant_error_status,
+    classify_assistant_error,
+)
 from backend.core import storage
 from backend.core.knowledge import build_knowledge
 from backend.llm.installer import (
     install_async,
     is_configured,
     read_install_state,
-)
-from backend.llm.shared.contract import (
-    RuntimeTimeoutError,
-    RuntimeUnavailableError,
 )
 
 
@@ -99,151 +101,200 @@ def install(handler, request: Request, app) -> None:
     )
 
 
-@save("/api/assistant/chat")
-def chat(handler, request: Request, app) -> None:
-    question = ""
+def _prepare_request(
+    handler, request: Request, app
+) -> tuple[Any, dict[str, Any], dict[str, Any]] | None:
+    """Validate one assistant request and snapshot the world it should reason over."""
 
-    try:
-        payload = handler._read_json_body()
-    except Exception as exc:
-        return handler.send_json(
-            {
-                "ok": False,
-                "fehler": str(exc),
-                "errorType": _classify(exc),
-            },
-            _status_code(exc),
-        )
+    payload = handler._read_json_body()
+    world = handler.world_from_body(request.session, payload)
+    if world is None:
+        return None
 
-    # Before anything else, so the failed-interaction log below already knows
-    # which world's database to write to.
-    world = handler.world_from_body(
-        request.session,
-        payload,
+    question = str(payload.get("question", "")).strip()
+    history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    chapter_ids = [str(item) for item in payload.get("chapterIds") or [] if isinstance(item, str)][
+        :50
+    ]
+    run_batches = bool(payload.get("runBatches"))
+    progress_id = str(payload.get("progressId") or "")[:64] or None
+    requested = str(payload.get("language") or "")
+    language = requested if requested in ASSISTANT_REPLY_LANGUAGES else DEFAULT_ASSISTANT_LANGUAGE
+
+    if not question or len(question) > 4000:
+        raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
+
+    with app._lock:
+        manuscript = storage.load_manuscript(world.db_path)
+        figures = storage.load_figures(world.db_path)
+
+    # `intent` defines equality for one idempotency key. progressId is UI
+    # correlation and therefore deliberately excluded from the hash.
+    intent = {
+        "question": question,
+        "history": history[-40:],
+        "chapterIds": chapter_ids,
+        "runBatches": run_batches,
+        "language": language,
+    }
+    execution = {
+        **intent,
+        "worldId": world.id,
+        "progressId": progress_id,
+        # A queued job means "the world when Send was pressed", not whatever
+        # happens to be in SQLite minutes later when the worker reaches it.
+        "manuscript": manuscript,
+        "figures": figures,
+    }
+    return world, intent, execution
+
+
+def _send_direct_error(handler, exc: Exception) -> None:
+    code = 400 if isinstance(exc, (ValueError, TypeError)) else assistant_error_status(exc)
+    handler.send_json(
+        {
+            "ok": False,
+            "fehler": str(exc),
+            "errorType": classify_assistant_error(exc),
+        },
+        code,
     )
 
-    if world is None:
-        return
 
-    db_path = world.db_path
+@save("/api/assistant/jobs")
+def create_job(handler, request: Request, app) -> None:
+    """Create an idempotent assistant job and return without waiting for the model."""
 
     try:
-        question = str(payload.get("question", "")).strip()
-
-        history = payload.get("history") if isinstance(payload.get("history"), list) else []
-
-        chapter_ids = [
-            str(item) for item in payload.get("chapterIds") or [] if isinstance(item, str)
-        ][:50]
-
-        run_batches = bool(payload.get("runBatches"))
-        progress_id = str(payload.get("progressId") or "")[:64] or None
-
-        requested = str(payload.get("language") or "")
-        language = (
-            requested if requested in ASSISTANT_REPLY_LANGUAGES else DEFAULT_ASSISTANT_LANGUAGE
-        )
-
-        if not question or len(question) > 4000:
-            raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
-
-        with app._lock:
-            manuscript = storage.load_manuscript(db_path)
-            figures = storage.load_figures(db_path)
-
-        result = app.ASSISTANT.complete(
-            question,
-            manuscript,
-            figures,
-            history[-40:],
-            chapter_ids,
-            run_batches,
-            progress_id,
-            language,
-        )
-
-        with app._lock:
-            interaction_id = storage.log_assistant_interaction(
-                question,
-                result,
-                db_path=db_path,
+        prepared = _prepare_request(handler, request, app)
+        if prepared is None:
+            return
+        world, intent, execution = prepared
+        key = (handler.headers.get("Idempotency-Key") or "").strip()
+        if not key:
+            return handler.send_json(
+                {
+                    "ok": False,
+                    "fehler": "Für Assistant-Jobs ist ein Idempotency-Key erforderlich.",
+                    "errorType": "missing_idempotency_key",
+                },
+                400,
             )
 
-        print(
-            f"  · {datetime.now():%H:%M:%S}  "
-            f"AI request {interaction_id} — "
-            f"{len(result.get('sources', []))} sources, "
-            f"{len(result.get('proposals', []))} proposals",
-            flush=True,
+        job, created = app.ASSISTANT_JOBS.submit(
+            owner_sub=request.session.sub,
+            world_id=world.id,
+            idempotency_key=key,
+            intent=intent,
+            execution=execution,
+            progress_id=execution.get("progressId"),
         )
-
         handler.send_json(
             {
                 "ok": True,
-                "interactionId": interaction_id,
-                **result,
-            }
+                "created": created,
+                "job": job,
+            },
+            202 if created else 200,
         )
-
-    except Exception as exc:
-        if question:
-            with app._lock:
-                interaction_id = storage.log_assistant_interaction(
-                    question,
-                    error=str(exc),
-                    db_path=db_path,
-                )
-
-            print(
-                f"  ! {datetime.now():%H:%M:%S}  "
-                f"AI request {interaction_id} failed — "
-                f"{type(exc).__name__}: {exc}",
-                flush=True,
-            )
-
+    except IdempotencyConflict as exc:
         handler.send_json(
             {
                 "ok": False,
                 "fehler": str(exc),
-                "errorType": _classify(exc),
+                "errorType": "idempotency_conflict",
             },
-            _status_code(exc),
+            409,
         )
+    except Exception as exc:
+        _send_direct_error(handler, exc)
 
 
-def _classify(exc: Exception) -> str:
-    """Turn backend exceptions into stable frontend error codes."""
+@get("/api/assistant/job", world=True)
+def job_status(handler, request: Request, app) -> None:
+    """Read one job through the same world-ownership gate as other world data."""
 
-    if isinstance(exc, RuntimeTimeoutError):
-        return "timeout"
+    job_id = request.param("id")
+    if not job_id:
+        return handler.send_json({"ok": False, "fehler": "Ungültiger Assistant-Job."}, 400)
 
-    if isinstance(exc, RuntimeUnavailableError):
-        return "runtime_unavailable"
-
-    message = str(exc)
-
-    if "Kontextfenster" in message:
-        return "context_too_large"
-
-    if "nicht installiert" in message:
-        return "runtime_unavailable"
-
-    if "nicht rechtzeitig" in message:
-        return "response_truncated"
-
-    if "strukturiert" in message or "gültig" in message:
-        return "validation_error"
-
-    return "assistant_error"
+    job = app.ASSISTANT_JOBS.get(job_id, request.session.sub, request.world.id)
+    if job is None:
+        return handler.send_json({"ok": False, "fehler": "Assistant-Job nicht gefunden."}, 404)
+    handler.send_json({"ok": True, "job": job})
 
 
-def _status_code(exc: Exception) -> int:
-    """Return the HTTP status matching the assistant failure."""
+@save("/api/assistant/job/cancel")
+def cancel_job(handler, request: Request, app) -> None:
+    try:
+        payload = handler._read_json_body()
+        world = handler.world_from_body(request.session, payload)
+        if world is None:
+            return
+        job_id = str(payload.get("id") or "")
+        if not job_id:
+            raise ValueError("Assistant-Job fehlt.")
+        job = app.ASSISTANT_JOBS.cancel(job_id, request.session.sub, world.id)
+        if job is None:
+            return handler.send_json({"ok": False, "fehler": "Assistant-Job nicht gefunden."}, 404)
+        handler.send_json({"ok": True, "job": job})
+    except Exception as exc:
+        _send_direct_error(handler, exc)
 
-    if isinstance(exc, RuntimeTimeoutError):
-        return 504
 
-    if isinstance(exc, RuntimeUnavailableError):
-        return 503
+@save("/api/assistant/chat")
+def chat(handler, request: Request, app) -> None:
+    """Backward-compatible synchronous endpoint backed by the durable queue.
 
-    return 503
+    Current web clients create `/api/assistant/jobs` and poll `/api/assistant/job`.
+    Older clients can keep using this endpoint, but they no longer bypass the
+    one-inference-at-a-time worker.
+    """
+
+    try:
+        prepared = _prepare_request(handler, request, app)
+        if prepared is None:
+            return
+        world, intent, execution = prepared
+        key = (handler.headers.get("Idempotency-Key") or "").strip() or f"legacy:{uuid.uuid4().hex}"
+
+        job, _ = app.ASSISTANT_JOBS.submit(
+            owner_sub=request.session.sub,
+            world_id=world.id,
+            idempotency_key=key,
+            intent=intent,
+            execution=execution,
+            progress_id=execution.get("progressId"),
+        )
+        terminal = app.ASSISTANT_JOBS.wait(job["id"], request.session.sub, world.id)
+
+        if terminal["status"] == "completed" and terminal.get("result"):
+            return handler.send_json(terminal["result"])
+        if terminal["status"] == "cancelled":
+            return handler.send_json(
+                {
+                    "ok": False,
+                    "fehler": "Anfrage abgebrochen.",
+                    "errorType": "cancelled",
+                },
+                409,
+            )
+        return handler.send_json(
+            {
+                "ok": False,
+                "fehler": terminal.get("error") or "Assistant-Anfrage fehlgeschlagen.",
+                "errorType": terminal.get("errorType") or "assistant_error",
+            },
+            int(terminal.get("httpStatus") or 503),
+        )
+    except IdempotencyConflict as exc:
+        handler.send_json(
+            {
+                "ok": False,
+                "fehler": str(exc),
+                "errorType": "idempotency_conflict",
+            },
+            409,
+        )
+    except Exception as exc:
+        _send_direct_error(handler, exc)

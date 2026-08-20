@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { api, errorMessage } from "../../lib/api";
 import type {
+  AssistantHistoryMessage,
   AssistantProposal,
   AssistantReply,
   AssistantSource,
@@ -39,6 +40,15 @@ type Entry = {
   reply?: AssistantReply;
   error?: string;
   applied: number[];
+  // Persisted while a server-side job is in flight. The backend keeps the job
+  // alive independently of this component, so reopening the drawer or reloading
+  // the page can reconnect to the same expensive inference instead of resending it.
+  requestId?: string;
+  jobId?: string;
+  history?: AssistantHistoryMessage[];
+  chapterIds?: string[];
+  runBatches?: boolean;
+  progressId?: string;
 };
 
 export function AssistantDrawer({
@@ -71,6 +81,16 @@ export function AssistantDrawer({
       return [];
     }
   });
+  const entriesRef = useRef(entries);
+  const persistEntries = useCallback(
+    (update: (current: Entry[]) => Entry[]) => {
+      const next = update(entriesRef.current);
+      entriesRef.current = next;
+      localStorage.setItem(storageKey, JSON.stringify(next.slice(-40)));
+      setEntries(next);
+    },
+    [storageKey],
+  );
   const [draft, setDraft] = useState(""),
     [sending, setSending] = useState(false);
   const [status, setStatus] = useState<{
@@ -99,6 +119,13 @@ export function AssistantDrawer({
   );
   const end = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const activeJobRef = useRef<string | null>(null);
+  // React state is UI state, not a mutex: two handlers can observe the same
+  // `sending === false` render before setSending(true) has committed. This ref
+  // flips synchronously inside the first handler, so a second submit in the same
+  // turn cannot even reach the API. Backend idempotency and the serialized job
+  // queue remain the actual correctness boundary.
+  const sendLockRef = useRef(false);
   const chapterPickerRef = useRef<HTMLDetailsElement>(null);
   const openChapterPicker = () => {
     const el = chapterPickerRef.current;
@@ -159,6 +186,7 @@ export function AssistantDrawer({
   };
   useEffect(() => () => window.clearInterval(installPollRef.current), []);
   useEffect(() => {
+    entriesRef.current = entries;
     localStorage.setItem(storageKey, JSON.stringify(entries.slice(-40)));
     end.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries, storageKey]);
@@ -170,29 +198,106 @@ export function AssistantDrawer({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  const watchBatchProgress = useCallback((progressId: string) => {
+    setBatchProgress({ total: 0, done: 0 });
+    const poll = () => {
+      api
+        .assistantProgress(progressId)
+        .then((res) => {
+          if (res.progress) setBatchProgress(res.progress);
+        })
+        .catch(() => {});
+    };
+    void poll();
+    return window.setInterval(poll, BATCH_PROGRESS_POLL_MS);
+  }, []);
+
+  const storeReply = useCallback((entryId: string, response: AssistantReply) => {
+    const reply = {
+      ...response,
+      proposals: scopeAssistantProposals(response.proposals || [], entryId),
+    };
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.id === entryId
+          ? {
+              ...entry,
+              reply,
+              error: undefined,
+              requestId: undefined,
+              jobId: undefined,
+              history: undefined,
+              chapterIds: undefined,
+              runBatches: undefined,
+              progressId: undefined,
+            }
+          : entry,
+      ),
+    );
+  }, []);
+
+  // A job can outlive a page load. Once its id was persisted in the entry, a
+  // freshly mounted drawer simply resumes polling it; no prompt is sent again.
+  useEffect(() => {
+    if (sending || sendLockRef.current) return;
+    const pending = [...entries]
+      .reverse()
+      .find((entry) => entry.jobId && !entry.reply && !entry.error);
+    if (!pending?.jobId) return;
+
+    sendLockRef.current = true;
+    setSending(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    activeJobRef.current = pending.jobId;
+    const progressInterval = pending.progressId
+      ? watchBatchProgress(pending.progressId)
+      : undefined;
+
+    void api
+      .assistantWait(pending.jobId, controller.signal)
+      .then((response) => storeReply(pending.id, response))
+      .catch((error) => {
+        const message = controller.signal.aborted ? t("requestAborted") : errorMessage(error);
+        setEntries((current) =>
+          current.map((entry) =>
+            entry.id === pending.id
+              ? {
+                  ...entry,
+                  error: message,
+                  requestId: undefined,
+                  jobId: undefined,
+                  progressId: undefined,
+                }
+              : entry,
+          ),
+        );
+      })
+      .finally(() => {
+        sendLockRef.current = false;
+        setSending(false);
+        if (abortRef.current === controller) abortRef.current = null;
+        if (activeJobRef.current === pending.jobId) activeJobRef.current = null;
+        if (progressInterval) window.clearInterval(progressInterval);
+        setBatchProgress(null);
+      });
+  }, [entries, sending, storeReply, t, watchBatchProgress]);
+
   const send = async (retryId?: string, opts?: { batch?: boolean }, explicitQuestion?: string) => {
+    if (sendLockRef.current) return;
     const question =
       explicitQuestion ||
       (retryId ? entries.find((entry) => entry.id === retryId)?.question : draft.trim());
     if (!question || sending) return;
+
+    sendLockRef.current = true;
     const id = retryId ?? crypto.randomUUID();
-    if (retryId)
-      setEntries((current) =>
-        current.map((entry) => (entry.id === id ? { ...entry, error: undefined } : entry)),
-      );
-    else {
-      setDraft("");
-      setEntries((current) => [...current, { id, question, applied: [] }]);
-    }
-    setSending(true);
-    const controller = new AbortController();
-    abortRef.current = controller;
-    let progressInterval: number | undefined;
-    try {
-      // Send the whole (locally capped) transcript -- the backend picks however much
-      // actually fits the model's real token budget (backend/assistant.py's
-      // conversation_messages), so there's no need to pre-guess a turn count here.
-      const history = entries
+    const previous = retryId ? entries.find((entry) => entry.id === retryId) : undefined;
+    const idempotencyKey = previous?.requestId ?? crypto.randomUUID();
+    const history =
+      previous?.history ??
+      entries
         .filter((entry) => entry.id !== id)
         .flatMap((entry) => [
           { role: "user" as const, content: entry.question },
@@ -206,45 +311,105 @@ export function AssistantDrawer({
               ]
             : []),
         ]);
-      const batch = opts?.batch ? { runBatches: true, progressId: crypto.randomUUID() } : undefined;
-      if (batch) {
-        setBatchProgress({ total: 0, done: 0 });
-        progressInterval = window.setInterval(() => {
-          api
-            .assistantProgress(batch.progressId)
-            .then((res) => {
-              if (res.progress) setBatchProgress(res.progress);
-            })
-            .catch(() => {});
-        }, BATCH_PROGRESS_POLL_MS);
-      }
+    const chapterIds =
+      previous?.chapterIds ?? (forcedChapterIds.length ? [...forcedChapterIds] : undefined);
+    const runBatches = previous?.runBatches ?? Boolean(opts?.batch);
+    const progressId = runBatches ? (previous?.progressId ?? crypto.randomUUID()) : undefined;
+    const batch = runBatches && progressId ? { runBatches: true, progressId } : undefined;
+    if (retryId)
+      persistEntries((current) =>
+        current.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                error: undefined,
+                requestId: idempotencyKey,
+                jobId: undefined,
+                history,
+                chapterIds,
+                runBatches,
+                progressId,
+              }
+            : entry,
+        ),
+      );
+    else {
+      setDraft("");
+      // Persist the logical request id before fetch() can reach the server. If
+      // the tab dies after the POST commits but before a response arrives, the
+      // next mount still has the key required to recover the same job.
+      persistEntries((current) => [
+        ...current,
+        {
+          id,
+          question,
+          applied: [],
+          requestId: idempotencyKey,
+          history,
+          chapterIds,
+          runBatches,
+          progressId,
+        },
+      ]);
+    }
+    setSending(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let progressInterval: number | undefined;
+    try {
+      // The history snapshot is persisted with the entry so an ambiguous
+      // creation failure can safely retry the same Idempotency-Key later.
       const response = await api.assistantChat(
         question,
         history,
         controller.signal,
-        forcedChapterIds.length ? forcedChapterIds : undefined,
+        chapterIds,
         batch,
+        idempotencyKey,
+        (job) => {
+          activeJobRef.current = job.id;
+          const progressId = job.progressId || batch?.progressId || undefined;
+          // Persist the returned server job id before polling it. A reload from
+          // this point onward reconnects by id and never resends the prompt.
+          persistEntries((current) =>
+            current.map((entry) =>
+              entry.id === id ? { ...entry, jobId: job.id, progressId } : entry,
+            ),
+          );
+          if (progressId && !progressInterval) progressInterval = watchBatchProgress(progressId);
+        },
       );
-      const reply = {
-        ...response,
-        proposals: scopeAssistantProposals(response.proposals || [], id),
-      };
-      setEntries((current) =>
-        current.map((entry) => (entry.id === id ? { ...entry, reply } : entry)),
-      );
+      storeReply(id, response);
     } catch (error) {
       const message = controller.signal.aborted ? t("requestAborted") : errorMessage(error);
+      const keepRequestId = !controller.signal.aborted && !activeJobRef.current;
       setEntries((current) =>
-        current.map((entry) => (entry.id === id ? { ...entry, error: message } : entry)),
+        current.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                error: message,
+                requestId: keepRequestId ? entry.requestId : undefined,
+                jobId: undefined,
+                progressId: undefined,
+              }
+            : entry,
+        ),
       );
     } finally {
+      sendLockRef.current = false;
       setSending(false);
-      abortRef.current = null;
+      if (abortRef.current === controller) abortRef.current = null;
+      activeJobRef.current = null;
       if (progressInterval) window.clearInterval(progressInterval);
       setBatchProgress(null);
     }
   };
-  const cancel = () => abortRef.current?.abort();
+  const cancel = () => {
+    const jobId = activeJobRef.current;
+    abortRef.current?.abort();
+    if (jobId) void api.assistantJobCancel(jobId).catch(() => {});
+  };
   const apply = (entryId: string, proposals: AssistantProposal[], indices: number[]) => {
     onApply(proposals);
     setEntries((current) =>
@@ -268,7 +433,7 @@ export function AssistantDrawer({
         <div className="assistant-header-actions">
           <button
             className="icon-button"
-            disabled={!entries.length}
+            disabled={!entries.length || sending}
             aria-label={t("newChat")}
             title={t("newChat")}
             onClick={() => setConfirmNewChat(true)}
