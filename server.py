@@ -290,7 +290,7 @@ def restore_world_from_endpoint(
     # Whoever restores it is the owner now, or they would be locked out of the
     # world they just pulled down. Locally that writes storage.LOCAL_OWNER --
     # exactly the owner every local world already carries.
-    with storage.connect(db_path) as conn:
+    with storage.connection(db_path) as conn:
         conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)", (session.sub,))
     print(
         f"  · {datetime.now():%H:%M:%S}  restored world {world_id} from snapshot {entry['id'][:8]}"

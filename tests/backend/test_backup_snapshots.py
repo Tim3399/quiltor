@@ -41,6 +41,13 @@ class SnapshotStoreTest(unittest.TestCase):
         configured = self.store.status(self._world("world-b", "https://backup.example.com"))
         self.assertEqual(configured["endpoint"], "https://backup.example.com")
 
+    def test_collect_releases_the_source_database(self):
+        ctx = self._world("world-a")
+        self.store.status(ctx)
+
+        ctx.database.unlink()
+        self.assertFalse(ctx.database.exists())
+
     def test_commit_creates_a_snapshot_and_history_lists_it(self):
         ctx = self._world("world-a")
         self._write(ctx, "# Kapitel\n\nErster Text.\n")

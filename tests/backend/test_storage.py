@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import sqlite3
 from pathlib import Path
 
 from backend.core import mirror, storage
@@ -27,6 +28,16 @@ class StorageTest(unittest.TestCase):
             self.original
         )
         self.temp.cleanup()
+
+    def test_managed_connection_closes_its_file_handle(self):
+        storage.initialize()
+        with storage.connection() as conn:
+            self.assertEqual(conn.execute("SELECT 1").fetchone()[0], 1)
+
+        with self.assertRaises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")
+        storage.DB.unlink()
+        self.assertFalse(storage.DB.exists())
 
     def test_sqlite_round_trips_unknown_fields(self):
         manuscript_input = {
@@ -128,7 +139,8 @@ class StorageTest(unittest.TestCase):
         presence_by_id = {entry["id"]: entry for entry in figures["presence"]}
         self.assertEqual(presence_by_id["p1"]["momentId"], "t2")
         self.assertNotIn("momentId", presence_by_id["p0"])
-        self.assertEqual(storage.connect().execute("PRAGMA integrity_check").fetchone()[0], "ok")
+        with storage.connection() as conn:
+            self.assertEqual(conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")
 
     def test_rejecting_orphan_is_enforced_by_database(self):
         storage.initialize()

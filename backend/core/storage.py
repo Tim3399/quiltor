@@ -6,9 +6,10 @@ import sqlite3
 import uuid
 import re
 import shutil
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 BASE = Path(__file__).resolve().parent.parent.parent
 # QUILTOR_DATA_DIR wins outright (Docker sets it explicitly); QUILTOR_HOME is
@@ -120,6 +121,7 @@ CREATE INDEX IF NOT EXISTS assistant_interactions_created ON assistant_interacti
 
 
 def connect(path: Path | None = None) -> sqlite3.Connection:
+    """Open a database connection whose lifetime is owned by the caller."""
     conn = sqlite3.connect(path or DB, timeout=15)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -128,11 +130,28 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+@contextmanager
+def connection(path: Path | None = None) -> Iterator[sqlite3.Connection]:
+    """Provide a transactional connection and always release its file handle.
+
+    ``sqlite3.Connection`` commits or rolls back in ``__exit__`` but does not
+    close there. Keeping the close in this owning context manager is important
+    on Windows, where an otherwise successful request can leave the database
+    locked until the next garbage-collection cycle.
+    """
+    conn = connect(path)
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+
 def initialize(path: Path | None = None) -> None:
     """Create only the schema and its internal forward migrations."""
     DATA.mkdir(parents=True, exist_ok=True)
     BACKUPS.mkdir(exist_ok=True)
-    with connect(path) as conn:
+    with connection(path) as conn:
         conn.executescript(SCHEMA)
         current = conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
         version = int(current[0]) if current else 0
@@ -148,7 +167,7 @@ def get_world_owner(world_id: str) -> str | None:
     if not path.exists():
         return None
     try:
-        with connect(path) as conn:
+        with connection(path) as conn:
             row = conn.execute("SELECT value FROM meta WHERE key='owner_sub'").fetchone()
         return row[0] if row else ""
     except sqlite3.Error:
@@ -163,7 +182,7 @@ def list_worlds(owner_sub: str | None = None) -> list[dict[str, str]]:
         if not path.exists():
             continue
         try:
-            with connect(path) as conn:
+            with connection(path) as conn:
                 row = conn.execute("SELECT value FROM meta WHERE key='world_title'").fetchone()
                 repository_row = conn.execute(
                     "SELECT value FROM meta WHERE key='backup_endpoint'"
@@ -214,7 +233,7 @@ def create_world(title: str, backup_url: str = "", owner_sub: str | None = None)
     world_id = uuid.uuid4().hex
     path = WORLDS / f"{world_id}.sqlite3"
     initialize(path)
-    with connect(path) as conn:
+    with connection(path) as conn:
         conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('world_title',?)", (clean,))
         if repository:
             conn.execute(
@@ -262,7 +281,7 @@ def log_assistant_interaction(
     db_path: Path | None = None,
 ) -> str:
     interaction_id = uuid.uuid4().hex
-    with connect(db_path) as conn:
+    with connection(db_path) as conn:
         conn.execute(
             "INSERT INTO assistant_interactions(id,created_at,question,response_json,status,error) VALUES(?,?,?,?,?,?)",
             (
@@ -280,7 +299,7 @@ def log_assistant_interaction(
 def list_assistant_interactions(
     limit: int = 50, db_path: Path | None = None
 ) -> list[dict[str, Any]]:
-    with connect(db_path) as conn:
+    with connection(db_path) as conn:
         rows = conn.execute(
             "SELECT id,created_at,question,response_json,status,error FROM assistant_interactions ORDER BY created_at DESC LIMIT ?",
             (max(1, min(limit, 200)),),
@@ -351,7 +370,7 @@ def revision(kind: str, conn: sqlite3.Connection | None = None, db_path: Path | 
 def save_with_revision(
     kind: str, state: dict[str, Any], expected: int | None, db_path: Path | None = None
 ) -> int:
-    with connect(db_path) as conn:
+    with connection(db_path) as conn:
         current = revision(kind, conn)
         if expected is not None and expected != current:
             raise ConflictError(f"Stand wurde zwischenzeitlich geändert ({expected} → {current}).")
@@ -381,7 +400,7 @@ def _decoded(value: str) -> dict[str, Any]:
 
 
 def load_manuscript(db_path: Path | None = None) -> dict[str, Any]:
-    with connect(db_path) as conn:
+    with connection(db_path) as conn:
         settings = conn.execute("SELECT * FROM manuscript_settings WHERE id=1").fetchone()
         result = _decoded(settings["extra_json"]) if settings else {}
         result["words"] = json.loads(settings["words_json"]) if settings else []
@@ -431,7 +450,7 @@ def save_manuscript(
 
 
 def load_figures(db_path: Path | None = None) -> dict[str, Any]:
-    with connect(db_path) as conn:
+    with connection(db_path) as conn:
         settings = conn.execute("SELECT * FROM figure_settings WHERE id=1").fetchone()
         result = _decoded(settings["extra_json"]) if settings else {}
         if settings:

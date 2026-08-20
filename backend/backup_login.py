@@ -438,9 +438,10 @@ def _save(data: dict[str, Any]) -> None:
         return
     target.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-    # os.open with an explicit mode rather than Path.write_text: the file must
-    # never exist, not even for an instant, with the umask's default permissions,
-    # because what is in it is a credential and not world data.
+    # On POSIX, create with an explicit mode rather than Path.write_text: the file
+    # must never exist, not even briefly, with the umask's default permissions.
+    # Windows does not expose its ACL through POSIX mode bits; the file instead
+    # inherits the owner-scoped ACL of Quiltor's directory in the user profile.
     handle = os.open(str(target), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
     try:
         # The mode argument above only applies when the file is created, so a

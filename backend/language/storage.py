@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 SCHEMA = """
@@ -56,11 +57,12 @@ def insert(
 
 
 def lookup(path: Path, language: str, mode: str, query: str) -> list[dict]:
-    with connect(path, readonly=True) as conn:
-        rows = conn.execute(
-            "SELECT lemma,part_of_speech,meaning,values_json,source FROM entries WHERE language=? AND mode=? AND query=? COLLATE NOCASE ORDER BY id LIMIT 50",
-            (language, mode, query.casefold()),
-        ).fetchall()
+    with closing(connect(path, readonly=True)) as conn:
+        with conn:
+            rows = conn.execute(
+                "SELECT lemma,part_of_speech,meaning,values_json,source FROM entries WHERE language=? AND mode=? AND query=? COLLATE NOCASE ORDER BY id LIMIT 50",
+                (language, mode, query.casefold()),
+            ).fetchall()
     return [
         {
             "lemma": row[0],
@@ -77,8 +79,9 @@ def version(path: Path) -> str | None:
     if not path.exists():
         return None
     try:
-        with connect(path, readonly=True) as conn:
-            row = conn.execute("SELECT value FROM metadata WHERE key='version'").fetchone()
-            return row[0] if row else None
+        with closing(connect(path, readonly=True)) as conn:
+            with conn:
+                row = conn.execute("SELECT value FROM metadata WHERE key='version'").fetchone()
+                return row[0] if row else None
     except sqlite3.Error:
         return None

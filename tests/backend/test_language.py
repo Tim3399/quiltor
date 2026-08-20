@@ -1,7 +1,9 @@
 import io
 import json
+import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from backend.language.installer import validate_checksum
@@ -48,10 +50,10 @@ class LanguageServiceTests(unittest.TestCase):
 
     def test_outdated_database_requires_reinstallation(self):
         self.service.install()
-        import sqlite3
 
-        with sqlite3.connect(self.service.path) as conn:
-            conn.execute("UPDATE metadata SET value='old' WHERE key='version'")
+        with closing(sqlite3.connect(self.service.path)) as conn:
+            with conn:
+                conn.execute("UPDATE metadata SET value='old' WHERE key='version'")
         self.assertFalse(self.service.status()["installed"])
         self.assertTrue(self.service.status()["stale"])
         with self.assertRaises(FileNotFoundError):

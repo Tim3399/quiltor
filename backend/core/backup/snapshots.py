@@ -27,6 +27,7 @@ import re
 import sqlite3
 import tempfile
 import zlib
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -227,11 +228,15 @@ class SnapshotStore:
             # in-flight WAL content that a plain read would miss or tear.
             with tempfile.TemporaryDirectory() as folder:
                 target = Path(folder) / DATABASE_NAME
+                # A sqlite connection's own context manager controls only the
+                # transaction; ``closing`` also releases both file handles before
+                # the staged database is read and its temporary directory removed.
                 with (
-                    sqlite3.connect(ctx.database) as source,
-                    sqlite3.connect(target) as destination,
+                    closing(sqlite3.connect(ctx.database)) as source,
+                    closing(sqlite3.connect(target)) as destination,
                 ):
-                    source.backup(destination)
+                    with source, destination:
+                        source.backup(destination)
                 files[DATABASE_NAME] = target.read_bytes()
         for directory, name in ((ctx.manuscripts, "manuscripts"), (ctx.profiles, "profiles")):
             if not directory.exists():

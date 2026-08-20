@@ -169,7 +169,7 @@ class EntryPointTests(unittest.TestCase):
             with self.subTest(script=target):
                 self.assertTrue(module.exists(), f"{module} is missing")
                 self.assertIn(f"def {function}", module.read_text(encoding="utf-8"))
-                dotted = str(module.relative_to(REPO_ROOT).with_suffix("")).replace("/", ".")
+                dotted = ".".join(module.relative_to(REPO_ROOT).with_suffix("").parts)
                 self.assertIn(f'{target} = "{dotted}:{function}"', pyproject)
 
     def test_the_mcp_configuration_points_at_the_real_server(self):

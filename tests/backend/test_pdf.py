@@ -121,7 +121,7 @@ class DesktopRendererSelectionTests(unittest.TestCase):
     def test_a_server_process_always_gets_the_node_renderer(self):
         """Docker and a source checkout are always `direct`, and a store build is
         never a server -- so this one does not consult the edition at all."""
-        rendered = pdf.server_renderer(Path("/tmp/render.mjs"), Path("/tmp"))
+        rendered = pdf.server_renderer(Path("render.mjs"), Path("project"))
         self.assertTrue(callable(rendered))
 
     def test_the_node_renderer_binds_its_script_and_base(self):
@@ -133,12 +133,14 @@ class DesktopRendererSelectionTests(unittest.TestCase):
             captured["argv"], captured["cwd"] = argv, kwargs.get("cwd")
             raise RuntimeError("stop here -- the invocation is what matters")
 
-        rendered = node_chromium.renderer(Path("/tmp/render.mjs"), Path("/tmp/base"))
+        script = Path("renderer") / "render.mjs"
+        base = Path("project")
+        rendered = node_chromium.renderer(script, base)
         with patch("backend.pdf.node_chromium.subprocess.run", fake_run):
             with self.assertRaises(RuntimeError):
                 rendered("http://127.0.0.1:8843/")
-        self.assertEqual(captured["argv"][:2], ["node", "/tmp/render.mjs"])
-        self.assertEqual(captured["cwd"], Path("/tmp/base"))
+        self.assertEqual(captured["argv"][:2], ["node", str(script)])
+        self.assertEqual(captured["cwd"], base)
 
 
 class PageNumberTests(unittest.TestCase):

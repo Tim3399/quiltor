@@ -301,6 +301,10 @@ class RefreshTests(BackupLoginTestCase):
 
 
 class StorageTests(BackupLoginTestCase):
+    @unittest.skipIf(
+        os.name == "nt",
+        "Windows protects the user profile with ACLs; st_mode does not expose owner-only access",
+    )
     def test_the_credential_file_is_readable_only_by_its_owner(self):
         self._login()
         mode = stat.S_IMODE(os.stat(backup_login.path()).st_mode)

@@ -114,14 +114,15 @@ class BackupProtocolTest(unittest.TestCase):
 
     def test_uploaded_snapshots_are_readable_back(self):
         ctx = self._world()
-        (ctx.manuscripts / "01 - Kapitel.md").write_text("Der Sturm.\n", encoding="utf-8")
+        chapter = ctx.manuscripts / "01 - Kapitel.md"
+        chapter.write_text("Der Sturm.\n", encoding="utf-8")
         self.store.commit(ctx, "Erster Stand", push=True)
 
         manifests = remote.snapshots(ctx)
         self.assertEqual(len(manifests), 1)
         self.assertEqual(manifests[0]["message"], "Erster Stand")
         digest = manifests[0]["files"]["manuscripts/01 - Kapitel.md"]
-        self.assertEqual(remote.fetch_blob(ctx, digest).decode(), "Der Sturm.\n")
+        self.assertEqual(remote.fetch_blob(ctx, digest), chapter.read_bytes())
 
     def test_unchanged_blobs_are_not_re_uploaded(self):
         """A second backup must not re-send a multi-megabyte database that has not

@@ -107,12 +107,13 @@ class ContractCompletenessTests(unittest.TestCase):
     def test_revealing_a_folder_prefers_nsworkspace_over_the_open_subprocess(self):
         """`/usr/bin/open` is a LaunchServices client the App Sandbox denies.
         NSWorkspace is permitted and needs no entitlement."""
+        folder = Path("quiltor-data")
         workspace = MagicMock()
         appkit = MagicMock()
         appkit.NSWorkspace.sharedWorkspace.return_value = workspace
         with patch.dict("sys.modules", {"AppKit": appkit}):
             with patch("backend.system.macos.subprocess.run") as spawned:
-                macos.reveal_in_file_manager(Path("/tmp/quiltor"))
+                macos.reveal_in_file_manager(folder)
         spawned.assert_not_called()
         workspace.activateFileViewerSelectingURLs_.assert_called_once()
 
@@ -120,6 +121,7 @@ class ContractCompletenessTests(unittest.TestCase):
         """A source checkout and the plain CLI have no pyobjc -- it arrives with
         the desktop extra, via pywebview. Those are never sandboxed, so the
         subprocess is still correct there."""
+        folder = Path("quiltor-data")
         real_import = builtins.__import__
 
         def without_appkit(name, *args, **kwargs):
@@ -129,8 +131,8 @@ class ContractCompletenessTests(unittest.TestCase):
 
         with patch.object(builtins, "__import__", without_appkit):
             with patch("backend.system.macos.subprocess.run") as spawned:
-                macos.reveal_in_file_manager(Path("/tmp/quiltor"))
-        self.assertEqual(spawned.call_args.args[0], ["open", "/tmp/quiltor"])
+                macos.reveal_in_file_manager(folder)
+        self.assertEqual(spawned.call_args.args[0], ["open", str(folder)])
 
 
 class NoOsBranchingOutsideTheSystemPackageTests(unittest.TestCase):
