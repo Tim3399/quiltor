@@ -50,6 +50,8 @@ export const figures = {
   connectDirectedHelp:
     "Verbinde rechts mit links für eine gerichtete Beziehung oder Mitte mit Mitte für eine ungerichtete.",
   relationExists: "Diese Beziehung existiert bereits und wurde im Inspector geöffnet.",
+  hideRelationships: "Beziehungen ausblenden",
+  showRelationships: "Beziehungen einblenden",
   invalidDiagramFile: "Diese Datei enthält kein gültiges Figurenboard.",
   element: "Element",
   figuresAndRelationsLabel: "Figuren und Beziehungen",

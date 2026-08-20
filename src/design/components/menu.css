@@ -95,6 +95,11 @@
 .ui-command-palette__results small {
   color: var(--muted);
 }
+.ui-command-palette__results mark {
+  border-radius: var(--radius-xs);
+  background: var(--selection-surface);
+  color: inherit;
+}
 .ui-command-palette__results p {
   color: var(--muted);
   text-align: center;

@@ -9,7 +9,6 @@ import {
   Handle,
   MiniMap,
   Position,
-  addEdge,
   applyNodeChanges,
   useUpdateNodeInternals,
   type Connection,
@@ -85,6 +84,7 @@ import {
   semanticZoomTier,
   type SemanticZoomTier,
 } from "./relationships";
+import "./FigureWorkspace.css";
 
 type CardData = {
   figure: FigureNode;
@@ -280,6 +280,7 @@ function FigureWorkspaceInner({
   const [pendingImport, setPendingImport] = useState<FigureState | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [relationshipsVisible, setRelationshipsVisible] = useState(true);
   const [manageMenuOpen, setManageMenuOpen] = useState(false);
   const [nodeMenu, setNodeMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [activeMomentId, setActiveMomentId] = useState<string | null>(null);
@@ -483,7 +484,10 @@ function FigureWorkspaceInner({
     }
     return result;
   }, [journeyOverlayOpen, selected, presence, timeline, activeMomentId, state.nodes]);
-  const allEdges = useMemo<Edge[]>(() => [...edges, ...journeyEdges], [edges, journeyEdges]);
+  const allEdges = useMemo<Edge[]>(
+    () => [...(relationshipsVisible ? edges : []), ...journeyEdges],
+    [relationshipsVisible, edges, journeyEdges],
+  );
 
   const patchNode = (id: string, patch: Partial<FigureNode>) =>
     onChange({
@@ -536,9 +540,8 @@ function FigureWorkspaceInner({
         setConnectionError(t("relationExists"));
         return;
       }
-      const uiEdge = addEdge(connection, edges).at(-1);
       const edge: FigureEdge = {
-        id: uiEdge?.id || uid("e"),
+        id: uid("e"),
         from: connection.source,
         to: connection.target,
         fromHandle: connection.sourceHandle || undefined,
@@ -562,10 +565,10 @@ function FigureWorkspaceInner({
           : {}),
       };
       onChange({ ...state, edges: [...state.edges, edge] });
-      setConnecting(false);
+      setRelationshipsVisible(true);
       setConnectionError("");
     },
-    [activeMomentId, edges, onChange, state, t],
+    [activeMomentId, onChange, state, t],
   );
   const moveNodes = useCallback((changes: NodeChange<Node<CardData>>[]) => {
     setFlowNodes((current) => applyNodeChanges(changes, current));
@@ -701,7 +704,10 @@ function FigureWorkspaceInner({
           <button
             aria-pressed={connecting}
             className={connecting ? "active" : ""}
-            onClick={() => setConnecting(!connecting)}
+            onClick={() => {
+              setConnecting((value) => !value);
+              if (!connecting) setRelationshipsVisible(true);
+            }}
           >
             <Link2 />
             {t("connect")}
@@ -742,6 +748,16 @@ function FigureWorkspaceInner({
               >
                 <LayoutGrid />
                 {t("arrangeGrid")}
+              </MenuItem>
+              <MenuItem
+                disabled={!state.edges.length}
+                onSelect={() => {
+                  setRelationshipsVisible((value) => !value);
+                  setViewMenuOpen(false);
+                }}
+              >
+                <Link2 />
+                {relationshipsVisible ? t("hideRelationships") : t("showRelationships")}
               </MenuItem>
               <MenuSeparator />
               <MenuItem

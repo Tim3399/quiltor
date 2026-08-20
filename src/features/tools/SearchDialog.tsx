@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Clock3, Command, FileText, MapPin, UserRound } from "lucide-react";
-import type { FigureState, Manuscript, Workspace } from "../../types";
+import type { FigureState, Manuscript, Workspace, WorkspaceTarget } from "../../types";
 import { CommandPalette, type CommandPaletteItem } from "../../shared/ui/CommandPalette";
 import { kindLabel } from "../figures/relationships";
 import { useLanguage } from "../../language";
+import { textSearchRanges } from "../manuscript/search";
 
 export function SearchDialog({
   manuscript,
@@ -17,10 +18,11 @@ export function SearchDialog({
   figures: FigureState;
   onClose: () => void;
   onWorkspace: (value: Workspace) => void;
-  onSelect: (target: { workspace: Workspace; id: string }) => void;
+  onSelect: (target: WorkspaceTarget) => void;
   onCommand: (command: string) => void;
 }) {
   const { t } = useLanguage();
+  const [query, setQuery] = useState("");
   const items = useMemo<CommandPaletteItem[]>(() => {
     const commands: CommandPaletteItem[] = [
       ["text", t("switchToManuscript")],
@@ -38,18 +40,39 @@ export function SearchDialog({
       icon: <Command />,
       onSelect: () => onCommand(id),
     }));
-    const chapters: CommandPaletteItem[] = manuscript.chapters.map((chapter) => ({
-      id: `chapter-${chapter.id}`,
-      label: chapter.title || t("untitled"),
-      detail: chapter.body.slice(0, 120),
-      keywords: [chapter.body, chapter.note],
-      icon: <FileText />,
-      requiresQuery: true,
-      onSelect: () => {
-        onWorkspace("text");
-        onSelect({ workspace: "text", id: chapter.id });
-      },
-    }));
+    const needle = query.trim();
+    const chapters: CommandPaletteItem[] = manuscript.chapters.flatMap((chapter) => {
+      const matches = textSearchRanges(chapter.body, needle);
+      const metadataMatches = [chapter.title, chapter.note].some((value) =>
+        value.toLocaleLowerCase().includes(needle.toLocaleLowerCase()),
+      );
+      if (needle && !matches.length && !metadataMatches) return [];
+      const first = matches[0];
+      return [
+        {
+          id: `chapter-${chapter.id}`,
+          label: chapter.title || t("untitled"),
+          detail: first
+            ? `${t("searchMatchCount", { count: matches.length })} · ${matchPreview(
+                chapter.body,
+                first.from,
+                first.to,
+              )}`
+            : chapter.note || chapter.body.slice(0, 120),
+          keywords: [chapter.body, chapter.note],
+          icon: <FileText />,
+          requiresQuery: true,
+          onSelect: () => {
+            onWorkspace("text");
+            onSelect({
+              workspace: "text",
+              id: chapter.id,
+              ...(first ? { textSearch: { query: needle, from: first.from, to: first.to } } : {}),
+            });
+          },
+        },
+      ];
+    });
     const nodes: CommandPaletteItem[] = figures.nodes.map((node) => ({
       id: `node-${node.id}`,
       label: node.name,
@@ -76,7 +99,16 @@ export function SearchDialog({
       },
     }));
     return [...commands, ...chapters, ...nodes, ...moments];
-  }, [manuscript.chapters, figures.nodes, figures.timeline, onCommand, onWorkspace, onSelect, t]);
+  }, [
+    manuscript.chapters,
+    figures.nodes,
+    figures.timeline,
+    onCommand,
+    onWorkspace,
+    onSelect,
+    query,
+    t,
+  ]);
   return (
     <CommandPalette
       open
@@ -86,6 +118,15 @@ export function SearchDialog({
       emptyLabel={t("noSearchResults")}
       items={items}
       onClose={onClose}
+      onQueryChange={setQuery}
     />
   );
+}
+
+function matchPreview(value: string, from: number, to: number) {
+  const start = Math.max(0, from - 42),
+    end = Math.min(value.length, to + 74);
+  return `${start ? "…" : ""}${value.slice(start, end).replace(/\s+/g, " ").trim()}${
+    end < value.length ? "…" : ""
+  }`;
 }

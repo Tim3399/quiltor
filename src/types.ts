@@ -2,6 +2,16 @@ import type { MessageKey } from "./language";
 import type { WritingLanguage } from "./language/writing";
 
 export type Workspace = "text" | "figures" | "timeline" | "places";
+export type TextSearchTarget = {
+  query: string;
+  from: number;
+  to: number;
+};
+export type WorkspaceTarget = {
+  workspace: Workspace;
+  id: string;
+  textSearch?: TextSearchTarget;
+};
 export type SavePhase = "idle" | "dirty" | "saving" | "saved" | "error";
 
 export interface EntityMention {

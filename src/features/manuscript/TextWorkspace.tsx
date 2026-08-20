@@ -1,17 +1,16 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Copy,
   Download,
   FilePlus2,
   Focus,
   History as HistoryIcon,
-  MoreHorizontal,
   PanelLeft,
-  PanelLeftClose,
   PanelRight,
-  PanelRightClose,
   Pilcrow,
   Printer,
   Redo2,
@@ -26,6 +25,7 @@ import type {
   FigureNode,
   FigureState,
   Manuscript,
+  TextSearchTarget,
   Workspace,
   WritingIssue,
 } from "../../types";
@@ -41,7 +41,7 @@ import { writingVocabulary } from "./autocomplete";
 import { useLanguage } from "../../language";
 import { Sheet } from "../../shared/ui/Sheet";
 import { SegmentedControl } from "../../shared/ui/SegmentedControl";
-import { Menu, MenuItem, MenuSeparator } from "../../shared/ui/Menu";
+import { Menu, MenuItem } from "../../shared/ui/Menu";
 import { Popover } from "../../shared/ui/Popover";
 import { SelectionMenu } from "../../shared/ui/SelectionMenu";
 import type { ViewportMode } from "../../hooks/useWorkspaceLayout";
@@ -53,6 +53,8 @@ import {
 import { addDeterministicMentions, scanEntityMentions } from "./mentions";
 import { bodyParagraphs, markdownBody, markedSegments } from "./marks";
 import { kindLabel } from "../figures/relationships";
+import { manuscriptSearchMatches } from "./search";
+import { editorBalanceOffset } from "./editorLayout";
 
 // The writing aid used to stack five unrelated jobs into one 294px scroll. It now holds
 // three activities and shows exactly one of them: looking a word up, checking the chapter,
@@ -72,6 +74,7 @@ export function TextWorkspace({
   focus,
   onFocus,
   targetId,
+  textSearch,
   onUndo,
   onRedo,
   canUndo = false,
@@ -100,6 +103,7 @@ export function TextWorkspace({
   focus: boolean;
   onFocus: (value: boolean) => void;
   targetId?: string;
+  textSearch?: TextSearchTarget;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -120,7 +124,6 @@ export function TextWorkspace({
   const { t, language: uiLanguage } = useLanguage();
   const keys = useShortcut();
   const [currentId, setCurrentId] = useState(manuscript.chapters[0]?.id ?? "");
-  const [chapterMenuOpen, setChapterMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [localBinderOpen, setLocalBinderOpen] = useState(() => window.innerWidth >= 720);
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
@@ -160,31 +163,93 @@ export function TextWorkspace({
   >("idle");
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [commits, setCommits] = useState<SnapshotInfo[]>([]);
   const [historyRef, setHistoryRef] = useState("");
   const [historicalText, setHistoricalText] = useState("");
   const [historyState, setHistoryState] = useState<"idle" | "loading" | "error">("idle");
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
   const [exportError, setExportError] = useState("");
+  const [layoutWidth, setLayoutWidth] = useState(() => window.innerWidth);
   const editor = useRef<ManuscriptEditorHandle | null>(null);
   const lookupRequest = useRef<AbortController | null>(null);
   const grammarRequest = useRef<AbortController | null>(null);
   const selectionAnchor = useRef<HTMLButtonElement>(null);
   const exportButton = useRef<HTMLButtonElement>(null);
-  const chapterMenuButton = useRef<HTMLButtonElement>(null);
   const layout = useRef<HTMLDivElement>(null);
   const current =
     manuscript.chapters.find((chapter) => chapter.id === currentId) ?? manuscript.chapters[0];
   const currentRef = useRef(current);
   currentRef.current = current;
   const currentIndex = current ? manuscript.chapters.indexOf(current) + 1 : 0;
+  const editorBalance =
+    viewportMode === "wide" && !focus && !historyOpen
+      ? editorBalanceOffset(
+          layoutWidth,
+          binderOpen ? sidebarWidth : 0,
+          inspectorOpen && current ? inspectorWidth : 0,
+        )
+      : null;
+  const searchMatches = useMemo(
+    () => manuscriptSearchMatches(manuscript.chapters, searchQuery),
+    [manuscript.chapters, searchQuery],
+  );
+  const activeSearchMatch = searchMatches[activeSearchIndex] ?? null;
+  const currentSearchMatches = useMemo(
+    () => searchMatches.filter((match) => match.chapterId === current?.id),
+    [searchMatches, current?.id],
+  );
   useEffect(() => {
     if (targetId && manuscript.chapters.some((chapter) => chapter.id === targetId))
       setCurrentId(targetId);
-  }, [targetId, manuscript.chapters]);
+  }, [targetId]);
+  useEffect(() => {
+    const requestedSearch = textSearch,
+      query = requestedSearch?.query.trim();
+    if (!query || !targetId || !requestedSearch) return;
+    const matches = manuscriptSearchMatches(manuscript.chapters, query);
+    const requested = matches.findIndex(
+      (match) =>
+        match.chapterId === targetId &&
+        match.from === requestedSearch.from &&
+        match.to === requestedSearch.to,
+    );
+    setSearchQuery(query);
+    setActiveSearchIndex(requested >= 0 ? requested : 0);
+    if (manuscript.chapters.some((chapter) => chapter.id === targetId)) setCurrentId(targetId);
+  }, [targetId, textSearch]);
+  useEffect(() => {
+    if (!searchQuery) return;
+    setActiveSearchIndex((index) => Math.min(index, Math.max(0, searchMatches.length - 1)));
+  }, [searchMatches.length, searchQuery]);
+  useEffect(() => {
+    if (!activeSearchMatch || activeSearchMatch.chapterId !== current?.id) return;
+    const frame = requestAnimationFrame(() =>
+      editor.current?.reveal(activeSearchMatch.from, activeSearchMatch.to),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [activeSearchMatch?.chapterId, activeSearchMatch?.from, activeSearchMatch?.to, current?.id]);
   useEffect(() => {
     if (!focus) setFocusHelpers(false);
   }, [focus]);
+  useEffect(() => {
+    const element = layout.current;
+    if (!element) return;
+    const update = () => {
+      if (element.clientWidth > 0) setLayoutWidth(element.clientWidth);
+    };
+    update();
+    window.addEventListener("resize", update);
+    if (typeof ResizeObserver !== "function")
+      return () => window.removeEventListener("resize", update);
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
   useEffect(() => {
     if (!historyOpen || commits.length) return;
     setHistoryState("loading");
@@ -218,6 +283,12 @@ export function TextWorkspace({
     () => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0),
     [manuscript.chapters],
   );
+  const navigateSearch = (offset: number) => {
+    if (!searchMatches.length) return;
+    const next = (activeSearchIndex + offset + searchMatches.length) % searchMatches.length;
+    setActiveSearchIndex(next);
+    setCurrentId(searchMatches[next].chapterId);
+  };
   const vocabulary = useMemo(
     () => writingVocabulary(manuscript, figures),
     [manuscript.words, figures.nodes],
@@ -571,14 +642,72 @@ export function TextWorkspace({
     <>
       <div className="panel-heading">
         <span>{t("chapters")}</span>
-        <button
-          className="icon-button"
-          onClick={() => setBinderOpen(false)}
-          aria-label={t("closeNavigation")}
-        >
-          <PanelLeftClose />
-        </button>
+        {viewportMode === "compact" && (
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setBinderOpen(false)}
+            aria-label={t("closeNavigation")}
+          >
+            <X />
+          </button>
+        )}
       </div>
+      {current && (
+        <section className="binder-chapter-actions">
+          <span>{t("chapterActions")}</span>
+          <div
+            role="group"
+            aria-label={`${t("chapterActions")}: ${current.title || t("untitled")}`}
+          >
+            <button
+              type="button"
+              className="icon-button"
+              disabled={currentIndex <= 1}
+              onClick={() => move(-1)}
+              aria-label={t("moveUp")}
+              title={t("moveUp")}
+            >
+              <ChevronUp />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              disabled={currentIndex >= manuscript.chapters.length}
+              onClick={() => move(1)}
+              aria-label={t("moveDown")}
+              title={t("moveDown")}
+            >
+              <ChevronDown />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() =>
+                runExport(
+                  download(
+                    `${current.title || t("chapter")}.md`,
+                    `# ${current.title}\n\n${markdownBody(current.body, current.marks)}\n`,
+                  ),
+                )
+              }
+              aria-label={t("chapterMarkdown")}
+              title={t("chapterMarkdown")}
+            >
+              <Download />
+            </button>
+            <button
+              type="button"
+              className="icon-button chapter-action-delete"
+              onClick={() => setDeleteOpen(true)}
+              aria-label={t("deleteChapter")}
+              title={t("deleteChapter")}
+            >
+              <Trash2 />
+            </button>
+          </div>
+        </section>
+      )}
       <div className="chapter-list">
         {manuscript.chapters.map((chapter, index) => (
           <button
@@ -628,20 +757,22 @@ export function TextWorkspace({
       </footer>
     </>
   );
-  // The right column has one job now: the writing aid. Everything about the chapter itself --
-  // its name, its order, its note, its counts -- lives on the left or above the text, where the
-  // chapter is. What used to be a two-tab inspector is a panel again.
+  // The right column has one job: the writing aid. Chapter actions stay with the chapter list
+  // on the left, while the persistent edge control opens and closes this panel on desktop.
   const inspectorPanel = current ? (
     <>
       <div className="panel-heading">
         <span>{t("writingAid")}</span>
-        <button
-          className="icon-button"
-          onClick={() => setInspectorOpen(false)}
-          aria-label={t("closeWritingAid")}
-        >
-          <PanelRightClose />
-        </button>
+        {viewportMode === "compact" && (
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setInspectorOpen(false)}
+            aria-label={t("closeWritingAid")}
+          >
+            <X />
+          </button>
+        )}
       </div>
       <div className="helper-panel">
         <div className="helper-modes" role="tablist" aria-label={t("writingAidSection")}>
@@ -1051,30 +1182,30 @@ export function TextWorkspace({
             {t("newChapter")}
           </button>
         </div>
-        {/* Both columns are reached the same way. The chapter column used to be openable only
-          from the unlabelled icon in the app bar, which was survivable while it held nothing
-          but a list -- now it carries the note as well, and closing it looked one-way: the
-          panel has its own close button, but nothing in sight said how to get it back. */}
-        <div className="tool-group panel-toggles">
-          <button
-            aria-pressed={binderOpen}
-            onClick={() => setBinderOpen(!binderOpen)}
-            aria-label={t("chapters")}
-            title={t("chapters")}
-          >
-            <PanelLeft />
-            <span>{t("chapters")}</span>
-          </button>
-          <button
-            aria-pressed={inspectorOpen}
-            onClick={() => setInspectorOpen(!inspectorOpen)}
-            aria-label={t("writingAid")}
-            title={t("writingAid")}
-          >
-            <PanelRight />
-            <span>{t("writingAid")}</span>
-          </button>
-        </div>
+        {/* Compact panels are modal sheets and need their launchers in the toolbar. On larger
+          screens persistent controls sit at the panel edges, just like in focus mode. */}
+        {viewportMode === "compact" && (
+          <div className="tool-group panel-toggles">
+            <button
+              aria-pressed={binderOpen}
+              onClick={() => setBinderOpen(!binderOpen)}
+              aria-label={t("chapters")}
+              title={t("chapters")}
+            >
+              <PanelLeft />
+              <span>{t("chapters")}</span>
+            </button>
+            <button
+              aria-pressed={inspectorOpen}
+              onClick={() => setInspectorOpen(!inspectorOpen)}
+              aria-label={t("writingAid")}
+              title={t("writingAid")}
+            >
+              <PanelRight />
+              <span>{t("writingAid")}</span>
+            </button>
+          </div>
+        )}
         <div className="tool-group">
           <button
             disabled={!canUndo}
@@ -1099,6 +1230,18 @@ export function TextWorkspace({
             {t("focus")}
           </button>
         </div>
+        {current && (
+          <div className="tool-group">
+            <button
+              aria-pressed={historyOpen}
+              onClick={() => setHistoryOpen((open) => !open)}
+              title={t("versions")}
+            >
+              <HistoryIcon />
+              {t("versions")}
+            </button>
+          </div>
+        )}
         <div className="tool-group">
           <button
             ref={exportButton}
@@ -1136,30 +1279,36 @@ export function TextWorkspace({
               <Printer />
               {pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
             </MenuItem>
-            <MenuItem
-              onSelect={() => {
-                setHistoryOpen(true);
-                setExportOpen(false);
-              }}
-            >
-              <HistoryIcon />
-              {t("versions")}
-            </MenuItem>
           </Menu>
         </Popover>
       </div>
       <div
         ref={layout}
-        className={`text-layout ${!binderOpen || focus ? "no-binder" : ""} ${!inspectorOpen || focus ? "no-inspector" : ""}`}
+        className={`text-layout ${!binderOpen || focus ? "no-binder" : ""} ${!inspectorOpen || focus || !current ? "no-inspector" : ""} ${editorBalance !== null ? "has-balanced-editor" : ""}`}
         style={
           {
             "--workspace-sidebar-width": `${sidebarWidth}px`,
             "--workspace-inspector-width": `${inspectorWidth}px`,
+            "--editor-balance-offset": `${Math.round(editorBalance ?? 0)}px`,
           } as React.CSSProperties
         }
       >
+        {!focus && viewportMode !== "compact" && (
+          <button
+            type="button"
+            className={`focus-side-toggle panel-edge-toggle panel-edge-toggle--left ${binderOpen ? "is-open" : ""}`}
+            aria-expanded={binderOpen}
+            aria-controls="chapter-binder"
+            aria-label={binderOpen ? t("closeNavigation") : t("openNavigation")}
+            title={binderOpen ? t("closeNavigation") : t("openNavigation")}
+            onClick={() => setBinderOpen(!binderOpen)}
+          >
+            {binderOpen ? <X /> : <PanelLeft />}
+          </button>
+        )}
         {!focus && viewportMode !== "compact" && binderOpen && (
           <aside
+            id="chapter-binder"
             className="binder drawer-open"
             aria-label={t("chapters")}
             style={{ width: sidebarWidth }}
@@ -1187,36 +1336,70 @@ export function TextWorkspace({
         <article className="editor-scroll">
           {current ? (
             <div className={`editor-page ${historyOpen ? "has-chapter-history" : ""}`}>
-              {/* Renaming, reordering, exporting and deleting are all things done to the chapter
-              in front of you, so they hang off its name instead of off a panel elsewhere. */}
               <div className="editor-document">
-                <div className="chapter-headline">
-                  <input
-                    className="chapter-title"
-                    aria-label={t("chapterTitle")}
-                    value={current.title}
-                    onChange={(event) => update({ title: event.target.value })}
-                    placeholder={t("chapterTitle")}
-                  />
-                  {!focus && (
+                <input
+                  className="chapter-title"
+                  aria-label={t("chapterTitle")}
+                  value={current.title}
+                  onChange={(event) => update({ title: event.target.value })}
+                  placeholder={t("chapterTitle")}
+                />
+                {searchQuery && (
+                  <div
+                    className="text-search-navigation"
+                    role="search"
+                    aria-label={t("textSearchResults")}
+                  >
+                    <Search aria-hidden="true" />
+                    <strong title={searchQuery}>{searchQuery}</strong>
+                    <span role="status" aria-live="polite">
+                      {t("searchResultPosition", {
+                        current: activeSearchMatch ? activeSearchIndex + 1 : 0,
+                        total: searchMatches.length,
+                      })}
+                    </span>
                     <button
-                      ref={chapterMenuButton}
-                      className="icon-button chapter-menu-button"
-                      aria-haspopup="menu"
-                      aria-expanded={chapterMenuOpen}
-                      aria-label={t("chapterActions")}
-                      onClick={() => setChapterMenuOpen((value) => !value)}
+                      className="icon-button"
+                      disabled={!searchMatches.length}
+                      onClick={() => navigateSearch(-1)}
+                      aria-label={t("previousSearchResult")}
+                      title={t("previousSearchResult")}
                     >
-                      <MoreHorizontal />
+                      <ChevronLeft />
                     </button>
-                  )}
-                </div>
+                    <button
+                      className="icon-button"
+                      disabled={!searchMatches.length}
+                      onClick={() => navigateSearch(1)}
+                      aria-label={t("nextSearchResult")}
+                      title={t("nextSearchResult")}
+                    >
+                      <ChevronRight />
+                    </button>
+                    <button
+                      className="icon-button"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setActiveSearchIndex(0);
+                        editor.current?.focus();
+                      }}
+                      aria-label={t("closeTextSearch")}
+                      title={t("closeTextSearch")}
+                    >
+                      <X />
+                    </button>
+                  </div>
+                )}
                 <ManuscriptEditor
                   key={current.id}
                   value={current.body}
                   mentions={current.mentions}
                   marks={current.marks}
                   issues={grammarIssues}
+                  searchMatches={currentSearchMatches}
+                  activeSearchMatch={
+                    activeSearchMatch?.chapterId === current.id ? activeSearchMatch : null
+                  }
                   entities={figures.nodes}
                   label={t("chapterText")}
                   placeholder={t("startWritingPlaceholder")}
@@ -1326,8 +1509,22 @@ export function TextWorkspace({
             </div>
           )}
         </article>
+        {!focus && viewportMode !== "compact" && current && (
+          <button
+            type="button"
+            className={`focus-helper-toggle panel-edge-toggle panel-edge-toggle--right ${inspectorOpen ? "is-open" : ""}`}
+            aria-expanded={inspectorOpen}
+            aria-controls="writing-aid-inspector"
+            aria-label={inspectorOpen ? t("closeWritingAid") : t("openWritingAid")}
+            title={inspectorOpen ? t("closeWritingAid") : t("openWritingAid")}
+            onClick={() => setInspectorOpen(!inspectorOpen)}
+          >
+            {inspectorOpen ? <X /> : <Pilcrow />}
+          </button>
+        )}
         {!focus && viewportMode !== "compact" && inspectorOpen && inspectorPanel && (
           <aside
+            id="writing-aid-inspector"
             className="inspector drawer-open"
             aria-label={t("writingAid")}
             style={{ width: inspectorWidth }}
@@ -1353,62 +1550,6 @@ export function TextWorkspace({
           </aside>
         )}
       </div>
-      {current && (
-        <Popover
-          anchorRef={chapterMenuButton}
-          open={chapterMenuOpen}
-          onClose={() => setChapterMenuOpen(false)}
-          label={t("chapterActions")}
-        >
-          <Menu label={t("chapterActions")} onClose={() => setChapterMenuOpen(false)}>
-            <MenuItem
-              disabled={currentIndex <= 1}
-              onSelect={() => {
-                move(-1);
-                setChapterMenuOpen(false);
-              }}
-            >
-              <ChevronUp />
-              {t("moveUp")}
-            </MenuItem>
-            <MenuItem
-              disabled={currentIndex >= manuscript.chapters.length}
-              onSelect={() => {
-                move(1);
-                setChapterMenuOpen(false);
-              }}
-            >
-              <ChevronDown />
-              {t("moveDown")}
-            </MenuItem>
-            <MenuSeparator />
-            <MenuItem
-              onSelect={() => {
-                runExport(
-                  download(
-                    `${current.title || t("chapter")}.md`,
-                    `# ${current.title}\n\n${markdownBody(current.body, current.marks)}\n`,
-                  ),
-                );
-                setChapterMenuOpen(false);
-              }}
-            >
-              <Download />
-              {t("chapterMarkdown")}
-            </MenuItem>
-            <MenuSeparator />
-            <MenuItem
-              onSelect={() => {
-                setDeleteOpen(true);
-                setChapterMenuOpen(false);
-              }}
-            >
-              <Trash2 />
-              {t("deleteChapter")}
-            </MenuItem>
-          </Menu>
-        </Popover>
-      )}
       <button
         ref={selectionAnchor}
         className="selection-anchor"

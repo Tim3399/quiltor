@@ -7,9 +7,8 @@ export const places = {
   duplicatePlace: "Ort duplizieren",
   deletePlace: "Ort löschen",
   deletePlaceDescription: "„{name}“ und seine Verknüpfungen werden entfernt.",
-  clickFirstPlace: "Klicke den ersten Ort",
-  clickSecondPlace: "Klicke den zweiten Ort",
-  distanceLiveHint: "Ziehen verschiebt die Punkte, ein dritter Klick startet ein neues Paar.",
+  allDistancesHint:
+    "Alle Distanzen zwischen den Orten werden angezeigt. Ziehen aktualisiert sie live.",
   stopMeasuring: "Distanz messen beenden",
   scale: "Maßstab",
   perHundredPx: "pro 100px",

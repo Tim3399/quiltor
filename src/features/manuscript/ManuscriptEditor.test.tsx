@@ -177,4 +177,22 @@ describe("ManuscriptEditor selection", () => {
     expect(held).not.toBeNull();
     expect(held).toHaveTextContent("Welt");
   });
+
+  it("markiert alle Suchtreffer und hebt den aktiven Treffer hervor", () => {
+    const { container, editor, handle } = renderEditor({
+      value: "Welt neben Welt",
+      searchMatches: [
+        { from: 0, to: 4 },
+        { from: 11, to: 15 },
+      ],
+      activeSearchMatch: { from: 11, to: 15 },
+    });
+    const matches = container.querySelectorAll(".text-search-match");
+    expect(matches).toHaveLength(2);
+    expect(container.querySelector(".text-search-match.is-active")).toHaveTextContent("Welt");
+
+    handle.current?.reveal(11, 15);
+    expect(editor.state.selection.main.empty).toBe(true);
+    expect(editor.state.selection.main.head).toBe(11);
+  });
 });

@@ -21,6 +21,7 @@ export function CommandPalette({
   emptyLabel,
   items,
   onClose,
+  onQueryChange,
 }: {
   open: boolean;
   label: string;
@@ -29,6 +30,7 @@ export function CommandPalette({
   emptyLabel: string;
   items: CommandPaletteItem[];
   onClose: () => void;
+  onQueryChange?: (query: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -73,18 +75,20 @@ export function CommandPalette({
           value={query}
           placeholder={placeholder}
           onChange={(event) => {
-            setQuery(event.target.value);
+            const next = event.target.value;
+            setQuery(next);
+            onQueryChange?.(next);
             setActive(0);
           }}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();
-              setActive((index) =>
-                Math.max(
-                  0,
-                  Math.min(results.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)),
-                ),
-              );
+              if (results.length)
+                setActive(
+                  (index) =>
+                    (index + (event.key === "ArrowDown" ? 1 : -1) + results.length) %
+                    results.length,
+                );
             } else if (event.key === "Enter") {
               event.preventDefault();
               select(results[active]);
@@ -112,8 +116,8 @@ export function CommandPalette({
           >
             {item.icon}
             <span>
-              <strong>{item.label}</strong>
-              {item.detail && <small>{item.detail}</small>}
+              <strong>{highlightQuery(item.label, query)}</strong>
+              {item.detail && <small>{highlightQuery(item.detail, query)}</small>}
             </span>
           </button>
         ))}
@@ -121,4 +125,13 @@ export function CommandPalette({
       </div>
     </Dialog>
   );
+}
+
+function highlightQuery(value: string, query: string) {
+  const needle = query.trim();
+  if (!needle) return value;
+  const expression = new RegExp(`(${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "giu");
+  return value
+    .split(expression)
+    .map((part, index) => (index % 2 ? <mark key={`${part}-${index}`}>{part}</mark> : part));
 }

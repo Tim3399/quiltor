@@ -25,6 +25,11 @@ const createdMention = Annotation.define<EntityMention>();
 const setMentionDecorations = StateEffect.define<EntityMention[]>();
 const setMarkDecorations = StateEffect.define<TextMark[]>();
 const setIssueDecorations = StateEffect.define<WritingIssue[]>();
+type SearchDecorationState = {
+  matches: Array<{ from: number; to: number }>;
+  active: { from: number; to: number } | null;
+};
+const setSearchDecorations = StateEffect.define<SearchDecorationState>();
 // A browser paints ::selection only while the element has focus, so the moment the
 // writer reaches into the inspector the marked passage looks unmarked. This keeps the
 // range the writing aid is working on visible for as long as it is held.
@@ -106,6 +111,33 @@ const heldSelectionDecoration = StateField.define({
   },
   provide: (field) => EditorView.decorations.from(field),
 });
+const searchDecorations = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    value = value.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (!effect.is(setSearchDecorations)) continue;
+      value = Decoration.set(
+        effect.value.matches
+          .filter(
+            (match) =>
+              match.from >= 0 && match.to > match.from && match.to <= transaction.newDoc.length,
+          )
+          .map((match) =>
+            Decoration.mark({
+              class:
+                effect.value.active?.from === match.from && effect.value.active.to === match.to
+                  ? "text-search-match is-active"
+                  : "text-search-match",
+            }).range(match.from, match.to),
+          ),
+        true,
+      );
+    }
+    return value;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
 
 type CompletionPreview = WordCompletion & { entity?: FigureNode; detail?: string };
 
@@ -137,6 +169,7 @@ export type ManuscriptEditorHandle = {
   /** Bold or italic over a range -- the marked one by default. */
   toggleMark: (kind: TextMarkKind, range?: { from: number; to: number }) => boolean;
   cut: (from: number, to: number) => void;
+  reveal: (from: number, to: number) => void;
 };
 
 export function ManuscriptEditor({
@@ -149,6 +182,8 @@ export function ManuscriptEditor({
   issues = [],
   entities = [],
   held = null,
+  searchMatches = [],
+  activeSearchMatch = null,
   editorRef,
   onChange,
   onSelection,
@@ -167,6 +202,8 @@ export function ManuscriptEditor({
   entities?: FigureNode[];
   /** The passage the writing aid is holding, kept visible while focus is elsewhere. */
   held?: { from: number; to: number } | null;
+  searchMatches?: Array<{ from: number; to: number }>;
+  activeSearchMatch?: { from: number; to: number } | null;
   editorRef: React.MutableRefObject<ManuscriptEditorHandle | null>;
   onChange: (value: string, mentions: EntityMention[], marks: TextMark[]) => void;
   /** Every change of the marked range. Reports what is selected -- nothing more. */
@@ -269,6 +306,7 @@ export function ManuscriptEditor({
           markDecorations,
           issueDecorations,
           heldSelectionDecoration,
+          searchDecorations,
           hoverTooltip((_current, position) => {
             const mention = mentionsRef.current.find(
               (item) => position >= item.from && position <= item.to,
@@ -499,6 +537,17 @@ export function ManuscriptEditor({
         });
         instance.focus();
       },
+      reveal: (from, to) => {
+        const safeFrom = Math.max(0, Math.min(from, instance.state.doc.length)),
+          safeTo = Math.max(safeFrom, Math.min(to, instance.state.doc.length));
+        instance.dispatch({
+          selection: EditorSelection.cursor(safeFrom),
+          effects: EditorView.scrollIntoView(EditorSelection.range(safeFrom, safeTo), {
+            y: "center",
+          }),
+        });
+        instance.focus();
+      },
     };
     return () => {
       selectionRef.current(null);
@@ -531,6 +580,11 @@ export function ManuscriptEditor({
   useEffect(() => {
     view.current?.dispatch({ effects: setHeldSelection.of(held) });
   }, [held?.from, held?.to]);
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: setSearchDecorations.of({ matches: searchMatches, active: activeSearchMatch }),
+    });
+  }, [searchMatches, activeSearchMatch]);
 
   return (
     <div className="prose-editor" ref={host}>

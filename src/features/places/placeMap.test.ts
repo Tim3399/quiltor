@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { formatDistance, mapDistance } from "./placeMap";
-import { de } from "../../language/de";
 import type { MessageKey } from "../../language";
+import { de } from "../../language/de";
+import { allMapDistances, formatDistance, mapDistance } from "./placeMap";
 
 const t = (key: MessageKey) => de[key];
 
@@ -12,6 +12,26 @@ describe("mapDistance", () => {
 
   it("returns 0 for the same point", () => {
     expect(mapDistance({ mapX: 10, mapY: 10 }, { mapX: 10, mapY: 10 })).toBe(0);
+  });
+});
+
+describe("allMapDistances", () => {
+  it("returns every place pair exactly once with stable ids", () => {
+    expect(
+      allMapDistances([
+        { id: "c", mapX: 0, mapY: 400 },
+        { id: "a", mapX: 0, mapY: 0 },
+        { id: "b", mapX: 300, mapY: 0 },
+      ]),
+    ).toEqual([
+      { id: "distance:a:b", from: "a", to: "b", distance: 300 },
+      { id: "distance:a:c", from: "a", to: "c", distance: 400 },
+      { id: "distance:b:c", from: "b", to: "c", distance: 500 },
+    ]);
+  });
+
+  it("does not create self-distances for a single place", () => {
+    expect(allMapDistances([{ id: "only", mapX: 10, mapY: 20 }])).toEqual([]);
   });
 });
 

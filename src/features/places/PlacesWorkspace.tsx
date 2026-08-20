@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -16,7 +16,18 @@ import {
   type NodeProps,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { Copy, MapPin, MoreHorizontal, Plus, Redo2, Ruler, Trash2, Undo2, X } from "lucide-react";
+import {
+  Copy,
+  MapPin,
+  MoreHorizontal,
+  Plus,
+  Redo2,
+  Ruler,
+  Star,
+  Trash2,
+  Undo2,
+  X,
+} from "lucide-react";
 import type { FigureNode, FigureState, TimelineMoment, Workspace } from "../../types";
 import {
   placeChronicle,
@@ -25,7 +36,8 @@ import {
   type PlaceMomentRow,
   type PlaceStay,
 } from "../figures/presence";
-import { mapDistance, formatDistance } from "./placeMap";
+import { GRID_SIZE, semanticZoomTier, type SemanticZoomTier } from "../figures/relationships";
+import { allMapDistances, formatDistance } from "./placeMap";
 import { useLanguage } from "../../language";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { useShortcut } from "../../shared/ui/shortcuts";
@@ -36,15 +48,23 @@ import { Sheet } from "../../shared/ui/Sheet";
 import { uid } from "../../types";
 import "./PlacesWorkspace.css";
 
-type PlaceCardData = { place: FigureNode; measuring: boolean };
+type PlaceCardData = {
+  place: FigureNode;
+  measuring: boolean;
+  zoomTier: SemanticZoomTier;
+  zoom: number;
+};
 const nodeTypes = { place: OrtNode };
-const GRID_SIZE = 48;
 
-function OrtNode({ data }: NodeProps<Node<PlaceCardData>>) {
+function OrtNode({ data, selected }: NodeProps<Node<PlaceCardData>>) {
   const { t } = useLanguage();
   const item = data.place;
+  const semanticScale = data.zoomTier === "overview" ? 1 / Math.max(data.zoom, 0.08) : 1;
   return (
-    <div className={`story-node type-ort ${data.measuring ? "is-measuring" : ""}`}>
+    <div
+      style={{ "--semantic-scale": semanticScale } as CSSProperties}
+      className={`story-node zoom-${data.zoomTier} type-ort accent-${item.accent || "ink"} ${item.important ? "is-important" : ""} ${data.measuring ? "is-measuring" : ""} ${selected ? "selected" : ""}`}
+    >
       <Handle
         id="place-anchor"
         type="target"
@@ -60,7 +80,10 @@ function OrtNode({ data }: NodeProps<Node<PlaceCardData>>) {
         className="place-center-handle"
       />
       <span className="node-kind">{t("place")}</span>
-      <strong>{item.name}</strong>
+      <strong>
+        {item.important && <Star className="importance-mark" aria-label={t("important")} />}
+        {item.name}
+      </strong>
       {item.sub && <small>{item.sub}</small>}
     </div>
   );
@@ -103,12 +126,13 @@ function PlacesWorkspaceInner({
   const keys = useShortcut();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [measuring, setMeasuring] = useState(false);
-  const [measurePair, setMeasurePair] = useState<string[]>([]);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia("(max-width: 719px)").matches,
   );
+  const [zoomTier, setZoomTier] = useState<SemanticZoomTier>("detail");
+  const [viewportZoom, setViewportZoom] = useState(1);
   const actionsButton = useRef<HTMLButtonElement>(null);
   const flow = useRef<ReactFlowInstance<Node<PlaceCardData>, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
@@ -147,7 +171,6 @@ function PlacesWorkspaceInner({
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMeasuring(false);
-        setMeasurePair([]);
       }
     };
     document.addEventListener("keydown", escape);
@@ -160,9 +183,9 @@ function PlacesWorkspaceInner({
         id: place.id,
         type: "place",
         position: placePosition(place),
-        data: { place, measuring: measurePair.includes(place.id) },
+        data: { place, measuring, zoomTier, zoom: viewportZoom },
       })),
-    [places, measurePair],
+    [places, measuring, zoomTier, viewportZoom],
   );
   const [nodes, setFlowNodes] = useState<Node<PlaceCardData>[]>(derivedNodes);
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
@@ -187,44 +210,27 @@ function PlacesWorkspaceInner({
     [onChange, updateNodeInternals],
   );
 
-  const handleNodeClick = (id: string) => {
-    if (measuring) {
-      setMeasurePair((current) =>
-        current.includes(id)
-          ? current.filter((item) => item !== id)
-          : current.length >= 2
-            ? [current[1], id]
-            : [...current, id],
-      );
-      return;
-    }
-    setSelectedId(id);
-  };
-
   const measureEdges = useMemo<Edge[]>(() => {
-    if (measurePair.length !== 2) return [];
-    const a = nodes.find((node) => node.id === measurePair[0]);
-    const b = nodes.find((node) => node.id === measurePair[1]);
-    if (!a || !b) return [];
-    const distance = mapDistance(
-      { mapX: a.position.x, mapY: a.position.y },
-      { mapX: b.position.x, mapY: b.position.y },
-    );
-    return [
-      {
-        id: "distance-measure",
-        source: a.id,
-        target: b.id,
-        sourceHandle: "place-anchor",
-        targetHandle: "place-anchor",
-        type: "straight",
-        label: formatDistance(distance, t, state.mapScale),
-        labelBgStyle: { fill: "var(--edge-label-bg)" },
-        labelStyle: { fill: "var(--edge-label-text)" },
-        className: "distance-edge",
-      },
-    ];
-  }, [measurePair, nodes, state.mapScale, t]);
+    if (!measuring) return [];
+    return allMapDistances(
+      nodes.map((node) => ({ id: node.id, mapX: node.position.x, mapY: node.position.y })),
+    ).map((pair) => ({
+      id: pair.id,
+      source: pair.from,
+      target: pair.to,
+      sourceHandle: "place-anchor",
+      targetHandle: "place-anchor",
+      type: "straight",
+      label: formatDistance(pair.distance, t, state.mapScale),
+      labelBgStyle: { fill: "var(--edge-label-bg)" },
+      labelStyle: { fill: "var(--edge-label-text)" },
+      labelBgPadding: [5, 3] as [number, number],
+      labelBgBorderRadius: 4,
+      selectable: false,
+      focusable: false,
+      className: "distance-edge",
+    }));
+  }, [measuring, nodes, state.mapScale, t]);
 
   const stays = useMemo(
     () => (selected ? placeJourney(selected.id, state.nodes, presence, timeline) : []),
@@ -364,10 +370,7 @@ function PlacesWorkspaceInner({
           <button
             aria-pressed={measuring}
             className={measuring ? "active" : ""}
-            onClick={() => {
-              setMeasuring((value) => !value);
-              setMeasurePair([]);
-            }}
+            onClick={() => setMeasuring((value) => !value)}
           >
             <Ruler />
             {t("measureDistance")}
@@ -428,50 +431,41 @@ function PlacesWorkspaceInner({
         </div>
       </div>
       <div className="figure-layout">
-        <div className={`flow-area places-flow-area ${measuring ? "is-connecting" : ""}`}>
+        <div
+          className={`flow-area places-flow-area zoom-${zoomTier} ${measuring ? "is-connecting" : ""}`}
+        >
           {measuring && (
-            <div className="mode-banner" role="status">
-              <Ruler />
-              <span>
-                {measurePair.length === 0
-                  ? t("clickFirstPlace")
-                  : measurePair.length === 1
-                    ? t("clickSecondPlace")
-                    : t("distanceLiveHint")}
-              </span>
-              <button
-                onClick={() => {
-                  setMeasuring(false);
-                  setMeasurePair([]);
-                }}
-              >
-                <X />
-                <span className="sr-only">{t("stopMeasuring")}</span>
-              </button>
-            </div>
-          )}
-          {measuring && measurePair.length === 2 && (
-            <div className="places-scale-legend">
-              <label>
-                <span>{t("scale")}</span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={state.mapScale?.unitsPer100px ?? 1}
-                  onChange={(event) =>
-                    patchScale({ unitsPer100px: Number(event.target.value) || 1 })
-                  }
-                />
-                <span>{t("perHundredPx")}</span>
-              </label>
-              <label>
-                <span className="sr-only">{t("unitLabelField")}</span>
-                <input
-                  value={state.mapScale?.unitLabel ?? t("unitsDefault")}
-                  onChange={(event) => patchScale({ unitLabel: event.target.value })}
-                />
-              </label>
+            <div className="places-measure-overlays">
+              <div className="mode-banner" role="status">
+                <Ruler />
+                <span>{t("allDistancesHint")}</span>
+                <button onClick={() => setMeasuring(false)}>
+                  <X />
+                  <span className="sr-only">{t("stopMeasuring")}</span>
+                </button>
+              </div>
+              <div className="places-scale-legend">
+                <label>
+                  <span>{t("scale")}</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={state.mapScale?.unitsPer100px ?? 1}
+                    onChange={(event) =>
+                      patchScale({ unitsPer100px: Number(event.target.value) || 1 })
+                    }
+                  />
+                  <span>{t("perHundredPx")}</span>
+                </label>
+                <label>
+                  <span className="sr-only">{t("unitLabelField")}</span>
+                  <input
+                    value={state.mapScale?.unitLabel ?? t("unitsDefault")}
+                    onChange={(event) => patchScale({ unitLabel: event.target.value })}
+                  />
+                </label>
+              </div>
             </div>
           )}
           <ReactFlow
@@ -481,25 +475,36 @@ function PlacesWorkspaceInner({
             nodesConnectable={true}
             onInit={(instance) => {
               flow.current = instance;
+              const zoom = instance.getZoom();
+              setViewportZoom(zoom);
+              setZoomTier(semanticZoomTier(zoom));
             }}
-            onNodeClick={(_, node) => handleNodeClick(node.id)}
-            onPaneClick={() => {
-              setSelectedId(null);
-              if (measuring) setMeasurePair([]);
+            onMove={(_, viewport) => {
+              const zoom = Math.round(viewport.zoom * 100) / 100;
+              setViewportZoom((current) => (current === zoom ? current : zoom));
+              setZoomTier((current) => {
+                const next = semanticZoomTier(zoom);
+                return current === next ? current : next;
+              });
             }}
+            onNodeClick={(_, node) => setSelectedId(node.id)}
+            onPaneClick={() => setSelectedId(null)}
             onNodesChange={moveNodes}
             onNodeDragStop={(_, node) => commitPlacePosition(node.id, node.position)}
             fitView
-            minZoom={0.15}
+            minZoom={0.08}
             maxZoom={2.2}
             deleteKeyCode={null}
           >
-            <Background
-              variant={BackgroundVariant.Lines}
-              gap={GRID_SIZE}
-              size={0.55}
-              color="var(--line)"
-            />
+            {zoomTier !== "overview" && (
+              <Background
+                className={`board-grid board-grid-${zoomTier}`}
+                variant={BackgroundVariant.Lines}
+                gap={GRID_SIZE}
+                size={0.55}
+                color="var(--line)"
+              />
+            )}
             <Controls position="bottom-left" />
             <MiniMap
               position="bottom-right"

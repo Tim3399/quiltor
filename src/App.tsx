@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { AppShell } from "./app/AppShell";
 import { api, errorMessage, setActiveWorld, HttpError } from "./lib/api";
 import { useAutosave } from "./hooks/useAutosave";
-import type { FigureState, Manuscript, Workspace, WorldInfo } from "./types";
+import type { FigureState, Manuscript, Workspace, WorkspaceTarget, WorldInfo } from "./types";
 import { useHistoryState } from "./hooks/useHistoryState";
 import { useTheme } from "./hooks/useTheme";
 import { WorldGate } from "./features/worlds/WorldGate";
@@ -86,7 +86,7 @@ export function App() {
   // sending indicator, and install progress would otherwise silently reset/get lost.
   // Starts false so the assistant's lazy-loaded chunk still only fetches on first use.
   const [assistantEverOpened, setAssistantEverOpened] = useState(false);
-  const [target, setTarget] = useState<{ workspace: Workspace; id: string } | null>(null);
+  const [target, setTarget] = useState<WorkspaceTarget | null>(null);
   const [orphanedMentions, setOrphanedMentions] = useState(0);
   const [pendingRename, setPendingRename] = useState<{
     id: string;
@@ -311,11 +311,6 @@ export function App() {
           setWorkspace(value);
           setFocus(false);
         }}
-        navigationAvailable={workspace === "text" && !focus}
-        navigationOpen={workspaceLayout.layout.navigationOpen}
-        onNavigation={() =>
-          workspaceLayout.setNavigationOpen(!workspaceLayout.layout.navigationOpen)
-        }
         phase={activeSave.phase}
         error={activeSave.error}
         retry={activeSave.retry}
@@ -347,6 +342,7 @@ export function App() {
             focus={focus}
             onFocus={setFocus}
             targetId={target?.workspace === "text" ? target.id : undefined}
+            textSearch={target?.workspace === "text" ? target.textSearch : undefined}
             onUndo={manuscriptHistory.undo}
             onRedo={manuscriptHistory.redo}
             canUndo={manuscriptHistory.canUndo}

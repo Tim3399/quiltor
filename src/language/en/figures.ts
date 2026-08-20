@@ -50,6 +50,8 @@ export const figures = {
   connectDirectedHelp:
     "Connect right to left for a directed relationship, or center to center for an undirected one.",
   relationExists: "This relationship already exists and has been opened in the inspector.",
+  hideRelationships: "Hide relationships",
+  showRelationships: "Show relationships",
   invalidDiagramFile: "This file does not contain a valid character board.",
   element: "Element",
   figuresAndRelationsLabel: "Characters and relationships",

@@ -53,5 +53,6 @@ export const tools = {
   switchToTimeline: "Switch to timeline",
   switchToPlaces: "Switch to places",
   toggleFocus: "Toggle focus mode",
+  searchMatchCount: "{count} matches in text",
   noSearchResults: "No matching content or commands found.",
 } as const;

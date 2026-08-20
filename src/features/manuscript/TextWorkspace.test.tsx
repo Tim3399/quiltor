@@ -108,10 +108,7 @@ describe("TextWorkspace", () => {
     expect(onInspectorWidth).toHaveBeenCalledWith(304);
   });
 
-  it("lässt beide Spalten auf demselben Weg wieder aufmachen", () => {
-    // Zugeklappt gab es keinen Weg zurück: die Kapitelspalte hatte einen
-    // Schließknopf, aber der einzige Öffner war ein unbeschriftetes Symbol in
-    // der Titelleiste. Beide Spalten hängen jetzt an einem Schalterpaar.
+  it("lässt beide Spalten über die dezenten Rand-Schalter wieder aufmachen", () => {
     const onBinderOpen = vi.fn(),
       onInspectorOpen = vi.fn();
     const view = renderWorkspace({
@@ -127,12 +124,83 @@ describe("TextWorkspace", () => {
       onInspectorOpen,
     });
     const rendered = within(view.container);
-    const chapters = rendered.getByRole("button", { name: "Kapitel" });
-    expect(chapters).toHaveAttribute("aria-pressed", "false");
+    const chapters = rendered.getByRole("button", { name: "Kapitelnavigation öffnen" });
+    expect(chapters).toHaveAttribute("aria-expanded", "false");
+    expect(chapters).toHaveAttribute("aria-controls", "chapter-binder");
     fireEvent.click(chapters);
     expect(onBinderOpen).toHaveBeenCalledWith(true);
-    fireEvent.click(rendered.getByRole("button", { name: "Schreibhilfe" }));
+    const writingAid = rendered.getByRole("button", { name: "Schreibhilfe öffnen" });
+    expect(writingAid).toHaveAttribute("aria-expanded", "false");
+    expect(writingAid).toHaveAttribute("aria-controls", "writing-aid-inspector");
+    fireEvent.click(writingAid);
     expect(onInspectorOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("behält beim Auf- und Zuklappen denselben fokussierten Rand-Schalter", () => {
+    function StatefulPanels() {
+      const [binderOpen, setBinderOpen] = useState(false);
+      const [inspectorOpen, setInspectorOpen] = useState(false);
+      return (
+        <TextWorkspace
+          manuscript={manuscript}
+          figures={figures}
+          onChange={vi.fn()}
+          focus={false}
+          onFocus={vi.fn()}
+          viewportMode="wide"
+          binderOpen={binderOpen}
+          inspectorOpen={inspectorOpen}
+          onBinderOpen={setBinderOpen}
+          onInspectorOpen={setInspectorOpen}
+        />
+      );
+    }
+    const view = render(
+      <LanguageProvider>
+        <StatefulPanels />
+      </LanguageProvider>,
+    );
+    const rendered = within(view.container);
+    const chapterToggle = rendered.getByRole("button", { name: "Kapitelnavigation öffnen" });
+    chapterToggle.focus();
+    fireEvent.click(chapterToggle);
+    expect(rendered.getByRole("button", { name: "Kapitelnavigation schließen" })).toBe(
+      chapterToggle,
+    );
+    expect(chapterToggle).toHaveFocus();
+    expect(chapterToggle).toHaveAttribute("aria-expanded", "true");
+    expect(rendered.getByRole("complementary", { name: "Kapitel" })).toHaveAttribute(
+      "id",
+      "chapter-binder",
+    );
+
+    const aidToggle = rendered.getByRole("button", { name: "Schreibhilfe öffnen" });
+    fireEvent.click(aidToggle);
+    expect(rendered.getByRole("button", { name: "Schreibhilfe schließen" })).toBe(aidToggle);
+    expect(aidToggle).toHaveAttribute("aria-expanded", "true");
+    expect(rendered.getByRole("complementary", { name: "Schreibhilfe" })).toHaveAttribute(
+      "id",
+      "writing-aid-inspector",
+    );
+  });
+
+  it("nutzt im kompakten Layout weiterhin die Sheet-Schalter der Kontextleiste", () => {
+    const view = renderWorkspace({
+      manuscript,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      viewportMode: "compact",
+      binderOpen: false,
+      inspectorOpen: false,
+    });
+    const rendered = within(view.container);
+    expect(rendered.queryByRole("button", { name: "Kapitelnavigation öffnen" })).toBeNull();
+    expect(rendered.queryByRole("button", { name: "Schreibhilfe öffnen" })).toBeNull();
+    const context = within(view.container.querySelector(".context-bar")!);
+    expect(context.getByRole("button", { name: "Kapitel" })).toBeVisible();
+    expect(context.getByRole("button", { name: "Schreibhilfe" })).toBeVisible();
   });
 
   // Die rechte Spalte macht nur noch eine Sache. Alles Kapitelbezogene ist links oder über
@@ -219,8 +287,8 @@ describe("TextWorkspace", () => {
 
   // Umsortieren und Löschen laufen über onChange, nicht über die Editor-Handle -- also greifen
   // sie unter jsdom wirklich. Der Markdown-Export tut das nicht: er schreibt eine Datei über
-  // download(). Dieser Test belegt darum nur, dass der Eintrag da ist, nicht dass er exportiert.
-  it("führt Kapitelbefehle im Menü neben dem Titel", async () => {
+  // download(). Dieser Test belegt darum nur, dass der Knopf sichtbar ist.
+  it("zeigt Kapitelbefehle dauerhaft oben im linken Kapitelreiter", () => {
     const twoChapters = {
       chapters: [
         ...manuscript.chapters,
@@ -238,12 +306,12 @@ describe("TextWorkspace", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    fireEvent.click(within(view.container).getByRole("button", { name: "Kapitelaktionen" }));
-    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Nach unten" })).toBeTruthy());
-    expect(screen.getByRole("menuitem", { name: "Nach oben" })).toBeDisabled();
-    expect(screen.getByRole("menuitem", { name: "Kapitel als Markdown" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "Kapitel löschen" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Nach unten" }));
+    const binder = within(view.container.querySelector(".binder")!);
+    const actions = within(binder.getByRole("group", { name: "Kapitelaktionen: Prolog" }));
+    expect(actions.getByRole("button", { name: "Nach oben" })).toBeDisabled();
+    expect(actions.getByRole("button", { name: "Kapitel als Markdown" })).toBeVisible();
+    expect(actions.getByRole("button", { name: "Kapitel löschen" })).toBeVisible();
+    fireEvent.click(actions.getByRole("button", { name: "Nach unten" }));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         chapters: [expect.objectContaining({ id: "c2" }), expect.objectContaining({ id: "c1" })],
@@ -251,7 +319,59 @@ describe("TextWorkspace", () => {
     );
   });
 
-  it("löscht ein Kapitel erst nach der Bestätigung aus dem Menü heraus", async () => {
+  it("öffnet die Fassungen des ausgewählten Kapitels direkt aus der Kontextleiste", async () => {
+    vi.spyOn(api, "log").mockResolvedValue({ ok: true, commits: [] });
+    const view = renderWorkspace({
+      manuscript,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+    });
+    const context = within(view.container.querySelector(".context-bar")!);
+    const versions = context.getByRole("button", { name: "Fassungen" });
+    expect(versions).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(versions);
+    expect(versions).toHaveAttribute("aria-pressed", "true");
+    expect(within(view.container).getByRole("complementary", { name: "Fassungen" })).toBeVisible();
+    await waitFor(() => expect(api.log).toHaveBeenCalled());
+  });
+
+  it("markiert einen Suchtreffer und rotiert kapitelübergreifend weiter", async () => {
+    const searchable = {
+      chapters: [
+        { id: "c1", title: "Prolog", body: "Nebel hier. Nebel dort.", note: "" },
+        { id: "c2", title: "Aufbruch", body: "Noch ein Nebel.", note: "" },
+      ],
+    };
+    const view = renderWorkspace({
+      manuscript: searchable,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      targetId: "c2",
+      textSearch: { query: "Nebel", from: 9, to: 14 },
+    });
+    const rendered = within(view.container);
+    await waitFor(() => expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Aufbruch"));
+    await waitFor(() =>
+      expect(view.container.querySelector(".text-search-match.is-active")).toHaveTextContent(
+        "Nebel",
+      ),
+    );
+    expect(rendered.getByRole("status")).toHaveTextContent("3 von 3");
+
+    fireEvent.click(rendered.getByRole("button", { name: "Nächster Treffer" }));
+    await waitFor(() => expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog"));
+    expect(rendered.getByRole("status")).toHaveTextContent("1 von 3");
+
+    fireEvent.click(rendered.getByRole("button", { name: "Vorheriger Treffer" }));
+    await waitFor(() => expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Aufbruch"));
+    expect(rendered.getByRole("status")).toHaveTextContent("3 von 3");
+  });
+
+  it("löscht ein Kapitel aus dem linken Reiter erst nach Bestätigung", async () => {
     const onChange = vi.fn();
     const view = renderWorkspace({
       manuscript,
@@ -263,11 +383,9 @@ describe("TextWorkspace", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    fireEvent.click(within(view.container).getByRole("button", { name: "Kapitelaktionen" }));
-    await waitFor(() =>
-      expect(screen.getByRole("menuitem", { name: "Kapitel löschen" })).toBeTruthy(),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Kapitel löschen" }));
+    const binder = within(view.container.querySelector(".binder")!);
+    const actions = within(binder.getByRole("group", { name: "Kapitelaktionen: Prolog" }));
+    fireEvent.click(actions.getByRole("button", { name: "Kapitel löschen" }));
     const dialog = within(await screen.findByRole("alertdialog"));
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.click(dialog.getByRole("button", { name: "Kapitel löschen" }));
