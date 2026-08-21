@@ -113,42 +113,43 @@ The current UI already behaves as if Timeline, Presence and temporal Relationshi
 
 ## Normalize temporal world data
 
-- [ ] Persist timeline moments as first-class data.
-- [ ] Give every timeline moment a canonical signed integer `time`.
-- [ ] The first created timeline moment starts at `t=0`.
-- [ ] New moments can be positioned relative to any existing moment:
+- [x] Replace destructive figure aggregate rewrites with stable transactional upsert/sync persistence.
+- [x] Persist timeline moments as first-class data.
+- [x] Give every timeline moment a canonical signed integer `time`.
+- [x] The first created timeline moment starts at `t=0`.
+- [x] New moments can be positioned relative to any existing moment:
   - `t+4`
   - `t-4`
   - or an explicitly entered absolute timeline coordinate.
-- [ ] Negative and positive values are equally valid.
-- [ ] Allow multiple moments at the same `time` for simultaneous events.
-- [ ] Keep a separate stable `position` value as a display/tie-break order for simultaneous moments.
-- [ ] Do **not** make Gregorian/ISO dates the canonical representation of time.
-- [ ] Treat calendars as optional projections of the canonical signed timeline.
-- [ ] Persist relationship states as first-class temporal data.
-- [ ] Persist presence/location transitions as first-class temporal data.
-- [ ] Preserve existing worlds through migration.
-- [ ] Add referential integrity for element/place/moment/relationship IDs.
-- [ ] Keep unknown state distinct from false / inactive state.
+- [x] Negative and positive values are equally valid.
+- [x] Allow multiple moments at the same `time` for simultaneous events.
+- [x] Keep a separate stable `position` value as a display/tie-break order for simultaneous moments.
+- [x] Do **not** make Gregorian/ISO dates the canonical representation of time.
+- [x] Treat calendars as optional projections of the canonical signed timeline.
+- [x] Persist relationship states as first-class temporal data.
+- [x] Persist presence/location transitions as first-class temporal data.
+- [x] Preserve existing worlds through migration.
+- [x] Add referential integrity for element/place/moment/relationship IDs.
+- [x] Keep unknown state distinct from false / inactive state.
 
 ## Timeline Time System / calendars
 
-- [ ] Add Time System configuration directly to the Timeline workspace.
-- [ ] Support:
+- [x] Add Time System configuration directly to the Timeline workspace.
+- [x] Support:
   - relative timeline;
   - Gregorian calendar;
   - custom calendar.
-- [ ] Relative mode displays canonical coordinates directly (`t-12`, `t0`, `t+8`).
-- [ ] Creating a moment relative to another resolves deterministically (`base.time + delta`).
-- [ ] A calendar maps canonical `time` values onto author-defined dates.
-- [ ] Custom calendar v1 supports:
+- [x] Relative mode displays canonical coordinates directly (`t-12`, `t0`, `t+8`).
+- [x] Creating a moment relative to another resolves deterministically (`base.time + delta`).
+- [x] A calendar maps canonical `time` values onto author-defined dates.
+- [x] Custom calendar v1 supports:
   - calendar name;
   - era/name/abbreviation;
   - named months;
   - configurable days per month;
   - optional weekdays;
   - formatting.
-- [ ] Calendar configuration must never rewrite canonical timeline coordinates.
+- [x] Calendar configuration must never rewrite canonical timeline coordinates.
 - [ ] Advanced leap rules, moons and multiple simultaneous calendars are later work.
 
 ## Canonical World State

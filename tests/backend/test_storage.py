@@ -1,9 +1,267 @@
+import copy
+import json
+import sqlite3
 import tempfile
 import unittest
-import sqlite3
 from pathlib import Path
 
 from backend.core import mirror, storage
+
+
+LEGACY_V3_FIGURE_SCHEMA = """
+PRAGMA foreign_keys = ON;
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE figure_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  canvas_width INTEGER NOT NULL DEFAULT 2400,
+  canvas_height INTEGER NOT NULL DEFAULT 1600,
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE figures (
+  id TEXT PRIMARY KEY,
+  position INTEGER NOT NULL,
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'person'
+    CHECK (kind IN ('person','tier','ort','organisation','objekt','konzept')),
+  label TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  subtitle TEXT NOT NULL DEFAULT '',
+  accent TEXT NOT NULL DEFAULT 'ink',
+  dashed INTEGER NOT NULL DEFAULT 0,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE profiles (
+  figure_id TEXT PRIMARY KEY REFERENCES figures(id) ON DELETE CASCADE,
+  age TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL DEFAULT '',
+  appearance TEXT NOT NULL DEFAULT '',
+  origin TEXT NOT NULL DEFAULT '',
+  voice TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE profile_fields (
+  figure_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  value TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (figure_id, position)
+);
+CREATE TABLE connections (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  target_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  label TEXT NOT NULL DEFAULT '',
+  style TEXT NOT NULL DEFAULT 'solid',
+  directed INTEGER NOT NULL DEFAULT 0,
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+"""
+
+
+def realistic_figure_state():
+    """A complete aggregate fixture with children and forward-compatible fields."""
+    return {
+        "nodes": [
+            {
+                "id": "figure-ada",
+                "x": 120.5,
+                "y": 240.25,
+                "type": "person",
+                "label": "POV",
+                "name": "Ada Morgenstern",
+                "sub": "Kartografin",
+                "accent": "gold",
+                "dash": False,
+                "pinned": True,
+                "important": True,
+                "futureNodeField": {"kept": True},
+                "profile": {
+                    "alter": "34",
+                    "rolle": "Protagonistin",
+                    "aussehen": "Silberne Haarsträhne",
+                    "herkunft": "Nordhafen",
+                    "stimme": "ruhig",
+                    "notizen": "Verbirgt die alte Karte.",
+                    "futureProfileField": "bleibt erhalten",
+                    "extra": [
+                        {"k": "Motiv", "v": "Heimkehr"},
+                        {"k": "Furcht", "v": "Offenes Meer"},
+                    ],
+                },
+            },
+            {
+                "id": "figure-ben",
+                "x": 480.0,
+                "y": 160.0,
+                "type": "person",
+                "label": "Verbündeter",
+                "name": "Ben Tal",
+                "sub": "Lotse",
+                "accent": "ink",
+                "dash": True,
+                "pinned": False,
+                "profile": {
+                    "alter": "51",
+                    "rolle": "Mentor",
+                    "aussehen": "Wettergegerbtes Gesicht",
+                    "herkunft": "Südbucht",
+                    "stimme": "heiser",
+                    "notizen": "Kennt die Untiefen.",
+                    "extra": [{"k": "Versprechen", "v": "Ada beschützen"}],
+                },
+            },
+            {
+                "id": "place-harbor",
+                "x": 760.0,
+                "y": 420.0,
+                "type": "ort",
+                "label": "Hafen",
+                "name": "Nordhafen",
+                "sub": "Stadt",
+                "accent": "blue",
+                "dash": False,
+                "pinned": False,
+                "profile": {"notizen": "Ausgangspunkt der Reise.", "extra": []},
+            },
+        ],
+        "edges": [
+            {
+                "id": "edge-ada-ben",
+                "from": "figure-ada",
+                "to": "figure-ben",
+                "label": "Vertrauen",
+                "style": "solid",
+                "gerichtet": False,
+                "versions": [{"momentId": "moment-storm", "label": "Misstrauen"}],
+            },
+            {
+                "id": "edge-ben-harbor",
+                "from": "figure-ben",
+                "to": "place-harbor",
+                "label": "kennt",
+                "style": "dashed",
+                "gerichtet": True,
+            },
+        ],
+        "timeline": [
+            {"id": "moment-start", "title": "Aufbruch"},
+            {"id": "moment-storm", "title": "Der Sturm", "date": "1420-03-12"},
+        ],
+        "presence": [
+            {
+                "id": "presence-ada",
+                "elementId": "figure-ada",
+                "placeId": "place-harbor",
+                "momentId": "moment-start",
+            }
+        ],
+        "canvasSize": {"w": 1800, "h": 1200},
+        "mapScale": {"metersPerPixel": 2.5},
+        "futureAggregateField": ["wird", "bewahrt"],
+    }
+
+
+def temporal_figure_state():
+    """FigureState fixture exercising normalized temporal rows and compatibility JSON."""
+    state = realistic_figure_state()
+    state["nodes"][1]["diedMomentId"] = "moment-storm"
+    state["timeline"] = [
+        {
+            "id": "moment-prologue",
+            "time": -12,
+            "title": "Der erste Sturm",
+            "date": "1408-09-03",
+            "note": "Lange vor der Reise.",
+            "futureMomentField": {"source": "import"},
+        },
+        {
+            "id": "moment-start",
+            "time": 0,
+            "title": "Aufbruch",
+        },
+        {
+            "id": "moment-mutiny",
+            "time": 4,
+            "title": "Die Meuterei",
+            "note": "Gleichzeitig, aber zuerst angezeigt.",
+        },
+        {
+            "id": "moment-storm",
+            "time": 4,
+            "title": "Der Sturm",
+            "date": "1420-03-12",
+        },
+    ]
+    state["edges"][0]["versions"] = [
+        {
+            "momentId": "moment-start",
+            "active": True,
+            "label": "Vertrauen",
+            "gerichtet": False,
+            "style": "solid",
+            "futureRelationshipField": "confirmed",
+        },
+        {
+            "momentId": "moment-storm",
+            "active": True,
+            "label": "Misstrauen",
+            "gerichtet": True,
+            "style": "dashed",
+        },
+        {
+            "momentId": "moment-mutiny",
+            "active": False,
+            "label": "Bruch",
+            "gerichtet": True,
+            "style": "blood",
+        },
+    ]
+    state["presence"] = [
+        {
+            "id": "presence-ada-base",
+            "elementId": "figure-ada",
+            "placeId": "place-harbor",
+            "futurePresenceField": ["manual"],
+        },
+        {
+            "id": "presence-ben-start",
+            "elementId": "figure-ben",
+            "placeId": "place-harbor",
+            "momentId": "moment-start",
+        },
+        {
+            "id": "presence-ada-storm",
+            "elementId": "figure-ada",
+            "placeId": "place-harbor",
+            "momentId": "moment-storm",
+        },
+    ]
+    return state
+
+
+def table_rows_with_rowid(conn, table):
+    assert table in {
+        "figures",
+        "profiles",
+        "profile_fields",
+        "connections",
+        "timeline_moments",
+        "relationship_states",
+        "presence_states",
+    }
+    return [tuple(row) for row in conn.execute(f"SELECT rowid, * FROM {table} ORDER BY rowid")]
+
+
+def profile_field_rows_with_rowid(conn, figure_id):
+    return [
+        tuple(row)
+        for row in conn.execute(
+            "SELECT rowid, * FROM profile_fields WHERE figure_id=? ORDER BY rowid", (figure_id,)
+        )
+    ]
 
 
 class StorageTest(unittest.TestCase):
@@ -84,7 +342,7 @@ class StorageTest(unittest.TestCase):
                         "future": "yes",
                     },
                 },
-                {"id": "n2", "x": 3, "y": 4, "type": "person", "name": "B"},
+                {"id": "n2", "x": 3, "y": 4, "type": "ort", "name": "B"},
             ],
             "edges": [
                 {
@@ -156,7 +414,7 @@ class StorageTest(unittest.TestCase):
         state = {
             "nodes": [
                 {"id": "n1", "x": 0, "y": 0, "name": "A"},
-                {"id": "n2", "x": 0, "y": 0, "name": "Ort"},
+                {"id": "n2", "x": 0, "y": 0, "type": "ort", "name": "Ort"},
             ],
             "edges": [],
             "timeline": [{"id": "t1", "title": "Vorher"}],
@@ -169,6 +427,727 @@ class StorageTest(unittest.TestCase):
         }
         storage.save_figures(state)
         self.assertEqual([entry["id"] for entry in storage.load_figures()["presence"]], ["p1"])
+
+    def test_temporal_rows_roundtrip_defaults_unknown_fields_and_canonical_order(self):
+        storage.initialize()
+        state = temporal_figure_state()
+        storage.save_figures(state)
+
+        loaded = storage.load_figures()
+        self.assertEqual(
+            [moment["id"] for moment in loaded["timeline"]],
+            ["moment-prologue", "moment-start", "moment-mutiny", "moment-storm"],
+        )
+        self.assertEqual([moment["time"] for moment in loaded["timeline"]], [-12, 0, 4, 4])
+        self.assertEqual([moment["position"] for moment in loaded["timeline"]], [0, 1, 2, 3])
+        self.assertEqual(loaded["timeline"][0]["date"], "1408-09-03")
+        self.assertEqual(
+            loaded["timeline"][0]["futureMomentField"], {"source": "import"}
+        )
+        versions = loaded["edges"][0]["versions"]
+        self.assertEqual(
+            [version["momentId"] for version in versions],
+            ["moment-start", "moment-mutiny", "moment-storm"],
+        )
+        self.assertTrue(versions[0]["active"])
+        self.assertEqual(versions[0]["futureRelationshipField"], "confirmed")
+        self.assertFalse(versions[1]["active"])
+        self.assertEqual(loaded["nodes"][1]["diedMomentId"], "moment-storm")
+        base_presence = next(
+            entry for entry in loaded["presence"] if entry["id"] == "presence-ada-base"
+        )
+        self.assertNotIn("momentId", base_presence)
+        self.assertEqual(base_presence["futurePresenceField"], ["manual"])
+        with storage.connection() as conn:
+            self.assertEqual(
+                [
+                    tuple(row)
+                    for row in conn.execute(
+                        "SELECT time,position FROM timeline_moments ORDER BY time,position"
+                    )
+                ],
+                [(-12, 0), (0, 1), (4, 2), (4, 3)],
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT death_moment_id FROM figures WHERE id='figure-ben'"
+                ).fetchone()[0],
+                "moment-storm",
+            )
+            self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_unchanged_temporal_save_preserves_stable_rows_and_children(self):
+        storage.initialize()
+        storage.save_figures(temporal_figure_state())
+        roundtrip = storage.load_figures()
+        with storage.connection() as conn:
+            before = {
+                table: table_rows_with_rowid(conn, table)
+                for table in (
+                    "timeline_moments",
+                    "relationship_states",
+                    "presence_states",
+                )
+            }
+
+        storage.save_figures(copy.deepcopy(roundtrip))
+
+        self.assertEqual(storage.load_figures(), roundtrip)
+        with storage.connection() as conn:
+            after = {
+                table: table_rows_with_rowid(conn, table)
+                for table in (
+                    "timeline_moments",
+                    "relationship_states",
+                    "presence_states",
+                )
+            }
+        self.assertEqual(after, before)
+
+    def test_implicit_moment_times_are_signed_deterministic_and_survive_reordering(self):
+        storage.initialize()
+        state = realistic_figure_state()
+        state["timeline"] = [
+            {"id": "zero", "title": "Erster angelegter Moment"},
+            {"id": "after", "title": "Danach"},
+        ]
+        storage.save_figures(state)
+        changed = copy.deepcopy(state)
+        changed["timeline"] = [
+            {"id": "before", "title": "Davor"},
+            changed["timeline"][0],
+            changed["timeline"][1],
+        ]
+        storage.save_figures(changed)
+        changed["timeline"] = [
+            changed["timeline"][2],
+            changed["timeline"][0],
+            changed["timeline"][1],
+        ]
+        storage.save_figures(changed)
+
+        with storage.connection() as conn:
+            self.assertEqual(
+                {
+                    row["id"]: (row["time"], row["position"])
+                    for row in conn.execute(
+                        "SELECT id,time,position FROM timeline_moments"
+                    )
+                },
+                {"before": (-1, 1), "after": (1, 0), "zero": (0, 2)},
+            )
+        # Canonical time, not later array reordering, defines the loaded chronology.
+        self.assertEqual(
+            [moment["id"] for moment in storage.load_figures()["timeline"]],
+            ["before", "zero", "after"],
+        )
+
+    def test_temporal_sync_deletes_only_missing_rows_and_respects_foreign_keys(self):
+        storage.initialize()
+        storage.save_figures(temporal_figure_state())
+        with storage.connection() as conn:
+            retained_moment_rowid = conn.execute(
+                "SELECT rowid FROM timeline_moments WHERE id='moment-start'"
+            ).fetchone()[0]
+            retained_version_rowid = conn.execute(
+                "SELECT rowid FROM relationship_states "
+                "WHERE relationship_id='edge-ada-ben' AND moment_id='moment-start'"
+            ).fetchone()[0]
+
+        changed = temporal_figure_state()
+        changed["timeline"] = [
+            moment for moment in changed["timeline"] if moment["id"] != "moment-mutiny"
+        ]
+        changed["nodes"][1].pop("diedMomentId")
+        changed["edges"][0]["versions"] = [
+            version
+            for version in changed["edges"][0]["versions"]
+            if version["momentId"] != "moment-storm"
+        ]
+        changed["presence"] = [
+            entry
+            for entry in changed["presence"]
+            if entry["id"] != "presence-ben-start"
+        ]
+        storage.save_figures(changed)
+
+        with storage.connection() as conn:
+            self.assertEqual(
+                conn.execute(
+                    "SELECT rowid FROM timeline_moments WHERE id='moment-start'"
+                ).fetchone()[0],
+                retained_moment_rowid,
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT rowid FROM relationship_states "
+                    "WHERE relationship_id='edge-ada-ben' AND moment_id='moment-start'"
+                ).fetchone()[0],
+                retained_version_rowid,
+            )
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT 1 FROM timeline_moments WHERE id='moment-mutiny'"
+                ).fetchone()
+            )
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT death_moment_id FROM figures WHERE id='figure-ben'"
+                ).fetchone()[0]
+            )
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT 1 FROM relationship_states "
+                    "WHERE relationship_id='edge-ada-ben' AND moment_id='moment-mutiny'"
+                ).fetchone()
+            )
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT 1 FROM relationship_states "
+                    "WHERE relationship_id='edge-ada-ben' AND moment_id='moment-storm'"
+                ).fetchone()
+            )
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT 1 FROM presence_states WHERE id='presence-ben-start'"
+                ).fetchone()
+            )
+            self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_temporal_revision_failure_rolls_back_rows_and_etag_atomically(self):
+        storage.initialize()
+        original = temporal_figure_state()
+        self.assertEqual(storage.save_with_revision("figures", original, 0), 1)
+        before = storage.load_figures()
+
+        invalid = temporal_figure_state()
+        invalid["timeline"][0]["title"] = "Darf nicht sichtbar werden"
+        invalid["timeline"].append({"title": "Ohne stabile ID", "time": 99})
+        with self.assertRaises((KeyError, sqlite3.IntegrityError)):
+            storage.save_with_revision("figures", invalid, 1)
+
+        self.assertEqual(storage.load_figures(), before)
+        self.assertEqual(storage.revision("figures"), 1)
+        with storage.connection() as conn:
+            self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_unchanged_figure_save_preserves_rows_and_semantic_children(self):
+        storage.initialize()
+        state = realistic_figure_state()
+        storage.save_figures(state)
+        roundtrip = storage.load_figures()
+        with storage.connection() as conn:
+            before = {
+                table: table_rows_with_rowid(conn, table)
+                for table in ("figures", "profiles", "profile_fields", "connections")
+            }
+
+        storage.save_figures(copy.deepcopy(roundtrip))
+
+        self.assertEqual(storage.load_figures(), roundtrip)
+        with storage.connection() as conn:
+            after = {
+                table: table_rows_with_rowid(conn, table)
+                for table in ("figures", "profiles", "profile_fields", "connections")
+            }
+        self.assertEqual(after, before)
+
+    def test_changing_one_figure_keeps_unrelated_rows_and_child_identity(self):
+        storage.initialize()
+        storage.save_figures(realistic_figure_state())
+        with storage.connection() as conn:
+            before_ben = tuple(
+                conn.execute("SELECT rowid, * FROM figures WHERE id='figure-ben'").fetchone()
+            )
+            before_ben_profile = tuple(
+                conn.execute(
+                    "SELECT rowid, * FROM profiles WHERE figure_id='figure-ben'"
+                ).fetchone()
+            )
+            before_ben_fields = profile_field_rows_with_rowid(conn, "figure-ben")
+            before_unrelated_edge = tuple(
+                conn.execute(
+                    "SELECT rowid, * FROM connections WHERE id='edge-ben-harbor'"
+                ).fetchone()
+            )
+
+        changed = realistic_figure_state()
+        changed["nodes"][0]["name"] = "Ada von Morgenstern"
+        changed["nodes"][0]["profile"]["extra"][0]["v"] = "Wahrheit"
+        storage.save_figures(changed)
+
+        with storage.connection() as conn:
+            self.assertEqual(
+                tuple(conn.execute("SELECT rowid, * FROM figures WHERE id='figure-ben'").fetchone()),
+                before_ben,
+            )
+            self.assertEqual(
+                tuple(
+                    conn.execute(
+                        "SELECT rowid, * FROM profiles WHERE figure_id='figure-ben'"
+                    ).fetchone()
+                ),
+                before_ben_profile,
+            )
+            self.assertEqual(
+                profile_field_rows_with_rowid(conn, "figure-ben"),
+                before_ben_fields,
+            )
+            self.assertEqual(
+                tuple(
+                    conn.execute(
+                        "SELECT rowid, * FROM connections WHERE id='edge-ben-harbor'"
+                    ).fetchone()
+                ),
+                before_unrelated_edge,
+            )
+
+    def test_figure_save_synchronizes_removed_entities_connections_and_profile_fields(self):
+        storage.initialize()
+        state = realistic_figure_state()
+        storage.save_figures(state)
+
+        changed = realistic_figure_state()
+        changed["nodes"] = [node for node in changed["nodes"] if node["id"] != "figure-ben"]
+        changed["nodes"][0]["profile"]["extra"] = [
+            changed["nodes"][0]["profile"]["extra"][0]
+        ]
+        changed["edges"] = []
+        storage.save_figures(changed)
+
+        with storage.connection() as conn:
+            self.assertIsNone(
+                conn.execute("SELECT 1 FROM figures WHERE id='figure-ben'").fetchone()
+            )
+            self.assertIsNone(
+                conn.execute("SELECT 1 FROM profiles WHERE figure_id='figure-ben'").fetchone()
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM profile_fields WHERE figure_id='figure-ben'"
+                ).fetchone()[0],
+                0,
+            )
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM connections").fetchone()[0], 0)
+            self.assertEqual(
+                [
+                    tuple(row)
+                    for row in conn.execute(
+                        "SELECT position, label, value FROM profile_fields "
+                        "WHERE figure_id='figure-ada' ORDER BY position"
+                    )
+                ],
+                [(0, "Motiv", "Heimkehr")],
+            )
+            self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_figure_state_roundtrip_is_stable_across_repeated_saves(self):
+        storage.initialize()
+        storage.save_figures(realistic_figure_state())
+        first = storage.load_figures()
+        storage.save_figures(copy.deepcopy(first))
+        second = storage.load_figures()
+        self.assertEqual(second, first)
+
+    def test_figure_revision_and_conflict_semantics_remain_unchanged(self):
+        storage.initialize()
+        state = realistic_figure_state()
+        self.assertEqual(storage.save_with_revision("figures", state, 0), 1)
+        # A successful PUT still advances the ETag/revision even for an unchanged payload.
+        self.assertEqual(storage.save_with_revision("figures", copy.deepcopy(state), 1), 2)
+        with self.assertRaises(storage.ConflictError):
+            storage.save_with_revision("figures", state, 1)
+        self.assertEqual(storage.revision("figures"), 2)
+
+    def test_failed_figure_sync_rolls_back_state_and_revision_atomically(self):
+        storage.initialize()
+        original = realistic_figure_state()
+        self.assertEqual(storage.save_with_revision("figures", original, 0), 1)
+        before = storage.load_figures()
+
+        invalid = realistic_figure_state()
+        invalid["nodes"][0]["name"] = "Diese Teiländerung darf nicht sichtbar werden"
+        invalid["nodes"].append({"name": "Ohne stabile ID", "x": 10, "y": 20})
+        with self.assertRaises((KeyError, sqlite3.IntegrityError)):
+            storage.save_with_revision("figures", invalid, 1)
+
+        self.assertEqual(storage.load_figures(), before)
+        self.assertEqual(storage.revision("figures"), 1)
+        with storage.connection() as conn:
+            self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_rewiring_connection_away_from_deleted_figure_preserves_connection_identity(self):
+        storage.initialize()
+        original = realistic_figure_state()
+        storage.save_figures(original)
+        with storage.connection() as conn:
+            conn.execute(
+                "CREATE TABLE connection_evidence("
+                "id TEXT PRIMARY KEY, "
+                "connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE, "
+                "note TEXT NOT NULL)"
+            )
+            conn.execute(
+                "INSERT INTO connection_evidence(id, connection_id, note) VALUES(?,?,?)",
+                ("evidence-1", "edge-ada-ben", "Vom Nutzer bestätigt"),
+            )
+            connection_rowid = conn.execute(
+                "SELECT rowid FROM connections WHERE id='edge-ada-ben'"
+            ).fetchone()[0]
+
+        changed = realistic_figure_state()
+        changed["nodes"] = [node for node in changed["nodes"] if node["id"] != "figure-ben"]
+        changed["edges"] = [
+            {
+                **changed["edges"][0],
+                "to": "place-harbor",
+                "label": "kennt den Weg nach",
+            }
+        ]
+        storage.save_figures(changed)
+
+        with storage.connection() as conn:
+            rewired = conn.execute(
+                "SELECT rowid, source_id, target_id FROM connections WHERE id='edge-ada-ben'"
+            ).fetchone()
+            self.assertEqual(
+                tuple(rewired), (connection_rowid, "figure-ada", "place-harbor")
+            )
+            self.assertEqual(
+                tuple(
+                    conn.execute(
+                        "SELECT connection_id, note FROM connection_evidence WHERE id='evidence-1'"
+                    ).fetchone()
+                ),
+                ("edge-ada-ben", "Vom Nutzer bestätigt"),
+            )
+            self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_reordering_connections_preserves_dependent_rows_and_payload_order(self):
+        storage.initialize()
+        original = realistic_figure_state()
+        storage.save_figures(original)
+        with storage.connection() as conn:
+            conn.execute(
+                "CREATE TABLE connection_kinds("
+                "connection_id TEXT PRIMARY KEY REFERENCES connections(id) ON DELETE CASCADE, "
+                "kind TEXT NOT NULL)"
+            )
+            conn.execute(
+                "INSERT INTO connection_kinds(connection_id, kind) VALUES(?,?)",
+                ("edge-ada-ben", "chosen-family"),
+            )
+
+        reordered = realistic_figure_state()
+        reordered["edges"] = list(reversed(reordered["edges"]))
+        storage.save_figures(reordered)
+
+        self.assertEqual(
+            [edge["id"] for edge in storage.load_figures()["edges"]],
+            ["edge-ben-harbor", "edge-ada-ben"],
+        )
+        with storage.connection() as conn:
+            self.assertEqual(
+                tuple(
+                    conn.execute(
+                        "SELECT connection_id, kind FROM connection_kinds "
+                        "WHERE connection_id='edge-ada-ben'"
+                    ).fetchone()
+                ),
+                ("edge-ada-ben", "chosen-family"),
+            )
+            self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_schema_v3_world_upgrades_and_accepts_stable_figure_saves(self):
+        legacy_db = storage.DATA / "legacy-v3.sqlite3"
+        legacy_db.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(legacy_db)
+        try:
+            conn.executescript(LEGACY_V3_FIGURE_SCHEMA)
+            conn.execute("INSERT INTO meta(key, value) VALUES('schema_version', '3')")
+            conn.execute("INSERT INTO meta(key, value) VALUES('figures_revision', '7')")
+            conn.execute(
+                "INSERT INTO figures(id, position, x, y, kind, label, name, subtitle, "
+                "accent, dashed, pinned, extra_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    "legacy-figure",
+                    0,
+                    12.0,
+                    24.0,
+                    "person",
+                    "Alt",
+                    "Mara",
+                    "Archivarin",
+                    "ink",
+                    0,
+                    0,
+                    '{"legacyFlag":true}',
+                ),
+            )
+            conn.execute(
+                "INSERT INTO profiles(figure_id, age, role, appearance, origin, voice, notes, "
+                "extra_json) VALUES(?,?,?,?,?,?,?,?)",
+                ("legacy-figure", "62", "Zeugin", "", "Westen", "", "", "{}"),
+            )
+            conn.execute(
+                "INSERT INTO profile_fields(figure_id, position, label, value) VALUES(?,?,?,?)",
+                ("legacy-figure", 0, "Erinnerung", "Der erste Sturm"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        storage.initialize(legacy_db)
+        loaded = storage.load_figures(db_path=legacy_db)
+        self.assertTrue(loaded["nodes"][0]["legacyFlag"])
+        self.assertEqual(
+            loaded["nodes"][0]["profile"]["extra"],
+            [{"k": "Erinnerung", "v": "Der erste Sturm"}],
+        )
+        storage.save_figures(copy.deepcopy(loaded), db_path=legacy_db)
+        normalized = storage.load_figures(db_path=legacy_db)
+        self.assertEqual(normalized["nodes"], loaded["nodes"])
+        self.assertEqual(normalized["edges"], loaded["edges"])
+        self.assertEqual(normalized["canvasSize"], {"w": 2400, "h": 1600})
+        storage.save_figures(copy.deepcopy(normalized), db_path=legacy_db)
+        self.assertEqual(storage.load_figures(db_path=legacy_db), normalized)
+        self.assertEqual(storage.revision("figures", db_path=legacy_db), 7)
+        with storage.connection(legacy_db) as upgraded:
+            self.assertEqual(
+                upgraded.execute(
+                    "SELECT value FROM meta WHERE key='schema_version'"
+                ).fetchone()[0],
+                str(storage.SCHEMA_VERSION),
+            )
+            self.assertEqual(upgraded.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_schema_v3_temporal_json_migrates_once_without_changing_figure_state(self):
+        legacy_db = storage.DATA / "legacy-v3-temporal.sqlite3"
+        legacy_db.parent.mkdir(parents=True, exist_ok=True)
+        legacy_timeline = [
+            {"id": "legacy-before", "title": "Vorher", "futureMoment": "kept"},
+            {
+                "id": "legacy-zero",
+                "title": "Verrat",
+                "date": "1420-03-12",
+                "note": "Der Wendepunkt",
+            },
+            {"id": "legacy-after", "title": "Danach"},
+        ]
+        legacy_presence = [
+            {
+                "id": "legacy-base-presence",
+                "elementId": "legacy-person",
+                "placeId": "legacy-place",
+                "futurePresence": True,
+            },
+            {
+                "id": "legacy-moment-presence",
+                "elementId": "legacy-person",
+                "placeId": "legacy-place",
+                "momentId": "legacy-zero",
+            },
+            {
+                "id": "legacy-moment-presence-final",
+                "elementId": "legacy-person",
+                "placeId": "legacy-place",
+                "momentId": "legacy-zero",
+                "futurePresence": "last wins",
+            },
+            {
+                "id": "dangling-presence",
+                "elementId": "legacy-person",
+                "placeId": "legacy-place",
+                "momentId": "deleted-moment",
+            },
+        ]
+        legacy_versions = [
+            {"momentId": "legacy-before", "label": "Freunde", "active": True},
+            {
+                "momentId": "legacy-zero",
+                "label": "Feinde",
+                "active": True,
+                "gerichtet": True,
+                "style": "dashed",
+                "futureVersion": {"certainty": 0.8},
+            },
+            {
+                "momentId": "legacy-zero",
+                "label": "Erbfeinde",
+                "active": True,
+                "futureVersion": {"certainty": 1},
+            },
+            {"momentId": "legacy-after", "active": False},
+            {"momentId": "deleted-moment", "active": True},
+        ]
+        conn = sqlite3.connect(legacy_db)
+        try:
+            conn.executescript(LEGACY_V3_FIGURE_SCHEMA)
+            conn.execute("INSERT INTO meta(key, value) VALUES('schema_version', '3')")
+            conn.execute("INSERT INTO meta(key, value) VALUES('figures_revision', '11')")
+            conn.execute(
+                "INSERT INTO figure_settings(id, canvas_width, canvas_height, extra_json) "
+                "VALUES(1,2400,1600,?)",
+                (
+                    json.dumps(
+                        {
+                            "timeline": legacy_timeline,
+                            "presence": legacy_presence,
+                            "futureAggregate": "kept",
+                        }
+                    ),
+                ),
+            )
+            conn.executemany(
+                "INSERT INTO figures(id, position, x, y, kind, label, name, subtitle, "
+                "accent, dashed, pinned, extra_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                [
+                    (
+                        "legacy-person",
+                        0,
+                        10,
+                        20,
+                        "person",
+                        "",
+                        "Mara",
+                        "",
+                        "ink",
+                        0,
+                        0,
+                        json.dumps(
+                            {
+                                "diedMomentId": "legacy-after",
+                                "futureNode": "kept",
+                            }
+                        ),
+                    ),
+                    (
+                        "legacy-place",
+                        1,
+                        30,
+                        40,
+                        "ort",
+                        "",
+                        "Hafen",
+                        "",
+                        "blue",
+                        0,
+                        0,
+                        "{}",
+                    ),
+                ],
+            )
+            conn.execute(
+                "INSERT INTO connections(id, source_id, target_id, label, style, directed, "
+                "extra_json) VALUES(?,?,?,?,?,?,?)",
+                (
+                    "legacy-edge",
+                    "legacy-person",
+                    "legacy-place",
+                    "kennt",
+                    "solid",
+                    0,
+                    json.dumps(
+                        {"versions": legacy_versions, "futureConnection": "kept"}
+                    ),
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        storage.initialize(legacy_db)
+        loaded = storage.load_figures(db_path=legacy_db)
+        self.assertEqual(
+            loaded["timeline"],
+            [
+                {**moment, "time": position, "position": position}
+                for position, moment in enumerate(legacy_timeline)
+            ],
+        )
+        self.assertEqual(loaded["presence"], [legacy_presence[0], legacy_presence[2]])
+        self.assertEqual(
+            loaded["edges"][0]["versions"],
+            [legacy_versions[0], legacy_versions[2], legacy_versions[3]],
+        )
+        self.assertEqual(loaded["futureAggregate"], "kept")
+        self.assertEqual(loaded["edges"][0]["futureConnection"], "kept")
+        self.assertEqual(loaded["nodes"][0]["futureNode"], "kept")
+        self.assertEqual(loaded["nodes"][0]["diedMomentId"], "legacy-after")
+        self.assertEqual(storage.revision("figures", db_path=legacy_db), 11)
+
+        with storage.connection(legacy_db) as upgraded:
+            self.assertEqual(
+                [
+                    tuple(row)
+                    for row in upgraded.execute(
+                        "SELECT id, time, position FROM timeline_moments "
+                        "ORDER BY time, position"
+                    )
+                ],
+                [
+                    ("legacy-before", 0, 0),
+                    ("legacy-zero", 1, 1),
+                    ("legacy-after", 2, 2),
+                ],
+            )
+            self.assertEqual(
+                tuple(
+                    upgraded.execute(
+                        "SELECT active,label,directed,style FROM relationship_states "
+                        "WHERE relationship_id='legacy-edge' AND moment_id='legacy-after'"
+                    ).fetchone()
+                ),
+                (0, "", 0, "solid"),
+            )
+            before = {
+                table: table_rows_with_rowid(upgraded, table)
+                for table in (
+                    "timeline_moments",
+                    "relationship_states",
+                    "presence_states",
+                )
+            }
+            settings_extra = json.loads(
+                upgraded.execute(
+                    "SELECT extra_json FROM figure_settings WHERE id=1"
+                ).fetchone()[0]
+            )
+            connection_extra = json.loads(
+                upgraded.execute(
+                    "SELECT extra_json FROM connections WHERE id='legacy-edge'"
+                ).fetchone()[0]
+            )
+            figure_extra = json.loads(
+                upgraded.execute(
+                    "SELECT extra_json FROM figures WHERE id='legacy-person'"
+                ).fetchone()[0]
+            )
+            self.assertNotIn("timeline", settings_extra)
+            self.assertNotIn("presence", settings_extra)
+            self.assertNotIn("versions", connection_extra)
+            self.assertNotIn("diedMomentId", figure_extra)
+            self.assertEqual(upgraded.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+        # Re-opening an already migrated world must not duplicate or replace rows.
+        storage.initialize(legacy_db)
+        with storage.connection(legacy_db) as upgraded:
+            after = {
+                table: table_rows_with_rowid(upgraded, table)
+                for table in (
+                    "timeline_moments",
+                    "relationship_states",
+                    "presence_states",
+                )
+            }
+            self.assertEqual(after, before)
+            self.assertEqual(
+                upgraded.execute(
+                    "SELECT value FROM meta WHERE key='schema_version'"
+                ).fetchone()[0],
+                str(storage.SCHEMA_VERSION),
+            )
+            self.assertEqual(upgraded.execute("PRAGMA foreign_key_check").fetchall(), [])
 
     def test_revision_conflicts_prevent_lost_updates(self):
         storage.initialize()
@@ -193,6 +1172,125 @@ class StorageTest(unittest.TestCase):
         storage.save_with_revision("manuscript", changed, 1)
         storage.restore_backup(name)
         self.assertEqual(storage.load_manuscript()["chapters"][0]["body"], "Original")
+
+    def test_restoring_v3_backup_migrates_temporal_state_before_it_is_loaded(self):
+        storage.initialize()
+        storage.save_with_revision("figures", temporal_figure_state(), 0)
+        storage.BACKUPS.mkdir(parents=True, exist_ok=True)
+        backup_name = "backup-20200101-000000-000000.sqlite3"
+        legacy_backup = storage.BACKUPS / backup_name
+        conn = sqlite3.connect(legacy_backup)
+        try:
+            conn.executescript(LEGACY_V3_FIGURE_SCHEMA)
+            conn.executemany(
+                "INSERT INTO meta(key,value) VALUES(?,?)",
+                [
+                    ("schema_version", "3"),
+                    ("figures_revision", "5"),
+                    ("manuscript_revision", "8"),
+                    ("last_restore_at", ""),
+                ],
+            )
+            conn.execute(
+                "INSERT INTO figure_settings(id,canvas_width,canvas_height,extra_json) "
+                "VALUES(1,2400,1600,?)",
+                (
+                    json.dumps(
+                        {
+                            "timeline": [
+                                {"id": "backup-moment", "title": "Aus Sicherung"}
+                            ],
+                            "presence": [
+                                {
+                                    "id": "backup-presence",
+                                    "elementId": "backup-person",
+                                    "placeId": "backup-place",
+                                    "momentId": "backup-moment",
+                                }
+                            ],
+                        }
+                    ),
+                ),
+            )
+            conn.executemany(
+                "INSERT INTO figures(id,position,x,y,kind,label,name,subtitle,accent,dashed,"
+                "pinned,extra_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                [
+                    (
+                        "backup-person",
+                        0,
+                        0,
+                        0,
+                        "person",
+                        "",
+                        "Gesicherte Figur",
+                        "",
+                        "ink",
+                        0,
+                        0,
+                        "{}",
+                    ),
+                    (
+                        "backup-place",
+                        1,
+                        1,
+                        1,
+                        "ort",
+                        "",
+                        "Gesicherter Ort",
+                        "",
+                        "blue",
+                        0,
+                        0,
+                        "{}",
+                    ),
+                ],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        storage.restore_backup(backup_name)
+
+        loaded = storage.load_figures()
+        self.assertEqual(
+            loaded["timeline"],
+            [
+                {
+                    "id": "backup-moment",
+                    "title": "Aus Sicherung",
+                    "time": 0,
+                    "position": 0,
+                }
+            ],
+        )
+        self.assertEqual(
+            loaded["presence"],
+            [
+                {
+                    "id": "backup-presence",
+                    "elementId": "backup-person",
+                    "placeId": "backup-place",
+                    "momentId": "backup-moment",
+                }
+            ],
+        )
+        # Restore advances each revision from the restored backup, not the replaced world.
+        self.assertEqual(storage.revision("figures"), 6)
+        self.assertEqual(storage.revision("manuscript"), 9)
+        with storage.connection() as restored:
+            self.assertEqual(
+                restored.execute(
+                    "SELECT value FROM meta WHERE key='schema_version'"
+                ).fetchone()[0],
+                str(storage.SCHEMA_VERSION),
+            )
+            self.assertTrue(
+                restored.execute(
+                    "SELECT value FROM meta WHERE key='last_restore_at'"
+                ).fetchone()[0]
+            )
+            self.assertEqual(restored.execute("PRAGMA foreign_key_check").fetchall(), [])
 
     def test_worlds_are_created_and_activated_in_separate_databases(self):
         first = storage.create_world("Der letzte Garten", "https://backup.example.com")

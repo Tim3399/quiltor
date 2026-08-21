@@ -17,7 +17,14 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from "../../types";
+import type {
+  FigureEdge,
+  FigureNode,
+  FigureState,
+  TimeSystem,
+  TimeSystemKind,
+  TimelineMoment,
+} from "../../types";
 import { uid } from "../../types";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { useShortcut } from "../../shared/ui/shortcuts";
@@ -31,6 +38,21 @@ import {
 } from "../figures/relationships";
 import { patchPresence } from "../figures/presence";
 import { PresenceBoard } from "./PresenceBoard";
+import {
+  insertTimelineMoment,
+  insertTimelineMomentAtTime,
+  moveTimelineMoment,
+  removeTimelineMoment,
+  setTimelineMomentTime,
+} from "./order";
+import {
+  DEFAULT_CUSTOM_MONTHS,
+  normalizeTimeSystem,
+  parseRelativeTime,
+  projectTime,
+  relativeTimeLabel,
+  timeOfMoment,
+} from "./timeSystem";
 import { useLanguage, type Translate } from "../../language";
 import "./TimelineWorkspace.css";
 
@@ -66,12 +88,16 @@ export function TimelineWorkspace({
   const [openSections, setOpenSections] = useState(() => new Set(["relationships"]));
   const [selectedLifeId, setSelectedLifeId] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [relativeAmount, setRelativeAmount] = useState(1);
+  const [relativeDirection, setRelativeDirection] = useState<"before" | "after">("after");
+  const [relativeBaseId, setRelativeBaseId] = useState(() => timeline[0]?.id || "");
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia("(max-width: 719px)").matches,
   );
   const actionsButton = useRef<HTMLButtonElement>(null);
   const selected = timeline.find((moment) => moment.id === selectedId) || null;
   const selectedIndex = selected ? timeline.findIndex((moment) => moment.id === selected.id) : -1;
+  const timeSystem = normalizeTimeSystem(state.timeSystem);
 
   useEffect(() => {
     if (targetId && timeline.some((moment) => moment.id === targetId)) setSelectedId(targetId);
@@ -79,6 +105,11 @@ export function TimelineWorkspace({
   useEffect(() => {
     if (!selectedId && timeline.length) setSelectedId(timeline[0].id);
   }, [selectedId, timeline]);
+  useEffect(() => {
+    if (!timeline.some((moment) => moment.id === relativeBaseId)) {
+      setRelativeBaseId(selectedId || timeline[0]?.id || "");
+    }
+  }, [relativeBaseId, selectedId, timeline]);
   useEffect(() => setSelectedEdgeId(null), [selectedId]);
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
@@ -89,13 +120,40 @@ export function TimelineWorkspace({
     return () => media.removeEventListener("change", update);
   }, []);
 
-  const addMomentAt = (index: number) => {
+  const addMomentAt = (index: number, preferredTime?: number) => {
     const moment: TimelineMoment = { id: uid("t"), title: t("newMoment") };
-    const next = [...timeline];
-    next.splice(index, 0, moment);
+    const next =
+      preferredTime === undefined
+        ? insertTimelineMoment(timeline, moment, index)
+        : insertTimelineMomentAtTime(timeline, moment, index, preferredTime);
     onChange({ ...state, timeline: next });
     setSelectedId(moment.id);
+    setRelativeBaseId(moment.id);
   };
+  const addRelativeMoment = () => {
+    const base = timeline.find((moment) => moment.id === relativeBaseId) || selected || timeline[0];
+    if (!base) return addMomentAt(0, 0);
+    const delta =
+      Math.max(0, Math.trunc(relativeAmount)) * (relativeDirection === "before" ? -1 : 1);
+    const time = timeOfMoment(base) + delta;
+    if (!Number.isSafeInteger(time)) return;
+    const orderedIndex = timeline.findIndex((moment) => timeOfMoment(moment) > time);
+    addMomentAt(orderedIndex < 0 ? timeline.length : orderedIndex, time);
+  };
+  const patchTimeSystem = (patch: Partial<TimeSystem>) =>
+    onChange({ ...state, timeSystem: { ...timeSystem, ...patch } });
+  const switchTimeSystem = (kind: TimeSystemKind) =>
+    patchTimeSystem({
+      kind,
+      unit: kind === "relative" ? timeSystem.unit : "day",
+      months:
+        kind === "custom" && !timeSystem.months.length
+          ? DEFAULT_CUSTOM_MONTHS.map((month, index) => ({
+              ...month,
+              name: t("timelineMonthDefault", { number: index + 1 }),
+            }))
+          : timeSystem.months,
+    });
   const patchMoment = (patch: Partial<TimelineMoment>) =>
     selected &&
     onChange({
@@ -107,15 +165,9 @@ export function TimelineWorkspace({
   const moveMomentTo = (momentId: string, targetIndex: number) => {
     const from = timeline.findIndex((moment) => moment.id === momentId);
     if (from < 0) return;
-    const next = [...timeline],
-      [moment] = next.splice(from, 1);
-    const adjusted = Math.max(
-      0,
-      Math.min(next.length, targetIndex > from ? targetIndex - 1 : targetIndex),
-    );
-    next.splice(adjusted, 0, moment);
+    const next = moveTimelineMoment(timeline, momentId, targetIndex);
     onChange({ ...state, timeline: next });
-    setSelectedId(moment.id);
+    setSelectedId(momentId);
   };
   const moveMoment = (offset: number) =>
     selected && moveMomentTo(selected.id, selectedIndex + offset + (offset > 0 ? 1 : 0));
@@ -126,8 +178,12 @@ export function TimelineWorkspace({
       id: uid("t"),
       title: t("copyName", { name: selected.title || t("untitled") }),
     };
-    const next = [...timeline];
-    next.splice(selectedIndex + 1, 0, copy);
+    const next = insertTimelineMoment(
+      timeline,
+      copy,
+      selectedIndex + 1,
+      selected.time ?? selectedIndex,
+    );
     onChange({
       ...state,
       timeline: next,
@@ -231,11 +287,22 @@ export function TimelineWorkspace({
           </span>
         </div>
         <div className="context-tools">
+          <TimeSystemControls
+            system={timeSystem}
+            timeline={timeline}
+            amount={relativeAmount}
+            direction={relativeDirection}
+            baseId={relativeBaseId}
+            onAmountChange={setRelativeAmount}
+            onDirectionChange={setRelativeDirection}
+            onBaseChange={setRelativeBaseId}
+            onKindChange={switchTimeSystem}
+            onPatch={patchTimeSystem}
+            onAdd={addRelativeMoment}
+            t={t}
+          />
           <div className="tool-group">
-            <button
-              className="primary"
-              onClick={() => addMomentAt(selectedIndex >= 0 ? selectedIndex + 1 : timeline.length)}
-            >
+            <button className="primary" onClick={addRelativeMoment}>
               <Plus />
               {t("addMoment")}
             </button>
@@ -296,7 +363,8 @@ export function TimelineWorkspace({
                     <span>{index + 1}</span>
                     <strong>{moment.title || t("untitled")}</strong>
                     <small>
-                      {moment.date || t("nChanges", { n: countMomentChanges(state, moment.id) })}
+                      {projectTime(timeSystem, timeOfMoment(moment, index))} ·{" "}
+                      {t("nChanges", { n: countMomentChanges(state, moment.id) })}
                     </small>
                   </button>
                   <InsertMomentButton
@@ -401,12 +469,32 @@ export function TimelineWorkspace({
                     />
                   </label>
                   <label className="field">
-                    <span>{t("optionalDate")}</span>
+                    <span>{t("timelineCanonicalTime")}</span>
                     <input
-                      type="date"
-                      value={selected.date || ""}
-                      onChange={(event) => patchMoment({ date: event.target.value || undefined })}
+                      key={selected.id}
+                      defaultValue={relativeTimeLabel(timeOfMoment(selected, selectedIndex))}
+                      onBlur={(event) => {
+                        const value = parseRelativeTime(event.target.value);
+                        if (value === null) {
+                          event.target.value = relativeTimeLabel(
+                            timeOfMoment(selected, selectedIndex),
+                          );
+                          return;
+                        }
+                        onChange({
+                          ...state,
+                          timeline: setTimelineMomentTime(timeline, selected.id, value),
+                        });
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                      }}
                     />
+                    <small>
+                      {t("timelineProjection", {
+                        value: projectTime(timeSystem, timeOfMoment(selected, selectedIndex)),
+                      })}
+                    </small>
                   </label>
                   <label className="field timeline-note">
                     <span>{t("optionalNote")}</span>
@@ -610,7 +698,7 @@ export function TimelineWorkspace({
           undoable
           onClose={() => setDeleteMoment(null)}
           onConfirm={() => {
-            const remaining = timeline.filter((moment) => moment.id !== deleteMoment.id);
+            const remaining = removeTimelineMoment(timeline, deleteMoment.id);
             onChange({
               ...state,
               timeline: remaining,
@@ -637,6 +725,293 @@ function InsertMomentButton({ label, onClick }: { label: string; onClick: () => 
     <button className="insert-moment" aria-label={label} title={label} onClick={onClick}>
       <Plus />
     </button>
+  );
+}
+
+function TimeSystemControls({
+  system,
+  timeline,
+  amount,
+  direction,
+  baseId,
+  onAmountChange,
+  onDirectionChange,
+  onBaseChange,
+  onKindChange,
+  onPatch,
+  onAdd,
+  t,
+}: {
+  system: TimeSystem;
+  timeline: TimelineMoment[];
+  amount: number;
+  direction: "before" | "after";
+  baseId: string;
+  onAmountChange: (value: number) => void;
+  onDirectionChange: (value: "before" | "after") => void;
+  onBaseChange: (value: string) => void;
+  onKindChange: (value: TimeSystemKind) => void;
+  onPatch: (patch: Partial<TimeSystem>) => void;
+  onAdd: () => void;
+  t: Translate;
+}) {
+  const patchMonth = (index: number, patch: Partial<TimeSystem["months"][number]>) =>
+    onPatch({
+      months: system.months.map((month, position) =>
+        position === index ? { ...month, ...patch } : month,
+      ),
+    });
+
+  return (
+    <div className="timeline-time-controls">
+      <label>
+        <span className="sr-only">{t("timelineTimeSystem")}</span>
+        <select
+          aria-label={t("timelineTimeSystem")}
+          value={system.kind}
+          onChange={(event) => onKindChange(event.target.value as TimeSystemKind)}
+        >
+          <option value="relative">{t("timelineTimeRelative")}</option>
+          <option value="gregorian">{t("timelineTimeGregorian")}</option>
+          <option value="custom">{t("timelineTimeCustom")}</option>
+        </select>
+      </label>
+      {!!timeline.length && (
+        <div
+          className="timeline-relative-create"
+          role="group"
+          aria-label={t("timelineRelativeCreate")}
+        >
+          <input
+            type="number"
+            min="0"
+            max={Number.MAX_SAFE_INTEGER}
+            step="1"
+            aria-label={t("timelineDistance")}
+            value={amount}
+            onChange={(event) =>
+              onAmountChange(Math.max(0, Math.trunc(Number(event.target.value) || 0)))
+            }
+          />
+          <select
+            aria-label={t("timelineDirection")}
+            value={direction}
+            onChange={(event) => onDirectionChange(event.target.value as "before" | "after")}
+          >
+            <option value="before">{t("timelineBefore")}</option>
+            <option value="after">{t("timelineAfter")}</option>
+          </select>
+          <select
+            aria-label={t("timelineBaseMoment")}
+            value={baseId}
+            onChange={(event) => onBaseChange(event.target.value)}
+          >
+            {timeline.map((moment, index) => (
+              <option key={moment.id} value={moment.id}>
+                {moment.title || t("timelinePoint", { number: index + 1 })} (
+                {projectTime(system, timeOfMoment(moment, index))})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={t("timelineAddRelative")}
+            title={t("timelineAddRelative")}
+          >
+            <Plus />
+          </button>
+        </div>
+      )}
+      <details className="timeline-time-settings">
+        <summary>{t("timelineConfigureTime")}</summary>
+        <div className="timeline-time-settings-panel">
+          <label>
+            <span>{t("name")}</span>
+            <input
+              value={system.name}
+              onChange={(event) => onPatch({ name: event.target.value })}
+            />
+          </label>
+          {system.kind === "relative" ? (
+            <label>
+              <span>{t("timelineUnit")}</span>
+              <select
+                value={system.unit}
+                onChange={(event) => onPatch({ unit: event.target.value as TimeSystem["unit"] })}
+              >
+                <option value="day">{t("timelineDays")}</option>
+                <option value="abstract">{t("timelineAbstract")}</option>
+              </select>
+            </label>
+          ) : (
+            <>
+              <label>
+                <span>{t("timelineEpochTime")}</span>
+                <input
+                  type="number"
+                  step="1"
+                  min={-Number.MAX_SAFE_INTEGER}
+                  max={Number.MAX_SAFE_INTEGER}
+                  value={system.epochTime}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    if (Number.isSafeInteger(value)) onPatch({ epochTime: value });
+                  }}
+                />
+              </label>
+              <label>
+                <span>{t("timelineEpochYear")}</span>
+                <input
+                  type="number"
+                  step="1"
+                  min={system.kind === "gregorian" ? 1 : -Number.MAX_SAFE_INTEGER}
+                  max={system.kind === "gregorian" ? 9999 : Number.MAX_SAFE_INTEGER}
+                  value={system.epochYear}
+                  onChange={(event) =>
+                    onPatch({ epochYear: Math.trunc(Number(event.target.value) || 1) })
+                  }
+                />
+              </label>
+              <label>
+                <span>{t("timelineEpochMonth")}</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={system.epochMonth}
+                  onChange={(event) =>
+                    onPatch({
+                      epochMonth: Math.max(1, Math.trunc(Number(event.target.value) || 1)),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <span>{t("timelineEpochDay")}</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={system.epochDay}
+                  onChange={(event) =>
+                    onPatch({ epochDay: Math.max(1, Math.trunc(Number(event.target.value) || 1)) })
+                  }
+                />
+              </label>
+              <label>
+                <span>{t("timelineEra")}</span>
+                <input
+                  value={system.eraName}
+                  onChange={(event) => onPatch({ eraName: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>{t("timelineEraAbbreviation")}</span>
+                <input
+                  value={system.eraAbbreviation}
+                  onChange={(event) => onPatch({ eraAbbreviation: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>{t("timelineDisplayFormat")}</span>
+                <select
+                  value={system.displayFormat || ""}
+                  onChange={(event) => onPatch({ displayFormat: event.target.value })}
+                >
+                  <option value="">{t("timelineFormatDefault")}</option>
+                  <option
+                    value={
+                      system.kind === "custom"
+                        ? "{day} {monthName}, {year} {era}"
+                        : "{day:02d}.{month:02d}.{year:04d} {era}"
+                    }
+                  >
+                    {t("timelineFormatDayMonthYear")}
+                  </option>
+                  <option
+                    value={
+                      system.kind === "custom"
+                        ? "{monthName} {day}, {year} {era}"
+                        : "{month:02d}/{day:02d}/{year:04d} {era}"
+                    }
+                  >
+                    {t("timelineFormatMonthDayYear")}
+                  </option>
+                  <option
+                    value={
+                      system.kind === "custom"
+                        ? "{year} {monthName} {day} {era}"
+                        : "{year:04d}-{month:02d}-{day:02d} {era}"
+                    }
+                  >
+                    {t("timelineFormatYearMonthDay")}
+                  </option>
+                </select>
+              </label>
+            </>
+          )}
+          {system.kind === "custom" && (
+            <div className="timeline-calendar-structure">
+              <label>
+                <span>{t("timelineWeekdays")}</span>
+                <input
+                  value={system.weekdays.map((weekday) => weekday.name).join(", ")}
+                  onChange={(event) =>
+                    onPatch({
+                      weekdays: event.target.value
+                        .split(",")
+                        .map((name) => name.trim())
+                        .filter(Boolean)
+                        .map((name) => ({ name, shortName: name.slice(0, 3) })),
+                    })
+                  }
+                />
+              </label>
+              {!!system.weekdays.length && (
+                <label>
+                  <span>{t("timelineEpochWeekday")}</span>
+                  <select
+                    value={system.epochWeekday}
+                    onChange={(event) => onPatch({ epochWeekday: Number(event.target.value) })}
+                  >
+                    {system.weekdays.map((weekday, index) => (
+                      <option key={`${weekday.name}-${index}`} value={index}>
+                        {weekday.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <fieldset>
+                <legend>{t("timelineMonths")}</legend>
+                {system.months.map((month, index) => (
+                  <div className="timeline-calendar-month" key={index}>
+                    <input
+                      aria-label={t("timelineMonthName", { number: index + 1 })}
+                      value={month.name}
+                      onChange={(event) => patchMonth(index, { name: event.target.value })}
+                    />
+                    <input
+                      aria-label={t("timelineMonthDays", { name: month.name })}
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={month.dayCount}
+                      onChange={(event) =>
+                        patchMonth(index, {
+                          dayCount: Math.max(1, Math.trunc(Number(event.target.value) || 1)),
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </fieldset>
+            </div>
+          )}
+        </div>
+      </details>
+    </div>
   );
 }
 

@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 
+MAX_SAFE_INTEGER = 9_007_199_254_740_991
+
+
 def valid_figures(payload: Any) -> bool:
     if (
         not isinstance(payload, dict)
@@ -10,7 +13,10 @@ def valid_figures(payload: Any) -> bool:
         or not isinstance(payload.get("edges"), list)
     ):
         return False
+    if not _valid_time_system(payload.get("timeSystem")):
+        return False
     ids: list[str] = []
+    kinds: dict[str, str] = {}
     for node in payload["nodes"]:
         if not isinstance(node, dict) or not isinstance(node.get("id"), str) or not node["id"]:
             return False
@@ -25,16 +31,65 @@ def valid_figures(payload: Any) -> bool:
         if node.get("mapY") is not None and not isinstance(node.get("mapY"), (int, float)):
             return False
         ids.append(node["id"])
+        kinds[node["id"]] = node.get("type", "person")
     if len(ids) != len(set(ids)):
         return False
-    known, edge_ids = set(ids), []
+
+    timeline = payload.get("timeline", [])
+    if not isinstance(timeline, list):
+        return False
+    moment_ids: list[str] = []
+    for moment in timeline:
+        if (
+            not isinstance(moment, dict)
+            or not isinstance(moment.get("id"), str)
+            or not moment["id"]
+            or not isinstance(moment.get("title", ""), str)
+            or not isinstance(moment.get("date", ""), str)
+            or not isinstance(moment.get("note", ""), str)
+        ):
+            return False
+        if "time" in moment and (
+            type(moment["time"]) is not int or abs(moment["time"]) > MAX_SAFE_INTEGER
+        ):
+            return False
+        if "position" in moment and type(moment["position"]) is not int:
+            return False
+        moment_ids.append(moment["id"])
+    if len(moment_ids) != len(set(moment_ids)):
+        return False
+
+    known, known_moments, edge_ids = set(ids), set(moment_ids), []
+    death_moments = [node.get("diedMomentId") for node in payload["nodes"]]
+    if any(moment_id is not None and moment_id not in known_moments for moment_id in death_moments):
+        return False
     for edge in payload["edges"]:
         if (
             not isinstance(edge, dict)
             or not isinstance(edge.get("id"), str)
+            or not edge["id"]
             or edge.get("from") not in known
             or edge.get("to") not in known
         ):
+            return False
+        versions = edge.get("versions", [])
+        if not isinstance(versions, list):
+            return False
+        version_moments: list[str] = []
+        for version in versions:
+            if (
+                not isinstance(version, dict)
+                or version.get("momentId") not in known_moments
+                or type(version.get("active")) is not bool
+                or ("from" in version and version["from"] not in known)
+                or ("to" in version and version["to"] not in known)
+                or ("label" in version and not isinstance(version["label"], str))
+                or ("style" in version and not isinstance(version["style"], str))
+                or ("gerichtet" in version and type(version["gerichtet"]) is not bool)
+            ):
+                return False
+            version_moments.append(version["momentId"])
+        if len(version_moments) != len(set(version_moments)):
             return False
         edge_ids.append(edge["id"])
     if len(edge_ids) != len(set(edge_ids)):
@@ -48,12 +103,82 @@ def valid_figures(payload: Any) -> bool:
     for entry in presence:
         if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not entry["id"]:
             return False
-        if not isinstance(entry.get("elementId"), str) or not isinstance(entry.get("placeId"), str):
+        if entry.get("elementId") not in known or kinds.get(entry.get("placeId")) != "ort":
             return False
-        if entry.get("momentId") is not None and not isinstance(entry.get("momentId"), str):
+        if entry.get("momentId") is not None and entry.get("momentId") not in known_moments:
             return False
         entry_ids.append(entry["id"])
-    return len(entry_ids) == len(set(entry_ids))
+    logical_presence = [
+        (entry["elementId"], entry.get("momentId")) for entry in presence if isinstance(entry, dict)
+    ]
+    return len(entry_ids) == len(set(entry_ids)) and len(logical_presence) == len(
+        set(logical_presence)
+    )
+
+
+def _valid_time_system(value: Any) -> bool:
+    if value is None:
+        return True
+    if not isinstance(value, dict):
+        return False
+    if (
+        not isinstance(value.get("id"), str)
+        or not value["id"]
+        or not isinstance(value.get("name"), str)
+        or value.get("kind") not in {"relative", "gregorian", "custom"}
+        or value.get("unit", "day") not in {"day", "abstract"}
+        or (value.get("kind") != "relative" and value.get("unit", "day") != "day")
+    ):
+        return False
+    if any(
+        not isinstance(value.get(field, ""), str)
+        for field in ("eraName", "eraAbbreviation", "displayFormat")
+    ):
+        return False
+    for field, default in (
+        ("epochTime", 0), ("epochYear", 1), ("epochMonth", 1),
+        ("epochDay", 1), ("epochWeekday", 0),
+    ):
+        number = value.get(field, default)
+        if type(number) is not int or abs(number) > MAX_SAFE_INTEGER:
+            return False
+    months, weekdays = value.get("months", []), value.get("weekdays", [])
+    if not isinstance(months, list) or not isinstance(weekdays, list):
+        return False
+    if value.get("kind") == "custom" and not months:
+        return False
+    if any(
+        not isinstance(month, dict)
+        or not isinstance(month.get("name"), str)
+        or not isinstance(month.get("shortName", ""), str)
+        or type(month.get("dayCount")) is not int
+        or month["dayCount"] <= 0
+        or month["dayCount"] > MAX_SAFE_INTEGER
+        for month in months
+    ):
+        return False
+    if any(
+        not isinstance(weekday, dict)
+        or not isinstance(weekday.get("name"), str)
+        or not isinstance(weekday.get("shortName", ""), str)
+        for weekday in weekdays
+    ):
+        return False
+    epoch_weekday = value.get("epochWeekday", 0)
+    if weekdays and not 0 <= epoch_weekday < len(weekdays):
+        return False
+    try:
+        if value.get("kind") == "gregorian":
+            from datetime import date
+
+            date(value.get("epochYear", 1), value.get("epochMonth", 1), value.get("epochDay", 1))
+        elif value.get("kind") == "custom":
+            month, day = value.get("epochMonth", 1), value.get("epochDay", 1)
+            if month < 1 or month > len(months) or day < 1 or day > months[month - 1]["dayCount"]:
+                return False
+    except ValueError:
+        return False
+    return True
 
 
 def valid_manuscript(payload: Any) -> bool:

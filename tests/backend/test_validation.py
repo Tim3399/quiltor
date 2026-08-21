@@ -1,7 +1,97 @@
 import unittest
 
 from backend.core.mirror import markdown_body
-from backend.core.validation import valid_manuscript
+from backend.core.validation import valid_figures, valid_manuscript
+
+
+class FigureTemporalValidationTests(unittest.TestCase):
+    def state(self):
+        return {
+            "nodes": [
+                {"id": "ada", "name": "Ada", "x": 0, "y": 0, "type": "person"},
+                {"id": "harbor", "name": "Hafen", "x": 10, "y": 10, "type": "ort"},
+            ],
+            "edges": [
+                {
+                    "id": "knows",
+                    "from": "ada",
+                    "to": "harbor",
+                    "versions": [
+                        {
+                            "momentId": "storm",
+                            "label": "flieht nach",
+                            "active": True,
+                        }
+                    ],
+                }
+            ],
+            "timeline": [
+                {"id": "origin", "title": "Anfang", "time": -4, "position": 0},
+                {"id": "storm", "title": "Sturm", "time": 0, "position": 1},
+                {"id": "rescue", "title": "Rettung", "time": 0, "position": 2},
+            ],
+            "presence": [
+                {"id": "base", "elementId": "ada", "placeId": "harbor"},
+                {
+                    "id": "at-storm",
+                    "elementId": "ada",
+                    "placeId": "harbor",
+                    "momentId": "storm",
+                },
+            ],
+        }
+
+    def test_accepts_signed_and_simultaneous_moments_with_valid_temporal_references(self):
+        self.assertTrue(valid_figures(self.state()))
+
+    def test_rejects_duplicate_or_malformed_moments(self):
+        duplicate = self.state()
+        duplicate["timeline"][2]["id"] = "storm"
+        self.assertFalse(valid_figures(duplicate))
+
+        fractional = self.state()
+        fractional["timeline"][0]["time"] = -1.5
+        self.assertFalse(valid_figures(fractional))
+
+        fractional_position = self.state()
+        fractional_position["timeline"][1]["position"] = 1.5
+        self.assertFalse(valid_figures(fractional_position))
+
+    def test_rejects_dangling_and_duplicate_relationship_states(self):
+        dangling = self.state()
+        dangling["edges"][0]["versions"][0]["momentId"] = "missing"
+        self.assertFalse(valid_figures(dangling))
+
+        duplicate = self.state()
+        duplicate["edges"][0]["versions"].append(
+            {"momentId": "storm", "label": "zweiter Stand", "active": False}
+        )
+        self.assertFalse(valid_figures(duplicate))
+
+    def test_rejects_non_place_dangling_and_duplicate_logical_presence(self):
+        non_place = self.state()
+        non_place["presence"][0]["placeId"] = "ada"
+        self.assertFalse(valid_figures(non_place))
+
+        dangling = self.state()
+        dangling["presence"][1]["momentId"] = "missing"
+        self.assertFalse(valid_figures(dangling))
+
+        duplicate = self.state()
+        duplicate["presence"].append(
+            {
+                "id": "duplicate-at-storm",
+                "elementId": "ada",
+                "placeId": "harbor",
+                "momentId": "storm",
+            }
+        )
+        self.assertFalse(valid_figures(duplicate))
+
+    def test_rejects_death_at_a_missing_moment(self):
+        state = self.state()
+        state["nodes"][0]["diedMomentId"] = "missing"
+        self.assertFalse(valid_figures(state))
 
 
 class ManuscriptMentionValidationTests(unittest.TestCase):

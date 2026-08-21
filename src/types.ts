@@ -127,8 +127,44 @@ export interface RelationshipVersion {
 export interface TimelineMoment {
   id: string;
   title: string;
+  time?: number;
+  position?: number;
   date?: string;
   note?: string;
+}
+
+export type TimeSystemKind = "relative" | "gregorian" | "custom";
+export type TimeSystemUnit = "day" | "abstract";
+
+export interface CalendarMonth {
+  name: string;
+  shortName: string;
+  dayCount: number;
+  [key: string]: unknown;
+}
+
+export interface CalendarWeekday {
+  name: string;
+  shortName: string;
+  [key: string]: unknown;
+}
+
+export interface TimeSystem {
+  id: string;
+  name: string;
+  kind: TimeSystemKind;
+  unit: TimeSystemUnit;
+  eraName: string;
+  eraAbbreviation: string;
+  epochTime: number;
+  epochYear: number;
+  epochMonth: number;
+  epochDay: number;
+  epochWeekday: number;
+  displayFormat: string;
+  months: CalendarMonth[];
+  weekdays: CalendarWeekday[];
+  [key: string]: unknown;
 }
 
 export interface PresenceEntry {
@@ -145,6 +181,7 @@ export interface FigureState {
   presence?: PresenceEntry[];
   canvasSize?: { w: number; h: number };
   mapScale?: { unitsPer100px: number; unitLabel: string };
+  timeSystem?: TimeSystem;
   [key: string]: unknown;
 }
 

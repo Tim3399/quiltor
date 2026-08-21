@@ -1,4 +1,4 @@
-import type { FigureNode, PresenceEntry, TimelineMoment } from "../../types";
+import type { FigureNode, PresenceEntry, TimelineMoment, TimeSystem } from "../../types";
 import { uid } from "../../types";
 import { figureIsDeceased } from "./relationships";
 import { formatDuration, momentDateDiffDays } from "./date";
@@ -166,7 +166,19 @@ export function stopDateDiff(
   from: JourneyStop,
   to: JourneyStop,
   timeline: TimelineMoment[],
+  timeSystem?: TimeSystem,
 ): JourneyDuration {
+  if (timeSystem) {
+    if (timeSystem.unit !== "day" || !from.momentId || !to.momentId)
+      return { label: "Dauer unbekannt" };
+    const fromTime = timeline.find((moment) => moment.id === from.momentId)?.time;
+    const toTime = timeline.find((moment) => moment.id === to.momentId)?.time;
+    if (!Number.isSafeInteger(fromTime) || !Number.isSafeInteger(toTime))
+      return { label: "Dauer unbekannt" };
+    const days = (toTime as number) - (fromTime as number);
+    if (days < 0) return { days, label: "Zeitfolge unstimmig" };
+    return { days, label: formatDuration(days) };
+  }
   const fromDate = from.momentId
     ? timeline.find((moment) => moment.id === from.momentId)?.date
     : undefined;

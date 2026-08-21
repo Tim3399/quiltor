@@ -443,6 +443,7 @@ function PlacesWorkspaceInner({
             stays={stays}
             chronicle={chronicle}
             timeline={timeline}
+            timeSystem={state.timeSystem}
             onOpen={onOpen}
           />
         </>
@@ -665,6 +666,7 @@ function PlaceInspector({
   stays,
   chronicle,
   timeline,
+  timeSystem,
   onOpen,
 }: {
   place: FigureNode;
@@ -672,6 +674,7 @@ function PlaceInspector({
   stays: PlaceStay[];
   chronicle: PlaceMomentRow[];
   timeline: TimelineMoment[];
+  timeSystem?: FigureState["timeSystem"];
   onOpen: (target: { workspace: Workspace; id: string }) => void;
 }) {
   const { t } = useLanguage();
@@ -709,7 +712,9 @@ function PlaceInspector({
                     : t("stillHere")}
                 </span>
                 <span className="places-stay-duration">
-                  {stay.leftAt ? stopDateDiff(stay.arrivedAt, stay.leftAt, timeline).label : ""}
+                  {stay.leftAt
+                    ? stopDateDiff(stay.arrivedAt, stay.leftAt, timeline, timeSystem).label
+                    : ""}
                 </span>
               </div>
             );

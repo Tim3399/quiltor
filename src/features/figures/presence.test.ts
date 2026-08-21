@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FigureNode, PresenceEntry, TimelineMoment } from "../../types";
+import type { FigureNode, PresenceEntry, TimelineMoment, TimeSystem } from "../../types";
 import {
   figureJourney,
   journeyLegs,
@@ -226,6 +226,22 @@ describe("place history", () => {
 });
 
 describe("duration", () => {
+  const timeSystem: TimeSystem = {
+    id: "primary",
+    name: "Relative Zeit",
+    kind: "relative",
+    unit: "day",
+    eraName: "",
+    eraAbbreviation: "",
+    epochTime: 0,
+    epochYear: 1,
+    epochMonth: 1,
+    epochDay: 1,
+    epochWeekday: 0,
+    displayFormat: "",
+    months: [],
+    weekdays: [],
+  };
   const datedTimeline: TimelineMoment[] = [
     { id: "before", title: "Vorher" },
     { id: "betrayal", title: "Verrat", date: "1420-03-12" },
@@ -265,5 +281,18 @@ describe("duration", () => {
       datedTimeline,
     );
     expect(diff).toEqual({ days: -3, label: "Datumsfolge unstimmig" });
+  });
+
+  it("uses canonical time for day systems and disables pretend durations for abstract time", () => {
+    const canonical = [
+      { id: "from", title: "Von", time: -4, date: "2099-01-01" },
+      { id: "to", title: "Nach", time: 2, date: "1900-01-01" },
+    ];
+    const from = { placeId: "arcene", momentId: "from", index: 0 };
+    const to = { placeId: "hafen", momentId: "to", index: 1 };
+    expect(stopDateDiff(from, to, canonical, timeSystem)).toEqual({ days: 6, label: "6 Tage" });
+    expect(stopDateDiff(from, to, canonical, { ...timeSystem, unit: "abstract" }).label).toBe(
+      "Dauer unbekannt",
+    );
   });
 });

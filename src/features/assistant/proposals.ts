@@ -7,6 +7,7 @@ import type {
 } from "../../types";
 import { uid } from "../../types";
 import type { MessageKey } from "../../language";
+import { insertTimelineMoment } from "../timeline/order";
 
 const GRID_X = 288,
   GRID_Y = 192;
@@ -82,7 +83,7 @@ export function applyAssistantProposals(
       };
       if (proposal.moment.date) moment.date = String(proposal.moment.date).slice(0, 20);
       if (proposal.moment.note) moment.note = String(proposal.moment.note).slice(0, 1000);
-      next.timeline.push(moment);
+      next.timeline = insertTimelineMoment(next.timeline, moment, next.timeline.length);
     } else if (proposal.kind === "create_relationship") {
       const from = resolve(proposal.relationship.from),
         to = resolve(proposal.relationship.to);

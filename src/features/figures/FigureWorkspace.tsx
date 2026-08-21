@@ -69,6 +69,7 @@ import {
 } from "./presence";
 import { formatMomentDate } from "./date";
 import { useLanguage, type MessageKey } from "../../language";
+import { insertTimelineMoment, removeTimelineMoment } from "../timeline/order";
 import {
   GRID_SIZE,
   alignNodesToGrid,
@@ -455,7 +456,7 @@ function FigureWorkspaceInner({
         label: leg.to.momentId
           ? [
               timeline.find((moment) => moment.id === leg.to.momentId)?.title,
-              stopDateDiff(leg.from, leg.to, timeline).label,
+              stopDateDiff(leg.from, leg.to, timeline, state.timeSystem).label,
             ]
               .filter(Boolean)
               .join(" · ")
@@ -949,7 +950,10 @@ function FigureWorkspaceInner({
               }}
               onAdd={(title, date) => {
                 const moment = { id: uid("t"), title, ...(date ? { date } : {}) };
-                onChange({ ...state, timeline: [...timeline, moment] });
+                onChange({
+                  ...state,
+                  timeline: insertTimelineMoment(timeline, moment, timeline.length),
+                });
                 setActiveMomentId(moment.id);
               }}
               onPatch={(id, patch) =>
@@ -1116,7 +1120,7 @@ function FigureWorkspaceInner({
           onConfirm={() => {
             onChange({
               ...state,
-              timeline: timeline.filter((moment) => moment.id !== deleteMoment.id),
+              timeline: removeTimelineMoment(timeline, deleteMoment.id),
               edges: state.edges.map((edge) => ({
                 ...edge,
                 versions: edge.versions?.filter((version) => version.momentId !== deleteMoment.id),
@@ -1556,7 +1560,7 @@ function PresenceField({
             return index > 0
               ? [
                   <small key={`gap-${index}`} className="presence-journey-duration">
-                    {stopDateDiff(stops[index - 1], stop, timeline).label}
+                    {stopDateDiff(stops[index - 1], stop, timeline, state.timeSystem).label}
                   </small>,
                   button,
                 ]
