@@ -129,6 +129,9 @@ export interface TimelineMoment {
   title: string;
   time?: number;
   position?: number;
+  precision?: "day" | "month" | "year";
+  endTime?: number;
+  endPrecision?: "day" | "month" | "year";
   date?: string;
   note?: string;
 }

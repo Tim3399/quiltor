@@ -2,9 +2,11 @@
   position: fixed;
   z-index: var(--z-popover);
   top: 50%;
-  left: 8px;
-  display: flex;
-  align-items: center;
+  left: max(
+    var(--space-4),
+    calc((100vw - min(720px, 100vw - 80px)) / 2 + var(--space-32) - 30px - var(--space-8))
+  );
+  width: 30px;
   transform: translateY(-50%);
 }
 
@@ -34,15 +36,18 @@
 }
 
 .focus-chapter-list {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + var(--space-7));
   width: min(238px, max(150px, calc((100vw - min(720px, 100vw - 80px)) / 2 - 46px)));
   max-height: 68vh;
   overflow: auto;
-  margin-left: var(--space-7);
   padding: var(--space-6);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow);
+  transform: translateY(-50%);
 }
 
 .focus-chapter-list button {
@@ -90,37 +95,37 @@
 }
 
 .text-workspace .focus-helper {
-  right: 8px;
+  right: max(
+    var(--space-4),
+    calc((100vw - min(720px, 100vw - 80px)) / 2 + var(--space-32) - 30px - var(--space-8))
+  );
   left: auto;
-  flex-direction: row-reverse;
+  width: 30px;
 }
 
 .text-workspace .focus-helper-panel {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + var(--space-7));
   width: min(254px, max(150px, calc((100vw - min(720px, 100vw - 80px)) / 2 - 46px)));
-  margin-right: var(--space-7);
-  margin-left: 0;
+  margin: 0;
+  transform: translateY(-50%);
 }
 
 @media (max-width: 640px) {
-  .focus-chapters {
-    left: 4px;
-  }
   .focus-chapter-list {
+    right: auto;
+    left: calc(100% + var(--space-3));
     width: 150px;
     max-height: calc(100dvh - var(--bar) - 16px);
-    margin-left: var(--space-3);
     padding: var(--space-3);
   }
   .focus-chapter-list button {
     padding: var(--space-7) var(--space-5);
   }
-  .text-workspace .focus-helper {
-    right: 4px;
-    left: auto;
-  }
   .text-workspace .focus-helper-panel {
-    margin-right: var(--space-3);
-    margin-left: 0;
+    right: calc(100% + var(--space-3));
+    left: auto;
   }
 }
 
@@ -718,6 +723,41 @@
 .text-layout > .inspector {
   position: relative;
 }
+.text-workspace .chapter-list,
+.text-workspace .editor-scroll {
+  scrollbar-color: var(--line-strong) var(--transparent);
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+.text-workspace .chapter-list {
+  --scrollbar-surface: var(--panel);
+}
+.text-workspace .editor-scroll {
+  --scrollbar-surface: var(--paper);
+}
+.text-workspace .chapter-list::-webkit-scrollbar,
+.text-workspace .editor-scroll::-webkit-scrollbar {
+  width: var(--space-10);
+}
+.text-workspace .chapter-list::-webkit-scrollbar-track,
+.text-workspace .editor-scroll::-webkit-scrollbar-track {
+  background: var(--transparent);
+}
+.text-workspace .chapter-list::-webkit-scrollbar-thumb,
+.text-workspace .editor-scroll::-webkit-scrollbar-thumb {
+  min-height: var(--space-48);
+  border: var(--space-3) solid var(--scrollbar-surface);
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+}
+.text-workspace .chapter-list::-webkit-scrollbar-thumb:hover,
+.text-workspace .editor-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-border);
+}
+.text-workspace .chapter-list::-webkit-scrollbar-thumb:active,
+.text-workspace .editor-scroll::-webkit-scrollbar-thumb:active {
+  background: var(--gold);
+}
 .text-workspace .editor-scroll {
   scrollbar-gutter: stable both-edges;
 }
@@ -725,15 +765,15 @@
   transform: translateX(var(--editor-balance-offset));
 }
 
-/* Desktop panels keep one stable text-side control mounted through both states. This preserves
-   keyboard focus while its icon changes from the focus-mode launcher to the close affordance. */
+/* Geschlossene Desktop-Panels lassen sich weiterhin direkt neben dem Satzspiegel öffnen. Das
+   Schließen sitzt im geöffneten Zustand bewusst in der jeweiligen Panel-Überschrift. */
 .text-layout .panel-edge-toggle {
   position: absolute;
   z-index: var(--z-drawer);
-  top: var(--space-3);
+  top: 50%;
   width: var(--control-compact);
   height: var(--control-regular);
-  transform: none;
+  transform: translateY(-50%);
   color: var(--muted);
   opacity: 0.68;
 }
@@ -743,15 +783,6 @@
   background: var(--control-hover);
   color: var(--ink);
   opacity: 1;
-}
-/* The open controls sit inside their panel's text-facing edge. Reserve the control width plus
-   its edge inset and a matching gap in desktop headings; compact panels live outside .text-layout
-   and therefore retain their original symmetric heading padding. */
-.text-layout > .binder > .panel-heading--binder {
-  padding-inline-end: calc(var(--control-compact) + var(--space-16));
-}
-.text-layout > .inspector > .panel-heading--inspector {
-  padding-inline-start: calc(var(--control-compact) + var(--space-16));
 }
 .panel-edge-toggle--left {
   left: var(--space-8);
@@ -764,6 +795,37 @@
 }
 .panel-edge-toggle--right.is-open {
   right: calc(var(--workspace-inspector-width) - var(--control-compact) - var(--space-8));
+}
+/* With a panel closed, keep its launcher just outside the centred manuscript page instead of
+   stranding it at the window edge. On narrower editor columns max() falls back to the existing
+   safe inset; the page's own gutter then still leaves breathing room from the prose. */
+.text-layout.no-binder:not(.no-inspector) .panel-edge-toggle--left:not(.is-open) {
+  left: max(
+    var(--space-8),
+    calc(
+      (100% - var(--workspace-inspector-width) - 760px) /
+      2 -
+      var(--control-compact) +
+      var(--space-24)
+    )
+  );
+}
+.text-layout.no-binder.no-inspector .panel-edge-toggle--left:not(.is-open) {
+  left: max(var(--space-8), calc((100% - 760px) / 2 - var(--control-compact) + var(--space-24)));
+}
+.text-layout.no-inspector:not(.no-binder) .panel-edge-toggle--right:not(.is-open) {
+  right: max(
+    var(--space-8),
+    calc(
+      (100% - var(--workspace-sidebar-width) - 760px) /
+      2 -
+      var(--control-compact) +
+      var(--space-24)
+    )
+  );
+}
+.text-layout.no-binder.no-inspector .panel-edge-toggle--right:not(.is-open) {
+  right: max(var(--space-8), calc((100% - 760px) / 2 - var(--control-compact) + var(--space-24)));
 }
 .panel-resize-handle--end {
   right: calc(var(--space-4) * -1);

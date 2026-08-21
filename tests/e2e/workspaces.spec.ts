@@ -145,7 +145,7 @@ test("Text, Suche und Figurenboard laden ohne Laufzeitfehler", async ({ page }, 
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   if ((page.viewportSize()?.width || 0) <= 820) {
     await expect(page.locator("aside.binder")).toHaveCount(0);
-    await page.getByRole("button", { name: /Navigation/ }).click();
+    await page.getByRole("button", { name: "Kapitel", exact: true }).click();
     const navigation =
       (page.viewportSize()?.width || 0) < 720
         ? page.getByRole("dialog", { name: "Kapitel" })
@@ -314,13 +314,11 @@ test("Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab
   await expect(page.getByRole("tab", { name: "Kapitel", exact: true })).toHaveCount(0);
   await expect(page.locator("aside.inspector")).toContainText("Schreibhilfe");
 
-  // Verschieben, Export und Löschen hängen am ⋯ neben dem Titel.
-  await page.getByRole("button", { name: "Kapitelaktionen" }).click();
-  const menu = page.getByRole("menu", { name: "Kapitelaktionen" });
+  // Verschieben, Export und Löschen bleiben sichtbar oben in der Kapitelnavigation.
+  const actions = page.getByRole("group", { name: /Kapitelaktionen:/ });
   for (const item of ["Nach oben", "Nach unten", "Kapitel als Markdown", "Kapitel löschen"]) {
-    await expect(menu.getByRole("menuitem", { name: item, exact: true })).toBeVisible();
+    await expect(actions.getByRole("button", { name: item, exact: true })).toBeVisible();
   }
-  await page.keyboard.press("Escape");
 });
 
 test("Shortcuts unterscheiden Speichern und Sicherung", async ({ page }) => {
@@ -350,36 +348,53 @@ test("Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
   await page.route("**/api/assistant/status*", (route) =>
     route.fulfill({ json: { ok: true, available: true, mode: "local", reason: "", chunks: 7 } }),
   );
-  await page.route("**/api/assistant/chat", (route) =>
+  await page.route("**/api/assistant/jobs", (route) =>
     route.fulfill({
       json: {
         ok: true,
-        message: "Ich habe Ada, Bela und ihre Beziehung als Vorschläge vorbereitet.",
-        sources: [
-          {
-            id: "chapter:c1:0",
-            kind: "chapter",
-            title: "Erstes Kapitel",
-            text: "Ada begegnet Bela.",
-            target: { workspace: "text", id: "c1" },
+        created: true,
+        job: {
+          id: "job-e2e",
+          status: "completed",
+          error: "",
+          errorType: "",
+          cancelRequested: false,
+          createdAt: "2026-08-21T12:00:00Z",
+          result: {
+            ok: true,
+            message: "Ich habe Ada, Bela und ihre Beziehung als Vorschläge vorbereitet.",
+            sources: [
+              {
+                id: "chapter:c1:0",
+                kind: "chapter",
+                title: "Erstes Kapitel",
+                text: "Ada begegnet Bela.",
+                target: { workspace: "text", id: "c1" },
+              },
+            ],
+            proposals: [
+              {
+                kind: "create_element",
+                tempId: "new:ada",
+                element: { type: "person", name: "Ada", label: "Archivarin" },
+              },
+              {
+                kind: "create_element",
+                tempId: "new:bela",
+                element: { type: "person", name: "Bela", label: "Regent" },
+              },
+              {
+                kind: "create_relationship",
+                relationship: {
+                  from: "new:ada",
+                  to: "new:bela",
+                  label: "Misstrauen",
+                  directed: false,
+                },
+              },
+            ],
           },
-        ],
-        proposals: [
-          {
-            kind: "create_element",
-            tempId: "new:ada",
-            element: { type: "person", name: "Ada", label: "Archivarin" },
-          },
-          {
-            kind: "create_element",
-            tempId: "new:bela",
-            element: { type: "person", name: "Bela", label: "Regent" },
-          },
-          {
-            kind: "create_relationship",
-            relationship: { from: "new:ada", to: "new:bela", label: "Misstrauen", directed: false },
-          },
-        ],
+        },
       },
     }),
   );
@@ -805,6 +820,50 @@ test("Fokusmodus bietet eine diskrete Schreibhilfe", async ({ page }, testInfo) 
   await page.screenshot({ path: testInfo.outputPath("focus-helper.png"), fullPage: true });
 });
 
+test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Die Satzspiegel-Geometrie wird in der breiten Desktopansicht geprüft.",
+  );
+  await openBlankWorld(page);
+  await page.getByRole("button", { name: "Neues Kapitel" }).click();
+  const closeChapters = page.getByRole("button", { name: "Kapitelnavigation schließen" });
+  if (await closeChapters.isVisible()) await closeChapters.click();
+  const closeAid = page.getByRole("button", { name: "Schreibhilfe schließen" });
+  if (await closeAid.isVisible()) await closeAid.click();
+
+  const title = page.locator(".chapter-title");
+  const chapters = page.getByRole("button", { name: "Kapitelnavigation öffnen" });
+  const writingAid = page.getByRole("button", { name: "Schreibhilfe öffnen" });
+  const [titleBox, chapterBox, aidBox, layoutBox] = await Promise.all([
+    title.boundingBox(),
+    chapters.boundingBox(),
+    writingAid.boundingBox(),
+    page.locator(".text-layout").boundingBox(),
+  ]);
+  expect(titleBox).not.toBeNull();
+  expect(chapterBox).not.toBeNull();
+  expect(aidBox).not.toBeNull();
+  expect(layoutBox).not.toBeNull();
+  expect(titleBox!.x - (chapterBox!.x + chapterBox!.width)).toBeCloseTo(8, 0);
+  expect(aidBox!.x - (titleBox!.x + titleBox!.width)).toBeCloseTo(8, 0);
+  expect(chapterBox!.y + chapterBox!.height / 2).toBeCloseTo(
+    layoutBox!.y + layoutBox!.height / 2,
+    0,
+  );
+  expect(aidBox!.y + aidBox!.height / 2).toBeCloseTo(layoutBox!.y + layoutBox!.height / 2, 0);
+  await expect(writingAid.locator("svg")).toHaveClass(/lucide-panel-right/);
+
+  await page.getByRole("button", { name: "Fokus" }).click();
+  const focusTitle = await page.locator(".chapter-title").boundingBox();
+  const focusChapters = await page
+    .getByRole("button", { name: "Kapitelauswahl öffnen" })
+    .boundingBox();
+  const focusAid = await page.getByRole("button", { name: "Schreibhilfe öffnen" }).boundingBox();
+  expect(focusTitle!.x - (focusChapters!.x + focusChapters!.width)).toBeCloseTo(8, 0);
+  expect(focusAid!.x - (focusTitle!.x + focusTitle!.width)).toBeCloseTo(8, 0);
+});
+
 test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async ({ page }) => {
   await page.route("**/api/manuscript*", (route) =>
     route.request().method() === "GET"
@@ -867,8 +926,7 @@ test("Kapitelversionen erscheinen direkt neben der Schreibfläche", async ({ pag
     route.fulfill({ json: { ok: true, text: "Historischer Kapiteltext" } }),
   );
   await openBlankWorld(page);
-  await page.getByRole("button", { name: "Exportieren" }).click();
-  await page.getByRole("menuitem", { name: "Fassungen" }).click();
+  await page.getByRole("button", { name: "Fassungen" }).click();
   const history = page.getByRole("complementary", { name: "Fassungen" });
   await expect(history).toBeVisible();
   await expect(history).toContainText("Historischer Kapiteltext");

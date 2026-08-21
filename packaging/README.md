@@ -69,8 +69,20 @@ python3 packaging/set_version.py minor    # or major / patch / an explicit 2.15.
 npm run set-version -- minor
 ```
 
-That writes the version into the three files that have to agree — `VERSION`,
-`package.json`, and `package-lock.json`, which carries it twice. They are not
+Before writing anything, the command runs the complete portable release preflight:
+the backend and CLI suites, Vitest, the production frontend build and its committed
+`dist/` check, then Playwright against a temporary local server. The same gate can
+be run without raising a version via `npm run release:preflight` or
+`python3 packaging/release_preflight.py`.
+
+The signed Windows and macOS installers remain in the release workflow: neither
+can be built portably on the other operating system, and their final artifact
+names require the new version. Their shared bundle and packaging contracts are
+covered by the backend suite before the bump.
+
+Only after every gate passes does it write the version into the three files that
+have to agree — `VERSION`, `package.json`, and `package-lock.json`, which carries
+it twice. They are not
 redundant copies to keep in sync out of tidiness: `release.yml`'s `version-check`
 job fails the release when `VERSION` and `package.json` disagree, and `npm ci`
 refuses to run at all when `package.json` and its lockfile do.

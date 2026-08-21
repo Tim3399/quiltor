@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:assistant:local": "python3 scripts/run-local-assistant-evaluation.py",
+    "release:preflight": "python3 packaging/release_preflight.py",
     "set-version": "python3 packaging/set_version.py"
   },
   "dependencies": {

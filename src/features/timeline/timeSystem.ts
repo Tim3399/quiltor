@@ -1,5 +1,11 @@
 import type { CalendarMonth, TimeSystem, TimelineMoment } from "../../types";
 
+export interface CalendarCoordinate {
+  year: number;
+  month: number;
+  day: number;
+}
+
 export const DEFAULT_TIME_SYSTEM: TimeSystem = {
   id: "primary",
   name: "Relative",
@@ -96,6 +102,82 @@ function customDate(system: TimeSystem, time: number) {
     day: dayOfYear + 1,
     weekday,
   };
+}
+
+export function calendarCoordinate(
+  systemValue: Partial<TimeSystem> | undefined,
+  time: number,
+): CalendarCoordinate | null {
+  const system = normalizeTimeSystem(systemValue);
+  if (system.kind === "relative") return null;
+  if (system.kind === "gregorian") {
+    const epoch = daysFromCivil(system.epochYear, system.epochMonth, system.epochDay);
+    return civilFromDays(epoch + time - system.epochTime);
+  }
+  const date = customDate(system, time);
+  if (!date) return null;
+  return { year: date.year, month: system.months.indexOf(date.month) + 1, day: date.day };
+}
+
+export function timeFromCalendarCoordinate(
+  systemValue: Partial<TimeSystem> | undefined,
+  coordinate: CalendarCoordinate,
+): number | null {
+  const system = normalizeTimeSystem(systemValue);
+  if (system.kind === "relative") return null;
+  const { year, month, day } = coordinate;
+  if (![year, month, day].every(Number.isSafeInteger)) return null;
+  if (system.kind === "gregorian") {
+    if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const roundtrip = civilFromDays(daysFromCivil(year, month, day));
+    if (roundtrip.year !== year || roundtrip.month !== month || roundtrip.day !== day) return null;
+    const epoch = daysFromCivil(system.epochYear, system.epochMonth, system.epochDay);
+    const result = system.epochTime + daysFromCivil(year, month, day) - epoch;
+    return Number.isSafeInteger(result) ? result : null;
+  }
+  const months = system.months.filter(
+    (item) => Number.isSafeInteger(item.dayCount) && item.dayCount > 0,
+  );
+  if (
+    !months.length ||
+    month < 1 ||
+    month > months.length ||
+    day < 1 ||
+    day > months[month - 1].dayCount
+  )
+    return null;
+  const yearLength = months.reduce((sum, item) => sum + item.dayCount, 0);
+  const offset = (valueYear: number, valueMonth: number, valueDay: number) =>
+    (valueYear - system.epochYear) * yearLength +
+    months.slice(0, valueMonth - 1).reduce((sum, item) => sum + item.dayCount, 0) +
+    valueDay -
+    1;
+  const result =
+    system.epochTime +
+    offset(year, month, day) -
+    offset(system.epochYear, system.epochMonth, system.epochDay);
+  return Number.isSafeInteger(result) ? result : null;
+}
+
+export function projectMomentTime(
+  systemValue: Partial<TimeSystem> | undefined,
+  time: number,
+  precision: TimelineMoment["precision"] = "day",
+): string {
+  const system = normalizeTimeSystem(systemValue);
+  if (system.kind === "relative") return relativeTimeLabel(time);
+  const coordinate = calendarCoordinate(system, time);
+  if (!coordinate) return relativeTimeLabel(time);
+  const era = system.eraAbbreviation || system.eraName;
+  if (precision === "year") return `${coordinate.year}${era ? ` ${era}` : ""}`;
+  if (precision === "month") {
+    const month =
+      system.kind === "custom"
+        ? system.months[coordinate.month - 1]?.name || String(coordinate.month)
+        : String(coordinate.month).padStart(2, "0");
+    return `${month} ${coordinate.year}${era ? ` ${era}` : ""}`;
+  }
+  return projectTime(system, time);
 }
 
 export function projectTime(systemValue: Partial<TimeSystem> | undefined, time: number): string {

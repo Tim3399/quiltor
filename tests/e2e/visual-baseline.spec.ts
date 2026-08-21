@@ -92,6 +92,10 @@ async function mockWorkshop(page: Page) {
 
 for (const theme of ["light", "dark"] as const) {
   test(`${theme}: Kernansichten bleiben visuell reproduzierbar`, async ({ page }) => {
+    test.skip(
+      process.platform !== "darwin",
+      "Die versionierten Pixel-Baselines sind absichtlich an die macOS-Renderengine gebunden.",
+    );
     await page.addInitScript((selected) => {
       localStorage.setItem("quiltor-theme", selected);
       localStorage.setItem("quiltor-interface-language", "de");

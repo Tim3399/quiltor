@@ -19,11 +19,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "packaging"))
 
+import release_preflight  # noqa: E402
 import set_version  # noqa: E402
 
 RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
@@ -93,16 +94,19 @@ class GitRepoTestCase(unittest.TestCase):
             ["git", *args], cwd=self.repo, check=True, capture_output=True, text=True
         ).stdout
 
-    def _run(self, *argv):
+    def _run(self, *argv, preflight_error=None):
         """set_version.main() against the throwaway repo.
 
         Its output is swallowed: this suite prints its own results, and the
         refusal messages are several lines each.
         """
         with patch.object(set_version, "REPO_ROOT", self.repo):
-            with contextlib.redirect_stdout(io.StringIO()) as out:
-                with contextlib.redirect_stderr(io.StringIO()) as err:
-                    status = set_version.main(list(argv))
+            with patch.object(set_version, "run_preflight") as preflight:
+                preflight.side_effect = preflight_error
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    with contextlib.redirect_stderr(io.StringIO()) as err:
+                        status = set_version.main(list(argv))
+        self.preflight = preflight
         self.output = out.getvalue() + err.getvalue()
         return status
 
@@ -184,8 +188,85 @@ class RefusalTests(GitRepoTestCase):
 
     def test_a_clean_tree_and_a_higher_version_succeeds(self):
         self.assertEqual(self._run("minor"), 0)
+        self.preflight.assert_called_once_with(self.repo)
         expected = set_version.next_version(set_version.current_version(REPO_ROOT), "minor")
         self.assertEqual(set(self._versions().values()), {expected})
+
+    def test_a_failed_preflight_leaves_every_version_copy_unchanged(self):
+        before = self._versions()
+        failure = release_preflight.PreflightError("frontend tests failed")
+        self.assertEqual(self._run("minor", preflight_error=failure), 1)
+        self.preflight.assert_called_once_with(self.repo)
+        self.assertEqual(self._versions(), before)
+        self.assertIn("version unchanged", self.output)
+
+    def test_preflight_finishes_before_version_mutation_starts(self):
+        events = []
+        original_apply = set_version.apply_version
+
+        def preflight(repo_root):
+            events.append(("preflight", repo_root))
+
+        def apply(version, repo_root):
+            events.append(("mutation", repo_root))
+            return original_apply(version, repo_root)
+
+        with patch.object(set_version, "REPO_ROOT", self.repo):
+            with patch.object(set_version, "run_preflight", side_effect=preflight):
+                with patch.object(set_version, "apply_version", side_effect=apply):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        status = set_version.main(["minor"])
+
+        self.assertEqual(status, 0)
+        self.assertEqual(events, [("preflight", self.repo), ("mutation", self.repo)])
+
+
+class ReleasePreflightTests(unittest.TestCase):
+    def test_every_portable_suite_and_build_is_part_of_the_gate(self):
+        calls = []
+        server = MagicMock()
+        server.poll.return_value = None
+        with patch.object(release_preflight, "_npm_executable", return_value="npm"):
+            with patch.object(
+                release_preflight, "_run", side_effect=lambda *args: calls.append(args)
+            ):
+                with patch.object(release_preflight, "_free_loopback_port", return_value=48123):
+                    with patch.object(
+                        release_preflight.subprocess, "Popen", return_value=server
+                    ) as popen:
+                        with patch.object(release_preflight, "_wait_for_server"):
+                            with patch.object(release_preflight, "_stop_server"):
+                                release_preflight.run_preflight(self_repo := Path("test-repo"))
+
+        labels = [call[0] for call in calls]
+        self.assertEqual(
+            labels,
+            [
+                "Backend suite",
+                "CLI dependency availability",
+                "CLI host suite with declared dependencies",
+                "Frontend unit suite",
+                "Frontend gates and production build",
+                "Committed dist matches the production build",
+                "Playwright browser suite",
+            ],
+        )
+        self.assertTrue(all(call[2] == self_repo for call in calls))
+        browser_environment = calls[-1][3]
+        self.assertEqual(browser_environment["PLAYWRIGHT_BASE_URL"], "http://127.0.0.1:48123")
+        server_environment = popen.call_args.kwargs["env"]
+        self.assertIn("QUILTOR_DATA_DIR", server_environment)
+
+    def test_a_failed_gate_stops_later_gates_and_never_starts_the_browser_server(self):
+        failure = release_preflight.PreflightError("backend failed")
+        with patch.object(release_preflight, "_npm_executable", return_value="npm"):
+            with patch.object(release_preflight, "_run", side_effect=failure) as run:
+                with patch.object(release_preflight.subprocess, "Popen") as popen:
+                    with self.assertRaisesRegex(release_preflight.PreflightError, "backend failed"):
+                        release_preflight.run_preflight(Path("test-repo"))
+
+        run.assert_called_once()
+        popen.assert_not_called()
 
 
 class RealFilesTests(unittest.TestCase):

@@ -13,7 +13,7 @@ all when package.json and its lockfile do. Four numbers kept identical by hand
 is the kind of thing that fails once and costs a release cycle, so this exists
 to make raising the version one command.
 
-Two refusals, both about the same failure mode -- a release that looks like it
+Three refusals, all about the same failure mode -- a release that looks like it
 worked and did not:
 
 * **A dirty working tree.** The version bump wants to be one small reviewable
@@ -23,6 +23,9 @@ worked and did not:
   existing version is not an error you find out about: release.yml sees the tag
   already exists, sets should_release=false, and every downstream job is
   skipped. The run is green and nothing shipped.
+* **A release gate that does not pass.** Backend and frontend tests, the
+  production web build, its committed `dist/` output and the browser suite all
+  run before any version file is touched.
 
 This writes the files and stops. Reviewing and committing the diff stays a
 deliberate act, and pushing it to main is what starts a release.
@@ -35,6 +38,8 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+from release_preflight import PreflightError, run_preflight
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -277,6 +282,15 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
 
+        return 1
+
+    try:
+        run_preflight(repo_root)
+    except PreflightError as error:
+        print(
+            f"error: version unchanged because the release preflight failed: {error}",
+            file=sys.stderr,
+        )
         return 1
 
     written = apply_version(

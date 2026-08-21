@@ -57,6 +57,25 @@ class FigureTemporalValidationTests(unittest.TestCase):
         fractional_position["timeline"][1]["position"] = 1.5
         self.assertFalse(valid_figures(fractional_position))
 
+    def test_accepts_partial_date_ranges_and_rejects_invalid_range_metadata(self):
+        ranged = self.state()
+        ranged["timeline"][1].update(
+            {"precision": "year", "endTime": 1461, "endPrecision": "year"}
+        )
+        self.assertTrue(valid_figures(ranged))
+
+        backwards = self.state()
+        backwards["timeline"][1]["endTime"] = -1
+        self.assertFalse(valid_figures(backwards))
+
+        bad_precision = self.state()
+        bad_precision["timeline"][1]["precision"] = "quarter"
+        self.assertFalse(valid_figures(bad_precision))
+
+        orphan_precision = self.state()
+        orphan_precision["timeline"][1]["endPrecision"] = "month"
+        self.assertFalse(valid_figures(orphan_precision))
+
     def test_rejects_dangling_and_duplicate_relationship_states(self):
         dangling = self.state()
         dangling["edges"][0]["versions"][0]["momentId"] = "missing"

@@ -11,7 +11,6 @@ import {
   History as HistoryIcon,
   PanelLeft,
   PanelRight,
-  Pilcrow,
   Printer,
   Redo2,
   Search,
@@ -642,17 +641,15 @@ export function TextWorkspace({
     <>
       <div className="panel-heading panel-heading--binder">
         <span>{t("chapters")}</span>
-        {viewportMode === "compact" && (
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setBinderOpen(false)}
-            aria-label={t("closeNavigation")}
-            title={t("closeNavigation")}
-          >
-            <X />
-          </button>
-        )}
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => setBinderOpen(false)}
+          aria-label={t("closeNavigation")}
+          title={t("closeNavigation")}
+        >
+          <X />
+        </button>
       </div>
       {current && (
         <section className="binder-chapter-actions">
@@ -759,22 +756,20 @@ export function TextWorkspace({
     </>
   );
   // The right column has one job: the writing aid. Chapter actions stay with the chapter list
-  // on the left; the persistent text-side edge control opens and closes this panel on desktop.
+  // on the left; the text-side launcher opens it and its own heading closes it on desktop.
   const inspectorPanel = current ? (
     <>
       <div className="panel-heading panel-heading--inspector">
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => setInspectorOpen(false)}
+          aria-label={t("closeWritingAid")}
+          title={t("closeWritingAid")}
+        >
+          <X />
+        </button>
         <span>{t("writingAid")}</span>
-        {viewportMode === "compact" && (
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setInspectorOpen(false)}
-            aria-label={t("closeWritingAid")}
-            title={t("closeWritingAid")}
-          >
-            <X />
-          </button>
-        )}
       </div>
       <div className="helper-panel">
         <div className="helper-modes" role="tablist" aria-label={t("writingAidSection")}>
@@ -1185,8 +1180,8 @@ export function TextWorkspace({
           </button>
         </div>
         {/* The toolbar toggles remain the explicit, always-visible controls outside focus mode.
-          Desktop additionally keeps the quiet edge controls, so a collapsed panel can still be
-          reopened from beside the text without hunting through the toolbar. */}
+          Desktop additionally keeps a quiet text-side opener for each collapsed panel; once open,
+          the panel closes from the X beside its own heading. */}
         {!focus && (
           <div className="tool-group panel-toggles">
             <button
@@ -1303,17 +1298,17 @@ export function TextWorkspace({
           } as React.CSSProperties
         }
       >
-        {!focus && viewportMode !== "compact" && (
+        {!focus && viewportMode !== "compact" && !binderOpen && (
           <button
             type="button"
-            className={`focus-side-toggle panel-edge-toggle panel-edge-toggle--left ${binderOpen ? "is-open" : ""}`}
-            aria-expanded={binderOpen}
+            className="focus-side-toggle panel-edge-toggle panel-edge-toggle--left"
+            aria-expanded="false"
             aria-controls="chapter-binder"
-            aria-label={binderOpen ? t("closeNavigation") : t("openNavigation")}
-            title={binderOpen ? t("closeNavigation") : t("openNavigation")}
-            onClick={() => setBinderOpen(!binderOpen)}
+            aria-label={t("openNavigation")}
+            title={t("openNavigation")}
+            onClick={() => setBinderOpen(true)}
           >
-            {binderOpen ? <X /> : <PanelLeft />}
+            <PanelLeft />
           </button>
         )}
         {!focus && viewportMode !== "compact" && binderOpen && (
@@ -1519,17 +1514,17 @@ export function TextWorkspace({
             </div>
           )}
         </article>
-        {!focus && viewportMode !== "compact" && current && (
+        {!focus && viewportMode !== "compact" && current && !inspectorOpen && (
           <button
             type="button"
-            className={`focus-helper-toggle panel-edge-toggle panel-edge-toggle--right ${inspectorOpen ? "is-open" : ""}`}
-            aria-expanded={inspectorOpen}
+            className="focus-helper-toggle panel-edge-toggle panel-edge-toggle--right"
+            aria-expanded="false"
             aria-controls="writing-aid-inspector"
-            aria-label={inspectorOpen ? t("closeWritingAid") : t("openWritingAid")}
-            title={inspectorOpen ? t("closeWritingAid") : t("openWritingAid")}
-            onClick={() => setInspectorOpen(!inspectorOpen)}
+            aria-label={t("openWritingAid")}
+            title={t("openWritingAid")}
+            onClick={() => setInspectorOpen(true)}
           >
-            {inspectorOpen ? <X /> : <Pilcrow />}
+            <PanelRight />
           </button>
         )}
         {!focus && viewportMode !== "compact" && inspectorOpen && inspectorPanel && (
@@ -1702,7 +1697,7 @@ export function TextWorkspace({
             onClick={() => setFocusHelpers(!focusHelpers)}
             title={t("writingAid")}
           >
-            {focusHelpers ? <X /> : <Pilcrow />}
+            {focusHelpers ? <X /> : <PanelRight />}
             <span className="sr-only">
               {focusHelpers ? t("closeWritingAid") : t("openWritingAid")}
             </span>

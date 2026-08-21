@@ -55,6 +55,19 @@ def valid_figures(payload: Any) -> bool:
             return False
         if "position" in moment and type(moment["position"]) is not int:
             return False
+        if moment.get("precision", "day") not in {"day", "month", "year"}:
+            return False
+        if "endTime" in moment and (
+            type(moment["endTime"]) is not int
+            or abs(moment["endTime"]) > MAX_SAFE_INTEGER
+            or moment["endTime"] < moment.get("time", moment["endTime"])
+        ):
+            return False
+        if "endPrecision" in moment and (
+            "endTime" not in moment
+            or moment["endPrecision"] not in {"day", "month", "year"}
+        ):
+            return False
         moment_ids.append(moment["id"])
     if len(moment_ids) != len(set(moment_ids)):
         return False
