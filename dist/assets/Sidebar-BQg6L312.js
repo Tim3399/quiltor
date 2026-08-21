@@ -1,1 +1,0 @@
-import{F as e}from"./index-DsAeCYSn.js";var t=e();function n(e){return(0,t.jsx)(`aside`,{...e,className:`ui-inspector ${e.className||``}`.trim()})}export{n as t};

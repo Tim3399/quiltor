@@ -930,15 +930,14 @@
     margin-right: auto;
   }
   .workspace-switch {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    position: static;
+    transform: none;
   }
   .workspace-switch button {
     padding: 0 var(--space-10);
   }
   .global-actions {
-    margin-left: 0;
+    margin-left: auto;
   }
   .save-status span {
     display: none;

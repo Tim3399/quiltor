@@ -67,6 +67,37 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
   await expect(aid).toHaveAttribute("aria-label", "Schreibhilfe");
 });
 
+test("Schmale Leisten behalten dieselbe visuelle Reihenfolge wie die breite Ansicht", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Test stellt die problematische Zwischenbreite selbst ein.",
+  );
+  await openBlankWorld(page);
+  await page.setViewportSize({ width: 717, height: 912 });
+
+  const [workspaceNav, globalTools] = await Promise.all([
+    page.locator(".app-bar .workspace-switch").boundingBox(),
+    page.locator(".app-bar .global-actions").boundingBox(),
+  ]);
+  expect(workspaceNav).not.toBeNull();
+  expect(globalTools).not.toBeNull();
+  expect(globalTools!.x).toBeGreaterThanOrEqual(workspaceNav!.x + workspaceNav!.width);
+
+  const title = await page.locator(".context-title").boundingBox();
+  const actionRows = await page
+    .locator(".context-bar .tool-group")
+    .evaluateAll((groups) =>
+      groups
+        .filter((group) => group.getBoundingClientRect().width > 0)
+        .map((group) => Math.round(group.getBoundingClientRect().top)),
+    );
+  expect(title).not.toBeNull();
+  expect(new Set(actionRows).size).toBe(1);
+  expect(actionRows[0]).toBeGreaterThanOrEqual(Math.floor(title!.y + title!.height));
+});
+
 test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn zu verdecken", async ({
   page,
 }, testInfo) => {

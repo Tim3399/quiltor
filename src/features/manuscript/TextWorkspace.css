@@ -894,3 +894,12 @@
     display: none;
   }
 }
+
+@media (max-width: 719px) {
+  /* Die Statuszeile bekommt eine eigene Reihe; darunter bleiben alle Aktionen in ihrer
+     gewohnten Reihenfolge statt rechts neben den Zahlen zu beginnen und zackig umzubrechen. */
+  .text-workspace .context-title {
+    width: 100%;
+    flex: 1 0 100%;
+  }
+}
