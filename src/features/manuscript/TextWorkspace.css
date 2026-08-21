@@ -112,6 +112,19 @@
   transform: translateY(-50%);
 }
 
+/* Unterhalb der breiten Dreispaltenansicht reicht der äußere Seitenrand nicht für ein
+   150px-Panel. Die Schalter bleiben am Satzspiegel, die Inhalte öffnen kontrolliert nach innen. */
+@media (max-width: 1099px) {
+  .focus-chapter-list {
+    right: auto;
+    left: calc(100% + var(--space-7));
+  }
+  .text-workspace .focus-helper-panel {
+    right: calc(100% + var(--space-7));
+    left: auto;
+  }
+}
+
 @media (max-width: 640px) {
   .focus-chapter-list {
     right: auto;

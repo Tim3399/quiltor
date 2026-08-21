@@ -1,0 +1,1 @@
+import{et as e,nt as t}from"./index-DsAeCYSn.js";var n=t(e(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};
