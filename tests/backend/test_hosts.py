@@ -113,7 +113,10 @@ class ScriptInvocationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as elsewhere:
             environment = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
             result = subprocess.run(
-                [sys.executable, "-c", probe],
+                # -S keeps an editable install's site-packages .pth file from quietly
+                # adding REPO_ROOT back. Without it the deliberately unguarded probe
+                # passes in a development venv, especially on Windows.
+                [sys.executable, "-S", "-c", probe],
                 cwd=elsewhere,
                 env=environment,
                 capture_output=True,
