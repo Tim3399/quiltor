@@ -520,6 +520,65 @@ test("Figuren folgen dem Zeiger bereits während des Ziehens", async ({ page }) 
   await page.mouse.up();
 });
 
+test("Beim Ziehen einer Figuren-Verbindung folgt eine sichtbare Vorschau dem Zeiger", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Pointer- und LOD-Regressionstest hängt nicht an der Fensterbreite.",
+  );
+  await page.route("**/api/manuscript*", (route) =>
+    route.fulfill({
+      json: { chapters: [{ id: "c1", title: "Test", body: "", note: "" }] },
+      headers: { ETag: '"0"' },
+    }),
+  );
+  await page.route("**/api/state*", (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({
+          json: {
+            nodes: [
+              { id: "n1", x: 100, y: 100, type: "person", name: "Ada" },
+              // A large board forces overview LOD. That is where the viewport transform used
+              // to scale React Flow's default 1px preview into an effectively invisible line.
+              { id: "n2", x: 10_000, y: 2_000, type: "person", name: "Bela" },
+            ],
+            edges: [],
+          },
+          headers: { ETag: '"0"' },
+        })
+      : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }),
+  );
+  await openBlankWorld(page);
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await page.getByRole("button", { name: "Verbinden", exact: true }).click();
+  await expect(page.locator(".flow-area")).toHaveClass(/zoom-overview/);
+
+  const source = page.locator('.react-flow__node[data-id="n1"] .outgoing-handle');
+  const sourceBox = await source.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sourceBox!.x + 180, sourceBox!.y + 90, { steps: 5 });
+
+  const preview = page.locator(".react-flow__connection-path");
+  await expect(preview).toBeVisible();
+  const previewStyle = await preview.evaluate((path) => {
+    const style = getComputedStyle(path);
+    return {
+      stroke: style.stroke,
+      strokeWidth: style.strokeWidth,
+      vectorEffect: style.vectorEffect,
+    };
+  });
+  expect(previewStyle.stroke).not.toBe("none");
+  expect(previewStyle.strokeWidth).toBe("2px");
+  expect(previewStyle.vectorEffect).toBe("non-scaling-stroke");
+  expect(await preview.getAttribute("d")).toMatch(/^M/);
+  await page.mouse.up();
+  await expect(preview).toHaveCount(0);
+});
+
 test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", async ({ page }) => {
   await page.route("**/api/manuscript*", (route) =>
     route.fulfill({

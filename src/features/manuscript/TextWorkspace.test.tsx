@@ -136,7 +136,79 @@ describe("TextWorkspace", () => {
     expect(onInspectorOpen).toHaveBeenCalledWith(true);
   });
 
-  it("behält beim Auf- und Zuklappen denselben fokussierten Rand-Schalter", () => {
+  it("zeigt die oberen Panel-Schalter auf Desktop und klappt beide Seiten wirklich um", () => {
+    function StatefulPanels() {
+      const [binderOpen, setBinderOpen] = useState(true);
+      const [inspectorOpen, setInspectorOpen] = useState(true);
+      return (
+        <TextWorkspace
+          manuscript={manuscript}
+          figures={figures}
+          onChange={vi.fn()}
+          focus={false}
+          onFocus={vi.fn()}
+          viewportMode="wide"
+          binderOpen={binderOpen}
+          inspectorOpen={inspectorOpen}
+          onBinderOpen={setBinderOpen}
+          onInspectorOpen={setInspectorOpen}
+        />
+      );
+    }
+    const view = render(
+      <LanguageProvider>
+        <StatefulPanels />
+      </LanguageProvider>,
+    );
+    const rendered = within(view.container);
+    const toolbar = within(view.container.querySelector(".context-bar")!);
+    const chapters = toolbar.getByRole("button", { name: "Kapitel" });
+    const writingAid = toolbar.getByRole("button", { name: "Schreibhilfe" });
+
+    expect(chapters).toBeVisible();
+    expect(writingAid).toBeVisible();
+    expect(chapters).toHaveAttribute("aria-expanded", "true");
+    expect(writingAid).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(chapters);
+    expect(rendered.queryByRole("complementary", { name: "Kapitel" })).toBeNull();
+    expect(chapters).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(chapters);
+    expect(rendered.getByRole("complementary", { name: "Kapitel" })).toBeVisible();
+
+    fireEvent.click(writingAid);
+    expect(rendered.queryByRole("complementary", { name: "Schreibhilfe" })).toBeNull();
+    expect(writingAid).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(writingAid);
+    expect(rendered.getByRole("complementary", { name: "Schreibhilfe" })).toBeVisible();
+  });
+
+  it("meldet die Schreibhilfe ohne Kapitel weder geöffnet noch als steuernd", () => {
+    const onInspectorOpen = vi.fn();
+    const view = renderWorkspace({
+      manuscript: { chapters: [] },
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      viewportMode: "wide",
+      inspectorOpen: true,
+      onInspectorOpen,
+    });
+    const rendered = within(view.container);
+    const toolbar = within(view.container.querySelector(".context-bar")!);
+    const writingAid = toolbar.getByRole("button", { name: "Schreibhilfe" });
+
+    expect(writingAid).toBeDisabled();
+    expect(writingAid).toHaveAttribute("aria-expanded", "false");
+    expect(writingAid).toHaveAttribute("aria-pressed", "false");
+    expect(writingAid).not.toHaveAttribute("aria-controls");
+    expect(rendered.queryByRole("complementary", { name: "Schreibhilfe" })).toBeNull();
+    fireEvent.click(writingAid);
+    expect(onInspectorOpen).not.toHaveBeenCalled();
+  });
+
+  it("behält beim Öffnen und echten Schließen denselben fokussierten Rand-Schalter", () => {
     function StatefulPanels() {
       const [binderOpen, setBinderOpen] = useState(false);
       const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -164,24 +236,44 @@ describe("TextWorkspace", () => {
     const chapterToggle = rendered.getByRole("button", { name: "Kapitelnavigation öffnen" });
     chapterToggle.focus();
     fireEvent.click(chapterToggle);
-    expect(rendered.getByRole("button", { name: "Kapitelnavigation schließen" })).toBe(
-      chapterToggle,
-    );
-    expect(chapterToggle).toHaveFocus();
-    expect(chapterToggle).toHaveAttribute("aria-expanded", "true");
-    expect(rendered.getByRole("complementary", { name: "Kapitel" })).toHaveAttribute(
-      "id",
-      "chapter-binder",
-    );
+    const binder = rendered.getByRole("complementary", { name: "Kapitel" });
+    expect(binder).toHaveAttribute("id", "chapter-binder");
+    expect(binder.querySelector(".panel-heading")).toHaveClass("panel-heading--binder");
+    const closeBinder = rendered.getByRole("button", { name: "Kapitelnavigation schließen" });
+    expect(closeBinder).toBe(chapterToggle);
+    expect(closeBinder).toHaveClass("panel-edge-toggle--left", "is-open");
+    expect(closeBinder).toHaveAttribute("aria-expanded", "true");
+    expect(closeBinder).toHaveFocus();
+    expect(
+      within(binder).queryByRole("button", { name: "Kapitelnavigation schließen" }),
+    ).toBeNull();
+    fireEvent.click(closeBinder);
+    expect(rendered.queryByRole("complementary", { name: "Kapitel" })).toBeNull();
+    const reopenedChapterToggle = rendered.getByRole("button", {
+      name: "Kapitelnavigation öffnen",
+    });
+    expect(reopenedChapterToggle).toBe(chapterToggle);
+    expect(reopenedChapterToggle).toHaveAttribute("aria-expanded", "false");
+    expect(reopenedChapterToggle).toHaveFocus();
 
     const aidToggle = rendered.getByRole("button", { name: "Schreibhilfe öffnen" });
+    aidToggle.focus();
     fireEvent.click(aidToggle);
-    expect(rendered.getByRole("button", { name: "Schreibhilfe schließen" })).toBe(aidToggle);
-    expect(aidToggle).toHaveAttribute("aria-expanded", "true");
-    expect(rendered.getByRole("complementary", { name: "Schreibhilfe" })).toHaveAttribute(
-      "id",
-      "writing-aid-inspector",
-    );
+    const aid = rendered.getByRole("complementary", { name: "Schreibhilfe" });
+    expect(aid).toHaveAttribute("id", "writing-aid-inspector");
+    expect(aid.querySelector(".panel-heading")).toHaveClass("panel-heading--inspector");
+    const closeAid = rendered.getByRole("button", { name: "Schreibhilfe schließen" });
+    expect(closeAid).toBe(aidToggle);
+    expect(closeAid).toHaveClass("panel-edge-toggle--right", "is-open");
+    expect(closeAid).toHaveAttribute("aria-expanded", "true");
+    expect(closeAid).toHaveFocus();
+    expect(within(aid).queryByRole("button", { name: "Schreibhilfe schließen" })).toBeNull();
+    fireEvent.click(closeAid);
+    expect(rendered.queryByRole("complementary", { name: "Schreibhilfe" })).toBeNull();
+    const reopenedAidToggle = rendered.getByRole("button", { name: "Schreibhilfe öffnen" });
+    expect(reopenedAidToggle).toBe(aidToggle);
+    expect(reopenedAidToggle).toHaveAttribute("aria-expanded", "false");
+    expect(reopenedAidToggle).toHaveFocus();
   });
 
   it("nutzt im kompakten Layout weiterhin die Sheet-Schalter der Kontextleiste", () => {
@@ -201,6 +293,74 @@ describe("TextWorkspace", () => {
     const context = within(view.container.querySelector(".context-bar")!);
     expect(context.getByRole("button", { name: "Kapitel" })).toBeVisible();
     expect(context.getByRole("button", { name: "Schreibhilfe" })).toBeVisible();
+  });
+
+  it("öffnet und schließt beide kompakten Sheets über Toolbar und Panel-X", () => {
+    function CompactPanels() {
+      const [binderOpen, setBinderOpen] = useState(false);
+      const [inspectorOpen, setInspectorOpen] = useState(false);
+      return (
+        <TextWorkspace
+          manuscript={manuscript}
+          figures={figures}
+          onChange={vi.fn()}
+          focus={false}
+          onFocus={vi.fn()}
+          viewportMode="compact"
+          binderOpen={binderOpen}
+          inspectorOpen={inspectorOpen}
+          onBinderOpen={setBinderOpen}
+          onInspectorOpen={setInspectorOpen}
+        />
+      );
+    }
+    const view = render(
+      <LanguageProvider>
+        <CompactPanels />
+      </LanguageProvider>,
+    );
+    const toolbar = within(view.container.querySelector(".context-bar")!);
+
+    fireEvent.click(toolbar.getByRole("button", { name: "Kapitel" }));
+    const chapters = screen.getByRole("dialog", { name: "Kapitel" });
+    fireEvent.click(within(chapters).getByRole("button", { name: "Kapitelnavigation schließen" }));
+    expect(screen.queryByRole("dialog", { name: "Kapitel" })).toBeNull();
+
+    fireEvent.click(toolbar.getByRole("button", { name: "Schreibhilfe" }));
+    const writingAid = screen.getByRole("dialog", { name: "Schreibhilfe" });
+    fireEvent.click(within(writingAid).getByRole("button", { name: "Schreibhilfe schließen" }));
+    expect(screen.queryByRole("dialog", { name: "Schreibhilfe" })).toBeNull();
+  });
+
+  it("behält im Fokusmodus die dezenten Aufklappschalter und keine Toolbar-Dopplung", () => {
+    const twoChapters = {
+      chapters: [
+        ...manuscript.chapters,
+        { id: "c2", title: "Aufbruch", body: "Der Weg beginnt.", note: "" },
+      ],
+    };
+    const view = renderWorkspace({
+      manuscript: twoChapters,
+      figures,
+      onChange: vi.fn(),
+      focus: true,
+      onFocus: vi.fn(),
+      viewportMode: "wide",
+    });
+    const rendered = within(view.container);
+    expect(view.container.querySelector(".panel-toggles")).toBeNull();
+
+    const chapters = rendered.getByRole("button", { name: "Kapitelauswahl öffnen" });
+    fireEvent.click(chapters);
+    expect(chapters).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(chapters);
+    expect(chapters).toHaveAttribute("aria-expanded", "false");
+
+    const writingAid = rendered.getByRole("button", { name: "Schreibhilfe öffnen" });
+    fireEvent.click(writingAid);
+    expect(writingAid).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(writingAid);
+    expect(writingAid).toHaveAttribute("aria-expanded", "false");
   });
 
   // Die rechte Spalte macht nur noch eine Sache. Alles Kapitelbezogene ist links oder über

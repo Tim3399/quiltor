@@ -896,6 +896,14 @@ Later:
 - [ ] signed/notarized release polish where required;
 - [ ] closed pilot with long-form authors.
 
+## Uploaded background map for Places — nice to have
+
+- [ ] Let the author upload an image as the background of the Places canvas.
+- [ ] Resize/move the map as one frame while anchored places retain their relative image positions.
+- [ ] Keep distance measurements stable by adjusting the map scale when the image is resized.
+- [ ] Persist the map and its anchoring metadata locally and include them in backup/restore.
+- [ ] Keep this P3: it must not delay core Places or story-intelligence work.
+
 ---
 
 # Research / quality track

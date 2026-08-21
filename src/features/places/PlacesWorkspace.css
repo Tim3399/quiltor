@@ -18,10 +18,10 @@
 .places-flow-area {
   position: relative;
 }
-.place-center-handle {
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%);
+.place-node-shell {
+  position: relative;
+}
+.place-coordinate-handle {
   width: 1px;
   height: 1px;
   min-width: 1px;
@@ -91,9 +91,16 @@
   border-color: var(--gold);
   box-shadow: var(--ring-2) var(--gold-soft);
 }
+.story-node.type-ort.is-measure-start {
+  box-shadow: var(--ring-2) var(--gold);
+}
 .distance-edge .react-flow__edge-path {
   stroke: var(--gold);
   stroke-dasharray: 5 4;
+}
+.distance-edge.is-targeted .react-flow__edge-path {
+  stroke-width: 2.5;
+  stroke-dasharray: none;
 }
 .places-inspector-body {
   display: flex;

@@ -1,3 +1,13 @@
 .flow-area.is-connecting.zoom-overview .story-node .react-flow__handle:not(.journey-handle) {
   opacity: 1;
 }
+
+/* The connection preview lives inside the zoomed React Flow viewport. Without a
+   non-scaling stroke it becomes a sub-pixel hairline in overview LOD and looks
+   as if no line was being drawn at all. */
+.flow-area .react-flow__connection-path {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-linecap: round;
+}

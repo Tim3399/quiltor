@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { MessageKey } from "../../language";
 import { de } from "../../language/de";
-import { allMapDistances, formatDistance, mapDistance } from "./placeMap";
+import {
+  allMapDistances,
+  formatDistance,
+  mapDistance,
+  mapDistancePair,
+  nearestMapDistances,
+} from "./placeMap";
 
 const t = (key: MessageKey) => de[key];
 
@@ -32,6 +38,52 @@ describe("allMapDistances", () => {
 
   it("does not create self-distances for a single place", () => {
     expect(allMapDistances([{ id: "only", mapX: 10, mapY: 20 }])).toEqual([]);
+  });
+});
+
+describe("nearestMapDistances", () => {
+  it("shows every available pair when there are fewer than four places", () => {
+    const first = { id: "a", mapX: 0, mapY: 0 };
+    const second = { id: "b", mapX: 300, mapY: 0 };
+    const points = [{ id: "c", mapX: 0, mapY: 400 }, first, second];
+
+    expect(nearestMapDistances([])).toEqual([]);
+    expect(nearestMapDistances([first])).toEqual([]);
+    expect(nearestMapDistances([first, second])).toEqual(allMapDistances([first, second]));
+    expect(nearestMapDistances(points)).toEqual(allMapDistances(points));
+  });
+
+  it("unions each place's three nearest neighbours and deduplicates shared pairs", () => {
+    const pairs = nearestMapDistances([
+      { id: "f", mapX: 1020, mapY: 0 },
+      { id: "a", mapX: 0, mapY: 0 },
+      { id: "d", mapX: 1000, mapY: 0 },
+      { id: "c", mapX: 20, mapY: 0 },
+      { id: "e", mapX: 1010, mapY: 0 },
+      { id: "b", mapX: 10, mapY: 0 },
+    ]);
+
+    expect(pairs.map((pair) => pair.id)).toEqual([
+      "distance:a:b",
+      "distance:a:c",
+      "distance:a:d",
+      "distance:b:c",
+      "distance:b:d",
+      "distance:c:d",
+      "distance:c:e",
+      "distance:c:f",
+      "distance:d:e",
+      "distance:d:f",
+      "distance:e:f",
+    ]);
+    expect(new Set(pairs.map((pair) => pair.id)).size).toBe(pairs.length);
+    expect(pairs.some((pair) => pair.id === "distance:a:f")).toBe(false);
+  });
+
+  it("normalizes an explicitly selected pair to the same stable id", () => {
+    expect(
+      mapDistancePair({ id: "far", mapX: 300, mapY: 400 }, { id: "near", mapX: 0, mapY: 0 }),
+    ).toEqual({ id: "distance:far:near", from: "far", to: "near", distance: 500 });
   });
 });
 

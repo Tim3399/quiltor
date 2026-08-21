@@ -1,5 +1,6 @@
 export const places = {
   placesLabel: "Orte verwalten",
+  placeNodeLabel: "Ort: {name}",
   measureDistance: "Distanz messen",
   undoPlaces: "Orte rückgängig",
   redoPlaces: "Orte wiederholen",
@@ -7,9 +8,16 @@ export const places = {
   duplicatePlace: "Ort duplizieren",
   deletePlace: "Ort löschen",
   deletePlaceDescription: "„{name}“ und seine Verknüpfungen werden entfernt.",
-  allDistancesHint:
-    "Alle Distanzen zwischen den Orten werden angezeigt. Ziehen aktualisiert sie live.",
+  nearestDistancesHint:
+    "Pro Ort werden die drei nächsten Distanzen angezeigt. Klicke zwei Orte für eine weitere Strecke.",
+  selectDistanceTargetHint: "Wähle den zweiten Ort für die gezielte Distanz.",
+  distanceEdgeLabel: "{from} – {to}: {distance}",
   stopMeasuring: "Distanz messen beenden",
+  favoritePlace: "Ort favorisieren",
+  unfavoritePlace: "Favorit entfernen",
+  favoritePlaceMarker: "Favorisierter Ort",
+  lockPlacePosition: "Position fixieren",
+  unlockPlacePosition: "Position lösen",
   scale: "Maßstab",
   perHundredPx: "pro 100px",
   unitLabelField: "Einheit",

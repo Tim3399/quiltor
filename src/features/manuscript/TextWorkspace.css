@@ -725,23 +725,33 @@
   transform: translateX(var(--editor-balance-offset));
 }
 
-/* On desktop these are the same quiet side controls used by focus mode. They remain mounted
-   while a panel changes state, preserving focus and teaching one stable place for each panel. */
+/* Desktop panels keep one stable text-side control mounted through both states. This preserves
+   keyboard focus while its icon changes from the focus-mode launcher to the close affordance. */
 .text-layout .panel-edge-toggle {
   position: absolute;
-  z-index: var(--z-sticky);
-  top: 50%;
+  z-index: var(--z-drawer);
+  top: var(--space-3);
   width: var(--control-compact);
   height: var(--control-regular);
-  transform: translateY(-50%);
+  transform: none;
   color: var(--muted);
   opacity: 0.68;
 }
 .text-layout .panel-edge-toggle:hover,
-.text-layout .panel-edge-toggle:focus-visible {
+.text-layout .panel-edge-toggle:focus-visible,
+.text-layout .panel-edge-toggle.is-open {
   background: var(--control-hover);
   color: var(--ink);
   opacity: 1;
+}
+/* The open controls sit inside their panel's text-facing edge. Reserve the control width plus
+   its edge inset and a matching gap in desktop headings; compact panels live outside .text-layout
+   and therefore retain their original symmetric heading padding. */
+.text-layout > .binder > .panel-heading--binder {
+  padding-inline-end: calc(var(--control-compact) + var(--space-16));
+}
+.text-layout > .inspector > .panel-heading--inspector {
+  padding-inline-start: calc(var(--control-compact) + var(--space-16));
 }
 .panel-edge-toggle--left {
   left: var(--space-8);
@@ -801,9 +811,10 @@
   }
 }
 
-/* Compact uses modal sheets, so its two toolbar launchers remain icon-only. Regular and wide
-   layouts use the persistent edge controls above and do not render these launchers at all. */
-@media (max-width: 719px) {
+/* Below the wide layout both launchers stay in the toolbar but become icon-only, so the
+   restored controls do not crowd or clip the remaining manuscript actions. Their accessible
+   names continue to come from aria-label. */
+@media (max-width: 1099px) {
   .panel-toggles button span {
     display: none;
   }

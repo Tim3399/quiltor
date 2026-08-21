@@ -640,7 +640,7 @@ export function TextWorkspace({
 
   const binderPanel = (
     <>
-      <div className="panel-heading">
+      <div className="panel-heading panel-heading--binder">
         <span>{t("chapters")}</span>
         {viewportMode === "compact" && (
           <button
@@ -648,6 +648,7 @@ export function TextWorkspace({
             className="icon-button"
             onClick={() => setBinderOpen(false)}
             aria-label={t("closeNavigation")}
+            title={t("closeNavigation")}
           >
             <X />
           </button>
@@ -758,10 +759,10 @@ export function TextWorkspace({
     </>
   );
   // The right column has one job: the writing aid. Chapter actions stay with the chapter list
-  // on the left, while the persistent edge control opens and closes this panel on desktop.
+  // on the left; the persistent text-side edge control opens and closes this panel on desktop.
   const inspectorPanel = current ? (
     <>
-      <div className="panel-heading">
+      <div className="panel-heading panel-heading--inspector">
         <span>{t("writingAid")}</span>
         {viewportMode === "compact" && (
           <button
@@ -769,6 +770,7 @@ export function TextWorkspace({
             className="icon-button"
             onClick={() => setInspectorOpen(false)}
             aria-label={t("closeWritingAid")}
+            title={t("closeWritingAid")}
           >
             <X />
           </button>
@@ -1182,12 +1184,15 @@ export function TextWorkspace({
             {t("newChapter")}
           </button>
         </div>
-        {/* Compact panels are modal sheets and need their launchers in the toolbar. On larger
-          screens persistent controls sit at the panel edges, just like in focus mode. */}
-        {viewportMode === "compact" && (
+        {/* The toolbar toggles remain the explicit, always-visible controls outside focus mode.
+          Desktop additionally keeps the quiet edge controls, so a collapsed panel can still be
+          reopened from beside the text without hunting through the toolbar. */}
+        {!focus && (
           <div className="tool-group panel-toggles">
             <button
               aria-pressed={binderOpen}
+              aria-expanded={binderOpen}
+              aria-controls="chapter-binder"
               onClick={() => setBinderOpen(!binderOpen)}
               aria-label={t("chapters")}
               title={t("chapters")}
@@ -1196,8 +1201,13 @@ export function TextWorkspace({
               <span>{t("chapters")}</span>
             </button>
             <button
-              aria-pressed={inspectorOpen}
-              onClick={() => setInspectorOpen(!inspectorOpen)}
+              disabled={!current}
+              aria-pressed={Boolean(current && inspectorOpen)}
+              aria-expanded={Boolean(current && inspectorOpen)}
+              aria-controls={current ? "writing-aid-inspector" : undefined}
+              onClick={() => {
+                if (current) setInspectorOpen(!inspectorOpen);
+              }}
               aria-label={t("writingAid")}
               title={t("writingAid")}
             >
@@ -1630,12 +1640,16 @@ export function TextWorkspace({
       />
       {!focus && viewportMode === "compact" && (
         <Sheet open={binderOpen} label={t("chapters")} onClose={() => setBinderOpen(false)}>
-          <div className="binder compact-panel">{binderPanel}</div>
+          <div id="chapter-binder" className="binder compact-panel">
+            {binderPanel}
+          </div>
         </Sheet>
       )}
       {!focus && viewportMode === "compact" && inspectorPanel && (
         <Sheet open={inspectorOpen} label={t("writingAid")} onClose={() => setInspectorOpen(false)}>
-          <div className="inspector compact-panel">{inspectorPanel}</div>
+          <div id="writing-aid-inspector" className="inspector compact-panel">
+            {inspectorPanel}
+          </div>
         </Sheet>
       )}
       {focus && manuscript.chapters.length > 1 && (
