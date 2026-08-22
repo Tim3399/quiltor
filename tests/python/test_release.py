@@ -522,7 +522,10 @@ class PreflightContractTests(unittest.TestCase):
         self.assertEqual(backup_build[-1], ".")
         self.assertIn("services/backup-server/Dockerfile", backup_build)
         backup_verify = commands[labels.index("Verify backup-service container payload and user")]
-        self.assertIn("quiltor.application.backup_manifest", " ".join(backup_verify))
+        backup_verify_script = " ".join(backup_verify)
+        self.assertIn("quiltor.application.backup_manifest", backup_verify_script)
+        self.assertIn("compile(p.read_text", backup_verify_script)
+        self.assertNotIn("py_compile", backup_verify_script)
         cleanup.assert_called_once()
         runtime_tools.assert_called_once_with("cargo")
         pinned_tools.assert_called_once_with()

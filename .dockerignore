@@ -14,6 +14,7 @@ playwright-report
 .venv*
 .pnpm-store
 target
+distribution/.build
 *.sqlite3
 # Source checkouts use this fallback profile. Release images materialize and
 # copy the target-specific contract instead, so the source identity never enters

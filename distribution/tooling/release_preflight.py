@@ -392,10 +392,10 @@ def _run_portable_artifact_builds(
                 backup_image,
                 "-c",
                 (
-                    "import json, os, pathlib, py_compile; "
+                    "import json, os, pathlib; "
                     "p=pathlib.Path('/app/server.py'); assert p.is_file(); "
                     "c=pathlib.Path('/app/quiltor/application/backup_manifest.py'); "
-                    "assert c.is_file(); py_compile.compile(str(p), doraise=True); "
+                    "assert c.is_file(); compile(p.read_text(encoding='utf-8'), str(p), 'exec'); "
                     "a=json.load(open('/app/quiltor-backup-service.json')); "
                     "assert a['id']=='quiltor-backup-service'; "
                     "assert a['role']=='backup-service'; "
