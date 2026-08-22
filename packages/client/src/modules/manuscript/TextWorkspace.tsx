@@ -168,6 +168,8 @@ export function TextWorkspace({
     <ChapterBinder
       manuscript={manuscript}
       current={current}
+      timeline={figures.timeline}
+      timeSystem={figures.timeSystem}
       totalWords={totalWords}
       viewportMode={viewportMode}
       onClose={() => setBinderOpen(false)}

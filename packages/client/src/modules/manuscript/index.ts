@@ -7,6 +7,7 @@ export {
 } from "./mentions";
 export type {
   Chapter,
+  ChapterStoryTime,
   EntityMention,
   GrammarMode,
   Manuscript,

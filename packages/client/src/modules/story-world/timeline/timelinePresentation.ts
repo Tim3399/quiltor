@@ -13,16 +13,24 @@ export function momentTimeLabel(
   fallback: number,
   t: Translate,
 ): string {
-  if (system.kind === "relative") {
-    const start = relativeMomentTimeLabel(system, timeOfMoment(moment, fallback), t);
-    return Number.isSafeInteger(moment.endTime)
-      ? `${start} – ${relativeMomentTimeLabel(system, moment.endTime as number, t)}`
-      : start;
-  }
-  const start = projectMomentTime(system, timeOfMoment(moment, fallback), moment.precision);
+  const start = momentBoundaryTimeLabel(system, moment, fallback, "start", t);
   return Number.isSafeInteger(moment.endTime)
-    ? `${start} – ${projectMomentTime(system, moment.endTime as number, moment.endPrecision)}`
+    ? `${start} – ${momentBoundaryTimeLabel(system, moment, fallback, "end", t)}`
     : start;
+}
+
+/** Format one boundary of a moment without expanding it into its own range. */
+export function momentBoundaryTimeLabel(
+  system: TimeSystem,
+  moment: TimelineMoment,
+  fallback: number,
+  boundary: "start" | "end",
+  t: Translate,
+): string {
+  const useEnd = boundary === "end" && Number.isSafeInteger(moment.endTime);
+  const time = useEnd ? (moment.endTime as number) : timeOfMoment(moment, fallback);
+  if (system.kind === "relative") return relativeMomentTimeLabel(system, time, t);
+  return projectMomentTime(system, time, useEnd ? moment.endPrecision : moment.precision);
 }
 
 export function defaultDisplayFormat(kind: TimeSystemKind): string {

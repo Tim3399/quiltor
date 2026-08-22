@@ -37,6 +37,42 @@
   margin: var(--space-5) 0 var(--space-3);
   font: 600 var(--font-size-display-sm) var(--prose);
 }
+.storyboard-chapter-usage,
+.storyboard-range-conflict {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-10);
+  padding: var(--space-9) var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--soft);
+  font-size: var(--font-size-3);
+}
+.storyboard-chapter-usage > svg,
+.storyboard-range-conflict > svg {
+  width: 17px;
+  height: 17px;
+}
+.storyboard-chapter-usage p,
+.storyboard-range-conflict p {
+  margin: 0;
+}
+.storyboard-range-conflict {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+.storyboard-range-conflict p {
+  display: grid;
+  gap: var(--space-3);
+}
+.storyboard-chapter-usage .secondary-action,
+.storyboard-range-conflict .secondary-action {
+  white-space: nowrap;
+}
 .storyboard-actions {
   display: flex;
   gap: var(--space-5);
@@ -94,5 +130,15 @@
   .storyboard-title small {
     display: block;
     line-height: 1.4;
+  }
+  .storyboard-chapter-usage,
+  .storyboard-range-conflict {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .storyboard-chapter-usage .secondary-action,
+  .storyboard-range-conflict .secondary-action {
+    grid-column: 2;
+    justify-self: start;
+    white-space: normal;
   }
 }

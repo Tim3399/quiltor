@@ -16,6 +16,11 @@ ENTITY_ALIAS_SEPARATOR_RANGES_V1 = (
     (96, 96),
     (123, 127),
 )
+MINIMUM_FUZZY_LENGTH = 5
+EXACT_ID_SCORE = 1.0
+EXACT_TEXT_SCORE = 0.99
+FUZZY_SCORE = 0.80
+CONTEXT_SCORE = 0.02
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,12 @@ class ResolutionResult:
     mention: str
     resolved_id: str | None
     candidates: list[ResolutionCandidate]
+
+
+@dataclass(frozen=True)
+class _CandidateMatch:
+    candidate: ResolutionCandidate
+    context_reasons: tuple[str, ...]
 
 
 def normalize_entity_name(value: Any) -> str:
@@ -110,28 +121,8 @@ def _aliases(node: dict[str, Any]) -> list[str]:
     ]
 
 
-def resolve_entity(
-    figures: dict[str, Any],
-    mention: str,
-    *,
-    entity_type: str | None = None,
-    context_ids: Sequence[str] = (),
-    vocabulary: Sequence[str] = (),
-) -> ResolutionResult:
-    """Resolve a mention without guessing across a tied or weak match."""
-
-    normalized = normalize_entity_name(mention)
-    if not normalized:
-        return ResolutionResult("not_found", mention, None, [])
-    nodes = [
-        node
-        for node in figures.get("nodes") or []
-        if isinstance(node, dict)
-        and isinstance(node.get("id"), str)
-        and (entity_type is None or node.get("type", "person") == entity_type)
-    ]
-    context = set(context_ids)
-    connected = {
+def _context_connections(figures: dict[str, Any], context: set[str]) -> set[str]:
+    return {
         endpoint
         for edge in figures.get("edges") or []
         if isinstance(edge, dict)
@@ -141,47 +132,189 @@ def resolve_entity(
         )
         if other in context and isinstance(endpoint, str)
     }
-    known_word = normalized in {normalize_entity_name(word) for word in vocabulary}
-    candidates: list[ResolutionCandidate] = []
-    for node in nodes:
-        reasons: list[str] = []
-        score = 0.0
-        node_id = node["id"]
-        name = normalize_entity_name(node.get("name"))
-        aliases = [normalize_entity_name(alias) for alias in _aliases(node)]
-        if mention == node_id:
-            score, reasons = 1.0, ["exact_id"]
-        elif normalized == name:
-            score, reasons = 0.99, ["exact_name"]
-        elif normalized in aliases:
-            score, reasons = 0.98, ["exact_alias"]
-        elif not known_word and len(normalized) >= 5 and name and normalized[0] == name[0]:
+
+
+def _context_reasons(node_id: str, context: set[str], connected: set[str]) -> tuple[str, ...]:
+    reasons: list[str] = []
+    if node_id in context:
+        reasons.append("local_context")
+    if node_id in connected:
+        reasons.append("connected_context")
+    return tuple(reasons)
+
+
+def _match_node(
+    node: dict[str, Any],
+    mention: str,
+    normalized: str,
+    *,
+    fuzzy_allowed: bool,
+    type_filtered: bool,
+) -> ResolutionCandidate | None:
+    node_id = node["id"]
+    name = normalize_entity_name(node.get("name"))
+    aliases = [alias for value in _aliases(node) if (alias := normalize_entity_name(value))]
+    reasons: list[str] = []
+    score = 0.0
+
+    if mention == node_id:
+        score = EXACT_ID_SCORE
+        reasons.append("exact_id")
+    else:
+        if normalized == name:
+            reasons.append("exact_name")
+        if normalized in aliases:
+            reasons.append("exact_alias")
+        if reasons:
+            score = EXACT_TEXT_SCORE
+        elif fuzzy_allowed:
             budget = edit_budget(len(normalized))
             choices = [(name, "fuzzy_name"), *[(alias, "fuzzy_alias") for alias in aliases]]
             distances = [
-                (name_or_alias, reason, name_distance(normalized, name_or_alias, budget))
-                for name_or_alias, reason in choices
-                if name_or_alias and name_or_alias[0] == normalized[0]
+                (candidate, reason, name_distance(normalized, candidate, budget))
+                for candidate, reason in choices
+                if candidate and candidate[0] == normalized[0]
             ]
             if distances:
-                _, reason, distance = min(distances, key=lambda item: item[2])
-                if distance <= budget:
-                    score = 0.80 - distance * 0.05
-                    reasons = [reason]
-        if not reasons:
-            continue
-        if entity_type is not None:
-            reasons.append("type_match")
-        if node_id in connected:
-            score += 0.02
-            reasons.append("connected_context")
-        candidates.append(ResolutionCandidate(node_id, round(score, 3), reasons))
+                nearest = min(distance for _, _, distance in distances)
+                if nearest <= budget:
+                    score = FUZZY_SCORE - nearest * 0.05
+                    for _candidate, reason, distance in distances:
+                        if distance == nearest and reason not in reasons:
+                            reasons.append(reason)
 
-    candidates.sort(key=lambda item: (-item.score, item.element_id))
-    if not candidates:
+    if not reasons:
+        return None
+    if type_filtered:
+        reasons.append("type_match")
+    return ResolutionCandidate(node_id, round(score, 3), reasons)
+
+
+def _with_context(match: _CandidateMatch) -> ResolutionCandidate:
+    candidate = match.candidate
+    return ResolutionCandidate(
+        candidate.element_id,
+        round(candidate.score + CONTEXT_SCORE, 3),
+        [*candidate.reasons, *match.context_reasons],
+    )
+
+
+def _ordered(candidates: Sequence[ResolutionCandidate]) -> list[ResolutionCandidate]:
+    return sorted(candidates, key=lambda item: (-item.score, item.element_id))
+
+
+def resolve_entity(
+    figures: dict[str, Any],
+    mention: str,
+    *,
+    entity_type: str | None = None,
+    context_ids: Sequence[str] = (),
+    vocabulary: Sequence[str] = (),
+) -> ResolutionResult:
+    """Resolve a mention without guessing across a tied or weak match.
+
+    Exact textual identity collisions are always ambiguous. Local context is only
+    allowed to break a fuzzy score tie when exactly one tied candidate is local or
+    directly connected to a local entity.
+    """
+
+    normalized = normalize_entity_name(mention)
+    if not normalized:
         return ResolutionResult("not_found", mention, None, [])
-    best = candidates[0].score
-    tied = [candidate for candidate in candidates if candidate.score == best]
-    if len(tied) != 1:
-        return ResolutionResult("ambiguous", mention, None, tied)
-    return ResolutionResult("resolved", mention, tied[0].element_id, candidates)
+
+    nodes = [
+        node
+        for node in figures.get("nodes") or []
+        if isinstance(node, dict)
+        and isinstance(node.get("id"), str)
+        and (entity_type is None or node.get("type", "person") == entity_type)
+    ]
+    context = {node_id for node_id in context_ids if isinstance(node_id, str)}
+    connected = _context_connections(figures, context)
+    normalized_vocabulary = {
+        word for value in vocabulary if (word := normalize_entity_name(value))
+    }
+    fuzzy_allowed = len(normalized) >= MINIMUM_FUZZY_LENGTH and normalized not in (
+        normalized_vocabulary
+    )
+
+    matches: list[_CandidateMatch] = []
+    for node in nodes:
+        candidate = _match_node(
+            node,
+            mention,
+            normalized,
+            fuzzy_allowed=fuzzy_allowed,
+            type_filtered=entity_type is not None,
+        )
+        if candidate is not None:
+            matches.append(
+                _CandidateMatch(
+                    candidate,
+                    _context_reasons(candidate.element_id, context, connected),
+                )
+            )
+
+    if not matches:
+        return ResolutionResult("not_found", mention, None, [])
+
+    ordered_matches = sorted(
+        matches,
+        key=lambda item: (-item.candidate.score, item.candidate.element_id),
+    )
+    best_score = ordered_matches[0].candidate.score
+    tied = [match for match in ordered_matches if match.candidate.score == best_score]
+    if len(tied) == 1:
+        candidates = _ordered([match.candidate for match in matches])
+        return ResolutionResult("resolved", mention, tied[0].candidate.element_id, candidates)
+
+    exact_text_collision = any(
+        reason in {"exact_name", "exact_alias"}
+        for match in tied
+        for reason in match.candidate.reasons
+    )
+    if exact_text_collision:
+        return ResolutionResult(
+            "ambiguous",
+            mention,
+            None,
+            _ordered([match.candidate for match in tied]),
+        )
+
+    contextual = [match for match in tied if match.context_reasons]
+    if contextual:
+        contextual_candidates = _ordered([_with_context(match) for match in contextual])
+        if len(contextual) == 1:
+            contextual_id = contextual[0].candidate.element_id
+            candidates = [
+                _with_context(match)
+                if match.candidate.element_id == contextual_id
+                else match.candidate
+                for match in matches
+            ]
+            return ResolutionResult(
+                "resolved",
+                mention,
+                contextual_id,
+                _ordered(candidates),
+            )
+        return ResolutionResult("ambiguous", mention, None, contextual_candidates)
+
+    return ResolutionResult(
+        "ambiguous",
+        mention,
+        None,
+        _ordered([match.candidate for match in tied]),
+    )
+
+
+__all__ = [
+    "ENTITY_ALIAS_NORMALIZATION_V1",
+    "ResolutionCandidate",
+    "ResolutionResult",
+    "ResolutionStatus",
+    "edit_budget",
+    "name_distance",
+    "normalize_entity_name",
+    "resolve_entity",
+]

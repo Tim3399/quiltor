@@ -9,6 +9,11 @@
         "title": "Die Ankunft",
         "body": "Mara öffnete die Karte.",
         "note": "Die Unruhe nur andeuten.",
+        "storyTime": {
+          "startMomentId": "arrival",
+          "endMomentId": "departure",
+          "extensionLabel": "The nested record also preserves extensions."
+        },
         "mentions": [
           {
             "id": "mention-mara-1",

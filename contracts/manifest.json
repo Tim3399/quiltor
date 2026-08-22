@@ -224,6 +224,23 @@
       ]
     },
     {
+      "name": "semantics.entity-resolution",
+      "version": 3,
+      "owner": "quiltor/core",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "V3 freezes conservative collision, fuzzy alias, type-filter, context tie-break, abstention, candidate-reason and ordering semantics."
+      },
+      "schema": "semantics/entity-resolution/v3.schema.json",
+      "fixtures": [
+        {
+          "path": "fixtures/story-world/entity-resolution.v3.json",
+          "mediaType": "application/json",
+          "role": "golden"
+        }
+      ]
+    },
+    {
       "name": "semantics.world-state-evaluation",
       "version": 1,
       "owner": "quiltor/core",

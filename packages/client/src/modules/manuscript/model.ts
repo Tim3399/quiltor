@@ -18,11 +18,18 @@ export interface TextMark {
   kind: TextMarkKind;
 }
 
+export interface ChapterStoryTime {
+  startMomentId: string;
+  endMomentId?: string;
+  [key: string]: unknown;
+}
+
 export interface Chapter {
   id: string;
   title: string;
   body: string;
   note: string;
+  storyTime?: ChapterStoryTime;
   mentions?: EntityMention[];
   marks?: TextMark[];
   [key: string]: unknown;

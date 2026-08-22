@@ -8,6 +8,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from quiltor.domain.story_world.entity_resolution import ResolutionResult, resolve_entity
+from quiltor.modules.assistant.entity_references import entity_mentions, mentioned_entity_ids
+
 # Broad, unscoped creation requests ("search all chapters and create every figure") can
 # need more than any single call's context/output budget can safely hold -- these get
 # routed to explicit, user-approved batch mode (see AssistantRuntime.complete()'s "broad"
@@ -138,9 +141,9 @@ def contract_expectations(question: str, required: list[str]) -> list[str]:
     return expectations
 
 
-def existing_creation_target(
+def creation_target_resolution(
     question: str, figures: dict[str, Any], contract: dict[str, Any]
-) -> dict[str, Any] | None:
+) -> ResolutionResult | None:
     if "create_element" not in contract["requiredKinds"]:
         return None
     folded = question.casefold()
@@ -159,26 +162,64 @@ def existing_creation_target(
         ),
         None,
     )
-    candidates = [
-        node
-        for node in figures.get("nodes") or []
-        if not requested_type or node.get("type", "person") == requested_type
-    ]
-    candidates.sort(key=lambda node: len(str(node.get("name", ""))), reverse=True)
     named_target = re.search(
         r"\b(?:[Ll]ege|[Ee]rstelle?|[Cc]reate|[Aa]dd)\s+([A-ZÄÖÜ][\wÄÖÜäöüß-]*(?:\s+[A-ZÄÖÜ][\wÄÖÜäöüß-]*)*)\s+(?:als|an\b)",
         question,
     )
-    if named_target and all(
-        _normal(node.get("name")) != _normal(named_target.group(1)) for node in candidates
-    ):
+    if named_target:
+        return resolve_entity(
+            figures,
+            named_target.group(1),
+            entity_type=requested_type,
+        )
+
+    mentions = entity_mentions(question, figures, entity_type=requested_type)
+    ambiguous = next(
+        (mention.resolution for mention in mentions if mention.resolution.status == "ambiguous"),
+        None,
+    )
+    if ambiguous is not None:
+        return ambiguous
+    resolved = list(
+        dict.fromkeys(
+            mention.resolution.resolved_id
+            for mention in mentions
+            if mention.resolution.status == "resolved"
+            and mention.resolution.resolved_id is not None
+        )
+    )
+    if not resolved:
+        return None
+    if len(resolved) == 1:
+        return resolve_entity(figures, resolved[0], entity_type=requested_type)
+    candidates = [
+        candidate
+        for element_id in resolved
+        for candidate in resolve_entity(
+            figures,
+            element_id,
+            entity_type=requested_type,
+        ).candidates[:1]
+    ]
+    return ResolutionResult(
+        "ambiguous",
+        question,
+        None,
+        candidates,
+    )
+
+
+def existing_creation_target(
+    question: str, figures: dict[str, Any], contract: dict[str, Any]
+) -> dict[str, Any] | None:
+    resolution = creation_target_resolution(question, figures, contract)
+    if resolution is None or resolution.status != "resolved" or resolution.resolved_id is None:
         return None
     return next(
         (
             node
-            for node in candidates
-            if len(_normal(node.get("name"))) >= 3
-            and re.search(rf"\b{re.escape(_normal(node.get('name')))}\b", _normal(question))
+            for node in figures.get("nodes") or []
+            if node.get("id") == resolution.resolved_id
         ),
         None,
     )
@@ -291,11 +332,19 @@ def complete_compound_proposals(
         and not any(item.get("kind") == "create_relationship" for item in proposals)
     ):
         folded = question.casefold()
-        matches = [
-            node
+        mentioned_ids = mentioned_entity_ids(question, figures)
+        nodes_by_id = {
+            str(node.get("id")): node
             for node in figures.get("nodes") or []
-            if str(node.get("name", "")).casefold() in folded
-        ]
+            if node.get("id")
+        }
+        matches = (
+            [nodes_by_id[mentioned_ids[0]]]
+            if mentioned_ids is not None
+            and len(mentioned_ids) == 1
+            and mentioned_ids[0] in nodes_by_id
+            else []
+        )
         if matches:
             labels = {
                 "sohn": "Sohn von",

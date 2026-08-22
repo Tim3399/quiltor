@@ -8,7 +8,7 @@ from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS chapters (
   title TEXT NOT NULL DEFAULT '',
   body TEXT NOT NULL DEFAULT '',
   note TEXT NOT NULL DEFAULT '',
+  story_time_start_moment_id TEXT REFERENCES timeline_moments(id) ON DELETE RESTRICT,
+  story_time_end_moment_id TEXT REFERENCES timeline_moments(id) ON DELETE RESTRICT,
+  story_time_extra_json TEXT NOT NULL DEFAULT '{}',
   extra_json TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS figure_settings (

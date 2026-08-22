@@ -1,1 +1,0 @@
-function e(e){return e.replace(/[.*+?^${}()|[\]\\]/g,`\\$&`)}function t(t,n){let r=n.trim();if(!r)return[];let i=new RegExp(e(r),`giu`);return[...t.matchAll(i)].map(e=>({from:e.index,to:e.index+e[0].length}))}function n(e,n){return e.flatMap(e=>t(e.body,n).map(t=>({chapterId:e.id,...t})))}export{t as n,n as t};

@@ -28,6 +28,120 @@
   margin-top: var(--space-28);
 }
 
+.alias-editor {
+  display: grid;
+  gap: var(--space-7);
+  margin: var(--space-4) 0 var(--space-12);
+  padding: var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--paper) 76%, var(--canvas));
+}
+
+.alias-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.alias-heading h3,
+.alias-heading p {
+  margin: 0;
+}
+
+.alias-heading h3 {
+  color: var(--ink);
+  font: 600 var(--font-size-3) / 1.25 var(--ui);
+}
+
+.alias-heading p {
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font: 400 var(--font-size-1) / 1.35 var(--ui);
+}
+
+.alias-add {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 28px;
+  padding: 0 var(--space-7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--soft);
+  font: 600 var(--font-size-1) var(--ui);
+  cursor: pointer;
+}
+
+.alias-add:hover,
+.alias-add:focus-visible {
+  border-color: var(--gold);
+  background: var(--control-hover);
+  color: var(--ink);
+}
+
+.alias-add svg {
+  width: 13px;
+  height: 13px;
+}
+
+.alias-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-5);
+}
+
+.alias-input-wrap {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.alias-input-wrap input {
+  min-width: 0;
+  width: 100%;
+  padding: var(--space-7) var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 var(--font-size-3) var(--ui);
+}
+
+.alias-input-wrap input:hover {
+  border-color: var(--line-strong);
+}
+
+.alias-input-wrap input:focus-visible {
+  border-color: var(--gold);
+  outline: 2px solid color-mix(in srgb, var(--gold) 22%, transparent);
+  outline-offset: 1px;
+}
+
+.alias-input-wrap input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.alias-input-wrap > small {
+  color: var(--muted);
+  font: 400 var(--font-size-1) var(--ui);
+}
+
+.alias-new-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.alias-error {
+  grid-column: 1 / -1;
+  color: var(--danger);
+  font: 500 var(--font-size-1) / 1.3 var(--ui);
+}
+
 .custom-field {
   display: grid;
   grid-template-columns: 1fr auto;

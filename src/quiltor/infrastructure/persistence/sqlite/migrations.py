@@ -41,6 +41,35 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
             "UPDATE meta SET value=? WHERE key='owner_sub' AND value=''",
             (config.LOCAL_OWNER,),
         )
+    if version < 8:
+        chapters_exist = database.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='chapters'"
+        ).fetchone()
+        if chapters_exist:
+            columns = {row[1] for row in database.execute("PRAGMA table_info(chapters)")}
+            if "story_time_start_moment_id" not in columns:
+                database.execute(
+                    "ALTER TABLE chapters ADD COLUMN story_time_start_moment_id TEXT "
+                    "REFERENCES timeline_moments(id) ON DELETE RESTRICT"
+                )
+            if "story_time_end_moment_id" not in columns:
+                database.execute(
+                    "ALTER TABLE chapters ADD COLUMN story_time_end_moment_id TEXT "
+                    "REFERENCES timeline_moments(id) ON DELETE RESTRICT"
+                )
+            if "story_time_extra_json" not in columns:
+                database.execute(
+                    "ALTER TABLE chapters ADD COLUMN story_time_extra_json TEXT "
+                    "NOT NULL DEFAULT '{}'"
+                )
+            database.execute(
+                "CREATE INDEX IF NOT EXISTS chapters_story_time_start "
+                "ON chapters(story_time_start_moment_id)"
+            )
+            database.execute(
+                "CREATE INDEX IF NOT EXISTS chapters_story_time_end "
+                "ON chapters(story_time_end_moment_id)"
+            )
     database.execute(
         "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",
         (str(SCHEMA_VERSION),),

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { Chapter, Manuscript } from "../../manuscript";
 import type { FigureState, TimeSystem, TimeSystemKind, TimelineMoment } from "../model";
 import { uid } from "../../../shared/id";
 import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
@@ -12,16 +13,58 @@ import {
 import { normalizeTimeSystem, timeOfMoment } from "./timeSystem";
 import { useI18n } from "../../../i18n";
 import { MomentBoard } from "./MomentBoard";
-import { MomentHeader } from "./MomentHeader";
+import { MomentHeader, type TimelineChapterReference } from "./MomentHeader";
 import { MomentCalendarFields, RelativeMomentFields } from "./MomentTimeFields";
 import { MomentStateWorkspace } from "./StateChangePanels";
 import { TimelineToolbar } from "./TimelineToolbar";
 import { countMomentChanges, defaultDisplayFormat } from "./timelinePresentation";
 import "./TimelineWorkspace.css";
 
+export function chaptersUsingTimelineMoment(
+  manuscript: Readonly<Manuscript>,
+  momentId: string,
+): TimelineChapterReference[] {
+  return manuscript.chapters
+    .filter(
+      (chapter) =>
+        chapter.storyTime?.startMomentId === momentId ||
+        chapter.storyTime?.endMomentId === momentId,
+    )
+    .map(({ id, title }) => ({ id, title }));
+}
+
+function chapterReference(chapter: Readonly<Chapter>): TimelineChapterReference {
+  return { id: chapter.id, title: chapter.title };
+}
+
+/** Mirrors the backend's canonical (time, incoming array index) range comparison. */
+export function firstReversedChapterTimeRange(
+  manuscript: Readonly<Manuscript>,
+  timeline: readonly TimelineMoment[],
+): TimelineChapterReference | null {
+  const coordinates = new Map(
+    timeline.map((moment, index) => [
+      moment.id,
+      [Number.isInteger(moment.time) ? (moment.time as number) : index, index] as const,
+    ]),
+  );
+  for (const chapter of manuscript.chapters) {
+    const { startMomentId, endMomentId } = chapter.storyTime || {};
+    if (!startMomentId || !endMomentId) continue;
+    const start = coordinates.get(startMomentId);
+    const end = coordinates.get(endMomentId);
+    if (!start || !end) continue;
+    if (end[0] < start[0] || (end[0] === start[0] && end[1] < start[1]))
+      return chapterReference(chapter);
+  }
+  return null;
+}
+
 export function TimelineWorkspace({
   state,
   onChange,
+  manuscript,
+  onOpenChapter,
   targetId,
   onUndo,
   onRedo,
@@ -30,6 +73,8 @@ export function TimelineWorkspace({
 }: {
   state: FigureState;
   onChange: (value: FigureState) => void;
+  manuscript: Readonly<Manuscript>;
+  onOpenChapter?: (chapterId: string) => void;
   targetId?: string;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -42,12 +87,16 @@ export function TimelineWorkspace({
     () => targetId || timeline[0]?.id || null,
   );
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
+  const [rangeConflict, setRangeConflict] = useState<TimelineChapterReference | null>(null);
   const [relativeAmount, setRelativeAmount] = useState(1);
   const [relativeDirection, setRelativeDirection] = useState<"before" | "after">("after");
   const [relativeBaseId, setRelativeBaseId] = useState(() => timeline[0]?.id || "");
   const selected = timeline.find((moment) => moment.id === selectedId) || null;
   const selectedIndex = selected ? timeline.findIndex((moment) => moment.id === selected.id) : -1;
   const timeSystem = normalizeTimeSystem(state.timeSystem);
+  const selectedChapterReferences = selected
+    ? chaptersUsingTimelineMoment(manuscript, selected.id)
+    : [];
 
   useEffect(() => {
     if (targetId && timeline.some((moment) => moment.id === targetId)) setSelectedId(targetId);
@@ -106,14 +155,23 @@ export function TimelineWorkspace({
         moment.id === selected.id ? { ...moment, ...patch } : moment,
       ),
     });
+  const commitTimeline = (nextTimeline: TimelineMoment[]) => {
+    const conflict = firstReversedChapterTimeRange(manuscript, nextTimeline);
+    if (conflict) {
+      setRangeConflict(conflict);
+      return false;
+    }
+    setRangeConflict(null);
+    onChange({ ...state, timeline: nextTimeline });
+    return true;
+  };
   const patchMomentTime = (value: number, patch: Partial<TimelineMoment> = {}) => {
     if (!selected || !Number.isSafeInteger(value)) return;
-    onChange({
-      ...state,
-      timeline: setTimelineMomentTime(timeline, selected.id, value).map((moment) =>
+    commitTimeline(
+      setTimelineMomentTime(timeline, selected.id, value).map((moment) =>
         moment.id === selected.id ? { ...moment, ...patch } : moment,
       ),
-    });
+    );
   };
   const patchRelativePlacement = (
     amount: number,
@@ -131,8 +189,8 @@ export function TimelineWorkspace({
   const moveMomentTo = (momentId: string, targetIndex: number) => {
     const from = timeline.findIndex((moment) => moment.id === momentId);
     if (from < 0) return;
-    onChange({ ...state, timeline: moveTimelineMoment(timeline, momentId, targetIndex) });
     setSelectedId(momentId);
+    commitTimeline(moveTimelineMoment(timeline, momentId, targetIndex));
   };
   const moveMoment = (offset: number) =>
     selected && moveMomentTo(selected.id, selectedIndex + offset + (offset > 0 ? 1 : 0));
@@ -174,6 +232,11 @@ export function TimelineWorkspace({
   };
   const confirmDelete = () => {
     if (!deleteMoment) return;
+    if (chaptersUsingTimelineMoment(manuscript, deleteMoment.id).length) {
+      setSelectedId(deleteMoment.id);
+      setDeleteMoment(null);
+      return;
+    }
     const remaining = removeTimelineMoment(timeline, deleteMoment.id);
     onChange({
       ...state,
@@ -203,7 +266,12 @@ export function TimelineWorkspace({
         onMoveEarlier={() => moveMoment(-1)}
         onMoveLater={() => moveMoment(1)}
         onDuplicate={duplicateMoment}
-        onDelete={() => setDeleteMoment(selected)}
+        onDelete={() => {
+          if (!selectedChapterReferences.length) setDeleteMoment(selected);
+        }}
+        chapterReferences={selectedChapterReferences}
+        rangeConflict={rangeConflict}
+        onOpenChapter={onOpenChapter}
         t={t}
       />
       <section className="timeline-meta-card">

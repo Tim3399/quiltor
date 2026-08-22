@@ -14,6 +14,7 @@ from quiltor.modules.assistant.config import RUNTIME_CONFIG
 from quiltor.modules.assistant.context import pack_chunks
 from quiltor.modules.assistant.contract import (
     complete_compound_proposals,
+    creation_target_resolution,
     existing_creation_target,
     proposal_group_title,
     structured_world_state,
@@ -21,6 +22,7 @@ from quiltor.modules.assistant.contract import (
     verify_task_contract,
 )
 from quiltor.modules.assistant.conversation import conversation_messages, fit_to_budget
+from quiltor.modules.assistant.entity_references import clarification_candidates
 from quiltor.modules.assistant.planner import needs_planner
 from quiltor.modules.assistant.ports import InferenceEngine, TokenCountCache
 from quiltor.modules.assistant.prompts import (
@@ -155,6 +157,29 @@ def complete_request(
             "proposals": [],
             "agentTrace": trace,
         }
+    creation_resolution = creation_target_resolution(question, figures, contract)
+    if creation_resolution is not None and creation_resolution.status == "ambiguous":
+        candidates = clarification_candidates(
+            figures, (item.element_id for item in creation_resolution.candidates)
+        )
+        if candidates:
+            trace.append(
+                {
+                    "step": "preflight",
+                    "complete": False,
+                    "reason": "ambiguous element",
+                    "candidateCount": len(candidates),
+                }
+            )
+            return {
+                "message": "Welches Element meinst du?",
+                "messageKey": "whichElementDoYouMean",
+                "citations": [],
+                "sources": [],
+                "proposals": [],
+                "clarification": {"candidates": candidates},
+                "agentTrace": trace,
+            }
     duplicate = existing_creation_target(question, figures, contract)
     if duplicate:
         source_id = f"element:{duplicate['id']}"

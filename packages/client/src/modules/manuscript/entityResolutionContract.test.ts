@@ -5,7 +5,7 @@ import { foldName, nameDistance } from "./entityCompletion";
 
 const fixture = JSON.parse(
   readFileSync(
-    join(process.cwd(), "contracts/fixtures/story-world/entity-resolution.v2.json"),
+    join(process.cwd(), "contracts/fixtures/story-world/entity-resolution.v3.json"),
     "utf8",
   ),
 ) as {

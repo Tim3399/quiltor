@@ -2,6 +2,8 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, Download, Trash2, X } from "lucide-react";
 import { useI18n } from "../../i18n";
 import type { ViewportMode } from "../../shared";
+import type { TimeSystem, TimelineMoment } from "../story-world";
+import { ChapterStoryTimeFields, chapterStoryTimeLabel } from "./ChapterStoryTimeFields";
 import type { Chapter, Manuscript } from "./model";
 import { wordCount } from "./wordCount";
 import "./ChapterBinder.css";
@@ -9,6 +11,8 @@ import "./ChapterBinder.css";
 interface ChapterBinderProps {
   manuscript: Manuscript;
   current?: Chapter;
+  timeline?: TimelineMoment[];
+  timeSystem?: TimeSystem;
   totalWords: number;
   viewportMode: ViewportMode;
   onClose: () => void;
@@ -23,6 +27,8 @@ interface ChapterBinderProps {
 export function ChapterBinder({
   manuscript,
   current,
+  timeline,
+  timeSystem,
   totalWords,
   viewportMode,
   onClose,
@@ -127,18 +133,29 @@ export function ChapterBinder({
             <span className="chapter-words">
               {wordCount(chapter.body)} {t("words")}
             </span>
+            <span className="chapter-story-time-summary">
+              {chapterStoryTimeLabel(chapter, timeline, timeSystem, t)}
+            </span>
           </button>
         ))}
       </div>
       {current && (
-        <label className="field binder-note">
-          <span>{t("chapterNote")}</span>
-          <textarea
-            value={current.note}
-            onChange={(event) => onUpdateCurrent({ note: event.target.value })}
-            placeholder={t("chapterNotePlaceholder")}
+        <>
+          <ChapterStoryTimeFields
+            chapter={current}
+            timeline={timeline}
+            timeSystem={timeSystem}
+            onChange={(storyTime) => onUpdateCurrent({ storyTime })}
           />
-        </label>
+          <label className="field binder-note">
+            <span>{t("chapterNote")}</span>
+            <textarea
+              value={current.note}
+              onChange={(event) => onUpdateCurrent({ note: event.target.value })}
+              placeholder={t("chapterNotePlaceholder")}
+            />
+          </label>
+        </>
       )}
       <footer>
         {manuscript.chapters.length} {t("chapters")} ·{" "}

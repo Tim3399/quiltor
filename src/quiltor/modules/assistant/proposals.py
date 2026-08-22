@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from quiltor.modules.assistant.contract import required_proposal_kinds
+from quiltor.modules.assistant.entity_references import mentioned_entity_ids
 
 MISSING_ITEM_KEYS = {
     "create_element": "kindCreateElement",
@@ -44,15 +45,12 @@ def forced_proposal(
     nodes = figures.get("nodes") or []
     edges = figures.get("edges") or []
     moments = figures.get("timeline") or []
-    node = next(
-        (
-            item
-            for item in nodes
-            if str(item.get("id", "")).casefold() in folded
-            or str(item.get("name", "")).casefold() in folded
-        ),
-        None,
-    )
+    nodes_by_id = {str(item.get("id")): item for item in nodes if item.get("id")}
+    mentioned_ids = mentioned_entity_ids(question, figures)
+    if mentioned_ids is None:
+        return None
+    mentioned_nodes = [nodes_by_id[item] for item in mentioned_ids if item in nodes_by_id]
+    node = mentioned_nodes[0] if len(mentioned_nodes) == 1 else None
     moment = next(
         (
             item
@@ -125,29 +123,13 @@ def forced_proposal(
             }
     if required == {"mark_deceased"} and node and moment:
         return {"kind": "mark_deceased", "elementId": node["id"], "momentId": moment["id"]}
-    if required == {"set_presence"} and node:
-        place = next(
-            (
-                item
-                for item in nodes
-                if item.get("type") == "ort"
-                and (
-                    str(item.get("id", "")).casefold() in folded
-                    or str(item.get("name", "")).casefold() in folded
-                )
-            ),
-            None,
-        )
+    if required == {"set_presence"}:
+        place_ids = mentioned_entity_ids(question, figures, entity_type="ort")
+        if place_ids is None or len(place_ids) != 1:
+            return None
+        place = nodes_by_id.get(place_ids[0])
         element = next(
-            (
-                item
-                for item in nodes
-                if item.get("id") != (place or {}).get("id")
-                and (
-                    str(item.get("id", "")).casefold() in folded
-                    or str(item.get("name", "")).casefold() in folded
-                )
-            ),
+            (item for item in mentioned_nodes if item.get("id") != (place or {}).get("id")),
             None,
         )
         if place and element:
@@ -163,12 +145,7 @@ def forced_proposal(
             "strategy": "grid" if "raster" in folded or "grid" in folded else "thematic",
         }
     if "beziehung" in folded or "relationship" in folded:
-        matches = [
-            item
-            for item in nodes
-            if str(item.get("id", "")).casefold() in folded
-            or str(item.get("name", "")).casefold() in folded
-        ]
+        matches = mentioned_nodes
         if len(matches) >= 2:
             label = "Besitzt" if re.search(r"\b(besitzt|gehört|owns?)\b", folded) else "Beziehung"
             return {

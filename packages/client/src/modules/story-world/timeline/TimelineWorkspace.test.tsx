@@ -1,9 +1,14 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
+import type { Manuscript } from "../../manuscript";
 import type { FigureState } from "../model";
 import { DEFAULT_TIME_SYSTEM } from "./timeSystem";
-import { TimelineWorkspace } from "./TimelineWorkspace";
+import {
+  chaptersUsingTimelineMoment,
+  firstReversedChapterTimeRange,
+  TimelineWorkspace,
+} from "./TimelineWorkspace";
 
 afterEach(cleanup);
 
@@ -15,12 +20,23 @@ const state: FigureState = {
   ],
   edges: [],
 };
+const emptyManuscript: Manuscript = { chapters: [] };
 
-function renderTimeline(onChange = vi.fn(), value = state) {
+function renderTimeline(
+  onChange = vi.fn(),
+  value = state,
+  manuscript: Manuscript = emptyManuscript,
+  onOpenChapter?: (chapterId: string) => void,
+) {
   return {
     ...render(
       <I18nProvider>
-        <TimelineWorkspace state={value} onChange={onChange} />
+        <TimelineWorkspace
+          state={value}
+          onChange={onChange}
+          manuscript={manuscript}
+          onOpenChapter={onOpenChapter}
+        />
       </I18nProvider>,
     ),
     onChange,
@@ -133,7 +149,7 @@ describe("TimelineWorkspace time system", () => {
 
     view.rerender(
       <I18nProvider>
-        <TimelineWorkspace state={next} onChange={onChange} />
+        <TimelineWorkspace state={next} onChange={onChange} manuscript={emptyManuscript} />
       </I18nProvider>,
     );
     expect(screen.getByRole("button", { name: "Kalender hinzufügen" })).toBeVisible();
@@ -206,5 +222,110 @@ describe("TimelineWorkspace time system", () => {
     expect(
       (onChange.mock.calls.at(-1)?.[0] as FigureState).timeline?.find((m) => m.id === "m1"),
     ).toMatchObject({ precision: "year", time: 0 });
+  });
+});
+
+describe("TimelineWorkspace chapter story-time integrity", () => {
+  const anchoredTimeline: FigureState = {
+    ...state,
+    timeline: [
+      { id: "start", title: "Beginn", time: 0, position: 0 },
+      { id: "end", title: "Ende", time: 10, position: 1 },
+    ],
+  };
+  const manuscript: Manuscript = {
+    chapters: [
+      {
+        id: "range",
+        title: "Zeitraum",
+        body: "",
+        note: "",
+        storyTime: { startMomentId: "start", endMomentId: "end" },
+      },
+      {
+        id: "point",
+        title: "Rückblende",
+        body: "",
+        note: "",
+        storyTime: { startMomentId: "start" },
+      },
+    ],
+  };
+
+  it("collects every chapter that references a moment, regardless of anchor side", () => {
+    expect(chaptersUsingTimelineMoment(manuscript, "start")).toEqual([
+      { id: "range", title: "Zeitraum" },
+      { id: "point", title: "Rückblende" },
+    ]);
+    expect(chaptersUsingTimelineMoment(manuscript, "end")).toEqual([
+      { id: "range", title: "Zeitraum" },
+    ]);
+  });
+
+  it("uses time and incoming order instead of stale position fields for range validity", () => {
+    const rangeOnly: Manuscript = { chapters: [manuscript.chapters[0]] };
+    expect(
+      firstReversedChapterTimeRange(rangeOnly, [
+        { id: "start", title: "Beginn", time: 5, position: 99 },
+        { id: "end", title: "Ende", time: 5, position: -12 },
+      ]),
+    ).toBeNull();
+    expect(
+      firstReversedChapterTimeRange(rangeOnly, [
+        { id: "end", title: "Ende", time: 5, position: 99 },
+        { id: "start", title: "Beginn", time: 5, position: -12 },
+      ]),
+    ).toEqual({ id: "range", title: "Zeitraum" });
+  });
+
+  it("explains protected moments, disables deletion, and opens the first affected chapter", () => {
+    const onChange = vi.fn();
+    const onOpenChapter = vi.fn();
+    renderTimeline(onChange, anchoredTimeline, manuscript, onOpenChapter);
+
+    expect(
+      screen.getByText(
+        "Dieser Zeitpunkt wird von 2 Kapiteln verwendet („Zeitraum“, „Rückblende“) und kann deshalb nicht gelöscht werden.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Kapitel „Zeitraum“ öffnen" }));
+    expect(onOpenChapter).toHaveBeenCalledWith("range");
+
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen" }));
+    const deleteAction = screen.getByRole("menuitem", { name: "Löschen" });
+    expect(deleteAction).toBeDisabled();
+    fireEvent.click(deleteAction);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", { name: "Zeitpunkt löschen" })).not.toBeInTheDocument();
+  });
+
+  it("uses the translated untitled fallback for referenced chapters without a title", () => {
+    renderTimeline(vi.fn(), anchoredTimeline, {
+      chapters: [{ ...manuscript.chapters[0], title: "" }],
+    });
+
+    expect(
+      screen.getByText(
+        "Dieser Zeitpunkt wird von Kapitel „Ohne Titel“ verwendet und kann deshalb nicht gelöscht werden.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("rejects a move that would reverse a stored chapter range and explains the conflict", () => {
+    const onChange = vi.fn();
+    const onOpenChapter = vi.fn();
+    renderTimeline(onChange, anchoredTimeline, manuscript, onOpenChapter);
+
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Später" }));
+
+    expect(onChange).not.toHaveBeenCalled();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Kapitelzeitraum bleibt gültig");
+    expect(alert).toHaveTextContent(
+      "Diese Änderung würde den Beginn hinter das Ende des Zeitraums von Kapitel „Zeitraum“ verschieben. Sie wurde nicht übernommen.",
+    );
+    fireEvent.click(within(alert).getByRole("button", { name: "Kapitel „Zeitraum“ öffnen" }));
+    expect(onOpenChapter).toHaveBeenCalledWith("range");
   });
 });

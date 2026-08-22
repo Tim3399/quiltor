@@ -21,7 +21,9 @@ export type {
   WorldInfo,
 } from "./model";
 export type { PlacesWorkspaceProps } from "./places/PlacesWorkspace";
-export { insertTimelineMoment } from "./timeline/order";
+export { canonicalTimelineOrder, insertTimelineMoment } from "./timeline/order";
+export { normalizeTimeSystem } from "./timeline/timeSystem";
+export { momentBoundaryTimeLabel, momentTimeLabel } from "./timeline/timelinePresentation";
 export { WorldGate } from "./worlds/WorldGate";
 
 export const loadFigureWorkspace = () =>

@@ -17,6 +17,14 @@ export const timeline = {
   timelineLater: "Later",
   timelineActions: "Moment actions",
   timelineDuplicate: "Duplicate moment",
+  timelineMomentUsedByChapter:
+    "This moment is used by chapter {chapters}, so it cannot be deleted.",
+  timelineMomentUsedByChapters:
+    "This moment is used by {count} chapters ({chapters}), so it cannot be deleted.",
+  timelineOpenChapter: "Open chapter “{chapter}”",
+  timelineRangeConflictTitle: "Chapter range remains valid",
+  timelineRangeConflictDescription:
+    "This change would move the beginning past the end of chapter “{chapter}”. It was not applied.",
   timelineNotePlaceholder: "What changes from here",
   timelineView: "Relationship view",
   timelineRelationshipView: "Relationships shown",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from quiltor.domain.manuscript.story_time import valid_story_time_reference
 from quiltor.domain.manuscript.text_offsets import utf16_offsets_to_indices
 from quiltor.domain.story_world.entity_resolution import normalize_entity_name
 
@@ -263,6 +264,8 @@ def valid_manuscript(payload: Any) -> bool:
             or len(chapter.get("note", "")) > 100_000
             or len(chapter.get("body", "")) > 10_000_000
         ):
+            return False
+        if "storyTime" in chapter and not valid_story_time_reference(chapter["storyTime"]):
             return False
         mentions = chapter.get("mentions", [])
         if not isinstance(mentions, list) or len(mentions) > 10_000:

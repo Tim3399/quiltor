@@ -8,8 +8,10 @@ import re
 from datetime import datetime
 from typing import Any
 
-from quiltor.modules.assistant.contract import _normal, required_proposal_kinds
+from quiltor.domain.story_world.entity_resolution import resolve_entity
 from quiltor.domain.story_world.knowledge import moment_order
+from quiltor.modules.assistant.contract import _normal, required_proposal_kinds
+from quiltor.modules.assistant.entity_references import resolved_entity_id
 
 
 def _moment_date_diff_days(from_date: Any, to_date: Any) -> int | None:
@@ -231,9 +233,6 @@ def validate_proposals(
         "set_presence",
     }
     known_elements = {node.get("id") for node in figures.get("nodes") or []}
-    element_aliases = {
-        str(node.get("name", "")).casefold(): node.get("id") for node in figures.get("nodes") or []
-    }
     known_moments = {moment.get("id") for moment in figures.get("timeline") or []}
     known_relationships = {edge.get("id") for edge in figures.get("edges") or []}
     existing_names = {_normal(node.get("name")) for node in figures.get("nodes") or []}
@@ -241,11 +240,21 @@ def validate_proposals(
         (_normal(moment.get("title")), _normal(moment.get("date")))
         for moment in figures.get("timeline") or []
     }
-    temporary = {
+    temporary_element_types = {
+        proposal.get("tempId"): (proposal.get("element") or {}).get("type", "person")
+        for proposal in value
+        if isinstance(proposal, dict)
+        and proposal.get("kind") == "create_element"
+        and isinstance(proposal.get("tempId"), str)
+        and proposal["tempId"].startswith("new:")
+        and isinstance(proposal.get("element"), dict)
+    }
+    temporary_elements = set(temporary_element_types)
+    temporary_moments = {
         proposal.get("tempId")
         for proposal in value
         if isinstance(proposal, dict)
-        and proposal.get("kind") in {"create_element", "create_timeline_moment"}
+        and proposal.get("kind") == "create_timeline_moment"
         and isinstance(proposal.get("tempId"), str)
         and proposal["tempId"].startswith("new:")
     }
@@ -280,7 +289,19 @@ def validate_proposals(
                     or len(str(element.get("sub", ""))) > 1000
                 ):
                     continue
-                if _normal(element.get("name")) in existing_names:
+                resolution = resolve_entity(
+                    figures,
+                    str(element.get("name", "")),
+                    entity_type=(
+                        str(element["type"])
+                        if isinstance(element.get("type"), str)
+                        else None
+                    ),
+                )
+                if (
+                    _normal(element.get("name")) in existing_names
+                    or resolution.status != "not_found"
+                ):
                     continue
                 if not isinstance(element.get("profile"), dict):
                     element["profile"] = {"notizen": str(element.get("profile") or "")}
@@ -303,9 +324,8 @@ def validate_proposals(
                 ) in existing_moments:
                     continue
         elif kind == "update_element":
-            if proposal.get("elementId") not in known_elements or not isinstance(
-                proposal.get("patch"), dict
-            ):
+            element_id = resolved_entity_id(figures, proposal.get("elementId"))
+            if element_id is None or not isinstance(proposal.get("patch"), dict):
                 continue
             patch = proposal["patch"]
             clean_patch = {
@@ -321,30 +341,45 @@ def validate_proposals(
                 }
             if not clean_patch:
                 continue
-            proposal = {"kind": kind, "elementId": proposal["elementId"], "patch": clean_patch}
+            proposal = {"kind": kind, "elementId": element_id, "patch": clean_patch}
         elif kind == "set_relationship_at_moment" and (
             proposal.get("relationshipId") not in known_relationships
-            or proposal.get("momentId") not in known_moments | temporary
+            or proposal.get("momentId") not in known_moments | temporary_moments
         ):
             continue
-        elif kind == "mark_deceased" and (
-            proposal.get("elementId") not in known_elements | temporary
-            or proposal.get("momentId") not in known_moments | temporary
-        ):
-            continue
+        elif kind == "mark_deceased":
+            raw_element_id = proposal.get("elementId")
+            element_id = (
+                raw_element_id
+                if raw_element_id in temporary_elements
+                else resolved_entity_id(figures, raw_element_id)
+            )
+            if (
+                element_id is None
+                or proposal.get("momentId") not in known_moments | temporary_moments
+            ):
+                continue
+            proposal = {**proposal, "elementId": element_id}
         elif kind == "set_presence":
-            element_id, place_id, moment_id = (
+            raw_element_id, raw_place_id, moment_id = (
                 proposal.get("elementId"),
                 proposal.get("placeId"),
                 proposal.get("momentId"),
             )
-            places = {
-                node.get("id") for node in figures.get("nodes") or [] if node.get("type") == "ort"
-            }
+            element_id = (
+                raw_element_id
+                if raw_element_id in temporary_elements
+                else resolved_entity_id(figures, raw_element_id)
+            )
+            place_id = (
+                raw_place_id
+                if temporary_element_types.get(raw_place_id) == "ort"
+                else resolved_entity_id(figures, raw_place_id, entity_type="ort")
+            )
             if (
-                element_id not in known_elements | temporary
-                or place_id not in places | temporary
-                or (moment_id is not None and moment_id not in known_moments | temporary)
+                element_id is None
+                or place_id is None
+                or (moment_id is not None and moment_id not in known_moments | temporary_moments)
             ):
                 continue
             proposal = {
@@ -354,24 +389,22 @@ def validate_proposals(
                 **({"momentId": moment_id} if moment_id else {}),
             }
         elif kind == "create_relationship":
-            relation = proposal.get("relationship") or {}
+            raw_relation = proposal.get("relationship") or {}
             if (
-                not isinstance(relation, dict)
-                or len(str(relation.get("label", ""))) > 160
-                or relation.get("style", "solid") not in {"solid", "dashed", "blood", "gold"}
+                not isinstance(raw_relation, dict)
+                or len(str(raw_relation.get("label", ""))) > 160
+                or raw_relation.get("style", "solid")
+                not in {"solid", "dashed", "blood", "gold"}
             ):
                 continue
+            relation = dict(raw_relation)
             for endpoint in ("from", "to"):
                 endpoint_value = relation.get(endpoint)
-                if (
-                    endpoint_value not in known_elements
-                    and isinstance(endpoint_value, str)
-                    and endpoint_value.casefold() in element_aliases
-                ):
-                    relation[endpoint] = element_aliases[endpoint_value.casefold()]
+                if endpoint_value not in temporary_elements:
+                    relation[endpoint] = resolved_entity_id(figures, endpoint_value)
             if (
-                relation.get("from") not in known_elements | temporary
-                or relation.get("to") not in known_elements | temporary
+                relation.get("from") not in known_elements | temporary_elements
+                or relation.get("to") not in known_elements | temporary_elements
                 or relation.get("from") == relation.get("to")
             ):
                 continue
@@ -396,5 +429,6 @@ def validate_proposals(
             )
             if duplicate:
                 continue
+            proposal = {**proposal, "relationship": relation}
         result.append(proposal)
     return result

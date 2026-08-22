@@ -1,8 +1,16 @@
 import { Pin, Plus, Skull, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "../../../i18n";
+import { normalizeEntityAliasV1 } from "../../../shared";
 import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
-import type { FigureEdge, FigureKind, FigureNode, FigureState, Profile } from "../model";
+import type {
+  EntityAlias,
+  FigureEdge,
+  FigureKind,
+  FigureNode,
+  FigureState,
+  Profile,
+} from "../model";
 import { PresenceField } from "./PresenceField";
 import { PROFILE_FIELDS } from "./profileFields";
 import {
@@ -22,6 +30,200 @@ export type FigureInspectorProps = {
   onDelete: () => void;
   onSelectMoment: (id: string | null) => void;
 };
+
+type AliasError = "aliasRequired" | "aliasMatchesName" | "aliasDuplicate";
+
+const ALIAS_SOURCE_KEYS = {
+  manual: "aliasSourceManual",
+  manuscript: "aliasSourceManuscript",
+  assistant: "aliasSourceAssistant",
+  import: "aliasSourceImport",
+} as const;
+
+function validateAlias(
+  value: string,
+  figure: FigureNode,
+  ignoredAlias?: EntityAlias,
+): AliasError | null {
+  const normalized = normalizeEntityAliasV1(value.trim());
+  if (!normalized) return "aliasRequired";
+  if (normalized === normalizeEntityAliasV1(figure.name)) return "aliasMatchesName";
+  if (
+    (figure.aliases || []).some(
+      (alias) => alias !== ignoredAlias && normalizeEntityAliasV1(alias.alias) === normalized,
+    )
+  )
+    return "aliasDuplicate";
+  return null;
+}
+
+function AliasRow({
+  alias,
+  figure,
+  onPatch,
+}: {
+  alias: EntityAlias;
+  figure: FigureNode;
+  onPatch: (patch: Partial<FigureNode>) => void;
+}) {
+  const { t } = useI18n();
+  const [draft, setDraft] = useState(alias.alias);
+  const [error, setError] = useState<AliasError | null>(null);
+  const aliases = figure.aliases || [];
+  const index = aliases.indexOf(alias);
+  const errorId = `figure-alias-${figure.id}-${index}-error`;
+
+  const commit = () => {
+    const value = draft.trim();
+    const nextError = validateAlias(value, figure, alias);
+    setError(nextError);
+    if (nextError || value === alias.alias) return;
+    onPatch({
+      aliases: aliases.map((item) => (item === alias ? { ...item, alias: value } : item)),
+    });
+  };
+
+  return (
+    <div className="alias-row">
+      <div className="alias-input-wrap">
+        <input
+          aria-label={t("editAlias").replace("{alias}", alias.alias)}
+          aria-invalid={!!error}
+          aria-describedby={error ? errorId : undefined}
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setError(null);
+          }}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+            if (event.key === "Escape") {
+              setDraft(alias.alias);
+              setError(null);
+              event.currentTarget.blur();
+            }
+          }}
+        />
+        <small>{t(ALIAS_SOURCE_KEYS[alias.source || "manual"])}</small>
+      </div>
+      <button
+        type="button"
+        className="icon-button danger-text"
+        aria-label={t("removeAlias").replace("{alias}", alias.alias)}
+        onClick={() => onPatch({ aliases: aliases.filter((item) => item !== alias) })}
+      >
+        <Trash2 />
+      </button>
+      {error && (
+        <small id={errorId} className="alias-error" role="alert">
+          {t(error)}
+        </small>
+      )}
+    </div>
+  );
+}
+
+function AliasEditor({
+  figure,
+  onPatch,
+}: {
+  figure: FigureNode;
+  onPatch: (patch: Partial<FigureNode>) => void;
+}) {
+  const { t } = useI18n();
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [error, setError] = useState<AliasError | null>(null);
+  const aliases = figure.aliases || [];
+  const errorId = `figure-alias-${figure.id}-new-error`;
+
+  const cancel = () => {
+    setAdding(false);
+    setDraft("");
+    setError(null);
+  };
+  const add = () => {
+    const value = draft.trim();
+    const nextError = validateAlias(value, figure);
+    setError(nextError);
+    if (nextError) return;
+    onPatch({ aliases: [...aliases, { alias: value, source: "manual" }] });
+    cancel();
+  };
+
+  return (
+    <section className="alias-editor" aria-labelledby={`figure-aliases-${figure.id}`}>
+      <div className="alias-heading">
+        <div>
+          <h3 id={`figure-aliases-${figure.id}`}>{t("aliases")}</h3>
+          <p>{t("aliasesHint")}</p>
+        </div>
+        {!adding && (
+          <button type="button" className="alias-add" onClick={() => setAdding(true)}>
+            <Plus />
+            {t("addAlias")}
+          </button>
+        )}
+      </div>
+      {aliases.map((alias) => (
+        <AliasRow
+          key={normalizeEntityAliasV1(alias.alias)}
+          alias={alias}
+          figure={figure}
+          onPatch={onPatch}
+        />
+      ))}
+      {adding && (
+        <div className="alias-row alias-new-row">
+          <div className="alias-input-wrap">
+            <input
+              autoFocus
+              aria-label={t("newAlias")}
+              aria-invalid={!!error}
+              aria-describedby={error ? errorId : undefined}
+              placeholder={t("aliasPlaceholder")}
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  add();
+                }
+                if (event.key === "Escape") cancel();
+              }}
+            />
+            <small>{t("aliasSourceManual")}</small>
+          </div>
+          <div className="alias-new-actions">
+            <button type="button" className="icon-button" aria-label={t("saveAlias")} onClick={add}>
+              <Plus />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t("cancelAlias")}
+              onClick={cancel}
+            >
+              <Trash2 />
+            </button>
+          </div>
+          {error && (
+            <small id={errorId} className="alias-error" role="alert">
+              {t(error)}
+            </small>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export function FigureInspector({
   figure,
@@ -92,6 +294,7 @@ export function FigureInspector({
                 onChange={(event) => onPatch({ name: event.target.value })}
               />
             </label>
+            <AliasEditor figure={figure} onPatch={onPatch} />
             <label className="field">
               <span>{t("category")}</span>
               <input

@@ -18,6 +18,15 @@ levels because SQLite round-trips extensions it does not understand.
 JSON Schema validates wire shape; referential rules (unique IDs, valid edge
 endpoints, mention ranges, and temporal ordering) remain semantic validation.
 
+An optional manuscript chapter `storyTime` reference has a required
+`startMomentId` and an optional distinct `endMomentId`. The referenced IDs belong
+to the canonical story-world timeline. Absence means that the chapter is
+deliberately unanchored. A single start identifies one moment; start plus end is
+an inclusive chronological range whose end must be later. A one-moment chapter
+omits the end instead of storing an equal pair. This metadata never controls
+chapter array order, so narrative order and flashbacks remain independent from
+world time.
+
 Each operation is added here before a native implementation is introduced.
 Golden examples pin document round-trips, while the registered differential
 corpora are consumed by both Python and TypeScript to pin absence versus null,
@@ -38,3 +47,9 @@ listed ASCII control/punctuation ranges as collapsed separators, and preserves
 every non-ASCII code point exactly. It never depends on a runtime Unicode
 version. Adding non-ASCII case folding or normalization therefore requires a
 new version and a migration rather than silently changing existing identities.
+
+Canonical entity resolution semantics are frozen by
+`semantics.entity-resolution` v3. The resolver returns only `resolved`,
+`ambiguous`, or `not_found`; exact name/alias collisions never use context to
+guess, while local context may break a conservative fuzzy tie only when it
+selects exactly one candidate. Candidate ordering and reasons are deterministic.

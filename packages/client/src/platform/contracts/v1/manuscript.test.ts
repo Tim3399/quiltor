@@ -17,9 +17,36 @@ describe("manuscript wire v1", () => {
     const decoded = decodeManuscriptV1(fixture);
     expect(decoded.revision).toBe(7);
     expect(decoded.document.extension).toEqual({ source: "contract-fixture" });
+    expect(decoded.document.chapters[0].storyTime).toEqual({
+      startMomentId: "arrival",
+      endMomentId: "departure",
+      extensionLabel: "The nested record also preserves extensions.",
+    });
     expect(
       JSON.parse(JSON.stringify(encodeManuscriptV1(decoded.document, decoded.revision))),
     ).toEqual(fixture);
+  });
+
+  it("isolates nested story-time records and validates their identifiers", () => {
+    const source = copy(fixture);
+    const decoded = decodeManuscriptV1(source);
+    const storyTime = decoded.document.chapters[0].storyTime;
+    expect(storyTime).toBeDefined();
+    if (!storyTime) return;
+    storyTime.startMomentId = "changed-after-decode";
+    expect(source.payload.chapters[0].storyTime.startMomentId).toBe("arrival");
+
+    const encoded = encodeManuscriptV1(decoded.document, decoded.revision);
+    storyTime.startMomentId = "changed-after-encode";
+    expect(encoded.payload.chapters[0].storyTime?.startMomentId).toBe("changed-after-decode");
+
+    const whitespace = copy(fixture);
+    whitespace.payload.chapters[0].storyTime.startMomentId = " arrival";
+    expect(() => decodeManuscriptV1(whitespace)).toThrow();
+
+    const sameMomentRange = copy(fixture);
+    sameMomentRange.payload.chapters[0].storyTime.endMomentId = "arrival";
+    expect(() => decodeManuscriptV1(sameMomentRange)).toThrow();
   });
 
   it("rejects malformed or unversioned envelopes instead of casting them", () => {

@@ -17,6 +17,14 @@ export const timeline = {
   timelineLater: "Später",
   timelineActions: "Zeitpunktaktionen",
   timelineDuplicate: "Zeitpunkt duplizieren",
+  timelineMomentUsedByChapter:
+    "Dieser Zeitpunkt wird von Kapitel {chapters} verwendet und kann deshalb nicht gelöscht werden.",
+  timelineMomentUsedByChapters:
+    "Dieser Zeitpunkt wird von {count} Kapiteln verwendet ({chapters}) und kann deshalb nicht gelöscht werden.",
+  timelineOpenChapter: "Kapitel „{chapter}“ öffnen",
+  timelineRangeConflictTitle: "Kapitelzeitraum bleibt gültig",
+  timelineRangeConflictDescription:
+    "Diese Änderung würde den Beginn hinter das Ende des Zeitraums von Kapitel „{chapter}“ verschieben. Sie wurde nicht übernommen.",
   timelineNotePlaceholder: "Was sich ab hier ändert",
   timelineView: "Beziehungsansicht",
   timelineRelationshipView: "Angezeigte Beziehungen",

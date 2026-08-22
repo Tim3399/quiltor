@@ -28,6 +28,12 @@ def load(db_path: Path | None = None) -> dict[str, Any]:
                 body=row["body"],
                 note=row["note"],
             )
+            if row["story_time_start_moment_id"] is not None:
+                story_time = decode_extra(row["story_time_extra_json"])
+                story_time["startMomentId"] = row["story_time_start_moment_id"]
+                if row["story_time_end_moment_id"] is not None:
+                    story_time["endMomentId"] = row["story_time_end_moment_id"]
+                chapter["storyTime"] = story_time
             chapters.append(chapter)
         result["chapters"] = chapters
         return result
@@ -44,10 +50,20 @@ def save(
         with database:
             database.execute("DELETE FROM chapters")
             for position, chapter in enumerate(state.get("chapters", [])):
+                story_time = chapter.get("storyTime")
+                start_moment_id = (
+                    story_time.get("startMomentId") if isinstance(story_time, dict) else None
+                )
+                end_moment_id = (
+                    story_time.get("endMomentId") if isinstance(story_time, dict) else None
+                )
                 database.execute(
                     """
-                    INSERT INTO chapters(id,position,title,body,note,extra_json)
-                    VALUES(?,?,?,?,?,?)
+                    INSERT INTO chapters(
+                      id,position,title,body,note,
+                      story_time_start_moment_id,story_time_end_moment_id,
+                      story_time_extra_json,extra_json
+                    ) VALUES(?,?,?,?,?,?,?,?,?)
                     """,
                     (
                         chapter["id"],
@@ -55,7 +71,12 @@ def save(
                         chapter.get("title", ""),
                         chapter.get("body", ""),
                         chapter.get("note", ""),
-                        encode_extra(chapter, {"id", "title", "body", "note"}),
+                        start_moment_id,
+                        end_moment_id,
+                        encode_extra(story_time, {"startMomentId", "endMomentId"})
+                        if isinstance(story_time, dict)
+                        else "{}",
+                        encode_extra(chapter, {"id", "title", "body", "note", "storyTime"}),
                     ),
                 )
             database.execute(

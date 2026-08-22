@@ -34,11 +34,18 @@ export interface TextMarkWireV1 {
   [key: string]: unknown;
 }
 
+export interface ChapterStoryTimeWireV1 {
+  startMomentId: string;
+  endMomentId?: string;
+  [key: string]: unknown;
+}
+
 export interface ChapterWireV1 {
   id: string;
   title?: string;
   body?: string;
   note?: string;
+  storyTime?: ChapterStoryTimeWireV1;
   mentions?: EntityMentionWireV1[];
   marks?: TextMarkWireV1[];
   [key: string]: unknown;
@@ -89,6 +96,24 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
       chapter,
       "note",
       (item, itemPath) => wireString(item, itemPath, { max: 100_000 }),
+      chapterPath,
+    );
+    optional(
+      chapter,
+      "storyTime",
+      (item, itemPath) => {
+        const storyTime = wireRecord(item, itemPath);
+        const momentId = (value: unknown, path: string) => {
+          const id = wireString(value, path, { min: 1, max: 200 });
+          if (id.trim() !== id) throw new WireContractError(path);
+          return id;
+        };
+        const startMomentId = momentId(storyTime.startMomentId, `${itemPath}.startMomentId`);
+        optional(storyTime, "endMomentId", momentId, itemPath);
+        if (storyTime.endMomentId === startMomentId) {
+          throw new WireContractError(`${itemPath}.endMomentId`);
+        }
+      },
       chapterPath,
     );
     const body = typeof chapter.body === "string" ? chapter.body : "";
@@ -205,6 +230,7 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
 
 function cloneChapter(wire: ChapterWireV1): ChapterWireV1 {
   const chapter = { ...wire };
+  if (wire.storyTime !== undefined) chapter.storyTime = { ...wire.storyTime };
   if (wire.mentions !== undefined) {
     chapter.mentions = wire.mentions.map((mention) => ({ ...mention }));
   }
@@ -215,6 +241,7 @@ function cloneChapter(wire: ChapterWireV1): ChapterWireV1 {
 function encodeChapter(chapter: Manuscript["chapters"][number]): ChapterWireV1 {
   return {
     ...chapter,
+    storyTime: chapter.storyTime ? { ...chapter.storyTime } : undefined,
     mentions: chapter.mentions?.map((mention) => ({ ...mention })),
     marks: chapter.marks?.map((mark) => ({ ...mark })),
   };

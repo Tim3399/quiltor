@@ -112,4 +112,58 @@ describe("TextWorkspace chapter binder", () => {
     fireEvent.click(dialog.getByRole("button", { name: "Kapitel löschen" }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [] }));
   });
+
+  it("verankert eine Rückblende, ohne die Manuskriptreihenfolge zu verändern", () => {
+    const onChange = vi.fn();
+    const twoChapters: Manuscript = {
+      chapters: [
+        { id: "present", title: "Heimkehr", body: "Jetzt.", note: "" },
+        { id: "flashback", title: "Rückblende", body: "Damals.", note: "" },
+      ],
+    };
+    function Stateful() {
+      const [value, setValue] = useState(twoChapters);
+      return (
+        <TextWorkspace
+          manuscript={value}
+          figures={{
+            ...figures,
+            timeline: [
+              { id: "now", title: "Heimkehr", time: 10, position: 1 },
+              { id: "past", title: "Früher", time: -20, position: 0 },
+            ],
+          }}
+          onChange={(next) => {
+            onChange(next);
+            setValue(next);
+          }}
+          focus={false}
+          onFocus={vi.fn()}
+          viewportMode="wide"
+          binderOpen
+          inspectorOpen
+        />
+      );
+    }
+    const view = render(
+      <TestProviders>
+        <Stateful />
+      </TestProviders>,
+    );
+    const binder = within(view.container.querySelector(".binder")!);
+    fireEvent.click(binder.getByRole("button", { name: /Rückblende/ }));
+    fireEvent.click(binder.getByRole("radio", { name: "Zeitpunkt" }));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        chapters: [
+          expect.objectContaining({ id: "present" }),
+          expect.objectContaining({
+            id: "flashback",
+            storyTime: { startMomentId: "past" },
+          }),
+        ],
+      }),
+    );
+  });
 });

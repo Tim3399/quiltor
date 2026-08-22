@@ -49,6 +49,18 @@
       "path": "/payload/chapters/0/marks",
       "absent": "accept",
       "null": "reject"
+    },
+    {
+      "id": "chapter-story-time",
+      "path": "/payload/chapters/0/storyTime",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "chapter-story-time-end",
+      "path": "/payload/chapters/0/storyTime/endMomentId",
+      "absent": "accept",
+      "null": "reject"
     }
   ],
   "cases": [
@@ -125,6 +137,34 @@
       "path": "/payload/chapters/0/mentions/0/from",
       "value": true,
       "expect": "reject"
+    },
+    {
+      "id": "story-time-empty-start",
+      "operation": "set",
+      "path": "/payload/chapters/0/storyTime/startMomentId",
+      "value": "",
+      "expect": "reject"
+    },
+    {
+      "id": "story-time-whitespace-start",
+      "operation": "set",
+      "path": "/payload/chapters/0/storyTime/startMomentId",
+      "value": " arrival",
+      "expect": "reject"
+    },
+    {
+      "id": "story-time-identical-range-ends",
+      "operation": "set",
+      "path": "/payload/chapters/0/storyTime/endMomentId",
+      "value": "arrival",
+      "expect": "reject"
+    },
+    {
+      "id": "story-time-extension",
+      "operation": "set",
+      "path": "/payload/chapters/0/storyTime/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
     },
     {
       "id": "astral-title-at-max",

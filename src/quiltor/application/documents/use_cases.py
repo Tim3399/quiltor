@@ -10,11 +10,18 @@ from quiltor.application.documents.ports import DocumentKind, DocumentRepository
 from quiltor.application.documents.types import DocumentLocation, VersionedDocument
 from quiltor.application.errors import InvalidApplicationInput
 from quiltor.application.telemetry import UseCaseObserver
+from quiltor.domain.manuscript import story_time_anchor_issue
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
 
 
 class InvalidDocumentState(InvalidApplicationInput):
     code = "document.invalid_state"
+
+
+class InvalidChapterStoryTime(InvalidDocumentState):
+    """A chapter anchor is malformed or conflicts with the canonical timeline."""
+
+    code = "manuscript.story_time_invalid"
 
 
 class DocumentUseCases:
@@ -52,6 +59,24 @@ class DocumentUseCases:
             validator = valid_manuscript if kind == "manuscript" else valid_figures
             if not validator(state):
                 raise InvalidDocumentState("kein gültiger Zustand")
+            counterpart = self._documents.load(
+                "figures" if kind == "manuscript" else "manuscript",
+                location.database,
+            )
+            issue = story_time_anchor_issue(
+                state if kind == "manuscript" else counterpart,
+                counterpart if kind == "manuscript" else state,
+            )
+            if issue is not None:
+                params = {"document": kind, "reason": issue.reason}
+                if issue.chapter_id:
+                    params["chapterId"] = issue.chapter_id
+                if issue.moment_id:
+                    params["momentId"] = issue.moment_id
+                raise InvalidChapterStoryTime(
+                    "invalid chapter story-time reference",
+                    params=params,
+                )
             self._local_backups.backup_if_due(location.database, location.backups)
             revision = self._documents.save(kind, state, expected_revision, location.database)
             if kind == "manuscript":
@@ -63,4 +88,4 @@ class DocumentUseCases:
             return revision
 
 
-__all__ = ["DocumentUseCases", "InvalidDocumentState"]
+__all__ = ["DocumentUseCases", "InvalidChapterStoryTime", "InvalidDocumentState"]

@@ -100,6 +100,8 @@ export function WorkspaceSurface({
       <TimelineWorkspace
         state={figures}
         onChange={onFiguresChange}
+        manuscript={manuscript}
+        onOpenChapter={(chapterId) => onNavigate({ workspace: "text", id: chapterId })}
         targetId={target?.workspace === "timeline" ? target.id : undefined}
         onUndo={figureHistory.undo}
         onRedo={figureHistory.redo}

@@ -63,7 +63,19 @@
         "marks": {
           "type": "array",
           "items": { "$ref": "#/$defs/mark" }
+        },
+        "storyTime": {
+          "$ref": "#/$defs/storyTime"
         }
+      }
+    },
+    "storyTime": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["startMomentId"],
+      "properties": {
+        "startMomentId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "endMomentId": { "type": "string", "minLength": 1, "maxLength": 200 }
       }
     },
     "mention": {

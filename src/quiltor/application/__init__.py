@@ -9,6 +9,7 @@ from quiltor.application.document_wire_v1 import (
 )
 from quiltor.application.documents import (
     DocumentLocation,
+    InvalidChapterStoryTime,
     InvalidDocumentState,
     RevisionConflict,
     VersionedDocument,
@@ -37,6 +38,7 @@ __all__ = [
     "ApplicationNotSupported",
     "ApplicationUnavailable",
     "InvalidDocumentWireV1",
+    "InvalidChapterStoryTime",
     "InvalidDocumentState",
     "InvalidApplicationInput",
     "PdfExportUnavailable",

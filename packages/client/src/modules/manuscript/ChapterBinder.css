@@ -7,7 +7,7 @@
   width: 100%;
   display: grid;
   grid-template-columns: 25px 1fr;
-  grid-template-areas: "number name" "number words";
+  grid-template-areas: "number name" "number words" "number story-time";
   gap: 1px var(--space-6);
   padding: var(--space-10) var(--space-9);
   border: 1px solid var(--transparent);
@@ -42,6 +42,14 @@
   grid-area: words;
   color: var(--muted);
   font-size: var(--font-size-2);
+}
+.chapter-story-time-summary {
+  grid-area: story-time;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .binder footer {
   padding: var(--space-12) var(--space-14);
@@ -93,4 +101,60 @@
 .binder-note textarea {
   min-height: 64px;
   font-size: var(--font-size-3);
+}
+
+.binder-story-time {
+  flex: none;
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-14);
+  border-top: 1px solid var(--line);
+}
+.binder-story-time > div:first-child > span {
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.binder-story-time > div:first-child > p,
+.binder-story-time-status {
+  margin: var(--space-4) 0 0;
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  line-height: 1.35;
+}
+.binder-story-time .ui-segmented {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.binder-story-time .ui-segmented button {
+  min-width: 0;
+  padding: 0 var(--space-3);
+}
+.binder-story-time-fields {
+  display: grid;
+  gap: var(--space-8);
+}
+.binder-story-time-fields > label {
+  display: grid;
+  gap: var(--space-4);
+}
+.binder-story-time-fields > label > span {
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+}
+.binder-story-time-fields .ui-select-control {
+  width: 100%;
+  min-width: 0;
+}
+.binder-story-time-fields .ui-select-control > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.binder-story-time-status.is-warning {
+  color: var(--danger);
 }

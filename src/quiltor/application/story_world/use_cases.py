@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
+from quiltor.domain.story_world.entity_resolution import resolve_entity
 from quiltor.domain.story_world.knowledge import build_knowledge, retrieve
 from quiltor.modules.assistant.audit import validate_world
 
@@ -24,6 +26,38 @@ class StoryWorldUseCases:
             chunk.public()
             for chunk in retrieve(build_knowledge(manuscript, story_world), query, limit)
         ]
+
+    @staticmethod
+    def resolve_entity(
+        story_world: dict[str, Any],
+        mention: str,
+        *,
+        entity_type: str | None = None,
+        context_ids: Sequence[str] = (),
+        vocabulary: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        """Expose the shared resolver as a transport-neutral application operation."""
+
+        result = resolve_entity(
+            story_world,
+            mention,
+            entity_type=entity_type,
+            context_ids=context_ids,
+            vocabulary=vocabulary,
+        )
+        return {
+            "status": result.status,
+            "mention": result.mention,
+            "resolvedId": result.resolved_id,
+            "candidates": [
+                {
+                    "elementId": candidate.element_id,
+                    "score": candidate.score,
+                    "reasons": list(candidate.reasons),
+                }
+                for candidate in result.candidates
+            ],
+        }
 
     @staticmethod
     def structure(story_world: dict[str, Any]) -> dict[str, Any]:

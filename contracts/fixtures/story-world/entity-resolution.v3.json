@@ -1,0 +1,177 @@
+{
+  "fold": [
+    { "input": "Müller", "expected": "müller" },
+    { "input": "Straße", "expected": "straße" },
+    { "input": " Étienne  Voss ", "expected": "Étienne voss" },
+    { "input": "𑎀", "expected": "𑎀" },
+    { "input": "É", "expected": "é" },
+    { "input": "É", "expected": "É" }
+  ],
+  "distance": [
+    { "mention": "Tarke", "candidate": "Tarek", "budget": 1, "expected": 1 },
+    { "mention": "Taerk", "candidate": "Tarek", "budget": 1, "expected": 1 },
+    { "mention": "Tarrek", "candidate": "Tarek", "budget": 1, "expected": 1 }
+  ],
+  "figures": {
+    "nodes": [
+      {
+        "id": "tarek",
+        "name": "Tarek Venn",
+        "type": "person",
+        "x": 0,
+        "y": 0,
+        "aliases": [
+          { "alias": "Der Falke", "source": "manual" },
+          { "alias": "Der Sturmvogel", "source": "manual" }
+        ]
+      },
+      { "id": "tara", "name": "Tara Venn", "type": "person", "x": 10, "y": 0 },
+      { "id": "mueller", "name": "Müller", "type": "person", "x": 20, "y": 0 },
+      { "id": "strassental", "name": "Straßental", "type": "ort", "x": 30, "y": 0 },
+      { "id": "halvar", "name": "Halvar", "type": "person", "x": 40, "y": 0 },
+      { "id": "halvor", "name": "Halvor", "type": "person", "x": 50, "y": 0 },
+      {
+        "id": "night-herald",
+        "name": "Ilyra Voss",
+        "type": "person",
+        "x": 60,
+        "y": 0,
+        "aliases": [{ "alias": "Nachtfalke", "source": "manual" }]
+      },
+      {
+        "id": "watch-captain",
+        "name": "Der Falke",
+        "type": "person",
+        "x": 70,
+        "y": 0
+      },
+      { "id": "mira-north", "name": "Mira", "type": "person", "x": 80, "y": 0 },
+      { "id": "mira-south", "name": "Mira", "type": "person", "x": 90, "y": 0 },
+      { "id": "haven-person", "name": "Hafen", "type": "person", "x": 100, "y": 0 },
+      { "id": "haven-place", "name": "Hafen", "type": "ort", "x": 110, "y": 0 },
+      { "id": "ally", "name": "Elin", "type": "person", "x": 120, "y": 0 }
+    ],
+    "edges": [{ "id": "halvar-ally", "from": "halvar", "to": "ally" }],
+    "timeline": []
+  },
+  "resolution": [
+    {
+      "id": "exact-id",
+      "mention": "tarek",
+      "expected": {
+        "status": "resolved",
+        "resolvedId": "tarek",
+        "candidates": [{ "elementId": "tarek", "score": 1.0, "reasons": ["exact_id"] }]
+      }
+    },
+    {
+      "id": "exact-alias",
+      "mention": "Der Sturmvogel",
+      "expected": {
+        "status": "resolved",
+        "resolvedId": "tarek",
+        "candidates": [{ "elementId": "tarek", "score": 0.99, "reasons": ["exact_alias"] }]
+      }
+    },
+    {
+      "id": "fuzzy-alias-with-different-name-initial",
+      "mention": "Nachtfalk",
+      "expected": {
+        "status": "resolved",
+        "resolvedId": "night-herald",
+        "candidates": [{ "elementId": "night-herald", "score": 0.75, "reasons": ["fuzzy_alias"] }]
+      }
+    },
+    {
+      "id": "name-alias-collision",
+      "mention": "Der Falke",
+      "contextIds": ["watch-captain"],
+      "expected": {
+        "status": "ambiguous",
+        "resolvedId": null,
+        "candidates": [
+          { "elementId": "tarek", "score": 0.99, "reasons": ["exact_alias"] },
+          { "elementId": "watch-captain", "score": 0.99, "reasons": ["exact_name"] }
+        ]
+      }
+    },
+    {
+      "id": "identical-names",
+      "mention": "Mira",
+      "expected": {
+        "status": "ambiguous",
+        "resolvedId": null,
+        "candidates": [
+          { "elementId": "mira-north", "score": 0.99, "reasons": ["exact_name"] },
+          { "elementId": "mira-south", "score": 0.99, "reasons": ["exact_name"] }
+        ]
+      }
+    },
+    {
+      "id": "fuzzy-tie",
+      "mention": "Halver",
+      "expected": {
+        "status": "ambiguous",
+        "resolvedId": null,
+        "candidates": [
+          { "elementId": "halvar", "score": 0.75, "reasons": ["fuzzy_name"] },
+          { "elementId": "halvor", "score": 0.75, "reasons": ["fuzzy_name"] }
+        ]
+      }
+    },
+    {
+      "id": "unique-local-context-breaks-fuzzy-tie",
+      "mention": "Halver",
+      "contextIds": ["ally"],
+      "expected": {
+        "status": "resolved",
+        "resolvedId": "halvar",
+        "candidates": [
+          {
+            "elementId": "halvar",
+            "score": 0.77,
+            "reasons": ["fuzzy_name", "connected_context"]
+          },
+          { "elementId": "halvor", "score": 0.75, "reasons": ["fuzzy_name"] }
+        ]
+      }
+    },
+    {
+      "id": "vocabulary-abstention",
+      "mention": "Halver",
+      "vocabulary": ["HALVER"],
+      "expected": { "status": "not_found", "resolvedId": null, "candidates": [] }
+    },
+    {
+      "id": "short-word-abstention",
+      "mention": "Mull",
+      "expected": { "status": "not_found", "resolvedId": null, "candidates": [] }
+    },
+    {
+      "id": "first-letter-abstention",
+      "mention": "Darek Venn",
+      "expected": { "status": "not_found", "resolvedId": null, "candidates": [] }
+    },
+    {
+      "id": "type-filter",
+      "mention": "Hafen",
+      "entityType": "ort",
+      "expected": {
+        "status": "resolved",
+        "resolvedId": "haven-place",
+        "candidates": [
+          {
+            "elementId": "haven-place",
+            "score": 0.99,
+            "reasons": ["exact_name", "type_match"]
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown-mention",
+      "mention": "Unbekanntes",
+      "expected": { "status": "not_found", "resolvedId": null, "candidates": [] }
+    }
+  ]
+}

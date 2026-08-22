@@ -1,6 +1,6 @@
 # TODO — Quiltor Product Roadmap
 
-**Baseline:** Quiltor `3.3.1` / architecture cutover reviewed on 22 August 2026
+**Baseline:** Quiltor `3.4.0` / architecture cutover reviewed on 22 August 2026
 **Purpose:** Product roadmap. This file answers **what should be built next and in what order**.
 
 ---
@@ -189,10 +189,10 @@ The current UI already behaves as if Timeline, Presence and temporal Relationshi
 
 ## Story time vs manuscript order
 
-- [ ] Allow a chapter to optionally reference the story-time moment/range it represents.
-- [ ] Keep chapter order independent from chronological world order.
-- [ ] Support unanchored chapters.
-- [ ] Support flashbacks without rearranging the world timeline.
+- [x] Allow a chapter to optionally reference the story-time moment/range it represents.
+- [x] Keep chapter order independent from chronological world order.
+- [x] Support unanchored chapters.
+- [x] Support flashbacks without rearranging the world timeline.
 
 ### Why P0
 
@@ -213,18 +213,18 @@ The assistant already generates constrained proposals. The next step is to stop 
 
 ## Canonical entity resolution
 
-- [ ] Build one resolver for world entities.
-- [ ] Resolve exact names.
-- [ ] Resolve normalized spelling.
-- [ ] Resolve aliases.
-- [ ] Handle conservative typo/fuzzy matching.
-- [ ] Use entity type as a signal.
-- [ ] Use local story context when necessary.
-- [ ] Return explicit:
+- [x] Build one resolver for world entities.
+- [x] Resolve exact names.
+- [x] Resolve normalized spelling.
+- [x] Resolve aliases.
+- [x] Handle conservative typo/fuzzy matching.
+- [x] Use entity type as a signal.
+- [x] Use local story context when necessary.
+- [x] Return explicit:
   - `resolved`;
   - `ambiguous`;
   - `not_found`.
-- [ ] Never silently merge two plausible entities.
+- [x] Never silently merge two plausible entities.
 
 ## Resolve before create
 
