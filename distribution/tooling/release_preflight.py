@@ -171,6 +171,29 @@ def _wait_for_server(process: subprocess.Popen[bytes], url: str, timeout: float 
 def _stop_server(process: subprocess.Popen[bytes]) -> None:
     if process.poll() is not None:
         return
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except OSError as error:
+            raise PreflightError(
+                f"The Playwright server process tree could not be stopped: {error}"
+            ) from error
+        if result.returncode and process.poll() is None:
+            raise PreflightError(
+                "The Playwright server process tree could not be stopped by taskkill."
+            )
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired as error:
+            raise PreflightError(
+                "The Playwright server process tree did not stop within 10 seconds."
+            ) from error
+        return
     process.terminate()
     try:
         process.wait(timeout=5)

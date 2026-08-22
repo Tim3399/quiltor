@@ -341,6 +341,27 @@ class ApplyVersionTests(VersionRepoTestCase):
 
 
 class PreflightContractTests(unittest.TestCase):
+    def test_windows_server_cleanup_terminates_the_entire_process_tree(self):
+        server = MagicMock(pid=48123)
+        server.poll.return_value = None
+        taskkill_result = subprocess.CompletedProcess([], 0)
+        with (
+            patch.object(release_preflight.os, "name", "nt"),
+            patch.object(
+                release_preflight.subprocess, "run", return_value=taskkill_result
+            ) as taskkill,
+        ):
+            release_preflight._stop_server(server)
+
+        taskkill.assert_called_once_with(
+            ["taskkill.exe", "/PID", "48123", "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        server.wait.assert_called_once_with(timeout=10)
+        server.terminate.assert_not_called()
+
     def test_missing_rust_has_a_clear_release_error(self):
         with patch.object(release_preflight.shutil, "which", return_value=None):
             with self.assertRaisesRegex(release_preflight.PreflightError, "Rust/Cargo"):
