@@ -1,0 +1,96 @@
+.chapter-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-7);
+}
+.chapter-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 25px 1fr;
+  grid-template-areas: "number name" "number words";
+  gap: 1px var(--space-6);
+  padding: var(--space-10) var(--space-9);
+  border: 1px solid var(--transparent);
+  border-radius: var(--radius-sm);
+  background: var(--transparent);
+  text-align: left;
+  cursor: pointer;
+}
+.chapter-list button:hover {
+  background: var(--control-hover-subtle);
+}
+.chapter-list button.active {
+  border-color: var(--line);
+  background: var(--paper);
+}
+.chapter-number {
+  grid-area: number;
+  padding-top: var(--space-2);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+.chapter-name {
+  grid-area: name;
+  overflow: hidden;
+  font-family: var(--prose);
+  font-size: var(--font-size-4);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chapter-words {
+  grid-area: words;
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+.binder footer {
+  padding: var(--space-12) var(--space-14);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+.chapter-list button[draggable="true"] {
+  cursor: grab;
+}
+
+.binder-chapter-actions {
+  flex: none;
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-14);
+  border-bottom: 1px solid var(--line);
+}
+.binder-chapter-actions > span {
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+.binder-chapter-actions > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.binder-chapter-actions .icon-button {
+  width: 100%;
+  color: var(--muted);
+}
+.binder-chapter-actions .icon-button:hover:not(:disabled) {
+  color: var(--ink);
+}
+.binder-chapter-actions .chapter-action-delete {
+  color: var(--danger);
+}
+.binder-note {
+  margin: 0;
+  padding: var(--space-10) var(--space-14);
+  border-top: 1px solid var(--line);
+}
+.binder-note > span {
+  margin-bottom: var(--space-4);
+}
+.binder-note textarea {
+  min-height: 64px;
+  font-size: var(--font-size-3);
+}

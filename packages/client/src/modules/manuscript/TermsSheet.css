@@ -1,0 +1,52 @@
+.terms-sheet {
+  display: grid;
+  gap: var(--space-12);
+}
+.terms-sheet header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+.terms-sheet h2 {
+  margin: 0;
+  font: 600 var(--font-size-6) var(--prose);
+}
+.terms-sheet p {
+  margin: 0;
+  font-size: var(--font-size-3);
+}
+.terms-sheet .add-term {
+  margin: 0;
+}
+.editable-chips span {
+  display: flex;
+}
+.editable-chips span > button:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.editable-chips span > button:last-child {
+  border-left: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--danger);
+}
+.add-term {
+  display: flex;
+  margin-top: var(--space-8);
+}
+.add-term input {
+  min-width: 0;
+  flex: 1;
+  padding: var(--space-7) var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: var(--paper);
+}
+.add-term button {
+  width: 32px;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--paper);
+  cursor: pointer;
+}

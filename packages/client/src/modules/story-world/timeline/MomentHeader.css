@@ -1,0 +1,98 @@
+.storyboard-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-18);
+  margin-bottom: var(--space-20);
+}
+.storyboard-stepper {
+  display: none;
+  align-items: center;
+  gap: var(--space-7);
+}
+.storyboard-stepper button,
+.storyboard-actions button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  cursor: pointer;
+}
+.storyboard-stepper svg,
+.storyboard-actions svg {
+  width: 15px;
+}
+.storyboard-title > span,
+.storyboard-title > small {
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.storyboard-title h1 {
+  margin: var(--space-5) 0 var(--space-3);
+  font: 600 var(--font-size-display-sm) var(--prose);
+}
+.storyboard-actions {
+  display: flex;
+  gap: var(--space-5);
+}
+.timeline-meta-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 0 var(--space-14);
+  padding: var(--space-18);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.timeline-meta-card .field {
+  margin-bottom: 0;
+}
+.timeline-meta-card .timeline-note {
+  grid-column: 1 / -1;
+  margin-top: var(--space-14);
+}
+.timeline-meta-card textarea {
+  min-height: 68px;
+}
+@media (max-width: 900px) {
+  .storyboard-header {
+    grid-template-columns: 1fr auto;
+  }
+  .storyboard-stepper {
+    display: flex;
+    grid-column: 1 / -1;
+  }
+  .storyboard-actions button {
+    font-size: 0;
+    min-width: 40px;
+    padding: 0;
+  }
+  .storyboard-actions button svg {
+    margin: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .storyboard-header {
+    gap: var(--space-10);
+  }
+  .storyboard-stepper {
+    justify-content: space-between;
+  }
+  .storyboard-stepper span {
+    font-size: var(--font-size-3);
+  }
+  .storyboard-title h1 {
+    font-size: var(--font-size-8);
+  }
+  .storyboard-title small {
+    display: block;
+    line-height: 1.4;
+  }
+}

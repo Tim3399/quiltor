@@ -1,0 +1,1 @@
+export { createHttpApplicationGateway } from "./createHttpApplicationGateway";

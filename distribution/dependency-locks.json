@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 2,
+  "generator": {
+    "tool": "uv",
+    "version": "0.12.5",
+    "excludeNewer": "2026-08-22T00:00:00Z",
+    "onlyBinary": false
+  },
+  "locks": [
+    {
+      "name": "native-build-bootstrap",
+      "profiles": ["macos-direct", "windows-direct"],
+      "platform": "platform-independent",
+      "pythonEnvironment": {
+        "role": "release-build",
+        "implementation": "CPython",
+        "version": "3.11.9"
+      },
+      "pythonPlatform": "platform-independent",
+      "sources": ["distribution/python-build-bootstrap.in"],
+      "extras": [],
+      "path": "distribution/python-build-bootstrap.lock",
+      "sha256": "47fe38b7bdb55f56a709d325f15e7b4944a64d72b53f3df191225cbc4afdd965"
+    },
+    {
+      "name": "macos-direct-runtime",
+      "profiles": ["macos-direct"],
+      "platform": "macos-arm64",
+      "pythonEnvironment": {
+        "role": "target-runtime",
+        "implementation": "CPython",
+        "version": "3.11.9"
+      },
+      "pythonPlatform": "aarch64-apple-darwin",
+      "sources": ["pyproject.toml", "distribution/native-build-tools.in"],
+      "extras": ["desktop"],
+      "path": "distribution/desktop/macos/direct/requirements.lock",
+      "sha256": "677773498f94c6baabb90f9f7d577c209315473a0471f8621d943f0b91c74ba2"
+    },
+    {
+      "name": "windows-direct-runtime",
+      "profiles": ["windows-direct"],
+      "platform": "windows-x86_64",
+      "pythonEnvironment": {
+        "role": "target-runtime",
+        "implementation": "CPython",
+        "version": "3.11.9"
+      },
+      "pythonPlatform": "x86_64-pc-windows-msvc",
+      "sources": ["pyproject.toml", "distribution/native-build-tools.in"],
+      "extras": ["desktop"],
+      "path": "distribution/desktop/windows/direct/requirements.lock",
+      "sha256": "22ab9c874eaeb64f95da6758176662712ed0a14bc32c03572225f837f922822b"
+    },
+    {
+      "name": "web-self-hosted-runtime",
+      "profiles": ["web-self-hosted"],
+      "platform": "linux-x86_64",
+      "pythonEnvironment": {
+        "role": "target-runtime",
+        "implementation": "CPython",
+        "version": "3.12.3"
+      },
+      "pythonPlatform": "x86_64-manylinux_2_39",
+      "sources": ["distribution/web/self-hosted/requirements.in"],
+      "extras": [],
+      "path": "distribution/web/self-hosted/requirements.lock",
+      "sha256": "f56718082644eda8f94d52917f8d32fc19203136f614593ff344a38ed2b0227b"
+    }
+  ]
+}

@@ -1,8 +1,0 @@
-# Pinned dependencies for the optional MLX runtime (Apple Silicon only).
-# Installed into runtime/mlx-venv by `python3 -m backend.llm.installer --runtime mlx`.
-# Pinned deliberately -- an unannounced upstream bump becomes a user's
-# runtime otherwise. Bump together, deliberately, after re-running the
-# refusal/coverage evaluation (scripts/evaluate-local-assistant.py).
-mlx==0.32.0
-mlx-lm==0.31.3
-llguidance==1.7.6

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/manifest.schema.json",
+  "title": "Quiltor contract registry manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "$id", "manifestVersion", "contracts"],
+  "properties": {
+    "$schema": { "const": "https://quiltor.app/contracts/manifest.schema.json" },
+    "$id": { "const": "https://quiltor.app/contracts/manifest.json" },
+    "manifestVersion": { "const": 1 },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/contract" }
+    }
+  },
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![./])(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "rule"],
+      "properties": {
+        "policy": {
+          "enum": ["additive", "major-versioned", "forward-only", "frozen"]
+        },
+        "rule": { "type": "string", "minLength": 20 }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "mediaType", "role"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relativePath" },
+        "mediaType": {
+          "enum": ["application/json", "text/tab-separated-values"]
+        },
+        "role": { "enum": ["example", "golden", "catalog", "migration-chain", "differential"] }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "owner", "compatibility", "schema", "fixtures"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$"
+        },
+        "version": { "type": "integer", "minimum": 1 },
+        "owner": {
+          "type": "string",
+          "pattern": "^quiltor/[a-z][a-z0-9-]*$"
+        },
+        "compatibility": { "$ref": "#/$defs/compatibility" },
+        "schema": {
+          "oneOf": [{ "$ref": "#/$defs/relativePath" }, { "type": "null" }]
+        },
+        "reference": { "$ref": "#/$defs/relativePath" },
+        "fixtures": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/fixture" }
+        }
+      }
+    }
+  }
+}

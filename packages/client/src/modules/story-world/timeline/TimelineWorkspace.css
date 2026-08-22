@@ -1,0 +1,17 @@
+.timeline-workspace {
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(var(--context), auto) auto minmax(0, 1fr);
+  background: var(--canvas);
+}
+.timeline-workspace .context-tools {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+@media (max-width: 640px) {
+  .timeline-workspace {
+    grid-template-rows: minmax(var(--context), auto) minmax(0, 1fr);
+  }
+}

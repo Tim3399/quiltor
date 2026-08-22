@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "file-save-7",
+  "operation": "file.save",
+  "payload": {
+    "name": "Kapitel.md",
+    "content": "IyBLYXBpdGVsCg==",
+    "encoding": "base64"
+  }
+}

@@ -1,9 +1,10 @@
 # Bundled inference runtime
 
-`python3 server.py` installs a runtime here automatically on first launch,
+`python3 apps/web/server.py` installs a runtime here automatically on first launch,
 after asking once. It picks llama.cpp everywhere, or MLX on Apple Silicon;
-run `python3 -m backend.llm.installer --runtime llamacpp` or `--runtime mlx`
-to install explicitly or override the default. `backend/llm/select.py`
+run `PYTHONPATH=src python3 -m quiltor.infrastructure.inference.installer --runtime llamacpp`
+or `--runtime mlx` to install explicitly or override the default.
+`quiltor.infrastructure.inference.select`
 prefers MLX when it's installed and falls back to llama.cpp automatically if
 it isn't — a Mac never ends up without a working assistant just because the
 MLX step was skipped.
@@ -20,8 +21,8 @@ there instead of being discarded.
 
 A dedicated virtual environment holding `mlx`, `mlx-lm`, and `llguidance`
 (the JSON-schema-constrained decoding engine — see
-`scripts/llm-runtime/mlx_bridge.py`). Quiltor spawns
-`scripts/llm-runtime/mlx_bridge.py` from inside this venv, the same way it
+`src/quiltor/resources/sidecars/inference/mlx/bridge.py`). Quiltor spawns that
+packaged sidecar from inside this venv, the same way it
 spawns `llama-server`. Its log is `data/mlx-server.log`.
 
 ## Overrides

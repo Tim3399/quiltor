@@ -1,0 +1,45 @@
+{
+  "$schema": "../contracts/build-profile.schema.json",
+  "contractVersion": 1,
+  "id": "macos-direct",
+  "product": {
+    "name": "Quiltor",
+    "applicationId": "app.quiltor.desktop"
+  },
+  "target": {
+    "host": "desktop",
+    "platform": "macos",
+    "distribution": "direct",
+    "architectures": ["arm64"]
+  },
+  "build": {
+    "status": "supported",
+    "artifact": "dmg",
+    "entrypoint": "distribution/desktop/macos/direct/build.sh",
+    "smokeEntrypoint": "distribution/desktop/macos/direct/smoke-install.sh",
+    "outputPattern": "distribution/artifacts/macos-direct/Quiltor-{version}.dmg"
+  },
+  "security": {
+    "sandbox": "none",
+    "signing": "developer-id",
+    "entitlements": "distribution/desktop/macos/direct/entitlements.plist"
+  },
+  "capabilities": {
+    "externalProcess": true,
+    "codeDownload": true,
+    "arbitraryFilesystem": true,
+    "backgroundExecution": true
+  },
+  "updates": {
+    "provider": "github-release"
+  },
+  "release": {
+    "channel": "stable",
+    "rolloutTrack": "public"
+  },
+  "publication": {
+    "status": "supported",
+    "channel": "github-release",
+    "storeListing": null
+  }
+}

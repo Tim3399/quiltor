@@ -1,0 +1,12 @@
+[package]
+name = "quiltor-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Portable deterministic core for Quiltor hosts"
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true

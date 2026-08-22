@@ -1,0 +1,8 @@
+# Pinned dependencies for the optional MLX runtime (Apple Silicon only).
+# Installed by `python3 -m quiltor.infrastructure.inference.installer --runtime mlx`.
+# Pinned deliberately -- an unannounced upstream bump becomes a user's
+# runtime otherwise. Bump together, deliberately, after re-running the
+# refusal/coverage evaluation (tools/evaluation/assistant/run_scenarios.py).
+mlx==0.32.0
+mlx-lm==0.31.3
+llguidance==1.7.6

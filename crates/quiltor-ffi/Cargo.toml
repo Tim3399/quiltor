@@ -1,0 +1,16 @@
+[package]
+name = "quiltor-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Stable native entry points for the Quiltor portable core"
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+quiltor-core = { path = "../quiltor-core" }
+
+[lints]
+workspace = true

@@ -1,0 +1,32 @@
+.places-flow-area {
+  position: relative;
+}
+
+.places-manager-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-32);
+  color: var(--muted);
+  text-align: center;
+  pointer-events: none;
+}
+
+.places-manager-empty > svg {
+  width: 30px;
+  color: var(--gold);
+}
+
+.places-manager-empty h2 {
+  margin: var(--space-12) 0 var(--space-5);
+  color: var(--ink);
+  font: 600 var(--font-size-7) var(--prose);
+}
+
+.places-manager-empty p {
+  max-width: 480px;
+  line-height: 1.5;
+}

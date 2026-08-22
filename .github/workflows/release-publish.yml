@@ -1,0 +1,154 @@
+name: Release Publish
+
+on:
+  workflow_run:
+    workflows: ["Release Build"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Release Build run ID
+        required: true
+        type: string
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    steps:
+      - id: build
+        name: Verify the selected Release Build run and exact main revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_RUN: ${{ inputs.build_run_id }}
+          EVENT_RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          RUN_ID="${REQUESTED_RUN:-$EVENT_RUN}"
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::invalid build run ID"; exit 1; }
+          RUN="$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID")"
+          WORKFLOW_ID="$(gh api "repos/${{ github.repository }}/actions/workflows/release.yml" --jq .id)"
+          RUN_WORKFLOW_ID="$(jq -r .workflow_id <<<"$RUN")"
+          RUN_NAME="$(jq -r .name <<<"$RUN")"
+          RUN_PATH="$(jq -r .path <<<"$RUN")"
+          HEAD_BRANCH="$(jq -r .head_branch <<<"$RUN")"
+          SHA="$(jq -r .head_sha <<<"$RUN")"
+          CONCLUSION="$(jq -r .conclusion <<<"$RUN")"
+          [ "$RUN_WORKFLOW_ID" = "$WORKFLOW_ID" ] \
+            || { echo "::error::run $RUN_ID is not from .github/workflows/release.yml"; exit 1; }
+          [ "$RUN_NAME" = "Release Build" ] \
+            || { echo "::error::run $RUN_ID has unexpected workflow name $RUN_NAME"; exit 1; }
+          [ "$RUN_PATH" = ".github/workflows/release.yml" ] \
+            || { echo "::error::run $RUN_ID has unexpected workflow path $RUN_PATH"; exit 1; }
+          [ "$HEAD_BRANCH" = main ] \
+            || { echo "::error::build run $RUN_ID is from $HEAD_BRANCH, not main"; exit 1; }
+          [ "$CONCLUSION" = success ] || { echo "::error::build run $RUN_ID is $CONCLUSION"; exit 1; }
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] \
+            || { echo "::error::build run $RUN_ID has an invalid head SHA"; exit 1; }
+          MAIN_SHA="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
+          [ "$SHA" = "$MAIN_SHA" ] \
+            || { echo "::error::build revision $SHA is not current main $MAIN_SHA"; exit 1; }
+          echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.build.outputs.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11.9"
+      - name: Require a monotonically newer stable release version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          python distribution/tooling/previous_release.py \
+            --check-monotonic --current-version "$VERSION"
+      - name: Download only release-owned artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.build.outputs.run-id }}
+        run: |
+          set -euo pipefail
+          mkdir release-assets
+          for artifact in release-manifest python-package macos-dmg windows-installer; do
+            gh run download "$RUN_ID" --name "$artifact" --dir release-assets
+          done
+      - name: Verify manifest, revision and every expected artifact
+        run: >-
+          python distribution/tooling/release_manifest.py verify
+          --manifest release-assets/release-manifest.json
+          --artifact-dir release-assets
+          --source-revision "${{ steps.build.outputs.sha }}"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Create a draft release from the verified build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(python -c "import json; print(json.load(open('release-assets/release-manifest.json'))['version'])")"
+          MAIN_SHA="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
+          [ "${{ steps.build.outputs.sha }}" = "$MAIN_SHA" ] \
+            || { echo "::error::main moved to $MAIN_SHA before draft creation"; exit 1; }
+          python distribution/tooling/previous_release.py \
+            --check-not-older --current-version "$VERSION"
+          ASSETS=(
+            "release-assets/release-manifest.json"
+            "release-assets/Quiltor-$VERSION.dmg"
+            "release-assets/Quiltor-$VERSION.dmg.signature.json"
+            "release-assets/Quiltor-Setup-$VERSION.exe"
+            "release-assets/Quiltor-Setup-$VERSION.exe.signature.json"
+            "release-assets/quiltor-$VERSION-py3-none-any.whl"
+            "release-assets/quiltor-$VERSION.tar.gz"
+          )
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            [ "$(gh release view "v$VERSION" --json isDraft --jq .isDraft)" = true ] \
+              || { echo "::error::v$VERSION is already published"; exit 1; }
+            [ "$(git rev-list -n 1 "v$VERSION")" = "${{ steps.build.outputs.sha }}" ] \
+              || { echo "::error::existing draft points at another revision"; exit 1; }
+            gh release upload "v$VERSION" --clobber "${ASSETS[@]}"
+          else
+            gh release create "v$VERSION" --target "${{ steps.build.outputs.sha }}" \
+              --title "v$VERSION" --generate-notes --draft "${ASSETS[@]}"
+          fi
+      - name: Promote immutable images and publish the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(python -c "import json; print(json.load(open('release-assets/release-manifest.json'))['version'])")"
+          MAIN_SHA="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
+          [ "${{ steps.build.outputs.sha }}" = "$MAIN_SHA" ] \
+            || { echo "::error::main moved to $MAIN_SHA before publication"; exit 1; }
+          python distribution/tooling/previous_release.py \
+            --check-not-older --current-version "$VERSION"
+          while IFS=$'\t' read -r NAME ROLE IMAGE DIGEST; do
+            REPOSITORY="${IMAGE%@sha256:*}"
+            [ "$REPOSITORY" != "$IMAGE" ] \
+              || { echo "::error::manifest image is not digest-bound: $IMAGE"; exit 1; }
+            [ "${IMAGE##*@}" = "$DIGEST" ] \
+              || { echo "::error::$NAME ($ROLE) has mismatched ref and digest"; exit 1; }
+            echo "Promoting $NAME ($ROLE) from $DIGEST"
+            docker buildx imagetools create \
+              -t "$REPOSITORY:$VERSION" \
+              -t "$REPOSITORY:latest" \
+              "$IMAGE"
+          done < <(python distribution/tooling/release_manifest.py images --manifest release-assets/release-manifest.json)
+          gh release edit "v$VERSION" --draft=false --latest

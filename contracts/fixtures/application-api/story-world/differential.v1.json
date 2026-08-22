@@ -1,0 +1,471 @@
+{
+  "contract": "application.story-world-wire",
+  "version": 1,
+  "baseFixture": "fixtures/application-api/story-world/wire.v1.json",
+  "normalizationAlgorithm": "quiltor.story-world.alias-ascii-v1",
+  "normalization": [
+    { "id": "ascii-case", "input": "Alias", "expected": "alias" },
+    { "id": "ascii-hyphen", "input": "A-B", "expected": "a b" },
+    { "id": "ascii-space", "input": "A B", "expected": "a b" },
+    { "id": "ascii-punctuation-only", "input": "!!!", "expected": "" },
+    { "id": "unicode-16-tulu-tigalari", "input": "𑎀", "expected": "𑎀" },
+    { "id": "unicode-16-cyrillic-tje", "input": "Ᲊ", "expected": "Ᲊ" },
+    { "id": "combining-mark-preserved", "input": "É", "expected": "é" },
+    { "id": "precomposed-non-ascii-case-preserved", "input": "É", "expected": "É" },
+    { "id": "ascii-only-case-fold-in-mixed-name", "input": "Straße", "expected": "straße" },
+    { "id": "ascii-spelling-remains-distinct", "input": "STRASSE", "expected": "strasse" }
+  ],
+  "optionalPresence": [
+    { "id": "revision", "path": "/revision", "absent": "accept", "null": "reject" },
+    { "id": "node-type", "path": "/payload/nodes/0/type", "absent": "accept", "null": "reject" },
+    { "id": "node-label", "path": "/payload/nodes/0/label", "absent": "accept", "null": "reject" },
+    { "id": "node-subtitle", "path": "/payload/nodes/0/sub", "absent": "accept", "null": "reject" },
+    {
+      "id": "node-accent",
+      "path": "/payload/nodes/0/accent",
+      "absent": "accept",
+      "null": "reject"
+    },
+    { "id": "node-dash", "path": "/payload/nodes/0/dash", "absent": "accept", "null": "reject" },
+    {
+      "id": "node-pinned",
+      "path": "/payload/nodes/0/pinned",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "node-important",
+      "path": "/payload/nodes/0/important",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "node-death-moment",
+      "path": "/payload/nodes/0/diedMomentId",
+      "absent": "accept",
+      "null": "reject"
+    },
+    { "id": "node-map-x", "path": "/payload/nodes/0/mapX", "absent": "accept", "null": "reject" },
+    { "id": "node-map-y", "path": "/payload/nodes/0/mapY", "absent": "accept", "null": "reject" },
+    {
+      "id": "node-profile",
+      "path": "/payload/nodes/0/profile",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "node-aliases",
+      "path": "/payload/nodes/0/aliases",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "alias-source",
+      "path": "/payload/nodes/0/aliases/0/source",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-age",
+      "path": "/payload/nodes/0/profile/alter",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-role",
+      "path": "/payload/nodes/0/profile/rolle",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-look",
+      "path": "/payload/nodes/0/profile/aussehen",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-origin",
+      "path": "/payload/nodes/0/profile/herkunft",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-voice",
+      "path": "/payload/nodes/0/profile/stimme",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-notes",
+      "path": "/payload/nodes/0/profile/notizen",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-extra",
+      "path": "/payload/nodes/0/profile/extra",
+      "absent": "accept",
+      "null": "reject"
+    },
+    { "id": "edge-label", "path": "/payload/edges/0/label", "absent": "accept", "null": "reject" },
+    { "id": "edge-style", "path": "/payload/edges/0/style", "absent": "accept", "null": "reject" },
+    {
+      "id": "edge-directed",
+      "path": "/payload/edges/0/gerichtet",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "edge-from-handle",
+      "path": "/payload/edges/0/fromHandle",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "edge-to-handle",
+      "path": "/payload/edges/0/toHandle",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "edge-active",
+      "path": "/payload/edges/0/active",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "edge-versions",
+      "path": "/payload/edges/0/versions",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "version-from",
+      "path": "/payload/edges/0/versions/0/from",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "version-to",
+      "path": "/payload/edges/0/versions/0/to",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "version-label",
+      "path": "/payload/edges/0/versions/0/label",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "version-style",
+      "path": "/payload/edges/0/versions/0/style",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "version-directed",
+      "path": "/payload/edges/0/versions/0/gerichtet",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "timeline",
+      "path": "/payload/timeline",
+      "alsoRemove": [
+        "/payload/nodes/0/diedMomentId",
+        "/payload/edges/0/versions",
+        "/payload/presence/0/momentId"
+      ],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-title",
+      "path": "/payload/timeline/0/title",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-time",
+      "path": "/payload/timeline/0/time",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-position",
+      "path": "/payload/timeline/0/position",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-precision",
+      "path": "/payload/timeline/0/precision",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-end-time",
+      "path": "/payload/timeline/0/endTime",
+      "alsoRemove": ["/payload/timeline/0/endPrecision"],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-end-precision",
+      "path": "/payload/timeline/0/endPrecision",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-date",
+      "path": "/payload/timeline/0/date",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-note",
+      "path": "/payload/timeline/0/note",
+      "absent": "accept",
+      "null": "reject"
+    },
+    { "id": "presence", "path": "/payload/presence", "absent": "accept", "null": "reject" },
+    {
+      "id": "presence-moment",
+      "path": "/payload/presence/0/momentId",
+      "absent": "accept",
+      "null": "reject"
+    },
+    { "id": "canvas-size", "path": "/payload/canvasSize", "absent": "accept", "null": "reject" },
+    { "id": "map-scale", "path": "/payload/mapScale", "absent": "accept", "null": "reject" },
+    { "id": "time-system", "path": "/payload/timeSystem", "absent": "accept", "null": "reject" },
+    { "id": "time-unit", "path": "/payload/timeSystem/unit", "absent": "accept", "null": "reject" },
+    {
+      "id": "era-name",
+      "path": "/payload/timeSystem/eraName",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "era-abbreviation",
+      "path": "/payload/timeSystem/eraAbbreviation",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "epoch-time",
+      "path": "/payload/timeSystem/epochTime",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "epoch-year",
+      "path": "/payload/timeSystem/epochYear",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "epoch-month",
+      "path": "/payload/timeSystem/epochMonth",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "epoch-day",
+      "path": "/payload/timeSystem/epochDay",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "epoch-weekday",
+      "path": "/payload/timeSystem/epochWeekday",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "display-format",
+      "path": "/payload/timeSystem/displayFormat",
+      "absent": "accept",
+      "null": "reject"
+    },
+    { "id": "months", "path": "/payload/timeSystem/months", "absent": "accept", "null": "reject" },
+    {
+      "id": "month-short-name",
+      "path": "/payload/timeSystem/months/0/shortName",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "weekdays",
+      "path": "/payload/timeSystem/weekdays",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "weekday-short-name",
+      "path": "/payload/timeSystem/weekdays/0/shortName",
+      "absent": "accept",
+      "null": "reject"
+    }
+  ],
+  "cases": [
+    {
+      "id": "version-integral-float",
+      "operation": "set",
+      "path": "/version",
+      "value": 1.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "revision-integral-float",
+      "operation": "set",
+      "path": "/revision",
+      "value": 4.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "revision-nonintegral",
+      "operation": "set",
+      "path": "/revision",
+      "value": 4.5,
+      "expect": "reject"
+    },
+    {
+      "id": "revision-bool-is-not-integer",
+      "operation": "set",
+      "path": "/revision",
+      "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "revision-max-safe",
+      "operation": "set",
+      "path": "/revision",
+      "value": 9007199254740991,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "revision-above-max-safe",
+      "operation": "set",
+      "path": "/revision",
+      "value": 9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "revision-nan",
+      "operation": "set",
+      "path": "/revision",
+      "value": { "$special": "nan" },
+      "expect": "reject"
+    },
+    {
+      "id": "revision-infinity",
+      "operation": "set",
+      "path": "/revision",
+      "value": { "$special": "infinity" },
+      "expect": "reject"
+    },
+    {
+      "id": "position-integral-float",
+      "operation": "set",
+      "path": "/payload/timeline/0/position",
+      "value": 0.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "position-max-safe",
+      "operation": "set",
+      "path": "/payload/timeline/0/position",
+      "value": 9007199254740991,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "position-above-max-safe",
+      "operation": "set",
+      "path": "/payload/timeline/0/position",
+      "value": 9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "day-count-above-max-safe",
+      "operation": "set",
+      "path": "/payload/timeSystem/months/0/dayCount",
+      "value": 9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "edge-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/edges/0/gerichtet",
+      "value": 1,
+      "expect": "reject"
+    },
+    {
+      "id": "alias-punctuation-only",
+      "operation": "set",
+      "path": "/payload/nodes/0/aliases",
+      "value": [{ "alias": "!!!" }],
+      "expect": "reject"
+    },
+    {
+      "id": "alias-normalized-collision",
+      "operation": "set",
+      "path": "/payload/nodes/0/aliases",
+      "value": [{ "alias": "A-B" }, { "alias": "A B" }],
+      "expect": "reject"
+    },
+    {
+      "id": "alias-ascii-case-collision",
+      "operation": "set",
+      "path": "/payload/nodes/0/aliases",
+      "value": [{ "alias": "Alias" }, { "alias": "ALIAS" }],
+      "expect": "reject"
+    },
+    {
+      "id": "alias-normalized-valid",
+      "operation": "set",
+      "path": "/payload/nodes/0/aliases",
+      "value": [{ "alias": "Élan-Rouge" }],
+      "expect": "accept"
+    },
+    {
+      "id": "alias-unicode-16-letter",
+      "operation": "set",
+      "path": "/payload/nodes/0/aliases",
+      "value": [{ "alias": "𑎀" }],
+      "expect": "accept"
+    },
+    {
+      "id": "alias-combining-and-precomposed-stay-distinct",
+      "operation": "set",
+      "path": "/payload/nodes/0/aliases",
+      "value": [{ "alias": "É" }, { "alias": "É" }],
+      "expect": "accept"
+    },
+    {
+      "id": "unknown-envelope-key",
+      "operation": "set",
+      "path": "/worldId",
+      "value": "routing-leak",
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-payload-key",
+      "operation": "set",
+      "path": "/payload/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
+    },
+    {
+      "id": "required-payload-absent",
+      "operation": "remove",
+      "path": "/payload",
+      "expect": "reject"
+    }
+  ]
+}

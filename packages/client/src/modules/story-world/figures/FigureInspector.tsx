@@ -1,0 +1,383 @@
+import { Pin, Plus, Skull, Star, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { useI18n } from "../../../i18n";
+import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
+import type { FigureEdge, FigureKind, FigureNode, FigureState, Profile } from "../model";
+import { PresenceField } from "./PresenceField";
+import { PROFILE_FIELDS } from "./profileFields";
+import {
+  kindLabel,
+  patchRelationship,
+  relationshipLabelEditor,
+  resolveRelationship,
+} from "./relationships";
+import "./FigureInspector.css";
+
+export type FigureInspectorProps = {
+  figure: FigureNode;
+  state: FigureState;
+  activeMomentId: string | null;
+  onPatch: (patch: Partial<FigureNode>) => void;
+  onState: (state: FigureState) => void;
+  onDelete: () => void;
+  onSelectMoment: (id: string | null) => void;
+};
+
+export function FigureInspector({
+  figure,
+  state,
+  activeMomentId,
+  onPatch,
+  onState,
+  onDelete,
+  onSelectMoment,
+}: FigureInspectorProps) {
+  const { t } = useI18n();
+  const [tab, setTab] = useState<"card" | "profile" | "links">("card");
+  // Deleting a relationship also drops every version it carries at individual moments, which the
+  // row itself does not show -- so it asks first, at the same level as deleting an element.
+  const [deleteEdge, setDeleteEdge] = useState<{ edge: FigureEdge; name: string } | null>(null);
+  const profile = figure.profile || { extra: [] };
+  const patchProfile = (patch: Partial<Profile>) => onPatch({ profile: { ...profile, ...patch } });
+  const linked = state.edges.filter((edge) => edge.from === figure.id || edge.to === figure.id);
+  return (
+    <>
+      <div className="panel-tabs three" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "card"}
+          onClick={() => setTab("card")}
+        >
+          {t("card")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "profile"}
+          onClick={() => setTab("profile")}
+        >
+          {t("profile")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "links"}
+          onClick={() => setTab("links")}
+        >
+          {t("relationships")}
+        </button>
+      </div>
+      <div className="panel-body">
+        {tab === "card" && (
+          <>
+            <label className="field">
+              <span>{t("kind")}</span>
+              <select
+                value={figure.type || "person"}
+                onChange={(event) => onPatch({ type: event.target.value as FigureKind })}
+              >
+                <option value="person">{t("figure")}</option>
+                <option value="tier">{t("animal")}</option>
+                <option value="ort">{t("place")}</option>
+                <option value="organisation">{t("organisation")}</option>
+                <option value="objekt">{t("object")}</option>
+                <option value="konzept">{t("concept")}</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>{t("name")}</span>
+              <input
+                value={figure.name}
+                onChange={(event) => onPatch({ name: event.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>{t("category")}</span>
+              <input
+                value={figure.label || ""}
+                onChange={(event) => onPatch({ label: event.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>{t("shortDescription")}</span>
+              <textarea
+                value={figure.sub || ""}
+                onChange={(event) => onPatch({ sub: event.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>{t("accent")}</span>
+              <select
+                value={figure.accent || "ink"}
+                onChange={(event) =>
+                  onPatch({ accent: event.target.value as FigureNode["accent"] })
+                }
+              >
+                <option value="ink">{t("neutral")}</option>
+                <option value="gold">{t("gold")}</option>
+                <option value="rose">{t("rose")}</option>
+                <option value="moss">{t("green")}</option>
+              </select>
+            </label>
+            <div className="node-priority-actions">
+              <button
+                type="button"
+                className={figure.important ? "active" : ""}
+                aria-pressed={!!figure.important}
+                onClick={() => onPatch({ important: !figure.important })}
+              >
+                <Star />
+                {figure.important ? t("unmarkImportant") : t("markImportant")}
+              </button>
+              <button
+                type="button"
+                className={figure.pinned ? "active" : ""}
+                aria-pressed={!!figure.pinned}
+                onClick={() => onPatch({ pinned: !figure.pinned })}
+              >
+                <Pin />
+                {figure.pinned ? t("unpinPosition") : t("pinPosition")}
+              </button>
+            </div>
+            {activeMomentId && figure.type !== "ort" && figure.type !== "konzept" && (
+              <button
+                type="button"
+                className={`timeline-life-action ${figure.diedMomentId === activeMomentId ? "active" : ""}`}
+                onClick={() =>
+                  onPatch({
+                    diedMomentId:
+                      figure.diedMomentId === activeMomentId ? undefined : activeMomentId,
+                  })
+                }
+              >
+                <Skull />
+                {figure.diedMomentId === activeMomentId ? t("removeDeathMarker") : t("diesHere")}
+              </button>
+            )}
+            {(figure.type === "person" || figure.type === "tier") && (
+              <PresenceField
+                figure={figure}
+                state={state}
+                activeMomentId={activeMomentId}
+                onState={onState}
+                onSelectMoment={onSelectMoment}
+              />
+            )}
+          </>
+        )}
+        {tab === "profile" && (
+          <>
+            {PROFILE_FIELDS.map(([key, label, size]) => (
+              <label
+                className="field"
+                key={key as string}
+                htmlFor={`figure-profile-${figure.id}-${String(key)}`}
+              >
+                <span>{t(label)}</span>
+                {size === "short" ? (
+                  <input
+                    id={`figure-profile-${figure.id}-${String(key)}`}
+                    value={String(profile[key] || "")}
+                    onChange={(event) => patchProfile({ [key]: event.target.value })}
+                  />
+                ) : (
+                  <textarea
+                    id={`figure-profile-${figure.id}-${String(key)}`}
+                    value={String(profile[key] || "")}
+                    onChange={(event) => patchProfile({ [key]: event.target.value })}
+                  />
+                )}
+              </label>
+            ))}
+            <h3 className="section-label">{t("customFields")}</h3>
+            {(profile.extra || []).map((field, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: Profile extras have no persistent id and their stored order is their identity.
+              <div className="custom-field" key={index}>
+                <input
+                  aria-label={t("fieldName")}
+                  placeholder={t("fieldName")}
+                  value={field.k}
+                  onChange={(event) =>
+                    patchProfile({
+                      extra: (profile.extra || []).map((item, i) =>
+                        i === index ? { ...item, k: event.target.value } : item,
+                      ),
+                    })
+                  }
+                />
+                <textarea
+                  aria-label={`${field.k || t("customField")} ${t("content")}`}
+                  placeholder={t("content")}
+                  value={field.v}
+                  onChange={(event) =>
+                    patchProfile({
+                      extra: (profile.extra || []).map((item, i) =>
+                        i === index ? { ...item, v: event.target.value } : item,
+                      ),
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  className="icon-button danger-text"
+                  aria-label={t("removeCustomField")}
+                  onClick={() =>
+                    patchProfile({ extra: (profile.extra || []).filter((_, i) => i !== index) })
+                  }
+                >
+                  <Trash2 />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => patchProfile({ extra: [...(profile.extra || []), { k: "", v: "" }] })}
+            >
+              <Plus />
+              {t("customField")}
+            </button>
+          </>
+        )}
+        {tab === "links" && (
+          <div className="relation-list">
+            {linked.length ? (
+              linked.map((edge) => {
+                const resolved = resolveRelationship(edge, state.timeline || [], activeMomentId);
+                const labelEditor = relationshipLabelEditor(
+                  edge,
+                  state.timeline || [],
+                  activeMomentId,
+                );
+                const otherId = resolved.from === figure.id ? resolved.to : resolved.from;
+                const other = state.nodes.find((node) => node.id === otherId);
+                const patchEdge = (patch: Partial<FigureEdge>) =>
+                  onState({
+                    ...state,
+                    edges: state.edges.map((item) =>
+                      item.id === edge.id
+                        ? patchRelationship(item, state.timeline || [], activeMomentId, patch)
+                        : item,
+                    ),
+                  });
+                const directionLabel = t("reverseDirectionTo")
+                  .replace(
+                    "{from}",
+                    state.nodes.find((node) => node.id === resolved.from)?.name || t("unknown"),
+                  )
+                  .replace(
+                    "{to}",
+                    state.nodes.find((node) => node.id === resolved.to)?.name || t("unknown"),
+                  );
+                return (
+                  <div key={edge.id} className={!resolved.active ? "outside-moment" : ""}>
+                    <div>
+                      {resolved.gerichtet ? (
+                        <button
+                          type="button"
+                          className="relation-direction"
+                          aria-label={directionLabel}
+                          title={directionLabel}
+                          disabled={!resolved.active}
+                          onClick={() => patchEdge({ from: resolved.to, to: resolved.from })}
+                        >
+                          {resolved.from === figure.id ? "→" : "←"}
+                        </button>
+                      ) : (
+                        <span
+                          role="img"
+                          className="relation-undirected"
+                          aria-label={t("undirectedRelation")}
+                          title={t("undirectedRelation")}
+                        >
+                          ↔
+                        </span>
+                      )}
+                      <strong>{other?.name || t("unknown")}</strong>
+                      {activeMomentId && (
+                        <small>{resolved.active ? t("appliesHere") : t("notActiveHere")}</small>
+                      )}
+                    </div>
+                    <label className="relationship-label-editor">
+                      <span className="sr-only">
+                        {t("relationToName").replace("{name}", other?.name || "")}
+                      </span>
+                      <input
+                        aria-label={t("relationToName").replace("{name}", other?.name || "")}
+                        value={labelEditor.value}
+                        placeholder={labelEditor.inherited || t("nameRelationship")}
+                        disabled={!resolved.active}
+                        onChange={(event) => patchEdge({ label: event.target.value })}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="icon-button danger-text"
+                      aria-label={t("deleteConnection")}
+                      onClick={() => setDeleteEdge({ edge, name: other?.name || t("unknown") })}
+                    >
+                      <Trash2 />
+                    </button>
+                    <select
+                      aria-label={t("lineStyle")}
+                      value={resolved.style || "solid"}
+                      disabled={!resolved.active}
+                      onChange={(event) =>
+                        patchEdge({ style: event.target.value as typeof edge.style })
+                      }
+                    >
+                      <option value="solid">{t("normal")}</option>
+                      <option value="dashed">{t("dashed")}</option>
+                      <option value="blood">{t("bloodline")}</option>
+                      <option value="gold">{t("gold")}</option>
+                    </select>
+                    <label className="check-field">
+                      <input
+                        type="checkbox"
+                        checked={!!resolved.gerichtet}
+                        disabled={!resolved.active}
+                        onChange={(event) => patchEdge({ gerichtet: event.target.checked })}
+                      />
+                      {t("directed")}
+                    </label>
+                    {activeMomentId && (
+                      <button
+                        type="button"
+                        className="relation-toggle"
+                        onClick={() => patchEdge({ active: !resolved.active })}
+                      >
+                        {resolved.active ? t("relationEndsHere") : t("relationStartsHere")}
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <p className="muted">{t("noRelationshipsYet")}</p>
+            )}
+          </div>
+        )}
+        <button type="button" className="danger-text inspector-delete" onClick={onDelete}>
+          <Trash2 />
+          {t("deleteKind").replace("{kind}", kindLabel(figure.type, t))}
+        </button>
+      </div>
+      {deleteEdge && (
+        <ConfirmDialog
+          title={t("deleteConnection")}
+          description={t("deleteConnectionDescription", { name: deleteEdge.name })}
+          confirmLabel={t("deleteConnection")}
+          undoable
+          onConfirm={() =>
+            onState({
+              ...state,
+              edges: state.edges.filter((item) => item.id !== deleteEdge.edge.id),
+            })
+          }
+          onClose={() => setDeleteEdge(null)}
+        />
+      )}
+    </>
+  );
+}

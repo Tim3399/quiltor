@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/semantics/entity-resolution/v2.schema.json",
+  "title": "Quiltor entity-resolution golden fixture v2",
+  "$ref": "./v1.schema.json"
+}

@@ -1,0 +1,26 @@
+.fatal-state,
+.loading-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  text-align: center;
+}
+.fatal-state h1 {
+  font: 600 var(--font-size-8) var(--prose);
+}
+.loading-mark {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  color: var(--gold);
+  font: 600 var(--font-size-8) var(--prose);
+}
+.loading-state p {
+  color: var(--muted);
+}

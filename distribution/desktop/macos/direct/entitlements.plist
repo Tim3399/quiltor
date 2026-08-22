@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the Developer ID (outside-the-App-Store) macOS build, applied
+  to Quiltor.app by distribution/desktop/macos/direct/build.sh. Apple's Hardened Runtime
+  is required for notarization, and it blocks several things a frozen-Python app
+  plus a locally-spawned LLM runtime need by default; each exception below is
+  one of those, and nothing more.
+
+  A Mac App Store build needs a different, sandboxed set instead; those are NOT
+  interchangeable (see distribution/README.md, "macOS signing and notarisation").
+-->
+<plist version="1.0">
+<dict>
+    <!-- llama.cpp and MLX both compile Metal shaders at runtime and use JIT-style
+         writable-then-executable memory. Without these two, the assistant's
+         runtime crashes on first inference under the Hardened Runtime. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+
+    <!-- quiltor.infrastructure.inference.installer downloads llama-server (and, on Apple Silicon,
+         builds an MLX venv) into QUILTOR_HOME at first run. Those binaries and
+         their dylibs are not signed by our Team ID, so library validation would
+         refuse to load them into our process tree. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- PyInstaller's bootloader sets DYLD_LIBRARY_PATH so the frozen app finds
+         its own bundled dylibs. -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+</dict>
+</plist>

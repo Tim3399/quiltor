@@ -1,0 +1,41 @@
+{
+  "contract": "quiltor.sqlite-migrations",
+  "version": 1,
+  "baselineSchemaVersion": 1,
+  "currentSchemaVersion": 7,
+  "direction": "forward-only",
+  "steps": [
+    {
+      "from": 1,
+      "to": 2,
+      "guarantees": ["Adds last_restore_at metadata without changing document revisions."]
+    },
+    {
+      "from": 2,
+      "to": 3,
+      "guarantees": ["Adds owner_sub metadata with the local owner as its stable default."]
+    },
+    {
+      "from": 3,
+      "to": 4,
+      "guarantees": ["Adds temporal relationship state and optional death-moment references."]
+    },
+    {
+      "from": 4,
+      "to": 5,
+      "guarantees": ["Adds a primary time system without changing the figures revision."]
+    },
+    {
+      "from": 5,
+      "to": 6,
+      "guarantees": ["Adds indexed entity-alias persistence without changing the figures revision."]
+    },
+    {
+      "from": 6,
+      "to": 7,
+      "guarantees": [
+        "Migrates the legacy empty owner_sub sentinel to quiltor-internal:local-owner without changing document revisions."
+      ]
+    }
+  ]
+}

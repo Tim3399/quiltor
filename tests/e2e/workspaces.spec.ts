@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import {
+  decodeSavedManuscript,
+  encodeStoryWorldDocument,
+  fulfillDocumentSave,
+  fulfillManuscript,
+  fulfillRevisionConflict,
+  fulfillStoryWorld,
+} from "./support/application-api";
 
 async function openBlankWorld(
   page: import("@playwright/test").Page,
@@ -358,7 +366,7 @@ test("Shortcuts unterscheiden Speichern und Sicherung", async ({ page }) => {
   // gilt nicht mehr: der Endpunkt verlangt eine Anmeldung, und ohne sie liefe der
   // Upload in ein 401. Der Dialog bietet dann die Anmeldung an statt eines Knopfes,
   // der scheitern würde. Dass der Upload nach Anmeldung wirklich auslöst, steht als
-  // Einheitentest in src/features/tools/SnapshotDialog.test.tsx, wo der Anmeldezustand
+  // Einheitentest in packages/client/src/modules/history/SnapshotDialog.test.tsx, wo der Anmeldezustand
   // ohne echten Keycloak herstellbar ist.
   await openBlankWorld(page, "Testwelt", "https://backup.example.com/shortcut-test");
   await page.keyboard.press("Control+Shift+S");
@@ -537,21 +545,17 @@ test("Inhaltssuche und Befehle teilen eine Palette", async ({ page }) => {
 
 test("Figuren folgen dem Zeiger bereits während des Ziehens", async ({ page }) => {
   await page.route("**/api/manuscript*", (route) =>
-    route.fulfill({
-      json: { chapters: [{ id: "c1", title: "Test", body: "", note: "" }] },
-      headers: { ETag: '"0"' },
+    fulfillManuscript(route, {
+      chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
     }),
   );
   await page.route("**/api/state*", (route) =>
     route.request().method() === "GET"
-      ? route.fulfill({
-          json: {
-            nodes: [{ id: "n1", x: 100, y: 100, type: "person", name: "Testfigur" }],
-            edges: [],
-          },
-          headers: { ETag: '"0"' },
+      ? fulfillStoryWorld(route, {
+          nodes: [{ id: "n1", x: 100, y: 100, type: "person", name: "Testfigur" }],
+          edges: [],
         })
-      : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }),
+      : fulfillDocumentSave(route, 1),
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Figuren" }).click();
@@ -574,26 +578,22 @@ test("Beim Ziehen einer Figuren-Verbindung folgt eine sichtbare Vorschau dem Zei
     "Der Pointer- und LOD-Regressionstest hängt nicht an der Fensterbreite.",
   );
   await page.route("**/api/manuscript*", (route) =>
-    route.fulfill({
-      json: { chapters: [{ id: "c1", title: "Test", body: "", note: "" }] },
-      headers: { ETag: '"0"' },
+    fulfillManuscript(route, {
+      chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
     }),
   );
   await page.route("**/api/state*", (route) =>
     route.request().method() === "GET"
-      ? route.fulfill({
-          json: {
-            nodes: [
-              { id: "n1", x: 100, y: 100, type: "person", name: "Ada" },
-              // A large board forces overview LOD. That is where the viewport transform used
-              // to scale React Flow's default 1px preview into an effectively invisible line.
-              { id: "n2", x: 10_000, y: 2_000, type: "person", name: "Bela" },
-            ],
-            edges: [],
-          },
-          headers: { ETag: '"0"' },
+      ? fulfillStoryWorld(route, {
+          nodes: [
+            { id: "n1", x: 100, y: 100, type: "person", name: "Ada" },
+            // A large board forces overview LOD. That is where the viewport transform used
+            // to scale React Flow's default 1px preview into an effectively invisible line.
+            { id: "n2", x: 10_000, y: 2_000, type: "person", name: "Bela" },
+          ],
+          edges: [],
         })
-      : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }),
+      : fulfillDocumentSave(route, 1),
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
@@ -627,25 +627,21 @@ test("Beim Ziehen einer Figuren-Verbindung folgt eine sichtbare Vorschau dem Zei
 
 test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", async ({ page }) => {
   await page.route("**/api/manuscript*", (route) =>
-    route.fulfill({
-      json: { chapters: [{ id: "c1", title: "Test", body: "", note: "" }] },
-      headers: { ETag: '"0"' },
+    fulfillManuscript(route, {
+      chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
     }),
   );
   await page.route("**/api/state*", (route) =>
     route.request().method() === "GET"
-      ? route.fulfill({
-          json: {
-            nodes: [
-              { id: "n1", x: 101, y: 101, type: "person", name: "Figur" },
-              { id: "n2", x: 401, y: 101, type: "ort", name: "Ort" },
-              { id: "n3", x: 701, y: 101, type: "konzept", name: "Konzept" },
-            ],
-            edges: [],
-          },
-          headers: { ETag: '"0"' },
+      ? fulfillStoryWorld(route, {
+          nodes: [
+            { id: "n1", x: 101, y: 101, type: "person", name: "Figur" },
+            { id: "n2", x: 401, y: 101, type: "ort", name: "Ort" },
+            { id: "n3", x: 701, y: 101, type: "konzept", name: "Konzept" },
+          ],
+          edges: [],
         })
-      : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }),
+      : fulfillDocumentSave(route, 1),
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
@@ -681,7 +677,7 @@ test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async 
     data: { title: `Drag Regression ${crypto.randomUUID()}` },
   });
   const created = await response.json();
-  // Both calls name the world, exactly as src/lib/api.ts does for every request:
+  // Both calls name the world, exactly as the focused platform/http adapters do for every request:
   // creating a world no longer makes it the process's "active" one, so a request
   // that names none has no world at all and is answered with a 400.
   const initial = await page.request.get(`/api/state?world=${created.world.id}`);
@@ -690,7 +686,7 @@ test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async 
     id: `n${index}`,
     x: 100 + (index % 4) * 240,
     y: 100 + Math.floor(index / 4) * 150,
-    type: "person",
+    type: "person" as const,
     name: `Figur ${index}`,
   }));
   const edges = Array.from({ length: 11 }, (_, index) => ({
@@ -700,10 +696,11 @@ test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async 
     label: `Beziehung ${index}`,
     gerichtet: index % 2 === 0,
   }));
-  await page.request.put("/api/state", {
+  const saved = await page.request.put(`/api/state?world=${encodeURIComponent(created.world.id)}`, {
     headers: { "If-Match": revision },
-    data: { worldId: created.world.id, nodes, edges },
+    data: encodeStoryWorldDocument({ nodes, edges }, Number(revision.replaceAll('"', ""))),
   });
+  expect(saved.ok()).toBeTruthy();
   await page.goto(`/?world=${created.world.id}`);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
   await expect(page.locator(".story-node")).toHaveCount(12);
@@ -761,27 +758,23 @@ test("Elementtypen sind konsistent erreichbar und Löschen bestätigt ohne Halte
 test("Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "Die Timeline wird im breiten Figurenboard geprüft.");
   await page.route("**/api/manuscript*", (route) =>
-    route.fulfill({
-      json: { chapters: [{ id: "c1", title: "Test", body: "", note: "" }] },
-      headers: { ETag: '"0"' },
+    fulfillManuscript(route, {
+      chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
     }),
   );
   await page.route("**/api/state*", (route) =>
     route.request().method() === "GET"
-      ? route.fulfill({
-          json: {
-            nodes: [
-              { id: "n1", x: 120, y: 140, type: "person", name: "Ada" },
-              { id: "n2", x: 520, y: 140, type: "person", name: "Bela" },
-            ],
-            edges: [
-              { id: "e1", from: "n1", to: "n2", label: "Verbündete" },
-              { id: "e2", from: "n2", to: "n1", label: "Bewundert", gerichtet: true },
-            ],
-          },
-          headers: { ETag: '"0"' },
+      ? fulfillStoryWorld(route, {
+          nodes: [
+            { id: "n1", x: 120, y: 140, type: "person", name: "Ada" },
+            { id: "n2", x: 520, y: 140, type: "person", name: "Bela" },
+          ],
+          edges: [
+            { id: "e1", from: "n1", to: "n2", label: "Verbündete" },
+            { id: "e2", from: "n2", to: "n1", label: "Bewundert", gerichtet: true },
+          ],
         })
-      : route.fulfill({ json: { ok: true, revision: 1 }, headers: { ETag: '"1"' } }),
+      : fulfillDocumentSave(route, 1),
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
@@ -898,19 +891,16 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
 test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async ({ page }) => {
   await page.route("**/api/manuscript*", (route) =>
     route.request().method() === "GET"
-      ? route.fulfill({
-          json: {
-            chapters: [
-              {
-                id: "c1",
-                title: "Prolog",
-                body: "Ein langer Absatz hält seinen Zeilenumbruch beim Öffnen der Randpanels stabil.",
-                note: "",
-              },
-              { id: "c2", title: "Aufbruch", body: "Der Weg beginnt.", note: "" },
-            ],
-          },
-          headers: { ETag: '"0"' },
+      ? fulfillManuscript(route, {
+          chapters: [
+            {
+              id: "c1",
+              title: "Prolog",
+              body: "Ein langer Absatz hält seinen Zeilenumbruch beim Öffnen der Randpanels stabil.",
+              note: "",
+            },
+            { id: "c2", title: "Aufbruch", body: "Der Weg beginnt.", note: "" },
+          ],
         })
       : route.continue(),
   );
@@ -943,18 +933,26 @@ test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async
 });
 
 test("Kapitelversionen erscheinen direkt neben der Schreibfläche", async ({ page }, testInfo) => {
-  await page.route("**/api/log*", (route) =>
+  await page.route("**/api/history*", (route) =>
     route.fulfill({
       json: {
         ok: true,
         commits: [
-          { hash: "abc123", kurz: "abc123", datum: "01.01.2026 12:00", betreff: "Frühere Fassung" },
+          {
+            hash: "abc123",
+            shortHash: "abc123",
+            date: "01.01.2026 12:00",
+            subject: "Frühere Fassung",
+          },
         ],
       },
     }),
   );
-  await page.route("**/api/textfassung**", (route) =>
-    route.fulfill({ json: { ok: true, text: "Historischer Kapiteltext" } }),
+  // A single `*` does not cross the slash after `/history`; keep the nested endpoint explicit.
+  await page.route("**/api/history/chapter-text*", (route) =>
+    route.fulfill({
+      json: { ok: true, isNew: false, text: "Historischer Kapiteltext" },
+    }),
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Fassungen" }).click();
@@ -968,7 +966,10 @@ test("Kapitelversionen erscheinen direkt neben der Schreibfläche", async ({ pag
 test("Buchausgabe rendert als echtes 6×9-Zoll-PDF", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "PDF-Geometrie muss nur einmal geprüft werden.");
   await openBlankWorld(page);
+  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  await expect(page.locator(".print-document")).toBeAttached();
   await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".print-document")).toHaveCSS("display", "block");
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
   expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
   expect(pdf.length).toBeGreaterThan(10_000);
@@ -983,20 +984,17 @@ test("Autosave überlebt Reload und meldet konkurrierende Änderungen", async ({
     zeichenAktiv: [],
   };
   await page.route("**/api/manuscript*", async (route) => {
-    if (route.request().method() === "GET")
-      return route.fulfill({ json: manuscript, headers: { ETag: `"${revision}"` } });
+    if (route.request().method() === "GET") return fulfillManuscript(route, manuscript, revision);
     const expected = Number((route.request().headers()["if-match"] || "").replaceAll('"', ""));
-    if (expected !== revision)
-      return route.fulfill({ status: 409, json: { code: "conflict", fehler: "Konflikt" } });
-    manuscript = route.request().postDataJSON();
+    if (expected !== revision) return fulfillRevisionConflict(route, expected, revision);
+    manuscript = decodeSavedManuscript<typeof manuscript>(route);
     revision += 1;
-    return route.fulfill({
-      json: { ok: true, zeit: "12:00", revision },
-      headers: { ETag: `"${revision}"` },
-    });
+    return fulfillDocumentSave(route, revision);
   });
   await page.route("**/api/state*", (route) =>
-    route.fulfill({ json: { nodes: [], edges: [] }, headers: { ETag: '"0"' } }),
+    route.request().method() === "GET"
+      ? fulfillStoryWorld(route, { nodes: [], edges: [] })
+      : fulfillDocumentSave(route, 1),
   );
   await openBlankWorld(page);
   await page.getByLabel("Kapiteltext").fill("Nach Reload vorhanden");
@@ -1108,7 +1106,7 @@ test("Sprachwahl erfolgt ausschließlich in der Welt-Auswahl", async ({ page }) 
     data: { title: "Language Test World", backupUrl: "https://backup.example.com/language-test" },
   });
   await page.goto("/");
-  await page.getByRole("radio", { name: "Englisch" }).click();
+  await page.getByRole("radio", { name: "English" }).click();
   await expect(page.getByRole("heading", { name: "Open a world" })).toBeVisible();
   await page.locator(".world-open").filter({ hasText: "Language Test World" }).last().click();
   await expect(

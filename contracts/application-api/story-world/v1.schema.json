@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/story-world/v1.schema.json",
+  "title": "Quiltor story-world wire envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "version", "payload"],
+  "properties": {
+    "contract": { "const": "quiltor.story-world" },
+    "version": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "payload": { "$ref": "#/$defs/storyWorld" }
+  },
+  "$defs": {
+    "storyWorld": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+        "timeline": { "type": "array", "items": { "$ref": "#/$defs/moment" } },
+        "presence": { "type": "array", "items": { "$ref": "#/$defs/presence" } },
+        "canvasSize": { "$ref": "#/$defs/canvasSize" },
+        "mapScale": { "$ref": "#/$defs/mapScale" },
+        "timeSystem": { "$ref": "#/$defs/timeSystem" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "name", "x", "y"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "type": { "enum": ["person", "tier", "ort", "organisation", "objekt", "konzept"] },
+        "label": { "type": "string" },
+        "sub": { "type": "string" },
+        "accent": { "enum": ["ink", "gold", "rose", "moss"] },
+        "dash": { "type": "boolean" },
+        "pinned": { "type": "boolean" },
+        "important": { "type": "boolean" },
+        "diedMomentId": { "type": "string", "minLength": 1 },
+        "mapX": { "type": "number" },
+        "mapY": { "type": "number" },
+        "profile": { "$ref": "#/$defs/profile" },
+        "aliases": {
+          "$comment": "Alias identity uses quiltor.story-world.alias-ascii-v1 from alias-normalization.v1.json.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["alias"],
+            "properties": {
+              "alias": { "type": "string", "minLength": 1 },
+              "source": { "enum": ["manual", "manuscript", "assistant", "import"] }
+            }
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "alter": { "type": "string" },
+        "rolle": { "type": "string" },
+        "aussehen": { "type": "string" },
+        "herkunft": { "type": "string" },
+        "stimme": { "type": "string" },
+        "notizen": { "type": "string" },
+        "extra": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["k", "v"],
+            "properties": {
+              "k": { "type": "string" },
+              "v": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "from", "to"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "style": { "enum": ["solid", "dashed", "blood", "gold"] },
+        "gerichtet": { "type": "boolean" },
+        "fromHandle": { "type": "string" },
+        "toHandle": { "type": "string" },
+        "active": { "type": "boolean" },
+        "versions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/relationshipVersion" }
+        }
+      }
+    },
+    "relationshipVersion": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["momentId", "active"],
+      "properties": {
+        "momentId": { "type": "string", "minLength": 1 },
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "style": { "enum": ["solid", "dashed", "blood", "gold"] },
+        "gerichtet": { "type": "boolean" },
+        "active": { "type": "boolean" }
+      }
+    },
+    "moment": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "time": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "position": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "precision": { "enum": ["day", "month", "year"] },
+        "endTime": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "endPrecision": { "enum": ["day", "month", "year"] },
+        "date": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    },
+    "presence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "elementId", "placeId"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "elementId": { "type": "string", "minLength": 1 },
+        "placeId": { "type": "string", "minLength": 1 },
+        "momentId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "canvasSize": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["w", "h"],
+      "properties": {
+        "w": { "type": "number", "exclusiveMinimum": 0 },
+        "h": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "mapScale": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["unitsPer100px", "unitLabel"],
+      "properties": {
+        "unitsPer100px": { "type": "number", "exclusiveMinimum": 0 },
+        "unitLabel": { "type": "string" }
+      }
+    },
+    "timeSystem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "name", "kind"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "kind": { "enum": ["relative", "gregorian", "custom"] },
+        "unit": { "enum": ["day", "abstract"] },
+        "eraName": { "type": "string" },
+        "eraAbbreviation": { "type": "string" },
+        "epochTime": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "epochYear": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "epochMonth": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "epochDay": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "epochWeekday": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "displayFormat": { "type": "string" },
+        "months": { "type": "array", "items": { "$ref": "#/$defs/month" } },
+        "weekdays": { "type": "array", "items": { "$ref": "#/$defs/weekday" } }
+      }
+    },
+    "month": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "dayCount"],
+      "properties": {
+        "name": { "type": "string" },
+        "shortName": { "type": "string" },
+        "dayCount": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "weekday": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "shortName": { "type": "string" }
+      }
+    }
+  }
+}

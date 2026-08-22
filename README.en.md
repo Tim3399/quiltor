@@ -164,7 +164,7 @@ Requires **Python 3.11+**.
 ```bash
 git clone https://github.com/Tim3399/quiltor.git
 cd quiltor
-python3 server.py
+python3 apps/web/server.py
 ```
 
 On Windows the Python command is commonly `python` instead of `python3`.
@@ -207,15 +207,15 @@ The built web client already lives in `dist/`. Node dependencies are not require
 ```bash
 git clone https://github.com/Tim3399/quiltor.git
 cd quiltor
-python3 server.py
+python3 apps/web/server.py
 ```
 
 Other start options:
 
 ```bash
-python3 server.py 8080            # custom port
-python3 server.py 8080 --no-open  # do not open a browser
-python3 server.py --print-token   # show this run's access token
+python3 apps/web/server.py 8080            # custom port
+python3 apps/web/server.py 8080 --no-open  # do not open a browser
+python3 apps/web/server.py --print-token   # show this run's access token
 ```
 
 ### Python wheel / pip / pipx
@@ -229,19 +229,44 @@ quiltor
 
 The package requires Python 3.11 or newer. The normal server path intentionally stays lightweight; the packaged CLI uses `typer`.
 
+The base wheel deliberately reports PDF export as unavailable instead of
+silently downloading a browser runtime. For PDF export from the **installed
+wheel**, install the verified extra (substitute the release URL and version):
+
+```bash
+python -m pip install "quiltor[browser-pdf] @ https://github.com/Tim3399/quiltor/releases/download/v<version>/quiltor-<version>-py3-none-any.whl"
+```
+
+The extra pins the PyPI-published Python library Playwright 1.61.0 and drives an
+already installed Google Chrome or Microsoft Edge. It needs neither system
+Node.js nor a separate Chromium
+download. Without the extra or a supported browser, export remains disabled
+with an explicit capability message.
+The self-hosted OCI host is a separate artifact path: it uses the Playwright
+1.61.1 npm/browser runtime from its digest-bound base image. Both pins are
+recorded separately in `distribution/toolchains.json` and the release gate
+checks them against the installed artifacts.
+The wheel host resolves web assets and its bundled render script exclusively
+from package resources; it does not fall back to an incidental source checkout.
+Capability selection remains separate: without the extra it deterministically
+uses the typed unavailable renderer.
+
 ### Development
 
-Frontend development and PDF export additionally require Node.js and the project dependencies:
+A run directly from the **source checkout** instead uses the bundled JavaScript
+renderer. Frontend development and this PDF path require Node.js, the project
+dependencies and the verified Chromium:
 
 ```bash
 npm install
+npx playwright install chromium
 npm run dev
 ```
 
 Run alongside:
 
 ```bash
-python3 server.py --no-open
+python3 apps/web/server.py --no-open
 ```
 
 Vite forwards API requests to port 8000.
@@ -262,7 +287,7 @@ On first launch, Quiltor can install the appropriate runtime and model after exp
 Explicit installation:
 
 ```bash
-python3 -m backend.llm.installer
+PYTHONPATH=src python3 -m quiltor.infrastructure.inference.installer
 ```
 
 Force an existing runtime or different GGUF model:
@@ -270,13 +295,13 @@ Force an existing runtime or different GGUF model:
 ```bash
 QUILTOR_AI_BINARY=/path/to/llama-server \
 QUILTOR_AI_MODEL=/path/to/model.gguf \
-python3 server.py
+python3 apps/web/server.py
 ```
 
 Or connect an already running local endpoint:
 
 ```bash
-QUILTOR_AI_URL=http://127.0.0.1:11435 python3 server.py
+QUILTOR_AI_URL=http://127.0.0.1:11435 python3 apps/web/server.py
 ```
 
 ### Runtime contract
@@ -307,7 +332,7 @@ The test starts the runtime, fixture world, and Quiltor inside an isolated tempo
 
 ## MCP
 
-`hosts/mcp/quiltor_server.py` exposes retrieval and world maintenance as an MCP server.
+`src/quiltor/hosts/mcp/quiltor_server.py` exposes retrieval and world maintenance as an MCP server.
 
 The safety rule is the same as in the built-in assistant:
 
@@ -322,7 +347,9 @@ There are deliberately no direct:
 - backup/filesystem tools
 - manuscript-writing tools
 
-The bundled `.mcp.json` configures the server for clients that support project-level MCP configuration.
+The bundled `.mcp.json` configures the server through the platform-neutral
+`quiltor-mcp` command. After `python -m pip install -e .`, the same project
+configuration works on Windows, macOS, and Linux.
 
 ---
 
@@ -347,14 +374,17 @@ quiltor install
 Data is stored under:
 
 ```text
-data/language/
+data/writing-assistance/
 ```
 
 or, for pipx/CLI installations:
 
 ```text
-~/.quiltor/data/language/
+~/.quiltor/data/writing-assistance/
 ```
+
+Existing data in the former `data/language/` directory is migrated safely on first launch;
+no manual move is required.
 
 LanguageTool requires **Java 17+**. Browser spellchecking remains available without it.
 
@@ -384,7 +414,7 @@ Access is recognised in this order:
 
 1. `Authorization: Bearer <token>` — scripts and MCP
 2. `?token=<token>` — one-time browser entry; the redirect strips the parameter
-3. loopback connection — ordinary case for desktop, CLI, and `python3 server.py`
+3. loopback connection — ordinary case for desktop, CLI, and `python3 apps/web/server.py`
 
 The automatically generated token:
 
@@ -402,14 +432,14 @@ An instance bound to `0.0.0.0` without OIDC cannot rely on the local loopback id
 
 ### Troubleshooting
 
-| Symptom                                     | Fix                                                                       |
-| ------------------------------------------- | ------------------------------------------------------------------------- |
-| `python3: command not found`                | On Windows, use `python` in most installations.                           |
-| Assistant reports "Local model unavailable" | Run `python3 -m backend.llm.installer`, then restart the server.          |
-| Download is interrupted                     | Run the installer again; complete files are reused.                       |
-| Firewall/antivirus flags `llama-server.exe` | The binary comes from the official llama.cpp release and listens locally. |
-| Port 8000 is taken                          | `python3 server.py 8080`                                                  |
-| Different runtime / model                   | Use `QUILTOR_AI_BINARY`, `QUILTOR_AI_MODEL`, or `QUILTOR_AI_URL`.         |
+| Symptom                                     | Fix                                                                                                  |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `python3: command not found`                | On Windows, use `python` in most installations.                                                      |
+| Assistant reports "Local model unavailable" | Run `PYTHONPATH=src python3 -m quiltor.infrastructure.inference.installer`, then restart the server. |
+| Download is interrupted                     | Run the installer again; complete files are reused.                                                  |
+| Firewall/antivirus flags `llama-server.exe` | The binary comes from the official llama.cpp release and listens locally.                            |
+| Port 8000 is taken                          | `python3 apps/web/server.py 8080`                                                                    |
+| Different runtime / model                   | Use `QUILTOR_AI_BINARY`, `QUILTOR_AI_MODEL`, or `QUILTOR_AI_URL`.                                    |
 
 ---
 
@@ -426,15 +456,15 @@ pip install -e ".[desktop]" pyinstaller
 Build:
 
 ```bash
-./packaging/build_macos.sh
-powershell -File packaging/build_windows.ps1
+./distribution/desktop/macos/direct/build.sh
+powershell -File distribution/desktop/windows/direct/build.ps1
 ```
 
 Output:
 
 ```text
-macOS   packaging/dist/Quiltor-<version>.dmg
-Windows packaging/dist/Quiltor-Setup-<version>.exe
+macOS   distribution/artifacts/macos-direct/Quiltor-<version>.dmg
+Windows distribution/artifacts/windows-direct/Quiltor-Setup-<version>.exe
 ```
 
 Local builds are unsigned by default.
@@ -448,7 +478,7 @@ QUILTOR_NOTARY_PROFILE
 
 PDF export uses the installed system browser or the platform-specific renderer rather than unnecessarily bundling a complete browser into every desktop build.
 
-More details: [`packaging/README.md`](packaging/README.md)
+More details and the complete target matrix: [`distribution/README.md`](distribution/README.md)
 
 ---
 
@@ -488,7 +518,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The Compose service is normally bound locally; point your existing reverse proxy at Quiltor. Example Caddy and nginx configurations live under [`deploy/`](deploy/).
+The Compose service is normally bound locally; point your existing reverse proxy at Quiltor. Example Caddy and nginx configurations live under [`distribution/web/self-hosted/proxy/`](distribution/web/self-hosted/proxy/).
 
 Optionally let the stack run Caddy itself:
 
@@ -701,7 +731,7 @@ The server no longer has one process-wide "open world" state, so restoring a wor
 ```bash
 npm test
 npm run build
-python3 -m unittest discover -s tests/backend -v
+python3 -m unittest discover -s tests/python -t . -v
 npm run test:e2e
 ```
 
@@ -721,16 +751,21 @@ Internationalization check:
 npm run check:i18n
 ```
 
-Visible UI text belongs in:
+Visible UI text and new translation packs belong in the deliberately prominent root directory:
 
 ```text
-src/language/{de,en}/*.ts
+locales/{de,en,...}/*.ts
 ```
+
+Adding Spanish, for example, requires exactly one prominent catalog import and `localePackages`
+entry in [`locales/index.ts`](locales/index.ts). No other registry or UI code change is needed;
+the i18n check automatically enforces directory-to-registry parity. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 Reproduce README screenshots:
 
 ```bash
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readme.mjs
 ```
 
 ---
@@ -738,48 +773,51 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node scripts/capture-readme.mjs
 ## Architecture
 
 ```text
-server.py                   HTTP application
-backend/
-├── core/                    domain: worlds, chapters, figures, history, retrieval
-├── system/                  operating-system integration
-├── edition/                 distribution variants and capability selection
-├── llm/                     local LLM runtimes
-├── language/                writing/language tools
-├── pdf/                     PDF backends
-├── assistant/               assistant orchestration over core + LLM
-├── identity.py              local or OIDC identity
-└── auth.py                  OIDC/Keycloak and sessions
+apps/                        visible shells and native project roots
+├── web/server.py            source-checkout bootstrap
+└── mobile/{ios,android}/     native mobile hosts
 
-hosts/
-├── desktop/                 native window / tray
-├── cli/                     `quiltor` CLI
-└── mcp/                     read/proposal-only MCP
+src/quiltor/
+├── domain/story_world/      pure world logic, chronology, and validation
+├── application/             shared use cases and domain-facing ports
+├── modules/                 assistant, writing aid, identity, and commerce
+├── infrastructure/          SQLite, backup, inference, PDF, platform adapters
+├── resources/sidecars/      shipped PDF and inference subprocess assets
+├── bootstrap/               composition root for concrete adapters
+├── delivery/http/routes/    HTTP endpoints grouped by capability
+└── hosts/                   web server, desktop, CLI, and MCP
 
-packaging/                   PyInstaller, installers, signing, assets
+services/backup-server/      independently deployable backup service
+contracts/                   versioned application and native-bridge contracts
+crates/                      portable Rust core and FFI
+distribution/                target profiles, builds, installers, stores, signing
+tools/                       quality, evaluation, and documentation tooling
 
-src/
-├── app/                     application shell and navigation
-├── design/                  design tokens
-├── features/
-│   ├── manuscript/         editor and writing aids
-│   ├── figures/            world graph and relationships
-│   ├── places/             map, distances, journeys
-│   ├── timeline/           timeline management
-│   ├── assistant/          local assistant
-│   ├── tools/              search, history, backups
-│   └── worlds/             world management
-├── hooks/                  autosave, layout, theme, undo/redo
-├── language/               German/English interface
-├── lib/                    API and exports
-└── shared/ui/              shared UI components
+packages/client/src/
+├── app/                     composition, shell, layout hooks, versioned app contracts
+├── config/                  application configuration and branding
+├── design/                  design tokens and presentation foundations
+├── i18n/                    locale runtime, provider, and catalog loader
+├── modules/
+│   ├── manuscript/          editor and writing aids
+│   ├── story-world/         figures, places, timeline, and world management
+│   ├── assistant/           local assistant
+│   ├── identity/            sign-in and identity
+│   ├── backup/              local backup restoration
+│   ├── history/             history and snapshots
+│   └── search/              search and navigation
+├── platform/                host gateways, HTTP transport, browser/desktop adapters
+└── shared/                  shared UI components and domain-neutral helpers
+
+locales/                      contributor-friendly UI translation packs
 ```
 
 Dependency direction is intentional:
 
 ```text
-hosts → backend
-assistant → core + llm
-core ↛ hosts
+Hosts/Delivery → Application use cases → Domain
+Bootstrap → Application ports + concrete infrastructure adapters
+Domain/Application ↛ infrastructure/delivery/hosts
 ```
 
 The normal server path stays small and local; additional capabilities are added through clearly separated modules and distribution extras.

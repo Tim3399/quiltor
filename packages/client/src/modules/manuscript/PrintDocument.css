@@ -1,0 +1,161 @@
+.print-document {
+  display: none;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    height: auto;
+  }
+
+  body {
+    overflow: visible;
+    background: var(--print-paper);
+    color: var(--print-ink);
+  }
+
+  .app-bar,
+  .context-bar,
+  .text-layout,
+  .focus-helper,
+  .exit-focus {
+    display: none !important;
+  }
+
+  .app-frame,
+  .workspace,
+  .text-workspace {
+    display: block !important;
+    height: auto;
+  }
+
+  .print-document {
+    display: block !important;
+    color: var(--print-ink);
+    font: 10.75pt / 1.54 var(--prose);
+    font-kerning: normal;
+    text-rendering: optimizeLegibility;
+  }
+
+  .book-title-page {
+    height: 7.3in;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    break-after: page;
+  }
+
+  .book-title-page > div {
+    margin-top: 2.05in;
+  }
+
+  .book-title-page span {
+    display: block;
+    margin-bottom: 0.24in;
+    color: var(--print-muted);
+    font: 500 8pt / 1 var(--ui);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+
+  .book-title-page h1 {
+    margin: 0;
+    font: 600 29pt / 1.1 var(--prose);
+    letter-spacing: 0.035em;
+  }
+
+  .book-title-page i {
+    display: block;
+    margin-top: 0.34in;
+    color: var(--print-muted);
+    font-size: 7pt;
+  }
+
+  .book-title-page footer {
+    margin-top: auto;
+    color: var(--print-muted);
+    font: 400 7.5pt / 1.2 var(--ui);
+    letter-spacing: 0.04em;
+  }
+
+  .book-chapter {
+    break-before: right;
+  }
+
+  .book-chapter > header {
+    margin: 0.88in 0 0.58in;
+    text-align: center;
+    break-after: avoid;
+  }
+
+  .book-chapter > header span {
+    display: block;
+    margin-bottom: 0.16in;
+    color: var(--print-muted);
+    font: 500 7.5pt / 1 var(--ui);
+    letter-spacing: 0.2em;
+  }
+
+  .book-chapter h2 {
+    margin: 0;
+    font: 600 18pt / 1.2 var(--prose);
+    letter-spacing: 0.015em;
+  }
+
+  .book-chapter p {
+    margin: 0;
+    text-align: justify;
+    text-indent: 1.22em;
+    hyphens: auto;
+    orphans: 3;
+    widows: 3;
+  }
+
+  .book-chapter header + p {
+    text-indent: 0;
+  }
+
+  .book-chapter header + p::first-letter {
+    float: left;
+    margin: 0.06em 0.08em 0 0;
+    font: 600 3.15em / 0.78 var(--prose);
+  }
+
+  .scene-break {
+    height: 0.55in;
+    display: grid;
+    place-items: center;
+    break-inside: avoid;
+    color: var(--print-muted);
+    font-size: 8pt;
+  }
+}
+
+@page {
+  size: 6in 9in;
+  margin: 0.72in 0.68in 0.82in 0.78in;
+
+  @bottom-center {
+    content: counter(page);
+    color: var(--print-muted);
+    font: 400 7pt / 1 var(--ui);
+  }
+}
+
+@page :left {
+  margin-left: 0.68in;
+  margin-right: 0.78in;
+}
+
+@page :right {
+  margin-left: 0.78in;
+  margin-right: 0.68in;
+}
+
+@page :first {
+  @bottom-center {
+    content: none;
+  }
+}

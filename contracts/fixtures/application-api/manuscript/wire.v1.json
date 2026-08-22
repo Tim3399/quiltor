@@ -1,0 +1,33 @@
+{
+  "contract": "quiltor.manuscript",
+  "version": 1,
+  "revision": 7,
+  "payload": {
+    "chapters": [
+      {
+        "id": "chapter-arrival",
+        "title": "Die Ankunft",
+        "body": "Mara öffnete die Karte.",
+        "note": "Die Unruhe nur andeuten.",
+        "mentions": [
+          {
+            "id": "mention-mara-1",
+            "elementId": "mara",
+            "from": 0,
+            "to": 4,
+            "surface": "Mara",
+            "source": "deterministic",
+            "confidence": 1
+          }
+        ],
+        "marks": [{ "from": 5, "to": 12, "kind": "italic" }],
+        "extensionNote": "Unknown chapter properties survive a round trip."
+      }
+    ],
+    "language": "de-DE",
+    "grammarMode": "manual",
+    "words": ["Gezeitenarchiv", { "w": "Arcène", "d": "Ort" }],
+    "zeichenAktiv": ["„", "“", "…"],
+    "extension": { "source": "contract-fixture" }
+  }
+}

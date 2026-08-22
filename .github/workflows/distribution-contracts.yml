@@ -1,0 +1,26 @@
+name: Distribution Contracts
+
+on:
+  pull_request:
+    paths: ["distribution/**", ".github/workflows/**", "VERSION", "Cargo.toml", "package*.json"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11.9"
+      - run: python distribution/tooling/workflow_contract.py check
+      - run: python distribution/tooling/container_contract.py check
+      - run: python distribution/tooling/dependency_lock_contract.py check
+      - run: python distribution/tooling/profile_contract.py check-release
+      - name: Explain non-buildable targets
+        run: |
+          python distribution/tooling/profile_contract.py validate \
+            linux-direct macos-app-store windows-store ios-app-store android-play

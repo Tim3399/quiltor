@@ -1,0 +1,39 @@
+.presence-field-group {
+  margin-top: var(--space-12);
+}
+
+.presence-journey {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+}
+
+.presence-journey button {
+  min-height: 26px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--paper);
+  color: var(--soft);
+  font-size: var(--font-size-2);
+  cursor: pointer;
+}
+
+.presence-journey button.active {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--gold-text);
+}
+
+.presence-journey-duration {
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  white-space: nowrap;
+}
+
+.presence-journey-duration::before {
+  content: "→ ";
+  color: var(--muted);
+}

@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "encryption": "none",
+  "created": "2026-08-21T12:34:56",
+  "world": "0123456789abcdef0123456789abcdef",
+  "title": "Der gläserne Atlas",
+  "message": "Kapitel Ankunft bearbeitet",
+  "parent": "",
+  "files": {
+    "world.sqlite3": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "manuscripts/01 - Die Ankunft.md": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "id": "a486271ecc1aca86fe0e33232087ebba29ba31a63dacdf02d0effb43460d7875"
+}

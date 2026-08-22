@@ -1,0 +1,8 @@
+{
+  "code": "backup.gateway_failed",
+  "params": {
+    "operation": "upload",
+    "snapshotCreated": true
+  },
+  "retryable": true
+}

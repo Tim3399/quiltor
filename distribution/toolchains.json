@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "releaseToolchains": {
+    "node": "22.23.2",
+    "npm": "10.9.8",
+    "python": "3.11.9",
+    "rust": "1.98.0"
+  },
+  "pythonBuildTools": {
+    "build": "1.5.0",
+    "hatchling": "1.31.0",
+    "pyinstaller": "6.22.0",
+    "ruff": "0.16.4"
+  },
+  "nativePackagingTools": {
+    "innoSetup": {
+      "version": "6.7.1",
+      "downloadUrl": "https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe",
+      "sha256": "4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0"
+    }
+  },
+  "hostedRunners": {
+    "linuxX64": "ubuntu-24.04",
+    "macosArm64": "macos-15",
+    "windowsX64": "windows-2025"
+  },
+  "artifactRuntimes": {
+    "pythonPackage": {
+      "playwright": "1.61.0"
+    },
+    "webOci": {
+      "playwright": "1.61.1"
+    }
+  },
+  "dependencyLockGenerator": {
+    "uv": "0.12.5"
+  }
+}

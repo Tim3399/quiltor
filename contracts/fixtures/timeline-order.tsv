@@ -1,0 +1,6 @@
+id	time	position	expected_index
+before	-3	0	0
+first	0	1	1
+same-a	0	2	2
+same-b	0	2	3
+later	4	0	4

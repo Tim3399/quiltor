@@ -1,0 +1,182 @@
+import { Suspense, useCallback, useState } from "react";
+import { PRODUCT_MARK } from "../config/branding";
+import { useI18n } from "../i18n";
+import type { Manuscript } from "../modules/manuscript";
+import type { FigureState } from "../modules/story-world";
+import { quiltorClient } from "../platform";
+import { AppShell } from "./AppShell";
+import { OverlayHost, type PendingEntityRename } from "./overlays/OverlayHost";
+import { useOverlayController } from "./overlays/useOverlayController";
+import { useApplicationShortcuts } from "./shortcuts/useApplicationShortcuts";
+import { useShellStatus } from "./shell/useShellStatus";
+import { useTheme } from "./shell/useTheme";
+import { useAutosave } from "./workspace/useAutosave";
+import { useHistoryState } from "./workspace/useHistoryState";
+import { WorkspaceSurface } from "./workspace/WorkspaceSurface";
+import { useWorkspaceController } from "./workspace/useWorkspaceController";
+import { WorldSessionBoundary } from "./world/WorldSessionBoundary";
+import { useWorldSession, type LoadedWorldDocuments } from "./world/useWorldSession";
+
+export function App() {
+  const { t } = useI18n();
+  const { theme, preference, setPreference, toggleTheme } = useTheme();
+  const manuscriptHistory = useHistoryState<Manuscript>();
+  const figureHistory = useHistoryState<FigureState>();
+  const manuscript = manuscriptHistory.value;
+  const figures = figureHistory.value;
+  const [orphanedMentions, setOrphanedMentions] = useState(0);
+  const [pendingRename, setPendingRename] = useState<PendingEntityRename | null>(null);
+
+  const loadDocuments = useCallback(
+    ({
+      manuscript: loadedManuscript,
+      figures: loadedFigures,
+      orphanedMentions: count,
+    }: LoadedWorldDocuments) => {
+      manuscriptHistory.load(loadedManuscript);
+      figureHistory.load(loadedFigures);
+      setOrphanedMentions(count);
+    },
+    [figureHistory.load, manuscriptHistory.load],
+  );
+  const session = useWorldSession(loadDocuments);
+  const workspace = useWorkspaceController();
+  const overlays = useOverlayController();
+  const shell = useShellStatus();
+
+  const saveManuscript = useCallback(
+    (value: Manuscript) => quiltorClient.application.manuscript.save(value),
+    [],
+  );
+  const saveFigures = useCallback(
+    (value: FigureState) => quiltorClient.application.storyWorld.save(value),
+    [],
+  );
+  const manuscriptSave = useAutosave(manuscript, saveManuscript);
+  const figureSave = useAutosave(figures, saveFigures);
+  const activeSave = workspace.workspace === "text" ? manuscriptSave : figureSave;
+  const flushAll = useCallback(async () => {
+    await Promise.all([manuscriptSave.flush(), figureSave.flush()]);
+  }, [manuscriptSave.flush, figureSave.flush]);
+
+  const changeFigures = useCallback(
+    (next: FigureState) => {
+      const renamed =
+        figures &&
+        next.nodes.find((node) =>
+          figures.nodes.some((previous) => previous.id === node.id && previous.name !== node.name),
+        );
+      if (renamed) {
+        const previous = figures.nodes.find((node) => node.id === renamed.id);
+        if (previous) setPendingRename({ id: renamed.id, from: previous.name, to: renamed.name });
+      }
+      figureHistory.change(next);
+    },
+    [figureHistory.change, figures],
+  );
+
+  const executeCommand = useCallback(
+    (command: string) => {
+      overlays.close();
+      if (workspace.execute(command)) return;
+      if (command === "history" || command === "snapshot" || command === "backups")
+        overlays.open(command);
+    },
+    [overlays.close, overlays.open, workspace.execute],
+  );
+
+  useApplicationShortcuts({
+    focus: workspace.focus,
+    setFocus: workspace.setFocus,
+    openOverlay: overlays.open,
+    flushAll,
+    workspace: workspace.workspace,
+    undoManuscript: manuscriptHistory.undo,
+    redoManuscript: manuscriptHistory.redo,
+    undoFigures: figureHistory.undo,
+    redoFigures: figureHistory.redo,
+  });
+
+  return (
+    <WorldSessionBoundary
+      worlds={session.worlds}
+      world={session.world}
+      needsSignIn={session.needsSignIn}
+      authError={session.authError}
+      loadError={session.loadError}
+      ready={Boolean(session.world && manuscript && figures)}
+      theme={preference}
+      onTheme={setPreference}
+      onOpen={session.open}
+      onCreate={session.create}
+      onDelete={session.remove}
+    >
+      {session.world && manuscript && figures && (
+        <Suspense
+          fallback={
+            <main className="loading-state">
+              <div className="loading-mark">{PRODUCT_MARK}</div>
+              <p>{t("openingWorkshop")}</p>
+            </main>
+          }
+        >
+          <AppShell
+            title={session.world.title}
+            workspace={workspace.workspace}
+            onWorkspace={workspace.selectWorkspace}
+            phase={activeSave.phase}
+            error={activeSave.error}
+            retry={activeSave.retry}
+            theme={theme}
+            onTheme={toggleTheme}
+            onSearch={() => overlays.open("palette")}
+            onHistory={() => overlays.open("history")}
+            onSnapshot={() => overlays.open("snapshot")}
+            onBackups={() => overlays.open("backups")}
+            onAssistant={overlays.toggleAssistant}
+            whoami={shell.account}
+            onLogout={shell.logout}
+            version={shell.version}
+          >
+            <WorkspaceSurface
+              worldId={session.world.id}
+              worldTitle={session.world.title}
+              workspace={workspace.workspace}
+              manuscript={manuscript}
+              figures={figures}
+              orphanedMentions={orphanedMentions}
+              manuscriptHistory={manuscriptHistory}
+              figureHistory={figureHistory}
+              onFiguresChange={changeFigures}
+              target={workspace.target}
+              onNavigate={workspace.navigate}
+              focus={workspace.focus}
+              onFocus={workspace.setFocus}
+              onSave={flushAll}
+            />
+          </AppShell>
+          <OverlayHost
+            overlay={overlays.overlay}
+            onCloseOverlay={overlays.close}
+            assistantOpen={overlays.assistantOpen}
+            assistantEverOpened={overlays.assistantEverOpened}
+            onCloseAssistant={overlays.closeAssistant}
+            worldId={session.world.id}
+            manuscript={manuscript}
+            figures={figures}
+            onAssistantFiguresChange={figureHistory.change}
+            onShowFigures={() => workspace.selectWorkspace("figures")}
+            onNavigate={workspace.navigate}
+            onWorkspace={workspace.setWorkspace}
+            onTarget={workspace.setTarget}
+            onCommand={executeCommand}
+            flushAll={flushAll}
+            pendingRename={pendingRename}
+            onManuscriptChange={manuscriptHistory.change}
+            onCloseRename={() => setPendingRename(null)}
+          />
+        </Suspense>
+      )}
+    </WorldSessionBoundary>
+  );
+}

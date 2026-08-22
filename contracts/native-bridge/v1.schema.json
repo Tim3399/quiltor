@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/native-bridge/v1.schema.json",
+  "title": "Quiltor native bridge envelope v1",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/response" }],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "id", "operation", "payload"],
+      "properties": {
+        "version": { "const": 1 },
+        "id": { "$ref": "#/$defs/requestId" },
+        "operation": { "const": "file.save" },
+        "payload": { "$ref": "#/$defs/fileSavePayload" }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "id", "ok"],
+      "properties": {
+        "version": { "const": 1 },
+        "id": { "$ref": "#/$defs/requestId" },
+        "ok": { "type": "boolean" },
+        "result": { "$ref": "#/$defs/fileSaveResult" },
+        "error": { "$ref": "#/$defs/nativeError" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "ok": { "const": true } } },
+          "then": { "required": ["result"], "not": { "required": ["error"] } },
+          "else": { "required": ["error"], "not": { "required": ["result"] } }
+        }
+      ]
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "nativeError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "retryable"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)*$"
+        },
+        "params": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["supported"],
+              "properties": { "supported": { "const": 1 } }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["operation"],
+              "properties": {
+                "operation": { "type": "string", "minLength": 1, "maxLength": 128 }
+              }
+            }
+          ]
+        },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "fileSavePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "content", "encoding"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^/\\\\\\u0000]+$"
+        },
+        "content": { "type": "string", "maxLength": 140000000 },
+        "encoding": { "const": "base64" }
+      }
+    },
+    "fileSaveResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": { "status": { "const": "saved" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": { "status": { "const": "cancelled" } }
+        }
+      ]
+    }
+  }
+}

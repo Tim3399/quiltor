@@ -2,15 +2,16 @@ node_modules/
 *.tsbuildinfo
 __pycache__/
 *.py[cod]
+/target/
 
 # pip wheel/sdist build output (produced by `python -m build --outdir pkg-dist`)
 pkg-dist/
 
 # Desktop-app build tooling: a local venv and PyInstaller's own work/output dirs,
-# all reproducible from packaging/build_windows.ps1 / build_macos.sh.
+# all reproducible from the direct target scripts under distribution/desktop/.
 .venv-desktop/
-packaging/build/
-packaging/dist/
+distribution/.build/
+distribution/artifacts/
 
 # Private world data never belongs in the public application repository.
 data/**/*.sqlite3
@@ -25,7 +26,7 @@ data/profiles/*
 !data/manuscripts/.gitkeep
 !data/profiles/.gitkeep
 
-# Die Zugangsdaten für den Backup-Dienst (backend/backup_login.py). data/ ist
+# Die Zugangsdaten für den Backup-Dienst (quiltor.infrastructure.backup.login). data/ ist
 # oben nur teilweise ignoriert, also muss diese Datei einzeln genannt werden --
 # und sie ist die eine hier, die ein echtes Geheimnis enthält.
 data/backup-login.json
@@ -35,6 +36,9 @@ reports/assistant-eval/*.json
 data/llama-server.log
 data/mlx-server.log
 data/llama-embed.log
+# Locally installed writing resources; the old path stays ignored until every
+# existing checkout has completed the one-time migration.
+data/writing-assistance/
 data/language/
 
 # Automatische Sicherungen — bei Bedarf auskommentieren, wenn du sie

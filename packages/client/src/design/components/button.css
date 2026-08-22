@@ -1,0 +1,74 @@
+.ui-button {
+  min-height: var(--control-regular);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-7);
+  padding: 0 var(--space-12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+.ui-button:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+.ui-button:disabled {
+  background: var(--disabled-surface);
+  color: var(--disabled-content);
+  cursor: default;
+}
+.ui-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.icon-button {
+  width: var(--control-compact);
+  height: var(--control-compact);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: var(--transparent);
+  cursor: pointer;
+}
+.icon-button:hover {
+  background: var(--control-hover);
+}
+.icon-button svg {
+  width: 16px;
+}
+.secondary-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  padding: var(--space-7) var(--space-9);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  cursor: pointer;
+}
+.secondary-action svg {
+  width: 15px;
+}
+.danger-text {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  background: var(--transparent);
+  color: var(--danger);
+  cursor: pointer;
+}
+.danger-text svg {
+  width: 15px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}

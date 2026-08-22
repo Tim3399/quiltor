@@ -1,0 +1,45 @@
+{
+  "$schema": "../contracts/build-profile.schema.json",
+  "contractVersion": 1,
+  "id": "python-package",
+  "product": {
+    "name": "Quiltor",
+    "applicationId": "app.quiltor.python"
+  },
+  "target": {
+    "host": "python",
+    "platform": "any",
+    "distribution": "python-package",
+    "architectures": ["platform-independent"]
+  },
+  "build": {
+    "status": "supported",
+    "artifact": "wheel-sdist",
+    "entrypoint": "pyproject.toml",
+    "smokeEntrypoint": null,
+    "outputPattern": "pkg-dist/quiltor-{version}*"
+  },
+  "security": {
+    "sandbox": "python-environment",
+    "signing": "release-manifest",
+    "entitlements": null
+  },
+  "capabilities": {
+    "externalProcess": true,
+    "codeDownload": true,
+    "arbitraryFilesystem": true,
+    "backgroundExecution": true
+  },
+  "updates": {
+    "provider": "github-release"
+  },
+  "release": {
+    "channel": "stable",
+    "rolloutTrack": "public"
+  },
+  "publication": {
+    "status": "supported",
+    "channel": "github-release",
+    "storeListing": null
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/semantics/world-state-evaluation/v1.schema.json",
+  "title": "Quiltor temporal world-state golden fixture v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["figures", "checks"],
+  "properties": {
+    "figures": {
+      "$ref": "../../application-api/story-world/v1.schema.json#/$defs/storyWorld"
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "momentId",
+          "adaAlive",
+          "adaLocation",
+          "benLocation",
+          "relationshipActive",
+          "relationshipLabel",
+          "relationshipFrom",
+          "relationshipDirected"
+        ],
+        "properties": {
+          "momentId": { "type": "string", "minLength": 1 },
+          "adaAlive": { "type": "boolean" },
+          "adaLocation": { "type": "string" },
+          "benLocation": { "type": "string" },
+          "relationshipActive": { "type": "boolean" },
+          "relationshipLabel": { "type": "string" },
+          "relationshipFrom": { "type": "string" },
+          "relationshipDirected": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

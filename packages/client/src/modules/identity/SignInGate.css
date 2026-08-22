@@ -1,0 +1,11 @@
+.sign-in-action {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-7);
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}

@@ -1,0 +1,126 @@
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 9vh var(--space-20) var(--space-32);
+  background: var(--overlay);
+  backdrop-filter: blur(var(--blur-dialog));
+}
+.dialog {
+  width: min(620px, 100%);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.dialog-wide {
+  width: min(1080px, 100%);
+}
+.dialog > header {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-16);
+  border-bottom: 1px solid var(--line);
+}
+.dialog > header h2 {
+  margin: 0;
+  font: 600 var(--font-size-6) var(--prose);
+}
+.dialog-content {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-18);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-7);
+}
+.dialog-actions button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-7);
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--soft);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dialog-actions button svg {
+  width: 16px;
+  height: 16px;
+}
+.dialog-actions button.primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.dialog-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.confirm-message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+  padding: var(--space-2) 0 var(--space-24);
+}
+.confirm-message > svg {
+  width: 21px;
+  flex: none;
+  color: var(--danger);
+}
+.confirm-message p {
+  margin: 0;
+  line-height: 1.55;
+}
+.dialog-actions .danger-button {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--danger-on);
+}
+.hold-button {
+  position: relative;
+  min-width: 190px;
+  overflow: hidden;
+  isolation: isolate;
+  user-select: none;
+}
+.hold-button::before {
+  content: "";
+  position: absolute;
+  z-index: var(--z-behind);
+  inset: 0;
+  background: var(--ink);
+  transform: scaleX(var(--hold-progress, 0));
+  transform-origin: left;
+}
+.hold-button.is-holding {
+  box-shadow: var(--ring-2) var(--danger);
+}
+.hold-button span {
+  position: relative;
+}
+
+@media (max-width: 640px) {
+  .dialog-backdrop {
+    padding: 0;
+  }
+  .dialog {
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+}

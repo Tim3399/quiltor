@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "id": "file-save-8",
+  "ok": false,
+  "error": {
+    "code": "file.write_failed",
+    "retryable": true
+  }
+}

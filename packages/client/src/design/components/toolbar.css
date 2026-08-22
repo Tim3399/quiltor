@@ -1,0 +1,22 @@
+.ui-toolbar {
+  min-height: var(--toolbar-regular);
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 1px solid var(--line);
+}
+.ui-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+.ui-toolbar__group[data-align="end"] {
+  margin-inline-start: auto;
+}
+.ui-toolbar__group[data-priority="secondary"] {
+  color: var(--soft);
+}
+.ui-toolbar__group[data-priority="overflow"] {
+  margin-inline-start: auto;
+}

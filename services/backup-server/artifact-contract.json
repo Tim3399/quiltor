@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "contract": "quiltor.backup-service.artifact",
+  "contractVersion": 1,
+  "id": "quiltor-backup-service",
+  "name": "Quiltor Backup Service",
+  "role": "backup-service",
+  "entrypoint": "server.py",
+  "versionSource": "VERSION",
+  "baseImage": "python:3.12.13-slim-trixie@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b",
+  "payload": [
+    "server.py",
+    "quiltor/application/backup_manifest.py",
+    "quiltor-backup-service.json",
+    "VERSION",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ]
+}

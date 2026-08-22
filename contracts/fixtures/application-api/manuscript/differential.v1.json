@@ -1,0 +1,226 @@
+{
+  "contract": "application.manuscript-wire",
+  "version": 1,
+  "baseFixture": "fixtures/application-api/manuscript/wire.v1.json",
+  "optionalPresence": [
+    { "id": "revision", "path": "/revision", "absent": "accept", "null": "reject" },
+    { "id": "language", "path": "/payload/language", "absent": "accept", "null": "reject" },
+    { "id": "grammar-mode", "path": "/payload/grammarMode", "absent": "accept", "null": "reject" },
+    { "id": "words", "path": "/payload/words", "absent": "accept", "null": "reject" },
+    {
+      "id": "active-characters",
+      "path": "/payload/zeichenAktiv",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "word-description",
+      "path": "/payload/words/1/d",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "chapter-title",
+      "path": "/payload/chapters/0/title",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "chapter-body",
+      "path": "/payload/chapters/0/body",
+      "alsoRemove": ["/payload/chapters/0/mentions", "/payload/chapters/0/marks"],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "chapter-note",
+      "path": "/payload/chapters/0/note",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "chapter-mentions",
+      "path": "/payload/chapters/0/mentions",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "chapter-marks",
+      "path": "/payload/chapters/0/marks",
+      "absent": "accept",
+      "null": "reject"
+    }
+  ],
+  "cases": [
+    {
+      "id": "version-integral-float",
+      "operation": "set",
+      "path": "/version",
+      "value": 1.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "revision-integral-float",
+      "operation": "set",
+      "path": "/revision",
+      "value": 7.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "revision-nonintegral",
+      "operation": "set",
+      "path": "/revision",
+      "value": 7.5,
+      "expect": "reject"
+    },
+    {
+      "id": "revision-bool-is-not-integer",
+      "operation": "set",
+      "path": "/revision",
+      "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "revision-max-safe",
+      "operation": "set",
+      "path": "/revision",
+      "value": 9007199254740991,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "revision-above-max-safe",
+      "operation": "set",
+      "path": "/revision",
+      "value": 9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "revision-nan",
+      "operation": "set",
+      "path": "/revision",
+      "value": { "$special": "nan" },
+      "expect": "reject"
+    },
+    {
+      "id": "revision-infinity",
+      "operation": "set",
+      "path": "/revision",
+      "value": { "$special": "infinity" },
+      "expect": "reject"
+    },
+    {
+      "id": "mention-integral-float",
+      "operation": "set",
+      "path": "/payload/chapters/0/mentions/0/from",
+      "value": 0.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "mention-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/chapters/0/mentions/0/from",
+      "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "astral-title-at-max",
+      "operation": "set",
+      "path": "/payload/chapters/0/title",
+      "value": { "$special": "astral", "count": 1000 },
+      "expect": "accept"
+    },
+    {
+      "id": "astral-title-above-max",
+      "operation": "set",
+      "path": "/payload/chapters/0/title",
+      "value": { "$special": "astral", "count": 1001 },
+      "expect": "reject"
+    },
+    {
+      "id": "utf16-ranges-after-astral",
+      "operation": "set",
+      "path": "/payload/chapters/0",
+      "value": {
+        "id": "chapter-1",
+        "title": "",
+        "body": "😀 Mara",
+        "note": "",
+        "mentions": [
+          {
+            "id": "mention-utf16",
+            "elementId": "figure-1",
+            "from": 3,
+            "to": 7,
+            "surface": "Mara",
+            "source": "deterministic",
+            "confidence": 1
+          }
+        ],
+        "marks": [{ "from": 3, "to": 7, "kind": "bold" }]
+      },
+      "expect": "accept"
+    },
+    {
+      "id": "utf16-mention-splits-surrogate",
+      "operation": "set",
+      "path": "/payload/chapters/0",
+      "value": {
+        "id": "chapter-1",
+        "title": "",
+        "body": "😀 Mara",
+        "note": "",
+        "mentions": [
+          {
+            "id": "mention-utf16",
+            "elementId": "figure-1",
+            "from": 1,
+            "to": 2,
+            "surface": "😀",
+            "source": "deterministic",
+            "confidence": 1
+          }
+        ],
+        "marks": []
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "utf16-mark-splits-surrogate",
+      "operation": "set",
+      "path": "/payload/chapters/0",
+      "value": {
+        "id": "chapter-1",
+        "title": "",
+        "body": "😀 Mara",
+        "note": "",
+        "mentions": [],
+        "marks": [{ "from": 1, "to": 2, "kind": "bold" }]
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-envelope-key",
+      "operation": "set",
+      "path": "/worldId",
+      "value": "routing-leak",
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-payload-key",
+      "operation": "set",
+      "path": "/payload/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
+    },
+    {
+      "id": "required-payload-absent",
+      "operation": "remove",
+      "path": "/payload",
+      "expect": "reject"
+    }
+  ]
+}

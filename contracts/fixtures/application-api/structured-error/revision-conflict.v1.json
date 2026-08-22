@@ -1,0 +1,9 @@
+{
+  "code": "document.revision_conflict",
+  "params": {
+    "document": "manuscript",
+    "expected": 11,
+    "actual": 12
+  },
+  "retryable": true
+}

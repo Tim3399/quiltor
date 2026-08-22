@@ -1,0 +1,23 @@
+.place-node-shell {
+  position: relative;
+}
+
+.place-coordinate-handle {
+  width: 1px;
+  height: 1px;
+  min-width: 1px;
+  min-height: 1px;
+  border: 0;
+  background: var(--transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.places-workspace .story-node.type-ort.is-measuring {
+  border-color: var(--gold);
+  box-shadow: var(--ring-2) var(--gold-soft);
+}
+
+.places-workspace .story-node.type-ort.is-measure-start {
+  box-shadow: var(--ring-2) var(--gold);
+}

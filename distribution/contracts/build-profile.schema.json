@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/distribution/build-profile.schema.json",
+  "title": "Quiltor distribution build profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "id",
+    "product",
+    "target",
+    "build",
+    "security",
+    "capabilities",
+    "updates",
+    "release",
+    "publication"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "contractVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "applicationId"],
+      "properties": {
+        "name": { "const": "Quiltor" },
+        "applicationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9]+(?:[.-][A-Za-z0-9-]+)+$"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "platform", "distribution", "architectures"],
+      "properties": {
+        "host": {
+          "enum": ["desktop", "mobile", "web", "python"]
+        },
+        "platform": {
+          "enum": ["macos", "windows", "linux", "ios", "android", "web", "any"]
+        },
+        "distribution": {
+          "enum": [
+            "direct",
+            "app-store",
+            "microsoft-store",
+            "google-play",
+            "self-hosted",
+            "python-package"
+          ]
+        },
+        "architectures": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["arm64", "x86_64", "universal", "wasm", "platform-independent"]
+          }
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "artifact", "entrypoint", "smokeEntrypoint", "outputPattern"],
+      "properties": {
+        "status": { "enum": ["supported", "scaffold"] },
+        "artifact": {
+          "enum": [
+            "dmg",
+            "pkg",
+            "exe-installer",
+            "msix",
+            "ipa",
+            "aab",
+            "appimage",
+            "oci-image",
+            "wheel-sdist"
+          ]
+        },
+        "entrypoint": { "type": ["string", "null"] },
+        "smokeEntrypoint": { "type": ["string", "null"] },
+        "outputPattern": { "type": ["string", "null"] }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sandbox", "signing", "entitlements"],
+      "properties": {
+        "sandbox": {
+          "enum": [
+            "none",
+            "app-sandbox",
+            "package-identity",
+            "mobile-sandbox",
+            "container",
+            "python-environment"
+          ]
+        },
+        "signing": {
+          "enum": [
+            "developer-id",
+            "apple-distribution",
+            "authenticode",
+            "store-managed",
+            "container-provenance",
+            "release-manifest",
+            "package-provenance"
+          ]
+        },
+        "entitlements": { "type": ["string", "null"] }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["externalProcess", "codeDownload", "arbitraryFilesystem", "backgroundExecution"],
+      "properties": {
+        "externalProcess": { "type": "boolean" },
+        "codeDownload": { "type": "boolean" },
+        "arbitraryFilesystem": { "type": "boolean" },
+        "backgroundExecution": { "type": "boolean" }
+      }
+    },
+    "updates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider"],
+      "properties": {
+        "provider": {
+          "enum": [
+            "github-release",
+            "app-store",
+            "microsoft-store",
+            "google-play",
+            "deployment",
+            "python-index"
+          ]
+        }
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "rolloutTrack"],
+      "properties": {
+        "channel": {
+          "enum": ["stable", "beta", "nightly", "testflight", "play-internal", "store-production"]
+        },
+        "rolloutTrack": {
+          "enum": ["public", "staged", "internal", "external-testing"]
+        }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "channel", "storeListing"],
+      "properties": {
+        "status": { "enum": ["supported", "scaffold"] },
+        "channel": {
+          "enum": [
+            "github-release",
+            "app-store",
+            "microsoft-store",
+            "google-play",
+            "oci-registry",
+            "python-index"
+          ]
+        },
+        "storeListing": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

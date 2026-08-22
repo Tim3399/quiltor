@@ -1,9 +1,0 @@
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: var(--motion-instant) !important;
-    transition-duration: var(--motion-instant) !important;
-  }
-}

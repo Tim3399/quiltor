@@ -1,0 +1,189 @@
+"""SQLite schema creation and migration entry point."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from quiltor.infrastructure.persistence.sqlite import config
+from quiltor.infrastructure.persistence.sqlite.connection import connection
+
+
+SCHEMA_VERSION = 7
+
+SCHEMA = """
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS manuscript_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  words_json TEXT NOT NULL DEFAULT '[]',
+  characters_json TEXT NOT NULL DEFAULT '[]',
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS chapters (
+  id TEXT PRIMARY KEY,
+  position INTEGER NOT NULL UNIQUE,
+  title TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS figure_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  canvas_width INTEGER NOT NULL DEFAULT 2400,
+  canvas_height INTEGER NOT NULL DEFAULT 1600,
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS timeline_moments (
+  id TEXT PRIMARY KEY,
+  time INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  legacy_date TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS timeline_moments_time
+  ON timeline_moments(time, position);
+CREATE TABLE IF NOT EXISTS time_systems (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('relative','gregorian','custom')),
+  unit TEXT NOT NULL DEFAULT 'day' CHECK (unit IN ('day','abstract')),
+  is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0,1)),
+  era_name TEXT NOT NULL DEFAULT '',
+  era_abbreviation TEXT NOT NULL DEFAULT '',
+  epoch_time INTEGER NOT NULL DEFAULT 0,
+  epoch_year INTEGER NOT NULL DEFAULT 1,
+  epoch_month INTEGER NOT NULL DEFAULT 1,
+  epoch_day INTEGER NOT NULL DEFAULT 1,
+  epoch_weekday INTEGER NOT NULL DEFAULT 0,
+  display_format TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE UNIQUE INDEX IF NOT EXISTS one_primary_time_system
+  ON time_systems(is_primary) WHERE is_primary=1;
+CREATE TABLE IF NOT EXISTS calendar_months (
+  time_system_id TEXT NOT NULL REFERENCES time_systems(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  short_name TEXT NOT NULL DEFAULT '',
+  day_count INTEGER NOT NULL CHECK (day_count > 0),
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  PRIMARY KEY (time_system_id, position)
+);
+CREATE TABLE IF NOT EXISTS calendar_weekdays (
+  time_system_id TEXT NOT NULL REFERENCES time_systems(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  short_name TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  PRIMARY KEY (time_system_id, position)
+);
+CREATE TABLE IF NOT EXISTS figures (
+  id TEXT PRIMARY KEY,
+  position INTEGER NOT NULL,
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'person' CHECK (kind IN ('person','tier','ort','organisation','objekt','konzept')),
+  label TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  subtitle TEXT NOT NULL DEFAULT '',
+  accent TEXT NOT NULL DEFAULT 'ink',
+  dashed INTEGER NOT NULL DEFAULT 0,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  death_moment_id TEXT REFERENCES timeline_moments(id) ON DELETE SET NULL,
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS profiles (
+  figure_id TEXT PRIMARY KEY REFERENCES figures(id) ON DELETE CASCADE,
+  age TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL DEFAULT '',
+  appearance TEXT NOT NULL DEFAULT '',
+  origin TEXT NOT NULL DEFAULT '',
+  voice TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS profile_fields (
+  figure_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  value TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (figure_id, position)
+);
+CREATE TABLE IF NOT EXISTS entity_aliases (
+  element_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  alias TEXT NOT NULL,
+  normalized_alias TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'manual',
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  PRIMARY KEY (element_id, normalized_alias)
+);
+CREATE INDEX IF NOT EXISTS alias_lookup ON entity_aliases(normalized_alias);
+CREATE TABLE IF NOT EXISTS connections (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  target_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  label TEXT NOT NULL DEFAULT '',
+  style TEXT NOT NULL DEFAULT 'solid',
+  directed INTEGER NOT NULL DEFAULT 0,
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS connections_source ON connections(source_id);
+CREATE INDEX IF NOT EXISTS connections_target ON connections(target_id);
+CREATE TABLE IF NOT EXISTS relationship_states (
+  relationship_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+  moment_id TEXT NOT NULL REFERENCES timeline_moments(id) ON DELETE CASCADE,
+  source_id TEXT REFERENCES figures(id) ON DELETE CASCADE,
+  target_id TEXT REFERENCES figures(id) ON DELETE CASCADE,
+  active INTEGER NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  directed INTEGER NOT NULL DEFAULT 0,
+  style TEXT NOT NULL DEFAULT 'solid',
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  PRIMARY KEY (relationship_id, moment_id)
+);
+CREATE TABLE IF NOT EXISTS presence_states (
+  id TEXT PRIMARY KEY,
+  element_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  place_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  moment_id TEXT REFERENCES timeline_moments(id) ON DELETE CASCADE,
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS presence_by_element
+  ON presence_states(element_id, moment_id);
+CREATE INDEX IF NOT EXISTS presence_by_place
+  ON presence_states(place_id, moment_id);
+CREATE TABLE IF NOT EXISTS assistant_interactions (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  question TEXT NOT NULL,
+  response_json TEXT,
+  status TEXT NOT NULL CHECK (status IN ('completed','failed')),
+  error TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS assistant_interactions_created
+  ON assistant_interactions(created_at DESC);
+"""
+
+
+def initialize(path: Path | None = None) -> None:
+    """Create the current schema and apply every forward-only migration."""
+
+    # Import lazily: migrations intentionally calls focused story-world helpers,
+    # while those modules remain independent of this schema entry point.
+    from quiltor.infrastructure.persistence.sqlite.migrations import migrate
+
+    database_path = path or config.DB
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    with connection(database_path) as database:
+        database.executescript(SCHEMA)
+        current = database.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
+        version = int(current[0]) if current else 0
+        migrate(database, version)
+
+
+__all__ = ["SCHEMA", "SCHEMA_VERSION", "initialize"]

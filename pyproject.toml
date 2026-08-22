@@ -10,37 +10,39 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0" }
 
-# The server itself (`python3 server.py`) stays standard-library only; this
-# is the one dependency of the packaged `quiltor` CLI's `run`/`config` commands.
-dependencies = ["typer>=0.12"]
+# Core dependencies are shared by every supported host. PyJWT's crypto extra is
+# required for fail-closed OIDC ID-token signature verification in hosted and
+# desktop backup-login flows.
+dependencies = ["typer>=0.12", "PyJWT[crypto]>=2.13,<3"]
 
-# Only needed for hosts/desktop/ (a native-window build, see packaging/) --
-# never required for `python3 server.py`, the plain CLI, or Docker.
+# Only needed for the desktop host (a native-window build, see distribution/) --
+# never required for the web bootstrap, the plain CLI, or Docker.
 #
 # `desktop` is everything a windowed build always needs. `browser-pdf` is split
-# out because Playwright is only used by backend/pdf/system_browser.py, and a
+# out because Playwright is only used by infrastructure/pdf/system_browser.py, and a
 # Mac App Store build cannot use that renderer at all: the sandbox refuses to
-# launch an installed Chrome. Keeping it separate is what lets packaging leave
+# launch an installed Chrome. Keeping it separate is what lets distribution leave
 # it out there -- worth doing, since Playwright's driver carries its own `node`
 # binary, 128 MB of a 165 MB app, and shipping a general-purpose JavaScript
 # interpreter inside a Store bundle is a known review flashpoint.
 [project.optional-dependencies]
 # pywebview 5.4 is the floor, not 5.0. Exports do not use pywebview's own
 # download handling at all -- on macOS it hangs the app, see
-# hosts/desktop/bridge/files.py -- they go through a js_api bridge that calls
+# quiltor/hosts/desktop/bridge/api.py -- they go through a js_api bridge that calls
 # window.create_file_dialog(). 5.4 is the oldest release this was verified
 # against; earlier ones are simply untested here.
 desktop = ["pywebview>=5.4", "pystray>=0.19", "Pillow>=10"]
 
 # PDF export by driving an installed Chrome or Edge -- needed on Windows and
-# Linux only. macOS prints through WKWebView (backend/pdf/wkwebview.py), so a
+# Linux only. macOS prints through WKWebView (infrastructure/pdf/wkwebview.py), so a
 # Mac build wants `.[desktop]` alone and is ~128 MB smaller for it: Playwright
 # ships its own `node` binary, which would otherwise be most of the bundle.
-browser-pdf = ["playwright>=1.40"]
+browser-pdf = ["playwright==1.61.0"]
 
 [project.scripts]
-quiltor = "hosts.cli.main:main_entry"
-quiltor-desktop = "hosts.desktop.app:main"
+quiltor = "quiltor.hosts.cli.main:main_entry"
+quiltor-desktop = "quiltor.hosts.desktop.app:main"
+quiltor-mcp = "quiltor.hosts.mcp.quiltor_server:main"
 
 [project.urls]
 Homepage = "https://github.com/Tim3399/quiltor"
@@ -49,22 +51,49 @@ Homepage = "https://github.com/Tim3399/quiltor"
 path = "VERSION"
 pattern = "(?P<version>.+)"
 
+[tool.hatch.build]
+# The checked-in document is the source-checkout fallback. Every distributable
+# target force-includes its generated profile instead.
+exclude = [
+  "src/quiltor/infrastructure/platform/quiltor-build-profile.json",
+  "src/quiltor/hosts/mcp/README.md",
+]
+
+[tool.hatch.build.hooks.custom]
+path = "distribution/tooling/hatch_build.py"
+
 [tool.hatch.build.targets.wheel]
-packages = ["backend", "hosts"]
+packages = ["src/quiltor"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"server.py" = "server.py"
-"VERSION" = "VERSION"
-"dist" = "dist"
-"scripts" = "scripts"
-"packaging/icons" = "packaging/icons"
+"VERSION" = "src/quiltor/VERSION"
+"dist" = "src/quiltor/resources/web"
+"distribution/assets/icons" = "src/quiltor/resources/icons"
+"contracts/fixtures/mcp/tools.v1.json" = "src/quiltor/resources/contracts/mcp/tools.v1.json"
+"LICENSE" = "src/quiltor/resources/legal/LICENSE"
+"THIRD-PARTY-NOTICES.md" = "src/quiltor/resources/legal/THIRD-PARTY-NOTICES.md"
 
 [tool.hatch.build.targets.sdist]
-include = ["backend", "hosts", "server.py", "VERSION", "scripts", "README.md", "LICENSE"]
+# Keep the source artifact deliberately small and reproducible.  It contains
+# exactly what is needed to build the wheel from the sdist; desktop, container,
+# service and workflow sources are separate release artifacts.
+only-include = [
+  "src/quiltor",
+  "apps/web/server.py",
+  "VERSION",
+  "pyproject.toml",
+  "README.md",
+  "LICENSE",
+  "THIRD-PARTY-NOTICES.md",
+  "distribution/tooling/hatch_build.py",
+  "distribution/tooling/profile_contract.py",
+  "distribution/profiles/python-package.json",
+]
 
 [tool.hatch.build.targets.sdist.force-include]
 "dist" = "dist"
-"packaging/icons" = "packaging/icons"
+"distribution/assets/icons" = "distribution/assets/icons"
+"contracts/fixtures/mcp/tools.v1.json" = "src/quiltor/resources/contracts/mcp/tools.v1.json"
 
 
 # ---------------------------------------------------------------- Formatting

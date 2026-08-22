@@ -10,3 +10,12 @@ __pycache__
 test-results
 playwright-report
 .pytest_cache
+.ruff_cache
+.venv*
+.pnpm-store
+target
+*.sqlite3
+# Source checkouts use this fallback profile. Release images materialize and
+# copy the target-specific contract instead, so the source identity never enters
+# an OCI layer.
+src/quiltor/infrastructure/platform/quiltor-build-profile.json

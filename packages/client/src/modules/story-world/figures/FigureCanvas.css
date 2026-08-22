@@ -1,0 +1,144 @@
+.figure-workspace
+  .flow-area.is-connecting.zoom-overview
+  .story-node
+  .react-flow__handle:not(.journey-handle) {
+  opacity: 1;
+}
+
+/* The connection preview lives inside the zoomed React Flow viewport. Without a
+   non-scaling stroke it becomes a sub-pixel hairline in overview LOD and looks
+   as if no line was being drawn at all. */
+.figure-workspace .flow-area .react-flow__connection-path {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.figure-workspace .story-node.is-deceased {
+  opacity: 0.48;
+  filter: none;
+}
+
+.figure-workspace .story-node .react-flow__handle {
+  opacity: 0.2;
+  transition:
+    opacity var(--motion-fast) ease,
+    transform var(--motion-fast) ease;
+}
+
+.figure-workspace .story-node:hover .react-flow__handle,
+.figure-workspace .story-node.selected .react-flow__handle,
+.figure-workspace .is-connecting .react-flow__handle {
+  opacity: 1;
+}
+
+.figure-workspace .story-node .directed-handle {
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.figure-workspace .story-node .neutral-handle {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-xs);
+  background: var(--moss);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.figure-workspace .story-node .neutral-handle.react-flow__handle-bottom {
+  transform: translate(-50%, 50%) rotate(45deg);
+}
+
+.figure-workspace .react-flow__edge.edge-blood .react-flow__edge-path {
+  stroke: var(--rose);
+  stroke-width: 2;
+}
+
+.figure-workspace .react-flow__edge.edge-dashed .react-flow__edge-path {
+  stroke-dasharray: 5 4;
+}
+
+.figure-workspace .react-flow__edge.edge-undirected .react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+.figure-workspace .react-flow__edge.edge-directed .react-flow__edge-path {
+  stroke-width: 1.5;
+}
+
+.figure-workspace .react-flow__edge.edge-temporal .react-flow__edge-path {
+  stroke-width: 2;
+  stroke-dasharray: 8 3;
+}
+
+.figure-workspace .react-flow__edge.edge-temporal .react-flow__edge-text {
+  font-weight: 600;
+}
+
+.figure-workspace .story-node.zoom-overview.type-tier:not(.is-important) {
+  background: var(--minimap-animal);
+}
+
+.figure-workspace .story-node.zoom-overview.type-organisation:not(.is-important) {
+  background: var(--minimap-organisation);
+}
+
+.figure-workspace .story-node.zoom-overview.type-objekt:not(.is-important) {
+  background: var(--minimap-object);
+}
+
+.figure-workspace .story-node .journey-handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: var(--transparent);
+}
+
+.figure-workspace .story-node .journey-handle.react-flow__handle-top,
+.figure-workspace .story-node .journey-handle.react-flow__handle-bottom {
+  left: 26%;
+}
+
+.figure-workspace .react-flow__edge.journey-edge .react-flow__edge-path {
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.figure-workspace .react-flow__edge.journey-ahead .react-flow__edge-path {
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 6;
+}
+
+.figure-workspace .react-flow__edge.journey-current .react-flow__edge-path {
+  stroke-width: 3;
+}
+
+.figure-workspace .react-flow__edge.presence-edge .react-flow__edge-path {
+  stroke: var(--moss);
+  stroke-width: 1.5;
+  stroke-dasharray: 1 5;
+}
+
+.figure-workspace .node-guests {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  color: var(--moss);
+  font: 600 var(--font-size-2) var(--ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.figure-workspace .story-node.zoom-overview .node-guests {
+  display: none;
+}

@@ -1,0 +1,108 @@
+{
+  "contract": "quiltor.story-world",
+  "version": 1,
+  "revision": 4,
+  "payload": {
+    "nodes": [
+      {
+        "id": "mara",
+        "name": "Mara Venn",
+        "type": "person",
+        "label": "Protagonistin",
+        "sub": "Kartographin",
+        "accent": "ink",
+        "x": 120,
+        "y": 120,
+        "mapX": 12,
+        "mapY": 18,
+        "dash": false,
+        "pinned": true,
+        "aliases": [{ "alias": "Die Kartographin", "source": "manual" }],
+        "important": true,
+        "diedMomentId": "arrival",
+        "profile": {
+          "alter": "32",
+          "rolle": "Kartographin",
+          "aussehen": "Reisemantel",
+          "herkunft": "Nordküste",
+          "stimme": "ruhig",
+          "notizen": "Kennt das Archiv.",
+          "extra": [{ "k": "Motiv", "v": "Wahrheit" }]
+        }
+      },
+      {
+        "id": "archive",
+        "name": "Gezeitenarchiv",
+        "type": "ort",
+        "x": 480,
+        "y": 260,
+        "mapX": 35,
+        "mapY": 45
+      }
+    ],
+    "edges": [
+      {
+        "id": "searches",
+        "from": "mara",
+        "to": "archive",
+        "label": "sucht",
+        "style": "solid",
+        "gerichtet": true,
+        "fromHandle": "right",
+        "toHandle": "left",
+        "active": true,
+        "versions": [
+          {
+            "momentId": "arrival",
+            "from": "mara",
+            "to": "archive",
+            "active": true,
+            "label": "findet",
+            "style": "gold",
+            "gerichtet": false
+          }
+        ]
+      }
+    ],
+    "timeline": [
+      {
+        "id": "arrival",
+        "title": "Ankunft",
+        "time": -3,
+        "position": 0,
+        "precision": "day",
+        "endTime": -2,
+        "endPrecision": "day",
+        "date": "1847-09-03",
+        "note": "Der erste Archivbesuch."
+      }
+    ],
+    "presence": [
+      {
+        "id": "mara-at-archive",
+        "elementId": "mara",
+        "placeId": "archive",
+        "momentId": "arrival"
+      }
+    ],
+    "canvasSize": { "w": 960, "h": 720 },
+    "mapScale": { "unitsPer100px": 2.5, "unitLabel": "km" },
+    "timeSystem": {
+      "id": "gregorian",
+      "name": "Gregorianisch",
+      "kind": "gregorian",
+      "unit": "day",
+      "eraName": "",
+      "eraAbbreviation": "",
+      "epochTime": 0,
+      "epochYear": 1847,
+      "epochMonth": 9,
+      "epochDay": 3,
+      "epochWeekday": 0,
+      "displayFormat": "",
+      "months": [{ "name": "Januar", "shortName": "Jan", "dayCount": 31 }],
+      "weekdays": [{ "name": "Montag", "shortName": "Mo" }]
+    },
+    "extension": { "source": "contract-fixture" }
+  }
+}

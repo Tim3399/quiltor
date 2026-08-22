@@ -1,0 +1,45 @@
+{
+  "$schema": "../contracts/build-profile.schema.json",
+  "contractVersion": 1,
+  "id": "ios-app-store",
+  "product": {
+    "name": "Quiltor",
+    "applicationId": "app.quiltor.mobile"
+  },
+  "target": {
+    "host": "mobile",
+    "platform": "ios",
+    "distribution": "app-store",
+    "architectures": ["arm64"]
+  },
+  "build": {
+    "status": "scaffold",
+    "artifact": "ipa",
+    "entrypoint": null,
+    "smokeEntrypoint": null,
+    "outputPattern": null
+  },
+  "security": {
+    "sandbox": "mobile-sandbox",
+    "signing": "apple-distribution",
+    "entitlements": null
+  },
+  "capabilities": {
+    "externalProcess": false,
+    "codeDownload": false,
+    "arbitraryFilesystem": false,
+    "backgroundExecution": false
+  },
+  "updates": {
+    "provider": "app-store"
+  },
+  "release": {
+    "channel": "testflight",
+    "rolloutTrack": "internal"
+  },
+  "publication": {
+    "status": "scaffold",
+    "channel": "app-store",
+    "storeListing": "distribution/store-listings/apple/ios"
+  }
+}

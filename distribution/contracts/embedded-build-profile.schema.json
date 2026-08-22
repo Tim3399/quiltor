@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/distribution/embedded-build-profile.schema.json",
+  "title": "Quiltor embedded build profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "host",
+    "platform",
+    "architecture",
+    "distribution",
+    "releaseChannel",
+    "updateProvider",
+    "constraints"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "host": { "enum": ["desktop", "mobile", "web", "python"] },
+    "platform": {
+      "enum": ["macos", "windows", "linux", "ios", "android", "web", "any", "auto"]
+    },
+    "architecture": {
+      "enum": ["arm64", "x86_64", "universal", "wasm", "platform-independent", "auto"]
+    },
+    "distribution": {
+      "enum": [
+        "direct",
+        "app-store",
+        "microsoft-store",
+        "google-play",
+        "self-hosted",
+        "python-package"
+      ]
+    },
+    "releaseChannel": {
+      "enum": ["stable", "beta", "nightly", "testflight", "play-internal", "store-production"]
+    },
+    "updateProvider": {
+      "enum": [
+        "github-release",
+        "app-store",
+        "microsoft-store",
+        "google-play",
+        "deployment",
+        "python-index",
+        "none"
+      ]
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sandboxed",
+        "allowsCodeDownload",
+        "allowsExternalProcess",
+        "allowsSelfUpdate",
+        "allowsArbitraryFileAccess",
+        "allowsBackgroundExecution"
+      ],
+      "properties": {
+        "sandboxed": { "type": "boolean" },
+        "allowsCodeDownload": { "type": "boolean" },
+        "allowsExternalProcess": { "type": "boolean" },
+        "allowsSelfUpdate": { "type": "boolean" },
+        "allowsArbitraryFileAccess": { "type": "boolean" },
+        "allowsBackgroundExecution": { "type": "boolean" }
+      }
+    }
+  }
+}

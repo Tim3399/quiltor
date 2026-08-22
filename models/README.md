@@ -1,6 +1,6 @@
 # Bundled local model
 
-`python3 server.py` downloads the default model into this directory automatically on first launch, after asking once. To trigger it explicitly: `python3 -m backend.llm.installer`.
+`python3 apps/web/server.py` downloads the default model into this directory automatically on first launch, after asking once. To trigger it explicitly: `PYTHONPATH=src python3 -m quiltor.infrastructure.inference.installer`.
 
 Quiltor release packages place one model here per runtime it ships: a GGUF file for llama.cpp directly in this directory, and an MLX model directory under `mlx/` for Apple Silicon. Both pair the same base weights, `Qwen3-4B` (`Qwen3-4B-Q4_K_M.gguf` for llama.cpp, `mlx-community/Qwen3-4B-4bit` for MLX) — the quantization method differs, but not the underlying model, to keep Windows/Linux and Mac behaviour as close as one variable allows.
 

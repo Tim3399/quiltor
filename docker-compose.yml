@@ -9,7 +9,7 @@
 ##      this host or another one, and just want the app container:
 ##        docker compose up -d
 ##      quiltor is published on 127.0.0.1:${QUILTOR_PORT:-8000} — point your
-##      existing proxy at that (see deploy/Caddyfile.example / nginx.example).
+##      existing proxy at that (see distribution/web/self-hosted/proxy/).
 ##
 ##   2) You don't have a reverse proxy yet and want this stack to be
 ##      self-contained, with automatic TLS:
@@ -61,7 +61,8 @@ services:
 
   backup:
     build:
-      context: ./deploy/backup-server
+      context: .
+      dockerfile: services/backup-server/Dockerfile
     image: quiltor-backup:${QUILTOR_VERSION:-dev}
     profiles: ["with-backup"]
     restart: unless-stopped
@@ -111,7 +112,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deploy/Caddyfile.compose:/etc/caddy/Caddyfile:ro
+      - ./distribution/web/self-hosted/proxy/Caddyfile.compose:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:

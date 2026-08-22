@@ -1,0 +1,83 @@
+.assistant-drawer {
+  position: fixed;
+  z-index: var(--z-drawer-panel);
+  top: var(--bar);
+  right: 0;
+  bottom: 0;
+  width: min(410px, 100vw);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  border-left: 1px solid var(--line-strong);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.assistant-drawer.has-offline {
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+}
+.ui-sheet .assistant-drawer {
+  position: static;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  box-shadow: none;
+}
+.assistant-drawer > header {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-12);
+  border-bottom: 1px solid var(--line);
+}
+.assistant-drawer > header > div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-9);
+}
+.assistant-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.assistant-drawer > header svg {
+  width: 17px;
+  color: var(--gold);
+}
+.assistant-drawer > header span {
+  display: flex;
+  flex-direction: column;
+}
+.assistant-drawer > header strong {
+  font-size: var(--font-size-3);
+}
+.assistant-drawer > header small {
+  color: var(--muted);
+  font-size: var(--font-size-1);
+}
+.assistant-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+.assistant-progress-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  background: var(--line);
+}
+.assistant-progress-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transition: width var(--motion-medium) ease;
+}
+
+@media (max-width: 640px) {
+  .assistant-drawer {
+    z-index: var(--z-drawer-panel-mobile);
+    top: 0;
+    width: 100%;
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/backup/v2.schema.json",
+  "title": "Quiltor content-addressed backup snapshot v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "encryption",
+    "created",
+    "world",
+    "title",
+    "message",
+    "parent",
+    "files",
+    "id"
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "size"],
+      "properties": {
+        "sha256": { "$ref": "#/$defs/digest" },
+        "size": { "type": "integer", "minimum": 0, "maximum": 536870912 }
+      }
+    }
+  },
+  "properties": {
+    "format": { "const": 2 },
+    "encryption": { "const": "none" },
+    "created": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:Z|[+-][0-9]{2}:[0-9]{2})?$"
+    },
+    "world": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "title": { "type": "string", "maxLength": 500 },
+    "message": { "type": "string", "maxLength": 4000 },
+    "parent": { "type": "string", "pattern": "^(?:|[0-9a-f]{64})$" },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 20001,
+      "required": ["world.sqlite3"],
+      "properties": {
+        "world.sqlite3": {
+          "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "size": { "minimum": 1 } } }]
+        }
+      },
+      "patternProperties": {
+        "^(?:manuscripts|profiles)/[^/\\\\]+\\.md$": { "$ref": "#/$defs/file" }
+      },
+      "additionalProperties": false
+    },
+    "id": { "$ref": "#/$defs/digest" }
+  }
+}

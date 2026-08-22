@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/manuscript/v1.schema.json",
+  "title": "Quiltor manuscript wire envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "version", "payload"],
+  "properties": {
+    "contract": { "const": "quiltor.manuscript" },
+    "version": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "payload": { "$ref": "#/$defs/manuscript" }
+  },
+  "$defs": {
+    "manuscript": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["chapters"],
+      "properties": {
+        "chapters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/chapter" }
+        },
+        "language": { "const": "de-DE" },
+        "grammarMode": { "enum": ["manual", "automatic"] },
+        "words": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["w"],
+                "properties": {
+                  "w": { "type": "string" },
+                  "d": { "type": "string" }
+                }
+              }
+            ]
+          }
+        },
+        "zeichenAktiv": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "chapter": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "title": { "type": "string", "maxLength": 1000 },
+        "body": { "type": "string", "maxLength": 10000000 },
+        "note": { "type": "string", "maxLength": 100000 },
+        "mentions": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/mention" }
+        },
+        "marks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mark" }
+        }
+      }
+    },
+    "mention": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "elementId", "from", "to", "surface", "source", "confidence"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "elementId": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "from": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Zero-based UTF-16 code-unit offset at a Unicode scalar boundary."
+        },
+        "to": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Exclusive UTF-16 code-unit offset at a Unicode scalar boundary."
+        },
+        "surface": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "source": { "enum": ["completion", "helper", "deterministic", "llm-assisted"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "mark": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["from", "to", "kind"],
+      "properties": {
+        "from": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Zero-based UTF-16 code-unit offset at a Unicode scalar boundary."
+        },
+        "to": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Exclusive UTF-16 code-unit offset at a Unicode scalar boundary."
+        },
+        "kind": { "enum": ["bold", "italic"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,54 @@
+.timeline-calendar-structure {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-10);
+}
+.timeline-calendar-structure fieldset {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-6);
+  margin: 0;
+  padding: var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.timeline-calendar-item,
+.timeline-calendar-item-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px var(--control-compact);
+  gap: var(--space-6);
+  align-items: center;
+}
+.timeline-calendar-item-head {
+  padding: 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.timeline-calendar-item .icon-button {
+  width: var(--control-compact);
+  min-height: 34px;
+}
+.timeline-calendar-add-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-6);
+}
+.timeline-calendar-add-row button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+.timeline-calendar-add-row svg {
+  width: 14px;
+}

@@ -1,0 +1,64 @@
+.utility-disclosure {
+  margin-top: var(--space-18);
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--line);
+}
+.utility-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  list-style: none;
+  cursor: pointer;
+}
+.utility-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.utility-disclosure > summary svg {
+  width: 13px;
+}
+.snapshot-facts {
+  margin: 0 0 var(--space-14);
+}
+.snapshot-facts > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-8) 0;
+  border-bottom: 1px solid var(--line);
+}
+.snapshot-facts dt {
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.snapshot-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+.changed-files {
+  max-height: 130px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-16);
+  padding: var(--space-10);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+}
+.changed-files code {
+  font-size: var(--font-size-2);
+}
+.snapshot-output {
+  overflow: auto;
+  padding: var(--space-12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  font-size: var(--font-size-2);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}

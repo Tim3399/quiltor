@@ -1,0 +1,5 @@
+.places-workspace {
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(var(--context), auto) 1fr;
+}

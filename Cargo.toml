@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/quiltor-core", "crates/quiltor-ffi"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0"
+version = "3.3.1"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = "deny"
+pedantic = "warn"

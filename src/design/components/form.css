@@ -1,7 +1,0 @@
-.ui-field {
-  display: grid;
-  gap: var(--space-6);
-}
-.ui-field :is(input, select, textarea) {
-  min-height: var(--control-regular);
-}

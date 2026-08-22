@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "playwright": {
+    "reference": "mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48",
+    "buildArgument": "PLAYWRIGHT_BASE_IMAGE"
+  },
+  "nodeBuild": {
+    "reference": "node:22.23.2-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436",
+    "buildArgument": "NODE_BASE_IMAGE"
+  },
+  "backupPython": {
+    "reference": "python:3.12.13-slim-trixie@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b"
+  }
+}

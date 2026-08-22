@@ -1,0 +1,34 @@
+{
+  "fold": [
+    { "input": "Müller", "expected": "müller" },
+    { "input": "Straße", "expected": "straße" },
+    { "input": " Étienne  Voss ", "expected": "Étienne voss" },
+    { "input": "𑎀", "expected": "𑎀" },
+    { "input": "É", "expected": "é" },
+    { "input": "É", "expected": "É" }
+  ],
+  "distance": [
+    { "mention": "Tarke", "candidate": "Tarek", "budget": 1, "expected": 1 },
+    { "mention": "Taerk", "candidate": "Tarek", "budget": 1, "expected": 1 },
+    { "mention": "Tarrek", "candidate": "Tarek", "budget": 1, "expected": 1 }
+  ],
+  "figures": {
+    "nodes": [
+      {
+        "id": "tarek",
+        "name": "Tarek Venn",
+        "type": "person",
+        "x": 0,
+        "y": 0,
+        "aliases": [{ "alias": "Der Falke", "source": "manual" }]
+      },
+      { "id": "tara", "name": "Tara Venn", "type": "person", "x": 10, "y": 0 },
+      { "id": "mueller", "name": "Müller", "type": "person", "x": 20, "y": 0 },
+      { "id": "strassental", "name": "Straßental", "type": "ort", "x": 30, "y": 0 },
+      { "id": "halvar", "name": "Halvar", "type": "person", "x": 40, "y": 0 },
+      { "id": "halvor", "name": "Halvor", "type": "person", "x": 50, "y": 0 }
+    ],
+    "edges": [],
+    "timeline": []
+  }
+}

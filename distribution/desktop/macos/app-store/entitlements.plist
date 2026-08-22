@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for a Mac App Store build. NOT interchangeable with
+  distribution/desktop/macos/direct/entitlements.plist (Developer ID): the App Sandbox is
+  mandatory here and is what makes the Store-specific runtime profile necessary.
+
+  Nothing consumes this file yet; the direct build signs the Developer ID build
+  only. It is checked in so the sandbox surface is written down and reviewable
+  alongside the profile that declares it; see distribution/README.md
+  ("Mac App Store") for what still has to be built before it can be used.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- Downloading model weights from Hugging Face. Weights are data, so this
+         stays allowed under guideline 2.5.2; the llama-server executable is
+         shipped inside the bundle instead (quiltor.infrastructure.inference.runtimes'
+         bundled_runtime_dir()). -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- server.py binds 127.0.0.1, and the bundled llama-server binds a second
+         loopback port for the assistant. Both count as being a network server
+         even though nothing leaves the machine. -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- Manuscript/PDF export to a location the user picks in a save panel.
+         Anything outside the container needs the user to have chosen it. -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- llama.cpp compiles Metal shaders at runtime. Under the sandbox this is
+         still needed, and unlike the Developer ID build there is deliberately no
+         disable-library-validation here: every executable a Store build loads is
+         signed with our own Team ID, which is exactly the property review checks. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+</dict>
+</plist>

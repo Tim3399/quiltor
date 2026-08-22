@@ -1,0 +1,86 @@
+{
+  "figures": {
+    "nodes": [
+      { "id": "ada", "name": "Ada", "type": "person", "x": 0, "y": 0, "diedMomentId": "end" },
+      { "id": "ben", "name": "Ben", "type": "person", "x": 100, "y": 0 },
+      { "id": "harbor", "name": "Hafen", "type": "ort", "x": 0, "y": 100 },
+      { "id": "tower", "name": "Turm", "type": "ort", "x": 100, "y": 100 }
+    ],
+    "edges": [
+      {
+        "id": "bond",
+        "from": "ada",
+        "to": "ben",
+        "label": "Freunde",
+        "style": "solid",
+        "gerichtet": false,
+        "versions": [
+          { "momentId": "break", "active": false, "label": "Getrennt" },
+          {
+            "momentId": "return",
+            "active": true,
+            "from": "ben",
+            "to": "ada",
+            "label": "Rivalen",
+            "gerichtet": true,
+            "style": "dashed"
+          }
+        ]
+      }
+    ],
+    "timeline": [
+      { "id": "prologue", "title": "Prolog", "time": -5, "position": 0 },
+      { "id": "start", "title": "Beginn", "time": 0, "position": 1 },
+      { "id": "break", "title": "Bruch", "time": 4, "position": 2 },
+      { "id": "return", "title": "Rückkehr", "time": 4, "position": 3 },
+      { "id": "end", "title": "Ende", "time": 8, "position": 4 }
+    ],
+    "presence": [
+      { "id": "ada-base", "elementId": "ada", "placeId": "harbor" },
+      { "id": "ben-start", "elementId": "ben", "placeId": "harbor", "momentId": "start" },
+      { "id": "ada-break", "elementId": "ada", "placeId": "tower", "momentId": "break" }
+    ]
+  },
+  "checks": [
+    {
+      "momentId": "prologue",
+      "adaAlive": true,
+      "adaLocation": "harbor",
+      "benLocation": "unknown",
+      "relationshipActive": true,
+      "relationshipLabel": "Freunde",
+      "relationshipFrom": "ada",
+      "relationshipDirected": false
+    },
+    {
+      "momentId": "break",
+      "adaAlive": true,
+      "adaLocation": "tower",
+      "benLocation": "harbor",
+      "relationshipActive": false,
+      "relationshipLabel": "Getrennt",
+      "relationshipFrom": "ada",
+      "relationshipDirected": false
+    },
+    {
+      "momentId": "return",
+      "adaAlive": true,
+      "adaLocation": "tower",
+      "benLocation": "harbor",
+      "relationshipActive": true,
+      "relationshipLabel": "Rivalen",
+      "relationshipFrom": "ben",
+      "relationshipDirected": true
+    },
+    {
+      "momentId": "end",
+      "adaAlive": false,
+      "adaLocation": "tower",
+      "benLocation": "harbor",
+      "relationshipActive": true,
+      "relationshipLabel": "Rivalen",
+      "relationshipFrom": "ben",
+      "relationshipDirected": true
+    }
+  ]
+}

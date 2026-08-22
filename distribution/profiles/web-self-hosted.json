@@ -1,0 +1,45 @@
+{
+  "$schema": "../contracts/build-profile.schema.json",
+  "contractVersion": 1,
+  "id": "web-self-hosted",
+  "product": {
+    "name": "Quiltor",
+    "applicationId": "app.quiltor.web"
+  },
+  "target": {
+    "host": "web",
+    "platform": "linux",
+    "distribution": "self-hosted",
+    "architectures": ["x86_64"]
+  },
+  "build": {
+    "status": "supported",
+    "artifact": "oci-image",
+    "entrypoint": "Dockerfile",
+    "smokeEntrypoint": null,
+    "outputPattern": "ghcr.io/tim3399/quiltor:{version}"
+  },
+  "security": {
+    "sandbox": "container",
+    "signing": "container-provenance",
+    "entitlements": null
+  },
+  "capabilities": {
+    "externalProcess": true,
+    "codeDownload": true,
+    "arbitraryFilesystem": false,
+    "backgroundExecution": true
+  },
+  "updates": {
+    "provider": "deployment"
+  },
+  "release": {
+    "channel": "stable",
+    "rolloutTrack": "public"
+  },
+  "publication": {
+    "status": "supported",
+    "channel": "oci-registry",
+    "storeListing": null
+  }
+}

@@ -4,9 +4,21 @@
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx",
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["playwright.config.ts", "tests/e2e/**/*.ts"]
+  "include": [
+    "playwright.config.ts",
+    "tests/e2e/**/*.ts",
+    "contracts/fixtures/application-api/structured-error/revision-conflict.v1.json",
+    "contracts/application-api/story-world/alias-normalization.v1.json",
+    "locales",
+    "packages/client/src"
+  ]
 }

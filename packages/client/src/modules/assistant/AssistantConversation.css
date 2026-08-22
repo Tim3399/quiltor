@@ -1,0 +1,270 @@
+.assistant-messages {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-14) var(--space-12);
+}
+.assistant-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-20);
+  color: var(--muted);
+  text-align: center;
+}
+.assistant-empty > svg {
+  width: 28px;
+  color: var(--gold);
+}
+.assistant-empty h2 {
+  margin: var(--space-12) 0 var(--space-5);
+  color: var(--ink);
+  font: 600 var(--font-size-6) var(--prose);
+}
+.assistant-empty p {
+  margin: 0 0 var(--space-14);
+  font: 400 var(--font-size-3) / 1.5 var(--prose);
+}
+.assistant-empty button {
+  width: 100%;
+  margin-top: var(--space-6);
+  padding: var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--soft);
+  cursor: pointer;
+}
+.assistant-exchange {
+  margin-bottom: var(--space-18);
+}
+.assistant-question {
+  margin: 0 0 var(--space-8) var(--space-32);
+  padding: var(--space-9) var(--space-12);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-xs) var(--radius-lg);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--font-size-3);
+  line-height: 1.45;
+}
+.assistant-answer {
+  padding: 0 var(--space-5);
+}
+.assistant-answer > p {
+  margin: 0;
+  font: 400 var(--font-size-4) / 1.55 var(--prose);
+  white-space: pre-wrap;
+}
+.assistant-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-9);
+  border: 1px solid var(--error-border);
+  border-radius: var(--radius-sm);
+  background: var(--error-bg);
+  color: var(--error-text);
+  font-size: var(--font-size-2);
+}
+.assistant-error button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--transparent);
+  color: inherit;
+  font-size: var(--font-size-2);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.assistant-error button svg {
+  width: 11px;
+}
+.assistant-error button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.assistant-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-top: var(--space-9);
+}
+.assistant-sources > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  list-style: none;
+  cursor: pointer;
+}
+.assistant-sources > summary::-webkit-details-marker {
+  display: none;
+}
+.assistant-sources > summary svg {
+  width: 13px;
+}
+.assistant-sources > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-top: var(--space-7);
+}
+.assistant-sources button {
+  max-width: 150px;
+  overflow: hidden;
+  padding: var(--space-4) var(--space-7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--paper);
+  color: var(--soft);
+  font-size: var(--font-size-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.assistant-proposals {
+  margin-top: var(--space-12);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.assistant-proposals > summary {
+  list-style: none;
+}
+.assistant-proposals > summary::-webkit-details-marker {
+  display: none;
+}
+.assistant-proposal-heading,
+.assistant-proposal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-9);
+}
+.assistant-proposal-heading {
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+  font-size: var(--font-size-2);
+}
+.assistant-proposal-heading > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+.assistant-proposal-heading > span svg {
+  width: 12px;
+}
+.assistant-proposal-heading button,
+.assistant-proposal button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--transparent);
+  color: var(--gold-text);
+  font-size: var(--font-size-1);
+  cursor: pointer;
+}
+.assistant-proposal-heading svg,
+.assistant-proposal svg {
+  width: 12px;
+}
+.assistant-proposal {
+  border-bottom: 1px solid var(--line);
+  font-size: var(--font-size-2);
+}
+.assistant-proposal:last-child {
+  border-bottom: 0;
+}
+.assistant-proposal.is-applied {
+  background: var(--control-hover-subtle);
+  color: var(--muted);
+}
+.assistant-proposal button:disabled,
+.assistant-proposal-heading button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.assistant-thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+.assistant-thinking span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: assistant-pulse var(--motion-pulse) infinite alternate;
+}
+.assistant-thinking span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.assistant-thinking span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes assistant-pulse {
+  to {
+    opacity: 0.25;
+    transform: translateY(-2px);
+  }
+}
+.assistant-broadscope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  margin-top: var(--space-9);
+  padding: var(--space-9);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+}
+.assistant-broadscope-actions {
+  display: flex;
+  gap: var(--space-7);
+}
+.assistant-broadscope-actions button {
+  flex: 1;
+  padding: var(--space-6) var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--soft);
+  font-size: var(--font-size-2);
+  cursor: pointer;
+}
+.assistant-broadscope-actions button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.assistant-trace {
+  margin-top: var(--space-9);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+.assistant-trace summary {
+  padding: var(--space-2) 0;
+  list-style: none;
+  cursor: pointer;
+}
+.assistant-trace summary::-webkit-details-marker {
+  display: none;
+}
+.assistant-trace pre {
+  overflow-x: auto;
+  margin: var(--space-6) 0 0;
+  padding: var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: var(--font-size-1);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

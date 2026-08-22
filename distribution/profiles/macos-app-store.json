@@ -1,0 +1,45 @@
+{
+  "$schema": "../contracts/build-profile.schema.json",
+  "contractVersion": 1,
+  "id": "macos-app-store",
+  "product": {
+    "name": "Quiltor",
+    "applicationId": "app.quiltor.desktop"
+  },
+  "target": {
+    "host": "desktop",
+    "platform": "macos",
+    "distribution": "app-store",
+    "architectures": ["arm64"]
+  },
+  "build": {
+    "status": "scaffold",
+    "artifact": "pkg",
+    "entrypoint": null,
+    "smokeEntrypoint": null,
+    "outputPattern": null
+  },
+  "security": {
+    "sandbox": "app-sandbox",
+    "signing": "apple-distribution",
+    "entitlements": "distribution/desktop/macos/app-store/entitlements.plist"
+  },
+  "capabilities": {
+    "externalProcess": false,
+    "codeDownload": false,
+    "arbitraryFilesystem": false,
+    "backgroundExecution": false
+  },
+  "updates": {
+    "provider": "app-store"
+  },
+  "release": {
+    "channel": "testflight",
+    "rolloutTrack": "internal"
+  },
+  "publication": {
+    "status": "scaffold",
+    "channel": "app-store",
+    "storeListing": "distribution/store-listings/apple/macos"
+  }
+}

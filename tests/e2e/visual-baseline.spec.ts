@@ -1,4 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  fulfillDocumentSave,
+  fulfillManuscript,
+  fulfillStoryWorld,
+} from "./support/application-api";
 
 const manuscript = {
   chapters: [
@@ -18,7 +23,7 @@ const figures = {
       id: "mara",
       x: 120,
       y: 120,
-      type: "person",
+      type: "person" as const,
       name: "Mara Venn",
       label: "Kartographin",
       sub: "Liest lebende Karten.",
@@ -27,7 +32,7 @@ const figures = {
       id: "archiv",
       x: 480,
       y: 260,
-      type: "ort",
+      type: "ort" as const,
       name: "Gezeitenarchiv",
       label: "Ort",
       sub: "Ein gläserner Bau am Hafen.",
@@ -75,13 +80,13 @@ async function mockWorkshop(page: Page) {
   );
   await page.route("**/api/manuscript*", (route) =>
     route.request().method() === "GET"
-      ? route.fulfill({ json: manuscript, headers: { ETag: '"0"' } })
-      : route.fulfill({ json: { ok: true, revision: 1, zeit: "12:00" } }),
+      ? fulfillManuscript(route, manuscript)
+      : fulfillDocumentSave(route, 1),
   );
   await page.route("**/api/state*", (route) =>
     route.request().method() === "GET"
-      ? route.fulfill({ json: figures, headers: { ETag: '"0"' } })
-      : route.fulfill({ json: { ok: true, revision: 1, zeit: "12:00" } }),
+      ? fulfillStoryWorld(route, figures)
+      : fulfillDocumentSave(route, 1),
   );
   await page.route("**/api/assistant/status*", (route) =>
     route.fulfill({
@@ -151,8 +156,8 @@ test("Performance-Baseline für Start, Workspace-Wechsel und großes Kapitel", a
   await page.unroute("**/api/manuscript*");
   await page.route("**/api/manuscript*", (route) =>
     route.request().method() === "GET"
-      ? route.fulfill({ json: large, headers: { ETag: '"0"' } })
-      : route.fulfill({ json: { ok: true, revision: 1, zeit: "12:00" } }),
+      ? fulfillManuscript(route, large)
+      : fulfillDocumentSave(route, 1),
   );
   const started = performance.now();
   await page.goto("/?world=baseline");

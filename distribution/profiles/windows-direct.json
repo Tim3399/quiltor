@@ -1,0 +1,45 @@
+{
+  "$schema": "../contracts/build-profile.schema.json",
+  "contractVersion": 1,
+  "id": "windows-direct",
+  "product": {
+    "name": "Quiltor",
+    "applicationId": "app.quiltor.desktop"
+  },
+  "target": {
+    "host": "desktop",
+    "platform": "windows",
+    "distribution": "direct",
+    "architectures": ["x86_64"]
+  },
+  "build": {
+    "status": "supported",
+    "artifact": "exe-installer",
+    "entrypoint": "distribution/desktop/windows/direct/build.ps1",
+    "smokeEntrypoint": "distribution/desktop/windows/direct/smoke-install.ps1",
+    "outputPattern": "distribution/artifacts/windows-direct/Quiltor-Setup-{version}.exe"
+  },
+  "security": {
+    "sandbox": "none",
+    "signing": "authenticode",
+    "entitlements": null
+  },
+  "capabilities": {
+    "externalProcess": true,
+    "codeDownload": true,
+    "arbitraryFilesystem": true,
+    "backgroundExecution": true
+  },
+  "updates": {
+    "provider": "github-release"
+  },
+  "release": {
+    "channel": "stable",
+    "rolloutTrack": "public"
+  },
+  "publication": {
+    "status": "supported",
+    "channel": "github-release",
+    "storeListing": null
+  }
+}

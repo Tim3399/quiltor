@@ -1,0 +1,244 @@
+{
+  "$schema": "https://quiltor.app/contracts/manifest.schema.json",
+  "$id": "https://quiltor.app/contracts/manifest.json",
+  "manifestVersion": 1,
+  "contracts": [
+    {
+      "name": "application.structured-error",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "additive",
+        "rule": "Codes and existing parameter meanings stay stable; readers ignore unknown optional properties."
+      },
+      "schema": "application-api/structured-error/v1.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/structured-error/backup-gateway.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/application-api/structured-error/revision-conflict.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
+      "name": "application.story-world-wire",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "The envelope is strict; payload and record extensions are additive and preserved, while incompatible changes require v2."
+      },
+      "schema": "application-api/story-world/v1.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/story-world/wire.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/application-api/story-world/differential.v1.json",
+          "mediaType": "application/json",
+          "role": "differential"
+        }
+      ]
+    },
+    {
+      "name": "application.manuscript-wire",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "The envelope is strict; payload and record extensions are additive and preserved, while incompatible changes require v2."
+      },
+      "schema": "application-api/manuscript/v1.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/manuscript/wire.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/application-api/manuscript/differential.v1.json",
+          "mediaType": "application/json",
+          "role": "differential"
+        }
+      ]
+    },
+    {
+      "name": "host.native-bridge",
+      "version": 1,
+      "owner": "quiltor/hosts",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "The v1 envelope field set is strict; incompatible envelope or response changes require a new major version."
+      },
+      "schema": "native-bridge/v1.schema.json",
+      "reference": "native-bridge/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/native-bridge/request.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/native-bridge/success.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/native-bridge/error.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
+      "name": "host.mcp-tools",
+      "version": 1,
+      "owner": "quiltor/hosts",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "Tool names and existing input semantics stay stable; removals or stricter inputs require a new catalogue version."
+      },
+      "schema": "mcp/v1.schema.json",
+      "reference": "mcp/v1.md",
+      "fixtures": [
+        {
+          "path": "fixtures/mcp/tools.v1.json",
+          "mediaType": "application/json",
+          "role": "catalog"
+        }
+      ]
+    },
+    {
+      "name": "backup.snapshot-protocol",
+      "version": 1,
+      "owner": "quiltor/backup",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "V1 is a strict legacy read contract; its exact fields, historical id serialization, paths, and digest semantics stay stable."
+      },
+      "schema": "backup/v1.schema.json",
+      "reference": "backup/v1.md",
+      "fixtures": [
+        {
+          "path": "fixtures/backup/snapshot.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
+      "name": "backup.snapshot-protocol",
+      "version": 2,
+      "owner": "quiltor/backup",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "V2 is strict and fail-closed; incompatible schema, canonicalization, path, digest, or size changes require a new manifest format."
+      },
+      "schema": "backup/v2.schema.json",
+      "reference": "backup/v2.md",
+      "fixtures": [
+        {
+          "path": "fixtures/backup/snapshot.v2.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
+      "name": "persistence.sqlite-migrations",
+      "version": 1,
+      "owner": "quiltor/persistence",
+      "compatibility": {
+        "policy": "forward-only",
+        "rule": "Published schema versions are immutable and the ordered chain only appends idempotent forward migrations."
+      },
+      "schema": "persistence/sqlite-migrations/v1.schema.json",
+      "reference": "persistence/sqlite-migrations/v1.md",
+      "fixtures": [
+        {
+          "path": "fixtures/persistence/sqlite-migration-chain.v1.json",
+          "mediaType": "application/json",
+          "role": "migration-chain"
+        }
+      ]
+    },
+    {
+      "name": "semantics.timeline-order",
+      "version": 1,
+      "owner": "quiltor/core",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "Column meanings and expected ordering are immutable; semantic changes create a new fixture contract version."
+      },
+      "schema": null,
+      "fixtures": [
+        {
+          "path": "fixtures/timeline-order.tsv",
+          "mediaType": "text/tab-separated-values",
+          "role": "golden"
+        }
+      ]
+    },
+    {
+      "name": "semantics.entity-resolution",
+      "version": 1,
+      "owner": "quiltor/core",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "Inputs and expected normalization or distance results are immutable within this golden-fixture version."
+      },
+      "schema": "semantics/entity-resolution/v1.schema.json",
+      "fixtures": [
+        {
+          "path": "fixtures/story-world/entity-resolution.v1.json",
+          "mediaType": "application/json",
+          "role": "golden"
+        }
+      ]
+    },
+    {
+      "name": "semantics.entity-resolution",
+      "version": 2,
+      "owner": "quiltor/core",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "V2 freezes alias-ascii-v1 normalization; later non-ASCII folding requires a new semantic contract version."
+      },
+      "schema": "semantics/entity-resolution/v2.schema.json",
+      "fixtures": [
+        {
+          "path": "fixtures/story-world/entity-resolution.v2.json",
+          "mediaType": "application/json",
+          "role": "golden"
+        }
+      ]
+    },
+    {
+      "name": "semantics.world-state-evaluation",
+      "version": 1,
+      "owner": "quiltor/core",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "Inputs and expected temporal world-state results are immutable within this golden-fixture version."
+      },
+      "schema": "semantics/world-state-evaluation/v1.schema.json",
+      "fixtures": [
+        {
+          "path": "fixtures/story-world/world-state.v1.json",
+          "mediaType": "application/json",
+          "role": "golden"
+        }
+      ]
+    }
+  ]
+}

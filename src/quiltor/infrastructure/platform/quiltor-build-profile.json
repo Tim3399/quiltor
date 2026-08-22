@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "source",
+  "host": "python",
+  "platform": "auto",
+  "architecture": "auto",
+  "distribution": "direct",
+  "releaseChannel": "stable",
+  "updateProvider": "none",
+  "constraints": {
+    "sandboxed": false,
+    "allowsCodeDownload": true,
+    "allowsExternalProcess": true,
+    "allowsSelfUpdate": false,
+    "allowsArbitraryFileAccess": true,
+    "allowsBackgroundExecution": true
+  }
+}

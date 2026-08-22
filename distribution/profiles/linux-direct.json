@@ -1,0 +1,45 @@
+{
+  "$schema": "../contracts/build-profile.schema.json",
+  "contractVersion": 1,
+  "id": "linux-direct",
+  "product": {
+    "name": "Quiltor",
+    "applicationId": "app.quiltor.linux"
+  },
+  "target": {
+    "host": "desktop",
+    "platform": "linux",
+    "distribution": "direct",
+    "architectures": ["x86_64", "arm64"]
+  },
+  "build": {
+    "status": "scaffold",
+    "artifact": "appimage",
+    "entrypoint": null,
+    "smokeEntrypoint": null,
+    "outputPattern": null
+  },
+  "security": {
+    "sandbox": "none",
+    "signing": "package-provenance",
+    "entitlements": null
+  },
+  "capabilities": {
+    "externalProcess": true,
+    "codeDownload": true,
+    "arbitraryFilesystem": true,
+    "backgroundExecution": true
+  },
+  "updates": {
+    "provider": "github-release"
+  },
+  "release": {
+    "channel": "stable",
+    "rolloutTrack": "public"
+  },
+  "publication": {
+    "status": "scaffold",
+    "channel": "github-release",
+    "storeListing": null
+  }
+}

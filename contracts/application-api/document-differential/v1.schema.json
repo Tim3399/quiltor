@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/document-differential/v1.schema.json",
+  "title": "Quiltor document wire differential corpus v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "version", "baseFixture", "optionalPresence", "cases"],
+  "properties": {
+    "contract": {
+      "enum": ["application.manuscript-wire", "application.story-world-wire"]
+    },
+    "version": { "const": 1 },
+    "baseFixture": { "type": "string", "minLength": 1 },
+    "normalizationAlgorithm": { "const": "quiltor.story-world.alias-ascii-v1" },
+    "normalization": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "input", "expected"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "input": { "type": "string" },
+          "expected": { "type": "string" }
+        }
+      }
+    },
+    "optionalPresence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "path", "absent", "null"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "pattern": "^/" },
+          "alsoRemove": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^/" }
+          },
+          "absent": { "const": "accept" },
+          "null": { "const": "reject" }
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "operation", "path", "expect"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "operation": { "enum": ["set", "remove"] },
+          "path": { "type": "string", "pattern": "^/" },
+          "value": true,
+          "expect": { "enum": ["accept", "reject"] },
+          "canonical": { "enum": ["integer"] }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "operation": { "const": "set" } } },
+            "then": { "required": ["value"] }
+          }
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "contract": { "const": "application.story-world-wire" } }
+      },
+      "then": { "required": ["normalizationAlgorithm", "normalization"] }
+    }
+  ]
+}

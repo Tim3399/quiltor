@@ -1,6 +1,6 @@
 # TODO — Quiltor Product Roadmap
 
-**Baseline:** Quiltor `3.0.2` / current `main` reviewed on 18 August 2026  
+**Baseline:** Quiltor `3.3.1` / architecture cutover reviewed on 22 August 2026
 **Purpose:** Product roadmap. This file answers **what should be built next and in what order**.
 
 ---
@@ -8,6 +8,29 @@
 # Product direction
 
 Quiltor is writing software for people who want to write themselves.
+
+## P0 architecture cutover
+
+The architecture cutover is complete. The authoritative target and enforced
+boundary rules live under `docs/architecture/`.
+
+- [x] Separate product modules, hosts, platforms, distribution targets, release
+      channels and user entitlements.
+- [x] Move UI localisation into contributor-facing root locale packs.
+- [x] Replace direct browser/native access with `QuiltorClient` and focused
+      platform gateways.
+- [x] Replace generic Python package and storage/service buckets with the
+      `quiltor` product namespace and owned modules.
+- [x] Embed validated build profiles in every published artifact.
+- [x] Establish the portable local-core and versioned native-bridge boundary for
+      iOS and Android.
+- [x] Restructure direct installers, store packages and publishing workflows by
+      target.
+- [x] Enforce dependency rules, contract fixtures, platform builds and install /
+      upgrade / uninstall smoke tests in release preflight.
+
+No item below this gate may introduce new dependencies on the retired folder
+layout; the architecture checks enforce that rule.
 
 > **The author writes. The LLM interprets. Tools verify. The author decides.**
 
@@ -154,15 +177,15 @@ The current UI already behaves as if Timeline, Presence and temporal Relationshi
 
 ## Canonical World State
 
-- [ ] Add a deterministic `WorldState(t)` resolver based on canonical signed timeline coordinates.
-- [ ] Support state:
+- [x] Add a deterministic `WorldState(t)` resolver based on canonical signed timeline coordinates.
+- [x] Support state:
   - at a moment;
   - before a moment;
   - after a moment;
   - differences between moments;
   - history for an entity.
-- [ ] Project existing relationship, death and presence state into the same snapshot model.
-- [ ] Make the resolver independent of the LLM.
+- [x] Project existing relationship, death and presence state into the same snapshot model.
+- [x] Make the resolver independent of the LLM.
 
 ## Story time vs manuscript order
 

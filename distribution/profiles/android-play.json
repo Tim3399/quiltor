@@ -1,0 +1,45 @@
+{
+  "$schema": "../contracts/build-profile.schema.json",
+  "contractVersion": 1,
+  "id": "android-play",
+  "product": {
+    "name": "Quiltor",
+    "applicationId": "app.quiltor.mobile"
+  },
+  "target": {
+    "host": "mobile",
+    "platform": "android",
+    "distribution": "google-play",
+    "architectures": ["arm64", "x86_64"]
+  },
+  "build": {
+    "status": "scaffold",
+    "artifact": "aab",
+    "entrypoint": null,
+    "smokeEntrypoint": null,
+    "outputPattern": null
+  },
+  "security": {
+    "sandbox": "mobile-sandbox",
+    "signing": "store-managed",
+    "entitlements": null
+  },
+  "capabilities": {
+    "externalProcess": false,
+    "codeDownload": false,
+    "arbitraryFilesystem": false,
+    "backgroundExecution": false
+  },
+  "updates": {
+    "provider": "google-play"
+  },
+  "release": {
+    "channel": "play-internal",
+    "rolloutTrack": "internal"
+  },
+  "publication": {
+    "status": "scaffold",
+    "channel": "google-play",
+    "storeListing": "distribution/store-listings/google-play"
+  }
+}

@@ -1,0 +1,102 @@
+.ui-select-control {
+  min-width: 130px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset var(--ring-1) var(--control-hint);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-quick) var(--ease-standard),
+    background-color var(--motion-quick) var(--ease-standard),
+    box-shadow var(--motion-quick) var(--ease-standard);
+}
+.ui-select-control:hover,
+.ui-select-control[aria-expanded="true"] {
+  border-color: var(--line-strong);
+  background: var(--active-surface);
+}
+.ui-select-control:focus-visible {
+  border-color: var(--focus);
+  outline: none;
+  box-shadow: var(--ring-2) var(--focus);
+}
+.ui-select-control svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  transition: transform var(--motion-quick) var(--ease-standard);
+}
+.ui-select-control[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.ui-select-listbox {
+  min-width: var(--popover-min);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+.ui-select-listbox [role="option"] {
+  min-height: var(--control-regular);
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-sm);
+  background: var(--transparent);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.ui-select-listbox [role="option"]:hover,
+.ui-select-listbox [role="option"]:focus-visible {
+  background: var(--control-hover);
+  outline: none;
+}
+.ui-select-listbox [role="option"][aria-selected="true"] {
+  background: var(--selection-surface);
+  box-shadow: inset var(--ring-1) var(--gold-border);
+}
+.ui-select-listbox [role="option"]:disabled {
+  color: var(--disabled-content);
+  cursor: default;
+}
+.field {
+  display: block;
+  margin: 0 0 var(--space-16);
+}
+.field > span {
+  display: block;
+  margin-bottom: var(--space-6);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  padding: var(--space-9) var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+.field textarea {
+  min-height: 92px;
+  resize: vertical;
+  font-family: var(--prose);
+  font-size: var(--font-size-4);
+  line-height: 1.45;
+}
+.section-label {
+  margin: var(--space-24) 0 var(--space-10);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
