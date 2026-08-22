@@ -28,7 +28,7 @@ export function PlaceHistory({
     <div className="panel-body places-inspector-body">
       <details className="places-manager-section" open>
         <summary>
-          <div>
+          <div className="places-section-heading">
             <h2>{t("whoWasHere")}</h2>
             <p>{t("whoWasHereBody")}</p>
           </div>
@@ -43,31 +43,36 @@ export function PlaceHistory({
               stay.leftAt?.momentId ?? "present",
             ].join(":");
             return (
-              <div key={stayKey}>
+              <div className="places-stay-row" key={stayKey}>
                 <button
                   type="button"
-                  className="places-link"
+                  className="places-link places-stay-person"
                   onClick={() => onOpen({ workspace: "figures", id: figure.id })}
                 >
                   {figure.name}
                 </button>
-                <span>
-                  {stay.arrivedAt.momentId
-                    ? timeline.find((moment) => moment.id === stay.arrivedAt.momentId)?.title
-                    : t("initialState")}
-                </span>
-                <span>
-                  {stay.leftAt
-                    ? stay.died
-                      ? `† ${timeline.find((moment) => moment.id === stay.leftAt?.momentId)?.title ?? ""}`
-                      : timeline.find((moment) => moment.id === stay.leftAt?.momentId)?.title
-                    : t("stillHere")}
-                </span>
                 <span className="places-stay-duration">
                   {stay.leftAt
                     ? stopDateDiff(stay.arrivedAt, stay.leftAt, timeline, state.timeSystem).label
                     : ""}
                 </span>
+                <div className="places-stay-range">
+                  <span>
+                    {stay.arrivedAt.momentId
+                      ? timeline.find((moment) => moment.id === stay.arrivedAt.momentId)?.title
+                      : t("initialState")}
+                  </span>
+                  <span className="places-stay-arrow" aria-hidden="true">
+                    →
+                  </span>
+                  <span>
+                    {stay.leftAt
+                      ? stay.died
+                        ? `† ${timeline.find((moment) => moment.id === stay.leftAt?.momentId)?.title ?? ""}`
+                        : timeline.find((moment) => moment.id === stay.leftAt?.momentId)?.title
+                      : t("stillHere")}
+                  </span>
+                </div>
               </div>
             );
           })}
@@ -76,7 +81,7 @@ export function PlaceHistory({
       </details>
       <details className="places-manager-section" open>
         <summary>
-          <div>
+          <div className="places-section-heading">
             <h2>{t("chronicle")}</h2>
             <p>{t("chronicleBody")}</p>
           </div>
@@ -85,7 +90,7 @@ export function PlaceHistory({
           {chronicle.map((row) => {
             const moment = row.moment;
             return (
-              <div key={row.index}>
+              <div className="places-chronicle-entry" key={row.index}>
                 <strong>
                   {moment ? (
                     <button

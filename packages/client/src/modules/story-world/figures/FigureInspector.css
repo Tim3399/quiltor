@@ -150,8 +150,7 @@
 }
 
 .custom-field input,
-.custom-field textarea,
-.relation-list select {
+.custom-field textarea {
   min-width: 0;
   padding: var(--space-7) var(--space-8);
   border: 1px solid var(--line);
@@ -171,8 +170,27 @@
   grid-column: 2;
 }
 
-.relation-list select {
+.figure-inspector .field .ui-select-control,
+.relationship-style-control .ui-select-control {
+  width: 100%;
+  min-width: 0;
+}
+
+.relationship-style-control {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.relationship-style-control .ui-select-control {
   font-size: var(--font-size-2);
+}
+
+.relationship-style-control[disabled] .ui-select-control {
+  color: var(--disabled-content);
+  cursor: default;
+  opacity: 0.62;
 }
 
 .check-field {

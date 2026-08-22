@@ -1,14 +1,16 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import type { Manuscript } from "../../manuscript";
 import type { FigureState } from "../model";
-import { DEFAULT_TIME_SYSTEM } from "./timeSystem";
 import {
   chaptersUsingTimelineMoment,
   firstReversedChapterTimeRange,
   TimelineWorkspace,
 } from "./TimelineWorkspace";
+import { DEFAULT_TIME_SYSTEM } from "./timeSystem";
 
 afterEach(cleanup);
 
@@ -44,6 +46,27 @@ function renderTimeline(
 }
 
 describe("TimelineWorkspace sections", () => {
+  it("keeps the horizontal moment rail on the Quiltor scrollbar contract", () => {
+    renderTimeline();
+    expect(screen.getByRole("navigation", { name: "Timeline" })).toHaveClass("story-timeline");
+
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/story-world/timeline/MomentBoard.css"),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /\.story-timeline\s*\{[^}]*scrollbar-color:\s*var\(--line-strong\)\s+var\(--transparent\);[^}]*scrollbar-width:\s*thin;[^}]*--scrollbar-surface:\s*var\(--panel\);/s,
+    );
+    expect(css).toMatch(
+      /\.story-timeline::-webkit-scrollbar\s*\{[^}]*height:\s*var\(--space-10\);/s,
+    );
+    expect(css).toMatch(
+      /\.story-timeline::-webkit-scrollbar-thumb\s*\{[^}]*border:\s*var\(--space-3\)\s+solid\s+var\(--scrollbar-surface\);[^}]*background:\s*var\(--line-strong\);/s,
+    );
+    expect(css).toContain(".story-timeline::-webkit-scrollbar-thumb:hover");
+    expect(css).toContain(".story-timeline::-webkit-scrollbar-thumb:active");
+  });
+
   it("starts focused on relationships and keeps secondary tasks collapsed", () => {
     renderTimeline();
     expect(screen.getByRole("button", { name: "Beziehungen" })).toHaveAttribute(

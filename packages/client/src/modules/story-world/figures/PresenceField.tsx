@@ -1,4 +1,5 @@
 import { useI18n } from "../../../i18n";
+import { SelectControl } from "../../../shared/ui/SelectControl";
 import type { FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import {
   figureJourney,
@@ -41,45 +42,36 @@ export function PresenceField({
     (found, stop, index) => (stop.index <= activeIndex ? index : found),
     -1,
   );
-  const fieldLabelId = `figure-presence-${figure.id}`;
+  const fieldLabel = activeMomentId
+    ? t("placeSinceMoment").replace(
+        "{title}",
+        timeline.find((moment) => moment.id === activeMomentId)?.title ?? "",
+      )
+    : t("placeInitial");
   return (
     <div className="presence-field-group">
       <div className="field presence-field">
-        <span id={fieldLabelId}>
-          {activeMomentId
-            ? t("placeSinceMoment").replace(
-                "{title}",
-                timeline.find((moment) => moment.id === activeMomentId)?.title ?? "",
-              )
-            : t("placeInitial")}
-        </span>
+        <span>{fieldLabel}</span>
         {places.length ? (
-          <select
-            aria-labelledby={fieldLabelId}
+          <SelectControl
+            label={fieldLabel}
             value={editor.placeId}
-            onChange={(event) =>
+            options={[
+              {
+                value: "",
+                label: activeMomentId
+                  ? `${t("unchanged")}${inheritedName ? ` · ${inheritedName}` : ""}`
+                  : t("noPlace"),
+              },
+              ...places.map((place) => ({ value: place.id, label: place.name })),
+            ]}
+            onChange={(placeId) =>
               onState({
                 ...state,
-                presence: patchPresence(
-                  presence,
-                  figure.id,
-                  activeMomentId,
-                  event.target.value || null,
-                ),
+                presence: patchPresence(presence, figure.id, activeMomentId, placeId || null),
               })
             }
-          >
-            <option value="">
-              {activeMomentId
-                ? `${t("unchanged")}${inheritedName ? ` · ${inheritedName}` : ""}`
-                : t("noPlace")}
-            </option>
-            {places.map((place) => (
-              <option key={place.id} value={place.id}>
-                {place.name}
-              </option>
-            ))}
-          </select>
+          />
         ) : (
           <p className="muted">{t("createPlaceFirst")}</p>
         )}

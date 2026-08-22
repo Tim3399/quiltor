@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
@@ -21,6 +23,44 @@ const state: FigureState = {
 };
 
 describe("PlaceInspector", () => {
+  it("keeps history rows inside their cards with compact, wrapping layout contracts", () => {
+    const { container } = render(
+      <I18nProvider>
+        <PlaceInspector
+          selected={state.nodes[0]}
+          state={state}
+          onPatch={vi.fn()}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const whoWasHere = screen.getByText("Wer war hier").closest("details");
+    const chronicle = screen.getByText("Chronik").closest("details");
+    expect(whoWasHere?.querySelector("summary > .places-section-heading")).toBeInTheDocument();
+    expect(whoWasHere?.querySelector(".places-stay-row .places-stay-range")).toBeInTheDocument();
+    expect(chronicle?.querySelector(".places-chronicle-entry")).toBeInTheDocument();
+    expect(container.querySelector(".places-inspector-body")).toBeInTheDocument();
+
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/story-world/places/PlaceInspector.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.places-section-heading\s*\{[^}]*min-width:\s*0;[^}]*width:\s*100%;/s);
+    expect(css).toMatch(
+      /\.places-stay-row\s*\{[^}]*min-width:\s*0;[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto;/s,
+    );
+    expect(css).toMatch(
+      /\.places-stay-range\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\);/s,
+    );
+    expect(css).toMatch(/\.places-chronicle-entry\s*>\s*strong,[\s\S]*?overflow-wrap:\s*anywhere;/);
+    expect(css).toMatch(
+      /\.places-inspector-body\s*\{[^}]*overflow-x:\s*hidden;[^}]*scrollbar-color:\s*var\(--line-strong\)\s+var\(--transparent\);/s,
+    );
+    expect(css).toContain(".places-inspector-body::-webkit-scrollbar-thumb");
+  });
+
   it("owns favorite/lock editing and cross-workspace history links", () => {
     const onPatch = vi.fn();
     const onOpen = vi.fn();

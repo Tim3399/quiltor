@@ -14,7 +14,7 @@ describe("PresenceField", () => {
       edges: [],
     };
     const onState = vi.fn();
-    render(
+    const view = render(
       <I18nProvider>
         <PresenceField
           figure={person}
@@ -26,9 +26,12 @@ describe("PresenceField", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getByLabelText("Ort (Ausgangslage)"), {
-      target: { value: "city" },
-    });
+    const place = screen.getByRole("combobox", { name: "Ort (Ausgangslage)" });
+    expect(place.tagName).toBe("BUTTON");
+    expect(place).toHaveClass("ui-select-control");
+    expect(view.container.querySelector("select")).toBeNull();
+    fireEvent.click(place);
+    fireEvent.click(screen.getByRole("option", { name: "Stadt" }));
 
     expect(onState).toHaveBeenCalledWith({
       ...state,

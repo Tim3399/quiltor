@@ -2,6 +2,11 @@
   margin-top: var(--space-12);
 }
 
+.presence-field .ui-select-control {
+  width: 100%;
+  min-width: 0;
+}
+
 .presence-journey {
   display: flex;
   flex-wrap: wrap;

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useI18n } from "../../../i18n";
 import { normalizeEntityAliasV1 } from "../../../shared";
 import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
+import { SelectControl } from "../../../shared/ui/SelectControl";
 import type {
   EntityAlias,
   FigureEdge,
@@ -275,17 +276,19 @@ export function FigureInspector({
           <>
             <label className="field">
               <span>{t("kind")}</span>
-              <select
+              <SelectControl<FigureKind>
+                label={t("kind")}
                 value={figure.type || "person"}
-                onChange={(event) => onPatch({ type: event.target.value as FigureKind })}
-              >
-                <option value="person">{t("figure")}</option>
-                <option value="tier">{t("animal")}</option>
-                <option value="ort">{t("place")}</option>
-                <option value="organisation">{t("organisation")}</option>
-                <option value="objekt">{t("object")}</option>
-                <option value="konzept">{t("concept")}</option>
-              </select>
+                options={[
+                  { value: "person", label: t("figure") },
+                  { value: "tier", label: t("animal") },
+                  { value: "ort", label: t("place") },
+                  { value: "organisation", label: t("organisation") },
+                  { value: "objekt", label: t("object") },
+                  { value: "konzept", label: t("concept") },
+                ]}
+                onChange={(type) => onPatch({ type })}
+              />
             </label>
             <label className="field">
               <span>{t("name")}</span>
@@ -311,17 +314,17 @@ export function FigureInspector({
             </label>
             <label className="field">
               <span>{t("accent")}</span>
-              <select
+              <SelectControl<NonNullable<FigureNode["accent"]>>
+                label={t("accent")}
                 value={figure.accent || "ink"}
-                onChange={(event) =>
-                  onPatch({ accent: event.target.value as FigureNode["accent"] })
-                }
-              >
-                <option value="ink">{t("neutral")}</option>
-                <option value="gold">{t("gold")}</option>
-                <option value="rose">{t("rose")}</option>
-                <option value="moss">{t("green")}</option>
-              </select>
+                options={[
+                  { value: "ink", label: t("neutral") },
+                  { value: "gold", label: t("gold") },
+                  { value: "rose", label: t("rose") },
+                  { value: "moss", label: t("green") },
+                ]}
+                onChange={(accent) => onPatch({ accent })}
+              />
             </label>
             <div className="node-priority-actions">
               <button
@@ -522,19 +525,34 @@ export function FigureInspector({
                     >
                       <Trash2 />
                     </button>
-                    <select
-                      aria-label={t("lineStyle")}
-                      value={resolved.style || "solid"}
+                    <fieldset
+                      className="relationship-style-control"
                       disabled={!resolved.active}
-                      onChange={(event) =>
-                        patchEdge({ style: event.target.value as typeof edge.style })
-                      }
+                      onClickCapture={(event) => {
+                        if (!resolved.active) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }
+                      }}
+                      onKeyDownCapture={(event) => {
+                        if (!resolved.active) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }
+                      }}
                     >
-                      <option value="solid">{t("normal")}</option>
-                      <option value="dashed">{t("dashed")}</option>
-                      <option value="blood">{t("bloodline")}</option>
-                      <option value="gold">{t("gold")}</option>
-                    </select>
+                      <SelectControl<NonNullable<FigureEdge["style"]>>
+                        label={t("lineStyle")}
+                        value={resolved.style || "solid"}
+                        options={[
+                          { value: "solid", label: t("normal") },
+                          { value: "dashed", label: t("dashed") },
+                          { value: "blood", label: t("bloodline") },
+                          { value: "gold", label: t("gold") },
+                        ]}
+                        onChange={(style) => patchEdge({ style })}
+                      />
+                    </fieldset>
                     <label className="check-field">
                       <input
                         type="checkbox"

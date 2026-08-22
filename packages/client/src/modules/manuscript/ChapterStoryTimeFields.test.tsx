@@ -25,9 +25,58 @@ function renderFields(value: Chapter, onChange = vi.fn(), moments: TimelineMomen
   };
 }
 
+function storyTimeDetails() {
+  return screen.getByText("Handlungszeit").closest("details") as HTMLDetailsElement;
+}
+
+function openStoryTimeFields() {
+  const details = storyTimeDetails();
+  fireEvent.click(within(details).getByText("Handlungszeit").closest("summary")!);
+  expect(details).toHaveAttribute("open");
+  return details;
+}
+
 describe("chapter story time fields", () => {
-  it("lässt Kapitel offen und verankert sie am chronologisch ersten Zeitpunkt", () => {
+  it("ist standardmäßig kompakt und rendert editierbare Felder erst nach dem Öffnen", () => {
+    renderFields(chapter);
+
+    const details = storyTimeDetails();
+    expect(details).not.toHaveAttribute("open");
+    expect(screen.getByText("Handlungszeit offen")).toBeVisible();
+    expect(screen.queryByRole("radio", { name: "Offen" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("öffnet die kompakte Zusammenfassung und zeigt die vollständigen Felder", () => {
+    renderFields(chapter);
+
+    const details = openStoryTimeFields();
+
+    expect(within(details).getByText(/Ordnet das Kapitel der Weltzeit zu/)).toBeVisible();
+    expect(within(details).getByRole("radio", { name: "Offen" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    fireEvent.click(within(details).getByText("Handlungszeit").closest("summary")!);
+    expect(details).not.toHaveAttribute("open");
+    expect(within(details).queryByRole("radio", { name: "Offen" })).not.toBeInTheDocument();
+  });
+
+  it("zeigt eine bestehende Belegung bereits in der geschlossenen Summary-Zeile", () => {
+    renderFields({
+      ...chapter,
+      storyTime: { startMomentId: "earlier", endMomentId: "later" },
+    });
+
+    expect(storyTimeDetails()).not.toHaveAttribute("open");
+    expect(screen.getByText("Aufbruch · Tag -10 – Heimkehr · Tag 20")).toBeVisible();
+    expect(screen.queryByRole("combobox", { name: "Von" })).not.toBeInTheDocument();
+  });
+
+  it("lässt Kapitel nach dem Öffnen bearbeiten und verankert sie chronologisch", () => {
     const { onChange } = renderFields(chapter);
+    openStoryTimeFields();
     expect(screen.getByRole("radio", { name: "Offen" })).toHaveAttribute("aria-checked", "true");
 
     fireEvent.click(screen.getByRole("radio", { name: "Zeitpunkt" }));
@@ -52,6 +101,7 @@ describe("chapter story time fields", () => {
       );
     }
     render(<Stateful />);
+    openStoryTimeFields();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Von" }));
     expect(
@@ -77,6 +127,7 @@ describe("chapter story time fields", () => {
 
   it("bietet bei nur einem Zeitpunkt keinen Zeitraum an", () => {
     renderFields(chapter, vi.fn(), [{ id: "only", title: "Einziger Zeitpunkt", time: 0 }]);
+    openStoryTimeFields();
 
     expect(screen.getByRole("radio", { name: "Zeitpunkt" })).toBeEnabled();
     expect(screen.getByRole("radio", { name: "Zeitraum" })).toBeDisabled();

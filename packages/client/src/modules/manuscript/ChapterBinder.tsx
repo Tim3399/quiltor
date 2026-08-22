@@ -142,6 +142,7 @@ export function ChapterBinder({
       {current && (
         <>
           <ChapterStoryTimeFields
+            key={current.id}
             chapter={current}
             timeline={timeline}
             timeSystem={timeSystem}

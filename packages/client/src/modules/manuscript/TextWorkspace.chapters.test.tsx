@@ -152,6 +152,7 @@ describe("TextWorkspace chapter binder", () => {
     );
     const binder = within(view.container.querySelector(".binder")!);
     fireEvent.click(binder.getByRole("button", { name: /Rückblende/ }));
+    fireEvent.click(binder.getByText("Handlungszeit").closest("summary")!);
     fireEvent.click(binder.getByRole("radio", { name: "Zeitpunkt" }));
 
     expect(onChange).toHaveBeenLastCalledWith(

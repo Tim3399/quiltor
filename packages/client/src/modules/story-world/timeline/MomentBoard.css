@@ -4,7 +4,33 @@
   border-bottom: 1px solid var(--line);
   background: var(--panel);
   overflow-x: auto;
+  scrollbar-color: var(--line-strong) var(--transparent);
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  --scrollbar-surface: var(--panel);
+}
+.story-timeline::-webkit-scrollbar {
+  width: var(--space-10);
+  height: var(--space-10);
+}
+.story-timeline::-webkit-scrollbar-track {
+  background: var(--transparent);
+}
+.story-timeline::-webkit-scrollbar-thumb {
+  min-width: var(--space-48);
+  min-height: var(--space-48);
+  border: var(--space-3) solid var(--scrollbar-surface);
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+}
+.story-timeline::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-border);
+}
+.story-timeline::-webkit-scrollbar-thumb:active {
+  background: var(--gold);
+}
+.story-timeline::-webkit-scrollbar-corner {
+  background: var(--scrollbar-surface);
 }
 .story-track {
   min-width: max-content;

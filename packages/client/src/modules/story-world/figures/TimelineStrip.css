@@ -83,6 +83,39 @@
   align-items: center;
   overflow-x: auto;
   padding: var(--space-3) var(--space-4);
+  scrollbar-color: var(--line-strong) var(--transparent);
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  --scrollbar-surface: var(--panel);
+}
+
+.timeline-track::-webkit-scrollbar {
+  width: var(--space-10);
+  height: var(--space-10);
+}
+
+.timeline-track::-webkit-scrollbar-track {
+  background: var(--transparent);
+}
+
+.timeline-track::-webkit-scrollbar-thumb {
+  min-width: var(--space-48);
+  min-height: var(--space-48);
+  border: var(--space-3) solid var(--scrollbar-surface);
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+}
+
+.timeline-track::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-border);
+}
+
+.timeline-track::-webkit-scrollbar-thumb:active {
+  background: var(--gold);
+}
+
+.timeline-track::-webkit-scrollbar-corner {
+  background: var(--scrollbar-surface);
 }
 
 .timeline-moment {

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { useI18n, type Translate } from "../../i18n";
 import {
   canonicalTimelineOrder,
@@ -74,6 +76,7 @@ export function ChapterStoryTimeFields({
   onChange: (storyTime: ChapterStoryTime | undefined) => void;
 }) {
   const { t } = useI18n();
+  const [expanded, setExpanded] = useState(false);
   const timeline = canonicalTimelineOrder(timelineValue || []);
   const system = normalizeTimeSystem(timeSystem);
   const momentsById = new Map(timeline.map((moment) => [moment.id, moment]));
@@ -154,71 +157,91 @@ export function ChapterStoryTimeFields({
   };
 
   return (
-    <section className="binder-story-time" aria-labelledby="chapter-story-time-heading">
-      <div>
-        <span id="chapter-story-time-heading">{t("chapterStoryTime")}</span>
-        <p>{t("chapterStoryTimeHelp")}</p>
-      </div>
-      <SegmentedControl
-        label={t("chapterStoryTimeMode")}
-        value={mode}
-        onChange={setMode}
-        options={[
-          { value: "open", label: t("chapterStoryTimeOpenMode") },
-          { value: "point", label: t("chapterStoryTimePoint"), disabled: !timeline.length },
-          { value: "range", label: t("chapterStoryTimeRange"), disabled: timeline.length < 2 },
-        ]}
-      />
-      {!timeline.length && <p className="binder-story-time-status">{t("chapterStoryTimeEmpty")}</p>}
-      {mode !== "open" && timeline.length > 0 && (
-        <div className="binder-story-time-fields">
-          <label>
-            <span>
-              {mode === "range" ? t("chapterStoryTimeStart") : t("chapterStoryTimePoint")}
-            </span>
-            <SelectControl
-              label={mode === "range" ? t("chapterStoryTimeStart") : t("chapterStoryTimePoint")}
-              value={startMomentId}
-              options={startOptions}
-              onChange={(nextStartMomentId) => {
-                if (mode === "point") {
-                  onChange({ startMomentId: nextStartMomentId });
-                  return;
-                }
-                const nextStartPosition = positions.get(nextStartMomentId) ?? 0;
-                const nextEndMomentId =
-                  momentsById.has(endMomentId) &&
-                  (positions.get(endMomentId) ?? -1) > nextStartPosition
-                    ? endMomentId
-                    : timeline[nextStartPosition + 1]?.id;
-                if (!nextEndMomentId) return;
-                onChange({
-                  startMomentId: nextStartMomentId,
-                  endMomentId: nextEndMomentId,
-                });
-              }}
-            />
-          </label>
-          {mode === "range" && (
-            <label>
-              <span>{t("chapterStoryTimeEnd")}</span>
-              <SelectControl
-                label={t("chapterStoryTimeEnd")}
-                value={endMomentId}
-                options={endOptions}
-                onChange={(nextEndMomentId) =>
-                  onChange({ startMomentId, endMomentId: nextEndMomentId })
-                }
-              />
-            </label>
+    <details className="binder-story-time" open={expanded}>
+      <summary
+        aria-expanded={expanded}
+        onClick={(event) => {
+          event.preventDefault();
+          setExpanded((value) => !value);
+        }}
+      >
+        <span className="binder-story-time-title">{t("chapterStoryTime")}</span>
+        <span
+          className={`binder-story-time-value ${
+            missingStart || missingEnd || invalidRange ? "is-warning" : ""
+          }`}
+        >
+          {chapterStoryTimeLabel(chapter, timeline, system, t)}
+        </span>
+        <ChevronDown aria-hidden="true" />
+      </summary>
+      {expanded && (
+        <div className="binder-story-time-panel">
+          <p className="binder-story-time-help">{t("chapterStoryTimeHelp")}</p>
+          <SegmentedControl
+            label={t("chapterStoryTimeMode")}
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "open", label: t("chapterStoryTimeOpenMode") },
+              { value: "point", label: t("chapterStoryTimePoint"), disabled: !timeline.length },
+              { value: "range", label: t("chapterStoryTimeRange"), disabled: timeline.length < 2 },
+            ]}
+          />
+          {!timeline.length && (
+            <p className="binder-story-time-status">{t("chapterStoryTimeEmpty")}</p>
+          )}
+          {mode !== "open" && timeline.length > 0 && (
+            <div className="binder-story-time-fields">
+              <label>
+                <span>
+                  {mode === "range" ? t("chapterStoryTimeStart") : t("chapterStoryTimePoint")}
+                </span>
+                <SelectControl
+                  label={mode === "range" ? t("chapterStoryTimeStart") : t("chapterStoryTimePoint")}
+                  value={startMomentId}
+                  options={startOptions}
+                  onChange={(nextStartMomentId) => {
+                    if (mode === "point") {
+                      onChange({ startMomentId: nextStartMomentId });
+                      return;
+                    }
+                    const nextStartPosition = positions.get(nextStartMomentId) ?? 0;
+                    const nextEndMomentId =
+                      momentsById.has(endMomentId) &&
+                      (positions.get(endMomentId) ?? -1) > nextStartPosition
+                        ? endMomentId
+                        : timeline[nextStartPosition + 1]?.id;
+                    if (!nextEndMomentId) return;
+                    onChange({
+                      startMomentId: nextStartMomentId,
+                      endMomentId: nextEndMomentId,
+                    });
+                  }}
+                />
+              </label>
+              {mode === "range" && (
+                <label>
+                  <span>{t("chapterStoryTimeEnd")}</span>
+                  <SelectControl
+                    label={t("chapterStoryTimeEnd")}
+                    value={endMomentId}
+                    options={endOptions}
+                    onChange={(nextEndMomentId) =>
+                      onChange({ startMomentId, endMomentId: nextEndMomentId })
+                    }
+                  />
+                </label>
+              )}
+            </div>
+          )}
+          {(missingStart || missingEnd || invalidRange) && (
+            <p className="binder-story-time-status is-warning">
+              {invalidRange ? t("chapterStoryTimeInvalidRange") : t("chapterStoryTimeMissingHelp")}
+            </p>
           )}
         </div>
       )}
-      {(missingStart || missingEnd || invalidRange) && (
-        <p className="binder-story-time-status is-warning">
-          {invalidRange ? t("chapterStoryTimeInvalidRange") : t("chapterStoryTimeMissingHelp")}
-        </p>
-      )}
-    </section>
+    </details>
   );
 }

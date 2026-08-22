@@ -15,6 +15,79 @@ const state: FigureState = {
 };
 
 describe("FigureInspector", () => {
+  it("renders every visible figure selector through the styled shared control", () => {
+    const onPatch = vi.fn();
+    const onState = vi.fn();
+    const view = render(
+      <I18nProvider>
+        <FigureInspector
+          figure={state.nodes[0]}
+          state={state}
+          activeMomentId={null}
+          onPatch={onPatch}
+          onState={onState}
+          onDelete={vi.fn()}
+          onSelectMoment={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const kind = screen.getByRole("combobox", { name: "Art" });
+    const accent = screen.getByRole("combobox", { name: "Akzent" });
+    expect(kind.tagName).toBe("BUTTON");
+    expect(accent.tagName).toBe("BUTTON");
+    expect(kind).toHaveClass("ui-select-control");
+    expect(accent).toHaveClass("ui-select-control");
+    expect(view.container.querySelector("select")).toBeNull();
+
+    fireEvent.click(kind);
+    fireEvent.click(screen.getByRole("option", { name: "Tier" }));
+    expect(onPatch).toHaveBeenCalledWith({ type: "tier" });
+
+    fireEvent.click(accent);
+    fireEvent.click(screen.getByRole("option", { name: "Gold" }));
+    expect(onPatch).toHaveBeenCalledWith({ accent: "gold" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Beziehungen" }));
+    const lineStyle = screen.getByRole("combobox", { name: "Linienstil" });
+    expect(lineStyle.tagName).toBe("BUTTON");
+    expect(lineStyle).toHaveClass("ui-select-control");
+    expect(view.container.querySelector("select")).toBeNull();
+
+    fireEvent.click(lineStyle);
+    fireEvent.click(screen.getByRole("option", { name: "Gestrichelt" }));
+    expect(onState).toHaveBeenCalledWith({
+      ...state,
+      edges: [{ ...state.edges[0], style: "dashed" }],
+    });
+  });
+
+  it("keeps the styled line selector disabled when the relationship is inactive", () => {
+    const inactiveState: FigureState = {
+      ...state,
+      edges: [{ ...state.edges[0], active: false }],
+    };
+    render(
+      <I18nProvider>
+        <FigureInspector
+          figure={inactiveState.nodes[0]}
+          state={inactiveState}
+          activeMomentId={null}
+          onPatch={vi.fn()}
+          onState={vi.fn()}
+          onDelete={vi.fn()}
+          onSelectMoment={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Beziehungen" }));
+    const lineStyle = screen.getByRole("combobox", { name: "Linienstil" });
+    expect(lineStyle).toBeDisabled();
+    fireEvent.click(lineStyle);
+    expect(screen.queryByRole("listbox", { name: "Linienstil" })).not.toBeInTheDocument();
+  });
+
   it("keeps profile and relationship editing behind their owned tabs", () => {
     const onPatch = vi.fn();
     const onState = vi.fn();
