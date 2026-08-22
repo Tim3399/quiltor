@@ -71,9 +71,7 @@ class AssistantEntityResolutionTests(unittest.TestCase):
 
     def test_ambiguous_name_alias_collision_is_never_chosen_for_relationship(self):
         same_name = copy.deepcopy(FIGURES)
-        same_name["nodes"].append(
-            {"id": "other-tarek", "name": "Tarek Venn", "type": "person"}
-        )
+        same_name["nodes"].append({"id": "other-tarek", "name": "Tarek Venn", "type": "person"})
         for figures, endpoint in (
             (colliding_figures(), "Der Falke"),
             (same_name, "Tarek Venn"),

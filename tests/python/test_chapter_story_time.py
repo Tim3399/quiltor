@@ -82,9 +82,7 @@ class ChapterStoryTimeDomainTests(unittest.TestCase):
     def test_point_and_range_shapes_are_valid_but_equal_ends_are_not(self):
         self.assertTrue(valid_story_time_reference({"startMomentId": "past"}))
         self.assertTrue(
-            valid_story_time_reference(
-                {"startMomentId": "past", "endMomentId": "future"}
-            )
+            valid_story_time_reference({"startMomentId": "past", "endMomentId": "future"})
         )
         self.assertFalse(
             valid_story_time_reference({"startMomentId": "past", "endMomentId": "past"})
@@ -122,11 +120,7 @@ class ChapterStoryTimeDomainTests(unittest.TestCase):
             story_time_anchor_issue(reversed_range, _timeline()).reason,
             "reversed_range",
         )
-        unknown = {
-            "chapters": [
-                {"id": "lost", "storyTime": {"startMomentId": "missing"}}
-            ]
-        }
+        unknown = {"chapters": [{"id": "lost", "storyTime": {"startMomentId": "missing"}}]}
         self.assertEqual(story_time_anchor_issue(unknown, _timeline()).reason, "unknown_moment")
 
     def test_equal_times_follow_incoming_array_order_not_stale_positions(self):

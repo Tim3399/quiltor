@@ -293,9 +293,7 @@ def validate_proposals(
                     figures,
                     str(element.get("name", "")),
                     entity_type=(
-                        str(element["type"])
-                        if isinstance(element.get("type"), str)
-                        else None
+                        str(element["type"]) if isinstance(element.get("type"), str) else None
                     ),
                 )
                 if (
@@ -393,8 +391,7 @@ def validate_proposals(
             if (
                 not isinstance(raw_relation, dict)
                 or len(str(raw_relation.get("label", ""))) > 160
-                or raw_relation.get("style", "solid")
-                not in {"solid", "dashed", "blood", "gold"}
+                or raw_relation.get("style", "solid") not in {"solid", "dashed", "blood", "gold"}
             ):
                 continue
             relation = dict(raw_relation)

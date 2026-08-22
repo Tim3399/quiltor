@@ -231,9 +231,7 @@ def resolve_entity(
     ]
     context = {node_id for node_id in context_ids if isinstance(node_id, str)}
     connected = _context_connections(figures, context)
-    normalized_vocabulary = {
-        word for value in vocabulary if (word := normalize_entity_name(value))
-    }
+    normalized_vocabulary = {word for value in vocabulary if (word := normalize_entity_name(value))}
     fuzzy_allowed = len(normalized) >= MINIMUM_FUZZY_LENGTH and normalized not in (
         normalized_vocabulary
     )

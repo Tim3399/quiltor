@@ -216,11 +216,7 @@ def existing_creation_target(
     if resolution is None or resolution.status != "resolved" or resolution.resolved_id is None:
         return None
     return next(
-        (
-            node
-            for node in figures.get("nodes") or []
-            if node.get("id") == resolution.resolved_id
-        ),
+        (node for node in figures.get("nodes") or [] if node.get("id") == resolution.resolved_id),
         None,
     )
 
@@ -334,9 +330,7 @@ def complete_compound_proposals(
         folded = question.casefold()
         mentioned_ids = mentioned_entity_ids(question, figures)
         nodes_by_id = {
-            str(node.get("id")): node
-            for node in figures.get("nodes") or []
-            if node.get("id")
+            str(node.get("id")): node for node in figures.get("nodes") or [] if node.get("id")
         }
         matches = (
             [nodes_by_id[mentioned_ids[0]]]

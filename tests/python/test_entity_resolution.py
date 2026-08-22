@@ -116,9 +116,7 @@ class EntityResolverTest(unittest.TestCase):
         self.assertEqual(local.candidates[0].reasons[-1], "local_context")
 
         both_connected = copy.deepcopy(figures)
-        both_connected["edges"].append(
-            {"id": "halvor-ally", "from": "halvor", "to": "ally"}
-        )
+        both_connected["edges"].append({"id": "halvor-ally", "from": "halvor", "to": "ally"})
         unresolved = resolve_entity(both_connected, "Halver", context_ids=["ally"])
         self.assertEqual(unresolved.status, "ambiguous")
         self.assertEqual(
