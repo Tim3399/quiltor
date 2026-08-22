@@ -341,6 +341,21 @@ class ApplyVersionTests(VersionRepoTestCase):
 
 
 class PreflightContractTests(unittest.TestCase):
+    def test_temporary_data_cleanup_retries_a_transient_windows_file_lock(self):
+        directory = Path("locked-release-data")
+        with (
+            patch.object(
+                release_preflight.shutil,
+                "rmtree",
+                side_effect=[PermissionError(32, "in use"), None],
+            ) as remove,
+            patch.object(release_preflight.time, "sleep") as sleep,
+        ):
+            release_preflight._remove_temporary_data(directory)
+
+        self.assertEqual(remove.call_count, 2)
+        sleep.assert_called_once_with(0.1)
+
     def test_windows_server_cleanup_terminates_the_entire_process_tree(self):
         server = MagicMock(pid=48123)
         server.poll.return_value = None

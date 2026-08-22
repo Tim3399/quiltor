@@ -202,6 +202,24 @@ def _stop_server(process: subprocess.Popen[bytes]) -> None:
         process.wait(timeout=5)
 
 
+def _remove_temporary_data(directory: Path, timeout: float = 10.0) -> None:
+    """Remove test data after Windows has released terminated child handles."""
+
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            shutil.rmtree(directory)
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError as error:
+            if time.monotonic() >= deadline:
+                raise PreflightError(
+                    f"Temporary release data remained locked after {timeout:g} seconds: {directory}"
+                ) from error
+            time.sleep(0.1)
+
+
 def _remove_preflight_images(docker: str, tags: list[str], repo_root: Path) -> None:
     """Best-effort cleanup of only the uniquely named images this run created."""
 
@@ -574,6 +592,7 @@ def run_preflight(repo_root: Path = REPO_ROOT) -> None:
             _run("Playwright browser suite", [npm, "run", "test:e2e"], repo_root, environment)
         finally:
             _stop_server(server)
+            _remove_temporary_data(Path(data_directory))
 
     print("\nAll release preflight gates passed.", flush=True)
 
