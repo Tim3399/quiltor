@@ -110,7 +110,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible();
     await expect(page).toHaveScreenshot(`${theme}-world-gate.png`, { animations: "disabled" });
 
-    await page.locator(".world-open").click();
+    await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
     await expect(page.getByLabel("Kapiteltext")).toBeVisible();
     await expect(page).toHaveScreenshot(`${theme}-manuscript.png`, { animations: "disabled" });
 

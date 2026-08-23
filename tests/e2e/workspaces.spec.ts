@@ -321,23 +321,25 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
     }
   }
 
-  // Ab "wide" (1100px, dieselbe Grenze wie in useWorkspaceLayout) tragen die Spaltenschalter
-  // ihre Wörter -- sie existieren, weil die Kapitelspalte an einem stummen Symbol hing.
+  // Die responsive ToolbarButton-API zeigt das sichtbare Label oberhalb ihrer kompakten
+  // 720px-Grenze. Darunter bleibt das Symbol mit seinem aria-label erhalten.
   const chapters = page
     .locator(".panel-toggles")
     .getByRole("button", { name: "Kapitel", exact: true });
   const aid = page
     .locator(".panel-toggles")
     .getByRole("button", { name: "Schreibhilfe", exact: true });
-  await page.setViewportSize({ width: 1100, height: 900 });
-  await expect(chapters.locator("span")).toBeVisible();
-  await expect(aid.locator("span")).toBeVisible();
+  const chaptersLabel = chapters.getByText("Kapitel", { exact: true });
+  const aidLabel = aid.getByText("Schreibhilfe", { exact: true });
+  await page.setViewportSize({ width: 721, height: 900 });
+  await expect(chaptersLabel).toBeVisible();
+  await expect(aidLabel).toBeVisible();
 
   // Direkt darunter bleibt nur das Symbol -- der Name muss dann über aria-label weiterleben,
   // sonst wäre der Schalter wieder das stumme Symbol, das er ersetzen sollte.
-  await page.setViewportSize({ width: 1099, height: 900 });
-  await expect(chapters.locator("span")).toBeHidden();
-  await expect(aid.locator("span")).toBeHidden();
+  await page.setViewportSize({ width: 720, height: 900 });
+  await expect(chaptersLabel).toBeHidden();
+  await expect(aidLabel).toBeHidden();
   await expect(chapters).toBeVisible();
   await expect(chapters).toHaveAttribute("aria-label", "Kapitel");
   await expect(aid).toHaveAttribute("aria-label", "Schreibhilfe");
@@ -433,15 +435,18 @@ test("Weltenauswahl bleibt auch mit vielen Welten vollständig scrollbar", async
   }));
   await page.route("**/api/worlds", (route) => route.fulfill({ json: { worlds } }));
   await page.goto("/");
-  const gate = page.locator(".world-gate");
-  const lastWorld = page.locator(".world-open").filter({ hasText: "Welt 30" });
+  const worldList = page.locator(".world-list");
+  const lastWorld = page.getByRole("button", {
+    name: "Welt 30 – Welt öffnen",
+    exact: true,
+  });
   await expect(lastWorld).toBeAttached();
   await expect
-    .poll(() => gate.evaluate((element) => element.scrollHeight > element.clientHeight))
+    .poll(() => worldList.evaluate((element) => element.scrollHeight > element.clientHeight))
     .toBe(true);
   await lastWorld.scrollIntoViewIfNeeded();
   await expect(lastWorld).toBeVisible();
-  expect(await gate.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await worldList.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 });
 
 test("Text, Suche und Figurenboard laden ohne Laufzeitfehler", async ({ page }, testInfo) => {
@@ -1215,9 +1220,22 @@ test("Beim Ziehen einer Figuren-Verbindung folgt eine sichtbare Vorschau dem Zei
   const source = page.locator('.react-flow__node[data-id="n1"] .outgoing-handle');
   const sourceBox = await source.boundingBox();
   expect(sourceBox).not.toBeNull();
-  await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+  // In overview LOD ragt der rechte Handle über den gecroppten Node-Rand. Sein geometrisches
+  // Zentrum kann dadurch exakt auf der Clip-Kante liegen und einen Node-Drag statt einer
+  // Verbindung starten. Das innere Viertel ist sichtbar und tatsächlich hit-testbar.
+  const sourcePoint = {
+    x: sourceBox!.x + sourceBox!.width * 0.25,
+    y: sourceBox!.y + sourceBox!.height / 2,
+  };
+  expect(
+    await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.classList.contains("outgoing-handle"),
+      sourcePoint,
+    ),
+  ).toBe(true);
+  await page.mouse.move(sourcePoint.x, sourcePoint.y);
   await page.mouse.down();
-  await page.mouse.move(sourceBox!.x + 180, sourceBox!.y + 90, { steps: 5 });
+  await page.mouse.move(sourcePoint.x + 180, sourcePoint.y + 90, { steps: 5 });
 
   const preview = page.locator(".react-flow__connection-path");
   await expect(preview).toBeVisible();
@@ -1696,7 +1714,10 @@ test("Startseite lädt eine Welt und übernimmt ihren variablen Titel", async ({
   await page.request.post("/api/worlds/create", { data: { title: "Öffentliche Testwelt" } });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible();
-  await page.locator(".world-open").filter({ hasText: "Öffentliche Testwelt" }).last().click();
+  await page
+    .getByRole("button", { name: "Öffentliche Testwelt – Welt öffnen", exact: true })
+    .last()
+    .click();
   await expect(page.locator(".brand")).toContainText("Öffentliche Testwelt");
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 });
@@ -1751,7 +1772,10 @@ test("Sprachwahl erfolgt ausschließlich in der Welt-Auswahl", async ({ page }) 
   await page.goto("/");
   await page.getByRole("radio", { name: "English" }).click();
   await expect(page.getByRole("heading", { name: "Open a world" })).toBeVisible();
-  await page.locator(".world-open").filter({ hasText: "Language Test World" }).last().click();
+  await page
+    .getByRole("button", { name: "Language Test World – Open a world", exact: true })
+    .last()
+    .click();
   await expect(
     page.locator(".workspace-switch").getByRole("button", { name: "Manuscript", exact: true }),
   ).toBeVisible();
