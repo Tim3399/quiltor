@@ -80,15 +80,36 @@ class PreviousNativeReleaseTests(unittest.TestCase):
         ]
         self.assertIsNone(previous_release.select_previous(releases, "3.3.1", "macos-dmg"))
 
-    def test_latest_stable_missing_its_canonical_asset_fails_closed(self):
+    def test_lookup_skips_portable_only_releases_for_the_latest_native_predecessor(self):
         releases = [
             self._release("3.2.9", asset=False),
+            self._release("3.2.8", asset=False),
             self._release("3.1.0"),
         ]
+        selected = previous_release.select_previous(releases, "3.3.1", "macos-dmg")
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected.tag, "v3.1.0")
+        self.assertEqual(selected.version, "3.1.0")
+
+    def test_first_native_target_release_bootstraps_after_portable_only_history(self):
+        releases = [
+            self._release("3.2.9", asset=False),
+            self._release("3.1.0", asset=False),
+        ]
+        self.assertIsNone(previous_release.select_previous(releases, "3.3.1", "macos-dmg"))
+
+    def test_duplicate_canonical_assets_in_the_native_predecessor_fail_closed(self):
+        release = self._release("3.2.9")
+        release["assets"].append(
+            {
+                "name": "Quiltor-3.2.9.dmg",
+                "url": "https://api.github.com/repos/example/quiltor/releases/assets/2",
+            }
+        )
         with self.assertRaisesRegex(
-            previous_release.PreviousReleaseError, "immediate stable predecessor"
+            previous_release.PreviousReleaseError, "exactly one downloadable"
         ):
-            previous_release.select_previous(releases, "3.3.1", "macos-dmg")
+            previous_release.select_previous([release], "3.3.1", "macos-dmg")
 
     def test_predecessor_tag_without_one_published_release_is_not_bootstrap(self):
         with self.assertRaisesRegex(
@@ -162,7 +183,7 @@ class PreviousNativeReleaseTests(unittest.TestCase):
                 self.assertEqual(previous_release.main(arguments), previous_release.BOOTSTRAP_EXIT)
             self.assertFalse((root / "previous.json").exists())
 
-    def test_cli_does_not_turn_a_missing_predecessor_asset_into_bootstrap(self):
+    def test_cli_bootstraps_when_stable_history_has_no_target_artifact(self):
         releases = [self._release("3.2.9", asset=False)]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -186,7 +207,8 @@ class PreviousNativeReleaseTests(unittest.TestCase):
                         str(root / "previous.json"),
                     ]
                 )
-            self.assertEqual(status, 1)
+            self.assertEqual(status, previous_release.BOOTSTRAP_EXIT)
+            self.assertFalse((root / "previous.json").exists())
 
     def test_windows_and_macos_names_are_concrete_and_versioned(self):
         version = (3, 3, 1)
@@ -568,6 +590,11 @@ class PreflightContractTests(unittest.TestCase):
 
 
 class ReleaseManifestTests(unittest.TestCase):
+    MARKERS = {
+        "macos_direct": "distribution/release-targets/macos-direct.enabled",
+        "windows_direct": "distribution/release-targets/windows-direct.enabled",
+    }
+
     @staticmethod
     def _images(app: str = "1", backup: str = "2") -> dict[str, str]:
         return {
@@ -575,51 +602,196 @@ class ReleaseManifestTests(unittest.TestCase):
             "backup-service": "ghcr.io/example/quiltor-backup@sha256:" + backup * 64,
         }
 
+    @classmethod
+    def _target_root(cls, root: Path, *enabled: str) -> Path:
+        repo_root = root / "repo"
+        for target in enabled:
+            marker = repo_root / cls.MARKERS[target]
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.touch()
+        return repo_root
+
     @staticmethod
-    def _artifacts(root: Path, version: str = "3.3.1") -> list[Path]:
+    def _artifacts(
+        root: Path,
+        version: str = "3.3.1",
+        repo_root: Path = REPO_ROOT,
+    ) -> list[Path]:
+        root.mkdir(parents=True, exist_ok=True)
         artifacts = []
-        for name, profile in release_manifest.expected_artifacts(version):
+        for name, profile in release_manifest.expected_artifacts(version, repo_root):
             artifact = root / name
             artifact.write_bytes((profile + ":" + name).encode("utf-8"))
             artifacts.append(artifact)
         return artifacts
 
-    def test_manifest_names_every_promoted_output(self):
+    @staticmethod
+    def _attest_signatures(manifest: dict[str, object], artifact_root: Path) -> None:
+        for specification in manifest["signatures"]:
+            artifact = artifact_root / specification["artifact"]
+            release_manifest.attest_signature(
+                artifact,
+                version=manifest["version"],
+                source_revision=manifest["sourceRevision"],
+                profile=specification["profile"],
+                verified=True,
+                notarized=specification["requiresNotarization"],
+                output=artifact_root / specification["record"],
+            )
+
+    def test_manifest_tracks_each_marker_combination_canonically(self):
+        cases = (
+            (
+                (),
+                {"macos_direct": False, "windows_direct": False},
+                ["python-package", "web-self-hosted"],
+                [
+                    "quiltor-3.3.1-py3-none-any.whl",
+                    "quiltor-3.3.1.tar.gz",
+                ],
+                set(),
+            ),
+            (
+                ("macos_direct",),
+                {"macos_direct": True, "windows_direct": False},
+                ["macos-direct", "python-package", "web-self-hosted"],
+                [
+                    "Quiltor-3.3.1.dmg",
+                    "quiltor-3.3.1-py3-none-any.whl",
+                    "quiltor-3.3.1.tar.gz",
+                ],
+                {"developer-id"},
+            ),
+            (
+                ("windows_direct",),
+                {"macos_direct": False, "windows_direct": True},
+                ["python-package", "web-self-hosted", "windows-direct"],
+                [
+                    "Quiltor-Setup-3.3.1.exe",
+                    "quiltor-3.3.1-py3-none-any.whl",
+                    "quiltor-3.3.1.tar.gz",
+                ],
+                {"authenticode"},
+            ),
+            (
+                ("macos_direct", "windows_direct"),
+                {"macos_direct": True, "windows_direct": True},
+                ["macos-direct", "python-package", "web-self-hosted", "windows-direct"],
+                [
+                    "Quiltor-3.3.1.dmg",
+                    "Quiltor-Setup-3.3.1.exe",
+                    "quiltor-3.3.1-py3-none-any.whl",
+                    "quiltor-3.3.1.tar.gz",
+                ],
+                {"developer-id", "authenticode"},
+            ),
+        )
+        for enabled, targets, profiles, names, schemes in cases:
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                repo_root = self._target_root(root, *enabled)
+                artifact_root = root / "artifacts"
+                manifest = release_manifest.create(
+                    "3.3.1",
+                    "a" * 40,
+                    self._images(),
+                    self._artifacts(artifact_root, repo_root=repo_root),
+                    repo_root,
+                )
+                self.assertEqual(release_manifest.native_targets(repo_root), targets)
+                self.assertEqual(manifest["profiles"], profiles)
+                self.assertEqual([item["name"] for item in manifest["artifacts"]], names)
+                self.assertEqual({item["scheme"] for item in manifest["signatures"]}, schemes)
+                self.assertEqual(manifest["schemaVersion"], 6)
+                self.assertEqual(manifest["sourceRevision"], "a" * 40)
+                self.assertTrue(all(len(item["sha256"]) == 64 for item in manifest["artifacts"]))
+                self.assertEqual(manifest["images"], release_manifest.image_records(self._images()))
+                self.assertEqual(
+                    [record["artifactContract"]["path"] for record in manifest["images"]],
+                    [
+                        "distribution/profiles/web-self-hosted.json",
+                        "services/backup-server/artifact-contract.json",
+                    ],
+                )
+                self.assertTrue(
+                    all(
+                        re.fullmatch(r"[0-9a-f]{64}", record["artifactContract"]["sha256"])
+                        for record in manifest["images"]
+                    )
+                )
+                self.assertEqual(manifest["dependencyLocks"], dependency_lock_contract.records())
+                self.assertTrue(
+                    all(len(item["sha256"]) == 64 for item in manifest["dependencyLocks"])
+                )
+                self._attest_signatures(manifest, artifact_root)
+                manifest_path = artifact_root / "release-manifest.json"
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                self.assertEqual(
+                    release_manifest.verify(manifest_path, artifact_root, "a" * 40, repo_root),
+                    manifest,
+                )
+
+    def test_targets_cli_reports_exact_boolean_outputs(self):
+        cases = (
+            ((), "macos_direct=false\nwindows_direct=false\n"),
+            (("macos_direct",), "macos_direct=true\nwindows_direct=false\n"),
+            (("windows_direct",), "macos_direct=false\nwindows_direct=true\n"),
+            (
+                ("macos_direct", "windows_direct"),
+                "macos_direct=true\nwindows_direct=true\n",
+            ),
+        )
+        for enabled, expected in cases:
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as directory:
+                repo_root = self._target_root(Path(directory), *enabled)
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    status = release_manifest.main(["targets"], repo_root=repo_root)
+                self.assertEqual(status, 0)
+                self.assertEqual(output.getvalue(), expected)
+
+    def test_enabled_native_target_requires_its_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo_root = self._target_root(root, "macos_direct")
+            artifacts = self._artifacts(root / "artifacts", repo_root=repo_root)
+            artifacts = [artifact for artifact in artifacts if artifact.suffix != ".dmg"]
+            with self.assertRaisesRegex(
+                release_manifest.ManifestError, "missing Quiltor-3.3.1.dmg"
+            ):
+                release_manifest.create("3.3.1", "a" * 40, self._images(), artifacts, repo_root)
+
+    def test_files_cli_lists_only_canonical_artifacts_and_signature_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo_root = self._target_root(root, "macos_direct", "windows_direct")
+            artifact_root = root / "artifacts"
             manifest = release_manifest.create(
                 "3.3.1",
                 "a" * 40,
                 self._images(),
-                self._artifacts(Path(directory)),
+                self._artifacts(artifact_root, repo_root=repo_root),
+                repo_root,
             )
-            names = {item["name"] for item in manifest["artifacts"]}
-            self.assertIn("Quiltor-3.3.1.dmg", names)
-            self.assertIn("Quiltor-Setup-3.3.1.exe", names)
-            self.assertIn("quiltor-3.3.1-py3-none-any.whl", names)
-            self.assertIn("quiltor-3.3.1.tar.gz", names)
-            self.assertTrue(all(len(item["sha256"]) == 64 for item in manifest["artifacts"]))
-            self.assertEqual(manifest["sourceRevision"], "a" * 40)
-            self.assertEqual(manifest["schemaVersion"], 5)
-            self.assertEqual(manifest["images"], release_manifest.image_records(self._images()))
+            manifest_path = artifact_root / "release-manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = release_manifest.main(
+                    ["files", "--manifest", str(manifest_path)], repo_root=repo_root
+                )
+            self.assertEqual(status, 0)
             self.assertEqual(
-                [record["artifactContract"]["path"] for record in manifest["images"]],
+                output.getvalue().splitlines(),
                 [
-                    "distribution/profiles/web-self-hosted.json",
-                    "services/backup-server/artifact-contract.json",
+                    "Quiltor-3.3.1.dmg",
+                    "Quiltor-Setup-3.3.1.exe",
+                    "quiltor-3.3.1-py3-none-any.whl",
+                    "quiltor-3.3.1.tar.gz",
+                    "Quiltor-3.3.1.dmg.signature.json",
+                    "Quiltor-Setup-3.3.1.exe.signature.json",
                 ],
             )
-            self.assertTrue(
-                all(
-                    re.fullmatch(r"[0-9a-f]{64}", record["artifactContract"]["sha256"])
-                    for record in manifest["images"]
-                )
-            )
-            self.assertEqual(
-                {item["scheme"] for item in manifest["signatures"]},
-                {"developer-id", "authenticode"},
-            )
-            self.assertEqual(manifest["dependencyLocks"], dependency_lock_contract.records())
-            self.assertTrue(all(len(item["sha256"]) == 64 for item in manifest["dependencyLocks"]))
 
     def test_verification_rejects_a_missing_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -669,35 +841,50 @@ class ReleaseManifestTests(unittest.TestCase):
                     artifact, verified=True, notarized=False, **kwargs
                 )
 
+    def test_enabled_native_signature_record_remains_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo_root = self._target_root(root, "macos_direct")
+            artifact_root = root / "artifacts"
+            manifest = release_manifest.create(
+                "3.3.1",
+                "a" * 40,
+                self._images(),
+                self._artifacts(artifact_root, repo_root=repo_root),
+                repo_root,
+            )
+            self._attest_signatures(manifest, artifact_root)
+            manifest_path = artifact_root / "release-manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            record_path = artifact_root / manifest["signatures"][0]["record"]
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+            record["verified"] = False
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            with self.assertRaisesRegex(release_manifest.ManifestError, "signature status"):
+                release_manifest.verify(manifest_path, artifact_root, repo_root=repo_root)
+
     def test_publish_verification_rejects_tampering_after_signature_attestation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            repo_root = self._target_root(root, "macos_direct", "windows_direct")
+            artifact_root = root / "artifacts"
             version = "3.3.1"
             revision = "a" * 40
-            artifacts = self._artifacts(root, version)
+            artifacts = self._artifacts(artifact_root, version, repo_root)
             manifest = release_manifest.create(
                 version,
                 revision,
                 self._images(),
                 artifacts,
+                repo_root,
             )
-            for spec in manifest["signatures"]:
-                artifact = root / spec["artifact"]
-                release_manifest.attest_signature(
-                    artifact,
-                    version=version,
-                    source_revision=revision,
-                    profile=spec["profile"],
-                    verified=True,
-                    notarized=spec["requiresNotarization"],
-                    output=root / spec["record"],
-                )
-            manifest_path = root / "release-manifest.json"
+            self._attest_signatures(manifest, artifact_root)
+            manifest_path = artifact_root / "release-manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-            release_manifest.verify(manifest_path, root, revision)
-            (root / f"quiltor-{version}.tar.gz").write_bytes(b"tampered")
+            release_manifest.verify(manifest_path, artifact_root, revision, repo_root)
+            (artifact_root / f"quiltor-{version}.tar.gz").write_bytes(b"tampered")
             with self.assertRaisesRegex(release_manifest.ManifestError, "digest"):
-                release_manifest.verify(manifest_path, root, revision)
+                release_manifest.verify(manifest_path, artifact_root, revision, repo_root)
 
     def test_wheel_digest_is_verified_before_publication(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -889,6 +1076,40 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 {Path("unsafe.yml"): "steps:\n  - uses: actions/checkout@v4\n"},
                 {"actions/checkout": locked["actions/checkout"]},
             )
+
+    def test_native_release_target_guards_fail_closed(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_native_release_targets(sources)
+
+        mutations = (
+            (
+                "unguarded macOS job",
+                BUILD_WORKFLOW,
+                "if: needs.version-check.outputs.macos_direct == 'true'",
+                "if: true",
+                "macos-direct is not guarded",
+            ),
+            (
+                "non-boolean Windows fallback",
+                BUILD_WORKFLOW,
+                "needs.version-check.outputs.windows_direct == 'false'",
+                "needs.version-check.outputs.windows_direct != 'true'",
+                "does not fail closed",
+            ),
+            (
+                "fixed publisher assets",
+                PUBLISH_WORKFLOW,
+                "release_manifest.py files",
+                "release_manifest.py fixed-files",
+                "derive assets from the verified manifest",
+            ),
+        )
+        for name, path, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                mutated = dict(sources)
+                mutated[path] = mutated[path].replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_native_release_targets(mutated)
 
     def test_release_packaging_toolchain_is_concretely_pinned(self):
         pins = {

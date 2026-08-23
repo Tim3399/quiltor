@@ -28,6 +28,11 @@ internal, beta, staged, or production rollout track.
 has no entrypoint or output pattern, is contract-tested, and cannot be selected by
 a release workflow until its platform host and signing pipeline actually exist.
 
+The two direct desktop implementations are supported locally but separately
+opted into hosted Release CI. The non-secret markers and their activation rules
+are documented in `release-targets/`. Both markers are intentionally absent while
+the corresponding signing accounts do not exist.
+
 ## Validate the contracts
 
 The validator uses only Python's standard library and therefore runs before build
@@ -65,6 +70,31 @@ Both package files use GitHub Release for publication and updates; the profile
 does not claim a Python package index while no PyPI publication workflow exists.
 
 ## Direct desktop builds
+
+### Hosted release activation
+
+The macOS and Windows direct jobs are enabled independently by these non-secret,
+source-controlled markers:
+
+```text
+distribution/release-targets/macos-direct.enabled
+distribution/release-targets/windows-direct.enabled
+```
+
+Neither marker currently exists. Without one, Release CI skips that native job
+and the release manifest and publisher omit its artifact. Add a marker only after
+the matching signing account and repository secrets have been provisioned. The
+marker does not weaken the signing boundary: once enabled, absent credentials or
+failed signing, notarization, verification, installation, upgrade or uninstall
+checks fail the release.
+
+First activation is target-specific: a native target may bootstrap only while no
+stable release has ever contained its canonical artifact. After that artifact
+first appears, the upgrade smoke uses the newest earlier stable release that
+contains exactly one canonical artifact for the target. Portable-only releases
+in between are skipped rather than treated as native upgrade origins; duplicate
+or ambiguous target assets still fail the release. Disabling and later
+re-enabling the marker cannot reopen bootstrap.
 
 Create and activate a CPython 3.11.9 virtual environment. Install the reviewed
 bootstrap lock first, then the lock for the current target; the PyInstaller spec
@@ -117,9 +147,10 @@ entitlements, verifies the signature, notarises and staples the app, then repeat
 verification/notarisation for the DMG. A notary profile without a signing identity
 is rejected before the build.
 
-Release CI sets `QUILTOR_REQUIRE_SIGNING=1`, requires all certificate and notary
-secrets, and fails before upload if signing, notarization, stapling, or verification
-does not succeed. It emits a digest-bound signature record for the publisher.
+When the macOS release target is enabled, Release CI sets
+`QUILTOR_REQUIRE_SIGNING=1`, requires all certificate and notary secrets, and
+fails before upload if signing, notarization, stapling, or verification does not
+succeed. It emits a digest-bound signature record for the publisher.
 
 The Mac App Store entitlement file is intentionally separate under
 `desktop/macos/app-store/`; it enables the App Sandbox and must never be used for a
@@ -141,32 +172,33 @@ powershell -File distribution/desktop/windows/direct/build.ps1
 script signs and verifies both the frozen `Quiltor.exe` and final Setup executable.
 It never stores a certificate or password in the repository.
 
-Release CI likewise sets `QUILTOR_REQUIRE_SIGNING=1`; missing credentials, missing
-Inno Setup, or a failed Authenticode verification is a hard failure. The publisher
-accepts the installer only when its signature record matches the manifest and
-artifact digest.
+When the Windows release target is enabled, Release CI likewise sets
+`QUILTOR_REQUIRE_SIGNING=1`; missing credentials, missing Inno Setup, or a failed
+Authenticode verification is a hard failure. The publisher accepts the installer
+only when its signature record matches the manifest and artifact digest.
 
 ### Native lifecycle smoke gate
 
-The two `supported` direct-desktop profiles declare a `smokeEntrypoint`. Release
-CI runs it after signature/notarization verification and before the artifact can
-be uploaded or enter the release manifest. The scripts use an isolated temporary
-install and data root, install and launch the signed artifact, require the
-`/api/version` readiness response, exercise an in-place upgrade, and then use the
-platform uninstall path. They fail unless application processes, mount points,
-install files and (on Windows) the Apps & Features registration are gone.
+The two `supported` direct-desktop profiles declare a `smokeEntrypoint`. For each
+enabled native target, Release CI runs it after signature/notarization
+verification and before the artifact can be uploaded or enter the release
+manifest. The scripts use an isolated temporary install and data root, install
+and launch the signed artifact, require the `/api/version` readiness response,
+exercise an in-place upgrade, and then use the platform uninstall path. They fail
+unless application processes, mount points, install files and (on Windows) the
+Apps & Features registration are gone.
 
-For a real upgrade, the gate authenticates to this repository's GitHub Releases,
-selects the immediate earlier stable canonical DMG/installer, downloads it through
-the asset API, and verifies its platform signature and publisher identity before
-execution. Only a repository with no published stable semantic release and no
-semantic-version tag enters the explicitly logged `BOOTSTRAP` path. Tags count as stable
-history: an equal/newer tag or a predecessor tag without one canonical published
-release therefore fails closed instead of becoming Bootstrap. If a predecessor release exists but its
-canonical platform artifact is missing or ambiguous, the gate fails closed. The
-selected tag, artifact name, installed bundle/registry version and health response
-must identify the same semantic version, which must be lower than the current
-version. The Bootstrap path still performs a clean install, launch, same-version
+For a real upgrade, the gate authenticates to this repository's GitHub Releases
+and searches stable history newest-first. Releases without this target's
+canonical DMG/installer are portable-only for that target and are skipped. The
+first target release found must contain exactly one canonical artifact; duplicate
+or ambiguous assets fail closed. The gate downloads that artifact and verifies
+its platform signature and publisher identity before execution. Bootstrap is
+evaluated independently for each native target and is allowed only when the
+entire earlier stable history contains no canonical artifact for it. The selected
+tag, artifact name, installed bundle/registry version and health response must
+identify the same semantic version, which must be lower than the current version.
+The Bootstrap path still performs a clean install, launch, same-version
 reinstall, second launch and uninstall rather than skipping the lifecycle check.
 API, authentication, signature, metadata, or download errors fail the release.
 
@@ -191,16 +223,18 @@ Build and publish are separate workflows:
 - `release-publish.yml` consumes one successful build run, verifies its manifest
   and expected files, then promotes those exact artifacts. It does not rebuild.
 
-The manifest records the canonical concrete filename and SHA-256 digest of the
-DMG, Windows installer, wheel and sdist. OCI images are recorded by immutable
+The manifest always records the canonical concrete filenames and SHA-256 digests
+of the wheel and sdist. It adds a DMG or Windows installer, together with its
+signature record, only when the corresponding release-target marker was present
+at the exact source revision. OCI images are recorded by immutable
 `repository@sha256:...` reference rather than a version tag, together with the
-path and SHA-256 digest of the artifact contract that defines each image. The build workflow
-pushes only a unique run/attempt/SHA hand-off tag; the authorized publish
-workflow assigns both the public version and `latest` tags together from the
-verified digest. Manual publication additionally proves that the selected run came from
-`.github/workflows/release.yml`, completed on `main`, succeeded and names a
-revision equal to the exact current `main` head. Build and publish gates also
-require `VERSION` to be newer than every published stable release and every
+path and SHA-256 digest of the artifact contract that defines each image. The
+build workflow pushes only a unique run/attempt/SHA hand-off tag; the authorized
+publish workflow assigns both the public version and `latest` tags together from
+the verified digest. Manual publication additionally proves that the selected
+run came from `.github/workflows/release.yml`, completed on `main`, succeeded and
+names a revision equal to the exact current `main` head. Build and publish gates
+also require `VERSION` to be newer than every published stable release and every
 semantic-version tag before artifacts can be built or a release can be created.
 
 Store/mobile profiles are validated in CI but have no build or publish job while

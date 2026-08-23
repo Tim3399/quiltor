@@ -15,10 +15,27 @@ from dependency_lock_contract import for_profile as dependency_locks_for_profile
 from dependency_lock_contract import records as dependency_lock_records
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PUBLISHED_PROFILES = ["macos-direct", "python-package", "web-self-hosted", "windows-direct"]
-ARTIFACT_SPECS = (
-    ("Quiltor-{version}.dmg", "macos-direct"),
-    ("Quiltor-Setup-{version}.exe", "windows-direct"),
+BASE_PUBLISHED_PROFILES = ("python-package", "web-self-hosted")
+PROFILE_ORDER = ("macos-direct", "python-package", "web-self-hosted", "windows-direct")
+NATIVE_TARGET_SPECS = (
+    {
+        "output": "macos_direct",
+        "profile": "macos-direct",
+        "marker": "distribution/release-targets/macos-direct.enabled",
+        "artifact": "Quiltor-{version}.dmg",
+        "scheme": "developer-id",
+        "requiresNotarization": True,
+    },
+    {
+        "output": "windows_direct",
+        "profile": "windows-direct",
+        "marker": "distribution/release-targets/windows-direct.enabled",
+        "artifact": "Quiltor-Setup-{version}.exe",
+        "scheme": "authenticode",
+        "requiresNotarization": False,
+    },
+)
+BASE_ARTIFACT_SPECS = (
     ("quiltor-{version}-py3-none-any.whl", "python-package"),
     ("quiltor-{version}.tar.gz", "python-package"),
 )
@@ -40,6 +57,26 @@ IMAGE_SPECS = (
 
 class ManifestError(ValueError):
     pass
+
+
+def native_targets(repo_root: Path = REPO_ROOT) -> dict[str, bool]:
+    """Return the account-backed native release targets enabled by committed markers."""
+
+    return {
+        specification["output"]: (repo_root / specification["marker"]).is_file()
+        for specification in NATIVE_TARGET_SPECS
+    }
+
+
+def _published_profiles(repo_root: Path) -> list[str]:
+    enabled = native_targets(repo_root)
+    profiles = set(BASE_PUBLISHED_PROFILES)
+    profiles.update(
+        specification["profile"]
+        for specification in NATIVE_TARGET_SPECS
+        if enabled[specification["output"]]
+    )
+    return [profile for profile in PROFILE_ORDER if profile in profiles]
 
 
 def _validate_identity(version: str, source_revision: str) -> None:
@@ -110,35 +147,43 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def expected_artifacts(version: str) -> list[tuple[str, str]]:
-    return [(name.format(version=version), profile) for name, profile in ARTIFACT_SPECS]
-
-
-def signature_specs(version: str) -> list[dict[str, object]]:
-    """Return the signed-desktop contract publication is allowed to consume."""
-
-    artifacts = {profile: name for name, profile in expected_artifacts(version)}
-    macos = artifacts["macos-direct"]
-    windows = artifacts["windows-direct"]
+def expected_artifacts(version: str, repo_root: Path = REPO_ROOT) -> list[tuple[str, str]]:
+    enabled = native_targets(repo_root)
+    native = [
+        (specification["artifact"], specification["profile"])
+        for specification in NATIVE_TARGET_SPECS
+        if enabled[specification["output"]]
+    ]
     return [
-        {
-            "artifact": macos,
-            "record": macos + ".signature.json",
-            "profile": "macos-direct",
-            "scheme": "developer-id",
-            "requiresNotarization": True,
-        },
-        {
-            "artifact": windows,
-            "record": windows + ".signature.json",
-            "profile": "windows-direct",
-            "scheme": "authenticode",
-            "requiresNotarization": False,
-        },
+        (name.format(version=version), profile) for name, profile in (*native, *BASE_ARTIFACT_SPECS)
     ]
 
 
-def _artifact_records(version: str, artifacts: list[Path]) -> list[dict[str, str]]:
+def _all_signature_specs(version: str) -> list[dict[str, object]]:
+    return [
+        {
+            "artifact": specification["artifact"].format(version=version),
+            "record": specification["artifact"].format(version=version) + ".signature.json",
+            "profile": specification["profile"],
+            "scheme": specification["scheme"],
+            "requiresNotarization": specification["requiresNotarization"],
+        }
+        for specification in NATIVE_TARGET_SPECS
+    ]
+
+
+def signature_specs(version: str, repo_root: Path = REPO_ROOT) -> list[dict[str, object]]:
+    """Return the signed-desktop contract publication is allowed to consume."""
+
+    enabled_profiles = set(_published_profiles(repo_root))
+    return [
+        specification
+        for specification in _all_signature_specs(version)
+        if specification["profile"] in enabled_profiles
+    ]
+
+
+def _artifact_records(version: str, artifacts: list[Path], repo_root: Path) -> list[dict[str, str]]:
     by_name: dict[str, Path] = {}
     for artifact in artifacts:
         if artifact.name in by_name:
@@ -147,7 +192,7 @@ def _artifact_records(version: str, artifacts: list[Path]) -> list[dict[str, str
             raise ManifestError(f"release artifact is missing: {artifact}")
         by_name[artifact.name] = artifact
 
-    expected = expected_artifacts(version)
+    expected = expected_artifacts(version, repo_root)
     expected_names = {name for name, _ in expected}
     actual_names = set(by_name)
     if actual_names != expected_names:
@@ -171,26 +216,29 @@ def create(
     source_revision: str,
     images: Mapping[str, str],
     artifacts: list[Path],
+    repo_root: Path = REPO_ROOT,
 ) -> dict[str, object]:
     _validate_identity(version, source_revision)
     image_output = image_records(images)
-    artifact_output = _artifact_records(version, artifacts)
+    artifact_output = _artifact_records(version, artifacts, repo_root)
     return {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "version": version,
         "sourceRevision": source_revision,
-        "profiles": PUBLISHED_PROFILES,
+        "profiles": _published_profiles(repo_root),
         "artifacts": artifact_output,
         "images": image_output,
         "dependencyLocks": dependency_lock_records(),
-        "signatures": signature_specs(version),
+        "signatures": signature_specs(version, repo_root),
     }
 
 
-def _canonical_loaded_artifacts(version: str, value: object) -> list[dict[str, str]]:
+def _canonical_loaded_artifacts(
+    version: str, value: object, repo_root: Path
+) -> list[dict[str, str]]:
     if not isinstance(value, list):
         raise ManifestError("release manifest artifacts must be a list")
-    expected = expected_artifacts(version)
+    expected = expected_artifacts(version, repo_root)
     if len(value) != len(expected):
         raise ManifestError("release manifest has an incomplete artifact set")
     records: list[dict[str, str]] = []
@@ -250,7 +298,7 @@ def _canonical_loaded_images(value: object) -> list[dict[str, object]]:
     return canonical
 
 
-def load(path: Path) -> dict[str, object]:
+def load(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, object]:
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -269,19 +317,19 @@ def load(path: Path) -> dict[str, object]:
         raise ManifestError("release manifest has missing or unknown fields")
     _validate_identity(manifest["version"], manifest["sourceRevision"])
     images = _canonical_loaded_images(manifest["images"])
-    artifacts = _canonical_loaded_artifacts(manifest["version"], manifest["artifacts"])
+    artifacts = _canonical_loaded_artifacts(manifest["version"], manifest["artifacts"], repo_root)
     locks = dependency_lock_records()
     if manifest["dependencyLocks"] != locks:
         raise ManifestError("release manifest dependency locks are not canonical")
     canonical = {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "version": manifest["version"],
         "sourceRevision": manifest["sourceRevision"],
-        "profiles": PUBLISHED_PROFILES,
+        "profiles": _published_profiles(repo_root),
         "artifacts": artifacts,
         "images": images,
         "dependencyLocks": locks,
-        "signatures": signature_specs(manifest["version"]),
+        "signatures": signature_specs(manifest["version"], repo_root),
     }
     if manifest != canonical:
         raise ManifestError("release manifest does not match the canonical artifact contract")
@@ -303,7 +351,7 @@ def attest_signature(
     _validate_identity(version, source_revision)
     try:
         specification = next(
-            item for item in signature_specs(version) if item["profile"] == profile
+            item for item in _all_signature_specs(version) if item["profile"] == profile
         )
     except StopIteration as error:
         raise ManifestError(f"profile {profile!r} has no publishable signature contract") from error
@@ -369,8 +417,9 @@ def verify(
     path: Path,
     artifact_dir: Path,
     expected_revision: str | None = None,
+    repo_root: Path = REPO_ROOT,
 ) -> dict[str, object]:
-    manifest = load(path)
+    manifest = load(path, repo_root)
     if expected_revision and manifest["sourceRevision"] != expected_revision:
         raise ManifestError(
             f"manifest revision {manifest['sourceRevision']} does not match {expected_revision}"
@@ -411,10 +460,13 @@ def _parser() -> argparse.ArgumentParser:
     attest_command.add_argument("--output", type=Path, required=True)
     images_command = commands.add_parser("images")
     images_command.add_argument("--manifest", type=Path, required=True)
+    files_command = commands.add_parser("files")
+    files_command.add_argument("--manifest", type=Path, required=True)
+    commands.add_parser("targets")
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, repo_root: Path = REPO_ROOT) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "create":
@@ -426,11 +478,12 @@ def main(argv: list[str] | None = None) -> int:
                     "backup-service": args.backup_image,
                 },
                 args.artifact,
+                repo_root,
             )
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         elif args.command == "verify":
-            verify(args.manifest, args.artifact_dir, args.source_revision)
+            verify(args.manifest, args.artifact_dir, args.source_revision, repo_root)
         elif args.command == "attest-signature":
             attest_signature(
                 args.artifact,
@@ -441,9 +494,20 @@ def main(argv: list[str] | None = None) -> int:
                 notarized=args.notarized,
                 output=args.output,
             )
-        else:
-            for image in load(args.manifest)["images"]:
+        elif args.command == "images":
+            for image in load(args.manifest, repo_root)["images"]:
                 print("\t".join((image["name"], image["role"], image["ref"], image["digest"])))
+        elif args.command == "files":
+            manifest = load(args.manifest, repo_root)
+            for artifact in manifest["artifacts"]:
+                print(artifact["name"])
+            for signature in manifest["signatures"]:
+                print(signature["record"])
+        else:
+            targets = native_targets(repo_root)
+            for specification in NATIVE_TARGET_SPECS:
+                output = specification["output"]
+                print(f"{output}={str(targets[output]).lower()}")
     except ManifestError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

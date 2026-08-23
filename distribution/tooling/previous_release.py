@@ -2,7 +2,7 @@
 """Securely download the latest earlier stable desktop release artifact.
 
 The caller still verifies the platform signature before executing the artifact.
-Exit status 3 is reserved for the explicit first-release/bootstrap case.
+Exit status 3 is reserved for the explicit first release of one native target.
 """
 
 from __future__ import annotations
@@ -129,13 +129,20 @@ def select_previous(
     kind: str,
     tags: list[str] | None = None,
 ) -> SelectedRelease | None:
-    """Select the immediate stable predecessor or prove this is a bootstrap."""
+    """Select the latest stable predecessor for this native artifact kind.
+
+    Portable-only releases are not upgrade origins for a native installation.
+    The globally highest stable version must still resolve to exactly one
+    published release, while the selected target-specific predecessor is the
+    newest release that actually carried its canonical artifact. A target with
+    no such history is an explicit bootstrap.
+    """
 
     highest = require_monotonic_version(current_version, releases, tags)
     if highest is None:
         return None
 
-    predecessors: list[tuple[str, dict[str, Any]]] = []
+    published: list[tuple[tuple[int, int, int], str, dict[str, Any]]] = []
     for release in releases:
         if release.get("draft") is True or release.get("prerelease") is True:
             continue
@@ -146,35 +153,51 @@ def select_previous(
             version = semantic_version(tag)
         except PreviousReleaseError:
             continue
-        if version == highest:
-            predecessors.append((tag, release))
+        published.append((version, tag, release))
+
+    predecessors = [(tag, release) for version, tag, release in published if version == highest]
     highest_text = ".".join(str(part) for part in highest)
     if len(predecessors) != 1:
         raise PreviousReleaseError(
             f"stable predecessor {highest_text} must have exactly one published release"
         )
 
-    tag, release = predecessors[0]
-    expected = canonical_name(kind, highest)
+    native_versions: set[tuple[int, int, int]] = set()
+    for version, _, release in published:
+        expected = canonical_name(kind, version)
+        assets = release.get("assets")
+        if isinstance(assets, list) and any(
+            isinstance(asset, dict) and asset.get("name") == expected for asset in assets
+        ):
+            native_versions.add(version)
+    if not native_versions:
+        return None
+
+    native_version = max(native_versions)
+    native_text = ".".join(str(part) for part in native_version)
+    native_releases = [
+        (tag, release) for version, tag, release in published if version == native_version
+    ]
+    if len(native_releases) != 1:
+        raise PreviousReleaseError(
+            f"native predecessor {native_text} must have exactly one published release"
+        )
+
+    tag, release = native_releases[0]
+    expected = canonical_name(kind, native_version)
     assets = release.get("assets")
     matches = (
-        [
-            asset
-            for asset in assets
-            if isinstance(asset, dict)
-            and asset.get("name") == expected
-            and isinstance(asset.get("url"), str)
-        ]
+        [asset for asset in assets if isinstance(asset, dict) and asset.get("name") == expected]
         if isinstance(assets, list)
         else []
     )
-    if len(matches) != 1:
+    if len(matches) != 1 or not isinstance(matches[0].get("url"), str):
         raise PreviousReleaseError(
-            f"immediate stable predecessor {tag} must contain exactly one {expected} asset"
+            f"native predecessor {tag} must contain exactly one downloadable {expected} asset"
         )
     return SelectedRelease(
         tag=tag,
-        version=highest_text,
+        version=native_text,
         asset=matches[0],
     )
 
@@ -349,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         selected = select_previous(releases, args.current_version, args.kind, tags)
         if selected is None:
             print(
-                "BOOTSTRAP: no earlier stable release exists",
+                f"BOOTSTRAP: no earlier stable release contains a canonical {args.kind} artifact",
                 file=sys.stderr,
             )
             return BOOTSTRAP_EXIT

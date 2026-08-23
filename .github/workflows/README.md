@@ -1,28 +1,30 @@
 # Release workflow boundary
 
 `release.yml` creates immutable, named outputs and a canonical release
-manifest. Every image/package/installer job has the same-workflow portable
-release gate as a hard dependency; a prior pull-request result is never treated
-as release evidence. That gate runs Python and frontend tests, contracts,
-architecture/distribution checks, Cargo formatting/lints/tests, the production
-client build, committed-`dist` verification, wheel/sdist plus both OCI builds
-and Playwright once. An initial job also rejects every ref except the exact
-current `main` SHA before a job with artifacts or package-write access can run.
-The workflow never creates a Git tag or GitHub Release and never moves a public
-version or `latest` container tag. OCI builds are pushed only under a unique
-`build-<run>-<attempt>-<sha>` hand-off tag and recorded by digest.
+manifest. Every enabled image/package/installer job has the same-workflow
+portable release gate as a hard dependency; a prior pull-request result is never
+treated as release evidence. That gate runs Python and frontend tests,
+contracts, architecture/distribution checks, Cargo formatting/lints/tests, the
+production client build, committed-`dist` verification, wheel/sdist plus both
+OCI builds and Playwright once. An initial job also rejects every ref except the
+exact current `main` SHA before a job with artifacts or package-write access can
+run. The workflow never creates a Git tag or GitHub Release and never moves a
+public version or `latest` container tag. OCI builds are pushed only under a
+unique `build-<run>-<attempt>-<sha>` hand-off tag and recorded by digest.
 
 `release-publish.yml` accepts one successful build run, checks out its exact SHA,
-downloads only the four owned artifact groups, verifies every file against the
-manifest digest, checks the native signature/notarization records against the
-exact desktop artifact digests, and promotes without rebuilding. Wheel and sdist
-names are concrete manifest entries, never globs. Automatic publication runs
-only for a successful `main` build; manual recovery requires the explicit build
-run ID and verifies the workflow ID/name/path, successful conclusion, `main`
-branch and that the run revision is still the exact current `main` head. Both
-workflows reject `VERSION` unless it is newer than every published stable
-release and every semantic-version tag, so an older build can never become the
-GitHub `latest` release.
+and resolves the same source-controlled release targets. It always downloads the
+manifest and Python package group and downloads a native group only when its
+marker was present at that revision. It then verifies every selected file against
+the manifest digest, checks every selected native signature/notarization record
+against the exact desktop artifact digest, and promotes without rebuilding.
+Release asset names come from the verified manifest, never hard-coded paths or
+globs. Automatic publication runs only for a successful `main` build; manual
+recovery requires the explicit build run ID and verifies the workflow
+ID/name/path, successful conclusion, `main` branch and that the run revision is
+still the exact current `main` head. Both workflows reject `VERSION` unless it is
+newer than every published stable release and every semantic-version tag, so an
+older build can never become the GitHub `latest` release.
 OCI entries in the manifest are `repository@sha256:...` references returned by
 the build action. Promotion reads those exact digests and assigns the version
 and `latest` tags in one registry operation, so running the build twice cannot
@@ -47,7 +49,7 @@ OCI stages assert CPython 3.12.3 and the digest-bound backup base names CPython
 3.12.13. Target roles, versions, resolver inputs and lock digests are separate
 records in `distribution/dependency-locks.json`.
 
-The native jobs use versioned runner labels (`macos-15` arm64 and
+Enabled native jobs use versioned runner labels (`macos-15` arm64 and
 `windows-2025`), while Linux jobs use `ubuntu-24.04`. The Windows installer
 compiler is the official Inno Setup 6.7.1 executable at a versioned URL with a
 committed SHA-256. Hosted runner images still receive maintenance updates behind
@@ -88,10 +90,23 @@ pull requests. Scaffold targets do not get empty build jobs: their adjacent READ
 states the concrete activation gates.
 
 Store credentials and signing material are repository/environment secrets. Build
-profiles and listings contain no credentials. A workflow must not silently change
-a profile from `scaffold` to `supported`; that state change requires a real
-entrypoint, artifact check and installation test in the same review.
+profiles, listings and target markers contain no credentials. A workflow must not
+silently change a profile from `scaffold` to `supported`; that state change
+requires a real entrypoint, artifact check and installation test in the same
+review.
 
-Release CI has no unsigned fallback: the macOS job requires Developer ID signing
-and Apple notarization, while the Windows job requires Authenticode. Their local
-scripts still permit explicitly local unsigned development builds.
+Direct native release jobs are source-controlled opt-ins. The exact markers are
+`distribution/release-targets/macos-direct.enabled` and
+`distribution/release-targets/windows-direct.enabled`; both are intentionally
+absent until their signing accounts and secrets exist. An absent marker skips the
+corresponding job before a native runner is allocated. Once enabled, Release CI
+has no unsigned fallback: macOS requires Developer ID signing and Apple
+notarization, while Windows requires Authenticode. Their local scripts still
+permit explicitly local unsigned development builds.
+
+Bootstrap history is evaluated per native target. Its first enabled release may
+bootstrap only if no stable release has ever contained that target's canonical
+artifact. Afterwards, the upgrade smoke uses the newest earlier stable release
+that contains exactly one canonical artifact for that target. Portable-only
+releases in between are skipped because they are not native upgrade origins;
+duplicate or ambiguous target assets remain release errors.

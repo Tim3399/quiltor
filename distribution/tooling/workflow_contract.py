@@ -357,6 +357,97 @@ def validate_publication_boundary(sources: dict[Path, str]) -> None:
             raise WorkflowContractError(f"{path.name} may not publish OCI packages")
 
 
+def _job_body(source: str, name: str) -> str:
+    try:
+        jobs = source.split("\njobs:\n", 1)[1]
+    except IndexError as error:
+        raise WorkflowContractError("workflow has no jobs mapping") from error
+    matches = list(JOB_HEADER.finditer(jobs))
+    for index, match in enumerate(matches):
+        if match.group(1) != name:
+            continue
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(jobs)
+        return jobs[match.start() : end]
+    raise WorkflowContractError(f"workflow is missing the {name} job")
+
+
+def validate_native_release_targets(sources: dict[Path, str]) -> None:
+    """Native release jobs and publishing must follow the opt-in target contract."""
+
+    build = sources[WORKFLOW_ROOT / "release.yml"]
+    publish = sources[WORKFLOW_ROOT / "release-publish.yml"]
+    if build.count("release_manifest.py targets") != 1:
+        raise WorkflowContractError("Release Build must resolve native targets exactly once")
+    if publish.count("release_manifest.py targets") != 1:
+        raise WorkflowContractError("Release Publish must resolve native targets exactly once")
+
+    manifest_job = _job_body(build, "release-manifest")
+    target_contracts = (
+        ("macos_direct", "macos-direct", "macos-dmg"),
+        ("windows_direct", "windows-direct", "windows-installer"),
+    )
+    for output, job_name, artifact_name in target_contracts:
+        output_binding = f"{output}: ${{{{ steps.targets.outputs.{output} }}}}"
+        if output_binding not in build:
+            raise WorkflowContractError(f"Release Build does not expose the {output} target")
+
+        native_job = _job_body(build, job_name)
+        job_guard = f"if: needs.version-check.outputs.{output} == 'true'"
+        if job_guard not in native_job:
+            raise WorkflowContractError(f"{job_name} is not guarded by its opt-in target")
+
+        enabled_result = re.compile(
+            rf"needs\.version-check\.outputs\.{output} == 'true'\s*"
+            rf"&& needs\['{re.escape(job_name)}'\]\.result == 'success'"
+        )
+        disabled_result = re.compile(
+            rf"needs\.version-check\.outputs\.{output} == 'false'\s*"
+            rf"&& needs\['{re.escape(job_name)}'\]\.result == 'skipped'"
+        )
+        if (
+            enabled_result.search(manifest_job) is None
+            or disabled_result.search(manifest_job) is None
+        ):
+            raise WorkflowContractError(
+                f"release-manifest does not fail closed over the {job_name} result"
+            )
+        if job_guard not in manifest_job or f"name: {artifact_name}" not in manifest_job:
+            raise WorkflowContractError(
+                f"release-manifest does not conditionally download {artifact_name}"
+            )
+
+        publish_variable = output.upper()
+        publish_output = f"{publish_variable}: ${{{{ steps.release-targets.outputs.{output} }}}}"
+        if publish_output not in publish:
+            raise WorkflowContractError(f"Release Publish does not expose the {output} target")
+        conditional_download = re.compile(
+            rf'if \[ "\${publish_variable}" = true \]; then\s*'
+            rf'gh run download "\$RUN_ID" --name {re.escape(artifact_name)} '
+            rf"--dir release-assets\s*fi"
+        )
+        if conditional_download.search(publish) is None:
+            raise WorkflowContractError(
+                f"Release Publish does not conditionally download {artifact_name}"
+            )
+        if publish.count(f"--name {artifact_name} --dir release-assets") != 1:
+            raise WorkflowContractError(
+                f"Release Publish has an ambiguous download path for {artifact_name}"
+            )
+
+    if "!cancelled()" not in manifest_job:
+        raise WorkflowContractError("release-manifest cannot evaluate skipped native dependencies")
+    if "release_manifest.py files" not in publish:
+        raise WorkflowContractError("Release Publish must derive assets from the verified manifest")
+    if "for artifact in release-manifest python-package; do" not in publish:
+        raise WorkflowContractError("Release Publish must not require disabled native artifacts")
+    draft_step = publish.split("- name: Create a draft release from the verified build", 1)[-1]
+    draft_step = draft_step.split("- name: Promote immutable images and publish the draft", 1)[0]
+    if ".dmg" in draft_step or ".exe" in draft_step:
+        raise WorkflowContractError(
+            "Release Publish must derive native asset names from the manifest"
+        )
+
+
 def validate_repository(repo_root: Path = REPO_ROOT) -> None:
     global REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK
     original = (REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK)
@@ -372,6 +463,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_job_runtime_setups(sources, locked_actions)
         validate_cargo(sources)
         validate_publication_boundary(sources)
+        validate_native_release_targets(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original
 
