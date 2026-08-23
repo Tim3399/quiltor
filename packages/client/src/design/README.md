@@ -54,17 +54,17 @@ Neue Komponenten beginnen als `experimental`. Der Status wird im öffentlichen K
 
 ## Aktueller Katalog
 
-| Komponente   | Status       | Zweck                                                            |
-| ------------ | ------------ | ---------------------------------------------------------------- |
-| `Button`     | experimental | Beschriftete Aktionen, inklusive Tone, Size, Loading und Pressed |
-| `IconButton` | experimental | Icon-only-Aktionen mit verpflichtendem Accessible Name           |
-| `Field`      | experimental | Label-, Description-, Hint- und Error-Vertrag für Form-Controls  |
-| `TextField`  | experimental | Zugängliches natives einzeiliges Eingabefeld                     |
-| `TextArea`   | experimental | Zugänglicher nativer mehrzeiliger Textbereich                    |
-| `Select`     | experimental | Zugängliches natives Auswahlfeld                                 |
-| `Checkbox`   | experimental | Native Checkbox mit Messages und Touchziel                       |
-| `ToolbarButton` | experimental | Einheitliche Toolbar-Aktion mit responsivem Icon-Label-Vertrag |
-| `SelectionCard` | experimental | Dichte, zugängliche Auswahlzeile mit Metadaten und Nebenaktion  |
+| Komponente      | Status       | Zweck                                                            |
+| --------------- | ------------ | ---------------------------------------------------------------- |
+| `Button`        | experimental | Beschriftete Aktionen, inklusive Tone, Size, Loading und Pressed |
+| `IconButton`    | experimental | Icon-only-Aktionen mit verpflichtendem Accessible Name           |
+| `Field`         | experimental | Label-, Description-, Hint- und Error-Vertrag für Form-Controls  |
+| `TextField`     | experimental | Zugängliches natives einzeiliges Eingabefeld                     |
+| `TextArea`      | experimental | Zugänglicher nativer mehrzeiliger Textbereich                    |
+| `Select`        | experimental | Zugängliches natives Auswahlfeld                                 |
+| `Checkbox`      | experimental | Native Checkbox mit Messages und Touchziel                       |
+| `ToolbarButton` | experimental | Einheitliche Toolbar-Aktion mit responsivem Icon-Label-Vertrag   |
+| `SelectionCard` | experimental | Dichte, zugängliche Auswahlzeile mit Metadaten und Nebenaktion   |
 
 ## Pflichtinhalt einer Komponente
 

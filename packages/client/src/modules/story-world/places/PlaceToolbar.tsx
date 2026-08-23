@@ -43,12 +43,7 @@ export function PlaceToolbar({
         <span>{t("nPlaces").replace("{n}", String(placesCount))}</span>
       </div>
       <div className="tool-group">
-        <ToolbarButton
-          label={t("newPlace")}
-          icon={<Plus />}
-          appearance="primary"
-          onClick={onAdd}
-        />
+        <ToolbarButton label={t("newPlace")} icon={<Plus />} appearance="primary" onClick={onAdd} />
       </div>
       <div className="tool-group">
         <ToolbarButton
