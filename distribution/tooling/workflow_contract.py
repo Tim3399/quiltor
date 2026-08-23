@@ -61,30 +61,32 @@ def toolchain_lock(path: Path = TOOLCHAIN_LOCK) -> dict[str, object]:
     tools = document.get("pythonBuildTools")
     artifact_runtimes = document.get("artifactRuntimes")
     lock_generator = document.get("dependencyLockGenerator")
-    version = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
+    runtime_version = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
+    tool_version = re.compile(r"[0-9]+(?:\.[0-9]+){1,3}")
     if not isinstance(release, dict) or set(release) != {"node", "npm", "python", "rust"}:
         raise WorkflowContractError("the release runtime toolchain lock is incomplete")
     python = release["python"]
     node = release["node"]
     npm = release["npm"]
     rust = release["rust"]
-    if not isinstance(node, str) or version.fullmatch(node) is None:
+    if not isinstance(node, str) or runtime_version.fullmatch(node) is None:
         raise WorkflowContractError("Node.js must be locked to an exact patch version")
-    if not isinstance(npm, str) or version.fullmatch(npm) is None:
+    if not isinstance(npm, str) or runtime_version.fullmatch(npm) is None:
         raise WorkflowContractError("npm must be locked to an exact patch version")
-    if not isinstance(python, str) or version.fullmatch(python) is None:
+    if not isinstance(python, str) or runtime_version.fullmatch(python) is None:
         raise WorkflowContractError("Python must be locked to an exact patch version")
-    if not isinstance(rust, str) or version.fullmatch(rust) is None:
+    if not isinstance(rust, str) or runtime_version.fullmatch(rust) is None:
         raise WorkflowContractError("Rust must be locked to an exact release")
     if not isinstance(tools, dict) or set(tools) != {
         "build",
+        "editables",
         "hatchling",
         "pyinstaller",
         "ruff",
     }:
         raise WorkflowContractError("the Python release-tool lock is incomplete")
     for name, value in tools.items():
-        if not isinstance(value, str) or version.fullmatch(value) is None:
+        if not isinstance(value, str) or tool_version.fullmatch(value) is None:
             raise WorkflowContractError(f"Python build tool {name} is not exactly pinned")
     if not isinstance(artifact_runtimes, dict) or set(artifact_runtimes) != {
         "pythonPackage",
@@ -97,7 +99,7 @@ def toolchain_lock(path: Path = TOOLCHAIN_LOCK) -> dict[str, object]:
             not isinstance(runtime, dict)
             or set(runtime) != {"playwright"}
             or not isinstance(runtime["playwright"], str)
-            or version.fullmatch(runtime["playwright"]) is None
+            or runtime_version.fullmatch(runtime["playwright"]) is None
         ):
             raise WorkflowContractError(f"the {target} Playwright runtime must be exactly pinned")
     if lock_generator != {"uv": "0.12.5"}:
@@ -220,6 +222,14 @@ def validate_toolchains(sources: dict[Path, str], contract: dict[str, object]) -
         if package.get("packageManager") != f"npm@{npm}":
             raise WorkflowContractError(f"{path} must declare exact npm@{npm}")
     pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    expected_build_requirements = [
+        f"hatchling=={tools['hatchling']}",
+        f"editables=={tools['editables']}",
+    ]
+    if pyproject.get("build-system", {}).get("requires") != expected_build_requirements:
+        raise WorkflowContractError(
+            "pyproject build-system must pin Hatchling and its editable-build dependency"
+        )
     browser_pdf = pyproject["project"]["optional-dependencies"].get("browser-pdf")
     if browser_pdf != [f"playwright=={python_playwright}"]:
         raise WorkflowContractError(

@@ -8,6 +8,7 @@
   },
   "pythonBuildTools": {
     "build": "1.5.0",
+    "editables": "0.5",
     "hatchling": "1.31.0",
     "pyinstaller": "6.22.0",
     "ruff": "0.16.4"

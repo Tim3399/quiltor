@@ -223,7 +223,7 @@ formatting, distribution and workflow dependency contracts, Python suites,
 Cargo formatting/lints/tests with the committed lockfile, frontend tests/build,
 committed web assets, browser tests, a real wheel and sdist build with embedded
 profile verification, and real builds plus in-container checks for both OCI
-images. Docker and the Python `build`/`hatchling` packages are therefore mandatory
+images. Docker and the Python `build`/`hatchling`/`editables` packages are therefore mandatory
 and the bump fails closed when they are unavailable. It then updates `VERSION`,
 npm package files, the workspace `Cargo.toml` and both local-crate entries in
 `Cargo.lock` together. Review and commit the resulting version-only diff;
@@ -231,7 +231,7 @@ publication is still a separate release action.
 
 The release/CI build toolchain is exact: Node.js 22.23.2 with npm 10.9.8,
 CPython 3.11.9 and Rust/Cargo 1.98.0, plus `build==1.5.0`,
-`hatchling==1.31.0` and `ruff==0.16.4`.
+`editables==0.5`, `hatchling==1.31.0` and `ruff==0.16.4`.
 Native release runners install `pyinstaller==6.22.0`. The Windows job downloads
 Inno Setup 6.7.1 from its versioned upstream URL and verifies the committed
 SHA-256 before executing it. These build versions live in

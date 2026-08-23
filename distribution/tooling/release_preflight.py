@@ -3,7 +3,7 @@
 
 This deliberately does not call ``set_version.py``: the dependency points in one
 direction only, so invoking the bump directly or through npm can never recurse.
-Docker, ``build`` and ``hatchling`` are required deliberately: wheel, sdist and
+Docker, ``build``, ``hatchling`` and ``editables`` are required deliberately: wheel, sdist and
 both OCI images are portable release artifacts, not post-version best efforts.
 """
 
@@ -33,7 +33,8 @@ _TOOLCHAINS = json.loads(TOOLCHAIN_LOCK.read_text(encoding="utf-8"))
 _RELEASE_TOOLCHAINS = _TOOLCHAINS["releaseToolchains"]
 PYTHON_PACKAGE_PLAYWRIGHT = _TOOLCHAINS["artifactRuntimes"]["pythonPackage"]["playwright"]
 PINNED_PYTHON_BUILD_TOOLS = {
-    name: _TOOLCHAINS["pythonBuildTools"][name] for name in ("build", "hatchling", "ruff")
+    name: _TOOLCHAINS["pythonBuildTools"][name]
+    for name in ("build", "editables", "hatchling", "ruff")
 }
 
 

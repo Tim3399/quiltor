@@ -39,7 +39,7 @@ CI and local release preflight use the explicit `releaseToolchains`: Node.js
 `distribution/toolchains.json`; the matching dotfiles and
 `rust-toolchain.toml` make the same choice outside CI. Python 3.11.9 is the last
 3.11 patch with official `setup-python` assets for Linux, macOS and Windows.
-Release packaging uses `build==1.5.0`, `hatchling==1.31.0`,
+Release packaging uses `build==1.5.0`, `editables==0.5`, `hatchling==1.31.0`,
 `pyinstaller==6.22.0` and `ruff==0.16.4`; package builds disable build isolation
 after installing those exact tools. This is a build-tool contract, not a
 generic target-runtime claim. Native targets also use CPython 3.11.9; the web

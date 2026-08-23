@@ -805,6 +805,25 @@ class WorkflowBoundaryTests(unittest.TestCase):
         )
         self.assertIn("npx playwright install --with-deps chromium", self.build)
 
+    def test_normal_ci_runs_the_browser_suite_instead_of_deferring_it_to_release(self):
+        test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("push:\n    branches: [main]", test_workflow)
+        self.assertIn("pull_request:", test_workflow)
+        for required_job in ("backend:", "portable-core:", "frontend:", "browser-e2e:"):
+            self.assertIn(required_job, test_workflow)
+        for required_gate in (
+            "python -m unittest discover -s tests/python -t tests/python -v",
+            "cargo --locked clippy --workspace --all-targets -- -D warnings",
+            "cargo --locked test --workspace --all-targets",
+            "run: npx vitest run",
+            "run: npm run build",
+            "run: npm run test:e2e",
+        ):
+            self.assertIn(required_gate, test_workflow)
+        self.assertIn("browser-e2e:", test_workflow)
+        self.assertIn("needs: frontend", test_workflow)
+        self.assertNotIn("continue-on-error", test_workflow)
+
     def test_no_release_job_can_start_before_exact_main_is_proven(self):
         context = self.build.index("release-context:")
         release_gate = self.build.index("release-gate:")
@@ -874,6 +893,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
     def test_release_packaging_toolchain_is_concretely_pinned(self):
         pins = {
             "build": "1.5.0",
+            "editables": "0.5",
             "hatchling": "1.31.0",
             "pyinstaller": "6.22.0",
             "ruff": "0.16.4",
@@ -882,11 +902,12 @@ class WorkflowBoundaryTests(unittest.TestCase):
             release_preflight.PINNED_PYTHON_BUILD_TOOLS,
             {
                 "build": pins["build"],
+                "editables": pins["editables"],
                 "hatchling": pins["hatchling"],
                 "ruff": pins["ruff"],
             },
         )
-        for package in ("build", "hatchling", "ruff"):
+        for package in ("build", "editables", "hatchling", "ruff"):
             with self.subTest(package=package):
                 self.assertIn(f'"{package}=={pins[package]}"', self.build)
         for path in (
