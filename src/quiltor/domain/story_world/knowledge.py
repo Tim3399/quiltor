@@ -174,7 +174,13 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
     return chunks
 
 
-def retrieve(chunks: list[KnowledgeChunk], query: str, limit: int = 14) -> list[KnowledgeChunk]:
+def retrieve(
+    chunks: list[KnowledgeChunk],
+    query: str,
+    limit: int = 14,
+    *,
+    fallback: bool = True,
+) -> list[KnowledgeChunk]:
     """Local hybrid retrieval: exact phrases, word vectors and structured graph expansion."""
     tokens = set(re.findall(r"[\wÄÖÜäöüß]{2,}", query.casefold()))
     if not tokens:
@@ -204,4 +210,6 @@ def retrieve(chunks: list[KnowledgeChunk], query: str, limit: int = 14) -> list[
             and chunk not in selected
         ):
             selected.append(chunk)
-    return selected or chunks[: min(limit, len(chunks))]
+    if selected or not fallback:
+        return selected
+    return chunks[: min(limit, len(chunks))]

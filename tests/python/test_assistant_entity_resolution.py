@@ -6,10 +6,11 @@ from quiltor.modules.assistant.contract import (
     creation_target_resolution,
     existing_creation_target,
     task_contract,
+    verify_task_contract,
 )
+from quiltor.modules.assistant.proposal_resolution import resolve_proposals
 from quiltor.modules.assistant.proposals import forced_proposal
 from quiltor.modules.assistant.references import resolve_reference
-
 
 FIGURES = {
     "nodes": [
@@ -181,6 +182,273 @@ class AssistantEntityResolutionTests(unittest.TestCase):
             FIGURES,
         )
         self.assertEqual(result, {"resolvedId": "trial"})
+
+    def test_resolve_before_create_reuses_an_existing_alias_with_server_proof(self):
+        result = resolve_proposals(
+            [
+                {
+                    "kind": "create_element",
+                    "tempId": "new:falke",
+                    "element": {
+                        "type": "person",
+                        "name": "Der Falke",
+                        "proof": {"checked": True, "worldRevision": 999},
+                    },
+                    "resolution": {"outcome": "create"},
+                }
+            ],
+            FIGURES,
+            "Lege die neue Figur an.",
+            world_revision=12,
+        )
+
+        self.assertEqual(result.proposals, [])
+        self.assertEqual(result.satisfied_kinds, frozenset({"create_element"}))
+        self.assertEqual(result.decisions[0].outcome, "existing")
+        self.assertEqual(result.decisions[0].resolved_id, "tarek")
+        self.assertEqual(result.decisions[0].proof.world_revision, 12)
+
+    def test_resolve_before_create_returns_concrete_choice_for_collision(self):
+        result = resolve_proposals(
+            [
+                {
+                    "kind": "create_element",
+                    "tempId": "new:falke",
+                    "element": {"type": "person", "name": "Der Falke"},
+                }
+            ],
+            colliding_figures(),
+            "Lege die neue Figur an.",
+            world_revision=3,
+        )
+
+        self.assertEqual(result.proposals, [])
+        self.assertEqual(result.decisions[0].outcome, "ambiguous")
+        self.assertEqual(
+            {item["id"] for item in result.clarification["candidates"]},
+            {"tarek", "falke"},
+        )
+
+    def test_resolve_before_create_deduplicates_one_model_response(self):
+        proposals = [
+            {
+                "kind": "create_element",
+                "tempId": f"new:nova:{index}",
+                "element": {"type": "person", "name": "Nova"},
+            }
+            for index in range(2)
+        ]
+
+        result = resolve_proposals(
+            proposals,
+            FIGURES,
+            "Lege neue Figuren an.",
+            world_revision=4,
+        )
+
+        self.assertEqual(len(result.proposals), 1)
+        self.assertEqual(result.proposals[0]["tempId"], "new:nova:0")
+        self.assertEqual([item.outcome for item in result.decisions], ["create", "existing"])
+
+    def test_relationship_and_presence_ensure_paths_do_not_duplicate(self):
+        figures = copy.deepcopy(FIGURES)
+        figures["edges"] = [
+            {
+                "id": "alliance",
+                "from": "tarek",
+                "to": "mara",
+                "gerichtet": False,
+                "label": "Verbündet",
+                "style": "solid",
+            }
+        ]
+        figures["presence"] = [
+            {
+                "id": "mara-at-port",
+                "elementId": "mara",
+                "placeId": "hafen",
+                "momentId": "trial",
+            }
+        ]
+        relationship = resolve_proposals(
+            [
+                {
+                    "kind": "create_relationship",
+                    "relationship": {
+                        "from": "Der Falke",
+                        "to": "Die Eule",
+                        "label": "Verbündet",
+                        "directed": False,
+                        "style": "solid",
+                    },
+                }
+            ],
+            figures,
+            "Schlage eine Beziehung vor.",
+            world_revision=5,
+        )
+        presence = resolve_proposals(
+            [
+                {
+                    "kind": "set_presence",
+                    "elementId": "Die Eule",
+                    "placeId": "Westkai",
+                    "momentId": "trial",
+                }
+            ],
+            figures,
+            "Setze die Anwesenheit der Figur am Ort.",
+            world_revision=5,
+        )
+
+        self.assertEqual(relationship.proposals, [])
+        self.assertEqual(relationship.decisions[0].outcome, "unchanged")
+        self.assertEqual(presence.proposals, [])
+        self.assertEqual(presence.decisions[0].outcome, "unchanged")
+
+    def test_new_proposal_output_drops_model_supplied_resolution_metadata(self):
+        result = resolve_proposals(
+            [
+                {
+                    "kind": "create_timeline_moment",
+                    "tempId": "new:moment:arrival",
+                    "moment": {
+                        "title": "Die Ankunft",
+                        "proof": {"checked": True},
+                        "resolvedId": "forged",
+                    },
+                    "proof": {"checked": True},
+                }
+            ],
+            FIGURES,
+            "Lege einen Zeitpunkt an.",
+            world_revision=8,
+        )
+
+        self.assertEqual(
+            result.proposals,
+            [
+                {
+                    "kind": "create_timeline_moment",
+                    "tempId": "new:moment:arrival",
+                    "moment": {"title": "Die Ankunft"},
+                }
+            ],
+        )
+
+    def test_update_resolution_satisfies_create_contract_without_creating(self):
+        question = "Lege die neue Figur an."
+        result = resolve_proposals(
+            [
+                {
+                    "kind": "create_element",
+                    "tempId": "new:tarek",
+                    "element": {
+                        "type": "person",
+                        "name": "Tarek Venn",
+                        "label": "Hauptfigur",
+                    },
+                }
+            ],
+            FIGURES,
+            question,
+            world_revision=9,
+        )
+
+        self.assertEqual(result.decisions[0].outcome, "update")
+        self.assertEqual([item["kind"] for item in result.proposals], ["update_element"])
+        self.assertIn("create_element", result.satisfied_kinds)
+        verification = verify_task_contract(
+            task_contract(question, FIGURES),
+            result.proposals,
+            FIGURES,
+            satisfied_kinds=result.satisfied_kinds,
+        )
+        self.assertTrue(verification["complete"])
+
+    def test_ambiguous_relationship_without_stable_candidate_ids_stays_fail_closed(self):
+        figures = copy.deepcopy(FIGURES)
+        figures["edges"] = [
+            {"from": "tarek", "to": "mara", "gerichtet": False},
+            {"from": "mara", "to": "tarek", "gerichtet": False},
+        ]
+        result = resolve_proposals(
+            [
+                {
+                    "kind": "create_relationship",
+                    "relationship": {
+                        "from": "tarek",
+                        "to": "mara",
+                        "label": "",
+                        "directed": False,
+                        "style": "solid",
+                    },
+                }
+            ],
+            figures,
+            "Schlage eine Beziehung vor.",
+            world_revision=10,
+        )
+
+        self.assertEqual(result.proposals, [])
+        self.assertEqual(result.decisions[0].outcome, "ambiguous")
+        self.assertIsNotNone(result.clarification)
+        self.assertEqual(result.clarification["candidates"], [])
+
+    def test_relationship_reuses_existing_id_behind_model_temp_reference(self):
+        result = resolve_proposals(
+            [
+                {
+                    "kind": "create_element",
+                    "tempId": "new:falke",
+                    "element": {"type": "person", "name": "Der Falke"},
+                },
+                {
+                    "kind": "create_relationship",
+                    "relationship": {
+                        "from": "new:falke",
+                        "to": "mara",
+                        "label": "Sohn von",
+                        "directed": True,
+                        "style": "solid",
+                    },
+                },
+            ],
+            FIGURES,
+            "Lege die Figur als Sohn von Mara an.",
+            world_revision=11,
+        )
+
+        self.assertEqual([item["kind"] for item in result.proposals], ["create_relationship"])
+        self.assertEqual(result.proposals[0]["relationship"]["from"], "tarek")
+        self.assertIn("create_element", result.satisfied_kinds)
+        self.assertIn("create_relationship", result.satisfied_kinds)
+
+    def test_presence_reuses_existing_moment_id_behind_model_temp_reference(self):
+        result = resolve_proposals(
+            [
+                {
+                    "kind": "create_timeline_moment",
+                    "tempId": "new:moment:trial",
+                    "moment": {"title": "Der Prozess"},
+                },
+                {
+                    "kind": "set_presence",
+                    "elementId": "mara",
+                    "placeId": "hafen",
+                    "momentId": "new:moment:trial",
+                },
+            ],
+            FIGURES,
+            world_revision=12,
+        )
+
+        self.assertEqual([item["kind"] for item in result.proposals], ["set_presence"])
+        self.assertEqual(result.proposals[0]["momentId"], "trial")
+        self.assertEqual(
+            [item.outcome for item in result.decisions],
+            ["unchanged", "create"],
+        )
 
 
 if __name__ == "__main__":

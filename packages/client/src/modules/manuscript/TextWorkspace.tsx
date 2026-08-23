@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useI18n } from "../../i18n";
 import { applicationErrorMessage, quiltorClient, saveTextFile } from "../../platform";
@@ -29,6 +29,7 @@ export function TextWorkspace({
   orphanedMentions = 0,
   onChange,
   onOpenEntity,
+  onCurrentChapterId,
   focus,
   onFocus,
   targetId,
@@ -66,6 +67,9 @@ export function TextWorkspace({
   const current =
     manuscript.chapters.find((chapter) => chapter.id === currentId) ?? manuscript.chapters[0];
   const currentIndex = current ? manuscript.chapters.indexOf(current) + 1 : 0;
+  useEffect(() => {
+    onCurrentChapterId?.(current?.id || "");
+  }, [current?.id, onCurrentChapterId]);
   const totalWords = useMemo(
     () => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0),
     [manuscript.chapters],

@@ -1,5 +1,11 @@
 import type { MessageKey } from "../../i18n";
-import type { AssistantHistoryMessage, AssistantReply } from "./model";
+import type {
+  AssistantClaimStatus,
+  AssistantHistoryMessage,
+  AssistantMode,
+  AssistantProposal,
+  AssistantReply,
+} from "./model";
 
 export type AssistantEntry = {
   id: string;
@@ -14,6 +20,10 @@ export type AssistantEntry = {
   chapterIds?: string[];
   runBatches?: boolean;
   progressId?: string;
+  mode?: AssistantMode;
+  dismissed?: number[];
+  proposalEdits?: Record<number, AssistantProposal>;
+  claimStatuses?: Record<number, AssistantClaimStatus>;
 };
 
 export type AssistantBatchProgress = {
@@ -23,4 +33,8 @@ export type AssistantBatchProgress = {
   labelParams?: Record<string, string | number>;
 };
 
-export type AssistantSendOptions = { batch?: boolean };
+export type AssistantSendOptions = {
+  batch?: boolean;
+  mode?: AssistantMode;
+  chapterIds?: string[];
+};

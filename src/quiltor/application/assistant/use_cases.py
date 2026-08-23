@@ -21,6 +21,12 @@ class AssistantAuditUseCases:
             return False
         return self._documents.exists(opened.paths.documents.database)
 
+    def world_revision(self, owner_sub: str, world_id: str) -> int:
+        """Return the current canonical story-world revision for stale-result guards."""
+
+        opened = self._worlds.open(world_id, owner_sub)
+        return self._documents.revision("figures", opened.paths.documents.database)
+
     def record(
         self,
         owner_sub: str,

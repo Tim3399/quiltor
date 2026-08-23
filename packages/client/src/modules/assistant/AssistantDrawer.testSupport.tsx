@@ -84,6 +84,7 @@ export function setup(worldId = "world-1", chapters: Chapter[] = CHAPTERS, open 
         worldId={worldId}
         figures={FIGURES}
         chapters={chapters}
+        currentChapterId={chapters[0]?.id || ""}
         open={open}
         onApply={onApply}
         onNavigate={onNavigate}
@@ -98,6 +99,7 @@ export function setup(worldId = "world-1", chapters: Chapter[] = CHAPTERS, open 
           worldId={worldId}
           figures={FIGURES}
           chapters={chapters}
+          currentChapterId={chapters[0]?.id || ""}
           open={value}
           onApply={onApply}
           onNavigate={onNavigate}

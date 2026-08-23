@@ -10,6 +10,30 @@ export interface AssistantSource {
   target: { workspace: Workspace; id: string };
 }
 
+export type AssistantMode = "chat" | "world_extraction";
+
+export type AssistantClaimStatus =
+  | "objective_fact"
+  | "narrator_claim"
+  | "character_knows"
+  | "character_believes"
+  | "character_claims"
+  | "unresolved";
+
+export interface AssistantProposalEnvelope {
+  proposal: AssistantProposal;
+  evidence: AssistantSource[];
+  resolution?: {
+    operation: string;
+    outcome: string;
+    status: string;
+    resolvedId?: string | null;
+    candidateIds: string[];
+  };
+  confidence?: number;
+  claimStatus?: AssistantClaimStatus;
+}
+
 export type AssistantProposal =
   | {
       kind: "create_element";
@@ -20,12 +44,13 @@ export type AssistantProposal =
         label?: string;
         sub?: string;
         profile?: Profile;
+        aliases?: FigureNode["aliases"];
       };
     }
   | {
       kind: "update_element";
       elementId: string;
-      patch: Partial<Pick<FigureNode, "name" | "label" | "sub" | "profile">>;
+      patch: Partial<Pick<FigureNode, "name" | "label" | "sub" | "profile" | "aliases">>;
     }
   | {
       kind: "create_timeline_moment";
@@ -73,9 +98,18 @@ export interface AssistantReply {
   messageItems?: AssistantMessageItem[];
   messageNoteKey?: MessageKey;
   proposalGroup?: { id: string; title: string; proposalIndexes: number[] };
+  proposalGroups?: Array<{ id: string; proposalIndexes: number[] }>;
+  proposalEnvelopes?: AssistantProposalEnvelope[];
+  mode?: AssistantMode;
+  extraction?: {
+    chapterIds: string[];
+    chapterCount: number;
+    groupCount: number;
+  } | null;
   agentTrace?: Array<{ step: string; [key: string]: unknown }>;
   broadScope?: { chapterCount: number; estimateSeconds: number };
   clarification?: { candidates: Array<{ id: string; name: string; kind: string }> };
+  staleWorld?: { expectedRevision: number; currentRevision: number };
 }
 
 export type AssistantJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";

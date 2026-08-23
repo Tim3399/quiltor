@@ -277,9 +277,13 @@ def structured_world_state(figures: dict[str, Any], contract: dict[str, Any]) ->
 
 
 def verify_task_contract(
-    contract: dict[str, Any], proposals: list[dict[str, Any]], figures: dict[str, Any]
+    contract: dict[str, Any],
+    proposals: list[dict[str, Any]],
+    figures: dict[str, Any],
+    *,
+    satisfied_kinds: set[str] | frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
-    present = {item.get("kind") for item in proposals}
+    present = {item.get("kind") for item in proposals} | set(satisfied_kinds)
     missing = [kind for kind in contract["requiredKinds"] if kind not in present]
     issues: list[str] = []
     nodes = {_normal(node.get("name")) for node in figures.get("nodes") or []}
@@ -314,7 +318,11 @@ def proposal_group_title(question: str) -> str:
 
 
 def complete_compound_proposals(
-    question: str, proposals: list[dict[str, Any]], figures: dict[str, Any]
+    question: str,
+    proposals: list[dict[str, Any]],
+    figures: dict[str, Any],
+    *,
+    resolved_creation_target: str | None = None,
 ) -> list[dict[str, Any]]:
     required = required_proposal_kinds(question)
     if required == {"arrange_elements"}:
@@ -322,9 +330,10 @@ def complete_compound_proposals(
             {"kind": "arrange_elements", "strategy": "thematic"}
         ]
     created = next((item for item in proposals if item.get("kind") == "create_element"), None)
+    created_reference = created.get("tempId") if created else resolved_creation_target
     if (
         "create_relationship" in required
-        and created
+        and created_reference
         and not any(item.get("kind") == "create_relationship" for item in proposals)
     ):
         folded = question.casefold()
@@ -332,11 +341,14 @@ def complete_compound_proposals(
         nodes_by_id = {
             str(node.get("id")): node for node in figures.get("nodes") or [] if node.get("id")
         }
+        related_ids = [
+            identifier
+            for identifier in mentioned_ids or []
+            if identifier != resolved_creation_target
+        ]
         matches = (
-            [nodes_by_id[mentioned_ids[0]]]
-            if mentioned_ids is not None
-            and len(mentioned_ids) == 1
-            and mentioned_ids[0] in nodes_by_id
+            [nodes_by_id[related_ids[0]]]
+            if len(related_ids) == 1 and related_ids[0] in nodes_by_id
             else []
         )
         if matches:
@@ -361,14 +373,14 @@ def complete_compound_proposals(
             relationship = (
                 {
                     "from": matches[0]["id"],
-                    "to": created["tempId"],
+                    "to": created_reference,
                     "label": "Besitzt",
                     "directed": True,
                     "style": "solid",
                 }
                 if ownership
                 else {
-                    "from": created["tempId"],
+                    "from": created_reference,
                     "to": matches[0]["id"],
                     "label": labels.get(key or "", "Verwandt mit"),
                     "directed": True,

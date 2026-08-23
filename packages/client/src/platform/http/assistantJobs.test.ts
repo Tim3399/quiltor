@@ -99,6 +99,35 @@ describe("assistant job API", () => {
     });
   });
 
+  it("sends extraction mode and its explicit chapter scope", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      response({
+        ok: true,
+        created: true,
+        coalesced: false,
+        job: completedJob(),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await application.assistant.chat(
+      "Update world",
+      [],
+      undefined,
+      ["c2"],
+      { runBatches: true, progressId: "progress-1", mode: "world_extraction" },
+      "request-extraction",
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      chapterIds: ["c2"],
+      runBatches: true,
+      progressId: "progress-1",
+      mode: "world_extraction",
+    });
+  });
+
   it("retries an ambiguous network failure with the exact same idempotency key", async () => {
     const fetchMock = vi
       .fn()

@@ -24,6 +24,151 @@
       "example": { "worldId": "0123456789abcdef0123456789abcdef", "query": "Mara", "limit": 10 }
     },
     {
+      "name": "resolve_entity",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "required": ["worldId", "mention"],
+        "additionalProperties": false,
+        "properties": {
+          "worldId": { "type": "string" },
+          "mention": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "entityType": {
+            "type": "string",
+            "enum": ["person", "tier", "ort", "organisation", "objekt", "konzept"]
+          },
+          "contextIds": {
+            "type": "array",
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          "vocabulary": {
+            "type": "array",
+            "maxItems": 32,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+          }
+        }
+      },
+      "example": {
+        "worldId": "0123456789abcdef0123456789abcdef",
+        "mention": "Die Kartografin"
+      }
+    },
+    {
+      "name": "get_entity",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "required": ["worldId", "elementId"],
+        "additionalProperties": false,
+        "properties": {
+          "worldId": { "type": "string" },
+          "elementId": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      },
+      "example": {
+        "worldId": "0123456789abcdef0123456789abcdef",
+        "elementId": "mara"
+      }
+    },
+    {
+      "name": "get_relationships",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "required": ["worldId", "elementId"],
+        "additionalProperties": false,
+        "properties": {
+          "worldId": { "type": "string" },
+          "elementId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "otherElementId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 12 }
+        }
+      },
+      "example": {
+        "worldId": "0123456789abcdef0123456789abcdef",
+        "elementId": "mara",
+        "limit": 8
+      }
+    },
+    {
+      "name": "find_timeline_events",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "required": ["worldId"],
+        "additionalProperties": false,
+        "properties": {
+          "worldId": { "type": "string" },
+          "query": { "type": "string", "minLength": 0, "maxLength": 500 },
+          "entityId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 12 }
+        }
+      },
+      "example": {
+        "worldId": "0123456789abcdef0123456789abcdef",
+        "query": "Ankunft"
+      }
+    },
+    {
+      "name": "get_world_state",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "required": ["worldId", "momentId"],
+        "additionalProperties": false,
+        "properties": {
+          "worldId": { "type": "string" },
+          "momentId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "phase": { "type": "string", "enum": ["before", "at", "after"] },
+          "entityIds": {
+            "type": "array",
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          "relationshipIds": {
+            "type": "array",
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        }
+      },
+      "example": {
+        "worldId": "0123456789abcdef0123456789abcdef",
+        "momentId": "arrival",
+        "phase": "at"
+      }
+    },
+    {
+      "name": "search_manuscript",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "required": ["worldId", "query"],
+        "additionalProperties": false,
+        "properties": {
+          "worldId": { "type": "string" },
+          "query": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "chapterIds": {
+            "type": "array",
+            "maxItems": 32,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 8 }
+        }
+      },
+      "example": {
+        "worldId": "0123456789abcdef0123456789abcdef",
+        "query": "Mara",
+        "limit": 6
+      }
+    },
+    {
       "name": "get_world_structure",
       "effect": "read",
       "inputSchema": {

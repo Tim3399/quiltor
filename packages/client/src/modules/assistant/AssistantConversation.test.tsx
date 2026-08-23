@@ -152,4 +152,128 @@ describe("assistant conversation content", () => {
     await screen.findByText("Was soll ich in der Welt nachtragen?");
     expect(screen.queryByText("Kontext: gesamte Welt")).not.toBeInTheDocument();
   });
+
+  it("requires epistemic review before an extracted statement becomes canon", async () => {
+    const proposal = {
+      kind: "create_element" as const,
+      tempId: "new:nova",
+      element: { name: "Nova" },
+    };
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        mode: "world_extraction",
+        proposals: [proposal],
+        proposalGroups: [{ id: "elements", proposalIndexes: [0] }],
+        proposalEnvelopes: [
+          {
+            proposal,
+            claimStatus: "unresolved",
+            evidence: [
+              {
+                id: "chapter:c1:0",
+                kind: "chapter",
+                title: "Die Krönung",
+                text: "Nova kommt.",
+                target: { workspace: "text", id: "c1" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const { onApply } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
+    );
+
+    const apply = await screen.findByRole("button", { name: "Übernehmen" });
+    expect(apply).toBeDisabled();
+    expect(screen.getByText("Belege · 1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("combobox", { name: "Aussage einordnen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Objektiver Weltfakt" }));
+    expect(apply).not.toBeDisabled();
+    fireEvent.click(apply);
+
+    expect(onApply).toHaveBeenCalledWith([
+      expect.objectContaining({ kind: "create_element", element: { name: "Nova" } }),
+    ]);
+  });
+
+  it("edits a proposal before applying it", async () => {
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        proposals: [{ kind: "create_element", tempId: "new:igor", element: { name: "Igor" } }],
+      }),
+    );
+    const { onApply } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Lege Igor an.");
+
+    fireEvent.click(await screen.findByText("Bearbeiten"));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Igor Venn" } });
+    fireEvent.click(screen.getByText("Änderung speichern"));
+    fireEvent.click(screen.getByText("Übernehmen"));
+
+    expect(onApply).toHaveBeenCalledWith([
+      expect.objectContaining({ element: expect.objectContaining({ name: "Igor Venn" }) }),
+    ]);
+  });
+
+  it("keeps ignored proposals out of the apply operation", async () => {
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        proposals: [{ kind: "create_element", tempId: "new:igor", element: { name: "Igor" } }],
+      }),
+    );
+    const { onApply } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Lege Igor an.");
+    fireEvent.click(await screen.findByText("Ignorieren"));
+
+    expect(screen.getByText("Ignoriert")).toBeInTheDocument();
+    expect(screen.getByText("Alle übernehmen").closest("button")).toBeDisabled();
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("applies a reviewed extraction group as one history operation", async () => {
+    const proposals = [
+      { kind: "create_element" as const, tempId: "new:nova", element: { name: "Nova" } },
+      {
+        kind: "create_element" as const,
+        tempId: "new:hafen",
+        element: { name: "Alter Hafen", type: "ort" as const },
+      },
+    ];
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        mode: "world_extraction",
+        proposals,
+        proposalGroups: [{ id: "elements", proposalIndexes: [0, 1] }],
+        proposalEnvelopes: proposals.map((proposal) => ({
+          proposal,
+          evidence: [],
+          claimStatus: "objective_fact" as const,
+        })),
+      }),
+    );
+    const { onApply } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
+    );
+    fireEvent.click(await screen.findByText("Gruppe übernehmen"));
+
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0][0]).toHaveLength(2);
+    expect(onApply).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "create_element", element: { name: "Nova" } }),
+        expect.objectContaining({
+          kind: "create_element",
+          element: { name: "Alter Hafen", type: "ort" },
+        }),
+      ]),
+    );
+  });
 });

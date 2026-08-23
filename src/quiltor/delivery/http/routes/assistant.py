@@ -102,21 +102,43 @@ def _prepare_request(
     if world is None:
         return None
 
-    question = str(payload.get("question", "")).strip()
+    mode = str(payload.get("mode") or "chat")
+    if mode not in {"chat", "world_extraction"}:
+        raise ValueError("Unbekannter Assistant-Modus.")
     history = payload.get("history") if isinstance(payload.get("history"), list) else []
     chapter_ids = [str(item) for item in payload.get("chapterIds") or [] if isinstance(item, str)][
         :50
     ]
-    run_batches = bool(payload.get("runBatches"))
+    run_batches = bool(payload.get("runBatches")) or mode == "world_extraction"
     progress_id = str(payload.get("progressId") or "")[:64] or None
     requested = str(payload.get("language") or "")
     language = requested if requested in ASSISTANT_REPLY_LANGUAGES else DEFAULT_ASSISTANT_LANGUAGE
+    question = str(payload.get("question", "")).strip()
+    if mode == "world_extraction":
+        question = (
+            "Update the world model from the selected manuscript chapters."
+            if language == "en"
+            else "Aktualisiere das Weltmodell aus den ausgewählten Manuskriptkapiteln."
+        )
+        history = []
 
     if not question or len(question) > 4000:
         raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
 
     with app.lock:
-        manuscript, figures = app.documents.load_pair(world.db_path)
+        manuscript_document = app.documents.load("manuscript", world.db_path)
+        figures_document = app.documents.load("figures", world.db_path)
+        manuscript = manuscript_document.state
+        figures = figures_document.state
+
+    if mode == "world_extraction" and chapter_ids:
+        available_ids = {
+            str(chapter.get("id"))
+            for chapter in manuscript.get("chapters") or []
+            if isinstance(chapter, dict) and chapter.get("id")
+        }
+        if any(chapter_id not in available_ids for chapter_id in chapter_ids):
+            raise ValueError("Mindestens ein ausgewähltes Kapitel existiert nicht mehr.")
 
     # `intent` defines equality for one idempotency key. progressId is UI
     # correlation and therefore deliberately excluded from the hash.
@@ -125,6 +147,7 @@ def _prepare_request(
         "history": history[-40:],
         "chapterIds": chapter_ids,
         "runBatches": run_batches,
+        "mode": mode,
         "language": language,
     }
     execution = {
@@ -135,6 +158,7 @@ def _prepare_request(
         # happens to be in SQLite minutes later when the worker reaches it.
         "manuscript": manuscript,
         "figures": figures,
+        "worldRevision": figures_document.revision,
     }
     return world, intent, execution
 

@@ -110,6 +110,24 @@ class AssistantInteractionLogger(Protocol):
 class AssistantWorldAccess(Protocol):
     def exists(self, owner_sub: str, world_id: str) -> bool: ...
 
+    def revision(self, owner_sub: str, world_id: str) -> int: ...
+
+
+@runtime_checkable
+class AssistantReadToolExecutor(Protocol):
+    """Read-only application service injected into the model-controlled tool loop."""
+
+    def catalog(self) -> tuple[dict[str, Any], ...]: ...
+
+    def execute_many(
+        self,
+        calls: list[dict[str, Any]],
+        *,
+        manuscript: dict[str, Any],
+        figures: dict[str, Any],
+        world_revision: int,
+    ) -> tuple[dict[str, Any], ...]: ...
+
 
 @runtime_checkable
 class AssistantProgressStore(Protocol):
@@ -144,6 +162,7 @@ __all__ = [
     "AssistantInteractionLogger",
     "AssistantJobStore",
     "AssistantProgressStore",
+    "AssistantReadToolExecutor",
     "AssistantWorldAccess",
     "IdempotencyConflict",
     "IncompleteInferenceResponse",

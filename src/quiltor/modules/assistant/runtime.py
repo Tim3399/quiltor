@@ -8,32 +8,16 @@ from typing import Any
 from quiltor.modules.assistant.batch import run_batches
 from quiltor.modules.assistant.completion import complete_request
 from quiltor.modules.assistant.config import RUNTIME_CONFIG
-from quiltor.modules.assistant.conversation import (
-    CONVERSATION_HISTORY_TOKEN_BUDGET,
-    conversation_messages,
-)
-from quiltor.modules.assistant.planner import needs_planner, plan
+from quiltor.modules.assistant.planner import plan
 from quiltor.modules.assistant.ports import (
     AssistantProgressStore,
+    AssistantReadToolExecutor,
     IncompleteInferenceResponse,
     InferenceEngine,
     TokenCountCache,
 )
-from quiltor.modules.assistant.prompts import (
-    ASSISTANT_REPLY_LANGUAGES,
-    CONTEXT_SAFETY_MARGIN,
-    DEFAULT_ASSISTANT_LANGUAGE,
-    MODEL_CONTEXT_TOKENS,
-    MUTATION_REQUEST,
-    PROSE_REQUEST,
-    SYSTEM_PROMPT,
-    SYSTEM_PROMPT_TEMPLATE,
-    UNTITLED_CHAPTER,
-    system_prompt,
-)
-from quiltor.modules.assistant.proposals import (
-    forced_proposal,
-)
+from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, MODEL_CONTEXT_TOKENS
+from quiltor.modules.assistant.proposals import forced_proposal
 
 
 class AssistantRuntime:
@@ -46,6 +30,7 @@ class AssistantRuntime:
         inference: InferenceEngine,
         *,
         progress: AssistantProgressStore,
+        read_tools: AssistantReadToolExecutor,
         token_cache: TokenCountCache,
         debug_enabled: bool = False,
     ):
@@ -53,6 +38,7 @@ class AssistantRuntime:
         self.inference = inference
         self.url = inference.identity
         self.progress = progress
+        self.read_tools = read_tools
         self.token_cache = token_cache
         self.debug_enabled = debug_enabled
 
@@ -91,9 +77,11 @@ class AssistantRuntime:
         run_batches: bool = False,
         progress_id: str | None = None,
         language: str = DEFAULT_ASSISTANT_LANGUAGE,
+        mode: str = "chat",
         *,
         owner_sub: str = "",
         world_id: str = "",
+        world_revision: int = 0,
     ) -> dict[str, Any]:
         return complete_request(
             self,
@@ -105,8 +93,10 @@ class AssistantRuntime:
             run_batches,
             progress_id,
             language,
+            mode,
             owner_sub=owner_sub,
             world_id=world_id,
+            world_revision=world_revision,
         )
 
     def _run_batches(
@@ -119,6 +109,9 @@ class AssistantRuntime:
         language: str = DEFAULT_ASSISTANT_LANGUAGE,
         owner_sub: str = "",
         world_id: str = "",
+        world_revision: int = 0,
+        chapter_ids: list[str] | None = None,
+        mode: str = "chat",
     ) -> dict[str, Any]:
         return run_batches(
             question,
@@ -129,6 +122,9 @@ class AssistantRuntime:
             language,
             owner_sub,
             world_id,
+            world_revision,
+            chapter_ids=chapter_ids,
+            mode=mode,
             complete=self.complete,
             progress=self.progress,
             identity=self.url,

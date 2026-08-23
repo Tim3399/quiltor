@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Translate } from "../../i18n";
 import { applicationErrorMessage, quiltorClient } from "../../platform";
-import type { AssistantProposal, AssistantReply } from "./model";
+import type { AssistantClaimStatus, AssistantProposal, AssistantReply } from "./model";
 import { scopeAssistantProposals } from "./proposals";
 import { replyReferences, resolveAssistantMessage } from "./formatting";
 import type { AssistantEntry, AssistantSendOptions } from "./conversationTypes";
@@ -54,9 +54,14 @@ export function useAssistantConversation({
 
   const storeReply = useCallback(
     (entryId: string, response: AssistantReply) => {
+      const proposals = scopeAssistantProposals(response.proposals || [], entryId);
       const reply = {
         ...response,
-        proposals: scopeAssistantProposals(response.proposals || [], entryId),
+        proposals,
+        proposalEnvelopes: response.proposalEnvelopes?.map((envelope, index) => ({
+          ...envelope,
+          proposal: proposals[index] ?? envelope.proposal,
+        })),
       };
       persistEntries((current) =>
         current.map((entry) =>
@@ -71,6 +76,12 @@ export function useAssistantConversation({
                 chapterIds: undefined,
                 runBatches: undefined,
                 progressId: undefined,
+                claimStatuses: Object.fromEntries(
+                  (reply.proposalEnvelopes || []).map((envelope, index) => [
+                    index,
+                    envelope.claimStatus || "unresolved",
+                  ]),
+                ),
               }
             : entry,
         ),
@@ -156,10 +167,14 @@ export function useAssistantConversation({
               : []),
           ]);
       const chapterIds =
-        previous?.chapterIds ?? (forcedChapterIds.length ? [...forcedChapterIds] : undefined);
-      const runBatches = previous?.runBatches ?? Boolean(options?.batch);
+        previous?.chapterIds ??
+        options?.chapterIds ??
+        (forcedChapterIds.length ? [...forcedChapterIds] : undefined);
+      const mode = previous?.mode ?? options?.mode ?? "chat";
+      const runBatches =
+        previous?.runBatches ?? (mode === "world_extraction" || Boolean(options?.batch));
       const progressId = runBatches ? (previous?.progressId ?? crypto.randomUUID()) : undefined;
-      const batch = runBatches && progressId ? { runBatches: true, progressId } : undefined;
+      const batch = runBatches && progressId ? { runBatches: true, progressId, mode } : undefined;
 
       if (retryId) {
         persistEntries((current) =>
@@ -174,6 +189,7 @@ export function useAssistantConversation({
                   chapterIds,
                   runBatches,
                   progressId,
+                  mode,
                 }
               : entry,
           ),
@@ -191,6 +207,9 @@ export function useAssistantConversation({
             chapterIds,
             runBatches,
             progressId,
+            mode,
+            dismissed: [],
+            proposalEdits: {},
           },
         ]);
       }
@@ -268,11 +287,22 @@ export function useAssistantConversation({
 
   const apply = useCallback(
     (entryId: string, proposals: AssistantProposal[], indices: number[]) => {
-      onApply(proposals);
+      const entry = entriesRef.current.find((item) => item.id === entryId);
+      const accepted = proposals
+        .map((proposal, offset) => ({ proposal, index: indices[offset] }))
+        .filter(
+          ({ index }) =>
+            index !== undefined &&
+            (entry?.mode !== "world_extraction" ||
+              entry.claimStatuses?.[index] === "objective_fact"),
+        );
+      if (!accepted.length) return;
+      onApply(accepted.map(({ proposal }) => proposal));
+      const acceptedIndices = accepted.map(({ index }) => index);
       persistEntries((current) =>
         current.map((entry) =>
           entry.id === entryId
-            ? { ...entry, applied: [...new Set([...entry.applied, ...indices])] }
+            ? { ...entry, applied: [...new Set([...entry.applied, ...acceptedIndices])] }
             : entry,
         ),
       );
@@ -280,7 +310,61 @@ export function useAssistantConversation({
     [onApply, persistEntries],
   );
 
+  const dismiss = useCallback(
+    (entryId: string, index: number) =>
+      persistEntries((current) =>
+        current.map((entry) =>
+          entry.id === entryId
+            ? { ...entry, dismissed: [...new Set([...(entry.dismissed || []), index])] }
+            : entry,
+        ),
+      ),
+    [persistEntries],
+  );
+
+  const edit = useCallback(
+    (entryId: string, index: number, proposal: AssistantProposal) =>
+      persistEntries((current) =>
+        current.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                proposalEdits: { ...(entry.proposalEdits || {}), [index]: proposal },
+                dismissed: (entry.dismissed || []).filter((item) => item !== index),
+              }
+            : entry,
+        ),
+      ),
+    [persistEntries],
+  );
+
+  const classifyClaim = useCallback(
+    (entryId: string, index: number, claimStatus: AssistantClaimStatus) =>
+      persistEntries((current) =>
+        current.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                claimStatuses: { ...(entry.claimStatuses || {}), [index]: claimStatus },
+              }
+            : entry,
+        ),
+      ),
+    [persistEntries],
+  );
+
   const clear = useCallback(() => persistEntries(() => []), [persistEntries]);
 
-  return { entries, sending, batchProgress, send, cancel, apply, clear };
+  return {
+    entries,
+    sending,
+    batchProgress,
+    send,
+    cancel,
+    apply,
+    dismiss,
+    edit,
+    classifyClaim,
+    clear,
+  };
 }

@@ -3,7 +3,9 @@ import type {
   AssistantJobState,
   AssistantJobStatus,
   AssistantMessageItem,
+  AssistantMode,
   AssistantProposal,
+  AssistantProposalEnvelope,
   AssistantReply,
   AssistantSource,
 } from "../../../modules/assistant";
@@ -19,9 +21,18 @@ export interface AssistantReplyWireV1 {
   messageItems?: AssistantMessageItem[];
   messageNoteKey?: MessageKey;
   proposalGroup?: { id: string; title: string; proposalIndexes: number[] };
+  proposalGroups?: Array<{ id: string; proposalIndexes: number[] }>;
+  proposalEnvelopes?: AssistantProposalEnvelope[];
+  mode?: AssistantMode;
+  extraction?: {
+    chapterIds: string[];
+    chapterCount: number;
+    groupCount: number;
+  } | null;
   agentTrace?: Array<{ step: string; [key: string]: unknown }>;
   broadScope?: { chapterCount: number; estimateSeconds: number };
   clarification?: { candidates: Array<{ id: string; name: string; kind: string }> };
+  staleWorld?: { expectedRevision: number; currentRevision: number };
 }
 
 export interface AssistantJobWireV1 {
@@ -44,6 +55,24 @@ export function decodeAssistantReplyV1(wire: AssistantReplyWireV1): AssistantRep
     ...wire,
     proposals: wire.proposals.map((proposal) => structuredClone(proposal)),
     sources: wire.sources.map((source) => ({ ...source, target: { ...source.target } })),
+    proposalEnvelopes: wire.proposalEnvelopes?.map((envelope) => ({
+      ...envelope,
+      proposal: structuredClone(envelope.proposal),
+      evidence: envelope.evidence.map((source) => ({
+        ...source,
+        target: { ...source.target },
+      })),
+      resolution: envelope.resolution
+        ? {
+            ...envelope.resolution,
+            candidateIds: [...envelope.resolution.candidateIds],
+          }
+        : undefined,
+    })),
+    proposalGroups: wire.proposalGroups?.map((group) => ({
+      ...group,
+      proposalIndexes: [...group.proposalIndexes],
+    })),
     messageItems: wire.messageItems?.map((item) => ({ ...item })),
   };
 }

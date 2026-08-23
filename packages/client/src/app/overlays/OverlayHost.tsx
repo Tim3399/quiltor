@@ -30,6 +30,7 @@ export function OverlayHost({
   onCloseAssistant,
   worldId,
   manuscript,
+  currentChapterId,
   figures,
   onAssistantFiguresChange,
   onShowFigures,
@@ -49,6 +50,7 @@ export function OverlayHost({
   onCloseAssistant: () => void;
   worldId: string;
   manuscript: Manuscript;
+  currentChapterId: string;
   figures: FigureState;
   onAssistantFiguresChange: (figures: FigureState) => void;
   onShowFigures: () => void;
@@ -69,6 +71,7 @@ export function OverlayHost({
           worldId={worldId}
           figures={figures}
           chapters={manuscript.chapters}
+          currentChapterId={currentChapterId}
           open={assistantOpen}
           onClose={onCloseAssistant}
           onApply={(proposals) => {

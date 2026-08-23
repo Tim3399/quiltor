@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 
 def json_schema_format(schema: dict[str, Any], name: str = "quiltor_reply") -> dict[str, Any]:
@@ -55,6 +56,12 @@ PROPOSAL_SCHEMAS: dict[str, dict[str, Any]] = {
                     "label": {"type": "string", "maxLength": 160},
                     "sub": {"type": "string", "maxLength": 1000},
                     "profile": _object([], PROFILE_PROPERTIES),
+                    "aliases": {
+                        "type": "array",
+                        "maxItems": 16,
+                        "uniqueItems": True,
+                        "items": {"type": "string", "minLength": 1, "maxLength": 160},
+                    },
                 },
             ),
         },
@@ -71,6 +78,12 @@ PROPOSAL_SCHEMAS: dict[str, dict[str, Any]] = {
                     "label": {"type": "string", "maxLength": 160},
                     "sub": {"type": "string", "maxLength": 1000},
                     "profile": _object([], PROFILE_PROPERTIES),
+                    "aliases": {
+                        "type": "array",
+                        "maxItems": 16,
+                        "uniqueItems": True,
+                        "items": {"type": "string", "minLength": 1, "maxLength": 160},
+                    },
                 },
             ),
         },
@@ -170,6 +183,51 @@ def reply_schema(allowed_kinds: Iterable[str] | None = None) -> dict[str, Any]:
             "proposals": proposals,
         },
     )
+
+
+def tool_step_schema(
+    tool_catalog: Iterable[dict[str, Any]],
+    allowed_kinds: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """Strict JSON step contract for runtimes without native function calling."""
+
+    calls = []
+    for spec in tool_catalog:
+        name, arguments = spec.get("name"), spec.get("inputSchema")
+        if not isinstance(name, str) or not isinstance(arguments, dict):
+            continue
+        calls.append(
+            _object(
+                ["name", "arguments"],
+                {
+                    "name": {"const": name},
+                    "arguments": arguments,
+                },
+            )
+        )
+    return {
+        "oneOf": [
+            _object(
+                ["action", "toolCalls"],
+                {
+                    "action": {"const": "tool_calls"},
+                    "toolCalls": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 6,
+                        "items": {"oneOf": calls},
+                    },
+                },
+            ),
+            _object(
+                ["action", "final"],
+                {
+                    "action": {"const": "final"},
+                    "final": reply_schema(allowed_kinds),
+                },
+            ),
+        ]
+    }
 
 
 def planner_schema(allowed_kinds: Iterable[str]) -> dict[str, Any]:

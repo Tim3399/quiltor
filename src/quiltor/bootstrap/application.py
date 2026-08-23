@@ -14,7 +14,7 @@ from quiltor.application.backups import BackupUseCases
 from quiltor.application.capabilities import FeatureAvailability
 from quiltor.application.documents import DocumentUseCases
 from quiltor.application.history import HistoryUseCases
-from quiltor.application.story_world import StoryWorldUseCases
+from quiltor.application.story_world import StoryWorldReadTools, StoryWorldUseCases
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.application.worlds import WorldUseCases
 from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
@@ -282,6 +282,7 @@ def build_assistant_services(
         data,
         inference or LocalInferenceEngine(base, data, capabilities),
         progress=SQLiteAssistantProgressStore(data / "assistant-progress.sqlite3"),
+        read_tools=StoryWorldReadTools(),
         token_cache=BoundedTokenCountCache(),
         debug_enabled=bool(os.environ.get("QUILTOR_AI_DEBUG")),
     )

@@ -8,11 +8,11 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 
+from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.modules.assistant.jobs import (
     AssistantJobRunner,
     IdempotencyConflict,
 )
-from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 
 WORLD_ID = "a" * 32
 
@@ -34,6 +34,7 @@ def execution(question: str) -> dict:
         "progressId": None,
         "manuscript": {"chapters": []},
         "figures": {"nodes": [], "edges": []},
+        "worldRevision": 0,
     }
 
 
@@ -83,9 +84,13 @@ class FakeInteractionLogger:
 class FakeWorldAccess:
     def __init__(self, data: Path) -> None:
         self.data = data
+        self.current_revision = 0
 
     def exists(self, owner_sub: str, world_id: str) -> bool:
         return (self.data / "worlds" / f"{world_id}.sqlite3").exists()
+
+    def revision(self, owner_sub: str, world_id: str) -> int:
+        return self.current_revision
 
 
 class SilentLogger:
@@ -101,12 +106,14 @@ class TestMetrics:
         pass
 
 
-def create_runner(assistant, data: Path) -> AssistantJobRunner:
+def create_runner(
+    assistant, data: Path, *, world_access: FakeWorldAccess | None = None
+) -> AssistantJobRunner:
     return AssistantJobRunner(
         assistant,
         store_factory=lambda: AssistantJobStore(data / "assistant-jobs.sqlite3"),
         interaction_logger=FakeInteractionLogger(),
-        world_access=FakeWorldAccess(data),
+        world_access=world_access or FakeWorldAccess(data),
         structured_logger=SilentLogger(),
         metrics=TestMetrics(),
     )
@@ -303,6 +310,65 @@ class AssistantJobRunnerTests(unittest.TestCase):
                 self.assertEqual(assistant.max_active, 1)
             finally:
                 assistant.release_first.set()
+                runner.close()
+
+    def test_world_changed_during_inference_returns_no_actionable_proposals(self):
+        class ProposalAssistant(FakeAssistant):
+            def complete(self, *args, **kwargs):
+                result = super().complete(*args, **kwargs)
+                return {
+                    **result,
+                    "proposals": [
+                        {
+                            "kind": "create_element",
+                            "tempId": "new:ari",
+                            "element": {"name": "Ari", "type": "person"},
+                        }
+                    ],
+                    "agentTrace": [
+                        {
+                            "step": "resolve_before_create",
+                            "proof": {
+                                "checked": True,
+                                "worldRevision": 4,
+                            },
+                        }
+                    ],
+                }
+
+        with tempfile.TemporaryDirectory() as tmp_name:
+            data = Path(tmp_name)
+            create_world_file(data)
+            assistant = ProposalAssistant()
+            access = FakeWorldAccess(data)
+            access.current_revision = 5
+            runner = create_runner(assistant, data, world_access=access)
+            try:
+                request = execution("create Ari")
+                request["worldRevision"] = 4
+                job, _ = runner.submit(
+                    owner_sub="user",
+                    world_id=WORLD_ID,
+                    idempotency_key="stale-world",
+                    intent=intent("create Ari"),
+                    execution=request,
+                )
+
+                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=3)
+
+                self.assertEqual(terminal["status"], "completed")
+                result = terminal["result"]
+                self.assertEqual(result["proposals"], [])
+                self.assertEqual(result["sources"], [])
+                self.assertEqual(
+                    result["staleWorld"],
+                    {"expectedRevision": 4, "currentRevision": 5},
+                )
+                proof = result["agentTrace"][0]["proof"]
+                self.assertTrue(proof["stale"])
+                self.assertFalse(proof["applicable"])
+                self.assertEqual(result["agentTrace"][-1]["step"], "stale_world")
+            finally:
                 runner.close()
 
     def test_cancelling_running_job_does_not_start_next_inference_early(self):

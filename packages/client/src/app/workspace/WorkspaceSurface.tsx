@@ -37,6 +37,7 @@ export function WorkspaceSurface({
   focus,
   onFocus,
   onSave,
+  onCurrentChapterId,
 }: {
   worldId: string;
   worldTitle: string;
@@ -52,6 +53,7 @@ export function WorkspaceSurface({
   focus: boolean;
   onFocus: (focus: boolean) => void;
   onSave: () => Promise<void>;
+  onCurrentChapterId: (chapterId: string) => void;
 }) {
   const layout = useWorkspaceLayout(worldId, workspace);
   if (workspace === "text")
@@ -63,6 +65,7 @@ export function WorkspaceSurface({
         orphanedMentions={orphanedMentions}
         onChange={manuscriptHistory.change}
         onOpenEntity={onNavigate}
+        onCurrentChapterId={onCurrentChapterId}
         focus={focus}
         onFocus={onFocus}
         targetId={target?.workspace === "text" ? target.id : undefined}

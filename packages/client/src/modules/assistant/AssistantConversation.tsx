@@ -1,11 +1,18 @@
-import type { RefObject } from "react";
-import { Bot, Check, ChevronDown, RotateCw } from "lucide-react";
+import { useState, type RefObject } from "react";
+import { Bot, Check, ChevronDown, EyeOff, Pencil, RotateCw } from "lucide-react";
 import { useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
+import { SelectControl } from "../../shared/ui/SelectControl";
 import type { FigureState } from "../story-world";
 import type { AssistantBatchProgress, AssistantEntry } from "./conversationTypes";
 import { resolveAssistantMessage } from "./formatting";
-import type { AssistantProposal, AssistantReply, AssistantSource } from "./model";
+import type {
+  AssistantClaimStatus,
+  AssistantProposal,
+  AssistantReply,
+  AssistantSource,
+} from "./model";
+import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import { proposalLabel } from "./proposals";
 import "./AssistantConversation.css";
 
@@ -23,6 +30,9 @@ export function AssistantConversation({
   onOpenChapterPicker,
   onNavigate,
   onApply,
+  onDismiss,
+  onEdit,
+  onClassifyClaim,
 }: {
   entries: AssistantEntry[];
   sending: boolean;
@@ -37,6 +47,9 @@ export function AssistantConversation({
   onOpenChapterPicker: () => void;
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onApply: (entryId: string, proposals: AssistantProposal[], indices: number[]) => void;
+  onDismiss: (entryId: string, index: number) => void;
+  onEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
+  onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -66,6 +79,9 @@ export function AssistantConversation({
           onOpenChapterPicker={onOpenChapterPicker}
           onNavigate={onNavigate}
           onApply={onApply}
+          onDismiss={onDismiss}
+          onEdit={onEdit}
+          onClassifyClaim={onClassifyClaim}
         />
       ))}
       {sending && batchProgress && (
@@ -115,6 +131,9 @@ function AssistantExchange({
   onOpenChapterPicker,
   onNavigate,
   onApply,
+  onDismiss,
+  onEdit,
+  onClassifyClaim,
 }: {
   entry: AssistantEntry;
   figures: FigureState;
@@ -125,6 +144,9 @@ function AssistantExchange({
   onOpenChapterPicker: () => void;
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onApply: (entryId: string, proposals: AssistantProposal[], indices: number[]) => void;
+  onDismiss: (entryId: string, index: number) => void;
+  onEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
+  onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
 }) {
   const { t } = useI18n();
   const reply = entry.reply;
@@ -151,13 +173,14 @@ function AssistantExchange({
                     type="button"
                     disabled={sending}
                     key={candidate.id}
+                    aria-label={candidate.name}
                     onClick={() =>
                       onSendExplicit(
                         `${t("whichElementDoYouMean")} ${candidate.name} [${candidate.id}]`,
                       )
                     }
                   >
-                    {candidate.name}
+                    {t("useExistingElement", { name: candidate.name })}
                   </button>
                 ))}
               </div>
@@ -184,7 +207,14 @@ function AssistantExchange({
               reply={reply}
               appliedIndices={entry.applied}
               figures={figures}
+              dismissedIndices={entry.dismissed || []}
+              proposalEdits={entry.proposalEdits || {}}
+              claimStatuses={entry.claimStatuses || {}}
+              onNavigate={onNavigate}
               onApply={onApply}
+              onDismiss={onDismiss}
+              onEdit={onEdit}
+              onClassifyClaim={onClassifyClaim}
             />
           )}
           {!!reply.agentTrace?.length && (
@@ -232,16 +262,51 @@ function ProposalList({
   reply,
   appliedIndices,
   figures,
+  dismissedIndices,
+  proposalEdits,
+  claimStatuses,
+  onNavigate,
   onApply,
+  onDismiss,
+  onEdit,
+  onClassifyClaim,
 }: {
   entryId: string;
   reply: AssistantReply;
   appliedIndices: number[];
   figures: FigureState;
+  dismissedIndices: number[];
+  proposalEdits: Record<number, AssistantProposal>;
+  claimStatuses: Record<number, AssistantClaimStatus>;
+  onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onApply: (entryId: string, proposals: AssistantProposal[], indices: number[]) => void;
+  onDismiss: (entryId: string, index: number) => void;
+  onEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
+  onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
 }) {
   const { t } = useI18n();
   const proposals = reply.proposals;
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const groups = reply.proposalGroups?.length
+    ? reply.proposalGroups
+    : [{ id: "all", proposalIndexes: proposals.map((_proposal, index) => index) }];
+  const effective = (index: number) => proposalEdits[index] || proposals[index];
+  const extraction = reply.mode === "world_extraction";
+  const claimStatus = (index: number): AssistantClaimStatus =>
+    claimStatuses[index] || reply.proposalEnvelopes?.[index]?.claimStatus || "unresolved";
+  const pending = (indices: number[]) =>
+    indices.filter((index) => !appliedIndices.includes(index) && !dismissedIndices.includes(index));
+  const applicable = (indices: number[]) =>
+    pending(indices).filter((index) => !extraction || claimStatus(index) === "objective_fact");
+  const groupTitle = (id: string) => {
+    if (id === "elements") return t("proposalGroupElements");
+    if (id === "updates") return t("proposalGroupUpdates");
+    if (id === "relationships") return t("proposalGroupRelationships");
+    if (id === "timeline") return t("proposalGroupTimeline");
+    if (id === "presence") return t("proposalGroupPresence");
+    return "";
+  };
+  const allPending = applicable(proposals.map((_proposal, index) => index));
   return (
     <details className="assistant-proposals" open>
       <summary className="assistant-proposal-heading">
@@ -250,48 +315,149 @@ function ProposalList({
           <strong>{t("nProposals").replace("{n}", String(proposals.length))}</strong>
         </span>
         <button
-          disabled={appliedIndices.length === proposals.length}
+          disabled={!allPending.length}
           onClick={(event) => {
             event.preventDefault();
-            const pending = proposals
-              .map((proposal, index) => ({ proposal, index }))
-              .filter((item) => !appliedIndices.includes(item.index));
-            onApply(
-              entryId,
-              pending.map((item) => item.proposal),
-              pending.map((item) => item.index),
-            );
+            onApply(entryId, allPending.map(effective), allPending);
           }}
         >
           <Check />
           {t("applyAll")}
         </button>
       </summary>
-      {proposals.map((proposal, index) => {
-        const grouped = (reply.proposalGroup?.proposalIndexes.length || 0) > 1;
-        const applied = appliedIndices.includes(index);
+      {groups.map((group) => {
+        const groupPending = applicable(group.proposalIndexes);
         return (
-          <div className={`assistant-proposal ${applied ? "is-applied" : ""}`} key={index}>
-            <span>{proposalLabel(proposal, figures, t)}</span>
-            <button
-              disabled={applied || grouped}
-              title={grouped ? t("packageOnlyTogetherHelp") : undefined}
-              onClick={() => onApply(entryId, [proposal], [index])}
-            >
-              {applied ? (
-                <>
+          <section className="assistant-proposal-group" key={group.id}>
+            {group.id !== "all" && (
+              <header>
+                <strong>{groupTitle(group.id)}</strong>
+                <button
+                  type="button"
+                  disabled={!groupPending.length}
+                  onClick={() => onApply(entryId, groupPending.map(effective), groupPending)}
+                >
                   <Check />
-                  {t("applied")}
-                </>
-              ) : grouped ? (
-                t("inPackage")
-              ) : (
-                t("apply")
-              )}
-            </button>
-          </div>
+                  {t("applyGroup")}
+                </button>
+              </header>
+            )}
+            {group.proposalIndexes.map((index) => {
+              const proposal = effective(index);
+              const grouped = (reply.proposalGroup?.proposalIndexes.length || 0) > 1;
+              const applied = appliedIndices.includes(index);
+              const dismissed = dismissedIndices.includes(index);
+              const envelope = reply.proposalEnvelopes?.[index];
+              const canApply = !extraction || claimStatus(index) === "objective_fact";
+              return (
+                <div
+                  className={`assistant-proposal ${applied ? "is-applied" : ""} ${dismissed ? "is-dismissed" : ""}`}
+                  key={index}
+                >
+                  <div className="assistant-proposal-content">
+                    <span>{proposalLabel(proposal, figures, t)}</span>
+                    {envelope?.resolution && (
+                      <small>
+                        {t("proposalResolution", { outcome: envelope.resolution.outcome })}
+                      </small>
+                    )}
+                    {!!envelope?.evidence.length && (
+                      <details className="assistant-proposal-evidence">
+                        <summary>
+                          {t("proposalEvidence")} · {envelope.evidence.length}
+                        </summary>
+                        <div>
+                          {envelope.evidence.map((source) => (
+                            <button
+                              type="button"
+                              key={source.id}
+                              title={source.text}
+                              onClick={() => onNavigate(source.target)}
+                            >
+                              {source.title}
+                            </button>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                    {extraction && !applied && !dismissed && (
+                      <div className="assistant-claim-review">
+                        <span>{t("claimStatusLabel")}</span>
+                        <SelectControl
+                          label={t("claimStatusLabel")}
+                          value={claimStatus(index)}
+                          options={[
+                            { value: "unresolved", label: t("claimUnresolved") },
+                            { value: "objective_fact", label: t("claimObjectiveFact") },
+                            { value: "narrator_claim", label: t("claimNarrator") },
+                            { value: "character_knows", label: t("claimCharacterKnows") },
+                            {
+                              value: "character_believes",
+                              label: t("claimCharacterBelieves"),
+                            },
+                            { value: "character_claims", label: t("claimCharacterClaims") },
+                          ]}
+                          onChange={(status) => onClassifyClaim(entryId, index, status)}
+                        />
+                        {!canApply && claimStatus(index) !== "unresolved" && (
+                          <small>{t("claimNotCanonHint")}</small>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="assistant-proposal-actions">
+                    {!applied && !dismissed && !grouped && (
+                      <>
+                        <button type="button" onClick={() => setEditingIndex(index)}>
+                          <Pencil />
+                          {t("editProposal")}
+                        </button>
+                        <button type="button" onClick={() => onDismiss(entryId, index)}>
+                          <EyeOff />
+                          {t("ignoreProposal")}
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      disabled={applied || dismissed || grouped || !canApply}
+                      title={
+                        !canApply
+                          ? t("classifyObjectiveBeforeApply")
+                          : grouped
+                            ? t("packageOnlyTogetherHelp")
+                            : undefined
+                      }
+                      onClick={() => onApply(entryId, [proposal], [index])}
+                    >
+                      {applied ? (
+                        <>
+                          <Check />
+                          {t("applied")}
+                        </>
+                      ) : dismissed ? (
+                        t("ignoredProposal")
+                      ) : grouped ? (
+                        t("inPackage")
+                      ) : (
+                        t("apply")
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
         );
       })}
+      {editingIndex !== null && (
+        <AssistantProposalEditor
+          proposal={effective(editingIndex)}
+          figures={figures}
+          onSave={(proposal) => onEdit(entryId, editingIndex, proposal)}
+          onClose={() => setEditingIndex(null)}
+        />
+      )}
     </details>
   );
 }

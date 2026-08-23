@@ -26,6 +26,7 @@ export function App() {
   const figures = figureHistory.value;
   const [orphanedMentions, setOrphanedMentions] = useState(0);
   const [pendingRename, setPendingRename] = useState<PendingEntityRename | null>(null);
+  const [currentChapterId, setCurrentChapterId] = useState("");
 
   const loadDocuments = useCallback(
     ({
@@ -36,6 +37,7 @@ export function App() {
       manuscriptHistory.load(loadedManuscript);
       figureHistory.load(loadedFigures);
       setOrphanedMentions(count);
+      setCurrentChapterId(loadedManuscript.chapters[0]?.id || "");
     },
     [figureHistory.load, manuscriptHistory.load],
   );
@@ -153,6 +155,7 @@ export function App() {
               focus={workspace.focus}
               onFocus={workspace.setFocus}
               onSave={flushAll}
+              onCurrentChapterId={setCurrentChapterId}
             />
           </AppShell>
           <OverlayHost
@@ -163,6 +166,7 @@ export function App() {
             onCloseAssistant={overlays.closeAssistant}
             worldId={session.world.id}
             manuscript={manuscript}
+            currentChapterId={currentChapterId}
             figures={figures}
             onAssistantFiguresChange={figureHistory.change}
             onShowFigures={() => workspace.selectWorkspace("figures")}

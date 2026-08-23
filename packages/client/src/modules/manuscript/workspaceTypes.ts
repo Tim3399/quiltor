@@ -10,6 +10,7 @@ export interface TextWorkspaceProps {
   orphanedMentions?: number;
   onChange: (value: Manuscript) => void;
   onOpenEntity?: (target: { workspace: Workspace; id: string }) => void;
+  onCurrentChapterId?: (chapterId: string) => void;
   focus: boolean;
   onFocus: (value: boolean) => void;
   targetId?: string;

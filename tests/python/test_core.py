@@ -7,6 +7,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOMAIN = REPO_ROOT / "src" / "quiltor" / "domain" / "story_world"
 ASSISTANT = REPO_ROOT / "src" / "quiltor" / "modules" / "assistant"
+STORY_WORLD_APPLICATION = REPO_ROOT / "src" / "quiltor" / "application" / "story_world"
 
 FORBIDDEN_PREFIXES = (
     "quiltor.delivery",
@@ -84,6 +85,18 @@ class DomainIndependenceTests(unittest.TestCase):
         imports = {imported for path in _modules(ASSISTANT) for imported in _imports(path)}
         self.assertFalse(any(imported.startswith("quiltor.infrastructure") for imported in imports))
         self.assertIn("quiltor.modules.assistant.ports", imports)
+
+    def test_story_world_application_never_depends_on_the_assistant_product_module(self):
+        offenders = {
+            str(path.relative_to(REPO_ROOT)): sorted(
+                imported
+                for imported in _imports(path)
+                if imported == "quiltor.modules.assistant"
+                or imported.startswith("quiltor.modules.assistant.")
+            )
+            for path in _modules(STORY_WORLD_APPLICATION)
+        }
+        self.assertEqual({path: imports for path, imports in offenders.items() if imports}, {})
 
 
 if __name__ == "__main__":

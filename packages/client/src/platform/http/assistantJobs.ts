@@ -81,6 +81,7 @@ async function createJob(
           chapterIds,
           runBatches: batch?.runBatches,
           progressId: batch?.progressId,
+          mode: batch?.mode,
           language: currentUiLocale(),
         }),
       ),

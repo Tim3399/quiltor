@@ -1,1 +1,0 @@
-import{_ as e,h as t}from"./useOverlayFocus-Ck0A4Kba.js";var n=e(t(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

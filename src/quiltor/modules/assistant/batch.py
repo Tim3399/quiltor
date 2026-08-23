@@ -4,7 +4,8 @@ rough time estimate shown before a user opts into batch mode."""
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from quiltor.modules.assistant.ports import AssistantProgressStore
 from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, UNTITLED_CHAPTER
@@ -112,22 +113,26 @@ def _group_chapters_by_budget(
 def _merge_accumulated(
     figures: dict[str, Any], accumulated: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Fold earlier batch groups' create_* proposals into a figures-shaped view so
-    validate_proposals's existing dedup logic (existing_names, the duplicate-edge check,
-    existing_moments -- all of which read from the `figures` argument) also rejects
-    repeats across batch groups, for free: no separate cross-batch dedup logic to write
-    or maintain, just a shape translation. Synthesized nodes/moments use their tempId as
-    `id`, so a later group's relationship proposal referencing an earlier group's
-    newly-created element resolves through the ordinary known_elements check too."""
-    nodes, edges, timeline = (
-        list(figures.get("nodes") or []),
-        list(figures.get("edges") or []),
-        list(figures.get("timeline") or []),
+    """Fold earlier batch proposals into the next group's resolver snapshot.
+
+    Creates use their temp IDs as canonical staged IDs; element updates and presence
+    changes are applied to the copied snapshot. A later group therefore sees the full
+    proposed state and cannot emit the same logical operation again.
+    """
+    nodes, edges, timeline, presence = (
+        [dict(item) for item in figures.get("nodes") or []],
+        [dict(item) for item in figures.get("edges") or []],
+        [dict(item) for item in figures.get("timeline") or []],
+        [dict(item) for item in figures.get("presence") or []],
     )
     for proposal in accumulated:
         kind = proposal.get("kind")
         if kind == "create_element":
             nodes.append({**(proposal.get("element") or {}), "id": proposal.get("tempId")})
+        elif kind == "update_element":
+            identifier = proposal.get("elementId")
+            patch = proposal.get("patch") or {}
+            nodes = [{**node, **patch} if node.get("id") == identifier else node for node in nodes]
         elif kind == "create_relationship":
             relation = proposal.get("relationship") or {}
             edges.append(
@@ -141,7 +146,32 @@ def _merge_accumulated(
             )
         elif kind == "create_timeline_moment":
             timeline.append({**(proposal.get("moment") or {}), "id": proposal.get("tempId")})
-    return {**figures, "nodes": nodes, "edges": edges, "timeline": timeline}
+        elif kind == "set_presence":
+            canonical = {
+                key: proposal[key]
+                for key in ("elementId", "placeId", "momentId")
+                if key in proposal
+            }
+            identity = (canonical.get("elementId"), canonical.get("momentId"))
+            matching = next(
+                (
+                    index
+                    for index, item in enumerate(presence)
+                    if (item.get("elementId"), item.get("momentId")) == identity
+                ),
+                None,
+            )
+            if matching is None:
+                presence.append({"id": f"temp:presence:{len(presence)}", **canonical})
+            else:
+                presence[matching] = {**presence[matching], **canonical}
+    return {
+        **figures,
+        "nodes": nodes,
+        "edges": edges,
+        "timeline": timeline,
+        "presence": presence,
+    }
 
 
 def run_batches(
@@ -153,6 +183,9 @@ def run_batches(
     language: str = DEFAULT_ASSISTANT_LANGUAGE,
     owner_sub: str = "",
     world_id: str = "",
+    world_revision: int = 0,
+    chapter_ids: list[str] | None = None,
+    mode: str = "chat",
     *,
     complete: Callable[..., dict[str, Any]],
     progress: AssistantProgressStore,
@@ -164,7 +197,12 @@ def run_batches(
     Runtime-owned collaborators are supplied as ports/callables, keeping the product
     batching policy independent from process lifecycle and inference infrastructure.
     """
-    chapters = manuscript.get("chapters") or []
+    selected = set(chapter_ids or [])
+    chapters = [
+        chapter
+        for chapter in manuscript.get("chapters") or []
+        if not selected or chapter.get("id") in selected
+    ]
     groups = _group_chapters_by_budget(
         chapters,
         identity,
@@ -178,6 +216,10 @@ def run_batches(
     ]
     accumulated: list[dict[str, Any]] = []
     notes: list[str] = []
+    citations: list[str] = []
+    sources: list[dict[str, Any]] = []
+    envelopes: list[dict[str, Any]] = []
+    clarification_candidates: list[dict[str, Any]] = []
     if progress_id:
         progress.start(owner_sub, world_id, progress_id, len(groups))
     try:
@@ -198,8 +240,61 @@ def run_batches(
                 language=language,
                 owner_sub=owner_sub,
                 world_id=world_id,
+                world_revision=world_revision,
+                mode=mode,
             )
+            if result.get("clarification"):
+                known_ids = {str(item.get("id")) for item in clarification_candidates}
+                clarification_candidates.extend(
+                    dict(item)
+                    for item in result["clarification"].get("candidates") or []
+                    if isinstance(item, dict) and str(item.get("id")) not in known_ids
+                )
+                if result.get("message"):
+                    notes.append(f"{label}: {result['message']}")
+                trace.extend(
+                    [
+                        {
+                            "step": "batch_group",
+                            "index": index,
+                            "chapterIds": group,
+                            "proposalKinds": [],
+                            "needsClarification": True,
+                        },
+                        *(result.get("agentTrace") or []),
+                    ]
+                )
+                if progress_id:
+                    progress.update(
+                        owner_sub,
+                        world_id,
+                        progress_id,
+                        index,
+                        "chapterGroupLabel",
+                        label_params,
+                    )
+                continue
             proposals = result.get("proposals") or []
+            result_sources = [
+                dict(item) for item in result.get("sources") or [] if isinstance(item, dict)
+            ]
+            source_ids = {str(item.get("id")) for item in sources}
+            sources.extend(item for item in result_sources if str(item.get("id")) not in source_ids)
+            citations.extend(
+                str(item) for item in result.get("citations") or [] if str(item) not in citations
+            )
+            result_envelopes = result.get("proposalEnvelopes") or []
+            if isinstance(result_envelopes, list) and len(result_envelopes) == len(proposals):
+                envelopes.extend(dict(item) for item in result_envelopes if isinstance(item, dict))
+            else:
+                envelopes.extend(
+                    {
+                        "proposal": proposal,
+                        "evidence": result_sources,
+                        **({"claimStatus": "unresolved"} if mode == "world_extraction" else {}),
+                    }
+                    for proposal in proposals
+                )
             accumulated.extend(proposals)
             if result.get("message"):
                 notes.append(f"{label}: {result['message']}")
@@ -223,11 +318,54 @@ def run_batches(
     finally:
         if progress_id:
             progress.finish(owner_sub, world_id, progress_id)
+    group_order = ("elements", "updates", "relationships", "timeline", "presence")
+    group_for_kind = {
+        "create_element": "elements",
+        "update_element": "updates",
+        "create_relationship": "relationships",
+        "set_relationship_at_moment": "relationships",
+        "create_timeline_moment": "timeline",
+        "mark_deceased": "timeline",
+        "set_presence": "presence",
+    }
+    proposal_groups = [
+        {
+            "id": group,
+            "proposalIndexes": [
+                index
+                for index, proposal in enumerate(accumulated)
+                if group_for_kind.get(str(proposal.get("kind"))) == group
+            ],
+        }
+        for group in group_order
+    ]
+    proposal_groups = [group for group in proposal_groups if group["proposalIndexes"]]
+    summary = batch_summary_reply(len(chapters), len(groups), len(accumulated))
+    if mode == "world_extraction" and not accumulated:
+        summary = {
+            "message": "In der gewählten Kapitelauswahl wurde kein neuer prüfbarer Weltzustand gefunden.",
+            "messageKey": "extractionEmpty",
+        }
     return {
-        **batch_summary_reply(len(chapters), len(groups), len(accumulated)),
-        "citations": [],
-        "sources": [],
+        **summary,
+        "citations": citations,
+        "sources": sources,
         "proposals": accumulated,
+        "proposalEnvelopes": envelopes,
+        "proposalGroups": proposal_groups,
+        **(
+            {"clarification": {"candidates": clarification_candidates}}
+            if clarification_candidates
+            else {}
+        ),
+        "mode": mode,
+        "extraction": {
+            "chapterIds": [str(chapter.get("id")) for chapter in chapters],
+            "chapterCount": len(chapters),
+            "groupCount": len(groups),
+        }
+        if mode == "world_extraction"
+        else None,
         "agentTrace": trace,
         "batchNotes": notes,
     }

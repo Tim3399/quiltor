@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Plus, Sparkles, X } from "lucide-react";
+import { BookOpenCheck, Plus, Sparkles, X } from "lucide-react";
 import type { Workspace } from "../../shared";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { Inspector } from "../../shared/ui/Sidebar";
 import { Sheet } from "../../shared/ui/Sheet";
+import { SelectControl } from "../../shared/ui/SelectControl";
 import { useI18n } from "../../i18n";
 import type { Chapter } from "../manuscript";
 import type { FigureState } from "../story-world";
@@ -19,6 +20,7 @@ export function AssistantDrawer({
   worldId,
   figures,
   chapters,
+  currentChapterId,
   open,
   onApply,
   onNavigate,
@@ -27,6 +29,7 @@ export function AssistantDrawer({
   worldId: string;
   figures: FigureState;
   chapters: Chapter[];
+  currentChapterId: string;
   open: boolean;
   onApply: (proposals: AssistantProposal[]) => void;
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
@@ -38,13 +41,25 @@ export function AssistantDrawer({
   const [draft, setDraft] = useState("");
   const [confirmNewChat, setConfirmNewChat] = useState(false);
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
+  const [extractionScope, setExtractionScope] = useState<"current" | "selected" | "all">("current");
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia("(max-width: 719px)").matches,
   );
   const endRef = useRef<HTMLDivElement>(null);
   const chapterPickerRef = useRef<HTMLDetailsElement>(null);
   const { status, installState, checkStatus, startInstall } = useAssistantAvailability();
-  const { entries, sending, batchProgress, send, cancel, apply, clear } = useAssistantConversation({
+  const {
+    entries,
+    sending,
+    batchProgress,
+    send,
+    cancel,
+    apply,
+    dismiss,
+    edit,
+    classifyClaim,
+    clear,
+  } = useAssistantConversation({
     worldId,
     forcedChapterIds,
     onApply,
@@ -76,6 +91,24 @@ export function AssistantDrawer({
     if (!question) return;
     setDraft("");
     void send(undefined, undefined, question);
+  };
+
+  const updateWorldFromManuscript = () => {
+    if (extractionScope === "selected" && !forcedChapterIds.length) {
+      openChapterPicker();
+      return;
+    }
+    const chapterIds =
+      extractionScope === "all"
+        ? []
+        : extractionScope === "current"
+          ? [currentChapterId]
+          : forcedChapterIds;
+    void send(
+      undefined,
+      { mode: "world_extraction", chapterIds },
+      t("updateWorldFromManuscriptRequest"),
+    );
   };
 
   const content = (
@@ -110,6 +143,48 @@ export function AssistantDrawer({
         onRetry={checkStatus}
         onInstall={startInstall}
       />
+      <section className="assistant-world-update" aria-label={t("updateWorldFromManuscript")}>
+        <div>
+          <button
+            type="button"
+            disabled={
+              sending ||
+              status?.available === false ||
+              chapters.length === 0 ||
+              (extractionScope === "current" && !currentChapterId)
+            }
+            onClick={updateWorldFromManuscript}
+          >
+            <BookOpenCheck aria-hidden="true" />
+            <span>{t("updateWorldFromManuscript")}</span>
+          </button>
+          <SelectControl
+            label={t("worldUpdateScope")}
+            value={extractionScope}
+            options={[
+              {
+                value: "current",
+                label: t("currentChapterScope"),
+                disabled: !currentChapterId,
+              },
+              { value: "selected", label: t("selectedChaptersScope") },
+              { value: "all", label: t("allChaptersScope") },
+            ]}
+            onChange={setExtractionScope}
+          />
+        </div>
+        <small>
+          {t("updateWorldFromManuscriptHint", {
+            scope: t(
+              extractionScope === "current"
+                ? "currentChapterScope"
+                : extractionScope === "selected"
+                  ? "selectedChaptersScope"
+                  : "allChaptersScope",
+            ),
+          })}
+        </small>
+      </section>
       <AssistantConversation
         entries={entries}
         sending={sending}
@@ -124,6 +199,9 @@ export function AssistantDrawer({
         onOpenChapterPicker={openChapterPicker}
         onNavigate={onNavigate}
         onApply={apply}
+        onDismiss={dismiss}
+        onEdit={edit}
+        onClassifyClaim={classifyClaim}
       />
       <AssistantComposer
         chapters={chapters}

@@ -1,6 +1,6 @@
 # TODO — Quiltor Product Roadmap
 
-**Baseline:** Quiltor `3.4.0` / architecture cutover reviewed on 22 August 2026
+**Baseline:** Quiltor `3.5.0` / P0 reviewed on 22 August 2026
 **Purpose:** Product roadmap. This file answers **what should be built next and in what order**.
 
 ---
@@ -116,13 +116,13 @@ They meet through a shared reference/evidence model.
 
 This is not a feature; it is a permanent release gate.
 
-- [ ] Keep manuscript-writing tools unavailable to the assistant and MCP.
-- [ ] Keep AI mutations proposal-only.
-- [ ] Keep author confirmation before canon mutation.
-- [ ] Treat retrieved manuscript/notes/storyboard text as untrusted content, not instructions.
-- [ ] Keep deterministic checks distinguishable from probabilistic LLM judgements.
-- [ ] Keep Storyboard content non-canon by definition.
-- [ ] Keep Notes author-owned free text; AI may analyse them but must not overwrite them automatically.
+- [x] Keep manuscript-writing tools unavailable to the assistant and MCP.
+- [x] Keep AI mutations proposal-only.
+- [x] Keep author confirmation before canon mutation.
+- [x] Treat retrieved manuscript/notes/storyboard text as untrusted content, not instructions.
+- [x] Keep deterministic checks distinguishable from probabilistic LLM judgements.
+- [x] Keep Storyboard content non-canon by definition.
+- [x] Keep Notes author-owned free text; AI may analyse them but must not overwrite them automatically.
 
 ### Release gate
 
@@ -173,7 +173,8 @@ The current UI already behaves as if Timeline, Presence and temporal Relationshi
   - optional weekdays;
   - formatting.
 - [x] Calendar configuration must never rewrite canonical timeline coordinates.
-- [ ] Advanced leap rules, moons and multiple simultaneous calendars are later work.
+- Advanced leap rules, moons and multiple simultaneous calendars remain later work and are not
+  part of the P0 calendar projection.
 
 ## Canonical World State
 
@@ -228,23 +229,23 @@ The assistant already generates constrained proposals. The next step is to stop 
 
 ## Resolve before create
 
-- [ ] New manuscript-driven entity proposals require a prior resolution result.
-- [ ] Exact/alias matches block duplicate creation.
-- [ ] Ambiguous matches require author choice.
-- [ ] Extend equivalent guards to:
-  - relationships;
-  - timeline moments;
-  - presence;
-  - aliases;
-  - later ownership / membership / knowledge state.
-- [ ] Prefer idempotent `ensure_*` semantics where suitable.
+- [x] New manuscript-driven entity proposals require a prior resolution result.
+- [x] Exact/alias matches block duplicate creation.
+- [x] Ambiguous matches require author choice.
+- [x] Extend equivalent guards to the currently modeled structures:
+  - [x] relationships;
+  - [x] timeline moments;
+  - [x] presence;
+  - [x] aliases.
+- Preserve the same invariant when later ownership / membership / knowledge state is modeled.
+- [x] Prefer idempotent `ensure_*` semantics where suitable.
 
 ## Tool loop
 
-- [ ] Give the local assistant bounded read/resolve tools before proposal creation.
-- [ ] Keep read tools side-effect free.
-- [ ] Keep real apply/delete operations outside the LLM tool surface.
-- [ ] Reuse the same domain service from the app assistant and MCP rather than maintaining two sets of integrity rules.
+- [x] Give the local assistant bounded read/resolve tools before proposal creation.
+- [x] Keep read tools side-effect free.
+- [x] Keep real apply/delete operations outside the LLM tool surface.
+- [x] Reuse the same domain service from the app assistant and MCP rather than maintaining two sets of integrity rules.
 
 ---
 
@@ -258,13 +259,13 @@ The author should not have to manually reproduce the book in a Story Bible.
 
 ## World discovery workflow
 
-- [ ] Add **Update world from manuscript**.
-- [ ] Support:
+- [x] Add **Update world from manuscript**.
+- [x] Support:
   - current chapter;
   - selected chapters;
   - whole manuscript.
-- [ ] Reuse the existing batch system for broad scans.
-- [ ] Extract and prepare:
+- [x] Reuse the existing batch system for broad scans.
+- [x] Extract and prepare:
   - characters;
   - animals;
   - places;
@@ -277,38 +278,38 @@ The author should not have to manually reproduce the book in a Story Bible.
   - presence/location changes;
   - deaths;
   - profile facts.
-- [ ] Resolve mentions before proposing new entities.
-- [ ] Carry earlier accepted/discovered entities through later chapter batches.
-- [ ] Re-running analysis must not multiply the same entities/events.
+- [x] Resolve mentions before proposing new entities.
+- [x] Carry earlier accepted/discovered entities through later chapter batches.
+- [x] Re-running analysis must not multiply the same entities/events.
 
 ## Review
 
-- [ ] Group proposals by domain:
+- [x] Group proposals by domain:
   - Elements;
   - Updates;
   - Relationships;
   - Timeline;
   - Presence.
-- [ ] Support:
+- [x] Support:
   - Accept;
   - Accept group;
   - Edit;
   - Use existing;
   - Ignore;
   - Disambiguate.
-- [ ] Accepted groups remain one undoable operation where they belong together.
+- [x] Accepted groups remain one undoable operation where they belong together.
 
 ## Claim vs canon
 
-- [ ] Do not automatically promote every manuscript statement to objective truth.
-- [ ] Start distinguishing:
+- [x] Do not automatically promote every manuscript statement to objective truth.
+- [x] Start distinguishing:
   - objective fact;
   - narrator claim;
   - character knows;
   - character believes;
   - character claims;
   - unresolved / ambiguous.
-- [ ] Uncertain epistemic status requires review.
+- [x] Uncertain epistemic status requires review.
 
 ### First useful slice
 
@@ -321,6 +322,14 @@ Do not wait for the generalized state engine to ship a first version. Start with
 - death.
 
 Then extend extraction as new state dimensions become available.
+
+---
+
+## Next delivery after P0
+
+The next implementation target is **P1 — NEXT: Hierarchical chapter organization** below.
+Shared Notes and Storyboard remain important, but the manuscript binder is intentionally pulled
+forward before either of them.
 
 ---
 
@@ -509,7 +518,7 @@ Not useful / do not build:
 
 ---
 
-# P1 — Hierarchical chapter organization
+# P1 — NEXT: Hierarchical chapter organization
 
 The manuscript frontend must support a real hierarchical binder, not only a flat
 chapter list with one optional grouping level.

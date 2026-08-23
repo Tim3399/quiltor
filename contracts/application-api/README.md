@@ -53,3 +53,36 @@ Canonical entity resolution semantics are frozen by
 `ambiguous`, or `not_found`; exact name/alias collisions never use context to
 guess, while local context may break a conservative fuzzy tie only when it
 selects exactly one candidate. Candidate ordering and reasons are deterministic.
+
+Assistant and MCP create workflows additionally use revision-bound `ensure_*`
+decisions for elements, relationships, timeline moments, presence, and aliases.
+Only a server-created `not_found` decision may produce a create proposal;
+`resolved` becomes reuse, update, or an idempotent no-op, and `ambiguous` requires
+author choice. Serialized resolution mappings are audit receipts, not authority:
+consumers cannot submit `checked` or `status` metadata to bypass resolution, and
+results become non-actionable when their figures revision is stale. Manual UI
+creation remains a separate author-controlled path.
+
+Before producing its final structured reply, the local Assistant can run a
+backend-controlled JSON tool loop over exactly six transport-neutral operations:
+`resolve_entity`, `get_entity`, `get_relationships`, `find_timeline_events`,
+`get_world_state`, and `search_manuscript`. Every operation reads copied document
+snapshots, returns a revision-bound bounded envelope, and is declared read-only
+and side-effect-free. A step may contain at most six calls, the loop may execute
+at most four read rounds, and aggregate call/result budgets are enforced by the
+backend. Invalid catalogs, calls, revisions, or results fail closed without
+proposals. Apply, delete, filesystem, SQL, URL, and manuscript-mutation
+operations are not part of this interface. MCP exposes the same service with a
+host-only `worldId` argument while retaining its separate proposal-only tools.
+
+The explicit Assistant manuscript-extraction workflow is selected with
+`mode: "world_extraction"`. Its server-owned prompt and empty history prevent UI
+text from redefining the task; `chapterIds` selects the current/selected scope,
+while an empty list means the whole manuscript. Extraction always uses batch
+orchestration and returns `proposalGroups`, aligned `proposalEnvelopes`, and an
+`extraction` scope summary. Each envelope contains its evidence, optional entity
+resolution receipt, and begins with `claimStatus: "unresolved"`. The author must
+classify a statement as `objective_fact` before the current world proposal kinds
+may be applied. Narrator claims, character knowledge/belief/claims, and unresolved
+statements remain non-canon review outcomes until generalized epistemic state can
+represent them without information loss.

@@ -20,6 +20,47 @@ from quiltor.modules.assistant.ports import (
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
 
+def _stale_world_result(
+    result: dict[str, Any], *, expected_revision: int, current_revision: int, language: str
+) -> dict[str, Any]:
+    """Make a snapshot-based answer explicitly non-applicable after the world changed."""
+
+    trace = []
+    for raw_step in result.get("agentTrace") or []:
+        if not isinstance(raw_step, dict):
+            continue
+        step = dict(raw_step)
+        if isinstance(step.get("proof"), dict):
+            step["proof"] = {**step["proof"], "stale": True, "applicable": False}
+        trace.append(step)
+    trace.append(
+        {
+            "step": "stale_world",
+            "expectedRevision": expected_revision,
+            "currentRevision": current_revision,
+            "applicable": False,
+        }
+    )
+    message = (
+        "The world changed while the assistant was working. The result is no longer "
+        "applicable; please run the request again."
+        if language == "en"
+        else "Die Welt wurde geändert, während die Schreibhilfe gearbeitet hat. Das "
+        "Ergebnis ist nicht mehr anwendbar; bitte starte die Anfrage erneut."
+    )
+    return {
+        "message": message,
+        "citations": [],
+        "sources": [],
+        "proposals": [],
+        "agentTrace": trace,
+        "staleWorld": {
+            "expectedRevision": expected_revision,
+            "currentRevision": current_revision,
+        },
+    }
+
+
 def classify_assistant_error(exc: Exception) -> str:
     if isinstance(exc, InferenceTimeoutError):
         return "timeout"
@@ -184,14 +225,25 @@ class AssistantJobRunner:
                 bool(payload.get("runBatches")),
                 payload.get("progressId") or None,
                 str(payload.get("language") or "de"),
+                mode=str(payload.get("mode") or "chat"),
                 owner_sub=owner_sub,
                 world_id=world_id,
+                world_revision=int(payload.get("worldRevision") or 0),
             )
             if self.store.cancel_requested(job_id):
                 self.store.finish_success(job_id, {}, "")
                 return
             if not self.world_access.exists(owner_sub, world_id):
                 raise FileNotFoundError("Die Welt für diesen Assistant-Job existiert nicht mehr.")
+            expected_revision = int(payload.get("worldRevision") or 0)
+            current_revision = self.world_access.revision(owner_sub, world_id)
+            if current_revision != expected_revision:
+                result = _stale_world_result(
+                    result,
+                    expected_revision=expected_revision,
+                    current_revision=current_revision,
+                    language=str(payload.get("language") or "de"),
+                )
             interaction_id = self.interaction_logger.record(
                 question,
                 result,

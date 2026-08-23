@@ -5,175 +5,15 @@ model-generated proposal is ever surfaced to the user (validate_proposals)."""
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from typing import Any
 
 from quiltor.domain.story_world.entity_resolution import resolve_entity
-from quiltor.domain.story_world.knowledge import moment_order
+from quiltor.domain.story_world.integrity import (
+    presence_consistency_issues,
+    validate_world,
+)
 from quiltor.modules.assistant.contract import _normal, required_proposal_kinds
 from quiltor.modules.assistant.entity_references import resolved_entity_id
-
-
-def _moment_date_diff_days(from_date: Any, to_date: Any) -> int | None:
-    """Port of packages/client/src/modules/story-world/figures/date.ts's momentDateDiffDays -- same ISO-date parsing,
-    same rounding. Kept as a small standalone duplicate rather than shared across the
-    JS/Python boundary (per the plan: ~10 lines, not worth a cross-language dependency)."""
-    if not from_date or not to_date:
-        return None
-    try:
-        start, end = (
-            datetime.strptime(str(from_date), "%Y-%m-%d"),
-            datetime.strptime(str(to_date), "%Y-%m-%d"),
-        )
-    except ValueError:
-        return None
-    return (end - start).days
-
-
-def _figure_journey_stops(
-    figure: dict[str, Any], presence: list[dict[str, Any]], timeline: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    """Port of packages/client/src/modules/story-world/figures/presence.ts's figureJourney: this figure's presence
-    entries in timeline order, collapsed to only the stops where the place actually changes."""
-    died_id = figure.get("diedMomentId")
-    death_index = moment_order(timeline, died_id) if died_id else float("inf")
-    stops = []
-    for entry in presence:
-        if entry.get("elementId") != figure.get("id"):
-            continue
-        index = moment_order(timeline, entry.get("momentId"))
-        if index < -1 or index > death_index:
-            continue
-        stops.append(
-            {"placeId": entry.get("placeId"), "momentId": entry.get("momentId"), "index": index}
-        )
-    stops.sort(key=lambda stop: stop["index"])
-    return [
-        stop for i, stop in enumerate(stops) if i == 0 or stop["placeId"] != stops[i - 1]["placeId"]
-    ]
-
-
-# Each issue is tracked as (fallback German text, frontend translation key, key params) so
-# validate_world/presence_consistency_issues can keep returning plain strings (used for
-# logging, agentTrace, and existing test assertions) while audit_reply() below hands the
-# same findings to the frontend as translatable messageItems -- see
-# locales/{de,en}/assistant.ts's issue* keys, the single source of truth for the text
-# a user actually sees.
-def _issue(text: str, key: str, **params: Any) -> tuple[str, str, dict[str, Any]]:
-    return text, key, params
-
-
-def _presence_issue_entries(figures: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
-    """Near-term slice of plan item B.1: flag presence entries that imply a figure changed
-    places with a same-day or backward date jump -- pure data already structured today
-    (PresenceEntry + TimelineMoment.date), no prose-reading or LLM call involved. Silently
-    skips any figure/moment pair missing a date (most worlds don't date every moment; that's
-    "Dauer unbekannt", not an inconsistency, mirroring stopDateDiff's graceful-degrade)."""
-    nodes = figures.get("nodes") or []
-    presence = figures.get("presence") or []
-    timeline = figures.get("timeline") or []
-    moments_by_id = {moment.get("id"): moment for moment in timeline}
-    entries: list[tuple[str, str, dict[str, Any]]] = []
-    for figure in nodes:
-        name = figure.get("name") or figure.get("id")
-        stops = _figure_journey_stops(figure, presence, timeline)
-        for previous, current in zip(stops, stops[1:]):
-            from_date = moments_by_id.get(previous.get("momentId"), {}).get("date")
-            to_date = moments_by_id.get(current.get("momentId"), {}).get("date")
-            days = _moment_date_diff_days(from_date, to_date)
-            if days is None:
-                continue
-            if days < 0:
-                entries.append(
-                    _issue(
-                        f"{name} wechselt laut Anwesenheit den Ort, aber das Zieldatum liegt vor dem Ausgangsdatum",
-                        "issuePresenceBackward",
-                        name=name,
-                    )
-                )
-            elif days == 0:
-                entries.append(
-                    _issue(
-                        f"{name} wechselt laut Anwesenheit am selben Tag den Ort",
-                        "issuePresenceSameDay",
-                        name=name,
-                    )
-                )
-    return entries
-
-
-def presence_consistency_issues(figures: dict[str, Any]) -> list[str]:
-    return [text for text, _key, _params in _presence_issue_entries(figures)]
-
-
-def validate_world(figures: dict[str, Any]) -> dict[str, Any]:
-    nodes = {node.get("id") for node in figures.get("nodes") or []}
-    moments = {moment.get("id") for moment in figures.get("timeline") or []}
-    edges = figures.get("edges") or []
-    presence = figures.get("presence") or []
-    entries: list[tuple[str, str, dict[str, Any]]] = []
-    seen: set[tuple[Any, ...]] = set()
-    for edge in edges:
-        edge_id = edge.get("id")
-        if edge.get("from") not in nodes or edge.get("to") not in nodes:
-            entries.append(
-                _issue(
-                    f"Beziehung {edge_id} hat einen fehlenden Endpunkt",
-                    "issueMissingEndpoint",
-                    id=edge_id,
-                )
-            )
-        key = (
-            (edge.get("from"), edge.get("to"))
-            if edge.get("gerichtet")
-            else tuple(sorted((edge.get("from"), edge.get("to"))))
-        )
-        duplicate_key = (bool(edge.get("gerichtet")), *key)
-        if duplicate_key in seen:
-            entries.append(
-                _issue(
-                    f"Beziehung {edge_id} ist strukturell doppelt",
-                    "issueDuplicateRelationship",
-                    id=edge_id,
-                )
-            )
-        seen.add(duplicate_key)
-        version_moments: set[Any] = set()
-        for version in edge.get("versions") or []:
-            moment_id = version.get("momentId")
-            if moment_id not in moments:
-                entries.append(
-                    _issue(
-                        f"Beziehung {edge_id} verweist auf einen fehlenden Zeitpunkt {moment_id}",
-                        "issueMissingMoment",
-                        id=edge_id,
-                        momentId=moment_id,
-                    )
-                )
-            if moment_id in version_moments:
-                entries.append(
-                    _issue(
-                        f"Beziehung {edge_id} hat mehrere Stände am selben Zeitpunkt {moment_id}",
-                        "issueDuplicateMomentState",
-                        id=edge_id,
-                        momentId=moment_id,
-                    )
-                )
-            version_moments.add(moment_id)
-    entries.extend(_presence_issue_entries(figures))
-    issues = [text for text, _key, _params in entries]
-    issue_items = [{"key": key, "params": params} for _text, key, params in entries]
-    return {
-        "issues": issues,
-        "issueItems": issue_items,
-        "inspected": {
-            "elements": len(nodes),
-            "relationships": len(edges),
-            "timelineMoments": len(moments),
-            "relationshipStates": sum(len(edge.get("versions") or []) for edge in edges),
-            "presenceEntries": len(presence),
-        },
-    }
 
 
 def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
@@ -181,13 +21,16 @@ def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
     prefix = (
         f"Strukturell vollständig geprüft: {inspected['relationships']} Beziehungen mit "
         f"{inspected['relationshipStates']} Zeitständen, {inspected['elements']} Elemente, "
-        f"{inspected['timelineMoments']} Zeitpunkte und {inspected['presenceEntries']} Anwesenheits-Einträge."
+        f"{inspected['timelineMoments']} Zeitpunkte und "
+        f"{inspected['presenceEntries']} Anwesenheits-Einträge."
     )
     if audit["issues"]:
         return prefix + " Gefunden: " + "; ".join(audit["issues"]) + ". Es wurde nichts geändert."
     return (
         prefix
-        + " Keine technischen Widersprüche gefunden. Ob Richtung und Beschriftung inhaltlich zur Geschichte passen, ist damit nicht geprüft; dafür müssen konkrete Manuskriptstellen als Belege ausgewertet werden."
+        + " Keine technischen Widersprüche gefunden. Ob Richtung und Beschriftung inhaltlich "
+        "zur Geschichte passen, ist damit nicht geprüft; dafür müssen konkrete "
+        "Manuskriptstellen als Belege ausgewertet werden."
     )
 
 

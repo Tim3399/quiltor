@@ -146,6 +146,30 @@
   gap: var(--space-8);
   padding: var(--space-8) var(--space-9);
 }
+.assistant-proposal-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-7) var(--space-9);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--canvas) 72%, var(--panel));
+  color: var(--soft);
+  font-size: var(--font-size-2);
+}
+.assistant-proposal-group > header button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--transparent);
+  color: var(--gold-text);
+  font-size: var(--font-size-1);
+  cursor: pointer;
+}
+.assistant-proposal-group > header button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
 .assistant-proposal-heading {
   border-bottom: 1px solid var(--line);
   background: var(--canvas);
@@ -174,6 +198,7 @@
   width: 12px;
 }
 .assistant-proposal {
+  align-items: flex-start;
   border-bottom: 1px solid var(--line);
   font-size: var(--font-size-2);
 }
@@ -183,6 +208,68 @@
 .assistant-proposal.is-applied {
   background: var(--control-hover-subtle);
   color: var(--muted);
+}
+.assistant-proposal.is-dismissed {
+  background: var(--canvas);
+  color: var(--muted);
+  opacity: 0.72;
+}
+.assistant-proposal-content {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.assistant-proposal-content > small {
+  color: var(--muted);
+  font-size: var(--font-size-1);
+}
+.assistant-claim-review {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.assistant-claim-review > span {
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  font-weight: 650;
+}
+.assistant-claim-review > small {
+  max-width: 42ch;
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  line-height: 1.4;
+}
+.assistant-proposal-actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-6);
+}
+.assistant-proposal-evidence summary {
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  cursor: pointer;
+}
+.assistant-proposal-evidence > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.assistant-proposal-evidence button {
+  max-width: 150px;
+  overflow: hidden;
+  padding: var(--space-3) var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--paper);
+  color: var(--soft);
+  font-size: var(--font-size-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .assistant-proposal button:disabled,
 .assistant-proposal-heading button:disabled {
@@ -267,4 +354,76 @@
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.assistant-proposal-editor {
+  display: grid;
+  gap: var(--space-10);
+  min-width: min(430px, 72vw);
+}
+.assistant-edit-field {
+  display: grid;
+  gap: var(--space-5);
+}
+.assistant-edit-field > span {
+  color: var(--soft);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+}
+.assistant-edit-field > input,
+.assistant-edit-field > textarea {
+  width: 100%;
+  min-height: 36px;
+  padding: var(--space-7) var(--space-9);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+.assistant-edit-field > textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+.assistant-edit-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  justify-self: start;
+  padding: 0;
+  background: var(--transparent);
+  color: var(--soft);
+  font-size: var(--font-size-2);
+  cursor: pointer;
+}
+.assistant-edit-checkmark {
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--paper);
+}
+.assistant-edit-checkbox[aria-checked="true"] .assistant-edit-checkmark {
+  border-color: var(--gold-border);
+  background: var(--gold);
+  box-shadow: inset var(--ring-2) var(--paper);
+}
+.assistant-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-7);
+  padding-top: var(--space-5);
+}
+.assistant-edit-actions button {
+  min-height: 34px;
+  padding: var(--space-6) var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--soft);
+  cursor: pointer;
+}
+.assistant-edit-actions button.primary {
+  border-color: var(--gold-border);
+  background: var(--gold-soft);
+  color: var(--gold-text);
 }

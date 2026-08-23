@@ -33,5 +33,8 @@ class ApplicationAssistantWorldAccess:
     def exists(self, owner_sub: str, world_id: str) -> bool:
         return self._assistant.world_exists(owner_sub, world_id)
 
+    def revision(self, owner_sub: str, world_id: str) -> int:
+        return self._assistant.world_revision(owner_sub, world_id)
+
 
 __all__ = ["ApplicationAssistantWorldAccess", "LockedAssistantInteractionLogger"]

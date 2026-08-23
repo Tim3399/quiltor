@@ -40,6 +40,7 @@ export function applyAssistantProposals(
         sub: String(element.sub || "").slice(0, 1000),
         accent: "ink",
         profile: sanitizeProfile(element.profile),
+        aliases: sanitizeAliases(element.aliases),
       };
       next.nodes.push(node);
     } else if (proposal.kind === "update_element") {
@@ -64,6 +65,9 @@ export function applyAssistantProposals(
                       ...sanitizeProfile(proposal.patch.profile),
                     },
                   }
+                : {}),
+              ...(proposal.patch.aliases
+                ? { aliases: sanitizeAliases(proposal.patch.aliases) }
                 : {}),
             }
           : node,
@@ -220,6 +224,17 @@ function sanitizeProfile(profile?: Record<string, unknown>) {
     notizen: text("notizen"),
     extra: [],
   };
+}
+
+function sanitizeAliases(aliases?: FigureNode["aliases"]): FigureNode["aliases"] {
+  const seen = new Set<string>();
+  return (aliases || []).flatMap((item) => {
+    const alias = typeof item?.alias === "string" ? item.alias.trim().slice(0, 160) : "";
+    const normalized = alias.toLocaleLowerCase().replace(/\s+/g, " ");
+    if (!alias || seen.has(normalized)) return [];
+    seen.add(normalized);
+    return [{ alias, source: "assistant" as const }];
+  });
 }
 
 function safeStyle(style?: FigureEdge["style"]): FigureEdge["style"] {

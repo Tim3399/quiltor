@@ -1,11 +1,16 @@
 import type {
   AssistantHistoryMessage,
   AssistantJobState,
+  AssistantMode,
   AssistantReply,
 } from "../../modules/assistant";
 import type { MessageKey } from "../../i18n";
 
-export type AssistantBatchRequest = { runBatches: boolean; progressId: string };
+export type AssistantBatchRequest = {
+  runBatches: boolean;
+  progressId: string;
+  mode?: AssistantMode;
+};
 
 export interface AssistantGateway {
   status(): Promise<{
