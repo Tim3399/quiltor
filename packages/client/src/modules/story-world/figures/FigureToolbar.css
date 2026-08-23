@@ -2,8 +2,6 @@
   position: relative;
 }
 
-.create-group .create-action {
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--ink);
+.toast .figure-toolbar-toast-close {
+  color: inherit;
 }

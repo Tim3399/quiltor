@@ -23,6 +23,9 @@ export type PlacesWorkspaceProps = {
   onOpen: (target: { workspace: Workspace; id: string }) => void;
 };
 
+/** Mirrors StoryGraph.css, where the inspector column collapses at 820px. */
+export const PLACE_COMPACT_MEDIA_QUERY = "(max-width: 820px)";
+
 export function PlacesWorkspace(props: PlacesWorkspaceProps) {
   return (
     <ReactFlowProvider>
@@ -47,7 +50,7 @@ function PlacesWorkspaceInner({
   const [measureSelection, setMeasureSelection] = useState<string[]>([]);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
   const [compact, setCompact] = useState(
-    () => typeof matchMedia === "function" && matchMedia("(max-width: 719px)").matches,
+    () => typeof matchMedia === "function" && matchMedia(PLACE_COMPACT_MEDIA_QUERY).matches,
   );
   const latestState = useRef(state);
   latestState.current = state;
@@ -79,7 +82,7 @@ function PlacesWorkspaceInner({
   }, [targetId]);
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
-    const media = matchMedia("(max-width: 719px)");
+    const media = matchMedia(PLACE_COMPACT_MEDIA_QUERY);
     const updateCompact = () => setCompact(media.matches);
     updateCompact();
     media.addEventListener("change", updateCompact);
@@ -156,7 +159,7 @@ function PlacesWorkspaceInner({
         }}
         onDelete={() => setDeletePlace(selected)}
       />
-      <div className="figure-layout">
+      <div className={`figure-layout${places.length ? "" : " places-layout-empty"}`}>
         <PlaceCanvas
           controller={canvas}
           placesCount={places.length}
@@ -168,7 +171,7 @@ function PlacesWorkspaceInner({
           onStopMeasuring={stopMeasuring}
           onScale={patchScale}
         />
-        {!compact && (
+        {!compact && !!places.length && (
           <Inspector
             className={`inspector places-inspector ${selected ? "has-selection" : ""}`}
             aria-label={t("placesInspectorLabel")}

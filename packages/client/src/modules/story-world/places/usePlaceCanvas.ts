@@ -157,7 +157,7 @@ export function usePlaceCanvas({
       setZoomTier(semanticZoomTier(zoom));
     },
     onMove: (viewport) => {
-      const zoom = Math.round(viewport.zoom * 100) / 100;
+      const zoom = Math.round(viewport.zoom * 10_000) / 10_000;
       setViewportZoom((current) => (current === zoom ? current : zoom));
       setZoomTier((current) => {
         const next = semanticZoomTier(zoom);

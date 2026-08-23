@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
 import { Clock3, Command, FileText, MapPin, UserRound } from "lucide-react";
-import type { Manuscript } from "../manuscript";
+import {
+  chapterBreadcrumb,
+  manuscriptStructure,
+  orderedChapters,
+  type Manuscript,
+} from "../manuscript";
 import type { FigureState } from "../story-world";
 import type { Workspace, WorkspaceTarget } from "../../shared";
 import { CommandPalette, type CommandPaletteItem } from "../../shared/ui/CommandPalette";
@@ -43,25 +48,30 @@ export function SearchDialog({
       onSelect: () => onCommand(id),
     }));
     const needle = query.trim();
-    const chapters: CommandPaletteItem[] = manuscript.chapters.flatMap((chapter) => {
+    const structure = manuscriptStructure(manuscript);
+    const chapters: CommandPaletteItem[] = orderedChapters(manuscript).flatMap((chapter) => {
       const matches = textSearchRanges(chapter.body, needle);
       const metadataMatches = [chapter.title, chapter.note].some((value) =>
         value.toLocaleLowerCase().includes(needle.toLocaleLowerCase()),
       );
       if (needle && !matches.length && !metadataMatches) return [];
       const first = matches[0];
+      const breadcrumb = chapterBreadcrumb(structure, chapter.id)
+        .map((folder) => folder.title)
+        .join(" / ");
+      const matchDetail = first
+        ? `${t("searchMatchCount", { count: matches.length })} · ${matchPreview(
+            chapter.body,
+            first.from,
+            first.to,
+          )}`
+        : chapter.note || chapter.body.slice(0, 120);
       return [
         {
           id: `chapter-${chapter.id}`,
           label: chapter.title || t("untitled"),
-          detail: first
-            ? `${t("searchMatchCount", { count: matches.length })} · ${matchPreview(
-                chapter.body,
-                first.from,
-                first.to,
-              )}`
-            : chapter.note || chapter.body.slice(0, 120),
-          keywords: [chapter.body, chapter.note],
+          detail: [breadcrumb, matchDetail].filter(Boolean).join(" · "),
+          keywords: [chapter.body, chapter.note, breadcrumb],
           icon: <FileText />,
           requiresQuery: true,
           onSelect: () => {
@@ -101,16 +111,7 @@ export function SearchDialog({
       },
     }));
     return [...commands, ...chapters, ...nodes, ...moments];
-  }, [
-    manuscript.chapters,
-    figures.nodes,
-    figures.timeline,
-    onCommand,
-    onWorkspace,
-    onSelect,
-    query,
-    t,
-  ]);
+  }, [manuscript, figures.nodes, figures.timeline, onCommand, onWorkspace, onSelect, query, t]);
   return (
     <CommandPalette
       open

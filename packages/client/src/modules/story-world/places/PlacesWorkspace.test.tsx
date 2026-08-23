@@ -3,7 +3,7 @@ import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useState } fr
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import type { FigureState } from "../model";
-import { PlacesWorkspace } from "./PlacesWorkspace";
+import { PLACE_COMPACT_MEDIA_QUERY, PlacesWorkspace } from "./PlacesWorkspace";
 
 vi.mock("@xyflow/react", () => ({
   ReactFlowProvider: ({ children }: { children: ReactNode }) => children,
@@ -145,6 +145,41 @@ function ControlledPlaces({
 }
 
 describe("PlacesWorkspace map overlays", () => {
+  it("matches the 820px canvas breakpoint so the inspector never becomes a second grid row", () => {
+    const matchMediaMock = vi.fn((query: string) => ({
+      matches: query === PLACE_COMPACT_MEDIA_QUERY,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    vi.stubGlobal("matchMedia", matchMediaMock);
+
+    const { container } = render(
+      <I18nProvider>
+        <PlacesWorkspace state={state} onChange={vi.fn()} onOpen={vi.fn()} />
+      </I18nProvider>,
+    );
+
+    expect(PLACE_COMPACT_MEDIA_QUERY).toBe("(max-width: 820px)");
+    expect(matchMediaMock).toHaveBeenCalledWith("(max-width: 820px)");
+    expect(container.querySelector(".places-inspector")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("place-node-a"));
+    expect(screen.getByRole("dialog", { name: "Orte-Inspector" })).toBeInTheDocument();
+  });
+
+  it("uses one centered empty state instead of duplicating it in the inspector", () => {
+    const { container } = render(
+      <I18nProvider>
+        <PlacesWorkspace state={{ nodes: [], edges: [] }} onChange={vi.fn()} onOpen={vi.fn()} />
+      </I18nProvider>,
+    );
+
+    expect(container.querySelector(".places-layout-empty")).toBeInTheDocument();
+    expect(container.querySelectorAll(".places-manager-empty")).toHaveLength(1);
+    expect(container.querySelector(".places-inspector")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ort auswählen")).not.toBeInTheDocument();
+  });
+
   it("shows all available distances below four places and uses the figure zoom tiers", () => {
     render(
       <I18nProvider>

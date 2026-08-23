@@ -1,17 +1,42 @@
 .timeline-workspace {
+  min-width: 0;
   height: 100%;
   display: grid;
   grid-template-rows: minmax(var(--context), auto) auto minmax(0, 1fr);
+  overflow: hidden;
   background: var(--canvas);
+}
+.timeline-workspace .context-bar {
+  min-width: 0;
 }
 .timeline-workspace .context-tools {
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
+}
+@media (max-width: 820px) {
+  .timeline-workspace .context-tools {
+    width: 100%;
+    flex-wrap: wrap;
+    row-gap: var(--space-6);
+  }
 }
 @media (max-width: 640px) {
   .timeline-workspace {
     grid-template-rows: minmax(var(--context), auto) minmax(0, 1fr);
+  }
+  .timeline-workspace .context-tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-6);
+  }
+  .timeline-workspace .context-tools > .timeline-time-controls {
+    grid-column: 1 / -1;
+  }
+  .timeline-workspace .context-tools > * {
+    min-width: 0;
+    padding-inline: 0;
+    border-inline-start: 0;
+  }
+  .timeline-workspace .context-tools > .tool-group:last-child {
+    justify-self: end;
   }
 }

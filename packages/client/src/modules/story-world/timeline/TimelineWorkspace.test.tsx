@@ -67,6 +67,30 @@ describe("TimelineWorkspace sections", () => {
     expect(css).toContain(".story-timeline::-webkit-scrollbar-thumb:active");
   });
 
+  it("keeps the 390px toolbar, forms, and state inspector inside the viewport", () => {
+    const root = join(process.cwd(), "packages/client/src/modules/story-world/timeline");
+    const workspaceCss = readFileSync(join(root, "TimelineWorkspace.css"), "utf8");
+    const controlsCss = readFileSync(join(root, "TimeSystemControls.css"), "utf8");
+    const fieldsCss = readFileSync(join(root, "MomentTimeFields.css"), "utf8");
+    const panelsCss = readFileSync(join(root, "StateChangePanels.css"), "utf8");
+
+    expect(workspaceCss).toMatch(
+      /\.timeline-workspace\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
+    );
+    expect(workspaceCss).toMatch(
+      /@media \(max-width: 640px\)[\s\S]*?\.timeline-workspace \.context-tools\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s,
+    );
+    expect(controlsCss).toMatch(
+      /@media \(max-width: 640px\)[\s\S]*?\.timeline-time-controls\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-touch\) var\(--control-touch\);/s,
+    );
+    expect(fieldsCss).toMatch(
+      /\.timeline-calendar-date > label > :is\(input, select\)\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
+    );
+    expect(panelsCss).toMatch(
+      /\.ui-sheet \.storyboard-inspector\s*\{[^}]*position:\s*static;[^}]*width:\s*100%;/s,
+    );
+  });
+
   it("starts focused on relationships and keeps secondary tasks collapsed", () => {
     renderTimeline();
     expect(screen.getByRole("button", { name: "Beziehungen" })).toHaveAttribute(
@@ -134,7 +158,9 @@ describe("TimelineWorkspace time system", () => {
   it("keeps creation simple and edits relative placement inside the selected moment", () => {
     const onChange = vi.fn();
     renderTimeline(onChange, timedState);
-    expect(screen.getByRole("button", { name: "Kalender hinzufügen" })).toHaveClass("primary");
+    expect(screen.getByRole("button", { name: "Kalender hinzufügen" })).toHaveClass(
+      "ui-button--primary",
+    );
     expect(screen.queryByRole("spinbutton", { name: "Abstand in Tagen" })).toBeInTheDocument();
     expect(screen.queryByRole("spinbutton", { name: "Abstand" })).not.toBeInTheDocument();
     const addButtons = screen.getAllByRole("button", { name: "Zeitpunkt hinzufügen" });
@@ -201,7 +227,9 @@ describe("TimelineWorkspace time system", () => {
     expect(
       [...startDate.querySelectorAll(":scope > label > span")].map((label) => label.textContent),
     ).toEqual(["Tag", "Monat", "Jahr"]);
-    const anchorDate = document.querySelector(".timeline-anchor-date")!;
+    const anchorDate = document.querySelector(".timeline-anchor-date");
+    expect(anchorDate).not.toBeNull();
+    if (!anchorDate) throw new Error("Expected the calendar anchor fields to render");
     expect(
       [...anchorDate.querySelectorAll(":scope > label > span")].map((label) => label.textContent),
     ).toEqual(["Tag", "Monat", "Jahr"]);
@@ -235,16 +263,20 @@ describe("TimelineWorkspace time system", () => {
     fireEvent.change(within(date).getByRole("combobox", { name: "Tag" }), {
       target: { value: "" },
     });
-    expect(
-      (onChange.mock.calls.at(-1)?.[0] as FigureState).timeline?.find((m) => m.id === "m1"),
-    ).toMatchObject({ precision: "month", time: 0 });
+    const monthPrecisionState = onChange.mock.calls.at(-1)?.[0] as FigureState | undefined;
+    expect(monthPrecisionState?.timeline?.find((m) => m.id === "m1")).toMatchObject({
+      precision: "month",
+      time: 0,
+    });
 
     fireEvent.change(within(date).getByRole("combobox", { name: "Monat" }), {
       target: { value: "" },
     });
-    expect(
-      (onChange.mock.calls.at(-1)?.[0] as FigureState).timeline?.find((m) => m.id === "m1"),
-    ).toMatchObject({ precision: "year", time: 0 });
+    const yearPrecisionState = onChange.mock.calls.at(-1)?.[0] as FigureState | undefined;
+    expect(yearPrecisionState?.timeline?.find((m) => m.id === "m1")).toMatchObject({
+      precision: "year",
+      time: 0,
+    });
   });
 });
 

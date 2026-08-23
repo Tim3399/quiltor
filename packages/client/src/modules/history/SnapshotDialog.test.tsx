@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import { type BackupLoginStatus, quiltorClient } from "../../platform";
 import { SnapshotDialog } from "./SnapshotDialog";
-import { quiltorClient, type BackupLoginStatus } from "../../platform";
 
 const backupStatus = vi.fn(),
   backupLoginStatus = vi.fn(),
@@ -34,10 +34,10 @@ function loginStatus(overrides: Partial<BackupLoginStatus> = {}): BackupLoginSta
   };
 }
 
-function show() {
+function show(flush: () => Promise<void> = () => Promise.resolve()) {
   return render(
     <I18nProvider>
-      <SnapshotDialog onClose={vi.fn()} flush={() => Promise.resolve()} />
+      <SnapshotDialog onClose={vi.fn()} flush={flush} />
     </I18nProvider>,
   );
 }
@@ -59,6 +59,45 @@ afterEach(() => {
 });
 
 describe("SnapshotDialog", () => {
+  it("nutzt beschriftete Design-Controls mit unveränderter Speichern-Semantik", async () => {
+    backupLoginStatus.mockResolvedValue(
+      loginStatus({ signedIn: true, email: "autorin@example.org" }),
+    );
+    let resolveFlush!: () => void;
+    const flush = vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFlush = resolve;
+          }),
+      );
+    show(flush);
+
+    const message = await screen.findByRole("textbox", { name: "Was hat sich geändert?" });
+    const saveOnly = screen.getByRole("button", { name: "Nur lokal sichern" });
+    const upload = screen.getByRole("button", { name: "Sichern & hochladen" });
+
+    expect(message.parentElement).toHaveClass("ui-field");
+    expect(message).toHaveValue("Kapitel 3");
+    expect(saveOnly).toHaveClass("ui-button");
+    expect(saveOnly).toHaveAttribute("type", "button");
+    expect(upload).toHaveAttribute("data-appearance", "primary");
+
+    fireEvent.change(message, { target: { value: "Kapitel 3 überarbeitet" } });
+    fireEvent.click(saveOnly);
+
+    await waitFor(() => expect(flush).toHaveBeenCalledTimes(2));
+    expect(saveOnly).toBeDisabled();
+    expect(upload).toBeDisabled();
+    expect(saveSnapshot).not.toHaveBeenCalled();
+
+    await act(async () => resolveFlush());
+    await waitFor(() => expect(saveSnapshot).toHaveBeenCalledWith("Kapitel 3 überarbeitet", false));
+    expect(saveOnly).toBeEnabled();
+  });
+
   it("bietet die Anmeldung an, statt in ein 401 hochzuladen", async () => {
     backupLoginStatus.mockResolvedValue(loginStatus());
     backupLoginBegin.mockResolvedValue({

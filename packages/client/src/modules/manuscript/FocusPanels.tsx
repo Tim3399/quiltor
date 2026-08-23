@@ -3,6 +3,7 @@ import { PanelLeft, PanelRight, X } from "lucide-react";
 import { useI18n } from "../../i18n";
 import type { FigureNode, FigureState } from "../story-world";
 import type { Chapter, Manuscript } from "./model";
+import { orderedChapters } from "./binder/manuscriptTree";
 import { wordCount } from "./wordCount";
 import "./FocusPanels.css";
 
@@ -32,6 +33,7 @@ export function FocusPanels({
   const { t } = useI18n();
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [helpersOpen, setHelpersOpen] = useState(false);
+  const chapters = orderedChapters(manuscript);
 
   useEffect(() => {
     if (!focus) setHelpersOpen(false);
@@ -41,7 +43,7 @@ export function FocusPanels({
 
   return (
     <>
-      {manuscript.chapters.length > 1 && (
+      {chapters.length > 1 && (
         <aside
           className={`focus-chapters ${chaptersOpen ? "is-open" : ""}`}
           aria-label={t("focusChapterPickerLabel")}
@@ -59,7 +61,7 @@ export function FocusPanels({
           </button>
           {chaptersOpen && (
             <nav className="focus-chapter-list">
-              {manuscript.chapters.map((chapter, index) => (
+              {chapters.map((chapter, index) => (
                 <button
                   key={chapter.id}
                   className={chapter.id === current?.id ? "active" : ""}

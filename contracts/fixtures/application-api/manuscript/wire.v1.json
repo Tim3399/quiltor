@@ -29,6 +29,19 @@
         "extensionNote": "Unknown chapter properties survive a round trip."
       }
     ],
+    "structure": {
+      "folders": [{ "id": "part-one", "title": "Teil I" }],
+      "items": [
+        { "id": "tree-part-one", "kind": "folder", "folderId": "part-one", "position": 0 },
+        {
+          "id": "tree-chapter-arrival",
+          "kind": "chapter",
+          "chapterId": "chapter-arrival",
+          "parentFolderId": "part-one",
+          "position": 0
+        }
+      ]
+    },
     "language": "de-DE",
     "grammarMode": "manual",
     "words": ["Gezeitenarchiv", { "w": "Arcène", "d": "Ort" }],

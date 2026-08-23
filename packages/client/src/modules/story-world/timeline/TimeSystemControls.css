@@ -4,6 +4,9 @@
   align-items: center;
   gap: var(--space-5);
 }
+.timeline-time-controls .ui-select-control {
+  min-width: 0;
+}
 .timeline-workspace
   :is(.timeline-time-controls, .timeline-calendar-date, .timeline-relative-position)
   :is(select, input) {
@@ -147,8 +150,21 @@
   white-space: nowrap;
 }
 @media (max-width: 640px) {
+  .timeline-time-controls {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--control-touch) var(--control-touch);
+  }
+  .timeline-time-controls .ui-select-control {
+    width: 100%;
+  }
+  .timeline-time-settings {
+    grid-column: 3;
+    grid-row: 1;
+  }
   .timeline-time-settings > summary {
-    width: 34px;
+    width: var(--control-touch);
+    min-height: var(--control-touch);
     justify-content: center;
     padding: 0;
   }
@@ -157,5 +173,18 @@
   }
   .timeline-time-settings > summary svg {
     margin: 0;
+  }
+  .timeline-time-settings-panel {
+    right: 0;
+    width: calc(100vw - var(--space-20));
+    max-height: calc(100dvh - var(--space-88));
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .timeline-add-calendar {
+    grid-column: 2;
+    grid-row: 1;
+    width: var(--control-touch);
+    min-width: var(--control-touch);
+    padding: 0;
   }
 }

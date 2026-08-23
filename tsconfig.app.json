@@ -16,5 +16,5 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["packages/client/src", "apps/web/main.tsx"]
+  "include": ["packages/client/src", "apps/web/main.tsx", "apps/design-gallery/main.tsx"]
 }

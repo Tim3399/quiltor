@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Chapter, Manuscript } from "../../manuscript";
+import { orderedChapters, type Chapter, type Manuscript } from "../../manuscript";
 import type { FigureState, TimeSystem, TimeSystemKind, TimelineMoment } from "../model";
 import { uid } from "../../../shared/id";
 import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
@@ -24,7 +24,7 @@ export function chaptersUsingTimelineMoment(
   manuscript: Readonly<Manuscript>,
   momentId: string,
 ): TimelineChapterReference[] {
-  return manuscript.chapters
+  return orderedChapters(manuscript)
     .filter(
       (chapter) =>
         chapter.storyTime?.startMomentId === momentId ||
@@ -48,7 +48,7 @@ export function firstReversedChapterTimeRange(
       [Number.isInteger(moment.time) ? (moment.time as number) : index, index] as const,
     ]),
   );
-  for (const chapter of manuscript.chapters) {
+  for (const chapter of orderedChapters(manuscript)) {
     const { startMomentId, endMomentId } = chapter.storyTime || {};
     if (!startMomentId || !endMomentId) continue;
     const start = coordinates.get(startMomentId);

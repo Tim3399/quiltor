@@ -85,6 +85,15 @@
   white-space: nowrap;
   cursor: pointer;
 }
+.global-actions > .icon-button,
+.app-bar__leading > .icon-button {
+  padding: 0;
+}
+.global-actions .ui-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-7);
+}
 .global-actions button:hover,
 .app-bar__leading > button:hover {
   background: var(--control-hover);
@@ -139,7 +148,7 @@
 }
 
 @media (max-width: 1099px) {
-  .app-bar .global-actions button > span,
+  .app-bar .global-actions button > .ui-button__label,
   .app-bar .global-actions kbd,
   .app-bar .brand small {
     display: none;
@@ -147,7 +156,7 @@
 }
 @media (max-width: 1050px) {
   .brand small,
-  .global-actions span,
+  .global-actions .ui-button__label,
   .global-actions kbd {
     display: none;
   }
@@ -206,7 +215,9 @@
     min-width: var(--control-touch);
     justify-content: center;
     padding: 0 var(--space-8);
-    font-size: 0;
+  }
+  .app-bar .workspace-switch .ui-button__label {
+    display: none;
   }
   .app-bar .workspace-switch button svg {
     width: 18px;
@@ -234,7 +245,9 @@
   }
   .workspace-switch button {
     padding: 0 var(--space-7);
-    font-size: 0;
+  }
+  .workspace-switch .ui-button__label {
+    display: none;
   }
   .workspace-switch {
     position: static;

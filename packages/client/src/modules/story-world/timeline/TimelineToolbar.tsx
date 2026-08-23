@@ -1,4 +1,5 @@
 import { Plus, Redo2, Undo2 } from "lucide-react";
+import { Button, IconButton } from "../../../design";
 import type { TimeSystem, TimeSystemKind } from "../model";
 import type { Translate, UiLocale } from "../../../i18n";
 import { useShortcut } from "../../../shared/ui/shortcuts";
@@ -49,28 +50,29 @@ export function TimelineToolbar({
           t={t}
         />
         <div className="tool-group">
-          <button className="primary" onClick={onAddMoment}>
-            <Plus />
+          <Button appearance="primary" icon={<Plus />} onClick={onAddMoment}>
             {t("addMoment")}
-          </button>
+          </Button>
         </div>
         <div className="tool-group">
-          <button
+          <IconButton
+            label={t("timelineUndo")}
+            icon={<Undo2 />}
+            appearance="ghost"
+            size="regular"
             disabled={!canUndo}
             onClick={onUndo}
-            aria-label={t("timelineUndo")}
             title={`${t("timelineUndo")} · ${keys("Z")}`}
-          >
-            <Undo2 />
-          </button>
-          <button
+          />
+          <IconButton
+            label={t("timelineRedo")}
+            icon={<Redo2 />}
+            appearance="ghost"
+            size="regular"
             disabled={!canRedo}
             onClick={onRedo}
-            aria-label={t("timelineRedo")}
             title={`${t("timelineRedo")} · ${keys("Z", { shift: true })}`}
-          >
-            <Redo2 />
-          </button>
+          />
         </div>
       </div>
     </div>

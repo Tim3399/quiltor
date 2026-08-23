@@ -7,8 +7,7 @@ from pathlib import Path
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
-
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -33,6 +32,31 @@ CREATE TABLE IF NOT EXISTS chapters (
   story_time_extra_json TEXT NOT NULL DEFAULT '{}',
   extra_json TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS chapter_folders (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS manuscript_tree_items (
+  id TEXT PRIMARY KEY,
+  parent_folder_id TEXT REFERENCES chapter_folders(id) ON DELETE RESTRICT,
+  kind TEXT NOT NULL CHECK (kind IN ('chapter','folder')),
+  chapter_id TEXT REFERENCES chapters(id) ON DELETE CASCADE,
+  folder_id TEXT REFERENCES chapter_folders(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  CHECK (
+    (kind='chapter' AND chapter_id IS NOT NULL AND folder_id IS NULL)
+    OR
+    (kind='folder' AND folder_id IS NOT NULL AND chapter_id IS NULL)
+  )
+);
+CREATE UNIQUE INDEX IF NOT EXISTS manuscript_tree_parent_position
+  ON manuscript_tree_items(COALESCE(parent_folder_id, ''), position);
+CREATE UNIQUE INDEX IF NOT EXISTS manuscript_tree_chapter_once
+  ON manuscript_tree_items(chapter_id) WHERE chapter_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS manuscript_tree_folder_once
+  ON manuscript_tree_items(folder_id) WHERE folder_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS figure_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   canvas_width INTEGER NOT NULL DEFAULT 2400,

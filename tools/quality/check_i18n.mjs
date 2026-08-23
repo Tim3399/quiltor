@@ -54,7 +54,13 @@ function visitSource(path) {
     for (const name of readdirSync(path)) visitSource(join(path, name));
     return;
   }
-  if (extname(path) !== ".tsx" || path.endsWith(".test.tsx")) return;
+  if (
+    extname(path) !== ".tsx" ||
+    path.endsWith(".test.tsx") ||
+    path.endsWith(".story.tsx") ||
+    path.includes(join("design", "testing"))
+  )
+    return;
   scanVisibleText(relative(root, path), readFileSync(path, "utf8"));
 }
 

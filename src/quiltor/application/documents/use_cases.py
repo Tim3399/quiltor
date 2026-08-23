@@ -10,7 +10,7 @@ from quiltor.application.documents.ports import DocumentKind, DocumentRepository
 from quiltor.application.documents.types import DocumentLocation, VersionedDocument
 from quiltor.application.errors import InvalidApplicationInput
 from quiltor.application.telemetry import UseCaseObserver
-from quiltor.domain.manuscript import story_time_anchor_issue
+from quiltor.domain.manuscript import flatten_tree, story_time_anchor_issue, structure_or_flat
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
 
 
@@ -80,9 +80,13 @@ class DocumentUseCases:
             self._local_backups.backup_if_due(location.database, location.backups)
             revision = self._documents.save(kind, state, expected_revision, location.database)
             if kind == "manuscript":
-                self._local_backups.mirror_manuscript(
-                    state["chapters"], location.manuscript_mirrors
-                )
+                chapters_by_id = {chapter["id"]: chapter for chapter in state["chapters"]}
+                structure = structure_or_flat(chapters_by_id, state.get("structure"))
+                ordered_chapters = [
+                    chapters_by_id[chapter_id]
+                    for chapter_id in flatten_tree(chapters_by_id, structure)
+                ]
+                self._local_backups.mirror_manuscript(ordered_chapters, location.manuscript_mirrors)
             else:
                 self._local_backups.mirror_story_world(state, location.story_world_mirrors)
             return revision

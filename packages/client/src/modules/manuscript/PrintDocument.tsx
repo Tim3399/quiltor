@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { useI18n } from "../../i18n";
 import { bodyParagraphs, markedSegments } from "./marks";
+import { orderedChapters } from "./binder/manuscriptTree";
 import type { Chapter, Manuscript } from "./model";
 import "./PrintDocument.css";
 
@@ -24,7 +25,7 @@ export function PrintDocument({ worldTitle, manuscript }: PrintDocumentProps) {
           {t("manuscriptVersionLabel")} · {new Date().toLocaleDateString(locale)}
         </footer>
       </section>
-      {manuscript.chapters.map((chapter, chapterIndex) => (
+      {orderedChapters(manuscript).map((chapter, chapterIndex) => (
         <section className="book-chapter" key={chapter.id}>
           <header>
             <span>{String(chapterIndex + 1).padStart(2, "0")}</span>

@@ -21,6 +21,7 @@
           "type": "array",
           "items": { "$ref": "#/$defs/chapter" }
         },
+        "structure": { "$ref": "#/$defs/manuscriptStructure" },
         "language": { "const": "de-DE" },
         "grammarMode": { "enum": ["manual", "automatic"] },
         "words": {
@@ -45,6 +46,55 @@
           "items": { "type": "string" }
         }
       }
+    },
+    "manuscriptStructure": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["folders", "items"],
+      "properties": {
+        "folders": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/chapterFolder" }
+        },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/manuscriptTreeItem" }
+        }
+      }
+    },
+    "chapterFolder": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "title": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "manuscriptTreeItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "kind", "position"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "kind": { "enum": ["chapter", "folder"] },
+        "chapterId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "folderId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "parentFolderId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      },
+      "oneOf": [
+        {
+          "properties": { "kind": { "const": "chapter" } },
+          "required": ["chapterId"],
+          "not": { "required": ["folderId"] }
+        },
+        {
+          "properties": { "kind": { "const": "folder" } },
+          "required": ["folderId"],
+          "not": { "required": ["chapterId"] }
+        }
+      ]
     },
     "chapter": {
       "type": "object",

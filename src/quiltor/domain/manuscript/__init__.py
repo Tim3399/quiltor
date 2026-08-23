@@ -7,13 +7,35 @@ from .story_time import (
     valid_story_time_reference,
 )
 from .text_offsets import utf16_length, utf16_offsets_to_indices, utf16_span
+from .tree import (
+    ManuscriptTreeError,
+    breadcrumb_for_chapter,
+    delete_folder,
+    descendants,
+    flat_structure,
+    flatten_tree,
+    move_item,
+    normalize_positions,
+    structure_or_flat,
+    validate_tree,
+)
 
 __all__ = [
     "MAX_STORY_TIME_ID_LENGTH",
+    "ManuscriptTreeError",
     "StoryTimeAnchorIssue",
+    "breadcrumb_for_chapter",
+    "delete_folder",
+    "descendants",
+    "flat_structure",
+    "flatten_tree",
+    "move_item",
+    "normalize_positions",
     "story_time_anchor_issue",
+    "structure_or_flat",
     "utf16_length",
     "utf16_offsets_to_indices",
     "utf16_span",
     "valid_story_time_reference",
+    "validate_tree",
 ]

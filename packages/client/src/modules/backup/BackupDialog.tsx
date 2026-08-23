@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Archive, RotateCcw, X } from "lucide-react";
+import { Button, IconButton } from "../../design";
 import { applicationErrorMessage, quiltorClient } from "../../platform";
 import { Sheet } from "../../shared/ui/Sheet";
 import { ConfirmDialog, IRREVERSIBLE_HOLD_MS } from "../../shared/ui/ConfirmDialog";
@@ -42,9 +43,7 @@ export function BackupDialog({
         <div className="utility-sheet">
           <header>
             <h2>{t("backups")}</h2>
-            <button className="icon-button" aria-label={t("closeDialog")} onClick={onClose}>
-              <X />
-            </button>
+            <IconButton label={t("closeDialog")} icon={<X />} onClick={onClose} />
           </header>
           <div className="utility-sheet-content">
             <p className="muted">{t("backupAutoNote")}</p>
@@ -56,18 +55,19 @@ export function BackupDialog({
             <div className="utility-split backup-browser">
               <nav className="backup-list" aria-label={t("backups")}>
                 {items.map((item) => (
-                  <button
+                  <Button
                     key={item.name}
-                    className={selected === item.name ? "active" : ""}
+                    className="backup-list-item"
+                    appearance="secondary"
+                    icon={<Archive />}
                     aria-pressed={selected === item.name}
                     onClick={() => setSelected(item.name)}
                   >
-                    <Archive />
-                    <span>
+                    <>
                       <strong>{new Date(item.created).toLocaleString()}</strong>
                       <small>{(item.size / 1024).toFixed(0)} KB</small>
-                    </span>
-                  </button>
+                    </>
+                  </Button>
                 ))}
                 {!items.length && !error && <p>{t("noBackup")}</p>}
               </nav>
@@ -81,10 +81,13 @@ export function BackupDialog({
                         size: `${(selectedItem.size / 1024).toFixed(0)} KB`,
                       })}
                     </p>
-                    <button className="primary" onClick={() => setRestoreTarget(selectedItem.name)}>
-                      <RotateCcw />
+                    <Button
+                      appearance="primary"
+                      icon={<RotateCcw />}
+                      onClick={() => setRestoreTarget(selectedItem.name)}
+                    >
                       {t("restore")}
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>

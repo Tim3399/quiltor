@@ -1,12 +1,13 @@
+import { BookOpen, ChevronRight, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { BookOpen, ChevronRight, Plus, Trash2 } from "lucide-react";
-import type { WorldInfo } from "../model";
-import { availableLocales, useI18n } from "../../../i18n";
 import { PRODUCT_MARK, PRODUCT_NAME } from "../../../config/branding";
+import { Button, IconButton, SelectionCard, TextField } from "../../../design";
+import { availableLocales, useI18n } from "../../../i18n";
 import type { ThemePreference } from "../../../shared";
 import { ConfirmDialog, IRREVERSIBLE_HOLD_MS } from "../../../shared/ui/ConfirmDialog";
 import { SegmentedControl } from "../../../shared/ui/SegmentedControl";
 import { Sheet } from "../../../shared/ui/Sheet";
+import type { WorldInfo } from "../model";
 import "./WorldGate.css";
 
 export function WorldGate({
@@ -31,7 +32,12 @@ export function WorldGate({
     [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<WorldInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [worldQuery, setWorldQuery] = useState("");
   const { locale, setLocale, t } = useI18n();
+  const normalizedQuery = worldQuery.trim().toLocaleLowerCase(locale);
+  const visibleWorlds = normalizedQuery
+    ? worlds.filter((world) => world.title.toLocaleLowerCase(locale).includes(normalizedQuery))
+    : worlds;
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
     try {
@@ -84,41 +90,56 @@ export function WorldGate({
         <div className="world-list-panel">
           <header>
             <h2>{t("existingWorlds")}</h2>
-            <button className="world-create" onClick={() => setCreateOpen(true)}>
-              <Plus />
+            <Button appearance="primary" icon={<Plus />} onClick={() => setCreateOpen(true)}>
               {t("newWorld")}
-            </button>
+            </Button>
           </header>
-          <div className="world-list">
-            {worlds.map((world) => (
-              <div className="world-list-item" key={world.id}>
-                <button
-                  className="world-open"
+          {worlds.length > 8 && (
+            <TextField
+              id="world-search"
+              fieldClassName="world-filter"
+              type="search"
+              label={t("search")}
+              placeholder={t("searchTerm")}
+              value={worldQuery}
+              onChange={(event) => setWorldQuery(event.target.value)}
+            />
+          )}
+          <ul className="world-list" data-long={worlds.length > 8 || undefined}>
+            {visibleWorlds.map((world) => (
+              <li key={world.id}>
+                <SelectionCard
+                  label={`${world.title} – ${t("openWorld")}`}
+                  title={world.title}
+                  description={`${t("lastChanged")} ${new Date(world.updated).toLocaleDateString(
+                    locale,
+                  )}`}
+                  leading={<BookOpen />}
+                  indicator={<ChevronRight />}
                   disabled={busy}
-                  onClick={() => void run(() => onOpen(world.id))}
-                >
-                  <BookOpen />
-                  <span>
-                    <strong>{world.title}</strong>
-                    <small>
-                      {t("lastChanged")} {new Date(world.updated).toLocaleDateString(locale)}
-                    </small>
-                  </span>
-                  <ChevronRight />
-                </button>
-                <button
-                  className="world-delete"
-                  disabled={busy}
-                  aria-label={`${world.title} – ${t("deleteWorld")}`}
-                  title={t("deleteWorld")}
-                  onClick={() => setDeleteTarget(world)}
-                >
-                  <Trash2 />
-                </button>
-              </div>
+                  onSelect={() => void run(() => onOpen(world.id))}
+                  actionsLabel={`${world.title} – ${t("menuActions")}`}
+                  actions={
+                    <IconButton
+                      disabled={busy}
+                      tone="danger"
+                      size="regular"
+                      label={`${world.title} – ${t("deleteWorld")}`}
+                      icon={<Trash2 />}
+                      title={t("deleteWorld")}
+                      onClick={() => setDeleteTarget(world)}
+                    />
+                  }
+                />
+              </li>
             ))}
-            {!worlds.length && <p className="muted">{t("noWorld")}</p>}
-          </div>
+            {!worlds.length && <li className="world-list-empty">{t("noWorld")}</li>}
+            {Boolean(worlds.length && !visibleWorlds.length) && (
+              <li className="world-list-empty" role="status">
+                {t("writingNoResults")}
+              </li>
+            )}
+          </ul>
         </div>
       </section>
       {createOpen && (
@@ -134,33 +155,45 @@ export function WorldGate({
                 });
             }}
           >
-            <header>
+            <header className="world-create-header">
               <h2>{t("newWorld")}</h2>
+              <IconButton
+                label={t("close")}
+                icon={<X />}
+                size="regular"
+                onClick={() => setCreateOpen(false)}
+              />
             </header>
             <p>{t("newWorldIntro")}</p>
-            <label className="field">
-              <span>{t("worldTitle")}</span>
-              <input
-                data-autofocus
-                value={title}
-                maxLength={100}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder={t("worldExample")}
-              />
-            </label>
-            <label className="field">
-              <span>{t("backupEndpoint")}</span>
-              <input
-                value={backupUrl}
-                onChange={(event) => setBackupUrl(event.target.value)}
-                placeholder={t("backupExample")}
-              />
-            </label>
-            <p className="muted">{t("backupRecommended")}</p>
-            <button className="world-create" disabled={busy || !title.trim()}>
-              <Plus />
-              {t("createWorld")}
-            </button>
+            <TextField
+              id="world-title"
+              data-autofocus
+              label={t("worldTitle")}
+              value={title}
+              maxLength={100}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder={t("worldExample")}
+            />
+            <TextField
+              id="world-backup-endpoint"
+              label={t("backupEndpoint")}
+              value={backupUrl}
+              onChange={(event) => setBackupUrl(event.target.value)}
+              placeholder={t("backupExample")}
+              hint={t("backupRecommended")}
+            />
+            <div className="world-create-actions">
+              <Button
+                type="submit"
+                appearance="primary"
+                icon={<Plus />}
+                loading={busy}
+                loadingLabel={t("createWorld")}
+                disabled={!title.trim()}
+              >
+                {t("createWorld")}
+              </Button>
+            </div>
           </form>
         </Sheet>
       )}

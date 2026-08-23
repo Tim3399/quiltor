@@ -54,6 +54,9 @@ describe("PlaceInspector", () => {
     expect(css).toMatch(
       /\.places-stay-range\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\);/s,
     );
+    expect(css).toMatch(
+      /\.places-stay-duration\s*\{[^}]*min-width:\s*max-content;[^}]*overflow-wrap:\s*normal;[^}]*white-space:\s*nowrap;/s,
+    );
     expect(css).toMatch(/\.places-chronicle-entry\s*>\s*strong,[\s\S]*?overflow-wrap:\s*anywhere;/);
     expect(css).toMatch(
       /\.places-inspector-body\s*\{[^}]*overflow-x:\s*hidden;[^}]*scrollbar-color:\s*var\(--line-strong\)\s+var\(--transparent\);/s,

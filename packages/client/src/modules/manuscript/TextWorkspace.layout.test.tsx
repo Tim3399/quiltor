@@ -5,6 +5,20 @@ import { TextWorkspace } from "./TextWorkspace";
 import { figures, manuscript, renderWorkspace, TestProviders } from "./TextWorkspace.testSupport";
 
 describe("TextWorkspace layout and panels", () => {
+  it("bindet alle Toolbar-Gruppen an den gemeinsamen symmetrischen Action-Strip", () => {
+    const view = renderWorkspace({
+      manuscript,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+    });
+    const actions = view.container.querySelector(".manuscript-toolbar-actions");
+
+    expect(actions).toHaveClass("context-tools");
+    expect(actions?.querySelectorAll(":scope > .tool-group").length).toBeGreaterThan(1);
+  });
+
   it("macht den Fokusmodus explizit verlassbar", () => {
     renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: true, onFocus: vi.fn() });
     expect(screen.getByRole("button", { name: /Fokusmodus verlassen/ })).toBeVisible();

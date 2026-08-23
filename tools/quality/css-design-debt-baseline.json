@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "node tools/quality/check_css_design_debt.mjs --write-baseline",
+  "scope": {
+    "roots": [
+      "packages/client/src/app",
+      "packages/client/src/modules",
+      "packages/client/src/shared"
+    ],
+    "extensions": [".css"],
+    "excluded": [
+      "**/*.test.css",
+      "**/*.spec.css",
+      "**/*.testSupport.css",
+      "**/*.story.css",
+      "**/*.stories.css",
+      "**/{test,tests,__tests__}/**"
+    ]
+  },
+  "categories": {
+    "nativeTypeSelectors": ["button", "input", "select", "textarea"],
+    "designOwnerOverrides": [
+      "ui-button",
+      "icon-button",
+      "ui-field",
+      "ui-checkbox",
+      "ui-toolbar-button",
+      "selection-card"
+    ]
+  },
+  "countingUnit": "comma-separated selector branches containing the target (once per target)",
+  "files": {
+    "packages/client/src/app/AppShell.css": {
+      "nativeTypeSelectors": {
+        "button": 14
+      },
+      "designOwnerOverrides": {
+        "ui-button": 5,
+        "icon-button": 2
+      }
+    },
+    "packages/client/src/modules/assistant/AssistantComposer.css": {
+      "nativeTypeSelectors": {
+        "button": 4,
+        "textarea": 1
+      }
+    },
+    "packages/client/src/modules/assistant/AssistantConversation.css": {
+      "nativeTypeSelectors": {
+        "button": 16,
+        "input": 1,
+        "textarea": 2
+      }
+    },
+    "packages/client/src/modules/assistant/AssistantDrawer.css": {
+      "nativeTypeSelectors": {
+        "button": 3
+      }
+    },
+    "packages/client/src/modules/assistant/AssistantStatusPanel.css": {
+      "nativeTypeSelectors": {
+        "button": 2
+      }
+    },
+    "packages/client/src/modules/backup/BackupDialog.css": {
+      "designOwnerOverrides": {
+        "ui-button": 2
+      }
+    },
+    "packages/client/src/modules/history/HistoryDialog.css": {
+      "designOwnerOverrides": {
+        "ui-button": 2
+      }
+    },
+    "packages/client/src/modules/manuscript/ChapterBinder.css": {
+      "nativeTypeSelectors": {
+        "button": 1,
+        "textarea": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/EditorSurface.css": {
+      "nativeTypeSelectors": {
+        "button": 1
+      },
+      "designOwnerOverrides": {
+        "icon-button": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/FocusPanels.css": {
+      "nativeTypeSelectors": {
+        "button": 8
+      }
+    },
+    "packages/client/src/modules/manuscript/ManuscriptToolbar.css": {
+      "designOwnerOverrides": {
+        "ui-toolbar-button": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/TermsSheet.css": {
+      "nativeTypeSelectors": {
+        "button": 3,
+        "input": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/WritingAidInspector.css": {
+      "nativeTypeSelectors": {
+        "button": 12,
+        "input": 1
+      },
+      "designOwnerOverrides": {
+        "ui-button": 1,
+        "icon-button": 3
+      }
+    },
+    "packages/client/src/modules/story-world/StoryGraph.css": {
+      "nativeTypeSelectors": {
+        "button": 3
+      }
+    },
+    "packages/client/src/modules/story-world/figures/FigureInspector.css": {
+      "nativeTypeSelectors": {
+        "button": 1,
+        "input": 7,
+        "textarea": 2
+      }
+    },
+    "packages/client/src/modules/story-world/figures/PresenceField.css": {
+      "nativeTypeSelectors": {
+        "button": 2
+      }
+    },
+    "packages/client/src/modules/story-world/figures/TimelineStrip.css": {
+      "nativeTypeSelectors": {
+        "button": 6,
+        "input": 3
+      },
+      "designOwnerOverrides": {
+        "icon-button": 1
+      }
+    },
+    "packages/client/src/modules/story-world/places/PlaceMeasurementOverlay.css": {
+      "nativeTypeSelectors": {
+        "input": 3
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/CustomCalendarSettings.css": {
+      "nativeTypeSelectors": {
+        "button": 1
+      },
+      "designOwnerOverrides": {
+        "icon-button": 1
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/MomentBoard.css": {
+      "nativeTypeSelectors": {
+        "button": 2
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/MomentHeader.css": {
+      "nativeTypeSelectors": {
+        "button": 4,
+        "textarea": 1
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/MomentTimeFields.css": {
+      "nativeTypeSelectors": {
+        "input": 2,
+        "select": 2
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/StateChangePanels.css": {
+      "nativeTypeSelectors": {
+        "button": 8,
+        "select": 1
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/TimeSystemControls.css": {
+      "nativeTypeSelectors": {
+        "input": 8,
+        "select": 6
+      }
+    },
+    "packages/client/src/shared/ui/CommandPalette.css": {
+      "nativeTypeSelectors": {
+        "button": 4,
+        "input": 2
+      }
+    }
+  }
+}

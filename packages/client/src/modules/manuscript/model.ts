@@ -35,6 +35,35 @@ export interface Chapter {
   [key: string]: unknown;
 }
 
+export interface ChapterFolder {
+  id: string;
+  title: string;
+  [key: string]: unknown;
+}
+
+export type ManuscriptTreeItem =
+  | {
+      id: string;
+      kind: "chapter";
+      chapterId: string;
+      parentFolderId?: string;
+      position: number;
+      [key: string]: unknown;
+    }
+  | {
+      id: string;
+      kind: "folder";
+      folderId: string;
+      parentFolderId?: string;
+      position: number;
+      [key: string]: unknown;
+    };
+
+export interface ManuscriptStructure {
+  folders: ChapterFolder[];
+  items: ManuscriptTreeItem[];
+}
+
 export type GrammarMode = "manual" | "automatic";
 
 export type WritingIssue = {
@@ -49,6 +78,7 @@ export type WritingIssue = {
 
 export interface Manuscript {
   chapters: Chapter[];
+  structure?: ManuscriptStructure;
   language?: WritingLocale;
   grammarMode?: GrammarMode;
   words?: Array<string | { w: string; d?: string }>;

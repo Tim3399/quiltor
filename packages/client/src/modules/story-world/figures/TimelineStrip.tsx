@@ -81,6 +81,7 @@ export function TimelineStrip({
       </div>
       <div className="timeline-add">
         <input
+          className="timeline-title"
           aria-label={t("newMoment")}
           value={draft}
           placeholder={t("newMoment")}

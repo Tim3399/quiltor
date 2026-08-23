@@ -50,6 +50,9 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
       <span className="node-kind">
         {item.type !== "person" ? kindLabel(item.type, t) : item.label || t("figure")}
       </span>
+      <span className="node-monogram" aria-hidden="true">
+        {item.name.trim().charAt(0).toLocaleUpperCase()}
+      </span>
       <strong>
         {item.important && <Star className="importance-mark" aria-label={t("important")} />}
         {item.name}
@@ -81,8 +84,6 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
   );
 }
 
-const MINIMAP_NODE_SIZE = 40;
-
 export function FigureMiniMapNode({
   x,
   y,
@@ -98,10 +99,10 @@ export function FigureMiniMapNode({
   return (
     <rect
       className={`react-flow__minimap-node ${selected ? "selected" : ""} ${className ?? ""}`}
-      x={x + width / 2 - MINIMAP_NODE_SIZE / 2}
-      y={y + height / 2 - MINIMAP_NODE_SIZE / 2}
-      width={MINIMAP_NODE_SIZE}
-      height={MINIMAP_NODE_SIZE}
+      x={x}
+      y={y}
+      width={width}
+      height={height}
       rx={borderRadius}
       ry={borderRadius}
       style={{ fill: color, stroke: strokeColor, strokeWidth }}

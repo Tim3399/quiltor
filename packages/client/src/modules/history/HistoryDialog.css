@@ -8,20 +8,6 @@
   display: flex;
   gap: var(--space-5);
 }
-.history-toolbar button {
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-7);
-  padding: 0 var(--space-10);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--paper);
-  color: var(--soft);
-  white-space: nowrap;
-  cursor: pointer;
-}
 .history-layout {
   height: min(60vh, 600px);
   display: grid;
@@ -34,18 +20,23 @@
   overflow: auto;
   border-right: 1px solid var(--line);
 }
-.history-layout nav button {
+.history-layout .history-state-button {
+  width: 100%;
+  justify-content: flex-start;
+  padding-block: var(--space-10);
+  border-width: 0 0 1px;
+  border-color: var(--line);
+  border-radius: 0;
+  text-align: left;
+}
+.history-state-button .ui-button__label {
   width: 100%;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-10) var(--space-12);
-  border-bottom: 1px solid var(--line);
-  background: var(--transparent);
-  text-align: left;
-  cursor: pointer;
 }
-.history-layout nav button.active {
+.history-layout .history-state-button[aria-pressed="true"] {
   background: var(--gold-soft);
 }
 .history-layout nav strong {
@@ -91,19 +82,18 @@
   padding: 0;
   list-style: none;
 }
-.diff-summary button {
+.diff-summary-button {
+  width: 100%;
+  background: var(--canvas);
+  text-align: left;
+}
+.diff-summary-button .ui-button__label {
   width: 100%;
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  padding: var(--space-7) var(--space-9);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--canvas);
-  text-align: left;
-  cursor: pointer;
 }
-.diff-summary button[aria-expanded="true"] {
+.diff-summary-button[aria-expanded="true"] {
   border-color: var(--gold);
 }
 .diff-kind {

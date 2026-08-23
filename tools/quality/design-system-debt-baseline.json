@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "node tools/quality/check_design_system_debt.mjs --write-baseline",
+  "scope": {
+    "roots": [
+      "packages/client/src/app",
+      "packages/client/src/modules",
+      "packages/client/src/shared"
+    ],
+    "extensions": [".ts", ".tsx"],
+    "excluded": [
+      "**/*.test.ts(x)",
+      "**/*.spec.ts(x)",
+      "**/*.testSupport.ts(x)",
+      "**/{test,tests,__tests__}/**"
+    ]
+  },
+  "categories": {
+    "controls": ["button", "input", "select", "textarea"],
+    "legacyClasses": ["ui-button", "icon-button", "primary", "field"]
+  },
+  "files": {
+    "packages/client/src/modules/assistant/AssistantComposer.tsx": {
+      "controls": {
+        "button": 3,
+        "input": 1,
+        "textarea": 1
+      }
+    },
+    "packages/client/src/modules/assistant/AssistantConversation.tsx": {
+      "controls": {
+        "button": 13
+      }
+    },
+    "packages/client/src/modules/assistant/AssistantDrawer.tsx": {
+      "controls": {
+        "button": 3
+      },
+      "legacyClasses": {
+        "icon-button": 2
+      }
+    },
+    "packages/client/src/modules/assistant/AssistantProposalEditor.tsx": {
+      "controls": {
+        "button": 3,
+        "input": 1,
+        "textarea": 1
+      },
+      "legacyClasses": {
+        "primary": 1
+      }
+    },
+    "packages/client/src/modules/assistant/AssistantStatusPanel.tsx": {
+      "controls": {
+        "button": 2
+      }
+    },
+    "packages/client/src/modules/identity/SignInGate.tsx": {
+      "controls": {
+        "button": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/ChapterBinder.tsx": {
+      "controls": {
+        "button": 1,
+        "input": 1,
+        "textarea": 1
+      },
+      "legacyClasses": {
+        "field": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/EditorSurface.tsx": {
+      "controls": {
+        "button": 5,
+        "input": 1,
+        "select": 1
+      },
+      "legacyClasses": {
+        "icon-button": 4,
+        "primary": 1,
+        "field": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/FocusPanels.tsx": {
+      "controls": {
+        "button": 7
+      }
+    },
+    "packages/client/src/modules/manuscript/SelectionActions.tsx": {
+      "controls": {
+        "button": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/TermsSheet.tsx": {
+      "controls": {
+        "button": 4,
+        "input": 1
+      },
+      "legacyClasses": {
+        "icon-button": 1
+      }
+    },
+    "packages/client/src/modules/manuscript/TextWorkspace.tsx": {
+      "controls": {
+        "button": 2
+      }
+    },
+    "packages/client/src/modules/manuscript/WorkspaceLayout.tsx": {
+      "controls": {
+        "button": 2
+      }
+    },
+    "packages/client/src/modules/manuscript/WritingAidInspector.tsx": {
+      "controls": {
+        "button": 18,
+        "input": 1,
+        "select": 1
+      },
+      "legacyClasses": {
+        "ui-button": 3,
+        "icon-button": 3,
+        "primary": 1,
+        "field": 1
+      }
+    },
+    "packages/client/src/modules/story-world/figures/FigureCanvas.tsx": {
+      "controls": {
+        "button": 1
+      }
+    },
+    "packages/client/src/modules/story-world/figures/FigureInspector.tsx": {
+      "controls": {
+        "button": 16,
+        "input": 8,
+        "textarea": 3
+      },
+      "legacyClasses": {
+        "icon-button": 5,
+        "field": 6
+      }
+    },
+    "packages/client/src/modules/story-world/figures/FigureToolbar.tsx": {
+      "controls": {
+        "input": 1
+      }
+    },
+    "packages/client/src/modules/story-world/figures/FigureWorkspace.tsx": {
+      "controls": {
+        "button": 2
+      },
+      "legacyClasses": {
+        "icon-button": 1
+      }
+    },
+    "packages/client/src/modules/story-world/figures/PresenceField.tsx": {
+      "controls": {
+        "button": 1
+      },
+      "legacyClasses": {
+        "field": 1
+      }
+    },
+    "packages/client/src/modules/story-world/figures/TimelineStrip.tsx": {
+      "controls": {
+        "button": 5,
+        "input": 5
+      },
+      "legacyClasses": {
+        "icon-button": 2
+      }
+    },
+    "packages/client/src/modules/story-world/places/PlaceHistory.tsx": {
+      "controls": {
+        "button": 2
+      }
+    },
+    "packages/client/src/modules/story-world/places/PlaceMeasurementOverlay.tsx": {
+      "controls": {
+        "button": 1,
+        "input": 2
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/CalendarAnchorFields.tsx": {
+      "controls": {
+        "input": 1,
+        "select": 2
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/CustomCalendarSettings.tsx": {
+      "controls": {
+        "button": 4,
+        "input": 6,
+        "select": 1
+      },
+      "legacyClasses": {
+        "icon-button": 2
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/MomentBoard.tsx": {
+      "controls": {
+        "button": 1
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/MomentHeader.tsx": {
+      "controls": {
+        "button": 5
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/MomentTimeFields.tsx": {
+      "controls": {
+        "button": 2,
+        "input": 2,
+        "select": 4
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/PresenceBoard.tsx": {
+      "controls": {
+        "button": 1
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/StateChangePanels.tsx": {
+      "controls": {
+        "button": 12,
+        "input": 1,
+        "select": 1
+      },
+      "legacyClasses": {
+        "icon-button": 1,
+        "field": 1
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/TimeSystemControls.tsx": {
+      "controls": {
+        "input": 3,
+        "select": 2
+      }
+    },
+    "packages/client/src/modules/story-world/timeline/TimelineWorkspace.tsx": {
+      "controls": {
+        "input": 1,
+        "textarea": 1
+      },
+      "legacyClasses": {
+        "field": 2
+      }
+    },
+    "packages/client/src/shared/ui/CommandPalette.tsx": {
+      "controls": {
+        "button": 1,
+        "input": 1
+      }
+    },
+    "packages/client/src/shared/ui/ConfirmDialog.tsx": {
+      "controls": {
+        "button": 3
+      }
+    },
+    "packages/client/src/shared/ui/Dialog.tsx": {
+      "controls": {
+        "button": 1
+      },
+      "legacyClasses": {
+        "icon-button": 1
+      }
+    },
+    "packages/client/src/shared/ui/Menu.tsx": {
+      "controls": {
+        "button": 1
+      }
+    },
+    "packages/client/src/shared/ui/SaveStatus.tsx": {
+      "controls": {
+        "button": 1
+      }
+    },
+    "packages/client/src/shared/ui/SegmentedControl.tsx": {
+      "controls": {
+        "button": 1
+      }
+    },
+    "packages/client/src/shared/ui/SelectControl.tsx": {
+      "controls": {
+        "button": 2
+      }
+    }
+  }
+}

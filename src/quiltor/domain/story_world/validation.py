@@ -4,8 +4,8 @@ from typing import Any
 
 from quiltor.domain.manuscript.story_time import valid_story_time_reference
 from quiltor.domain.manuscript.text_offsets import utf16_offsets_to_indices
+from quiltor.domain.manuscript.tree import ManuscriptTreeError, structure_or_flat
 from quiltor.domain.story_world.entity_resolution import normalize_entity_name
-
 
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
@@ -318,7 +318,13 @@ def valid_manuscript(payload: Any) -> bool:
         if not _valid_marks(chapter):
             return False
         ids.append(chapter["id"])
-    return len(ids) == len(set(ids))
+    if len(ids) != len(set(ids)):
+        return False
+    try:
+        structure_or_flat(ids, payload.get("structure"))
+    except ManuscriptTreeError:
+        return False
+    return True
 
 
 def _valid_marks(chapter: dict) -> bool:

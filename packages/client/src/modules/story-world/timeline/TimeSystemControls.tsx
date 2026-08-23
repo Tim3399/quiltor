@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Settings2 } from "lucide-react";
+import { ToolbarButton } from "../../../design";
 import type { TimeSystem, TimeSystemKind } from "../model";
 import type { Translate, UiLocale } from "../../../i18n";
 import { SelectControl } from "../../../shared/ui/SelectControl";
@@ -125,17 +126,17 @@ export function TimeSystemControls({
           )}
         </div>
       </details>
-      <button
-        type="button"
-        className="primary timeline-add-calendar"
+      <ToolbarButton
+        label={t("timelineAddCustomCalendar")}
+        icon={<Plus />}
+        appearance="primary"
+        size="regular"
+        className="timeline-add-calendar"
         onClick={() => {
           if (system.kind !== "custom") onKindChange("custom");
           setSettingsOpen(true);
         }}
-      >
-        <Plus />
-        {t("timelineAddCustomCalendar")}
-      </button>
+      />
     </div>
   );
 }

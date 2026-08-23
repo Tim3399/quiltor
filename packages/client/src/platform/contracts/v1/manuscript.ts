@@ -51,8 +51,31 @@ export interface ChapterWireV1 {
   [key: string]: unknown;
 }
 
+export interface ChapterFolderWireV1 {
+  id: string;
+  title: string;
+  [key: string]: unknown;
+}
+
+export interface ManuscriptTreeItemWireV1 {
+  id: string;
+  kind: "chapter" | "folder";
+  chapterId?: string;
+  folderId?: string;
+  parentFolderId?: string;
+  position: number;
+  [key: string]: unknown;
+}
+
+export interface ManuscriptStructureWireV1 {
+  folders: ChapterFolderWireV1[];
+  items: ManuscriptTreeItemWireV1[];
+  [key: string]: unknown;
+}
+
 export interface ManuscriptPayloadWireV1 {
   chapters: ChapterWireV1[];
+  structure?: ManuscriptStructureWireV1;
   language?: "de-DE";
   grammarMode?: "manual" | "automatic";
   words?: Array<string | { w: string; d?: string; [key: string]: unknown }>;
@@ -196,6 +219,98 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
     }
   }
 
+  if (payload.structure !== undefined) {
+    const structurePath = `${path}.structure`;
+    const structure = wireRecord(payload.structure, structurePath);
+    const folders = wireArray(structure.folders, `${structurePath}.folders`);
+    const folderIds = new Set<string>();
+    for (const [index, folderValue] of folders.entries()) {
+      const folderPath = `${structurePath}.folders[${index}]`;
+      const folder = wireRecord(folderValue, folderPath);
+      const id = wireString(folder.id, `${folderPath}.id`, { min: 1, max: 200 });
+      wireString(folder.title, `${folderPath}.title`, { max: 1000 });
+      if (folderIds.has(id)) throw new WireContractError(`${folderPath}.id`);
+      folderIds.add(id);
+    }
+    const items = wireArray(structure.items, `${structurePath}.items`);
+    const itemIds = new Set<string>();
+    const ownedChapters = new Set<string>();
+    const ownedFolders = new Set<string>();
+    const folderParents = new Map<string, string | undefined>();
+    const siblingPositions = new Map<string, Set<number>>();
+    for (const [index, itemValue] of items.entries()) {
+      const itemPath = `${structurePath}.items[${index}]`;
+      const item = wireRecord(itemValue, itemPath);
+      const id = wireString(item.id, `${itemPath}.id`, { min: 1, max: 500 });
+      if (itemIds.has(id)) throw new WireContractError(`${itemPath}.id`);
+      itemIds.add(id);
+      const kind = wireEnum(item.kind, ["chapter", "folder"] as const, `${itemPath}.kind`);
+      const position = wireInteger(item.position, `${itemPath}.position`, { min: 0 });
+      const parent =
+        item.parentFolderId === undefined
+          ? undefined
+          : wireString(item.parentFolderId, `${itemPath}.parentFolderId`, {
+              min: 1,
+              max: 200,
+            });
+      if (parent !== undefined && !folderIds.has(parent)) {
+        throw new WireContractError(`${itemPath}.parentFolderId`);
+      }
+      const positions = siblingPositions.get(parent ?? "") ?? new Set<number>();
+      if (positions.has(position)) throw new WireContractError(`${itemPath}.position`);
+      positions.add(position);
+      siblingPositions.set(parent ?? "", positions);
+      if (kind === "chapter") {
+        const chapterId = wireString(item.chapterId, `${itemPath}.chapterId`, {
+          min: 1,
+          max: 200,
+        });
+        if (
+          item.folderId !== undefined ||
+          !chapterIds.has(chapterId) ||
+          ownedChapters.has(chapterId)
+        ) {
+          throw new WireContractError(itemPath);
+        }
+        ownedChapters.add(chapterId);
+      } else {
+        const folderId = wireString(item.folderId, `${itemPath}.folderId`, { min: 1, max: 200 });
+        if (
+          item.chapterId !== undefined ||
+          !folderIds.has(folderId) ||
+          ownedFolders.has(folderId) ||
+          parent === folderId
+        ) {
+          throw new WireContractError(itemPath);
+        }
+        ownedFolders.add(folderId);
+        folderParents.set(folderId, parent);
+      }
+    }
+    if (
+      ownedChapters.size !== chapterIds.size ||
+      ownedFolders.size !== folderIds.size ||
+      [...chapterIds].some((id) => !ownedChapters.has(id)) ||
+      [...folderIds].some((id) => !ownedFolders.has(id))
+    ) {
+      throw new WireContractError(structurePath);
+    }
+    for (const positions of siblingPositions.values()) {
+      if ([...positions].some((position) => position >= positions.size)) {
+        throw new WireContractError(`${structurePath}.items`);
+      }
+    }
+    for (const folderId of folderIds) {
+      const seen = new Set([folderId]);
+      let parent = folderParents.get(folderId);
+      while (parent) {
+        if (seen.has(parent)) throw new WireContractError(`${structurePath}.items`);
+        seen.add(parent);
+        parent = folderParents.get(parent);
+      }
+    }
+  }
+
   optional(
     payload,
     "language",
@@ -249,9 +364,27 @@ function encodeChapter(chapter: Manuscript["chapters"][number]): ChapterWireV1 {
 
 export function decodeManuscriptV1(value: unknown): DecodedDocumentV1<Manuscript> {
   const wire = decodeDocumentEnvelopeV1(value, "quiltor.manuscript", manuscriptPayload);
+  const structure = wire.payload.structure ?? {
+    folders: [],
+    items: wire.payload.chapters.map((chapter, position) => ({
+      id: `chapter:${chapter.id}`,
+      kind: "chapter" as const,
+      chapterId: chapter.id,
+      position,
+    })),
+  };
   return {
     document: {
       ...wire.payload,
+      structure: {
+        ...structure,
+        folders: structure.folders.map((folder) => ({ ...folder })),
+        items: structure.items.map((item) =>
+          item.kind === "chapter"
+            ? { ...item, kind: "chapter" as const, chapterId: item.chapterId as string }
+            : { ...item, kind: "folder" as const, folderId: item.folderId as string },
+        ),
+      },
       chapters: wire.payload.chapters.map((chapter) => ({
         ...cloneChapter(chapter),
         title: chapter.title ?? "",

@@ -20,6 +20,29 @@
   filter: none;
 }
 
+.figure-workspace .story-node .node-monogram {
+  display: none;
+}
+
+/* Overview nodes stay recognizable and tappable. React Flow scales its node
+   wrapper with the viewport; the inverse semantic scale keeps this token at a
+   stable visual size while its larger layout box avoids the old ~4px hitbox. */
+.figure-workspace .story-node.zoom-overview:not(.is-important) {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.figure-workspace .story-node.zoom-overview:not(.is-important) .node-monogram {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--paper);
+  font: 700 var(--font-size-3) var(--ui);
+  line-height: 1;
+}
+
 .figure-workspace .story-node .react-flow__handle {
   opacity: 0.2;
   transition:
@@ -141,4 +164,81 @@
 
 .figure-workspace .story-node.zoom-overview .node-guests {
   display: none;
+}
+
+.figure-workspace .flow-area.has-timeline .react-flow__minimap {
+  top: 14px;
+  right: 14px;
+  bottom: auto;
+}
+
+/* At regular workspace widths the inspector leaves too little clear canvas for
+   both floating navigation surfaces. Keep the timeline, which carries editing
+   controls, and let React Flow's regular zoom/pan controls cover navigation. */
+@media (min-width: 821px) and (max-width: 1050px) {
+  .figure-workspace .flow-area.has-timeline .react-flow__minimap {
+    display: none;
+  }
+}
+
+.figure-workspace .flow-area.has-timeline.is-connecting .react-flow__minimap {
+  display: none;
+}
+
+.figure-empty-state {
+  position: absolute;
+  z-index: var(--z-float);
+  top: 50%;
+  left: 50%;
+  width: min(340px, calc(100% - var(--space-32)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-24);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--material-sheet);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.figure-empty-state > svg {
+  width: 32px;
+  height: 32px;
+  color: var(--gold);
+}
+
+.figure-empty-state > strong {
+  color: var(--ink);
+  font: 600 var(--font-size-6) / 1.3 var(--prose);
+}
+
+.figure-empty-copy {
+  margin: calc(-1 * var(--space-4)) 0 var(--space-2);
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .figure-workspace .story-node.zoom-overview:not(.is-important) {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    border-width: 3px;
+  }
+
+  .figure-workspace .story-node.zoom-overview:not(.is-important) .node-monogram {
+    font-size: var(--font-size-5);
+  }
+
+  .figure-empty-state {
+    width: min(320px, calc(100% - var(--space-24)));
+    padding: var(--space-20);
+  }
+
+  .figure-workspace .flow-area.has-timeline .figure-empty-state {
+    top: 24%;
+  }
 }

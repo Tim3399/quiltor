@@ -30,6 +30,18 @@ describe("place measurement graph", () => {
     expect(edges[0]).toMatchObject({
       label: "3 km",
       ariaLabel: "A – B: 3 km",
+      labelBgStyle: {
+        fill: "var(--edge-label-bg)",
+        stroke: "var(--line)",
+        strokeWidth: 1,
+      },
+      labelStyle: {
+        fill: "var(--edge-label-text)",
+        fontSize: 12,
+        fontWeight: 600,
+      },
+      labelBgPadding: [7, 4],
+      labelBgBorderRadius: 6,
       focusable: false,
       selectable: false,
       className: "distance-edge",
@@ -45,7 +57,14 @@ describe("place measurement graph", () => {
     const edges = createPlaceMeasurementEdges({ points: farPoints, selection: ["a", "e"], t });
     const target = edges.find((edge) => edge.id === "distance:a:e");
 
-    expect(target).toMatchObject({ className: "distance-edge is-targeted" });
+    expect(target).toMatchObject({
+      className: "distance-edge is-targeted",
+      labelBgStyle: {
+        fill: "var(--gold-soft)",
+        stroke: "var(--gold-border)",
+      },
+      labelStyle: { fontWeight: 700 },
+    });
     expect(new Set(edges.map((edge) => edge.id)).size).toBe(edges.length);
   });
 

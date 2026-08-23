@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApplicationGatewayError, applicationErrorMessage, quiltorClient } from "../../platform";
 import {
   addDeterministicMentions,
+  type Manuscript,
   normalizeMarks,
   reconcileMentions,
-  type Manuscript,
 } from "../../modules/manuscript";
 import type { FigureState, WorldInfo } from "../../modules/story-world";
+import { ApplicationGatewayError, applicationErrorMessage, quiltorClient } from "../../platform";
 
 export type LoadedWorldDocuments = {
   manuscript: Manuscript;
@@ -89,6 +89,20 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
     const result = await quiltorClient.application.worlds.list();
     setWorlds(result.worlds);
   }, []);
+  const close = useCallback(() => {
+    quiltorClient.application.worlds.select("");
+    setWorld(null);
+    setLoadError("");
+
+    const url = new URL(location.href);
+    url.searchParams.delete("world");
+    history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+
+    void quiltorClient.application.worlds
+      .list()
+      .then((result) => setWorlds(result.worlds))
+      .catch((error) => setLoadError(applicationErrorMessage(error)));
+  }, []);
 
   return {
     worlds,
@@ -99,5 +113,6 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
     open,
     create,
     remove,
+    close,
   };
 }

@@ -5,6 +5,13 @@ import { applicationErrorMessage, quiltorClient, saveTextFile } from "../../plat
 import { uid } from "../../shared/id";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { ChapterBinder } from "./ChapterBinder";
+import {
+  addChapterItem,
+  flattenChapterIds,
+  manuscriptStructure,
+  orderedChapters,
+  removeChapterItem,
+} from "./binder/manuscriptTree";
 import { EditorSurface } from "./EditorSurface";
 import { FocusPanels } from "./FocusPanels";
 import { ManuscriptToolbar } from "./ManuscriptToolbar";
@@ -64,23 +71,31 @@ export function TextWorkspace({
   const inspectorOpen = controlledInspectorOpen ?? localInspectorOpen;
   const setBinderOpen = onBinderOpen ?? setLocalBinderOpen;
   const setInspectorOpen = onInspectorOpen ?? setLocalInspectorOpen;
-  const current =
-    manuscript.chapters.find((chapter) => chapter.id === currentId) ?? manuscript.chapters[0];
-  const currentIndex = current ? manuscript.chapters.indexOf(current) + 1 : 0;
+  const structure = useMemo(() => manuscriptStructure(manuscript), [manuscript]);
+  const chapters = useMemo(() => orderedChapters(manuscript), [manuscript]);
+  const current = chapters.find((chapter) => chapter.id === currentId) ?? chapters[0];
+  const currentIndex = current ? chapters.indexOf(current) + 1 : 0;
   useEffect(() => {
     onCurrentChapterId?.(current?.id || "");
   }, [current?.id, onCurrentChapterId]);
   const totalWords = useMemo(
-    () => manuscript.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0),
-    [manuscript.chapters],
+    () => chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0),
+    [chapters],
   );
-  const setChapters = (chapters: Chapter[]) => onChange({ ...manuscript, chapters });
+  const commitManuscript = (nextChapters: Chapter[], nextStructure = structure) => {
+    const byId = new Map(nextChapters.map((chapter) => [chapter.id, chapter]));
+    const ordered = flattenChapterIds(nextStructure).map((id) => {
+      const chapter = byId.get(id);
+      if (!chapter) throw new Error(`Binder references missing chapter ${id}`);
+      return chapter;
+    });
+    onChange({ ...manuscript, chapters: ordered, structure: nextStructure });
+  };
+  const setChapters = (nextChapters: Chapter[]) => commitManuscript(nextChapters);
   const updateCurrent = (patch: Partial<Chapter>) =>
     current &&
     setChapters(
-      manuscript.chapters.map((chapter) =>
-        chapter.id === current.id ? { ...chapter, ...patch } : chapter,
-      ),
+      chapters.map((chapter) => (chapter.id === current.id ? { ...chapter, ...patch } : chapter)),
     );
   const writing = useWritingAssistance({
     selectionKey: currentId,
@@ -94,7 +109,7 @@ export function TextWorkspace({
   });
   const history = useChapterHistory(current, currentIndex);
   const search = useManuscriptSearch({
-    chapters: manuscript.chapters,
+    chapters,
     current,
     targetId,
     textSearch,
@@ -115,28 +130,19 @@ export function TextWorkspace({
   const addChapter = () => {
     const chapter = {
       id: uid("c"),
-      title: t("newChapterTitle").replace("{n}", String(manuscript.chapters.length + 1)),
+      title: t("newChapterTitle").replace("{n}", String(chapters.length + 1)),
       body: "",
       note: "",
     };
-    setChapters([...manuscript.chapters, chapter]);
+    commitManuscript([...chapters, chapter], addChapterItem(structure, chapter.id, uid("tree")));
     setCurrentId(chapter.id);
-  };
-  const moveChapter = (delta: number) => {
-    if (!current) return;
-    const from = manuscript.chapters.indexOf(current);
-    const to = from + delta;
-    if (to < 0 || to >= manuscript.chapters.length) return;
-    const chapters = [...manuscript.chapters];
-    [chapters[from], chapters[to]] = [chapters[to], chapters[from]];
-    setChapters(chapters);
   };
   const removeChapter = () => {
     if (!current) return;
-    const index = manuscript.chapters.indexOf(current);
-    const chapters = manuscript.chapters.filter((chapter) => chapter.id !== current.id);
-    setCurrentId(chapters[Math.min(index, chapters.length - 1)]?.id ?? "");
-    setChapters(chapters);
+    const index = chapters.indexOf(current);
+    const nextChapters = chapters.filter((chapter) => chapter.id !== current.id);
+    setCurrentId(nextChapters[Math.min(index, nextChapters.length - 1)]?.id ?? "");
+    commitManuscript(nextChapters, removeChapterItem(structure, current.id));
   };
   const runExport = (task: Promise<void>) => {
     void task
@@ -148,7 +154,7 @@ export function TextWorkspace({
       saveTextFile(
         quiltorClient.platform,
         `Quiltor-Manuskript-${new Date().toISOString().slice(0, 10)}.md`,
-        manuscript.chapters
+        chapters
           .map(
             (chapter) =>
               `# ${chapter.title || t("untitled")}\n\n${markdownBody(chapter.body, chapter.marks).trim()}\n`,
@@ -178,8 +184,7 @@ export function TextWorkspace({
       viewportMode={viewportMode}
       onClose={() => setBinderOpen(false)}
       onSelect={setCurrentId}
-      onMove={moveChapter}
-      onReorder={setChapters}
+      onStructureChange={(nextStructure) => commitManuscript(chapters, nextStructure)}
       onUpdateCurrent={updateCurrent}
       onExportCurrent={() => {
         if (!current) return;

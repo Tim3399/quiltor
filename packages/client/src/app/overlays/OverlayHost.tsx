@@ -2,7 +2,7 @@ import { lazy } from "react";
 import { applyAssistantProposals, loadAssistantDrawer } from "../../modules/assistant";
 import { loadBackupDialog } from "../../modules/backup";
 import { loadHistoryDialog, loadSnapshotDialog } from "../../modules/history";
-import { replaceEntityMentions, type Manuscript } from "../../modules/manuscript";
+import { orderedChapters, replaceEntityMentions, type Manuscript } from "../../modules/manuscript";
 import { loadSearchDialog } from "../../modules/search";
 import type { FigureState } from "../../modules/story-world";
 import type { Workspace, WorkspaceTarget } from "../../shared";
@@ -70,7 +70,7 @@ export function OverlayHost({
         <AssistantDrawer
           worldId={worldId}
           figures={figures}
-          chapters={manuscript.chapters}
+          chapters={orderedChapters(manuscript)}
           currentChapterId={currentChapterId}
           open={assistantOpen}
           onClose={onCloseAssistant}

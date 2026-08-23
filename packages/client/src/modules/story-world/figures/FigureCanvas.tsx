@@ -6,8 +6,9 @@ import {
   MiniMap,
   ReactFlow,
 } from "@xyflow/react";
-import { Link2, X } from "lucide-react";
+import { Link2, Plus, UserRound, X } from "lucide-react";
 import type { ReactNode } from "react";
+import { Button } from "../../../design";
 import { useI18n } from "../../../i18n";
 import {
   type FigureCardData,
@@ -45,7 +46,7 @@ export function FigureCanvas({
   const { nodes, edges, zoomTier } = controller;
   return (
     <div
-      className={`flow-area zoom-${zoomTier} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
+      className={`flow-area zoom-${zoomTier} ${children ? "has-timeline" : ""} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
     >
       {connecting && (
         <div className="mode-banner" role="status">
@@ -100,6 +101,16 @@ export function FigureCanvas({
           maskColor="var(--minimap-mask)"
         />
       </ReactFlow>
+      {!nodes.length && (
+        <section className="figure-empty-state" aria-label={t("createElementMenu")}>
+          <UserRound aria-hidden="true" />
+          <strong>{t("createElementMenu")}</strong>
+          <p className="figure-empty-copy">{t("noFiguresOrAnimalsYet")}</p>
+          <Button appearance="primary" icon={<Plus />} onClick={() => controller.addNode("person")}>
+            {t("newFigureName")}
+          </Button>
+        </section>
+      )}
       {children}
     </div>
   );

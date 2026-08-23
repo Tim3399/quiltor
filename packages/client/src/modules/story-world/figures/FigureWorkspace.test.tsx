@@ -108,7 +108,44 @@ function FigureHarness() {
   );
 }
 
+function EmptyFigureHarness() {
+  const [state, setState] = useState<FigureState>({ nodes: [], edges: [] });
+  return (
+    <I18nProvider>
+      <output aria-label="Gespeicherte Elemente">{state.nodes.length}</output>
+      <FigureWorkspace state={state} onChange={setState} />
+    </I18nProvider>
+  );
+}
+
 describe("FigureWorkspace relationships", () => {
+  it("offers a useful first action instead of an empty grid", () => {
+    render(<EmptyFigureHarness />);
+
+    expect(screen.getByLabelText("Element erstellen")).toHaveTextContent(
+      "Noch keine Figuren oder Tiere.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Neue Figur" }));
+
+    expect(screen.getByLabelText("Gespeicherte Elemente")).toHaveTextContent("1");
+    expect(screen.queryByLabelText("Element erstellen")).not.toBeInTheDocument();
+  });
+
+  it("marks the canvas when the timeline needs its own overlay zone", () => {
+    const state: FigureState = {
+      nodes: [],
+      edges: [],
+      timeline: [{ id: "arrival", title: "Ankunft" }],
+    };
+    const { container } = render(
+      <I18nProvider>
+        <FigureWorkspace state={state} onChange={vi.fn()} />
+      </I18nProvider>,
+    );
+
+    expect(container.querySelector(".flow-area")).toHaveClass("has-timeline");
+  });
+
   it("keeps connection mode and edge visibility available beyond two relationships", () => {
     render(<FigureHarness />);
 

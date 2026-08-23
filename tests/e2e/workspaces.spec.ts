@@ -1,5 +1,7 @@
-import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { expect, test } from "@playwright/test";
+import type { Locator } from "@playwright/test";
+import type { Manuscript } from "../../packages/client/src/modules/manuscript";
 import {
   decodeSavedManuscript,
   encodeStoryWorldDocument,
@@ -18,6 +20,243 @@ async function openBlankWorld(
   const payload = await response.json();
   await page.goto(`/?world=${payload.world.id}`);
 }
+
+test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Test setzt die kompakte Breite selbst und muss nur einmal laufen.",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/state*", (route) =>
+    route.request().method() === "GET"
+      ? fulfillStoryWorld(route, {
+          nodes: [
+            { id: "n1", x: 120, y: 140, type: "person", name: "Ada" },
+            { id: "n2", x: 420, y: 240, type: "person", name: "Bela" },
+            { id: "p1", x: 280, y: 340, type: "ort", name: "Hafen" },
+          ],
+          edges: [],
+        })
+      : fulfillDocumentSave(route, 1),
+  );
+  await openBlankWorld(page, "Mobile Layoutwelt");
+  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+
+  const expectNoDocumentOverflow = async (label: string) => {
+    const geometry = await page.locator("html").evaluate((element) => ({
+      client: element.clientWidth,
+      scroll: element.scrollWidth,
+    }));
+    expect(geometry.scroll, `${label} verbreitert das Dokument`).toBeLessThanOrEqual(
+      geometry.client + 1,
+    );
+  };
+
+  const actionRows = await page
+    .locator(".manuscript-toolbar-actions .tool-group")
+    .evaluateAll((groups) =>
+      groups
+        .filter((group) => group.getBoundingClientRect().width > 0)
+        .map((group) => Math.round(group.getBoundingClientRect().top)),
+    );
+  expect(new Set(actionRows).size).toBe(1);
+  const compactGroupInsets = await page
+    .locator(".manuscript-toolbar-actions .tool-group")
+    .evaluateAll((groups) =>
+      groups
+        .filter((group) => group.getBoundingClientRect().width > 0)
+        .map((group) => {
+          const style = getComputedStyle(group);
+          return {
+            left: Number.parseFloat(style.paddingInlineStart),
+            right: Number.parseFloat(style.paddingInlineEnd),
+          };
+        }),
+    );
+  expect(compactGroupInsets.filter(({ left, right }) => Math.abs(left - right) > 0.5)).toEqual([]);
+  const undersizedToolbarButtons = await page
+    .locator(".manuscript-toolbar-actions button")
+    .evaluateAll((buttons) =>
+      buttons.flatMap((button) => {
+        const box = button.getBoundingClientRect();
+        if (box.width === 0 || box.height === 0) return [];
+        return box.width + 0.5 < 44 || box.height + 0.5 < 44
+          ? [
+              `${button.getAttribute("aria-label") ?? button.textContent?.trim() ?? "Aktion"}: ${Math.round(box.width)}x${Math.round(box.height)}`,
+            ]
+          : [];
+      }),
+    );
+  expect(undersizedToolbarButtons).toEqual([]);
+  await expect(page.getByRole("button", { name: "Exportieren" })).toBeVisible();
+  const offCenterToolbarIcons = await page
+    .locator(".manuscript-toolbar-actions .ui-button")
+    .evaluateAll((buttons) =>
+      buttons.flatMap((button) => {
+        const label = button.querySelector(".ui-button__label");
+        const icon = button.querySelector(".ui-button__icon");
+        if (!(label instanceof HTMLElement) || !(icon instanceof HTMLElement)) return [];
+        if (getComputedStyle(label).display !== "none") return [];
+        const buttonBox = button.getBoundingClientRect();
+        const iconBox = icon.getBoundingClientRect();
+        const offset = iconBox.x + iconBox.width / 2 - (buttonBox.x + buttonBox.width / 2);
+        return Math.abs(offset) > 0.5
+          ? [`${button.getAttribute("aria-label") ?? "Aktion"}: ${offset.toFixed(1)}px`]
+          : [];
+      }),
+    );
+  expect(offCenterToolbarIcons).toEqual([]);
+  await expectNoDocumentOverflow("Manuskript");
+
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  const nodes = page.locator(".story-node");
+  await expect(nodes).toHaveCount(3);
+  const undersizedNodes = await nodes.evaluateAll((items) =>
+    items.flatMap((item) => {
+      const box = item.getBoundingClientRect();
+      return box.width + 0.5 < 44 || box.height + 0.5 < 44
+        ? [
+            `${item.textContent?.trim() || "Figur"}: ${Math.round(box.width)}x${Math.round(box.height)}`,
+          ]
+        : [];
+    }),
+  );
+  expect(undersizedNodes).toEqual([]);
+  await expectNoDocumentOverflow("Figurenboard");
+
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await expect(page.getByRole("main")).toBeVisible();
+  await expectNoDocumentOverflow("Timeline");
+
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+  await expect(page.getByRole("main")).toBeVisible();
+  const newPlaceBox = await page.getByRole("button", { name: "Neuer Ort" }).boundingBox();
+  expect(newPlaceBox?.width).toBeGreaterThanOrEqual(44);
+  expect(newPlaceBox?.height).toBeGreaterThanOrEqual(44);
+  const placeNodes = page.locator(".places-workspace .story-node");
+  await expect(placeNodes).toHaveCount(1);
+  const placeNodeBox = await placeNodes.first().boundingBox();
+  expect(placeNodeBox?.width).toBeGreaterThanOrEqual(44);
+  expect(placeNodeBox?.height).toBeGreaterThanOrEqual(44);
+  await expectNoDocumentOverflow("Orte");
+});
+
+test("Orte behalten am 820px-Übergang die volle Kartenhöhe", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Test setzt die kritische Zwischenbreite selbst und muss nur einmal laufen.",
+  );
+  await page.setViewportSize({ width: 815, height: 760 });
+  await page.route("**/api/state*", (route) =>
+    route.request().method() === "GET"
+      ? fulfillStoryWorld(route, {
+          nodes: [
+            { id: "p1", x: 120, y: 100, mapX: 120, mapY: 100, type: "ort", name: "Nordtor" },
+            {
+              id: "p2",
+              x: 280,
+              y: 220,
+              mapX: 280,
+              mapY: 220,
+              type: "ort",
+              name: "Frostkloster",
+            },
+            { id: "p3", x: 440, y: 340, mapX: 440, mapY: 340, type: "ort", name: "Hafen" },
+          ],
+          edges: [],
+        })
+      : fulfillDocumentSave(route, 1),
+  );
+  await openBlankWorld(page, "Orte Breakpointwelt");
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+  await expect(page.locator(".places-workspace .story-node")).toHaveCount(3);
+  await expect(page.locator(".places-inspector")).toHaveCount(0);
+
+  const layout = await page.locator(".places-workspace .figure-layout").evaluate((element) => {
+    const flow = element.querySelector<HTMLElement>(".places-flow-area");
+    const layoutBox = element.getBoundingClientRect();
+    const flowBox = flow?.getBoundingClientRect();
+    return {
+      childCount: element.children.length,
+      layoutHeight: layoutBox.height,
+      flowHeight: flowBox?.height ?? 0,
+    };
+  });
+  expect(layout.childCount).toBe(1);
+  expect(layout.flowHeight).toBeGreaterThan(400);
+  expect(Math.abs(layout.flowHeight - layout.layoutHeight)).toBeLessThanOrEqual(1);
+
+  await page.getByRole("button", { name: "Ort: Nordtor", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Orte-Inspector" })).toBeVisible();
+  await expect(page.locator(".places-inspector")).toHaveCount(0);
+});
+
+test("Orte enden im Overview-LOD als Monogramm-Kreise", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der LOD-Vertrag ist breitenunabhängig und muss nur einmal laufen.",
+  );
+  await page.route("**/api/state*", (route) =>
+    route.request().method() === "GET"
+      ? fulfillStoryWorld(route, {
+          nodes: [
+            { id: "p1", x: 0, y: 0, mapX: 0, mapY: 0, type: "ort", name: "Hafen" },
+            {
+              id: "p2",
+              x: 20_000,
+              y: 4_000,
+              mapX: 20_000,
+              mapY: 4_000,
+              type: "ort",
+              name: "Leuchtturm",
+              important: true,
+            },
+          ],
+          edges: [],
+        })
+      : fulfillDocumentSave(route, 1),
+  );
+  await openBlankWorld(page, "Orte LOD-Welt");
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+
+  await expect(page.locator(".places-flow-area")).toHaveClass(/zoom-overview/);
+  await expect(page.getByRole("button", { name: "Ort: Hafen", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ort: Leuchtturm", exact: true })).toBeVisible();
+
+  const markers = await page.locator(".places-workspace .story-node").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const style = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      const monogram = node.querySelector<HTMLElement>(".place-node-monogram");
+      const name = node.querySelector<HTMLElement>("strong");
+      return {
+        important: node.classList.contains("is-important"),
+        width: style.width,
+        height: style.height,
+        visualWidth: Math.round(box.width),
+        visualHeight: Math.round(box.height),
+        radius: style.borderRadius,
+        boxShadow: style.boxShadow,
+        monogramDisplay: monogram ? getComputedStyle(monogram).display : "missing",
+        nameDisplay: name ? getComputedStyle(name).display : "missing",
+      };
+    }),
+  );
+
+  expect(markers).toHaveLength(2);
+  for (const marker of markers) {
+    expect(marker.width).toBe("36px");
+    expect(marker.height).toBe("36px");
+    expect(marker.visualWidth).toBe(36);
+    expect(marker.visualHeight).toBe(36);
+    expect(marker.radius).toBe("50%");
+    expect(marker.monogramDisplay).toBe("grid");
+    expect(marker.nameDisplay).toBe("none");
+  }
+  expect(markers.find((marker) => marker.important)?.boxShadow).not.toBe("none");
+});
 
 // Die drei Playwright-Projekte fahren 1440, 900 und 390px. Dazwischen liegen die Breiten, an
 // denen die Kontextleiste tatsächlich kippt -- der abgeschnittene Knopf saß bei 406px, der
@@ -51,6 +290,35 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
       width,
     );
     expect(clipped, `abgeschnittene Knöpfe bei ${width}px`).toEqual([]);
+
+    if (width === 900) {
+      const asymmetricSeparators = await page
+        .locator(".manuscript-toolbar-actions .tool-group")
+        .evaluateAll((groups) => {
+          const visible = groups.filter((group) => group.getBoundingClientRect().width > 0);
+          return visible.slice(1).flatMap((group, index) => {
+            const previousButtons = [...visible[index].querySelectorAll("button")].filter(
+              (button) => button.getBoundingClientRect().width > 0,
+            );
+            const currentButtons = [...group.querySelectorAll("button")].filter(
+              (button) => button.getBoundingClientRect().width > 0,
+            );
+            const previous = previousButtons.at(-1);
+            const current = currentButtons[0];
+            if (!previous || !current) return [];
+            const groupBox = group.getBoundingClientRect();
+            const border = Number.parseFloat(getComputedStyle(group).borderInlineStartWidth);
+            if (border < 0.5) return [];
+            const separator = groupBox.left + border / 2;
+            const before = separator - previous.getBoundingClientRect().right;
+            const after = current.getBoundingClientRect().left - separator;
+            return Math.abs(before - after) > 1
+              ? [`${before.toFixed(1)}px vor / ${after.toFixed(1)}px nach Separator`]
+              : [];
+          });
+        });
+      expect(asymmetricSeparators).toEqual([]);
+    }
   }
 
   // Ab "wide" (1100px, dieselbe Grenze wie in useWorkspaceLayout) tragen die Spaltenschalter
@@ -360,6 +628,350 @@ test("Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab
   }
 });
 
+test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Die Ordnersemantik ist viewport-unabhängig und wird in der breiten Binder-Ansicht geprüft.",
+  );
+  await openBlankWorld(page);
+  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  await page.getByRole("textbox", { name: "Kapiteltitel" }).fill("Kapitel im Bogen");
+
+  const binder = page.locator("aside.binder");
+  const addFolder = binder.getByRole("button", { name: "Ordner hinzufügen" });
+  await addFolder.click();
+  await binder.getByRole("textbox", { name: "Ordnername" }).fill("Teil A");
+  await binder.getByRole("textbox", { name: "Ordnername" }).press("Enter");
+  await expect(binder.getByText("Teil A", { exact: true })).toBeVisible();
+
+  await addFolder.click();
+  await binder.getByRole("textbox", { name: "Ordnername" }).fill("Bogen B");
+  await binder.getByRole("textbox", { name: "Ordnername" }).press("Enter");
+
+  const folderA = binder.locator(".binder-folder-row").filter({ hasText: "Teil A" });
+  const folderB = binder.locator(".binder-folder-row").filter({ hasText: "Bogen B" });
+  const folderRowLayout = await folderA.evaluate((row) => {
+    const rowBox = row.getBoundingClientRect();
+    const toggle = row.querySelector<HTMLElement>(".binder-folder-toggle");
+    const name = row.querySelector<HTMLElement>(".binder-folder-name");
+    const actions = [...row.querySelectorAll<HTMLElement>(".binder-folder-action")].filter(
+      (action) => action.getBoundingClientRect().width > 0,
+    );
+    const toggleBox = toggle?.getBoundingClientRect();
+    const nameBox = name?.getBoundingClientRect();
+    return {
+      rowHeight: rowBox.height,
+      toggleHeight: toggleBox?.height ?? 0,
+      toggleWidth: toggleBox?.width ?? 0,
+      nameWidth: nameBox?.width ?? 0,
+      overflows: row.scrollWidth > row.clientWidth + 1,
+      actionRowOffsets: actions.map((action) =>
+        Math.abs(
+          action.getBoundingClientRect().top +
+            action.getBoundingClientRect().height / 2 -
+            (rowBox.top + rowBox.height / 2),
+        ),
+      ),
+    };
+  });
+  expect(folderRowLayout.overflows).toBe(false);
+  expect(folderRowLayout.rowHeight).toBeGreaterThanOrEqual(44);
+  expect(folderRowLayout.toggleHeight).toBeGreaterThanOrEqual(44);
+  expect(folderRowLayout.toggleWidth).toBeGreaterThan(80);
+  expect(folderRowLayout.nameWidth).toBeGreaterThan(30);
+  expect(folderRowLayout.actionRowOffsets.every((offset) => offset <= 1)).toBe(true);
+  const folderBHandle = folderB.locator('.binder-drag-handle[draggable="true"]');
+  await folderB.hover();
+  await expect
+    .poll(() => folderBHandle.evaluate((handle) => getComputedStyle(handle).opacity))
+    .toBe("1");
+  const handleLayout = await folderBHandle.evaluate((handle) => {
+    const bounds = handle.getBoundingClientRect();
+    return {
+      width: bounds.width,
+      height: bounds.height,
+      opacity: getComputedStyle(handle).opacity,
+    };
+  });
+  expect(handleLayout.width).toBeGreaterThanOrEqual(24);
+  expect(handleLayout.height).toBeGreaterThanOrEqual(40);
+  expect(handleLayout.opacity).toBe("1");
+
+  const rowTopBeforeDrag = (await folderB.boundingBox())?.y ?? 0;
+  await folderBHandle.evaluate((handle) => {
+    const transfer = new DataTransfer();
+    handle.dispatchEvent(
+      new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: transfer }),
+    );
+  });
+  const insertionHeight = await folderA
+    .locator("xpath=preceding-sibling::*[contains(@class, 'binder-drop-before')][1]")
+    .evaluate((target) => target.getBoundingClientRect().height);
+  const rootDrop = binder.locator(".binder-root-drop");
+  await expect(rootDrop).toHaveAttribute("aria-hidden", "false");
+  const rootGeometry = await rootDrop.evaluate((target) => {
+    const bounds = target.getBoundingClientRect();
+    const shellBounds = target.parentElement?.getBoundingClientRect();
+    return {
+      height: bounds.height,
+      insideShell:
+        Boolean(shellBounds) &&
+        bounds.top >= shellBounds!.top &&
+        bounds.bottom <= shellBounds!.bottom + 1,
+    };
+  });
+  const rowTopDuringDrag = (await folderB.boundingBox())?.y ?? 0;
+  expect(insertionHeight).toBeGreaterThanOrEqual(15);
+  expect(rootGeometry.height).toBeGreaterThanOrEqual(44);
+  expect(rootGeometry.insideShell).toBe(true);
+  expect(Math.abs(rowTopDuringDrag - rowTopBeforeDrag)).toBeLessThanOrEqual(1);
+  await folderBHandle.dispatchEvent("dragend");
+
+  await folderBHandle.dragTo(folderA);
+  await binder.getByRole("button", { name: /Kapitel im Bogen/ }).dragTo(folderB);
+
+  const folderAEntry = folderA.locator("xpath=..");
+  const folderBEntry = folderAEntry.locator(".binder-folder-entry").filter({ hasText: "Bogen B" });
+  await expect(folderAEntry.getByRole("button", { name: /Teil A, 1 Kapitel/ })).toBeVisible();
+  await expect(folderBEntry.getByRole("button", { name: /Bogen B, 1 Kapitel/ })).toBeVisible();
+  await expect(folderBEntry.getByRole("button", { name: /Kapitel im Bogen/ })).toBeVisible();
+  const hierarchyLayout = await folderAEntry.evaluate((rootEntry) => {
+    const rootRow = rootEntry.querySelector<HTMLElement>(":scope > .binder-folder-row");
+    const children = rootEntry.querySelector<HTMLElement>(":scope > .binder-folder-children");
+    const nestedEntry = children?.querySelector<HTMLElement>(":scope > .binder-folder-entry");
+    const nestedRow = nestedEntry?.querySelector<HTMLElement>(":scope > .binder-folder-row");
+    const nestedChildren = nestedEntry?.querySelector<HTMLElement>(
+      ":scope > .binder-folder-children",
+    );
+    const chapterRow = nestedChildren?.querySelector<HTMLElement>(
+      ":scope > .binder-tree-entry > .binder-chapter-row",
+    );
+    if (!rootRow || !children || !nestedEntry || !nestedRow || !chapterRow) {
+      throw new Error("Expected the complete nested binder hierarchy");
+    }
+    const rootBounds = rootRow.getBoundingClientRect();
+    const nestedBounds = nestedRow.getBoundingClientRect();
+    const chapterBounds = chapterRow.getBoundingClientRect();
+    const childrenBounds = children.getBoundingClientRect();
+    const nestedEntryBounds = nestedEntry.getBoundingClientRect();
+    const guideStyle = getComputedStyle(children, "::before");
+    const connectorStyle = getComputedStyle(nestedEntry, "::before");
+    return {
+      rootLeft: rootBounds.left,
+      rootRight: rootBounds.right,
+      nestedLeft: nestedBounds.left,
+      nestedRight: nestedBounds.right,
+      chapterLeft: chapterBounds.left,
+      chapterRight: chapterBounds.right,
+      guideX: childrenBounds.left + Number.parseFloat(guideStyle.left),
+      connectorX: nestedEntryBounds.left + Number.parseFloat(connectorStyle.left),
+      guideWidth: Number.parseFloat(guideStyle.width),
+      connectorWidth: Number.parseFloat(connectorStyle.width),
+    };
+  });
+  expect(hierarchyLayout.nestedLeft - hierarchyLayout.rootLeft).toBeGreaterThanOrEqual(10);
+  expect(hierarchyLayout.chapterLeft - hierarchyLayout.nestedLeft).toBeGreaterThanOrEqual(10);
+  expect(Math.abs(hierarchyLayout.rootRight - hierarchyLayout.nestedRight)).toBeLessThanOrEqual(1);
+  expect(Math.abs(hierarchyLayout.rootRight - hierarchyLayout.chapterRight)).toBeLessThanOrEqual(1);
+  expect(Math.abs(hierarchyLayout.guideX - hierarchyLayout.connectorX)).toBeLessThanOrEqual(1);
+  expect(hierarchyLayout.guideWidth).toBe(1);
+  expect(hierarchyLayout.connectorWidth).toBeGreaterThanOrEqual(6);
+  await expect(page.locator(".save-status")).toContainText("Gespeichert", { timeout: 10_000 });
+
+  await page.reload();
+  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const reloadedA = page
+    .locator("aside.binder .binder-folder-entry")
+    .filter({ has: page.getByText("Teil A", { exact: true }) });
+  const reloadedB = reloadedA
+    .locator(".binder-folder-entry")
+    .filter({ has: page.getByText("Bogen B", { exact: true }) });
+  await expect(reloadedB.getByRole("button", { name: /Kapitel im Bogen/ })).toBeVisible();
+
+  const dragToRoot = async (source: Locator) => {
+    const sourceBounds = await source.boundingBox();
+    if (!sourceBounds) throw new Error("Drag source is not visible");
+    await page.mouse.move(
+      sourceBounds.x + sourceBounds.width / 2,
+      sourceBounds.y + sourceBounds.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(sourceBounds.x + sourceBounds.width / 2 + 10, sourceBounds.y + 8, {
+      steps: 4,
+    });
+    const target = page.locator("aside.binder .binder-root-drop");
+    await expect(target).toHaveAttribute("aria-hidden", "false");
+    const targetBounds = await target.boundingBox();
+    if (!targetBounds) throw new Error("Root drop target is not visible during drag");
+    await page.mouse.move(
+      targetBounds.x + targetBounds.width / 2,
+      targetBounds.y + targetBounds.height / 2,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+    await expect(target).toHaveAttribute("aria-hidden", "true");
+  };
+
+  await dragToRoot(reloadedB.getByRole("button", { name: /Kapitel im Bogen/ }));
+  const chapterAtRoot = binder.getByRole("button", { name: /Kapitel im Bogen/ });
+  await expect(chapterAtRoot).toBeVisible();
+  expect(
+    await chapterAtRoot.evaluate((row) =>
+      row.parentElement?.parentElement?.classList.contains("binder-tree"),
+    ),
+  ).toBe(true);
+
+  const reloadedBRow = binder.locator(".binder-folder-row").filter({ hasText: "Bogen B" });
+  await reloadedBRow.hover();
+  await dragToRoot(reloadedBRow.locator('.binder-drag-handle[draggable="true"]'));
+  expect(
+    await reloadedBRow.evaluate((row) =>
+      row.parentElement?.parentElement?.classList.contains("binder-tree"),
+    ),
+  ).toBe(true);
+  await expect(page.locator(".save-status")).toContainText("Gespeichert", { timeout: 10_000 });
+
+  await page.reload();
+  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const persistedBinder = page.locator("aside.binder");
+  const persistedChapter = persistedBinder.getByRole("button", { name: /Kapitel im Bogen/ });
+  const persistedFolderB = persistedBinder
+    .locator(".binder-folder-row")
+    .filter({ hasText: "Bogen B" });
+  expect(
+    await persistedChapter.evaluate((row) =>
+      row.parentElement?.parentElement?.classList.contains("binder-tree"),
+    ),
+  ).toBe(true);
+  expect(
+    await persistedFolderB.evaluate((row) =>
+      row.parentElement?.parentElement?.classList.contains("binder-tree"),
+    ),
+  ).toBe(true);
+});
+
+test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "compact",
+    "Die kompakte Binder-Geometrie wird nur im 390px-Projekt geprüft.",
+  );
+  const compactManuscript = {
+    chapters: [
+      { id: "nested", title: "Kapitel in der tiefsten Ebene", body: "", note: "" },
+      { id: "root", title: "Kapitel auf oberster Ebene", body: "", note: "" },
+    ],
+    structure: {
+      folders: [
+        { id: "level-0", title: "Erster sehr langer Abschnitt" },
+        { id: "level-1", title: "Unterordner mit langem Titel" },
+        { id: "level-2", title: "Feine Unterebene mit langem Titel" },
+      ],
+      items: [
+        { id: "level-0-item", kind: "folder", folderId: "level-0", position: 0 },
+        {
+          id: "level-1-item",
+          kind: "folder",
+          folderId: "level-1",
+          parentFolderId: "level-0",
+          position: 0,
+        },
+        {
+          id: "level-2-item",
+          kind: "folder",
+          folderId: "level-2",
+          parentFolderId: "level-1",
+          position: 0,
+        },
+        {
+          id: "nested-item",
+          kind: "chapter",
+          chapterId: "nested",
+          parentFolderId: "level-2",
+          position: 0,
+        },
+        { id: "root-item", kind: "chapter", chapterId: "root", position: 1 },
+      ],
+    },
+  } satisfies Manuscript;
+  await page.route("**/api/manuscript*", (route) =>
+    route.request().method() === "GET"
+      ? fulfillManuscript(route, compactManuscript)
+      : fulfillDocumentSave(route, 1),
+  );
+  await page.route("**/api/state*", (route) =>
+    route.request().method() === "GET"
+      ? fulfillStoryWorld(route, { nodes: [], edges: [] })
+      : fulfillDocumentSave(route, 1),
+  );
+  await openBlankWorld(page);
+  await page.getByRole("button", { name: "Kapitel", exact: true }).click();
+  const binder = page.getByRole("dialog", { name: "Kapitel" });
+  await expect(binder).toBeVisible();
+
+  const rows = binder.locator(".binder-folder-row");
+  const rootRow = rows.filter({ hasText: "Erster sehr langer Abschnitt" });
+  const levelOneRow = rows.filter({ hasText: "Unterordner mit langem Titel" });
+  const levelTwoRow = rows.filter({ hasText: "Feine Unterebene mit langem Titel" });
+  const geometry = await Promise.all(
+    [rootRow, levelOneRow, levelTwoRow].map((row) =>
+      row.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const handle = element.querySelector<HTMLElement>(".binder-drag-handle");
+        const toggle = element.querySelector<HTMLElement>(".binder-folder-toggle");
+        const name = element.querySelector<HTMLElement>(".binder-folder-name");
+        const actions = [...element.querySelectorAll<HTMLElement>(".binder-folder-action")].filter(
+          (action) => getComputedStyle(action).display !== "none",
+        );
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          overflows: element.scrollWidth > element.clientWidth + 1,
+          handleDisplay: handle ? getComputedStyle(handle).display : "missing",
+          handleWidth: handle?.getBoundingClientRect().width ?? 0,
+          toggleHeight: toggle?.getBoundingClientRect().height ?? 0,
+          nameWidth: name?.getBoundingClientRect().width ?? 0,
+          nameEllipses: Boolean(name && name.scrollWidth > name.clientWidth),
+          actionSizes: actions.map((action) => {
+            const actionBounds = action.getBoundingClientRect();
+            return { width: actionBounds.width, height: actionBounds.height };
+          }),
+        };
+      }),
+    ),
+  );
+
+  expect(geometry[1].left - geometry[0].left).toBeGreaterThanOrEqual(9);
+  expect(geometry[2].left - geometry[1].left).toBeGreaterThanOrEqual(9);
+  for (const row of geometry) {
+    expect(Math.abs(row.right - geometry[0].right)).toBeLessThanOrEqual(1);
+    expect(row.overflows).toBe(false);
+    expect(row.handleDisplay).toBe("none");
+    expect(row.handleWidth).toBe(0);
+    expect(row.toggleHeight).toBeGreaterThanOrEqual(44);
+    expect(row.actionSizes).toHaveLength(2);
+    expect(row.actionSizes.every((size) => size.width >= 44 && size.height >= 44)).toBe(true);
+  }
+  expect(geometry[0].nameWidth).toBeGreaterThanOrEqual(80);
+  expect(geometry[1].nameWidth).toBeGreaterThanOrEqual(72);
+  expect(geometry[2].nameWidth).toBeGreaterThanOrEqual(64);
+  expect(geometry[2].nameEllipses).toBe(true);
+
+  const nestedChapter = binder.getByRole("button", { name: /Kapitel in der tiefsten Ebene/ });
+  const chapterGeometry = await nestedChapter.evaluate((row) => {
+    const handle = row.querySelector<HTMLElement>(".binder-drag-handle");
+    return {
+      overflows: row.scrollWidth > row.clientWidth + 1,
+      handleWidth: handle?.getBoundingClientRect().width ?? 0,
+    };
+  });
+  expect(chapterGeometry.overflows).toBe(false);
+  expect(chapterGeometry.handleWidth).toBe(0);
+});
+
 test("Shortcuts unterscheiden Speichern und Sicherung", async ({ page }) => {
   // Der Test prüft die zwei Tastenkürzel, nicht das Hochladen. Er behauptete früher
   // zusätzlich, ein eingerichteter Endpunkt mache "Sichern & hochladen" aktiv -- das
@@ -651,6 +1263,16 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
     .locator(".react-flow__minimap-node")
     .evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).fill));
   expect(new Set(fills).size).toBe(3);
+  const minimapNodeGeometry = await page.locator(".react-flow__minimap-node").evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      width: Number(node.getAttribute("width")),
+      height: Number(node.getAttribute("height")),
+    })),
+  );
+  const expectedMinimapHeight = (page.viewportSize()?.width || 0) < 720 ? 68 : 96;
+  expect(minimapNodeGeometry).toEqual(
+    Array.from({ length: 3 }, () => ({ width: 200, height: expectedMinimapHeight })),
+  );
   const sizes = await page.locator(".story-node").evaluateAll((nodes) =>
     nodes.map((node) => ({
       width: getComputedStyle(node).width,
@@ -670,6 +1292,15 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
   await page.getByRole("button", { name: "Ansicht", exact: true }).click();
   await page.getByRole("menuitem", { name: "Raster ausblenden", exact: true }).click();
   await expect(page.locator(".react-flow__background")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+  if (viewportWidth <= 1050) {
+    expect(await page.locator(".react-flow__minimap").boundingBox()).toBeNull();
+  } else {
+    await expect(page.locator(".react-flow__minimap")).toBeVisible();
+  }
 });
 
 test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async ({ page }) => {
@@ -808,7 +1439,8 @@ test("Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab", async ({ pa
   const overlap = (a: NonNullable<typeof stripBox>, b: NonNullable<typeof stripBox>) =>
     a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
   expect(controlsBox).toEqual(controlsBeforeTimeline);
-  expect(minimapBox).toEqual(minimapBeforeTimeline);
+  expect(minimapBeforeTimeline).not.toBeNull();
+  expect(minimapBox).not.toBeNull();
   expect(stripBox && controlsBox && overlap(stripBox, controlsBox)).toBeFalsy();
   expect(stripBox && minimapBox && overlap(stripBox, minimapBox)).toBeFalsy();
 
@@ -1067,6 +1699,17 @@ test("Startseite lädt eine Welt und übernimmt ihren variablen Titel", async ({
   await page.locator(".world-open").filter({ hasText: "Öffentliche Testwelt" }).last().click();
   await expect(page.locator(".brand")).toContainText("Öffentliche Testwelt");
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+});
+
+test("Eine geöffnete Welt lässt sich über das globale Menü wieder verlassen", async ({ page }) => {
+  await openBlankWorld(page, "Weltwechseltest");
+  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+
+  await page.getByRole("button", { name: "Mehr" }).click();
+  await page.getByRole("menuitem", { name: "Zur Weltauswahl" }).click();
+
+  await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible();
+  await expect(page.getByLabel("Kapiteltext")).toHaveCount(0);
 });
 
 test("Welt lässt sich nur durch anhaltendes Halten lokal löschen", async ({ page }) => {

@@ -525,31 +525,31 @@ chapter list with one optional grouping level.
 
 ## Folder tree
 
-- [ ] Allow chapters to be placed inside folders.
-- [ ] Allow folders to contain other folders.
-- [ ] Support arbitrary nesting depth in the data model and frontend.
-- [ ] Do not hard-code a one-level `Part -> Chapter` structure.
-- [ ] Root-level chapters and folders may coexist.
-- [ ] Support drag-and-drop:
+- [x] Allow chapters to be placed inside folders.
+- [x] Allow folders to contain other folders.
+- [x] Support arbitrary nesting depth in the data model and frontend.
+- [x] Do not hard-code a one-level `Part -> Chapter` structure.
+- [x] Root-level chapters and folders may coexist.
+- [x] Support drag-and-drop:
   - chapter → folder;
   - chapter → nested folder;
   - folder → folder;
   - move items back to root;
   - reorder siblings.
-- [ ] Prevent invalid tree operations:
+- [x] Prevent invalid tree operations:
   - folder into itself;
   - folder into one of its descendants;
   - duplicate ownership/location of one chapter or folder.
-- [ ] Allow folders to be renamed.
-- [ ] Allow folders to be collapsed/expanded in the binder.
-- [ ] Preserve open/collapsed state as UI preference where useful.
+- [x] Allow folders to be renamed.
+- [x] Allow folders to be collapsed/expanded in the binder.
+- [x] Preserve open/collapsed state as UI preference where useful.
 
 ## Manuscript semantics
 
 The folder tree is organizational metadata. It must not alter manuscript prose.
 
-- [ ] Preserve one deterministic flattened chapter order derived from the tree.
-- [ ] Use that flattened order for:
+- [x] Preserve one deterministic flattened chapter order derived from the tree.
+- [x] Use that flattened order for:
   - continuous reading;
   - chapter numbering;
   - word counts;
@@ -558,11 +558,11 @@ The folder tree is organizational metadata. It must not alter manuscript prose.
   - assistant whole-manuscript processing;
   - search result ordering;
   - batch processing.
-- [ ] Moving a folder moves all descendant chapters as one subtree.
-- [ ] Existing flat manuscripts migrate with every chapter at the root and retain
+- [x] Moving a folder moves all descendant chapters as one subtree.
+- [x] Existing flat manuscripts migrate with every chapter at the root and retain
       exactly their current order.
-- [ ] Empty folders are valid.
-- [ ] Folder depth must not leak into chapter identity or canon.
+- [x] Empty folders are valid.
+- [x] Folder depth must not leak into chapter identity or canon.
 
 ## Continuous chapter navigation / overscroll switching
 
@@ -610,10 +610,10 @@ documents, without turning the editor into uncontrolled infinite scrolling.
 ## Cross-workspace integration
 
 - [ ] Storyboard can reference a chapter regardless of folder depth.
-- [ ] Search shows useful folder/breadcrumb context for chapters.
-- [ ] Assistant evidence/source navigation opens the correct chapter even when nested.
-- [ ] Chapter story-time anchors remain attached to the chapter, not the folder.
-- [ ] Folder names may be used as optional context labels, but must never be interpreted
+- [x] Search shows useful folder/breadcrumb context for chapters.
+- [x] Assistant evidence/source navigation opens the correct chapter even when nested.
+- [x] Chapter story-time anchors remain attached to the chapter, not the folder.
+- [x] Folder names may be used as optional context labels, but must never be interpreted
       as manuscript facts/canon.
 
 Example:

@@ -2,7 +2,7 @@
   "contract": "quiltor.sqlite-migrations",
   "version": 1,
   "baselineSchemaVersion": 1,
-  "currentSchemaVersion": 8,
+  "currentSchemaVersion": 9,
   "direction": "forward-only",
   "steps": [
     {
@@ -42,6 +42,13 @@
       "to": 8,
       "guarantees": [
         "Adds normalized optional chapter story-time moment and range references without changing chapter order or document revisions."
+      ]
+    },
+    {
+      "from": 8,
+      "to": 9,
+      "guarantees": [
+        "Adds a recursive manuscript binder and migrates every existing chapter to the root without changing chapter identity, order, prose, or document revisions."
       ]
     }
   ]

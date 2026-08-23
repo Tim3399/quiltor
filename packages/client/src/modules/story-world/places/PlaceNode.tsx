@@ -18,6 +18,21 @@ export type PlaceFlowNode = Node<PlaceCardData>;
 
 export const placeNodeTypes = { place: PlaceNode };
 
+const COMPACT_MARKER_HEIGHT = 68;
+const COMPACT_MARKER_WIDTH = 200;
+
+export function placeCompactLayoutHeight(viewportZoom: number, targetHeight: number): number {
+  const safeZoom =
+    Number.isFinite(viewportZoom) && viewportZoom > 0 ? Math.max(viewportZoom, 0.08) : 1;
+  return Math.max(COMPACT_MARKER_HEIGHT, targetHeight / safeZoom);
+}
+
+export function placeCompactLayoutWidth(viewportZoom: number, targetWidth: number): number {
+  const safeZoom =
+    Number.isFinite(viewportZoom) && viewportZoom > 0 ? Math.max(viewportZoom, 0.08) : 1;
+  return Math.max(COMPACT_MARKER_WIDTH, targetWidth / safeZoom);
+}
+
 const placeCoordinateHandleStyle = {
   top: 6,
   right: "auto",
@@ -30,6 +45,10 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
   const { t } = useI18n();
   const item = data.place;
   const semanticScale = data.zoomTier === "overview" ? 1 / Math.max(data.zoom, 0.08) : 1;
+  const compactHeight = placeCompactLayoutHeight(data.zoom, 32.5);
+  const compactTouchHeight = placeCompactLayoutHeight(data.zoom, 44.5);
+  const compactWidth = placeCompactLayoutWidth(data.zoom, 96.5);
+  const safeZoom = Number.isFinite(data.zoom) && data.zoom > 0 ? Math.max(data.zoom, 0.08) : 1;
   return (
     <div className="place-node-shell">
       <Handle
@@ -49,10 +68,22 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
         style={placeCoordinateHandleStyle}
       />
       <div
-        style={{ "--semantic-scale": semanticScale } as CSSProperties}
+        style={
+          {
+            "--semantic-scale": semanticScale,
+            "--compact-marker-height": `${compactHeight}px`,
+            "--compact-touch-height": `${compactTouchHeight}px`,
+            "--compact-marker-width": `${compactWidth}px`,
+            "--compact-marker-font-size": `${14 / safeZoom}px`,
+            "--compact-touch-font-size": `${16 / safeZoom}px`,
+          } as CSSProperties
+        }
         className={`story-node zoom-${data.zoomTier} type-ort accent-${item.accent || "ink"} ${item.important ? "is-important" : ""} ${data.measuring ? "is-measuring" : ""} ${data.measureStart ? "is-measure-start" : ""} ${selected ? "selected" : ""}`}
       >
         <span className="node-kind">{t("place")}</span>
+        <span className="place-node-monogram" aria-hidden="true">
+          {item.name.trim().charAt(0).toLocaleUpperCase() || "·"}
+        </span>
         <strong>
           {item.important && (
             <Star className="importance-mark" aria-label={t("favoritePlaceMarker")} />

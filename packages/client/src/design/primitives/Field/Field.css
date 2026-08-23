@@ -1,0 +1,67 @@
+.ui-field {
+  display: grid;
+  gap: var(--space-6);
+  margin: 0 0 var(--space-16);
+}
+.ui-field__label {
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  text-transform: uppercase;
+}
+.ui-field__description,
+.ui-field__hint,
+.ui-field__error {
+  margin: 0;
+  font-size: var(--font-size-3);
+}
+.ui-field__description,
+.ui-field__hint {
+  color: var(--muted);
+}
+.ui-field__error {
+  color: var(--error-text);
+}
+.ui-field > input,
+.ui-field > textarea,
+.ui-field > select {
+  width: 100%;
+  min-height: var(--control-regular);
+  padding: var(--space-9) var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset var(--ring-1) var(--control-hint);
+  transition:
+    border-color var(--motion-quick) var(--ease-standard),
+    background-color var(--motion-quick) var(--ease-standard),
+    box-shadow var(--motion-quick) var(--ease-standard);
+}
+.ui-field > input::placeholder,
+.ui-field > textarea::placeholder {
+  color: var(--muted);
+}
+.ui-field > input:focus-visible,
+.ui-field > textarea:focus-visible,
+.ui-field > select:focus-visible {
+  border-color: var(--focus);
+  outline: none;
+  box-shadow: var(--ring-2) var(--focus);
+}
+.ui-field[data-invalid="true"] > input,
+.ui-field[data-invalid="true"] > textarea,
+.ui-field[data-invalid="true"] > select {
+  border-color: var(--error-border);
+}
+.ui-field > input:disabled,
+.ui-field > textarea:disabled,
+.ui-field > select:disabled {
+  background: var(--disabled-surface);
+  color: var(--disabled-content);
+}
+.ui-field > textarea {
+  min-height: var(--space-88);
+  resize: vertical;
+  font-family: var(--prose);
+  font-size: var(--font-size-4);
+}

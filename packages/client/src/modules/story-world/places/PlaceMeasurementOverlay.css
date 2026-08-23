@@ -66,7 +66,42 @@
   stroke-dasharray: 5 4;
 }
 
+.places-workspace .distance-edge .react-flow__edge-text {
+  paint-order: stroke;
+  stroke: var(--edge-label-bg);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+}
+
 .places-workspace .distance-edge.is-targeted .react-flow__edge-path {
   stroke-width: 2.5;
   stroke-dasharray: none;
+}
+
+@media (max-width: 640px) {
+  .places-measure-overlays {
+    top: var(--space-8);
+    right: var(--space-8);
+    left: var(--space-8);
+  }
+  .places-measure-overlays .mode-banner,
+  .places-measure-overlays .places-scale-legend {
+    width: 100%;
+  }
+  .places-measure-overlays .mode-banner {
+    border-radius: var(--radius);
+  }
+  .places-measure-overlays .places-scale-legend {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .places-scale-legend label,
+  .places-scale-legend input:not([type="number"]) {
+    width: 100%;
+    min-width: 0;
+  }
+  .places-scale-legend label:first-child {
+    display: grid;
+    grid-template-columns: auto minmax(56px, 1fr) auto;
+  }
 }

@@ -1,5 +1,11 @@
 .places-workspace {
+  min-width: 0;
   height: 100%;
   display: grid;
   grid-template-rows: minmax(var(--context), auto) 1fr;
+  overflow: hidden;
+}
+
+.places-workspace .figure-layout.places-layout-empty {
+  grid-template-columns: minmax(0, 1fr);
 }

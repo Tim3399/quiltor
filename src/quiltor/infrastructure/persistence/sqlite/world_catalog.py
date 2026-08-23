@@ -13,7 +13,6 @@ from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 from quiltor.infrastructure.persistence.sqlite.schema import initialize
 
-
 # World ids are uuid.uuid4().hex: lowercase hexadecimal, exactly 32 chars.
 WORLD_ID_RE = re.compile(r"[0-9a-f]{32}")
 
@@ -116,9 +115,18 @@ def create_world(
                 "INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)",
                 (owner_sub,),
             )
+        chapter_id = uuid.uuid4().hex
         database.execute(
             "INSERT INTO chapters(id,position,title,body,note) VALUES(?,0,'','','')",
-            (uuid.uuid4().hex,),
+            (chapter_id,),
+        )
+        database.execute(
+            """
+            INSERT INTO manuscript_tree_items(
+              id,parent_folder_id,kind,chapter_id,folder_id,position,extra_json
+            ) VALUES(?,NULL,'chapter',?,NULL,0,'{}')
+            """,
+            (f"chapter:{chapter_id}", chapter_id),
         )
     return {
         "id": world_id,

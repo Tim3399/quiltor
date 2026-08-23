@@ -9,28 +9,29 @@
 .backup-list {
   min-width: 0;
   overflow: auto;
-  margin: 0;
+  margin: var(--space-16) 0 0;
   border-right: 1px solid var(--line);
 }
-.backup-list > button {
+.backup-list-item {
   width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--space-10);
-  padding: var(--space-12);
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: var(--paper);
-  color: var(--ink);
+  justify-content: flex-start;
   text-align: left;
-  cursor: pointer;
 }
-.backup-list > button.active {
+.backup-list-item[aria-pressed="true"] {
+  border-color: var(--gold-border);
   background: var(--gold-soft);
 }
-.backup-list > button > svg {
-  width: 17px;
+.backup-list-item .ui-button__icon {
+  color: var(--muted);
+}
+.backup-list-item .ui-button__label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.backup-list-item small {
   color: var(--muted);
 }
 .backup-preview {
@@ -51,48 +52,6 @@
 }
 .backup-preview p {
   color: var(--muted);
-}
-.backup-preview button {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-9) var(--space-12);
-  border-radius: var(--radius-sm);
-  background: var(--ink);
-  color: var(--paper);
-}
-
-/* Preserve the established list-card finish that followed the original browser layout. */
-.backup-list {
-  margin-top: var(--space-16);
-}
-.backup-list > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-10) 0;
-  border-bottom: 1px solid var(--line);
-}
-.backup-list span {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-.backup-list small {
-  color: var(--muted);
-}
-.backup-list button {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-7) var(--space-9);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  cursor: pointer;
-}
-.backup-list svg {
-  width: 15px;
 }
 
 @media (max-width: 719px) {

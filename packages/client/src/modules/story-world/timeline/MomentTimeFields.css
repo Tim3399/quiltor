@@ -19,6 +19,10 @@
   color: var(--muted);
   font-size: var(--font-size-2);
 }
+.timeline-calendar-date > label > :is(input, select) {
+  width: 100%;
+  min-width: 0;
+}
 .timeline-anchor-date {
   grid-column: 1 / -1;
 }
@@ -98,5 +102,18 @@
   }
   .timeline-meta-card .field:nth-child(2) {
     margin-top: var(--space-12);
+  }
+  .timeline-calendar-end {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .timeline-inline-add,
+  .timeline-inline-remove {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .timeline-calendar-date {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

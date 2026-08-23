@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { Button, IconButton } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { applicationErrorMessage } from "../../../platform";
 import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
@@ -105,17 +106,16 @@ export function FigureToolbar({
           </span>
         </div>
         <div className="tool-group create-group">
-          <button
-            type="button"
+          <Button
             ref={createButton}
-            className="create-action primary"
+            appearance="primary"
+            icon={<Plus />}
             aria-expanded={createMenuOpen}
             aria-haspopup="menu"
             onClick={() => setCreateMenuOpen((value) => !value)}
           >
-            <Plus />
             {t("element")}
-          </button>
+          </Button>
           <Popover
             anchorRef={createButton}
             open={createMenuOpen}
@@ -139,30 +139,29 @@ export function FigureToolbar({
           </Popover>
         </div>
         <div className="tool-group">
-          <button
-            type="button"
+          <Button
+            appearance="ghost"
+            icon={<Link2 />}
             aria-pressed={connecting}
-            className={connecting ? "active" : ""}
             onClick={() => {
               onConnectingChange(!connecting);
               if (!connecting) onRelationshipsVisibleChange(true);
             }}
           >
-            <Link2 />
             {t("connect")}
-          </button>
+          </Button>
         </div>
         <div className="tool-group">
-          <button
-            type="button"
+          <Button
             ref={viewButton}
+            appearance="ghost"
+            icon={<Grid3X3 />}
             aria-expanded={viewMenuOpen}
             aria-haspopup="menu"
             onClick={() => setViewMenuOpen((value) => !value)}
           >
-            <Grid3X3 />
             {t("figureViewMenu")}
-          </button>
+          </Button>
           <Popover
             anchorRef={viewButton}
             open={viewMenuOpen}
@@ -222,36 +221,36 @@ export function FigureToolbar({
           </Popover>
         </div>
         <div className="tool-group">
-          <button
-            type="button"
+          <IconButton
+            label={t("undoDiagram")}
+            icon={<Undo2 />}
+            appearance="ghost"
+            size="regular"
             disabled={!canUndo}
             onClick={onUndo}
-            aria-label={t("undoDiagram")}
             title={`${t("undoDiagram")} · ${keys("Z")}`}
-          >
-            <Undo2 />
-          </button>
-          <button
-            type="button"
+          />
+          <IconButton
+            label={t("redoDiagram")}
+            icon={<Redo2 />}
+            appearance="ghost"
+            size="regular"
             disabled={!canRedo}
             onClick={onRedo}
-            aria-label={t("redoDiagram")}
             title={`${t("redoDiagram")} · ${keys("Z", { shift: true })}`}
-          >
-            <Redo2 />
-          </button>
+          />
         </div>
         <div className="tool-group">
-          <button
-            type="button"
+          <IconButton
             ref={manageButton}
+            label={t("figureManageMenu")}
+            icon={<MoreHorizontal />}
+            appearance="ghost"
+            size="regular"
             aria-expanded={manageMenuOpen}
             aria-haspopup="menu"
-            aria-label={t("figureManageMenu")}
             onClick={() => setManageMenuOpen((value) => !value)}
-          >
-            <MoreHorizontal />
-          </button>
+          />
           <Popover
             anchorRef={manageButton}
             open={manageMenuOpen}
@@ -301,19 +300,25 @@ export function FigureToolbar({
       {importError && (
         <div className="toast error-box" role="alert">
           {importError}
-          <button type="button" onClick={() => setImportError("")}>
-            <X />
-            <span className="sr-only">{t("closeMessage")}</span>
-          </button>
+          <IconButton
+            className="figure-toolbar-toast-close"
+            label={t("closeMessage")}
+            icon={<X />}
+            appearance="ghost"
+            onClick={() => setImportError("")}
+          />
         </div>
       )}
       {exportError && (
         <div className="toast error-box" role="alert">
           {exportError}
-          <button type="button" onClick={() => setExportError("")}>
-            <X />
-            <span className="sr-only">{t("closeMessage")}</span>
-          </button>
+          <IconButton
+            className="figure-toolbar-toast-close"
+            label={t("closeMessage")}
+            icon={<X />}
+            appearance="ghost"
+            onClick={() => setExportError("")}
+          />
         </div>
       )}
       {pendingImport && (

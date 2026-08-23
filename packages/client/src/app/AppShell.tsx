@@ -1,26 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Clock3,
   DatabaseBackup,
+  FileText,
   History,
   LogOut,
   MapPin,
+  Moon,
+  MoreHorizontal,
+  PanelLeft,
   Save,
   Search,
   Sparkles,
-  Users,
-  FileText,
-  Moon,
   Sun,
-  MoreHorizontal,
-  PanelLeft,
+  Users,
 } from "lucide-react";
-import type { SavePhase, Theme, Workspace } from "../shared";
-import { SaveStatus } from "../shared/ui/SaveStatus";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PRODUCT_NAME } from "../config/branding";
+import { Button, IconButton } from "../design";
 import { useI18n } from "../i18n";
+import type { SavePhase, Theme, Workspace } from "../shared";
 import { Menu, MenuItem, MenuSeparator } from "../shared/ui/Menu";
 import { Popover } from "../shared/ui/Popover";
+import { SaveStatus } from "../shared/ui/SaveStatus";
 import { useShortcut } from "../shared/ui/shortcuts";
 import "./AppShell.css";
 
@@ -60,6 +62,7 @@ export function AppShell({
   onSnapshot,
   onBackups,
   onAssistant,
+  onExitWorld,
   whoami,
   onLogout,
   version,
@@ -81,6 +84,7 @@ export function AppShell({
   onSnapshot: () => void;
   onBackups: () => void;
   onAssistant: () => void;
+  onExitWorld: () => void;
   whoami?: { email?: string; name?: string } | null;
   onLogout?: () => void;
   version?: string;
@@ -107,14 +111,15 @@ export function AppShell({
       <header className="app-bar">
         <div className="app-bar__leading">
           {navigationAvailable && (
-            <button
+            <IconButton
+              label={t("toggleNavigation")}
+              icon={<PanelLeft />}
+              appearance="ghost"
+              size="regular"
               aria-pressed={navigationOpen}
               onClick={onNavigation}
-              aria-label={t("toggleNavigation")}
               title={t("navigation")}
-            >
-              <PanelLeft />
-            </button>
+            />
           )}
           <div
             className="brand"
@@ -128,55 +133,78 @@ export function AppShell({
           </div>
         </div>
         <nav className="workspace-switch" aria-label={t("workspaceNav")}>
-          <button
+          <Button
+            className="app-bar__workspace-button"
+            appearance="ghost"
+            icon={<FileText />}
+            aria-label={t("text")}
             aria-current={workspace === "text" ? "page" : undefined}
             onClick={() => onWorkspace("text")}
           >
-            <FileText />
             {t("text")}
-          </button>
-          <button
+          </Button>
+          <Button
+            className="app-bar__workspace-button"
+            appearance="ghost"
+            icon={<Users />}
+            aria-label={t("figures")}
             aria-current={workspace === "figures" ? "page" : undefined}
             onClick={() => onWorkspace("figures")}
           >
-            <Users />
             {t("figures")}
-          </button>
-          <button
+          </Button>
+          <Button
+            className="app-bar__workspace-button"
+            appearance="ghost"
+            icon={<Clock3 />}
+            aria-label={t("timeline")}
             aria-current={workspace === "timeline" ? "page" : undefined}
             onClick={() => onWorkspace("timeline")}
           >
-            <Clock3 />
             {t("timeline")}
-          </button>
-          <button
+          </Button>
+          <Button
+            className="app-bar__workspace-button"
+            appearance="ghost"
+            icon={<MapPin />}
+            aria-label={t("places")}
             aria-current={workspace === "places" ? "page" : undefined}
             onClick={() => onWorkspace("places")}
           >
-            <MapPin />
             {t("places")}
-          </button>
+          </Button>
         </nav>
         <div className="global-actions" role="toolbar" aria-label={t("globalTools")}>
-          <button onClick={onAssistant} aria-label={t("openAssistant")} title={t("localAssistant")}>
-            <Sparkles />
-            <span>{t("assistant")}</span>
-          </button>
-          <button onClick={onSearch} aria-label={t("openSearch")} title={t("searchCommands")}>
-            <Search />
-            <span>{t("search")}</span>
+          <Button
+            appearance="ghost"
+            icon={<Sparkles />}
+            onClick={onAssistant}
+            aria-label={t("openAssistant")}
+            title={t("localAssistant")}
+          >
+            {t("assistant")}
+          </Button>
+          <Button
+            appearance="ghost"
+            icon={<Search />}
+            onClick={onSearch}
+            aria-label={t("openSearch")}
+            title={t("searchCommands")}
+          >
+            {t("search")}
             <kbd>{keys("K")}</kbd>
-          </button>
-          <button
+          </Button>
+          <IconButton
             ref={overflowButton}
+            label={t("menuMore")}
+            icon={<MoreHorizontal />}
+            appearance="ghost"
+            size="regular"
             aria-haspopup="menu"
             aria-expanded={overflowOpen}
             onClick={() => setOverflowOpen((value) => !value)}
-            aria-label={t("menuMore")}
             title={t("menuMore")}
-          >
-            <MoreHorizontal />
-          </button>
+          />
         </div>
         {saveStatusInBar && <SaveStatus phase={phase} error={error} onRetry={retry} />}
         <Popover
@@ -192,6 +220,11 @@ export function AppShell({
               </div>
             )}
             {!saveStatusInBar && <MenuSeparator />}
+            <MenuItem onSelect={() => runOverflow(onExitWorld)}>
+              <ArrowLeft />
+              {t("returnToWorldSelection")}
+            </MenuItem>
+            <MenuSeparator />
             <MenuItem onSelect={() => runOverflow(onHistory)}>
               <History />
               {t("history")}

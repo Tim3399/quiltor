@@ -1,6 +1,7 @@
 export const worlds = {
   authorWorkshop: "Writer’s workshop",
   openWorld: "Open a world",
+  returnToWorldSelection: "Back to world selection",
   worldIntro: "Each world has its own manuscript, its own character board, and its own backups.",
   existingWorlds: "Existing worlds",
   newWorld: "New world",

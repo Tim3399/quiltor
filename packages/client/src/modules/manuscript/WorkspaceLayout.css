@@ -215,12 +215,6 @@
   }
 }
 
-@media (max-width: 1099px) {
-  .panel-toggles button span {
-    display: none;
-  }
-}
-
 @media (max-width: 719px) {
   .text-workspace .context-title {
     width: 100%;

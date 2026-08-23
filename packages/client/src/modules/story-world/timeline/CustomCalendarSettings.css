@@ -52,3 +52,16 @@
 .timeline-calendar-add-row svg {
   width: 14px;
 }
+
+@media (max-width: 480px) {
+  .timeline-calendar-structure {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .timeline-calendar-item,
+  .timeline-calendar-item-head {
+    grid-template-columns: minmax(0, 1fr) 68px var(--control-compact);
+  }
+  .timeline-calendar-add-row {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+}

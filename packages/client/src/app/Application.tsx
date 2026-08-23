@@ -7,15 +7,15 @@ import { quiltorClient } from "../platform";
 import { AppShell } from "./AppShell";
 import { OverlayHost, type PendingEntityRename } from "./overlays/OverlayHost";
 import { useOverlayController } from "./overlays/useOverlayController";
-import { useApplicationShortcuts } from "./shortcuts/useApplicationShortcuts";
 import { useShellStatus } from "./shell/useShellStatus";
 import { useTheme } from "./shell/useTheme";
+import { useApplicationShortcuts } from "./shortcuts/useApplicationShortcuts";
 import { useAutosave } from "./workspace/useAutosave";
 import { useHistoryState } from "./workspace/useHistoryState";
-import { WorkspaceSurface } from "./workspace/WorkspaceSurface";
 import { useWorkspaceController } from "./workspace/useWorkspaceController";
+import { WorkspaceSurface } from "./workspace/WorkspaceSurface";
+import { type LoadedWorldDocuments, useWorldSession } from "./world/useWorldSession";
 import { WorldSessionBoundary } from "./world/WorldSessionBoundary";
-import { useWorldSession, type LoadedWorldDocuments } from "./world/useWorldSession";
 
 export function App() {
   const { t } = useI18n();
@@ -60,6 +60,12 @@ export function App() {
   const flushAll = useCallback(async () => {
     await Promise.all([manuscriptSave.flush(), figureSave.flush()]);
   }, [manuscriptSave.flush, figureSave.flush]);
+  const returnToWorldSelection = useCallback(async () => {
+    await flushAll();
+    overlays.close();
+    overlays.closeAssistant();
+    session.close();
+  }, [flushAll, overlays.close, overlays.closeAssistant, session.close]);
 
   const changeFigures = useCallback(
     (next: FigureState) => {
@@ -136,6 +142,7 @@ export function App() {
             onSnapshot={() => overlays.open("snapshot")}
             onBackups={() => overlays.open("backups")}
             onAssistant={overlays.toggleAssistant}
+            onExitWorld={returnToWorldSelection}
             whoami={shell.account}
             onLogout={shell.logout}
             version={shell.version}

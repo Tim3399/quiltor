@@ -300,11 +300,36 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: 300px;
+    width: min(320px, 88vw);
     box-shadow: var(--shadow-drawer-left);
   }
 
   .figure-inspector:not(.has-selection) {
     display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .figure-inspector {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: min(58%, 440px);
+    min-height: 0;
+    border-top: 1px solid var(--line-strong);
+    border-left: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: var(--shadow);
+  }
+
+  .figure-inspector .panel-heading {
+    flex: 0 0 43px;
+  }
+
+  .figure-inspector .panel-body {
+    padding: var(--space-12);
+    padding-bottom: max(var(--space-16), env(safe-area-inset-bottom));
   }
 }

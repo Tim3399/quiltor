@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
 import { ChevronDown, LogIn, LogOut, Save, UploadCloud } from "lucide-react";
-import { applicationErrorMessage, quiltorClient, type BackupLoginStatus } from "../../platform";
-import type { BackupStatus } from "../backup";
-import { Dialog } from "../../shared/ui/Dialog";
-import { useFlushedEffect } from "../../shared/hooks/useFlushedEffect";
+import { useEffect, useState } from "react";
+import { Button, TextArea } from "../../design";
 import { useI18n } from "../../i18n";
-import { describePath, changedPath } from "./pathNames";
+import { applicationErrorMessage, type BackupLoginStatus, quiltorClient } from "../../platform";
+import { useFlushedEffect } from "../../shared/hooks/useFlushedEffect";
+import { Dialog } from "../../shared/ui/Dialog";
+import type { BackupStatus } from "../backup";
+import { changedPath, describePath } from "./pathNames";
 import "./SnapshotDialog.css";
 
 // The login happens in another window and finishes there (the issuer redirects it
@@ -91,6 +92,9 @@ export function SnapshotDialog({
       clearTimeout(giveUp);
     };
   }, [waiting]);
+  // `login` intentionally starts the next bounded retry only after the previous response arrived;
+  // depending on the render-local `loadLogin` function would restart the timer on every render.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The retry is response-driven by design.
   useEffect(() => {
     if (!checking) return;
     const again = setTimeout(() => {
@@ -149,10 +153,11 @@ export function SnapshotDialog({
         <p>{t("loadingBackupStatus")}</p>
       ) : (
         <>
-          <label className="field">
-            <span>{t("snapshotMessage")}</span>
-            <textarea value={message} onChange={(event) => setMessage(event.target.value)} />
-          </label>
+          <TextArea
+            label={t("snapshotMessage")}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+          />
           {needsSignIn &&
             (staleSession ? (
               <div className="error-box" role="alert">
@@ -180,24 +185,31 @@ export function SnapshotDialog({
             </div>
           )}
           <div className="dialog-actions">
-            <button disabled={busy || !message.trim()} onClick={() => void send(false)}>
-              <Save />
+            <Button
+              disabled={busy || !message.trim()}
+              icon={<Save />}
+              onClick={() => void send(false)}
+            >
               {t("saveOnly")}
-            </button>
+            </Button>
             {canSignIn || checking ? (
-              <button className="primary" disabled={busy || checking} onClick={() => void signIn()}>
-                <LogIn />
+              <Button
+                appearance="primary"
+                disabled={busy || checking}
+                icon={<LogIn />}
+                onClick={() => void signIn()}
+              >
                 {t("backupSignIn")}
-              </button>
+              </Button>
             ) : (
-              <button
-                className="primary"
+              <Button
+                appearance="primary"
                 disabled={busy || !message.trim() || !canUpload}
+                icon={<UploadCloud />}
                 onClick={() => void send(true)}
               >
-                <UploadCloud />
                 {t("saveAndUpload")}
-              </button>
+              </Button>
             )}
           </div>
           {output && (
@@ -229,10 +241,9 @@ export function SnapshotDialog({
               </div>
             </dl>
             {login?.signedIn && !login.hosted && (
-              <button disabled={busy} onClick={() => void signOut()}>
-                <LogOut />
+              <Button disabled={busy} icon={<LogOut />} onClick={() => void signOut()}>
                 {t("logout")}
-              </button>
+              </Button>
             )}
             {!!status.changes.length && (
               <div className="changed-files">
