@@ -75,7 +75,9 @@ for (const theme of ["light", "dark"] as const) {
                   : null;
               const hitTarget = wrappingLabel ?? control;
               const box = hitTarget.getBoundingClientRect();
-              if (box.width >= 44 && box.height >= 44) return [];
+              // Bounding boxes can land a fraction below their computed CSS size
+              // after browser device-scale rounding.
+              if (box.width + 0.5 >= 44 && box.height + 0.5 >= 44) return [];
               return [
                 `${control.tagName.toLowerCase()}[${control.getAttribute("aria-label") ?? control.textContent?.trim() ?? ""}] ${Math.round(box.width)}x${Math.round(box.height)}`,
               ];

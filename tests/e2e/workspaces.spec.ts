@@ -956,9 +956,13 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
     expect(row.overflows).toBe(false);
     expect(row.handleDisplay).toBe("none");
     expect(row.handleWidth).toBe(0);
-    expect(row.toggleHeight).toBeGreaterThanOrEqual(44);
+    // Chromium may expose a 44 CSS-pixel target a fraction below 44 after
+    // device-scale rounding. Keep the suite's established 0.5px geometry tolerance.
+    expect(row.toggleHeight + 0.5).toBeGreaterThanOrEqual(44);
     expect(row.actionSizes).toHaveLength(2);
-    expect(row.actionSizes.every((size) => size.width >= 44 && size.height >= 44)).toBe(true);
+    expect(row.actionSizes.every((size) => size.width + 0.5 >= 44 && size.height + 0.5 >= 44)).toBe(
+      true,
+    );
   }
   expect(geometry[0].nameWidth).toBeGreaterThanOrEqual(80);
   expect(geometry[1].nameWidth).toBeGreaterThanOrEqual(72);
