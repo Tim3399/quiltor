@@ -3,11 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/design",
   fullyParallel: true,
-  // Each accessibility test intentionally walks the complete story catalog. Keeping the
-  // concurrency bounded prevents the local Vite server and Chromium from exhausting Windows
-  // sockets while still running viewport projects in parallel.
+  // Accessibility/layout audits are split into deterministic, bounded story chunks. Keeping
+  // concurrency bounded protects the local Vite server and Chromium while each chunk gets an
+  // independent CI result instead of sharing one catalog-wide timeout.
   workers: 2,
-  timeout: 120_000,
+  timeout: 45_000,
   use: {
     baseURL: "http://127.0.0.1:4174",
     locale: "de-DE",

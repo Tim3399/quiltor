@@ -1,1 +1,0 @@
-import{gt as e,vt as t}from"./i18n-CpeO-kPv.js";var n=t(e(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

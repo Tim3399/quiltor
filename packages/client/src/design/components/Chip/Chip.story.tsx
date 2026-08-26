@@ -16,11 +16,11 @@ export function Variants() {
 export function LongWrappingList() {
   return (
     <ChipList label="Lange Begriffe">
-      <Chip>Ein ungewöhnlich langer Eigenname aus einer anderen Sprache</Chip>
+      <Chip>Weltenchronologiequellenverzeichnisverwaltungskatalogeintragsnummernregister</Chip>
       <RemovableChip removeLabel="Begriff entfernen" onRemove={() => undefined}>
-        Noch ein sehr langer und erklärender Begriff
+        Figurenbeziehungsentwicklungschronologiequellenverzeichniseintrag
       </RemovableChip>
-      <ChipAction>Kurzer Begriff</ChipAction>
+      <ChipAction>Handlungszeitraumzuordnungsentscheidungsvorschlagsauswahl</ChipAction>
     </ChipList>
   );
 }

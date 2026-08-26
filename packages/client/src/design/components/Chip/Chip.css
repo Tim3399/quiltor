@@ -1,5 +1,7 @@
 .design-chip-list {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-compact-tight);
@@ -9,12 +11,15 @@
 }
 
 .design-chip-item {
+  min-width: 0;
+  max-width: 100%;
   display: inline-flex;
   list-style: none;
 }
 
 .design-chip {
   min-width: 0;
+  max-width: 100%;
   min-height: var(--control-compact);
   display: inline-flex;
   align-items: center;

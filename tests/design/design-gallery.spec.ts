@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { designAuditProfiles } from "../../packages/client/src/design/testing/gallery/auditProfiles";
 
 const storyCanvasSelector = "[data-design-story]";
 // React portals are mounted as direct body children next to the gallery root. Keeping them in the
@@ -16,6 +17,29 @@ const interactiveSelector = [
   "[role=button]:visible",
   "[role=link]:visible",
 ].join(", ");
+
+// Keep collection-time test generation independent from the rendered gallery. The audit profile is
+// already the reviewed source of truth for catalog coverage. Fixed-size, deterministic chunks give
+// each bounded slice its own timeout without paying for a fresh browser context per component.
+const auditedStoriesByComponent = Object.entries(designAuditProfiles).map(
+  ([component, profile]) => ({
+    component,
+    storyIds: [...new Set(Object.values(profile.coverage).flatMap((storyNames) => [...storyNames]))]
+      .sort()
+      .map((storyName) => `${component}/${storyName}`),
+  }),
+);
+const auditedStoryIds = auditedStoriesByComponent.flatMap(({ storyIds }) => storyIds);
+const storyAuditChunks = Array.from(
+  { length: Math.ceil(auditedStoryIds.length / 10) },
+  (_, chunkIndex) => {
+    const storyIds = auditedStoryIds.slice(chunkIndex * 10, chunkIndex * 10 + 10);
+    return {
+      label: `${String(chunkIndex + 1).padStart(2, "0")} (${storyIds[0]} … ${storyIds.at(-1)})`,
+      storyIds,
+    };
+  },
+);
 
 // Horizontal scrolling is an interaction contract, not an incidental overflow fallback. The
 // allowlist deliberately names the public ScrollArea API instead of implementation consumers so a
@@ -440,10 +464,14 @@ test("catalog exposes every registered story", async ({ page }) => {
   const stories = page.locator("[data-design-story-link]");
   await expect(stories.first()).toBeVisible();
   const ids = await stories.evaluateAll((links) =>
-    links.map((link) => link.getAttribute("data-design-story-link")),
+    links.flatMap((link) => {
+      const id = link.getAttribute("data-design-story-link");
+      return id ? [id] : [];
+    }),
   );
   expect(ids.length).toBeGreaterThan(0);
   expect(new Set(ids).size).toBe(ids.length);
+  expect([...ids].sort()).toEqual([...auditedStoryIds].sort());
   const lastStory = stories.last();
   await lastStory.scrollIntoViewIfNeeded();
   await expect(lastStory).toBeVisible();
@@ -453,108 +481,100 @@ test("catalog exposes every registered story", async ({ page }) => {
 });
 
 for (const theme of ["light", "dark"] as const) {
-  test(`${theme}: every story renders without accessibility violations`, async ({
-    page,
-  }, testInfo) => {
-    await page.goto(`/?theme=${theme}`);
-    const storyIds = await page.locator("[data-design-story-link]").evaluateAll((links) =>
-      links.flatMap((link) => {
-        const id = link.getAttribute("data-design-story-link");
-        return id ? [id] : [];
-      }),
-    );
-    expect(storyIds.length).toBeGreaterThan(0);
+  for (const { label, storyIds } of storyAuditChunks) {
+    test(`${theme}: story audit chunk ${label}`, async ({ page }, testInfo) => {
+      for (const storyId of storyIds) {
+        await test.step(storyId, async () => {
+          const canvas = await openStory(page, storyId, theme);
+          await expect(canvas).toBeVisible();
 
-    for (const storyId of storyIds) {
-      await test.step(storyId, async () => {
-        const canvas = await openStory(page, storyId, theme);
-        await expect(canvas).toBeVisible();
+          const results = await (await storyAxeBuilder(page))
+            .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+            .analyze();
+          expect(results.violations, `${storyId} (${theme})`).toEqual([]);
 
-        const results = await (await storyAxeBuilder(page))
-          .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
-          .analyze();
-        expect(results.violations, `${storyId} (${theme})`).toEqual([]);
-
-        const rootOverflow = await storyRoots(page).evaluateAll((roots) =>
-          roots.flatMap((element) => {
-            if (!(element instanceof HTMLElement)) return [];
-            const style = getComputedStyle(element);
-            const horizontal = element.scrollWidth > element.clientWidth + 1;
-            const vertical = element.scrollHeight > element.clientHeight + 1;
-            const verticalIsManaged = ["auto", "scroll"].includes(style.overflowY);
-            return horizontal || (vertical && !verticalIsManaged)
-              ? [
-                  {
-                    root: element.getAttribute("data-design-story") ?? element.className,
-                    horizontal,
-                    vertical,
-                    overflowY: style.overflowY,
-                  },
-                ]
-              : [];
-          }),
-        );
-        expect(rootOverflow, `${storyId} (${theme}) has an overflowing story root`).toEqual([]);
-
-        const unmanagedInnerOverflow = await storyRoots(page).evaluateAll((roots) => {
-          const candidates = roots.flatMap((root) => [root, ...root.querySelectorAll("*")]);
-          return [...new Set(candidates)].flatMap((element) => {
-            if (
-              !(element instanceof HTMLElement) ||
-              element.getAttribute("aria-hidden") === "true" ||
-              element.matches("input, select, textarea") ||
-              !element.clientWidth ||
-              !element.clientHeight
-            ) {
-              return [];
-            }
-            const style = getComputedStyle(element);
-            const horizontal = element.scrollWidth > element.clientWidth + 1;
-            const vertical = element.scrollHeight > element.clientHeight + 1;
-            const unmanagedHorizontal = horizontal && style.overflowX === "visible";
-            const unmanagedVertical = vertical && style.overflowY === "visible";
-            if (!unmanagedHorizontal && !unmanagedVertical) return [];
-            return [
-              {
-                element: `${element.tagName.toLowerCase()}.${element.className || "(no-class)"}`,
-                horizontal: unmanagedHorizontal,
-                vertical: unmanagedVertical,
-                client: `${element.clientWidth}x${element.clientHeight}`,
-                scroll: `${element.scrollWidth}x${element.scrollHeight}`,
-              },
-            ];
-          });
-        });
-        expect(
-          unmanagedInnerOverflow,
-          `${storyId} (${theme}) has unmanaged inner overflow`,
-        ).toEqual([]);
-
-        await expectOwnedOverflowAndVisibleContent(page, storyId, theme);
-
-        if (testInfo.project.name !== "design-touch") return;
-        const undersized = await storyRoots(page)
-          .locator(interactiveSelector)
-          .evaluateAll((controls) =>
-            controls.flatMap((control) => {
-              const wrappingLabel =
-                control instanceof HTMLInputElement && ["checkbox", "radio"].includes(control.type)
-                  ? control.closest("label")
-                  : null;
-              const hitTarget = wrappingLabel ?? control;
-              const box = hitTarget.getBoundingClientRect();
-              // Bounding boxes can land a fraction below their computed CSS size
-              // after browser device-scale rounding.
-              if (box.width + 0.5 >= 44 && box.height + 0.5 >= 44) return [];
-              return [
-                `${control.tagName.toLowerCase()}[${control.getAttribute("aria-label") ?? control.textContent?.trim() ?? ""}] ${Math.round(box.width)}x${Math.round(box.height)}`,
-              ];
+          const rootOverflow = await storyRoots(page).evaluateAll((roots) =>
+            roots.flatMap((element) => {
+              if (!(element instanceof HTMLElement)) return [];
+              const style = getComputedStyle(element);
+              const horizontal = element.scrollWidth > element.clientWidth + 1;
+              const vertical = element.scrollHeight > element.clientHeight + 1;
+              const verticalIsManaged = ["auto", "scroll"].includes(style.overflowY);
+              return horizontal || (vertical && !verticalIsManaged)
+                ? [
+                    {
+                      root: element.getAttribute("data-design-story") ?? element.className,
+                      horizontal,
+                      vertical,
+                      overflowY: style.overflowY,
+                    },
+                  ]
+                : [];
             }),
           );
-        expect(undersized, `${storyId} (${theme}) has touch targets below 44px`).toEqual([]);
-      });
-    }
-  });
+          expect(rootOverflow, `${storyId} (${theme}) has an overflowing story root`).toEqual([]);
+
+          const unmanagedInnerOverflow = await storyRoots(page).evaluateAll((roots) => {
+            const candidates = roots.flatMap((root) => [root, ...root.querySelectorAll("*")]);
+            return [...new Set(candidates)].flatMap((element) => {
+              if (
+                !(element instanceof HTMLElement) ||
+                element.getAttribute("aria-hidden") === "true" ||
+                element.matches("input, select, textarea") ||
+                !element.clientWidth ||
+                !element.clientHeight
+              ) {
+                return [];
+              }
+              const style = getComputedStyle(element);
+              const horizontal = element.scrollWidth > element.clientWidth + 1;
+              const vertical = element.scrollHeight > element.clientHeight + 1;
+              const unmanagedHorizontal = horizontal && style.overflowX === "visible";
+              const unmanagedVertical = vertical && style.overflowY === "visible";
+              if (!unmanagedHorizontal && !unmanagedVertical) return [];
+              return [
+                {
+                  element: `${element.tagName.toLowerCase()}.${element.className || "(no-class)"}`,
+                  horizontal: unmanagedHorizontal,
+                  vertical: unmanagedVertical,
+                  client: `${element.clientWidth}x${element.clientHeight}`,
+                  scroll: `${element.scrollWidth}x${element.scrollHeight}`,
+                },
+              ];
+            });
+          });
+          expect(
+            unmanagedInnerOverflow,
+            `${storyId} (${theme}) has unmanaged inner overflow`,
+          ).toEqual([]);
+
+          await expectOwnedOverflowAndVisibleContent(page, storyId, theme);
+
+          if (testInfo.project.name !== "design-touch") return;
+          const undersized = await storyRoots(page)
+            .locator(interactiveSelector)
+            .evaluateAll((controls) =>
+              controls.flatMap((control) => {
+                const wrappingLabel =
+                  control instanceof HTMLInputElement &&
+                  ["checkbox", "radio"].includes(control.type)
+                    ? control.closest("label")
+                    : null;
+                const hitTarget = wrappingLabel ?? control;
+                const box = hitTarget.getBoundingClientRect();
+                // Bounding boxes can land a fraction below their computed CSS size
+                // after browser device-scale rounding.
+                if (box.width + 0.5 >= 44 && box.height + 0.5 >= 44) return [];
+                return [
+                  `${control.tagName.toLowerCase()}[${control.getAttribute("aria-label") ?? control.textContent?.trim() ?? ""}] ${Math.round(box.width)}x${Math.round(box.height)}`,
+                ];
+              }),
+            );
+          expect(undersized, `${storyId} (${theme}) has touch targets below 44px`).toEqual([]);
+        });
+      }
+    });
+  }
 }
 
 test("action and field primitives honor their computed visual contracts", async ({
