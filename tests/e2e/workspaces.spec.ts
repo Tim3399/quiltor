@@ -960,12 +960,12 @@ test("CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil", a
   await page.locator(".cm-line").selectText();
   // Markieren allein öffnet nichts mehr -- die Nachschlage-Aktionen sind eine eigene
   // Anfrage, so wie unter macOS. Sichtbar ist die Markierung trotzdem.
-  const selectionMenu = page.getByRole("dialog", { name: "Aktionen für die Textauswahl" });
+  const selectionMenu = page.getByRole("menu", { name: "Aktionen für die Textauswahl" });
   await expect(selectionMenu).toBeHidden();
   await expect(page.locator(".held-selection")).toContainText(
     "Der Morgen lag still über dem Hafen.",
   );
-  await page.locator(".cm-line").click({ button: "right" });
+  await page.locator(".held-selection").click({ button: "right" });
   await expect(selectionMenu).toBeVisible();
   await selectionMenu.getByRole("menuitem", { name: "Nachschlagen" }).click();
   // Die Schreibhilfe hat keine eigene Markierungskarte mehr (.writing-selection-state ist fort).
@@ -989,10 +989,10 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
   const textSave = waitForSuccessfulManuscriptWrite(page);
   await editor.fill("Der Morgen lag still über dem Hafen.");
   await textSave;
-  const selectionMenu = page.getByRole("dialog", { name: "Aktionen für die Textauswahl" });
+  const selectionMenu = page.getByRole("menu", { name: "Aktionen für die Textauswahl" });
 
   await page.locator(".cm-line").selectText();
-  await page.locator(".cm-line").click({ button: "right" });
+  await page.locator(".held-selection").click({ button: "right" });
   const boldSave = waitForSuccessfulManuscriptWrite(page);
   await selectionMenu.getByRole("menuitem", { name: "Fett" }).click();
   await boldSave;
@@ -1001,7 +1001,7 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
   );
 
   await page.locator(".cm-line").selectText();
-  await page.locator(".cm-line").click({ button: "right" });
+  await page.locator(".held-selection").click({ button: "right" });
   const italicSave = waitForSuccessfulManuscriptWrite(page);
   await selectionMenu.getByRole("menuitem", { name: "Kursiv" }).click();
   await expect(page.locator(".prose-editor .text-italic")).toContainText(
@@ -1343,8 +1343,9 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
   const nestedFolderSave = waitForSuccessfulManuscriptWrite(page);
   await folderBHandle.dragTo(folderA);
   await nestedFolderSave;
+  const chapterInArc = /^\d+ Kapitel im Bogen \d+ (?:Wort|Wörter)(?: .+)?$/;
   const nestedChapterSave = waitForSuccessfulManuscriptWrite(page);
-  await binder.getByRole("button", { name: /Kapitel im Bogen/ }).dragTo(folderB);
+  await binder.getByRole("button", { name: chapterInArc }).dragTo(folderB);
   await nestedChapterSave;
 
   const folderAEntry = folderA.locator("xpath=..");
@@ -1353,7 +1354,7 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
     .locator("xpath=../..");
   await expect(folderAEntry.getByRole("button", { name: /Teil A, 1 Kapitel/ })).toBeVisible();
   await expect(folderBEntry.getByRole("button", { name: /Bogen B, 1 Kapitel/ })).toBeVisible();
-  await expect(folderBEntry.getByRole("button", { name: /Kapitel im Bogen/ })).toBeVisible();
+  await expect(folderBEntry.getByRole("button", { name: chapterInArc })).toBeVisible();
   const hierarchyLayout = await folderAEntry.evaluate((rootEntry) => {
     const rootRow = rootEntry.querySelector<HTMLElement>(":scope > .binder-folder-row");
     const children = rootEntry.querySelector<HTMLElement>(":scope > .binder-folder-children");
@@ -1409,7 +1410,7 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
   const reloadedB = reloadedA
     .getByRole("button", { name: /^Bogen B, \d+ Kapitel:/ })
     .locator("xpath=../..");
-  await expect(reloadedB.getByRole("button", { name: /Kapitel im Bogen/ })).toBeVisible();
+  await expect(reloadedB.getByRole("button", { name: chapterInArc })).toBeVisible();
 
   const dragToRoot = async (source: Locator) => {
     const sourceBounds = await source.boundingBox();
@@ -1436,15 +1437,17 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
   };
 
   const rootChapterSave = waitForSuccessfulManuscriptWrite(page);
-  await dragToRoot(reloadedB.getByRole("button", { name: /Kapitel im Bogen/ }));
+  await dragToRoot(reloadedB.getByRole("button", { name: chapterInArc }));
   await rootChapterSave;
-  const chapterAtRoot = reloadedBinder.getByRole("button", { name: /Kapitel im Bogen/ });
+  const chapterAtRoot = reloadedBinder.getByRole("button", { name: chapterInArc });
   await expect(chapterAtRoot).toBeVisible();
-  expect(
-    await chapterAtRoot.evaluate((row) =>
-      row.parentElement?.parentElement?.classList.contains("binder-tree"),
-    ),
-  ).toBe(true);
+  const isRootTreeItem = (item: Locator) =>
+    item.evaluate(
+      (element) =>
+        element.closest(".binder-tree-entry")?.parentElement?.classList.contains("binder-tree") ??
+        false,
+    );
+  expect(await isRootTreeItem(chapterAtRoot)).toBe(true);
 
   const reloadedBRow = reloadedBinder
     .getByRole("button", { name: /^Bogen B, \d+ Kapitel:/ })
@@ -1453,11 +1456,7 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
   const rootFolderSave = waitForSuccessfulManuscriptWrite(page);
   await dragToRoot(reloadedBRow.locator('.binder-drag-handle[draggable="true"]'));
   await rootFolderSave;
-  expect(
-    await reloadedBRow.evaluate((row) =>
-      row.parentElement?.parentElement?.classList.contains("binder-tree"),
-    ),
-  ).toBe(true);
+  expect(await isRootTreeItem(reloadedBRow)).toBe(true);
   await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible({
     timeout: 10_000,
   });
@@ -1466,20 +1465,12 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
   await waitForManuscriptReady(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   const persistedBinder = page.getByRole("complementary", { name: "Kapitel" });
-  const persistedChapter = persistedBinder.getByRole("button", { name: /Kapitel im Bogen/ });
+  const persistedChapter = persistedBinder.getByRole("button", { name: chapterInArc });
   const persistedFolderB = persistedBinder
     .getByRole("button", { name: /^Bogen B, \d+ Kapitel:/ })
     .locator("xpath=..");
-  expect(
-    await persistedChapter.evaluate((row) =>
-      row.parentElement?.parentElement?.classList.contains("binder-tree"),
-    ),
-  ).toBe(true);
-  expect(
-    await persistedFolderB.evaluate((row) =>
-      row.parentElement?.parentElement?.classList.contains("binder-tree"),
-    ),
-  ).toBe(true);
+  expect(await isRootTreeItem(persistedChapter)).toBe(true);
+  expect(await isRootTreeItem(persistedFolderB)).toBe(true);
 });
 
 test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", async ({
@@ -2180,7 +2171,7 @@ test("Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab", async ({ pa
 
 test("Fokusmodus bietet eine diskrete Schreibhilfe", async ({ page }, testInfo) => {
   await openBlankWorld(page);
-  await page.getByRole("button", { name: "Fokus" }).click();
+  await page.getByRole("button", { name: "Fokus", exact: true }).click();
   const helper = page.getByRole("complementary", { name: "Schreibhilfe im Fokusmodus" });
   await expect(helper).toBeVisible();
   await helper.getByRole("button", { name: "Schreibhilfe öffnen" }).click();
@@ -2196,14 +2187,60 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Neues Kapitel" }).click();
-  const closeChapters = page.getByRole("button", { name: "Kapitelnavigation schließen" });
-  if (await closeChapters.isVisible()) await closeChapters.click();
-  const closeAid = page.getByRole("button", { name: "Schreibhilfe schließen" });
-  if (await closeAid.isVisible()) await closeAid.click();
-
   const title = page.locator(".chapter-title");
+  const initialTitleBox = await title.boundingBox();
+  expect(initialTitleBox).not.toBeNull();
+  const edgeGap = await page
+    .locator(".text-layout")
+    .evaluate((layout) =>
+      Number.parseFloat(getComputedStyle(layout).getPropertyValue("--space-8")),
+    );
+  const closeChapters = page.getByRole("button", { name: "Kapitelnavigation schließen" });
+  const closeAid = page.getByRole("button", { name: "Schreibhilfe schließen" });
   const chapters = page.getByRole("button", { name: "Kapitelnavigation öffnen" });
   const writingAid = page.getByRole("button", { name: "Schreibhilfe öffnen" });
+
+  const expectStableTitle = async () => {
+    const box = await title.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeCloseTo(initialTitleBox!.x, 0);
+  };
+  const expectLeftEdgeGap = async () => {
+    const [titleBox, chapterBox] = await Promise.all([title.boundingBox(), chapters.boundingBox()]);
+    expect(titleBox).not.toBeNull();
+    expect(chapterBox).not.toBeNull();
+    expect(titleBox!.x - (chapterBox!.x + chapterBox!.width)).toBeCloseTo(edgeGap, 0);
+  };
+  const expectRightEdgeGap = async () => {
+    const [titleBox, aidBox] = await Promise.all([title.boundingBox(), writingAid.boundingBox()]);
+    expect(titleBox).not.toBeNull();
+    expect(aidBox).not.toBeNull();
+    expect(aidBox!.x - (titleBox!.x + titleBox!.width)).toBeCloseTo(edgeGap, 0);
+  };
+
+  // Each one-sided state has a non-zero editor balance. The edge toggle must follow that offset
+  // in the same frame; otherwise the text visibly jumps while the panel closes.
+  await closeChapters.click();
+  await expect(chapters).toBeVisible();
+  await expectStableTitle();
+  await expectLeftEdgeGap();
+  await chapters.click();
+  await expect(closeChapters).toBeVisible();
+  await expectStableTitle();
+
+  await closeAid.click();
+  await expect(writingAid).toBeVisible();
+  await expectStableTitle();
+  await expectRightEdgeGap();
+  await writingAid.click();
+  await expect(closeAid).toBeVisible();
+  await expectStableTitle();
+
+  await closeChapters.click();
+  await closeAid.click();
+  await expect(chapters).toBeVisible();
+  await expect(writingAid).toBeVisible();
+
   const [titleBox, chapterBox, aidBox, layoutBox] = await Promise.all([
     title.boundingBox(),
     chapters.boundingBox(),
@@ -2214,8 +2251,8 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
   expect(chapterBox).not.toBeNull();
   expect(aidBox).not.toBeNull();
   expect(layoutBox).not.toBeNull();
-  expect(titleBox!.x - (chapterBox!.x + chapterBox!.width)).toBeCloseTo(8, 0);
-  expect(aidBox!.x - (titleBox!.x + titleBox!.width)).toBeCloseTo(8, 0);
+  expect(titleBox!.x - (chapterBox!.x + chapterBox!.width)).toBeCloseTo(edgeGap, 0);
+  expect(aidBox!.x - (titleBox!.x + titleBox!.width)).toBeCloseTo(edgeGap, 0);
   expect(chapterBox!.y + chapterBox!.height / 2).toBeCloseTo(
     layoutBox!.y + layoutBox!.height / 2,
     0,
@@ -2223,14 +2260,14 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
   expect(aidBox!.y + aidBox!.height / 2).toBeCloseTo(layoutBox!.y + layoutBox!.height / 2, 0);
   await expect(writingAid.locator("svg")).toHaveClass(/lucide-panel-right/);
 
-  await page.getByRole("button", { name: "Fokus" }).click();
+  await page.getByRole("button", { name: "Fokus", exact: true }).click();
   const focusTitle = await page.locator(".chapter-title").boundingBox();
   const focusChapters = await page
     .getByRole("button", { name: "Kapitelauswahl öffnen" })
     .boundingBox();
   const focusAid = await page.getByRole("button", { name: "Schreibhilfe öffnen" }).boundingBox();
-  expect(focusTitle!.x - (focusChapters!.x + focusChapters!.width)).toBeCloseTo(8, 0);
-  expect(focusAid!.x - (focusTitle!.x + focusTitle!.width)).toBeCloseTo(8, 0);
+  expect(focusTitle!.x - (focusChapters!.x + focusChapters!.width)).toBeCloseTo(edgeGap, 0);
+  expect(focusAid!.x - (focusTitle!.x + focusTitle!.width)).toBeCloseTo(edgeGap, 0);
 });
 
 test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async ({ page }) => {
@@ -2250,7 +2287,7 @@ test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async
       : route.continue(),
   );
   await openBlankWorld(page);
-  await page.getByRole("button", { name: "Fokus" }).click();
+  await page.getByRole("button", { name: "Fokus", exact: true }).click();
 
   const editor = page.locator(".editor-page");
   const initial = await editor.boundingBox();

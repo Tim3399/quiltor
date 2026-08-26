@@ -39,7 +39,10 @@
   position: relative;
 }
 .text-layout.has-balanced-editor .editor-page {
-  transform: translateX(var(--editor-balance-offset));
+  /* Keep panel balancing independent from the vertical chapter-turn animation. Relative
+     positioning updates in the same layout frame as the grid, so the text never trails a
+     panel toggle while `transform` remains available for overscroll feedback. */
+  left: var(--editor-balance-offset);
 }
 .text-layout .panel-edge-toggle {
   position: absolute;
@@ -77,7 +80,8 @@
       (100% - var(--workspace-inspector-width) - 760px) /
       2 -
       var(--control-compact) +
-      var(--space-24)
+      var(--space-24) +
+      var(--editor-balance-offset)
     )
   );
 }
@@ -91,7 +95,8 @@
       (100% - var(--workspace-sidebar-width) - 760px) /
       2 -
       var(--control-compact) +
-      var(--space-24)
+      var(--space-24) -
+      var(--editor-balance-offset)
     )
   );
 }

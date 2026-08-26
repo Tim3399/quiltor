@@ -639,18 +639,22 @@ test("action and field primitives honor their computed visual contracts", async 
 
 test("toolbar and selection patterns keep their responsive interaction contracts", async ({
   page,
-}, testInfo) => {
+}) => {
   await openStory(page, "ToolbarButton/ResponsiveLabel");
   const toolbarButton = page.getByRole("button", { name: "Neues Kapitel" });
   const toolbarMetrics = await toolbarButton.evaluate((element) => {
     const label = element.querySelector(".ui-button__label");
     if (!(label instanceof HTMLElement)) throw new Error("ToolbarButton label is missing");
+    const collapsed = matchMedia("(max-width: 719px), (pointer: coarse)").matches;
     return {
       width: element.getBoundingClientRect().width,
       height: element.getBoundingClientRect().height,
       expectedHeight: Number.parseFloat(
-        getComputedStyle(document.documentElement).getPropertyValue("--control-compact"),
+        getComputedStyle(document.documentElement).getPropertyValue(
+          collapsed ? "--control-touch" : "--control-compact",
+        ),
       ),
+      collapsed,
       labelDisplay: getComputedStyle(label).display,
       iconCenterOffset: (() => {
         const icon = element.querySelector(".ui-button__icon");
@@ -661,8 +665,11 @@ test("toolbar and selection patterns keep their responsive interaction contracts
       })(),
     };
   });
-  if (testInfo.project.name === "design-touch") {
-    expect(toolbarMetrics).toMatchObject({ width: 44, labelDisplay: "none" });
+  if (toolbarMetrics.collapsed) {
+    expect(toolbarMetrics).toMatchObject({
+      width: toolbarMetrics.expectedHeight,
+      labelDisplay: "none",
+    });
     expect(Math.abs(toolbarMetrics.iconCenterOffset)).toBeLessThanOrEqual(0.5);
   } else {
     expect(toolbarMetrics.labelDisplay).not.toBe("none");
