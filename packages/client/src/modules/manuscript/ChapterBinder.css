@@ -5,16 +5,16 @@
   list-style: none;
 }
 .binder-chapter-row {
-  width: calc(100% - var(--binder-indent));
+  width: 100%;
   min-height: var(--control-touch);
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   grid-template-areas: "drag main actions";
   align-items: center;
   gap: var(--space-2);
-  margin-inline-start: var(--binder-indent);
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--transparent);
+  border-inline-start-color: var(--line);
   border-radius: var(--radius-sm);
   background: var(--transparent);
 }
@@ -25,6 +25,7 @@
   display: grid;
   grid-area: main;
   align-items: center;
+  justify-content: stretch;
   padding: var(--space-5) var(--space-4);
   color: var(--ink);
   text-align: left;
@@ -38,8 +39,9 @@
   display: grid;
   grid-area: main;
   grid-template-columns: 25px minmax(0, 1fr);
-  grid-template-areas: "number name" "number words" "number story-time" "number breadcrumb";
+  grid-template-areas: "number name" "number meta";
   gap: 1px var(--space-6);
+  padding-inline-start: var(--space-16);
 }
 .binder-chapter-row:hover {
   background: var(--control-hover-subtle);
@@ -76,28 +78,39 @@
   white-space: nowrap;
 }
 .chapter-words {
-  grid-area: words;
+  flex: none;
+}
+.chapter-meta {
+  min-width: 0;
+  display: flex;
+  grid-area: meta;
+  align-items: baseline;
+  overflow: hidden;
   color: var(--muted);
   font-size: var(--font-size-2);
+  white-space: nowrap;
+}
+.chapter-meta > :not(:first-child) {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+}
+.chapter-meta > :not(:first-child)::before {
+  content: "·";
+  flex: none;
+  margin-inline: var(--space-4);
+  color: var(--muted);
 }
 .chapter-story-time-summary {
-  grid-area: story-time;
   overflow: hidden;
-  color: var(--muted);
-  font-size: var(--font-size-2);
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chapter-breadcrumb {
-  grid-area: breadcrumb;
-  overflow: hidden;
-  color: var(--soft);
-  font-size: var(--font-size-1);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 @media (max-width: 719px), (pointer: coarse) {
   .binder-chapter-row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "main";
+  }
+  .binder-chapter-row.has-actions {
     grid-template-columns: minmax(0, 1fr) var(--control-touch);
     grid-template-areas: "main actions";
   }

@@ -39,6 +39,10 @@ export const shared = {
   removeDeathMarker: "Remove death marker",
   optionalDate: "Date (optional)",
   optionalNote: "Note (optional)",
+  noteFocusOpen: "Open note in focus mode",
+  noteFocusTitle: "Note · {context}",
+  noteFocusClose: "Back to {context}",
+  noteFocusEditor: "Note for {context}",
   searchTerm: "Search term",
   // Counters carry the whole phrase so components never concatenate number and word themselves
   // -- otherwise English lower-casing is not controllable from the catalog.

@@ -1,6 +1,6 @@
 # TODO — Quiltor Product Roadmap
 
-**Baseline:** Quiltor `3.5.0` / P0 reviewed on 22 August 2026
+**Baseline:** Quiltor `3.7.0` / P0 reviewed on 22 August 2026
 **Purpose:** Product roadmap. This file answers **what should be built next and in what order**.
 
 ---
@@ -345,19 +345,19 @@ Notes should become a first-class writer workflow, not small textareas scattered
   - timeline moment notes;
   - chapter notes;
   - storyboard note cards.
-- [ ] Preserve plain author-owned text.
-- [ ] Autosave.
-- [ ] Undo/redo consistent with the owning workspace.
-- [ ] Large comfortable editing surface.
+- [x] Preserve plain author-owned text.
+- [x] Autosave through the owning document/workspace.
+- [x] Undo/redo consistent with the owning workspace.
+- [x] Large comfortable editing surface.
 
 ## Focus Mode
 
-- [ ] Every substantial note can open in **Focus Mode**.
-- [ ] Focus Mode uses nearly the full writing surface.
-- [ ] Reuse the existing Quiltor focus/overlay conventions.
-- [ ] Clear return path to the owning object.
-- [ ] Keyboard-accessible close/return.
-- [ ] Do not create a second independent document when entering focus.
+- [x] Every substantial note can open in **Focus Mode**.
+- [x] Focus Mode uses nearly the full writing surface.
+- [x] Reuse the existing Quiltor focus/overlay conventions.
+- [x] Clear return path to the owning object.
+- [x] Keyboard-accessible close/return.
+- [x] Do not create a second independent document when entering focus.
 
 ## `@` references
 

@@ -71,6 +71,31 @@ export function ChapterTreeDropBefore({
   );
 }
 
+export function ChapterTreeEntry({
+  item,
+  depth,
+  dragDrop,
+  folder = false,
+  children,
+}: {
+  item: ManuscriptTreeItem;
+  depth: number;
+  dragDrop: ChapterTreeDragDrop;
+  folder?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <li
+      className={`binder-tree-entry${folder ? " binder-folder-entry" : ""}`}
+      data-binder-depth={depth}
+      style={depthStyle(depth)}
+    >
+      <ChapterTreeDropBefore item={item} depth={depth} dragDrop={dragDrop} />
+      {children}
+    </li>
+  );
+}
+
 export interface ChapterTreeChapterRowProps {
   item: ManuscriptTreeItem;
   depth: number;
@@ -79,7 +104,6 @@ export interface ChapterTreeChapterRowProps {
   number: string;
   words: ReactNode;
   storyTime: ReactNode;
-  breadcrumb?: ReactNode;
   actions?: ReactNode;
   dragDrop: ChapterTreeDragDrop;
   onSelect: () => void;
@@ -93,7 +117,6 @@ export function ChapterTreeChapterRow({
   number,
   words,
   storyTime,
-  breadcrumb,
   actions,
   dragDrop,
   onSelect,
@@ -101,58 +124,55 @@ export function ChapterTreeChapterRow({
   const rowDestination = (event: DragEvent<HTMLElement>) =>
     dragDrop.chapterRowDestination(event, item);
   return (
-    <li className="binder-tree-entry" data-binder-depth={depth} style={depthStyle(depth)}>
-      <ChapterTreeDropBefore item={item} depth={depth} dragDrop={dragDrop} />
-      {/* The action trigger must remain a sibling of the selection button: nested controls are invalid. */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: native drag-and-drop is owned by the focused controls inside this layout wrapper. */}
-      <div
-        data-binder-depth={depth}
-        className={`binder-chapter-row ${selected ? "active" : ""}`}
-        style={depthStyle(depth)}
-        onDragEnter={(event) => dragDrop.allowDrop(event, rowDestination(event))}
-        onDragOver={(event) => dragDrop.allowDrop(event, rowDestination(event))}
-        onDragLeave={(event) => {
-          dragDrop.leaveDropTarget(event, `row-before:${item.id}`);
-          dragDrop.leaveDropTarget(event, `row-after:${item.id}`);
+    // The action trigger must remain a sibling of the selection button: nested controls are invalid.
+    // biome-ignore lint/a11y/noStaticElementInteractions: native drag-and-drop is owned by the focused controls inside this layout wrapper.
+    <div
+      data-binder-depth={depth}
+      className={`binder-chapter-row ${selected ? "active" : ""} ${actions ? "has-actions" : ""}`.trim()}
+      onDragEnter={(event) => dragDrop.allowDrop(event, rowDestination(event))}
+      onDragOver={(event) => dragDrop.allowDrop(event, rowDestination(event))}
+      onDragLeave={(event) => {
+        dragDrop.leaveDropTarget(event, `row-before:${item.id}`);
+        dragDrop.leaveDropTarget(event, `row-after:${item.id}`);
+      }}
+      onDrop={(event) => dragDrop.drop(event, rowDestination(event))}
+      data-drop-position={
+        dragDrop.dropTarget === `row-before:${item.id}`
+          ? "before"
+          : dragDrop.dropTarget === `row-after:${item.id}`
+            ? "after"
+            : undefined
+      }
+    >
+      <ChapterTreeDragHandle item={item} dragDrop={dragDrop} dragSource />
+      <Button
+        appearance="ghost"
+        size="touch"
+        draggable
+        data-binder-item
+        aria-current={selected ? "page" : undefined}
+        className="binder-chapter-select"
+        onClick={(event) => {
+          if (dragDrop.suppressSelectionRef.current) {
+            event.preventDefault();
+            return;
+          }
+          onSelect();
         }}
-        onDrop={(event) => dragDrop.drop(event, rowDestination(event))}
-        data-drop-position={
-          dragDrop.dropTarget === `row-before:${item.id}`
-            ? "before"
-            : dragDrop.dropTarget === `row-after:${item.id}`
-              ? "after"
-              : undefined
-        }
+        onDragStart={(event) => dragDrop.beginDrag(event, item.id, true)}
+        onDragEnd={dragDrop.endDrag}
       >
-        <ChapterTreeDragHandle item={item} dragDrop={dragDrop} dragSource />
-        <Button
-          appearance="ghost"
-          size="touch"
-          draggable
-          data-binder-item
-          aria-current={selected ? "page" : undefined}
-          className="binder-chapter-select"
-          onClick={(event) => {
-            if (dragDrop.suppressSelectionRef.current) {
-              event.preventDefault();
-              return;
-            }
-            onSelect();
-          }}
-          onDragStart={(event) => dragDrop.beginDrag(event, item.id, true)}
-          onDragEnd={dragDrop.endDrag}
-        >
-          <span className="binder-chapter-content">
-            <span className="chapter-number">{number}</span>
-            <span className="chapter-name">{label}</span>
+        <span className="binder-chapter-content">
+          <span className="chapter-number">{number}</span>
+          <span className="chapter-name">{label}</span>
+          <span className="chapter-meta">
             <span className="chapter-words">{words}</span>
             <span className="chapter-story-time-summary">{storyTime}</span>
-            {breadcrumb && <span className="chapter-breadcrumb">{breadcrumb}</span>}
           </span>
-        </Button>
-        {actions}
-      </div>
-    </li>
+        </span>
+      </Button>
+      {actions}
+    </div>
   );
 }
 

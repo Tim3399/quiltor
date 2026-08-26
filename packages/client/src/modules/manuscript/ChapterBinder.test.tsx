@@ -108,6 +108,14 @@ describe("ChapterBinder folders", () => {
     const trigger = within(activeRow).getByRole("button", {
       name: "Kapitelaktionen: Ankunft",
     });
+    expect(activeRow).toHaveClass("has-actions");
+    const inactiveRow = requireValue(
+      screen
+        .getByText("Aufbruch", { selector: ".chapter-name" })
+        .closest<HTMLElement>(".binder-chapter-row"),
+      "Inactive chapter row missing",
+    );
+    expect(inactiveRow).not.toHaveClass("has-actions");
     expect(screen.queryByRole("toolbar", { name: "Kapitelaktionen: Ankunft" })).toBeNull();
     expect(screen.getAllByRole("button", { name: /Kapitelaktionen:/ })).toEqual([trigger]);
     expect(trigger).toHaveAttribute("aria-haspopup", "menu");
@@ -154,6 +162,13 @@ describe("ChapterBinder folders", () => {
     );
     expect(chapterCss).toMatch(
       /\.binder-chapter-row\s*\{[^}]*grid-template-columns:\s*16px minmax\(0, 1fr\) auto;[^}]*grid-template-areas:\s*"drag main actions";/s,
+    );
+    expect(chapterCss).toMatch(
+      /\.binder-chapter-content\s*\{[^}]*grid-template-areas:\s*"number name" "number meta";/s,
+    );
+    expect(chapterCss).toMatch(/\.binder-chapter-select\s*\{[^}]*justify-content:\s*stretch;/s);
+    expect(chapterCss).toMatch(
+      /\.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-16\);/s,
     );
     expect(actionsCss).toMatch(
       /\.binder-chapter-action-trigger\s*\{[^}]*grid-area:\s*actions;[^}]*opacity:\s*0\.72;/s,
@@ -208,10 +223,16 @@ describe("ChapterBinder folders", () => {
     expect(flattenChapterIds(onStructureChange.mock.calls.at(-1)?.[0])).toEqual(["b", "a"]);
   });
 
-  it("renders arbitrary nesting with a useful chapter breadcrumb and persistent collapse", () => {
+  it("renders arbitrary nesting without repeating the folder path and persists collapse", () => {
     renderBinder();
 
-    expect(screen.getByText("Teil I / Ankunftsbogen")).toBeVisible();
+    const chapterRow = requireValue(
+      screen
+        .getByText("Ankunft", { selector: ".chapter-name" })
+        .closest<HTMLElement>(".binder-chapter-row"),
+      "Nested chapter row missing",
+    );
+    expect(chapterRow).not.toHaveTextContent("Teil I / Ankunftsbogen");
     fireEvent.click(screen.getAllByRole("button", { name: /Ordner einklappen/ })[0]);
     expect(screen.queryByText("Ankunftsbogen")).not.toBeInTheDocument();
     expect(localStorage.getItem("quiltor:binder:collapsed:part")).toBe("true");
@@ -468,7 +489,7 @@ describe("ChapterBinder folders", () => {
     const partRow = screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row");
     const arcRow = screen.getByText("Ankunftsbogen").closest<HTMLElement>(".binder-folder-row");
     const nestedChapter = screen
-      .getByText("Teil I / Ankunftsbogen")
+      .getByText("Ankunft", { selector: ".chapter-name" })
       .closest<HTMLElement>(".binder-chapter-row");
     const rootChapter = screen
       .getByRole("button", { name: /Aufbruch/ })
@@ -478,6 +499,16 @@ describe("ChapterBinder folders", () => {
     expect(arcRow).toHaveAttribute("data-binder-depth", "1");
     expect(nestedChapter).toHaveAttribute("data-binder-depth", "2");
     expect(rootChapter).toHaveAttribute("data-binder-depth", "0");
+
+    const partEntry = partRow?.closest<HTMLElement>(".binder-tree-entry");
+    const arcEntry = arcRow?.closest<HTMLElement>(".binder-tree-entry");
+    const chapterEntry = nestedChapter?.closest<HTMLElement>(".binder-tree-entry");
+    expect(partRow?.parentElement).toBe(partEntry);
+    expect(arcRow?.parentElement).toBe(arcEntry);
+    expect(nestedChapter?.parentElement).toBe(chapterEntry);
+    expect(arcEntry?.parentElement).toHaveClass("binder-folder-children");
+    expect(arcEntry?.parentElement?.closest(".binder-tree-entry")).toBe(partEntry);
+    expect(chapterEntry?.parentElement?.closest(".binder-tree-entry")).toBe(arcEntry);
   });
 
   it("keeps long folder names available and explains an expanded empty folder", () => {
@@ -554,7 +585,7 @@ describe("ChapterBinder folders", () => {
     );
   });
 
-  it("uses real row indentation plus connected guides for nested hierarchy", () => {
+  it("uses recursive list indentation plus connected guides for every nested hierarchy", () => {
     const treeCss = readFileSync(
       join(process.cwd(), "packages/client/src/modules/manuscript/ChapterFolderTree.css"),
       "utf8",
@@ -564,32 +595,34 @@ describe("ChapterBinder folders", () => {
       "utf8",
     );
 
-    expect(treeCss).toMatch(
-      /\.binder-tree\s*\{[^}]*--binder-level-step:\s*var\(--space-12\);[^}]*--binder-indent-max:\s*var\(--space-48\);/s,
-    );
-    expect(treeCss).toMatch(
-      /\.binder-folder-row\s*\{[^}]*width:\s*calc\(100% - var\(--binder-indent\)\);[^}]*margin-inline-start:\s*var\(--binder-indent\);/s,
-    );
+    expect(treeCss).toMatch(/\.binder-tree\s*\{[^}]*--binder-level-step:\s*var\(--space-20\);/s);
+    expect(treeCss).toMatch(/\.binder-folder-row\s*\{[^}]*width:\s*100%;/s);
+    expect(chapterCss).toMatch(/\.binder-chapter-row\s*\{[^}]*width:\s*100%;/s);
     expect(chapterCss).toMatch(
-      /\.binder-chapter-row\s*\{[^}]*width:\s*calc\(100% - var\(--binder-indent\)\);[^}]*margin-inline-start:\s*var\(--binder-indent\);/s,
+      /\.binder-chapter-row\s*\{[^}]*border:\s*1px solid var\(--transparent\);[^}]*border-inline-start-color:\s*var\(--line\);/s,
     );
     expect(treeCss).toMatch(
-      /\.binder-folder-children::before\s*\{[^}]*background:\s*var\(--line-strong\);/s,
+      /\.binder-folder-children\s*\{[^}]*padding-inline-start:\s*var\(--binder-level-step\);/s,
     );
     expect(treeCss).toMatch(
-      /\.binder-folder-children > \.binder-tree-entry::before\s*\{[^}]*width:\s*var\(--space-6\);[^}]*border-top:/s,
+      /\.binder-folder-children::before\s*\{[^}]*inset-inline-start:\s*var\(--space-6\);[^}]*background:\s*var\(--line-strong\);/s,
+    );
+    expect(treeCss).toMatch(
+      /\.binder-folder-children > \.binder-tree-entry::before\s*\{[^}]*inset-inline-start:\s*calc\(\(var\(--binder-level-step\) - var\(--space-6\)\) \* -1\);[^}]*width:\s*calc\(var\(--binder-level-step\) - var\(--space-6\)\);[^}]*border-top:/s,
     );
     expect(treeCss).toMatch(
       /\.binder-folder-row:not\(\[data-binder-depth="0"\]\)\s*\{[^}]*border-inline-start-width:\s*var\(--space-2\);[^}]*border-inline-start-color:\s*var\(--accent-primary-border\);/s,
     );
-    expect(treeCss).toMatch(
-      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-tree\s*\{[^}]*--binder-level-step:\s*var\(--space-10\);[^}]*--binder-indent-max:\s*var\(--space-24\);/s,
+    expect(treeCss).not.toMatch(
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-tree\s*\{[^}]*--binder-level-step:/s,
     );
+    expect(treeCss).not.toContain("--binder-indent-max");
+    expect(treeCss).not.toContain("--binder-indent");
     expect(treeCss).toMatch(
       /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-drag-handle\s*\{[^}]*display:\s*none;[\s\S]*?\.binder-folder-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;[^}]*grid-template-areas:\s*"main actions";/s,
     );
     expect(chapterCss).toMatch(
-      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-chapter-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-touch\);[^}]*grid-template-areas:\s*"main actions";/s,
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-chapter-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);[^}]*grid-template-areas:\s*"main";[\s\S]*?\.binder-chapter-row\.has-actions\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-touch\);[^}]*grid-template-areas:\s*"main actions";/s,
     );
   });
 });

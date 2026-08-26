@@ -112,9 +112,7 @@ test("keeps an explicit protected owner entry for every public design folder", (
     "utf8",
   );
   const publicFolders = [
-    ...publicIndex.matchAll(
-      /export \* from "\.\/(?:components|patterns|primitives)\/([^"/]+)";/g,
-    ),
+    ...publicIndex.matchAll(/export \* from "\.\/(?:components|patterns|primitives)\/([^"/]+)";/g),
   ]
     .map((match) => match[1])
     .sort();

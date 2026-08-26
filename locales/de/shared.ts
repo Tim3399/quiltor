@@ -40,6 +40,10 @@ export const shared = {
   removeDeathMarker: "Todesmarkierung entfernen",
   optionalDate: "Datum (optional)",
   optionalNote: "Notiz (optional)",
+  noteFocusOpen: "Notiz im Fokus öffnen",
+  noteFocusTitle: "Notiz · {context}",
+  noteFocusClose: "Zurück zu {context}",
+  noteFocusEditor: "Notiz für {context}",
   searchTerm: "Suchbegriff",
   // Zähler stehen als ganze Formulierung im Katalog, damit die Komponente Zahl und Wort nicht
   // selbst zusammensetzen muss -- im Englischen ist die Kleinschreibung sonst nicht steuerbar.

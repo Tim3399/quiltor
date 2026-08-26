@@ -1,5 +1,6 @@
-import { TextArea, TextField } from "../../../design";
+import { TextField } from "../../../design";
 import type { Translate, UiLocale } from "../../../i18n";
+import { NoteEditor, noteFocusCopy } from "../../notes";
 import type { FigureState, TimelineMoment, TimeSystem } from "../model";
 import { MomentHeader, type TimelineChapterReference } from "./MomentHeader";
 import { MomentCalendarFields, RelativeMomentFields } from "./MomentTimeFields";
@@ -108,13 +109,15 @@ export function MomentEditor({
             t={t}
           />
         )}
-        <TextArea
+        <NoteEditor
+          owner={{ kind: "timeline", id: moment.id }}
           fieldClassName="timeline-note-field"
           className="timeline-note-control"
           label={t("optionalNote")}
           value={moment.note || ""}
           placeholder={t("timelineNotePlaceholder")}
-          onChange={(event) => onPatch({ note: event.target.value })}
+          onChange={(note) => onPatch({ note })}
+          focus={noteFocusCopy(t, moment.title)}
         />
       </section>
     </>

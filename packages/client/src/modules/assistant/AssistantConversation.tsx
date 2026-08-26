@@ -389,10 +389,7 @@ function ProposalList({
                         className="assistant-proposal-evidence"
                         summary={`${t("proposalEvidence")} · ${envelope.evidence.length}`}
                       >
-                        <ChipList
-                          className="assistant-evidence-list"
-                          label={t("proposalEvidence")}
-                        >
+                        <ChipList className="assistant-evidence-list" label={t("proposalEvidence")}>
                           {envelope.evidence.map((source) => (
                             <ChipAction
                               key={source.id}

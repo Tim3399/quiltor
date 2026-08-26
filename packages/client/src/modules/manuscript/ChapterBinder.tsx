@@ -1,9 +1,10 @@
 import { X } from "lucide-react";
 import { useMemo } from "react";
-import { IconButton, SidePanelHeader, TextArea } from "../../design";
+import { IconButton, SidePanelHeader } from "../../design";
 import { useI18n } from "../../i18n";
 import type { ViewportMode } from "../../shared";
 import type { TimelineMoment, TimeSystem } from "../story-world";
+import { NoteEditor, noteFocusCopy } from "../notes";
 import {
   childrenOf,
   flattenChapterIds,
@@ -118,13 +119,16 @@ export function ChapterBinder({
             timeSystem={timeSystem}
             onChange={(storyTime) => onUpdateCurrent({ storyTime })}
           />
-          <TextArea
+          <NoteEditor
+            owner={{ kind: "chapter", id: current.id }}
             fieldClassName="binder-note"
             className="binder-note-control"
             label={t("chapterNote")}
             value={current.note}
-            onChange={(event) => onUpdateCurrent({ note: event.target.value })}
+            onChange={(note) => onUpdateCurrent({ note })}
             placeholder={t("chapterNotePlaceholder")}
+            size="compact"
+            focus={noteFocusCopy(t, current.title || t("untitled"))}
           />
         </>
       )}

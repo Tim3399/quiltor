@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Button, IconButton, TextArea, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { NoteEditor, noteFocusCopy } from "../../notes";
 import type { FigureNode, Profile } from "../model";
 import { PROFILE_FIELDS } from "./profileFields";
 
@@ -26,6 +27,16 @@ export function FigureProfilePanel({
             label={t(label)}
             value={String(profile[key] || "")}
             onChange={(event) => patchProfile({ [key]: event.target.value })}
+          />
+        ) : key === "notizen" ? (
+          <NoteEditor
+            key={key as string}
+            owner={{ kind: figure.type === "ort" ? "place" : "entity", id: figure.id }}
+            fieldClassName="figure-profile-field"
+            label={t(label)}
+            value={String(profile[key] || "")}
+            onChange={(value) => patchProfile({ [key]: value })}
+            focus={noteFocusCopy(t, figure.name)}
           />
         ) : (
           <TextArea

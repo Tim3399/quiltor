@@ -1,10 +1,10 @@
-import { useId, useRef, type HTMLAttributes, type ReactNode } from "react";
+import { useId, useRef, type HTMLAttributes, type ReactNode, type RefObject } from "react";
 import { X } from "lucide-react";
 import { useOverlayFocus } from "../../internal/useOverlayFocus";
 import { IconButton } from "../../primitives/IconButton";
 import "./Dialog.css";
 
-export type DialogSize = "regular" | "wide";
+export type DialogSize = "regular" | "wide" | "focus";
 
 export interface DialogProps {
   open?: boolean;
@@ -17,6 +17,7 @@ export interface DialogProps {
   role?: "dialog" | "alertdialog";
   describedById?: string;
   className?: string;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 function classNames(...names: Array<string | false | null | undefined>) {
@@ -34,16 +35,17 @@ export function Dialog({
   role = "dialog",
   describedById,
   className,
+  returnFocusRef,
 }: DialogProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useOverlayFocus(containerRef, open, onClose);
+  useOverlayFocus(containerRef, open, onClose, returnFocusRef);
 
   if (!open) return null;
 
   return (
     <div
-      className="ui-dialog-backdrop"
+      className={`ui-dialog-backdrop ui-dialog-backdrop--${size}`}
       onPointerDown={(event) => event.target === event.currentTarget && onClose()}
     >
       {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: role is restricted to dialog roles. */}

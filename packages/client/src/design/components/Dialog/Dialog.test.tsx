@@ -67,6 +67,18 @@ describe("Dialog", () => {
     );
   });
 
+  it("offers a nearly full-surface focus size", () => {
+    render(
+      <Dialog title="Notiz" closeLabel="Zurück" size="focus" onClose={() => undefined}>
+        Inhalt
+      </Dialog>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("ui-dialog--focus");
+    expect(dialog.parentElement).toHaveClass("ui-dialog-backdrop--focus");
+  });
+
   it("does not mount or capture focus while closed", () => {
     render(
       <Dialog open={false} title="Titel" closeLabel="Schließen" onClose={() => undefined}>

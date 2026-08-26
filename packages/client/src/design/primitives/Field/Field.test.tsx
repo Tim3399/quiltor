@@ -92,4 +92,17 @@ describe("Field", () => {
     expect(screen.getByRole("textbox", { name: "Search" })).toBeInTheDocument();
     expect(screen.getByText("Search")).toHaveClass("sr-only");
   });
+
+  it("reserves a header action beside the label instead of covering the control", () => {
+    render(
+      <Field label="Notiz" actions={<button type="button">Im Fokus öffnen</button>}>
+        <textarea />
+      </Field>,
+    );
+
+    const action = screen.getByRole("button", { name: "Im Fokus öffnen" });
+    expect(action.parentElement).toHaveClass("ui-field__actions");
+    expect(action.parentElement?.parentElement).toHaveClass("ui-field__header");
+    expect(screen.getByRole("textbox", { name: "Notiz" })).toBeInTheDocument();
+  });
 });

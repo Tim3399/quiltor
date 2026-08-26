@@ -3,15 +3,15 @@ import { useMemo, useState } from "react";
 import { CommandPalette, type CommandPaletteItem } from "../../design";
 import { useI18n } from "../../i18n";
 import type { Workspace, WorkspaceTarget } from "../../shared";
-import {
-  chapterBreadcrumb,
-  type Manuscript,
-  manuscriptStructure,
-  orderedChapters,
-  textSearchRanges,
-} from "../manuscript";
+import { type Manuscript, textSearchRanges } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { kindLabel } from "../story-world";
+import {
+  buildWorldReferenceCandidates,
+  searchWorldReferences,
+  type WorldReferenceTarget,
+  workspaceTargetForReference,
+} from "../world-references";
 
 export function SearchDialog({
   manuscript,
@@ -48,69 +48,49 @@ export function SearchDialog({
       onSelect: () => onCommand(id),
     }));
     const needle = query.trim();
-    const structure = manuscriptStructure(manuscript);
-    const chapters: CommandPaletteItem[] = orderedChapters(manuscript).flatMap((chapter) => {
-      const matches = textSearchRanges(chapter.body, needle);
-      const metadataMatches = [chapter.title, chapter.note].some((value) =>
-        value.toLocaleLowerCase().includes(needle.toLocaleLowerCase()),
-      );
-      if (needle && !matches.length && !metadataMatches) return [];
-      const first = matches[0];
-      const breadcrumb = chapterBreadcrumb(structure, chapter.id)
-        .map((folder) => folder.title)
-        .join(" / ");
-      const matchDetail = first
-        ? `${t("searchMatchCount", { count: matches.length })} · ${matchPreview(
-            chapter.body,
-            first.from,
-            first.to,
-          )}`
-        : chapter.note || chapter.body.slice(0, 120);
-      return [
-        {
-          id: `chapter-${chapter.id}`,
-          label: chapter.title || t("untitled"),
-          detail: [breadcrumb, matchDetail].filter(Boolean).join(" · "),
-          keywords: [chapter.body, chapter.note, breadcrumb],
-          icon: <FileText />,
+    const chaptersById = new Map(manuscript.chapters.map((chapter) => [chapter.id, chapter]));
+    const candidates = buildWorldReferenceCandidates({
+      manuscript,
+      figures,
+      labels: {
+        untitled: t("untitled"),
+        moment: t("moment"),
+        figureKind: (kind) => kindLabel(kind, t),
+      },
+    });
+    const references: CommandPaletteItem[] = searchWorldReferences(candidates, needle, 100).map(
+      (candidate) => {
+        const chapter =
+          candidate.target.kind === "chapter" ? chaptersById.get(candidate.target.id) : undefined;
+        const matches = chapter && needle ? textSearchRanges(chapter.body, needle) : [];
+        const first = matches[0];
+        const matchDetail = first
+          ? `${t("searchMatchCount", { count: matches.length })} · ${matchPreview(
+              chapter?.body ?? "",
+              first.from,
+              first.to,
+            )}`
+          : "";
+        return {
+          id: candidate.id,
+          label: candidate.label,
+          detail: [candidate.detail, matchDetail].filter(Boolean).join(" · "),
+          keywords: candidate.keywords,
+          icon: referenceIcon(candidate.target),
           requiresQuery: true,
           onSelect: () => {
-            onWorkspace("text");
+            const target = workspaceTargetForReference(candidate.target);
+            if (!target || candidate.workspace === "storyboard") return;
+            onWorkspace(candidate.workspace);
             onSelect({
-              workspace: "text",
-              id: chapter.id,
+              ...target,
               ...(first ? { textSearch: { query: needle, from: first.from, to: first.to } } : {}),
             });
           },
-        },
-      ];
-    });
-    const nodes: CommandPaletteItem[] = figures.nodes.map((node) => ({
-      id: `node-${node.id}`,
-      label: node.name,
-      detail: node.sub || node.label || kindLabel(node.type ?? "person", t),
-      keywords: [JSON.stringify(node)],
-      icon: node.type === "ort" ? <MapPin /> : <UserRound />,
-      requiresQuery: true,
-      onSelect: () => {
-        const targetWorkspace: Workspace = node.type === "ort" ? "places" : "figures";
-        onWorkspace(targetWorkspace);
-        onSelect({ workspace: targetWorkspace, id: node.id });
+        };
       },
-    }));
-    const moments: CommandPaletteItem[] = (figures.timeline || []).map((moment) => ({
-      id: `moment-${moment.id}`,
-      label: moment.title,
-      detail: moment.note || moment.date || t("moment"),
-      keywords: [JSON.stringify(moment)],
-      icon: <Clock3 />,
-      requiresQuery: true,
-      onSelect: () => {
-        onWorkspace("timeline");
-        onSelect({ workspace: "timeline", id: moment.id });
-      },
-    }));
-    return [...commands, ...chapters, ...nodes, ...moments];
+    );
+    return [...commands, ...references];
   }, [manuscript, figures.nodes, figures.timeline, onCommand, onWorkspace, onSelect, query, t]);
   return (
     <CommandPalette
@@ -125,6 +105,21 @@ export function SearchDialog({
       onQueryChange={setQuery}
     />
   );
+}
+
+function referenceIcon(target: WorldReferenceTarget) {
+  switch (target.kind) {
+    case "chapter":
+      return <FileText />;
+    case "place":
+      return <MapPin />;
+    case "timeline":
+      return <Clock3 />;
+    case "entity":
+      return <UserRound />;
+    case "storyboard":
+      return <FileText />;
+  }
 }
 
 function matchPreview(value: string, from: number, to: number) {

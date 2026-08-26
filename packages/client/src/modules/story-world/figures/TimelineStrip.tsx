@@ -2,6 +2,7 @@ import { Clock3, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, IconButton, ScrollArea, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { NoteEditor, noteFocusCopy } from "../../notes";
 import type { TimelineMoment } from "../model";
 import { formatMomentDate } from "./date";
 import "./TimelineStrip.css";
@@ -130,13 +131,16 @@ export function TimelineStrip({
             value={active.date || ""}
             onChange={(event) => onPatch(active.id, { date: event.target.value || undefined })}
           />
-          <TextField
+          <NoteEditor
+            owner={{ kind: "timeline", id: active.id }}
             fieldClassName="timeline-detail-field timeline-detail-note"
             className="timeline-detail-input"
             label={t("optionalNote")}
             value={active.note || ""}
             placeholder={t("momentNotePlaceholder")}
-            onChange={(event) => onPatch(active.id, { note: event.target.value })}
+            onChange={(note) => onPatch(active.id, { note })}
+            size="compact"
+            focus={noteFocusCopy(t, active.title)}
           />
           <IconButton
             className="timeline-delete-action"

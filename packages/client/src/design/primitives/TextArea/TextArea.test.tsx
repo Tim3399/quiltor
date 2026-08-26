@@ -63,4 +63,13 @@ describe("TextArea", () => {
     expect(screen.getByRole("textbox", { name: "Notiz" })).toHaveAttribute("id", initialId);
     expect(screen.getByText("Optional")).toHaveAttribute("id", `${initialId}-hint`);
   });
+
+  it("keeps field actions in the label row", () => {
+    render(<TextArea label="Notiz" actions={<button type="button">Im Fokus öffnen</button>} />);
+
+    const action = screen.getByRole("button", { name: "Im Fokus öffnen" });
+    expect(action.closest(".ui-field__header")).toContainElement(
+      screen.getByText("Notiz", { selector: "label" }),
+    );
+  });
 });

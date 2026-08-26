@@ -29,6 +29,7 @@ export interface FieldProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "children">,
     FieldMessageProps {
   label: ReactNode;
+  actions?: ReactNode;
   /** Keeps the accessible label while removing it from visual layout. */
   labelHidden?: boolean;
   controlId?: string;
@@ -52,6 +53,7 @@ function isInvalid(value: AriaAttributes["aria-invalid"]): boolean {
 export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
   {
     label,
+    actions,
     labelHidden = false,
     controlId,
     description,
@@ -82,6 +84,14 @@ export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
     showsError ? resolvedErrorId : undefined,
   );
   const invalid = showsError ? true : control.props["aria-invalid"];
+  const fieldLabel = (
+    <label
+      className={`ui-field__label ${labelHidden ? "sr-only" : ""}`.trim()}
+      htmlFor={resolvedControlId}
+    >
+      {label}
+    </label>
+  );
 
   return (
     <div
@@ -90,9 +100,14 @@ export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
       className={`ui-field ${className ?? ""}`.trim()}
       data-invalid={isInvalid(invalid) ? "true" : undefined}
     >
-      <label className={`ui-field__label ${labelHidden ? "sr-only" : ""}`.trim()} htmlFor={resolvedControlId}>
-        {label}
-      </label>
+      {actions ? (
+        <div className="ui-field__header">
+          {fieldLabel}
+          <div className="ui-field__actions">{actions}</div>
+        </div>
+      ) : (
+        fieldLabel
+      )}
       {showsDescription && (
         <p className="ui-field__description" id={resolvedDescriptionId}>
           {description}

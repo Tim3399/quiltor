@@ -8,6 +8,20 @@
   font-size: var(--font-size-2);
   text-transform: uppercase;
 }
+.ui-field__header,
+.ui-field__actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.ui-field__header {
+  justify-content: space-between;
+  gap: var(--spacing-compact-base);
+}
+.ui-field__actions {
+  flex: none;
+  gap: var(--spacing-optical-wide);
+}
 .ui-field__description,
 .ui-field__hint,
 .ui-field__error {

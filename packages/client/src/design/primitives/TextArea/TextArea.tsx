@@ -6,6 +6,7 @@ export interface TextAreaProps
   extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "children">,
     FieldMessageProps {
   label: ReactNode;
+  actions?: ReactNode;
   labelHidden?: boolean;
   fieldId?: string;
   fieldClassName?: string;
@@ -14,6 +15,7 @@ export interface TextAreaProps
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea(
   {
     label,
+    actions,
     labelHidden,
     fieldId,
     fieldClassName,
@@ -32,6 +34,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
       id={fieldId}
       className={fieldClassName}
       label={label}
+      actions={actions}
       labelHidden={labelHidden}
       description={description}
       descriptionId={descriptionId}

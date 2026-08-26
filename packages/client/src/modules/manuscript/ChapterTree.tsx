@@ -1,5 +1,5 @@
 import { FolderPlus } from "lucide-react";
-import { type CSSProperties, type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
 import { Button, EmptyState, ScrollArea } from "../../design";
 import { useI18n } from "../../i18n";
 import { quiltorClient } from "../../platform";
@@ -8,7 +8,6 @@ import { uid } from "../../shared/id";
 import type { TimelineMoment, TimeSystem } from "../story-world";
 import {
   addFolder,
-  chapterBreadcrumb,
   childrenOf,
   deleteFolder,
   flattenChapterIds,
@@ -16,11 +15,7 @@ import {
 } from "./binder/manuscriptTree";
 import { ChapterActionsMenu, type ChapterActionsMenuProps } from "./ChapterActionsMenu";
 import { chapterStoryTimeLabel } from "./ChapterStoryTimeFields";
-import {
-  ChapterTreeChapterRow,
-  ChapterTreeDropBefore,
-  ChapterTreeFolderRow,
-} from "./ChapterTreeRows";
+import { ChapterTreeChapterRow, ChapterTreeEntry, ChapterTreeFolderRow } from "./ChapterTreeRows";
 import type { Chapter, Manuscript, ManuscriptStructure, ManuscriptTreeItem } from "./model";
 import { useChapterTreeDragDrop } from "./useChapterTreeDragDrop";
 import { wordCount } from "./wordCount";
@@ -153,35 +148,32 @@ export function ChapterTree({
     if (item.kind === "chapter") {
       const chapter = chapterById.get(item.chapterId);
       if (!chapter) return null;
-      const breadcrumb = chapterBreadcrumb(structure, chapter.id)
-        .map((folder) => folder.title)
-        .join(" / ");
       return (
-        <ChapterTreeChapterRow
-          key={item.id}
-          item={item}
-          depth={depth}
-          selected={chapter.id === current?.id}
-          label={chapter.title || t("untitled")}
-          number={String(numberById.get(chapter.id) ?? 0).padStart(2, "0")}
-          words={
-            <>
-              {wordCount(chapter.body)} {t("words")}
-            </>
-          }
-          storyTime={chapterStoryTimeLabel(chapter, timeline, timeSystem, t)}
-          breadcrumb={breadcrumb || undefined}
-          dragDrop={dragDrop}
-          actions={
-            chapter.id === current?.id && chapterActions ? (
-              <ChapterActionsMenu {...chapterActions} />
-            ) : undefined
-          }
-          onSelect={() => {
-            onSelect(chapter.id);
-            if (viewportMode === "compact") onClose();
-          }}
-        />
+        <ChapterTreeEntry key={item.id} item={item} depth={depth} dragDrop={dragDrop}>
+          <ChapterTreeChapterRow
+            item={item}
+            depth={depth}
+            selected={chapter.id === current?.id}
+            label={chapter.title || t("untitled")}
+            number={String(numberById.get(chapter.id) ?? 0).padStart(2, "0")}
+            words={
+              <>
+                {wordCount(chapter.body)} {t("words")}
+              </>
+            }
+            storyTime={chapterStoryTimeLabel(chapter, timeline, timeSystem, t)}
+            dragDrop={dragDrop}
+            actions={
+              chapter.id === current?.id && chapterActions ? (
+                <ChapterActionsMenu {...chapterActions} />
+              ) : undefined
+            }
+            onSelect={() => {
+              onSelect(chapter.id);
+              if (viewportMode === "compact") onClose();
+            }}
+          />
+        </ChapterTreeEntry>
       );
     }
 
@@ -192,13 +184,7 @@ export function ChapterTree({
     const childItems = childrenOf(structure, folder.id);
     const childrenId = `binder-folder-children-${folder.id}`;
     return (
-      <li
-        className="binder-tree-entry binder-folder-entry"
-        key={item.id}
-        data-binder-depth={depth}
-        style={{ "--binder-depth": depth } as CSSProperties}
-      >
-        <ChapterTreeDropBefore item={item} depth={depth} dragDrop={dragDrop} />
+      <ChapterTreeEntry key={item.id} item={item} depth={depth} dragDrop={dragDrop} folder>
         <ChapterTreeFolderRow
           item={item}
           folder={folder}
@@ -232,7 +218,7 @@ export function ChapterTree({
             )}
           </ul>
         )}
-      </li>
+      </ChapterTreeEntry>
     );
   };
 
