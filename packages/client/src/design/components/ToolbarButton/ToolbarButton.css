@@ -51,6 +51,19 @@
   display: none;
 }
 
+@media (max-width: 900px) {
+  .ui-toolbar-button[data-label-mode="responsive"]:where([data-collapse-at="medium"]) {
+    width: var(--control-regular);
+    gap: 0;
+    padding: 0;
+  }
+
+  .ui-toolbar-button[data-label-mode="responsive"]:where([data-collapse-at="medium"])
+    .ui-button__label {
+    display: none;
+  }
+}
+
 @media (max-width: 719px), (pointer: coarse) {
   .ui-toolbar-button[data-label-mode="hidden"],
   .ui-toolbar-button[data-label-mode="responsive"] {

@@ -3,11 +3,13 @@ import { Button, type ButtonProps } from "../../primitives/Button";
 import "./ToolbarButton.css";
 
 export type ToolbarButtonLabelMode = "always" | "responsive" | "hidden";
+export type ToolbarButtonCollapseAt = "compact" | "medium";
 
 export interface ToolbarButtonProps extends Omit<ButtonProps, "children" | "icon"> {
   label: string;
   icon: ReactNode;
   labelMode?: ToolbarButtonLabelMode;
+  collapseAt?: ToolbarButtonCollapseAt;
 }
 
 function classNames(...names: Array<string | false | null | undefined>) {
@@ -20,6 +22,7 @@ export const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
       label,
       icon,
       labelMode = "responsive",
+      collapseAt = "compact",
       appearance = "ghost",
       size = "compact",
       className,
@@ -38,6 +41,7 @@ export const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
         icon={icon}
         className={classNames("ui-toolbar-button", className)}
         data-label-mode={labelMode}
+        data-collapse-at={collapseAt}
         aria-label={ariaLabel ?? label}
         title={title ?? label}
       >

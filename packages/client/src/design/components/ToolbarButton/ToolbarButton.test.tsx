@@ -15,6 +15,7 @@ describe("ToolbarButton", () => {
     const button = screen.getByRole("button", { name: "Neues Kapitel" });
     expect(button).toHaveClass("ui-toolbar-button");
     expect(button).toHaveAttribute("data-label-mode", "responsive");
+    expect(button).toHaveAttribute("data-collapse-at", "compact");
     expect(button).toHaveAttribute("title", "Neues Kapitel");
     expect(button).toHaveTextContent("Neues Kapitel");
 
@@ -27,6 +28,25 @@ describe("ToolbarButton", () => {
     );
     expect(css).toMatch(
       /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.ui-toolbar-button\[data-label-mode="responsive"\] \.ui-button__label\s*\{[^}]*display:\s*none;/s,
+    );
+  });
+
+  it("supports earlier label collapse for crowded medium-width toolbars", () => {
+    render(<ToolbarButton label="Schreibhilfe" collapseAt="medium" icon={<Plus />} />);
+
+    const button = screen.getByRole("button", { name: "Schreibhilfe" });
+    expect(button).toHaveAttribute("data-label-mode", "responsive");
+    expect(button).toHaveAttribute("data-collapse-at", "medium");
+
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/design/components/ToolbarButton/ToolbarButton.css"),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 900px\)[\s\S]*?\.ui-toolbar-button\[data-label-mode="responsive"\]:where\(\[data-collapse-at="medium"\]\) \{[^}]*width:\s*var\(--control-regular\);[^}]*gap:\s*0;[^}]*padding:\s*0;/s,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 900px\)[\s\S]*?\.ui-toolbar-button\[data-label-mode="responsive"\]:where\(\[data-collapse-at="medium"\]\)[\s\S]*?\.ui-button__label\s*\{[^}]*display:\s*none;/s,
     );
   });
 

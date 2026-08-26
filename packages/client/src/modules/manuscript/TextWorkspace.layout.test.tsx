@@ -30,7 +30,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(editor).toHaveClass("scroll-area", "editor-scroll");
     expect(editor).toHaveAttribute("data-axis", "y");
     expect(editor).toHaveAttribute("data-gutter", "both-edges");
-    expect(editor).toHaveAttribute("data-overscroll", "auto");
+    expect(editor).toHaveAttribute("data-overscroll", "contain");
     expect(editor).toHaveAttribute("data-scrollbar", "thin");
     expect(editor).toHaveAttribute("data-surface", "paper");
 
@@ -44,6 +44,21 @@ describe("TextWorkspace layout and panels", () => {
     expect(chapterCss).not.toMatch(/\.chapter-list\s*\{[^}]*overflow/s);
     expect(editorCss).not.toMatch(
       /\.editor-scroll\s*\{[^}]*(?:overflow|scrollbar-gutter|background:\s*var\(--paper\))/s,
+    );
+    expect(editorCss).toMatch(
+      /\.chapter-turn__action\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s,
+    );
+    expect(editorCss).toMatch(
+      /\.chapter-turn\[data-active="true"\] \.chapter-turn__action,[\s\S]*?\.chapter-turn__action:focus-visible\s*\{[^}]*pointer-events:\s*auto;/s,
+    );
+    expect(editorCss).toMatch(
+      /\.chapter-turn__progress > span\s*\{[^}]*transform:\s*scaleX\(var\(--chapter-turn-progress\)\);/s,
+    );
+    expect(editorCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.chapter-turn__progress > span\s*\{[^}]*transition:\s*none;/s,
+    );
+    expect(editorCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.editor-scroll\[data-chapter-turn="top"\] \.editor-page,[\s\S]*?transform:\s*none;/s,
     );
   });
 

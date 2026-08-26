@@ -75,7 +75,13 @@ export function TextWorkspace({
   const structure = useMemo(() => manuscriptStructure(manuscript), [manuscript]);
   const chapters = useMemo(() => orderedChapters(manuscript), [manuscript]);
   const current = chapters.find((chapter) => chapter.id === currentId) ?? chapters[0];
-  const currentIndex = current ? chapters.indexOf(current) + 1 : 0;
+  const currentPosition = current ? chapters.indexOf(current) : -1;
+  const currentIndex = currentPosition + 1;
+  const previousChapter = currentPosition > 0 ? chapters[currentPosition - 1] : undefined;
+  const nextChapter =
+    currentPosition >= 0 && currentPosition < chapters.length - 1
+      ? chapters[currentPosition + 1]
+      : undefined;
   useEffect(() => {
     onCurrentChapterId?.(current?.id || "");
   }, [current?.id, onCurrentChapterId]);
@@ -313,7 +319,26 @@ export function TextWorkspace({
             historyRef={history.selectedRef}
             historicalText={history.historicalText}
             historyState={history.state}
+            previousChapter={
+              previousChapter
+                ? {
+                    id: previousChapter.id,
+                    number: currentPosition,
+                    title: previousChapter.title,
+                  }
+                : undefined
+            }
+            nextChapter={
+              nextChapter
+                ? {
+                    id: nextChapter.id,
+                    number: currentPosition + 2,
+                    title: nextChapter.title,
+                  }
+                : undefined
+            }
             onCreateChapter={addChapter}
+            onNavigateChapter={setCurrentId}
             onUpdateTitle={(title) => updateCurrent({ title })}
             onEditorChange={writing.onEditorChange}
             onSelection={writing.onSelection}

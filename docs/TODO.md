@@ -569,29 +569,29 @@ The folder tree is organizational metadata. It must not alter manuscript prose.
 The manuscript should feel like one continuous book while still keeping chapters as
 clear editing units.
 
-- [ ] When the editor is at the very top of a chapter and the author continues scrolling
+- [x] When the editor is at the very top of a chapter and the author continues scrolling
       upward, reveal a small **Previous chapter** affordance.
-- [ ] When the editor is at the very bottom and the author continues scrolling downward,
+- [x] When the editor is at the very bottom and the author continues scrolling downward,
       reveal the mirrored **Next chapter** affordance.
-- [ ] Do not switch chapters on the first wheel/trackpad event at the boundary.
-- [ ] Require a short deliberate continued overscroll / hold, roughly in the range of
+- [x] Do not switch chapters on the first wheel/trackpad event at the boundary.
+- [x] Require a short deliberate continued overscroll / hold, roughly in the range of
       `0.7–1.0 s`, before navigating.
-- [ ] Show visual progress while the threshold is being reached.
-- [ ] Cancel the pending switch immediately when the author scrolls back in the opposite
+- [x] Show visual progress while the threshold is being reached.
+- [x] Cancel the pending switch immediately when the author scrolls back in the opposite
       direction.
-- [ ] Make the affordance clickable so mouse users can navigate without relying on a
+- [x] Make the affordance clickable so mouse users can navigate without relying on a
       sustained overscroll gesture.
-- [ ] Keep the interaction subtle; the current page may visually give way by a few pixels
+- [x] Keep the interaction subtle; the current page may visually give way by a few pixels
       to reveal the navigation element, similar to a restrained pull-to-refresh interaction.
-- [ ] Use the binder's single deterministic flattened chapter order.
-- [ ] Folder boundaries are transparent to this navigation; moving from the last chapter
+- [x] Use the binder's single deterministic flattened chapter order.
+- [x] Folder boundaries are transparent to this navigation; moving from the last chapter
       in one nested folder to the first chapter in the next follows the flattened reading order.
-- [ ] Navigating forward opens the next chapter at its **top**.
-- [ ] Navigating backward opens the previous chapter at its **bottom**.
-- [ ] At the first/last chapter, do not show a nonexistent previous/next target.
-- [ ] Preserve normal chapter editing: ordinary scrolling inside a chapter must never
+- [x] Navigating forward opens the next chapter at its **top**.
+- [x] Navigating backward opens the previous chapter at its **bottom**.
+- [x] At the first/last chapter, do not show a nonexistent previous/next target.
+- [x] Preserve normal chapter editing: ordinary scrolling inside a chapter must never
       trigger navigation.
-- [ ] Keep an explicit keyboard-accessible navigation action in addition to the gesture.
+- [x] Keep an explicit keyboard-accessible navigation action in addition to the gesture.
 
 Example at the bottom of a chapter:
 

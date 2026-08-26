@@ -689,14 +689,21 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
     }
   }
 
+  await page.setViewportSize({ width: 733, height: 900 });
+  const mediumOverflow = await toolbarActions.evaluate((actions) => ({
+    clientWidth: actions.clientWidth,
+    scrollWidth: actions.scrollWidth,
+  }));
+  expect(mediumOverflow.scrollWidth).toBeLessThanOrEqual(mediumOverflow.clientWidth + 1);
+
   await page.setViewportSize({ width: 320, height: 900 });
-  const compactOverflow = await toolbarActions.evaluate((actions) => ({
+  const compactFit = await toolbarActions.evaluate((actions) => ({
     clientWidth: actions.clientWidth,
     overflowX: getComputedStyle(actions).overflowX,
     scrollWidth: actions.scrollWidth,
   }));
-  expect(compactOverflow.scrollWidth).toBeGreaterThan(compactOverflow.clientWidth);
-  expect(compactOverflow.overflowX).toBe("auto");
+  expect(compactFit.scrollWidth).toBeLessThanOrEqual(compactFit.clientWidth + 1);
+  expect(compactFit.overflowX).toBe("auto");
 
   const exportAction = manuscriptToolbar.getByRole("button", { name: "Exportieren" });
   await exportAction.focus();
@@ -708,22 +715,27 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
   expect(exportBox.x).toBeGreaterThanOrEqual(actionsBox.x - 0.5);
   expect(exportBox.x + exportBox.width).toBeLessThanOrEqual(actionsBox.x + actionsBox.width + 0.5);
 
-  // Die responsive ToolbarButton-API zeigt das sichtbare Label oberhalb ihrer kompakten
-  // 720px-Grenze. Darunter bleibt das Symbol mit seinem aria-label erhalten.
+  // Die volle Manuskriptleiste klappt Beschriftungen etwas früher ein als kleine Toolbars, damit
+  // Zwischenbreiten nie erst horizontal gescrollt werden müssen.
   const chapters = manuscriptToolbar.getByRole("button", { name: "Kapitel", exact: true });
   const aid = manuscriptToolbar.getByRole("button", { name: "Schreibhilfe", exact: true });
   const chaptersLabel = chapters.getByText("Kapitel", { exact: true });
   const aidLabel = aid.getByText("Schreibhilfe", { exact: true });
-  await page.setViewportSize({ width: 721, height: 900 });
+  await page.setViewportSize({ width: 901, height: 900 });
   await expect(chaptersLabel).toBeVisible();
   await expect(aidLabel).toBeVisible();
 
-  // Die öffentliche ToolbarButton-API koppelt responsive Icon-only-Darstellung an einen groben
-  // Pointer, nicht an die Desktop-Fensterbreite. Bei feinem Pointer bleibt das Label sichtbar;
-  // der Accessible Name muss unabhängig davon am Button erhalten bleiben.
-  await page.setViewportSize({ width: 720, height: 900 });
-  await expect(chaptersLabel).toBeVisible();
-  await expect(aidLabel).toBeVisible();
+  await page.setViewportSize({ width: 900, height: 900 });
+  await expect(chaptersLabel).toBeHidden();
+  await expect(aidLabel).toBeHidden();
+
+  await page.setViewportSize({ width: 719, height: 900 });
+  for (const action of [chapters, aid]) {
+    const box = await action.boundingBox();
+    if (!box) throw new Error("Responsive Toolbar-Aktion hat keine Geometrie");
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
   await expect(chapters).toBeVisible();
   await expect(chapters).toHaveAttribute("aria-label", "Kapitel");
   await expect(aid).toHaveAttribute("aria-label", "Schreibhilfe");

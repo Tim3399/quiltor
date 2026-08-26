@@ -99,6 +99,7 @@ export function ManuscriptToolbar({
           <ToolbarButton
             label={t("newChapter")}
             icon={<FilePlus2 />}
+            collapseAt="medium"
             appearance="primary"
             onClick={onAddChapter}
           />
@@ -108,6 +109,7 @@ export function ManuscriptToolbar({
             <ToolbarButton
               label={t("chapters")}
               icon={<PanelLeft />}
+              collapseAt="medium"
               aria-pressed={binderOpen}
               aria-expanded={binderOpen}
               aria-controls="chapter-binder"
@@ -116,6 +118,7 @@ export function ManuscriptToolbar({
             <ToolbarButton
               label={t("writingAid")}
               icon={<PanelRight />}
+              collapseAt="medium"
               disabled={!current}
               aria-pressed={Boolean(current && inspectorOpen)}
               aria-expanded={Boolean(current && inspectorOpen)}
@@ -140,6 +143,7 @@ export function ManuscriptToolbar({
           <ToolbarButton
             label={t("focus")}
             icon={<Focus />}
+            collapseAt="medium"
             aria-pressed={focus}
             onClick={() => onFocus(!focus)}
           />
@@ -149,6 +153,7 @@ export function ManuscriptToolbar({
             <ToolbarButton
               label={t("versions")}
               icon={<HistoryIcon />}
+              collapseAt="medium"
               aria-pressed={historyOpen}
               onClick={() => onHistoryOpen(!historyOpen)}
             />
@@ -163,6 +168,7 @@ export function ManuscriptToolbar({
                 ref={ref}
                 label={t("exportManuscript")}
                 icon={<Download />}
+                collapseAt="medium"
               />
             )}
           >

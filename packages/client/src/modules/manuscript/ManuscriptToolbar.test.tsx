@@ -7,7 +7,7 @@ afterEach(cleanup);
 
 it("links manuscript export actions and restores focus after selection", async () => {
   const onExport = vi.fn();
-  render(
+  const { container } = render(
     <I18nProvider>
       <ManuscriptToolbar
         totalWords={1200}
@@ -30,6 +30,14 @@ it("links manuscript export actions and restores focus after selection", async (
   );
 
   const trigger = screen.getByRole("button", { name: "Exportieren" });
+  const responsiveActions = [
+    ...container.querySelectorAll<HTMLButtonElement>(
+      '.manuscript-toolbar .ui-toolbar-button[data-label-mode="responsive"]',
+    ),
+  ];
+  expect(responsiveActions.length).toBeGreaterThan(0);
+  for (const action of responsiveActions)
+    expect(action).toHaveAttribute("data-collapse-at", "medium");
   expect(trigger).toHaveAttribute("aria-haspopup", "menu");
   expect(trigger).toHaveAttribute("aria-expanded", "false");
   trigger.focus();
