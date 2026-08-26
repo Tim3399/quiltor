@@ -1,7 +1,7 @@
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
-import type { EntityMention, TextMark, WritingIssue } from "./model";
 import { normalizeMarks } from "./marks";
+import type { EntityMention, TextMark, WritingIssue } from "./model";
 
 type SearchDecorationState = {
   matches: Array<{ from: number; to: number }>;

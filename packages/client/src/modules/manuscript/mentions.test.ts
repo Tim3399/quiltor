@@ -1,7 +1,6 @@
 import { ChangeSet } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import type { FigureNode } from "../story-world";
-import type { EntityMention } from "./model";
 import {
   addDeterministicMentions,
   mapMentions,
@@ -9,6 +8,7 @@ import {
   replaceEntityMentions,
   scanEntityMentions,
 } from "./mentions";
+import type { EntityMention } from "./model";
 
 const node = (id: string, name: string): FigureNode => ({ id, name, x: 0, y: 0, type: "person" });
 

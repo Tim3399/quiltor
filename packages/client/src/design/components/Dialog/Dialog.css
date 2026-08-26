@@ -1,0 +1,104 @@
+.ui-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 9vh var(--space-20) var(--space-32);
+  background: var(--overlay);
+  backdrop-filter: blur(var(--blur-dialog));
+}
+
+.ui-dialog {
+  width: min(620px, 100%);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.ui-dialog--wide {
+  width: min(1080px, 100%);
+}
+
+.ui-dialog__header {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-8) var(--space-16);
+  border-bottom: 1px solid var(--line);
+}
+
+.ui-dialog__title {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: 600 var(--font-size-6) var(--prose);
+}
+
+.ui-dialog__close {
+  flex: none;
+}
+
+.ui-dialog__content {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-18);
+}
+
+.ui-dialog__footer,
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-7);
+}
+
+.ui-dialog__footer {
+  padding: var(--space-12) var(--space-18) var(--space-18);
+}
+
+/* Temporary styling for product dialogs that have not migrated to DialogFooter and Button yet. */
+.dialog-actions button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-7);
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--soft);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dialog-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.dialog-actions button.primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+@media (max-width: 640px) {
+  .ui-dialog-backdrop {
+    padding: 0;
+  }
+
+  .ui-dialog {
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+}

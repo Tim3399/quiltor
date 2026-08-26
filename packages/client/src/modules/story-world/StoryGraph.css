@@ -43,11 +43,14 @@
   width: 15px;
   flex-shrink: 0;
 }
-.mode-banner > span {
+.mode-banner-copy {
   min-width: 0;
   flex: 1;
 }
-.mode-banner button {
+.mode-banner-icon {
+  display: inline-flex;
+}
+.mode-banner-dismiss {
   flex-shrink: 0;
   display: flex;
   background: var(--transparent);
@@ -80,10 +83,10 @@
   border-left-color: var(--gold);
 }
 .story-node.accent-rose {
-  border-left-color: var(--rose);
+  border-left-color: var(--rose-border);
 }
 .story-node.accent-moss {
-  border-left-color: var(--moss);
+  border-left-color: var(--moss-border);
 }
 .story-node.type-ort {
   border-radius: var(--radius) var(--radius-pill) var(--radius) var(--radius-pill);
@@ -111,7 +114,7 @@
 }
 .story-node strong svg {
   width: 14px;
-  color: var(--rose);
+  color: var(--rose-text);
 }
 .story-node small {
   display: -webkit-box;
@@ -155,7 +158,7 @@
   background: var(--panel);
 }
 .react-flow__attribution {
-  background: var(--paper) !important;
+  background: var(--paper);
 }
 .react-flow__attribution a {
   color: var(--attribution);
@@ -238,7 +241,7 @@
   gap: var(--space-7);
   margin-top: var(--space-12);
 }
-.node-priority-actions button {
+.node-priority-action {
   min-height: 36px;
   display: flex;
   align-items: center;
@@ -251,7 +254,7 @@
   color: var(--soft);
   cursor: pointer;
 }
-.node-priority-actions button.active {
+.node-priority-action.active {
   border-color: var(--gold);
   background: var(--control-hover);
   color: var(--ink);

@@ -15,7 +15,7 @@
   pointer-events: none;
 }
 
-.places-manager-empty > svg {
+.places-empty-icon {
   width: 30px;
   color: var(--gold);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { entityCompletion, foldName, nameDistance } from "./entityCompletion";
 import type { FigureNode } from "../story-world";
+import { entityCompletion, foldName, nameDistance } from "./entityCompletion";
 
 const figure = (name: string, id = name.toLowerCase()): FigureNode => ({
   id,

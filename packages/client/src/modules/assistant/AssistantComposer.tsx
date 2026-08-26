@@ -1,5 +1,6 @@
-import type { Dispatch, RefObject, SetStateAction } from "react";
 import { ArrowUp, BookOpen, ChevronDown, Square } from "lucide-react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
+import { Button, Checkbox, IconButton, TextArea } from "../../design";
 import { useI18n } from "../../i18n";
 import type { Chapter } from "../manuscript";
 import "./AssistantComposer.css";
@@ -40,58 +41,70 @@ export function AssistantComposer({
           </summary>
           <div className="assistant-chapter-picker-list">
             {chapters.map((chapter, index) => (
-              <label key={chapter.id}>
-                <input
-                  type="checkbox"
-                  checked={forcedChapterIds.includes(chapter.id)}
-                  onChange={() =>
-                    onForcedChapterIdsChange((current) =>
-                      current.includes(chapter.id)
-                        ? current.filter((id) => id !== chapter.id)
-                        : [...current, chapter.id],
-                    )
-                  }
-                />
-                <span>
-                  {index + 1}. {chapter.title || t("untitled")}
-                </span>
-              </label>
+              <Checkbox
+                key={chapter.id}
+                containerClassName="assistant-chapter-option"
+                label={
+                  <span>
+                    {index + 1}. {chapter.title || t("untitled")}
+                  </span>
+                }
+                checked={forcedChapterIds.includes(chapter.id)}
+                onChange={() =>
+                  onForcedChapterIdsChange((current) =>
+                    current.includes(chapter.id)
+                      ? current.filter((id) => id !== chapter.id)
+                      : [...current, chapter.id],
+                  )
+                }
+              />
             ))}
             {!!forcedChapterIds.length && (
-              <button type="button" onClick={() => onForcedChapterIdsChange([])}>
+              <Button
+                className="assistant-chapter-reset"
+                appearance="ghost"
+                size="compact"
+                onClick={() => onForcedChapterIdsChange([])}
+              >
                 {t("resetSelection")}
-              </button>
+              </Button>
             )}
           </div>
         </details>
       )}
-      <label>
-        <span className="sr-only">{t("messageToAssistantLabel")}</span>
-        <textarea
-          value={draft}
-          disabled={sending || unavailable}
-          placeholder={t("messagePlaceholder")}
-          onChange={(event) => onDraftChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              onSend();
-            }
-          }}
-        />
-      </label>
+      <TextArea
+        className="assistant-composer-input"
+        fieldClassName="assistant-composer-field"
+        label={t("messageToAssistantLabel")}
+        labelHidden
+        value={draft}
+        disabled={sending || unavailable}
+        placeholder={t("messagePlaceholder")}
+        onChange={(event) => onDraftChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            onSend();
+          }
+        }}
+      />
       {sending ? (
-        <button aria-label={t("cancelRequest")} onClick={onCancel}>
-          <Square />
-        </button>
+        <IconButton
+          className="assistant-composer-action"
+          label={t("cancelRequest")}
+          icon={<Square />}
+          appearance="primary"
+          onClick={onCancel}
+        />
       ) : (
-        <button
-          aria-label={t("sendMessage")}
+        <IconButton
+          className="assistant-composer-action"
+          label={t("sendMessage")}
+          icon={<ArrowUp />}
+          appearance="primary"
           disabled={!draft.trim() || unavailable}
           onClick={onSend}
-        >
-          <ArrowUp />
-        </button>
+        />
       )}
       <small>
         <BookOpen />

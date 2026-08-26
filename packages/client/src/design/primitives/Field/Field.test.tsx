@@ -81,4 +81,15 @@ describe("Field", () => {
       "grammar",
     );
   });
+
+  it("can keep a label accessible without reserving visual space", () => {
+    render(
+      <Field label="Search" labelHidden>
+        <input />
+      </Field>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Search" })).toBeInTheDocument();
+    expect(screen.getByText("Search")).toHaveClass("sr-only");
+  });
 });

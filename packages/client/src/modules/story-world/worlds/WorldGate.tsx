@@ -1,12 +1,20 @@
 import { BookOpen, ChevronRight, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { PRODUCT_MARK, PRODUCT_NAME } from "../../../config/branding";
-import { Button, IconButton, SelectionCard, TextField } from "../../../design";
+import {
+  Alert,
+  Button,
+  ConfirmDialog,
+  IconButton,
+  IRREVERSIBLE_HOLD_MS,
+  ScrollArea,
+  SegmentedControl,
+  SelectionCard,
+  Sheet,
+  TextField,
+} from "../../../design";
 import { availableLocales, useI18n } from "../../../i18n";
 import type { ThemePreference } from "../../../shared";
-import { ConfirmDialog, IRREVERSIBLE_HOLD_MS } from "../../../shared/ui/ConfirmDialog";
-import { SegmentedControl } from "../../../shared/ui/SegmentedControl";
-import { Sheet } from "../../../shared/ui/Sheet";
 import type { WorldInfo } from "../model";
 import "./WorldGate.css";
 
@@ -47,7 +55,7 @@ export function WorldGate({
     }
   };
   return (
-    <main className="world-gate">
+    <ScrollArea as="main" axis="y" surface="canvas" className="world-gate">
       <section>
         <div className="gate-preferences">
           <SegmentedControl
@@ -83,11 +91,11 @@ export function WorldGate({
           </div>
         </header>
         {error && (
-          <div className="error-box" role="alert">
+          <Alert className="world-gate-error" tone="danger">
             {error}
-          </div>
+          </Alert>
         )}
-        <div className="world-list-panel">
+        <div className="world-list-panel" data-long={worlds.length > 8 || undefined}>
           <header>
             <h2>{t("existingWorlds")}</h2>
             <Button appearance="primary" icon={<Plus />} onClick={() => setCreateOpen(true)}>
@@ -105,7 +113,13 @@ export function WorldGate({
               onChange={(event) => setWorldQuery(event.target.value)}
             />
           )}
-          <ul className="world-list" data-long={worlds.length > 8 || undefined}>
+          <ScrollArea
+            as="ul"
+            axis="y"
+            surface="panel"
+            className="world-list"
+            data-long={worlds.length > 8 || undefined}
+          >
             {visibleWorlds.map((world) => (
               <li key={world.id}>
                 <SelectionCard
@@ -139,7 +153,7 @@ export function WorldGate({
                 {t("writingNoResults")}
               </li>
             )}
-          </ul>
+          </ScrollArea>
         </div>
       </section>
       {createOpen && (
@@ -201,12 +215,20 @@ export function WorldGate({
         <ConfirmDialog
           title={t("deleteWorldTitle")}
           description={t("deleteWorldDescription").replace("{title}", deleteTarget.title)}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("deleteWorld")}
+          confirmation="hold"
           holdDurationMs={IRREVERSIBLE_HOLD_MS}
+          holdLabels={{
+            accessible: t("holdAriaLabel", { label: t("deleteWorld") }),
+            idle: t("holdToConfirm", { label: t("deleteWorld") }),
+            active: t("keepHolding"),
+          }}
           onConfirm={() => void run(() => onDelete(deleteTarget.id))}
           onClose={() => setDeleteTarget(null)}
         />
       )}
-    </main>
+    </ScrollArea>
   );
 }

@@ -46,25 +46,24 @@ function renderTimeline(
 }
 
 describe("TimelineWorkspace sections", () => {
-  it("keeps the horizontal moment rail on the Quiltor scrollbar contract", () => {
+  it("delegates the horizontal moment rail to the public ScrollArea contract", () => {
     renderTimeline();
-    expect(screen.getByRole("navigation", { name: "Timeline" })).toHaveClass("story-timeline");
+    const rail = screen.getByRole("navigation", { name: "Timeline" });
+    expect(rail).toHaveClass("scroll-area", "story-timeline");
+    expect(rail).toHaveAttribute("data-axis", "x");
+    expect(rail).toHaveAttribute("data-gutter", "stable");
+    expect(rail).toHaveAttribute("data-scrollbar", "thin");
+    expect(rail).toHaveAttribute("data-surface", "panel");
 
     const css = readFileSync(
       join(process.cwd(), "packages/client/src/modules/story-world/timeline/MomentBoard.css"),
       "utf8",
     );
     expect(css).toMatch(
-      /\.story-timeline\s*\{[^}]*scrollbar-color:\s*var\(--line-strong\)\s+var\(--transparent\);[^}]*scrollbar-width:\s*thin;[^}]*--scrollbar-surface:\s*var\(--panel\);/s,
+      /\.story-timeline\s*\{[^}]*padding:\s*var\(--space-14\) var\(--space-18\) var\(--space-12\);[^}]*border-bottom:\s*1px solid var\(--line\);/s,
     );
-    expect(css).toMatch(
-      /\.story-timeline::-webkit-scrollbar\s*\{[^}]*height:\s*var\(--space-10\);/s,
-    );
-    expect(css).toMatch(
-      /\.story-timeline::-webkit-scrollbar-thumb\s*\{[^}]*border:\s*var\(--space-3\)\s+solid\s+var\(--scrollbar-surface\);[^}]*background:\s*var\(--line-strong\);/s,
-    );
-    expect(css).toContain(".story-timeline::-webkit-scrollbar-thumb:hover");
-    expect(css).toContain(".story-timeline::-webkit-scrollbar-thumb:active");
+    expect(css).not.toMatch(/\.story-timeline(?:\s*\{|::)[^}]*(?:overflow|scrollbar)/s);
+    expect(css).not.toContain(".story-timeline::-webkit-scrollbar");
   });
 
   it("keeps the 390px toolbar, forms, and state inspector inside the viewport", () => {
@@ -78,13 +77,13 @@ describe("TimelineWorkspace sections", () => {
       /\.timeline-workspace\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
     );
     expect(workspaceCss).toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.timeline-workspace \.context-tools\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s,
+      /@media \(max-width: 640px\)[\s\S]*?\.timeline-workspace \.timeline-toolbar-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s,
     );
     expect(controlsCss).toMatch(
       /@media \(max-width: 640px\)[\s\S]*?\.timeline-time-controls\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-touch\) var\(--control-touch\);/s,
     );
     expect(fieldsCss).toMatch(
-      /\.timeline-calendar-date > label > :is\(input, select\)\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
+      /\.calendar-coordinate-control\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
     );
     expect(panelsCss).toMatch(
       /\.ui-sheet \.storyboard-inspector\s*\{[^}]*position:\s*static;[^}]*width:\s*100%;/s,
@@ -225,13 +224,17 @@ describe("TimelineWorkspace time system", () => {
     );
     const startDate = screen.getByRole("group", { name: "Datum" });
     expect(
-      [...startDate.querySelectorAll(":scope > label > span")].map((label) => label.textContent),
+      [...startDate.querySelectorAll(":scope > .calendar-coordinate-field > label")].map(
+        (label) => label.textContent,
+      ),
     ).toEqual(["Tag", "Monat", "Jahr"]);
     const anchorDate = document.querySelector(".timeline-anchor-date");
     expect(anchorDate).not.toBeNull();
     if (!anchorDate) throw new Error("Expected the calendar anchor fields to render");
     expect(
-      [...anchorDate.querySelectorAll(":scope > label > span")].map((label) => label.textContent),
+      [...anchorDate.querySelectorAll(":scope > .calendar-coordinate-field > label")].map(
+        (label) => label.textContent,
+      ),
     ).toEqual(["Tag", "Monat", "Jahr"]);
     fireEvent.change(within(startDate).getByRole("combobox", { name: "Tag" }), {
       target: { value: "2" },

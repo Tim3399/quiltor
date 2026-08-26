@@ -1,12 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
+import { designIndexViolations } from "./css_ownership.mjs";
 import {
   closeFrontendBoundaryParser,
   frontendImportViolations,
   frontendSourceExtensions,
   importedSpecifiers,
 } from "./frontend_boundaries.mjs";
-import { designIndexViolations } from "./css_ownership.mjs";
 import { rustSafetyViolations } from "./rust_safety.mjs";
 
 const root = process.cwd();
@@ -94,9 +94,9 @@ const retiredClientCollectors = [
 ];
 const frontendCodeExtensions = new Set(frontendSourceExtensions);
 
-// Global reset/tokens/materials are the only root-level design authorities. Product chrome and
-// feature rules must live beside their owner; otherwise a harmless-looking `app.css` becomes the
-// next 3,000-line application collector.
+// Global reset/tokens/materials and the deliberately tiny semantic typography utilities are the
+// only root-level design authorities. Product chrome and feature rules must live beside their
+// owner; otherwise a harmless-looking `app.css` becomes the next 3,000-line application collector.
 const allowedDesignRootStyles = new Set([
   "base.css",
   "colors.css",
@@ -104,6 +104,7 @@ const allowedDesignRootStyles = new Set([
   "materials.css",
   "motion.css",
   "tokens.css",
+  "typography.css",
 ]);
 if (existsSync(designRoot)) {
   for (const name of readdirSync(designRoot)) {

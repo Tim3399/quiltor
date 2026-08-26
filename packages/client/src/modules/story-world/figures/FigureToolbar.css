@@ -1,7 +1,10 @@
-.create-group {
+.figure-create-group {
   position: relative;
 }
 
-.toast .figure-toolbar-toast-close {
-  color: inherit;
+.story-world-toast {
+  position: fixed;
+  z-index: var(--z-toast);
+  right: var(--space-18);
+  bottom: var(--space-18);
 }

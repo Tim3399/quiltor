@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PresenceBoard } from "./PresenceBoard";
 import { I18nProvider } from "../../../i18n";
 import type { FigureNode, PresenceEntry, TimelineMoment } from "../model";
+import { PresenceBoard } from "./PresenceBoard";
 
 afterEach(cleanup);
 
@@ -24,11 +24,13 @@ function makeDataTransfer(nodeId: string) {
 }
 
 function chip(name: string) {
-  return screen.getByText(name, { selector: "strong" }).closest("button")!;
+  return screen.getByText(name, { selector: "strong" }).closest("button") as HTMLButtonElement;
 }
 
 function lane(name: string) {
-  return screen.getByText(name, { selector: "header" }).closest(".presence-lane")!;
+  return screen
+    .getByText(name, { selector: ".presence-lane-heading" })
+    .closest(".presence-lane") as HTMLButtonElement;
 }
 
 describe("PresenceBoard", () => {

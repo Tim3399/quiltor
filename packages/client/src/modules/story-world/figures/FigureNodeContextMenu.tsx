@@ -1,7 +1,7 @@
 import { Link2, Star, Trash2, UserRound } from "lucide-react";
 import { useEffect } from "react";
+import { ContextMenu, MenuItem, MenuSeparator } from "../../../design";
 import { useI18n } from "../../../i18n";
-import { ContextMenu, MenuItem, MenuSeparator } from "../../../shared/ui/Menu";
 import type { FigureNode } from "../model";
 import "./FigureNodeContextMenu.css";
 

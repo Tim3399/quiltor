@@ -93,6 +93,30 @@ test("counts each direct legacy token once per className across literal expressi
   });
 });
 
+test("counts retired composition recipes that must be expressed by public design components", () => {
+  const debt = analyze(`
+    export function Fixture() {
+      return <>
+        <header className="context-bar panel-heading" />
+        <div className={"context-tools tool-group"} />
+        <aside className={\`inspector \${true ? "panel-body" : ""}\`} />
+        <p className="empty-message muted" />
+      </>;
+    }
+  `);
+  assert.deepEqual(debt, {
+    legacyClasses: {
+      "empty-message": 1,
+      inspector: 1,
+      "panel-heading": 1,
+      "panel-body": 1,
+      "context-bar": 1,
+      "context-tools": 1,
+      "tool-group": 1,
+    },
+  });
+});
+
 test("fails closed when TypeScript cannot parse a source fixture", () => {
   assert.throws(() => analyze("export const Broken = () => <button>;"), /syntax errors/);
 });

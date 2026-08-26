@@ -1,7 +1,7 @@
-import type { FigureState } from "../story-world";
 import type { TextSearchTarget, ViewportMode, Workspace } from "../../shared";
-import type { Manuscript } from "./model";
+import type { FigureState } from "../story-world";
 import type { EditorTextSelection } from "./ManuscriptEditor";
+import type { Manuscript } from "./model";
 
 export interface TextWorkspaceProps {
   worldTitle?: string;

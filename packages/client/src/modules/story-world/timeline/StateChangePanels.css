@@ -38,7 +38,7 @@
   border-radius: var(--radius);
   background: var(--canvas);
 }
-.storyboard-mode button {
+.storyboard-mode [role="radio"] {
   min-height: 32px;
   padding: 0 var(--space-12);
   border-radius: var(--radius-sm);
@@ -46,7 +46,7 @@
   color: var(--muted);
   cursor: pointer;
 }
-.storyboard-mode button[aria-pressed="true"] {
+.storyboard-mode [role="radio"][aria-checked="true"] {
   background: var(--gold-soft);
   color: var(--gold-text);
   box-shadow: inset var(--ring-1) var(--gold-border);
@@ -57,9 +57,6 @@
   border-radius: var(--radius);
   background: var(--panel);
   overflow: hidden;
-}
-.timeline-manager-section.open > header {
-  border-bottom: 1px solid var(--line);
 }
 .timeline-manager-section > header {
   display: block;
@@ -77,8 +74,20 @@
   text-align: left;
   cursor: pointer;
 }
-.timeline-section-toggle > div {
+.timeline-section-toggle > span:first-child {
+  flex: 1;
+}
+.timeline-section-content {
   min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+.timeline-section-heading {
+  min-width: 0;
+  display: block;
 }
 .timeline-section-toggle:hover {
   background: var(--paper);
@@ -103,25 +112,19 @@
   font-size: var(--font-size-3);
   font-weight: 700;
 }
-.timeline-section-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-9);
-  flex: none;
-}
-.timeline-section-summary > svg {
+.timeline-section-chevron {
   width: 18px;
   color: var(--muted);
   transition: transform var(--motion-subtle);
 }
-.timeline-manager-section.open .timeline-section-summary > svg {
+.timeline-manager-section.open .timeline-section-chevron {
   transform: rotate(180deg);
 }
 .relationship-add {
   padding: var(--space-12) var(--space-14);
   border-bottom: 1px solid var(--line);
 }
-.relationship-add select {
+.relationship-add-select {
   width: min(420px, 100%);
   min-height: 38px;
   padding: 0 var(--space-10);
@@ -157,11 +160,6 @@
 }
 .relationship-change-card.inactive {
   border-style: dashed;
-}
-.relationship-change-card > svg {
-  width: 16px;
-  color: var(--muted);
-  flex: none;
 }
 .relationship-card-main {
   min-width: 0;
@@ -223,11 +221,20 @@
   white-space: nowrap;
   font: 600 var(--font-size-5) var(--prose);
 }
+.storyboard-inspector-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-16);
+}
+.timeline-manager-section.open > header {
+  border-bottom: 1px solid var(--line);
+}
 .relationship-inspector-actions {
   display: grid;
   gap: var(--space-7);
 }
-.relationship-inspector-actions button,
+.relationship-inspector-action,
 .reset-inheritance {
   min-height: 40px;
   display: flex;
@@ -239,23 +246,26 @@
   background: var(--paper);
   cursor: pointer;
 }
-.relationship-inspector-actions button[aria-pressed="true"] {
+.relationship-inspector-action[aria-pressed="true"] {
   border-color: var(--gold-border);
   background: var(--gold-soft);
   color: var(--gold-text);
 }
-.relationship-inspector-actions svg,
+.relationship-inspector-action svg,
 .reset-inheritance svg {
   width: 15px;
 }
 .reset-inheritance {
   width: 100%;
   margin-top: var(--space-20);
-  flex-wrap: wrap;
 }
-.reset-inheritance small {
-  width: 100%;
-  padding-left: var(--space-24);
+.reset-inheritance-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.reset-inheritance-copy small {
   color: var(--muted);
 }
 .inherited-note {
@@ -276,24 +286,27 @@
   gap: var(--space-7);
   margin-bottom: var(--space-12);
 }
-.life-event-roster button {
+.life-event-person {
   min-height: 42px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
   padding: var(--space-7) var(--space-10);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--paper);
   cursor: grab;
 }
-.life-event-roster button.selected {
+.life-event-person.selected {
   border-color: var(--gold);
   background: var(--gold-soft);
 }
 .life-event-roster small {
   color: var(--muted);
   font-size: var(--font-size-1);
+}
+.life-event-person-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 .death-dropzone {
   width: 100%;
@@ -303,7 +316,7 @@
   justify-content: center;
   gap: var(--space-12);
   padding: var(--space-12);
-  border: 1px dashed var(--rose);
+  border: 1px dashed var(--error-border);
   border-radius: var(--radius);
   background: var(--error-bg);
   color: var(--error-text);
@@ -312,7 +325,7 @@
 .death-dropzone svg {
   width: 22px;
 }
-.death-dropzone span {
+.death-dropzone-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -331,7 +344,7 @@
   gap: var(--space-7);
   margin-top: var(--space-12);
 }
-.life-change-list button {
+.life-change-action {
   display: flex;
   align-items: center;
   gap: var(--space-7);
@@ -343,12 +356,17 @@
 }
 .life-change-list svg {
   width: 14px;
-  color: var(--rose);
+  color: var(--rose-text);
 }
-.life-change-list span {
+.life-change-copy {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+}
+.life-change-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
 }
 .life-change-list small {
   color: var(--muted);
@@ -394,7 +412,7 @@
   .storyboard-mode {
     width: 100%;
   }
-  .storyboard-mode button {
+  .storyboard-mode [role="radio"] {
     flex: 1;
   }
   .timeline-section-toggle {

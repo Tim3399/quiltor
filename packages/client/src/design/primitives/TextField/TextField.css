@@ -1,0 +1,9 @@
+.ui-text-field[type="number"] {
+  appearance: textfield;
+}
+
+.ui-text-field[type="number"]::-webkit-inner-spin-button,
+.ui-text-field[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}

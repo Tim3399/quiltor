@@ -2,7 +2,21 @@ import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { figures, historyApi, manuscript, renderWorkspace } from "./TextWorkspace.testSupport";
+import {
+  figures,
+  historyApi,
+  manuscript,
+  renderWorkspace,
+  requireValue,
+} from "./TextWorkspace.testSupport";
+
+function codeMirrorView(container: HTMLElement) {
+  const root = requireValue(
+    container.querySelector<HTMLElement>(".cm-editor"),
+    "CodeMirror root missing",
+  );
+  return requireValue(EditorView.findFromDOM(root), "CodeMirror view missing");
+}
 
 const originalClipboard = navigator.clipboard;
 
@@ -39,7 +53,7 @@ describe("TextWorkspace editor, search and versions", () => {
       focus: false,
       onFocus: vi.fn(),
     });
-    const context = within(view.container.querySelector(".context-bar")!);
+    const context = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
     const versions = context.getByRole("button", { name: "Fassungen" });
     expect(versions).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(versions);
@@ -102,7 +116,10 @@ describe("TextWorkspace editor, search and versions", () => {
       focus: false,
       onFocus: vi.fn(),
     });
-    const book = view.container.querySelector(".print-document")!;
+    const book = requireValue(
+      view.container.querySelector(".print-document"),
+      "Print document missing",
+    );
     expect(book.querySelector("em")).toHaveTextContent("Welt");
     expect(book.querySelector("strong")).toHaveTextContent("Zweiter");
     expect(book.querySelector(".scene-break")).toHaveTextContent("⁂");
@@ -125,7 +142,7 @@ describe("TextWorkspace editor, search and versions", () => {
     });
     const rendered = within(view.container);
     const editor = rendered.getByLabelText("Kapiteltext");
-    EditorView.findFromDOM(view.container.querySelector(".cm-editor")!)!.dispatch({
+    codeMirrorView(view.container).dispatch({
       selection: EditorSelection.range(6, 10),
     });
     fireEvent.keyDown(editor, { key: "F10", shiftKey: true });
@@ -153,7 +170,7 @@ describe("TextWorkspace editor, search and versions", () => {
       onFocus: vi.fn(),
     });
     const editor = within(view.container).getByLabelText("Kapiteltext");
-    EditorView.findFromDOM(view.container.querySelector(".cm-editor")!)!.dispatch({
+    codeMirrorView(view.container).dispatch({
       selection: EditorSelection.range(6, 10),
     });
     fireEvent.keyDown(editor, { key: "F10", shiftKey: true });

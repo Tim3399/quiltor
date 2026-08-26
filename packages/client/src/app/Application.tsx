@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useState } from "react";
 import { PRODUCT_MARK } from "../config/branding";
+import { PageState } from "../design";
 import { useI18n } from "../i18n";
 import type { Manuscript } from "../modules/manuscript";
 import type { FigureState } from "../modules/story-world";
@@ -122,10 +123,9 @@ export function App() {
       {session.world && manuscript && figures && (
         <Suspense
           fallback={
-            <main className="loading-state">
-              <div className="loading-mark">{PRODUCT_MARK}</div>
+            <PageState kind="loading" mark={PRODUCT_MARK}>
               <p>{t("openingWorkshop")}</p>
-            </main>
+            </PageState>
           }
         >
           <AppShell

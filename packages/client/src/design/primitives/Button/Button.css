@@ -85,14 +85,14 @@
 }
 
 .ui-button--primary.ui-button--danger {
-  border-color: var(--danger);
-  background: var(--danger);
+  border-color: var(--danger-fill);
+  background: var(--danger-fill);
   color: var(--danger-on);
 }
 
 .ui-button--primary.ui-button--danger:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--danger) 88%, var(--ink));
-  background: color-mix(in srgb, var(--danger) 88%, var(--ink));
+  border-color: color-mix(in srgb, var(--danger-fill) 88%, var(--ink));
+  background: color-mix(in srgb, var(--danger-fill) 88%, var(--ink));
 }
 
 .ui-button--secondary.ui-button--danger {

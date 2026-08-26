@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { ConfirmDialog, Toast, ToastRegion } from "../../design";
 import { useI18n } from "../../i18n";
 import { applicationErrorMessage, quiltorClient, saveTextFile } from "../../platform";
 import { uid } from "../../shared/id";
-import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
-import { ChapterBinder } from "./ChapterBinder";
 import {
   addChapterItem,
   flattenChapterIds,
@@ -12,6 +10,7 @@ import {
   orderedChapters,
   removeChapterItem,
 } from "./binder/manuscriptTree";
+import { ChapterBinder } from "./ChapterBinder";
 import { EditorSurface } from "./EditorSurface";
 import { FocusPanels } from "./FocusPanels";
 import { ManuscriptToolbar } from "./ManuscriptToolbar";
@@ -19,15 +18,17 @@ import { markdownBody } from "./marks";
 import type { Chapter } from "./model";
 import { PrintDocument } from "./PrintDocument";
 import { SelectionActions } from "./SelectionActions";
+import { manuscriptShortcut } from "./shortcuts";
 import { TermsSheet } from "./TermsSheet";
 import { useChapterHistory } from "./useChapterHistory";
 import { useManuscriptSearch } from "./useManuscriptSearch";
 import { useWorkspaceSizing } from "./useWorkspaceSizing";
 import { useWritingAssistance } from "./useWritingAssistance";
 import { WorkspaceLayout } from "./WorkspaceLayout";
-import type { TextWorkspaceProps } from "./workspaceTypes";
 import { WritingAidInspector } from "./WritingAidInspector";
 import { wordCount } from "./wordCount";
+import type { TextWorkspaceProps } from "./workspaceTypes";
+import "./TextWorkspace.css";
 
 export function TextWorkspace({
   worldTitle,
@@ -60,7 +61,7 @@ export function TextWorkspace({
   inspectorWidth = 294,
   onInspectorWidth,
 }: TextWorkspaceProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [currentId, setCurrentId] = useState(manuscript.chapters[0]?.id ?? "");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [localBinderOpen, setLocalBinderOpen] = useState(() => window.innerWidth >= 720);
@@ -363,28 +364,34 @@ export function TextWorkspace({
             current.title || t("untitled"),
           )}
           confirmLabel={t("deleteChapter")}
-          undoable
+          supportingText={t("undoHint", { shortcut: manuscriptShortcut("Z", locale) })}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           onConfirm={removeChapter}
           onClose={() => setDeleteOpen(false)}
         />
       )}
-      {pdfState === "error" && (
-        <div className="toast error-box" role="alert">
-          {t("bookPdfError")}
-          <button onClick={() => setPdfState("idle")}>
-            <X />
-            <span className="sr-only">{t("closeMessage")}</span>
-          </button>
-        </div>
-      )}
-      {!!exportError && (
-        <div className="toast error-box" role="alert">
-          {exportError}
-          <button onClick={() => setExportError("")}>
-            <X />
-            <span className="sr-only">{t("closeMessage")}</span>
-          </button>
-        </div>
+      {(pdfState === "error" || exportError) && (
+        <ToastRegion label={t("manuscript")}>
+          {pdfState === "error" && (
+            <Toast
+              tone="danger"
+              onDismiss={() => setPdfState("idle")}
+              dismissLabel={t("closeMessage")}
+            >
+              {t("bookPdfError")}
+            </Toast>
+          )}
+          {!!exportError && (
+            <Toast
+              tone="danger"
+              onDismiss={() => setExportError("")}
+              dismissLabel={t("closeMessage")}
+            >
+              {exportError}
+            </Toast>
+          )}
+        </ToastRegion>
       )}
     </section>
   );

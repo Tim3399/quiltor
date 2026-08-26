@@ -1,18 +1,15 @@
 .chapter-list {
   flex: 1;
-  overflow-y: auto;
+  margin: 0;
   padding: var(--space-7);
+  list-style: none;
 }
 .binder-chapter-row {
   width: calc(100% - var(--binder-indent));
   min-height: var(--control-touch);
   display: grid;
-  grid-template-columns: 16px 25px 1fr;
-  grid-template-areas:
-    "drag number name"
-    "drag number words"
-    "drag number story-time"
-    "drag number breadcrumb";
+  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-areas: "drag main";
   gap: 1px var(--space-6);
   margin-inline-start: var(--binder-indent);
   padding: var(--space-7) var(--space-6);
@@ -21,6 +18,14 @@
   background: var(--transparent);
   text-align: left;
   cursor: pointer;
+}
+.binder-chapter-content {
+  min-width: 0;
+  display: grid;
+  grid-area: main;
+  grid-template-columns: 25px minmax(0, 1fr);
+  grid-template-areas: "number name" "number words" "number story-time" "number breadcrumb";
+  gap: 1px var(--space-6);
 }
 .binder-chapter-row:hover {
   background: var(--control-hover-subtle);
@@ -35,10 +40,10 @@
   outline-offset: -2px;
 }
 .binder-chapter-row[data-drop-position="before"] {
-  box-shadow: inset 0 var(--space-3) 0 var(--focus);
+  box-shadow: inset 0 var(--space-3) 0 var(--focus-border);
 }
 .binder-chapter-row[data-drop-position="after"] {
-  box-shadow: inset 0 calc(var(--space-3) * -1) 0 var(--focus);
+  box-shadow: inset 0 calc(var(--space-3) * -1) 0 var(--focus-border);
 }
 .chapter-number {
   grid-area: number;
@@ -79,14 +84,13 @@
 @media (max-width: 719px), (pointer: coarse) {
   .binder-chapter-row {
     grid-template-columns: var(--space-24) minmax(0, 1fr);
-    grid-template-areas:
-      "number name"
-      "number words"
-      "number story-time"
-      "number breadcrumb";
+    grid-template-areas: "drag main";
+  }
+  .binder-chapter-content {
+    grid-template-columns: var(--space-24) minmax(0, 1fr);
   }
 }
-.binder footer {
+.chapter-binder__footer {
   padding: var(--space-12) var(--space-14);
   border-top: 1px solid var(--line);
   color: var(--muted);
@@ -106,13 +110,25 @@
   text-transform: uppercase;
   letter-spacing: 0.09em;
 }
-.binder-chapter-actions > div {
+.binder-chapter-toolbar {
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-3);
+  padding: 0;
+}
+.binder-chapter-toolbar-group {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, var(--control-compact));
+  justify-content: space-between;
+  gap: 0;
+  padding: 0;
+  border: 0;
 }
 .binder-chapter-actions .binder-chapter-action {
-  width: 100%;
   color: var(--muted);
 }
 .binder-chapter-actions .binder-chapter-action:hover:not(:disabled) {
@@ -129,7 +145,7 @@
 .binder-note > span {
   margin-bottom: var(--space-4);
 }
-.binder-note textarea {
+.binder-note-control {
   min-height: 64px;
   font-size: var(--font-size-3);
 }
@@ -201,33 +217,29 @@
   font-size: var(--font-size-2);
   line-height: 1.35;
 }
-.binder-story-time .ui-segmented {
+.binder-story-time-mode {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.binder-story-time .ui-segmented button {
-  min-width: 0;
-  padding: 0 var(--space-3);
 }
 .binder-story-time-fields {
   display: grid;
   gap: var(--space-8);
 }
-.binder-story-time-fields > label {
+.binder-story-time-field {
   display: grid;
   gap: var(--space-4);
 }
-.binder-story-time-fields > label > span {
+.binder-story-time-field > span {
   color: var(--muted);
   font-size: var(--font-size-2);
   font-weight: 600;
 }
-.binder-story-time-fields .ui-select-control {
+.binder-story-time-select {
   width: 100%;
   min-width: 0;
 }
-.binder-story-time-fields .ui-select-control > span {
+.binder-story-time-select > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

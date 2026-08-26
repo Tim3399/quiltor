@@ -1,17 +1,17 @@
-import { useMemo, useState } from "react";
 import { Clock3, Command, FileText, MapPin, UserRound } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CommandPalette, type CommandPaletteItem } from "../../design";
+import { useI18n } from "../../i18n";
+import type { Workspace, WorkspaceTarget } from "../../shared";
 import {
   chapterBreadcrumb,
+  type Manuscript,
   manuscriptStructure,
   orderedChapters,
-  type Manuscript,
+  textSearchRanges,
 } from "../manuscript";
 import type { FigureState } from "../story-world";
-import type { Workspace, WorkspaceTarget } from "../../shared";
-import { CommandPalette, type CommandPaletteItem } from "../../shared/ui/CommandPalette";
 import { kindLabel } from "../story-world";
-import { useI18n } from "../../i18n";
-import { textSearchRanges } from "../manuscript";
 
 export function SearchDialog({
   manuscript,
@@ -116,6 +116,7 @@ export function SearchDialog({
     <CommandPalette
       open
       label={t("searchCommands")}
+      closeLabel={t("closeDialog")}
       inputLabel={t("searchTerm")}
       placeholder={t("searchPlaceholder")}
       emptyLabel={t("noSearchResults")}

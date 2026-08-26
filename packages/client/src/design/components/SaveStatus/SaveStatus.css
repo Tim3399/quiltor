@@ -1,0 +1,96 @@
+.save-status-component {
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--control-compact);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--muted);
+  font-size: var(--font-size-3);
+}
+
+.save-status-component__state {
+  min-width: 0;
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-6);
+  overflow: hidden;
+}
+
+.save-status-component__state > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.save-status-component__state > span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-status-component[data-label-visibility="attention"] .save-status-component__state > span {
+  display: none;
+}
+
+.save-status-component[data-label-visibility="attention"][data-phase="saving"]
+  .save-status-component__state
+  > span,
+.save-status-component[data-label-visibility="attention"][data-phase="error"]
+  .save-status-component__state
+  > span {
+  display: inline;
+}
+
+.save-status-component--dirty,
+.save-status-component--saving {
+  color: var(--gold-text);
+}
+
+.save-status-component--saved {
+  color: var(--moss-text);
+}
+
+.save-status-component--error {
+  color: var(--error-text);
+}
+
+.save-status-component--saving .save-status-component__state > svg {
+  animation: save-status-spin var(--motion-spin) linear infinite;
+}
+
+.save-status-component__detail {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.save-status-component__retry {
+  flex: 0 0 auto;
+}
+
+@keyframes save-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  .save-status-component {
+    min-height: var(--control-touch);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .save-status-component--saving .save-status-component__state > svg {
+    animation: none;
+  }
+}

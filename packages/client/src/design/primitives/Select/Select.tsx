@@ -1,8 +1,10 @@
 import { forwardRef, type ReactNode, type SelectHTMLAttributes } from "react";
 import { Field, type FieldMessageProps } from "../Field";
+import "./Select.css";
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement>, FieldMessageProps {
   label: ReactNode;
+  labelHidden?: boolean;
   fieldId?: string;
   fieldClassName?: string;
 }
@@ -10,6 +12,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement>, Fi
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
   {
     label,
+    labelHidden,
     fieldId,
     fieldClassName,
     description,
@@ -19,6 +22,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
     error,
     errorId,
     children,
+    className,
     ...props
   },
   ref,
@@ -28,6 +32,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       id={fieldId}
       className={fieldClassName}
       label={label}
+      labelHidden={labelHidden}
       description={description}
       descriptionId={descriptionId}
       hint={hint}
@@ -35,7 +40,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       error={error}
       errorId={errorId}
     >
-      <select {...props} ref={ref}>
+      <select {...props} ref={ref} className={`ui-select ${className ?? ""}`.trim()}>
         {children}
       </select>
     </Field>

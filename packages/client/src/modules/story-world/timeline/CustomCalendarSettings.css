@@ -27,16 +27,20 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-.timeline-calendar-item .icon-button {
+.calendar-definition-remove {
   width: var(--control-compact);
   min-height: 34px;
+}
+.timeline-calendar-item > .calendar-definition-field,
+.timeline-calendar-add-row > .calendar-definition-count-field {
+  min-width: 0;
 }
 .timeline-calendar-add-row {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
   gap: var(--space-6);
 }
-.timeline-calendar-add-row button {
+.calendar-definition-add {
   min-height: 34px;
   display: inline-flex;
   align-items: center;

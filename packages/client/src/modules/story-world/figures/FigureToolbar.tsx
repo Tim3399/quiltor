@@ -7,19 +7,26 @@ import {
   MapPin,
   MoreHorizontal,
   Plus,
-  Redo2,
-  Undo2,
   Upload,
-  X,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { Button, IconButton } from "../../../design";
+import {
+  Button,
+  ConfirmDialog,
+  IconButton,
+  Menu,
+  MenuItem,
+  MenuSeparator,
+  Popover,
+  TextField,
+  Toast,
+  UndoRedoControls,
+  WorkspaceToolbar,
+  WorkspaceToolbarGroup,
+  WorkspaceToolbarTitle,
+} from "../../../design";
 import { useI18n } from "../../../i18n";
 import { applicationErrorMessage } from "../../../platform";
-import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
-import { Menu, MenuItem, MenuSeparator } from "../../../shared/ui/Menu";
-import { Popover } from "../../../shared/ui/Popover";
-import { useShortcut } from "../../../shared/ui/shortcuts";
 import type { FigureKind, FigureState } from "../model";
 import { parseFigureState, saveFigureProfiles, saveFigureState } from "./figureTransfer";
 import { FIGURE_ELEMENT_TYPES } from "./figureTypes";
@@ -67,7 +74,6 @@ export function FigureToolbar({
   onImport,
 }: FigureToolbarProps) {
   const { t } = useI18n();
-  const keys = useShortcut();
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [manageMenuOpen, setManageMenuOpen] = useState(false);
@@ -97,15 +103,17 @@ export function FigureToolbar({
 
   return (
     <>
-      <div className="context-bar">
-        <div className="context-title">
-          <strong>{t("figuresWorld")}</strong>
-          <span>
-            {t("nElements", { n: state.nodes.length })} ·{" "}
-            {t("nRelationships", { n: state.edges.length })}
-          </span>
-        </div>
-        <div className="tool-group create-group">
+      <WorkspaceToolbar className="figure-toolbar" label={t("figuresWorld")}>
+        <WorkspaceToolbarTitle
+          title={t("figuresWorld")}
+          detail={
+            <>
+              {t("nElements", { n: state.nodes.length })} ·{" "}
+              {t("nRelationships", { n: state.edges.length })}
+            </>
+          }
+        />
+        <WorkspaceToolbarGroup className="figure-create-group" label={t("createElementMenu")}>
           <Button
             ref={createButton}
             appearance="primary"
@@ -137,8 +145,8 @@ export function FigureToolbar({
               ))}
             </Menu>
           </Popover>
-        </div>
-        <div className="tool-group">
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup label={t("connect")}>
           <Button
             appearance="ghost"
             icon={<Link2 />}
@@ -150,8 +158,8 @@ export function FigureToolbar({
           >
             {t("connect")}
           </Button>
-        </div>
-        <div className="tool-group">
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup label={t("figureViewMenu")}>
           <Button
             ref={viewButton}
             appearance="ghost"
@@ -219,28 +227,19 @@ export function FigureToolbar({
               </MenuItem>
             </Menu>
           </Popover>
-        </div>
-        <div className="tool-group">
-          <IconButton
-            label={t("undoDiagram")}
-            icon={<Undo2 />}
-            appearance="ghost"
-            size="regular"
-            disabled={!canUndo}
-            onClick={onUndo}
-            title={`${t("undoDiagram")} · ${keys("Z")}`}
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup label={`${t("undoDiagram")} / ${t("redoDiagram")}`}>
+          <UndoRedoControls
+            label={`${t("undoDiagram")} / ${t("redoDiagram")}`}
+            undoLabel={t("undoDiagram")}
+            redoLabel={t("redoDiagram")}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={() => onUndo?.()}
+            onRedo={() => onRedo?.()}
           />
-          <IconButton
-            label={t("redoDiagram")}
-            icon={<Redo2 />}
-            appearance="ghost"
-            size="regular"
-            disabled={!canRedo}
-            onClick={onRedo}
-            title={`${t("redoDiagram")} · ${keys("Z", { shift: true })}`}
-          />
-        </div>
-        <div className="tool-group">
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup label={t("figureManageMenu")}>
           <IconButton
             ref={manageButton}
             label={t("figureManageMenu")}
@@ -288,38 +287,35 @@ export function FigureToolbar({
               </MenuItem>
             </Menu>
           </Popover>
-          <input
+          <TextField
             ref={input}
+            fieldClassName="figure-import-field"
+            label={t("import")}
+            labelHidden
             hidden
             type="file"
             accept="application/json"
             onChange={(event) => void importState(event.target.files?.[0])}
           />
-        </div>
-      </div>
+        </WorkspaceToolbarGroup>
+      </WorkspaceToolbar>
       {importError && (
-        <div className="toast error-box" role="alert">
-          {importError}
-          <IconButton
-            className="figure-toolbar-toast-close"
-            label={t("closeMessage")}
-            icon={<X />}
-            appearance="ghost"
-            onClick={() => setImportError("")}
-          />
-        </div>
+        <Toast
+          className="story-world-toast"
+          tone="danger"
+          title={importError}
+          dismissLabel={t("closeMessage")}
+          onDismiss={() => setImportError("")}
+        />
       )}
       {exportError && (
-        <div className="toast error-box" role="alert">
-          {exportError}
-          <IconButton
-            className="figure-toolbar-toast-close"
-            label={t("closeMessage")}
-            icon={<X />}
-            appearance="ghost"
-            onClick={() => setExportError("")}
-          />
-        </div>
+        <Toast
+          className="story-world-toast"
+          tone="danger"
+          title={exportError}
+          dismissLabel={t("closeMessage")}
+          onDismiss={() => setExportError("")}
+        />
       )}
       {pendingImport && (
         <ConfirmDialog
@@ -327,8 +323,9 @@ export function FigureToolbar({
           description={t("importDiagramDescription")
             .replace("{nodes}", String(pendingImport.nodes.length))
             .replace("{edges}", String(pendingImport.edges.length))}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("importAction")}
-          undoable
           onConfirm={() => {
             onImport(pendingImport);
             setPendingImport(null);

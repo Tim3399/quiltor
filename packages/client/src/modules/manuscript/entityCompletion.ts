@@ -1,5 +1,5 @@
-import type { FigureNode } from "../story-world";
 import { normalizeEntityAliasV1 } from "../../shared";
+import type { FigureNode } from "../story-world";
 
 export type EntityCompletion = { entity: FigureNode; word: string; start: number; end: number };
 

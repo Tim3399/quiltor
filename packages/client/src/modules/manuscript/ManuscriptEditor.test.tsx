@@ -1,9 +1,10 @@
-import { createRef } from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { fireEvent, render, waitFor } from "@testing-library/react";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ManuscriptEditor, type ManuscriptEditorHandle } from "./ManuscriptEditor";
+import { requireValue } from "./TextWorkspace.testSupport";
 
 // jsdom has no layout, so the two calls that ask the browser where something is on
 // screen answer with nothing and the editor would report no selection at all.
@@ -36,7 +37,11 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEdito
       {...props}
     />,
   );
-  const editor = EditorView.findFromDOM(view.container.querySelector(".cm-editor")!)!;
+  const editorRoot = requireValue(
+    view.container.querySelector<HTMLElement>(".cm-editor"),
+    "CodeMirror root missing",
+  );
+  const editor = requireValue(EditorView.findFromDOM(editorRoot), "CodeMirror view missing");
   return { ...view, editor, handle, onSelection, onSelectionMenu, onChange };
 }
 
@@ -58,18 +63,18 @@ describe("ManuscriptEditor selection", () => {
   });
 
   it("öffnet das Aktionsmenü beim Rechtsklick", async () => {
-    const { container, editor, onSelectionMenu } = renderEditor();
+    const { editor, onSelectionMenu } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
-    fireEvent.contextMenu(container.querySelector(".cm-content")!);
+    fireEvent.contextMenu(editor.contentDOM);
     await waitFor(() =>
       expect(onSelectionMenu).toHaveBeenCalledWith(expect.objectContaining({ text: "Welt" })),
     );
   });
 
   it("öffnet das Aktionsmenü auch per Tastatur mit Umschalt+F10", async () => {
-    const { container, editor, onSelectionMenu } = renderEditor();
+    const { editor, onSelectionMenu } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
-    fireEvent.keyDown(container.querySelector(".cm-content")!, { key: "F10", shiftKey: true });
+    fireEvent.keyDown(editor.contentDOM, { key: "F10", shiftKey: true });
     await waitFor(() =>
       expect(onSelectionMenu).toHaveBeenCalledWith(expect.objectContaining({ text: "Welt" })),
     );
@@ -142,16 +147,19 @@ describe("ManuscriptEditor selection", () => {
     const { container, editor } = renderEditor({ value: "", entities: [tarek] });
     editor.dispatch({ changes: { from: 0, insert: "Tarke" }, selection: { anchor: 5 } });
     await waitFor(() => expect(container.querySelector(".word-completion")).not.toBeNull());
-    const hint = container.querySelector(".word-completion span")!;
+    const hint = requireValue(
+      container.querySelector(".word-completion span"),
+      "Completion hint missing",
+    );
     expect(hint).toHaveTextContent("Tarek");
     // Kein Leerzeichen im Markup: der Abstand kommt aus .completion-detail.
     expect(hint.querySelector(".completion-detail")).toHaveTextContent("Bäcker");
   });
 
   it("ersetzt den Vertipper mit Tab und merkt sich die Erwähnung", async () => {
-    const { container, editor, onChange } = renderEditor({ value: "", entities: [tarek] });
+    const { editor, onChange } = renderEditor({ value: "", entities: [tarek] });
     editor.dispatch({ changes: { from: 0, insert: "Tarke" }, selection: { anchor: 5 } });
-    fireEvent.keyDown(container.querySelector(".cm-content")!, { key: "Tab" });
+    fireEvent.keyDown(editor.contentDOM, { key: "Tab" });
     expect(editor.state.doc.toString()).toBe("Tarek");
     await waitFor(() =>
       expect(onChange).toHaveBeenLastCalledWith(

@@ -22,6 +22,7 @@
 }
 .history-layout .history-state-button {
   width: 100%;
+  display: grid;
   justify-content: flex-start;
   padding-block: var(--space-10);
   border-width: 0 0 1px;
@@ -29,7 +30,7 @@
   border-radius: 0;
   text-align: left;
 }
-.history-state-button .ui-button__label {
+.history-state-copy {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -84,10 +85,11 @@
 }
 .diff-summary-button {
   width: 100%;
+  display: grid;
   background: var(--canvas);
   text-align: left;
 }
-.diff-summary-button .ui-button__label {
+.diff-summary-content {
   width: 100%;
   display: flex;
   align-items: center;
@@ -101,7 +103,7 @@
   padding: var(--space-2) var(--space-6);
   border-radius: var(--radius-pill);
   background: var(--gold-soft);
-  color: var(--gold);
+  color: var(--gold-text);
   font-size: var(--font-size-1);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -125,7 +127,7 @@
 }
 .diff-segment h3 {
   margin: 0 0 var(--space-6);
-  color: var(--gold);
+  color: var(--gold-text);
   font-size: var(--font-size-3);
 }
 .diff-note {

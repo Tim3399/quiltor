@@ -1,0 +1,55 @@
+.ui-confirm-dialog__message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+  padding: var(--space-2) 0 var(--space-6);
+}
+
+.ui-confirm-dialog__icon {
+  width: 21px;
+  height: 21px;
+  flex: none;
+  color: var(--danger);
+}
+
+.ui-confirm-dialog__copy {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-7);
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+.ui-confirm-dialog__description {
+  color: var(--ink);
+}
+
+.ui-confirm-dialog__supporting-text {
+  color: var(--muted);
+}
+
+.ui-confirm-dialog__hold {
+  position: relative;
+  min-width: 190px;
+  overflow: hidden;
+  isolation: isolate;
+  user-select: none;
+}
+
+.ui-confirm-dialog__hold::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  transform: scaleX(var(--hold-progress, 0));
+  transform-origin: left;
+}
+
+.ui-confirm-dialog__hold[data-holding="true"] {
+  box-shadow: var(--ring-2) var(--danger);
+}
+
+.ui-confirm-dialog__hold .ui-button__label {
+  position: relative;
+  z-index: var(--z-local);
+}

@@ -1,5 +1,3 @@
-export { textSearchRanges } from "./search";
-export { normalizeMarks } from "./marks";
 export {
   chapterBreadcrumb,
   flatManuscriptStructure,
@@ -7,6 +5,7 @@ export {
   manuscriptStructure,
   orderedChapters,
 } from "./binder/manuscriptTree";
+export { normalizeMarks } from "./marks";
 export {
   addDeterministicMentions,
   reconcileMentions,
@@ -26,6 +25,7 @@ export type {
   WritingIssue,
   WritingLocale,
 } from "./model";
+export { textSearchRanges } from "./search";
 
 export const loadTextWorkspace = () =>
   import("./TextWorkspace").then(({ TextWorkspace }) => ({ default: TextWorkspace }));

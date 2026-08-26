@@ -1,0 +1,62 @@
+.page-state {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-32);
+  background: var(--paper);
+  color: var(--muted);
+  text-align: center;
+}
+
+.page-state__mark {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--panel);
+  color: var(--ink);
+  font: 600 var(--font-size-7) var(--prose);
+  box-shadow: var(--elevation-2) var(--shadow-color);
+}
+
+.page-state--loading .page-state__mark {
+  animation: page-state-pulse var(--motion-pulse) ease-in-out infinite alternate;
+}
+
+.page-state h1 {
+  max-width: 30ch;
+  margin: var(--space-18) 0 var(--space-8);
+  color: var(--ink);
+  font: 600 var(--font-size-7) var(--prose);
+}
+
+.page-state__copy {
+  max-width: 58ch;
+  line-height: 1.55;
+}
+
+.page-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-8);
+  margin-top: var(--space-20);
+}
+
+@keyframes page-state-pulse {
+  to {
+    transform: scale(1.04);
+    box-shadow: var(--elevation-3) var(--shadow-color);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-state--loading .page-state__mark {
+    animation: none;
+  }
+}

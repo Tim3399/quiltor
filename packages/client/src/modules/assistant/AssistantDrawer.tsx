@@ -1,11 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
 import { BookOpenCheck, Plus, Sparkles, X } from "lucide-react";
-import type { Workspace } from "../../shared";
-import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
-import { Inspector } from "../../shared/ui/Sidebar";
-import { Sheet } from "../../shared/ui/Sheet";
-import { SelectControl } from "../../shared/ui/SelectControl";
+import { useEffect, useId, useRef, useState } from "react";
+import { Button, ConfirmDialog, IconButton, ListboxSelect, Sheet, SidePanel } from "../../design";
 import { useI18n } from "../../i18n";
+import type { Workspace } from "../../shared";
 import type { Chapter } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { AssistantComposer } from "./AssistantComposer";
@@ -66,6 +63,7 @@ export function AssistantDrawer({
     t,
   });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: New entries intentionally trigger scrolling to the ref target.
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries]);
@@ -122,18 +120,14 @@ export function AssistantDrawer({
           </span>
         </div>
         <div className="assistant-header-actions">
-          <button
-            className="icon-button"
+          <IconButton
+            label={t("newChat")}
+            icon={<Plus />}
             disabled={!entries.length || sending}
-            aria-label={t("newChat")}
             title={t("newChat")}
             onClick={() => setConfirmNewChat(true)}
-          >
-            <Plus />
-          </button>
-          <button className="icon-button" aria-label={t("closeAssistant")} onClick={onClose}>
-            <X />
-          </button>
+          />
+          <IconButton label={t("closeAssistant")} icon={<X />} onClick={onClose} />
         </div>
       </header>
       <AssistantStatusPanel
@@ -145,8 +139,10 @@ export function AssistantDrawer({
       />
       <section className="assistant-world-update" aria-label={t("updateWorldFromManuscript")}>
         <div>
-          <button
-            type="button"
+          <Button
+            className="assistant-world-update-button"
+            appearance="secondary"
+            icon={<BookOpenCheck />}
             disabled={
               sending ||
               status?.available === false ||
@@ -155,10 +151,9 @@ export function AssistantDrawer({
             }
             onClick={updateWorldFromManuscript}
           >
-            <BookOpenCheck aria-hidden="true" />
-            <span>{t("updateWorldFromManuscript")}</span>
-          </button>
-          <SelectControl
+            {t("updateWorldFromManuscript")}
+          </Button>
+          <ListboxSelect
             label={t("worldUpdateScope")}
             value={extractionScope}
             options={[
@@ -219,6 +214,8 @@ export function AssistantDrawer({
         <ConfirmDialog
           title={t("newChat")}
           description={t("newChatConfirmDescription")}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("startNewChat")}
           onConfirm={clear}
           onClose={() => setConfirmNewChat(false)}
@@ -234,8 +231,8 @@ export function AssistantDrawer({
       <div className={className}>{content}</div>
     </Sheet>
   ) : open ? (
-    <Inspector className={className} aria-label={t("localAssistant")}>
+    <SidePanel className={className} label={t("localAssistant")}>
       {content}
-    </Inspector>
+    </SidePanel>
   ) : null;
 }

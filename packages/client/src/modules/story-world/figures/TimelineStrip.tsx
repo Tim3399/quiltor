@@ -1,5 +1,6 @@
 import { Clock3, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { Button, IconButton, ScrollArea, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { TimelineMoment } from "../model";
 import { formatMomentDate } from "./date";
@@ -45,44 +46,46 @@ export function TimelineStrip({
       <div className="timeline-heading">
         <Clock3 />
         <span>{t("timeToggle")}</span>
-        <button
-          type="button"
-          className="timeline-play"
+        <IconButton
+          className="timeline-heading-action timeline-play"
           disabled={!timeline.length}
-          aria-label={playing ? t("pauseTimeTravel") : t("playTimeTravel")}
+          label={playing ? t("pauseTimeTravel") : t("playTimeTravel")}
+          icon={playing ? <Pause /> : <Play />}
           onClick={onPlay}
-        >
-          {playing ? <Pause /> : <Play />}
-        </button>
-        <button
-          type="button"
-          className={!activeId ? "active" : ""}
+        />
+        <Button
+          size="compact"
+          className={`timeline-heading-action timeline-overview ${!activeId ? "active" : ""}`}
           aria-pressed={!activeId}
           onClick={() => onSelect(null)}
         >
           {t("overview")}
-        </button>
+        </Button>
       </div>
-      <div className="timeline-track">
+      <ScrollArea axis="x" className="timeline-track" surface="panel">
         {timeline.map((moment, index) => (
           <div className="timeline-moment" key={moment.id}>
             <span aria-hidden="true">{index + 1}</span>
-            <button
-              type="button"
-              className={activeId === moment.id ? "active" : ""}
+            <Button
+              size="compact"
+              className={`timeline-moment-button ${activeId === moment.id ? "active" : ""}`}
               aria-pressed={activeId === moment.id}
               onClick={() => onSelect(moment.id)}
             >
-              <b>{moment.title}</b>
-              {moment.date && <small>{formatMomentDate(moment.date)}</small>}
-            </button>
+              <span className="timeline-moment-copy">
+                <b>{moment.title}</b>
+                {moment.date && <small>{formatMomentDate(moment.date)}</small>}
+              </span>
+            </Button>
           </div>
         ))}
-      </div>
+      </ScrollArea>
       <div className="timeline-add">
-        <input
+        <TextField
+          fieldClassName="timeline-title-field"
           className="timeline-title"
-          aria-label={t("newMoment")}
+          label={t("newMoment")}
+          labelHidden
           value={draft}
           placeholder={t("newMoment")}
           onChange={(event) => setDraft(event.target.value)}
@@ -93,56 +96,55 @@ export function TimelineStrip({
             }
           }}
         />
-        <input
+        <TextField
+          fieldClassName="timeline-date-field"
           className="timeline-date"
           type="date"
-          aria-label={t("newMomentDate")}
+          label={t("newMomentDate")}
+          labelHidden
           value={draftDate}
           onChange={(event) => setDraftDate(event.target.value)}
         />
-        <button
-          type="button"
-          className="icon-button"
+        <IconButton
+          className="timeline-add-action"
           disabled={!draft.trim()}
-          aria-label={t("addMoment")}
+          label={t("addMoment")}
+          icon={<Plus />}
           onClick={add}
-        >
-          <Plus />
-        </button>
+        />
       </div>
       {active && (
         <div className="timeline-details">
-          <label>
-            <span>{t("name")}</span>
-            <input
-              value={active.title}
-              onChange={(event) => onPatch(active.id, { title: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>{t("optionalDate")}</span>
-            <input
-              type="date"
-              value={active.date || ""}
-              onChange={(event) => onPatch(active.id, { date: event.target.value || undefined })}
-            />
-          </label>
-          <label>
-            <span>{t("optionalNote")}</span>
-            <input
-              value={active.note || ""}
-              placeholder={t("momentNotePlaceholder")}
-              onChange={(event) => onPatch(active.id, { note: event.target.value })}
-            />
-          </label>
-          <button
-            type="button"
-            className="icon-button danger-text"
-            aria-label={t("deleteMoment")}
+          <TextField
+            fieldClassName="timeline-detail-field"
+            className="timeline-detail-input"
+            label={t("name")}
+            value={active.title}
+            onChange={(event) => onPatch(active.id, { title: event.target.value })}
+          />
+          <TextField
+            fieldClassName="timeline-detail-field"
+            className="timeline-detail-input"
+            label={t("optionalDate")}
+            type="date"
+            value={active.date || ""}
+            onChange={(event) => onPatch(active.id, { date: event.target.value || undefined })}
+          />
+          <TextField
+            fieldClassName="timeline-detail-field timeline-detail-note"
+            className="timeline-detail-input"
+            label={t("optionalNote")}
+            value={active.note || ""}
+            placeholder={t("momentNotePlaceholder")}
+            onChange={(event) => onPatch(active.id, { note: event.target.value })}
+          />
+          <IconButton
+            className="timeline-delete-action"
+            tone="danger"
+            label={t("deleteMoment")}
+            icon={<Trash2 />}
             onClick={() => onDelete(active)}
-          >
-            <Trash2 />
-          </button>
+          />
         </div>
       )}
     </section>

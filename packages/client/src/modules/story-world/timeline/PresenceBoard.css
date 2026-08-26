@@ -8,6 +8,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .presence-chip {
   display: flex;
@@ -48,12 +51,20 @@
     background var(--motion-quick),
     border-color var(--motion-quick);
   cursor: pointer;
+  display: block;
+  text-align: left;
 }
 .presence-lane.drop-active {
   border-color: var(--gold);
   background: var(--gold-soft);
 }
-.presence-lane header {
+.presence-lane > span:first-child,
+.presence-lane-content {
+  display: block;
+  width: 100%;
+}
+.presence-lane-heading {
+  display: block;
   font-size: var(--font-size-3);
   font-weight: 600;
   color: var(--soft);

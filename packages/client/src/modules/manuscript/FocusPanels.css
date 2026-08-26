@@ -1,7 +1,7 @@
 .text-workspace.is-focus {
   grid-template-rows: 1fr;
 }
-.text-workspace.is-focus .context-bar {
+.text-workspace.is-focus .manuscript-toolbar {
   display: none;
 }
 .text-workspace.is-focus .text-layout {
@@ -59,9 +59,6 @@
   color: var(--ink);
   opacity: 1;
 }
-.focus-helper-toggle svg {
-  width: 15px;
-}
 .focus-helper-panel {
   width: 250px;
   max-height: 65vh;
@@ -85,8 +82,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.focus-helper-chips button {
+.focus-helper-chip {
   padding: var(--space-5) var(--space-7);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -94,10 +94,10 @@
   font: 500 var(--font-size-3) var(--prose);
   cursor: pointer;
 }
-.focus-helper-chips button:hover {
+.focus-helper-chip:hover {
   border-color: var(--gold);
 }
-.focus-helper-symbols button {
+.focus-helper-symbol {
   min-width: 30px;
   font-size: var(--font-size-5);
 }
@@ -135,10 +135,6 @@
   opacity: 1;
 }
 
-.focus-side-toggle svg {
-  width: 15px;
-}
-
 .focus-chapter-list {
   position: absolute;
   top: 50%;
@@ -154,48 +150,48 @@
   transform: translateY(-50%);
 }
 
-.focus-chapter-list button {
+.focus-chapter-row {
+  width: 100%;
+  margin-bottom: var(--space-4);
+  justify-content: stretch;
+  text-align: left;
+}
+
+.focus-chapter-row[aria-current="page"] {
+  background: var(--active-surface);
+  color: var(--ink);
+}
+
+.focus-chapter-row__content {
   width: 100%;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  grid-template-areas: "number title" "number words";
-  gap: 1px var(--space-6);
-  padding: var(--space-9);
-  border: 1px solid var(--transparent);
-  border-radius: var(--radius-sm);
-  background: var(--transparent);
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
+  grid-template-columns: var(--space-24) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-8);
 }
 
-.focus-chapter-list button:hover {
-  background: var(--control-hover-subtle);
-}
-
-.focus-chapter-list button.active {
-  border-color: var(--line);
-  background: var(--paper);
-}
-
-.focus-chapter-list span {
-  grid-area: number;
+.focus-chapter-row__number {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-2);
+  font-variant-numeric: tabular-nums;
 }
 
-.focus-chapter-list strong {
-  grid-area: title;
+.focus-chapter-row__copy {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.focus-chapter-row__copy strong,
+.focus-chapter-row__copy small {
   overflow: hidden;
-  font: 600 var(--font-size-4) var(--prose);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.focus-chapter-list small {
-  grid-area: words;
+.focus-chapter-row__copy small {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-2);
 }
 
 .text-workspace .focus-helper {
@@ -238,7 +234,7 @@
     max-height: calc(100dvh - var(--bar) - 16px);
     padding: var(--space-3);
   }
-  .focus-chapter-list button {
+  .focus-chapter-row {
     padding: var(--space-7) var(--space-5);
   }
   .text-workspace .focus-helper-panel {
@@ -249,7 +245,7 @@
   .focus-helper-chips {
     gap: var(--space-3);
   }
-  .focus-helper-chips button {
+  .focus-helper-chip {
     max-width: 100%;
     padding: var(--space-4) var(--space-5);
     overflow-wrap: anywhere;
@@ -262,6 +258,6 @@
 
 @media print {
   .focus-chapters {
-    display: none !important;
+    display: none;
   }
 }

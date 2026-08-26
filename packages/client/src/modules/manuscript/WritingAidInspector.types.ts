@@ -1,0 +1,51 @@
+import type { WritingAssistanceLookupResult, WritingAssistanceStatus } from "../../platform";
+import type { FigureNode, FigureState } from "../story-world";
+import type { scanEntityMentions } from "./mentions";
+import type { Chapter, Manuscript, WritingIssue } from "./model";
+import type { HelperMode, WritingTool } from "./workspaceTypes";
+
+export type AmbiguousMention = ReturnType<typeof scanEntityMentions>["ambiguous"][number];
+export type WritingLocale = "de-DE" | "en-GB";
+export type AssistancePhase = "idle" | "loading" | "installing" | "error";
+export type GrammarPhase = "idle" | "checking" | "installing" | "unavailable" | "error";
+
+export interface WritingAidInspectorProps {
+  current: Chapter;
+  manuscript: Manuscript;
+  figures: FigureState;
+  orphanedMentions: number;
+  helperModes: HelperMode[];
+  activeMode: HelperMode;
+  onMode: (mode: HelperMode) => void;
+  selectionTool: WritingTool;
+  writingLocale: WritingLocale;
+  writingQuery: string;
+  onWritingQuery: (value: string) => void;
+  status: WritingAssistanceStatus | null;
+  results: WritingAssistanceLookupResult[];
+  assistancePhase: AssistancePhase;
+  replaceTarget: boolean;
+  lookupSources: string[];
+  grammarIssues: WritingIssue[];
+  selectedIssue: WritingIssue | null;
+  grammarPhase: GrammarPhase;
+  ambiguousMentions: AmbiguousMention[];
+  symbolPicker: boolean;
+  onSymbolPicker: (open: boolean) => void;
+  onClose: () => void;
+  onRunLookup: () => void;
+  onChooseTool: (tool: WritingTool) => void;
+  onLocale: (locale: WritingLocale) => void;
+  onInstallData: () => void;
+  onApplyValue: (value: string) => void;
+  onCheckGrammar: () => void;
+  onInstallGrammar: () => void;
+  onSelectIssue: (issue: WritingIssue | null) => void;
+  onApplyIssue: (issue: WritingIssue, replacement: string) => void;
+  onGrammarMode: (mode: Manuscript["grammarMode"]) => void;
+  onInsertEntity: (entity: FigureNode) => void;
+  onResolveAmbiguous: (candidate: AmbiguousMention, entity: FigureNode) => void;
+  onManageTerms: () => void;
+  onInsert: (value: string) => void;
+  onToggleSymbol: (symbol: string, active: boolean) => void;
+}

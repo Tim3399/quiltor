@@ -1,12 +1,18 @@
 .world-gate {
   height: 100%;
   min-height: 0;
-  overflow: auto;
   padding: clamp(var(--space-32), 6vw, calc(var(--space-48) + var(--space-24))) var(--space-24);
   background: var(--canvas);
 }
+.world-gate[data-axis="y"] {
+  overflow: hidden;
+}
 .world-gate > section {
+  min-height: 0;
+  height: 100%;
   width: min(960px, 100%);
+  display: flex;
+  flex-direction: column;
   margin: 0 auto;
 }
 .gate-preferences {
@@ -56,6 +62,12 @@
   background: var(--panel);
   box-shadow: var(--elevation-1) var(--shadow-color);
 }
+.world-list-panel[data-long="true"] {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
 .world-list-panel > header {
   display: flex;
   align-items: center;
@@ -82,11 +94,10 @@
   list-style: none;
 }
 .world-list[data-long="true"] {
-  max-height: min(54vh, 560px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
   padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
-  scrollbar-gutter: stable;
 }
 .world-list-empty {
   min-height: 88px;
@@ -144,9 +155,6 @@
     width: 100%;
     margin-bottom: var(--space-14);
   }
-  .world-list[data-long="true"] {
-    max-height: min(48vh, 480px);
-  }
   .world-create-sheet {
     padding: var(--space-16);
   }
@@ -161,5 +169,26 @@
   }
   .world-list-panel h2 {
     padding-top: var(--space-10);
+  }
+}
+
+@media (max-height: 640px) {
+  .world-gate[data-axis="y"] {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .world-gate > section {
+    height: auto;
+    min-height: 100%;
+  }
+  .world-list-panel[data-long="true"] {
+    display: block;
+    flex: none;
+  }
+  .world-list[data-long="true"][data-axis="y"] {
+    max-height: none;
+    flex: none;
+    overflow: visible;
+    scrollbar-gutter: auto;
   }
 }

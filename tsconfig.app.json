@@ -16,5 +16,11 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["packages/client/src", "apps/web/main.tsx", "apps/design-gallery/main.tsx"]
+  "include": ["packages/client/src", "apps/web/main.tsx", "apps/design-gallery/main.tsx"],
+  "exclude": [
+    "packages/client/src/**/*.test.ts",
+    "packages/client/src/**/*.test.tsx",
+    "packages/client/src/**/*.testSupport.ts",
+    "packages/client/src/**/*.testSupport.tsx"
+  ]
 }

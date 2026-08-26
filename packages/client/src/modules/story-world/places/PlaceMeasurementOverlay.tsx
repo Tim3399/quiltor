@@ -1,5 +1,7 @@
-import { Ruler, X } from "lucide-react";
+import { Ruler } from "lucide-react";
+import { TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { ModeBanner } from "../ModeBanner";
 import type { FigureState } from "../model";
 import "./PlaceMeasurementOverlay.css";
 
@@ -17,22 +19,19 @@ export function PlaceMeasurementOverlay({
   const { t } = useI18n();
   return (
     <div className="places-measure-overlays">
-      <div className="mode-banner" role="status">
-        <Ruler />
+      <ModeBanner icon={<Ruler />} dismissLabel={t("stopMeasuring")} onDismiss={onStop}>
         <span>
           {measureSelection.length === 1
             ? t("selectDistanceTargetHint")
             : t("nearestDistancesHint")}
         </span>
-        <button type="button" onClick={onStop}>
-          <X />
-          <span className="sr-only">{t("stopMeasuring")}</span>
-        </button>
-      </div>
+      </ModeBanner>
       <div className="places-scale-legend">
-        <label>
-          <span>{t("scale")}</span>
-          <input
+        <div className="places-scale-value-group">
+          <TextField
+            fieldClassName="places-scale-value-field"
+            className="places-scale-value"
+            label={t("scale")}
             type="number"
             min="0.01"
             step="0.01"
@@ -40,14 +39,15 @@ export function PlaceMeasurementOverlay({
             onChange={(event) => onScale({ unitsPer100px: Number(event.target.value) || 1 })}
           />
           <span>{t("perHundredPx")}</span>
-        </label>
-        <label>
-          <span className="sr-only">{t("unitLabelField")}</span>
-          <input
-            value={scale?.unitLabel ?? t("unitsDefault")}
-            onChange={(event) => onScale({ unitLabel: event.target.value })}
-          />
-        </label>
+        </div>
+        <TextField
+          fieldClassName="places-scale-unit-field"
+          className="places-scale-unit"
+          label={t("unitLabelField")}
+          labelHidden
+          value={scale?.unitLabel ?? t("unitsDefault")}
+          onChange={(event) => onScale({ unitLabel: event.target.value })}
+        />
       </div>
     </div>
   );

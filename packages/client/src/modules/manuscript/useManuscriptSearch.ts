@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MutableRefObject } from "react";
+import { type MutableRefObject, useEffect, useMemo, useState } from "react";
 import type { TextSearchTarget } from "../../shared";
 import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
 import type { Chapter } from "./model";

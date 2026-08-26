@@ -54,25 +54,6 @@
   color: var(--muted);
   font-size: var(--font-size-1);
 }
-.assistant-progress {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  color: var(--muted);
-  font-size: var(--font-size-2);
-}
-.assistant-progress-bar {
-  height: 4px;
-  overflow: hidden;
-  border-radius: var(--radius-xs);
-  background: var(--line);
-}
-.assistant-progress-bar > span {
-  display: block;
-  height: 100%;
-  background: var(--gold);
-  transition: width var(--motion-medium) ease;
-}
 .assistant-world-update {
   display: grid;
   gap: var(--space-5);
@@ -84,27 +65,6 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-5);
-}
-.assistant-world-update > div > button:first-child {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-7);
-  min-height: 36px;
-  padding: var(--space-7) var(--space-10);
-  border: 1px solid var(--gold-border);
-  border-radius: var(--radius-sm);
-  background: var(--gold-soft);
-  color: var(--gold-text);
-  font-weight: 650;
-  cursor: pointer;
-}
-.assistant-world-update > div > button:first-child svg {
-  width: 15px;
-}
-.assistant-world-update > div > button:first-child:disabled {
-  cursor: default;
-  opacity: 0.5;
 }
 .assistant-world-update > small {
   color: var(--muted);

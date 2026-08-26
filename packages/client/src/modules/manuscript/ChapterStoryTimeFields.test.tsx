@@ -2,9 +2,10 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
-import type { TimeSystem, TimelineMoment } from "../story-world";
+import type { TimelineMoment, TimeSystem } from "../story-world";
 import { ChapterStoryTimeFields, chapterStoryTimeLabel } from "./ChapterStoryTimeFields";
 import type { Chapter } from "./model";
+import { requireValue } from "./TextWorkspace.testSupport";
 
 const chapter: Chapter = { id: "chapter", title: "Rückkehr", body: "", note: "" };
 const timeline: TimelineMoment[] = [
@@ -26,12 +27,22 @@ function renderFields(value: Chapter, onChange = vi.fn(), moments: TimelineMomen
 }
 
 function storyTimeDetails() {
-  return screen.getByText("Handlungszeit").closest("details") as HTMLDetailsElement;
+  return requireValue(
+    screen.getByText("Handlungszeit").closest<HTMLDetailsElement>("details"),
+    "Story-time details missing",
+  );
+}
+
+function storyTimeSummary(details: HTMLDetailsElement) {
+  return requireValue(
+    within(details).getByText("Handlungszeit").closest<HTMLElement>("summary"),
+    "Story-time summary missing",
+  );
 }
 
 function openStoryTimeFields() {
   const details = storyTimeDetails();
-  fireEvent.click(within(details).getByText("Handlungszeit").closest("summary")!);
+  fireEvent.click(storyTimeSummary(details));
   expect(details).toHaveAttribute("open");
   return details;
 }
@@ -57,8 +68,9 @@ describe("chapter story time fields", () => {
       "aria-checked",
       "true",
     );
+    expect(within(details).getByRole("radiogroup")).toHaveClass("binder-story-time-mode");
 
-    fireEvent.click(within(details).getByText("Handlungszeit").closest("summary")!);
+    fireEvent.click(storyTimeSummary(details));
     expect(details).not.toHaveAttribute("open");
     expect(within(details).queryByRole("radio", { name: "Offen" })).not.toBeInTheDocument();
   });
@@ -103,7 +115,9 @@ describe("chapter story time fields", () => {
     render(<Stateful />);
     openStoryTimeFields();
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Von" }));
+    const start = screen.getByRole("combobox", { name: "Von" });
+    expect(start).toHaveClass("binder-story-time-select");
+    fireEvent.click(start);
     expect(
       within(screen.getByRole("listbox", { name: "Von" })).getByRole("option", {
         name: /Heimkehr/,

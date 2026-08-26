@@ -1,11 +1,10 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmDialog, Sheet, SidePanel } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { Workspace } from "../../../shared";
-import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
-import { Sheet } from "../../../shared/ui/Sheet";
-import { Inspector } from "../../../shared/ui/Sidebar";
 import type { FigureNode, FigureState } from "../model";
+import { storyShortcutLabel } from "../shortcutLabels";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
 import { PlaceToolbar } from "./PlaceToolbar";
@@ -44,7 +43,7 @@ function PlacesWorkspaceInner({
   canRedo = false,
   onOpen,
 }: PlacesWorkspaceProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [measuring, setMeasuring] = useState(false);
   const [measureSelection, setMeasureSelection] = useState<string[]>([]);
@@ -172,12 +171,12 @@ function PlacesWorkspaceInner({
           onScale={patchScale}
         />
         {!compact && !!places.length && (
-          <Inspector
-            className={`inspector places-inspector ${selected ? "has-selection" : ""}`}
-            aria-label={t("placesInspectorLabel")}
+          <SidePanel
+            className={`places-inspector ${selected ? "has-selection" : ""}`}
+            label={t("placesInspectorLabel")}
           >
             {inspectorContent}
-          </Inspector>
+          </SidePanel>
         )}
       </div>
       {compact && selected && !measuring && (
@@ -189,8 +188,10 @@ function PlacesWorkspaceInner({
         <ConfirmDialog
           title={t("deletePlace")}
           description={t("deletePlaceDescription", { name: deletePlace.name })}
+          supportingText={t("undoHint", { shortcut: storyShortcutLabel("Z", locale) })}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("deletePlace")}
-          undoable
           onClose={() => setDeletePlace(null)}
           onConfirm={removePlace}
         />

@@ -1,5 +1,5 @@
-import type { PropsWithChildren } from "react";
 import { render } from "@testing-library/react";
+import type { PropsWithChildren } from "react";
 import { I18nProvider } from "../../i18n";
 import { quiltorClient } from "../../platform";
 import { TextWorkspace } from "./TextWorkspace";
@@ -17,6 +17,12 @@ export const figures = {
 
 export function TestProviders({ children }: PropsWithChildren) {
   return <I18nProvider>{children}</I18nProvider>;
+}
+
+export function requireValue<T>(value: T | null | undefined, message = "Expected value"):
+  T {
+  if (value === null || value === undefined) throw new Error(message);
+  return value;
 }
 
 export function renderWorkspace(props: React.ComponentProps<typeof TextWorkspace>) {

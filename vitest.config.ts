@@ -8,5 +8,8 @@ export default defineConfig({
     setupFiles: "./packages/client/src/test/setup.ts",
     include: ["packages/client/src/**/*.test.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/dist/**", "**/tests/e2e/**", ".claude/**"],
+    css: {
+      include: [/WorkspaceToolbar\.css/],
+    },
   },
 });

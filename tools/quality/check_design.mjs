@@ -1,5 +1,9 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
+import {
+  formatScrollbarOwnershipViolation,
+  scanScrollbarOwnership,
+} from "./scrollbar_ownership.mjs";
 
 const root = process.cwd();
 const clientRoot = join(root, "packages", "client", "src");
@@ -201,6 +205,14 @@ function visit(path) {
 
 visit(clientRoot);
 visit(webRoot);
+
+try {
+  for (const violation of scanScrollbarOwnership(root)) {
+    violations.push(formatScrollbarOwnershipViolation(violation));
+  }
+} catch (error) {
+  violations.push(`[Scrollbar-Owner] ${error instanceof Error ? error.message : String(error)}`);
+}
 
 // --xy-* belongs to @xyflow/react and is defined inside the library stylesheet,
 // which is outside the scanned tree; overriding those variables is the

@@ -1,0 +1,6 @@
+.text-workspace {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(var(--context), auto) minmax(0, 1fr);
+}

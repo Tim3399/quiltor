@@ -6,15 +6,20 @@ import {
   PanelLeft,
   PanelRight,
   Printer,
-  Redo2,
-  Undo2,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { ToolbarButton } from "../../design";
+import {
+  Menu,
+  MenuItem,
+  Popover,
+  ToolbarButton,
+  UndoRedoControls,
+  WorkspaceToolbar,
+  WorkspaceToolbarActions,
+  WorkspaceToolbarGroup,
+  WorkspaceToolbarTitle,
+} from "../../design";
 import { useI18n } from "../../i18n";
-import { Menu, MenuItem } from "../../shared/ui/Menu";
-import { Popover } from "../../shared/ui/Popover";
-import { useShortcut } from "../../shared/ui/shortcuts";
 import type { Chapter } from "./model";
 import { wordCount } from "./wordCount";
 import "./ManuscriptToolbar.css";
@@ -63,15 +68,14 @@ export function ManuscriptToolbar({
   onPrint,
 }: ManuscriptToolbarProps) {
   const { t, locale } = useI18n();
-  const keys = useShortcut();
   const [exportOpen, setExportOpen] = useState(false);
   const exportButton = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="context-bar">
-      <div className="context-title">
-        <strong>{current?.title || t("manuscript")}</strong>
-        <dl className="stats chapter-stats">
+    <WorkspaceToolbar className="manuscript-toolbar" label={t("manuscript")}>
+      <div className="manuscript-toolbar__summary">
+        <WorkspaceToolbarTitle title={current?.title || t("manuscript")} />
+        <dl className="manuscript-toolbar__stats">
           {current && (
             <>
               <div>
@@ -94,21 +98,17 @@ export function ManuscriptToolbar({
           </div>
         </dl>
       </div>
-      <div
-        className="context-tools manuscript-toolbar-actions"
-        role="toolbar"
-        aria-label={t("manuscript")}
-      >
-        <div className="tool-group">
+      <WorkspaceToolbarActions className="manuscript-toolbar-actions">
+        <WorkspaceToolbarGroup className="manuscript-toolbar-group">
           <ToolbarButton
             label={t("newChapter")}
             icon={<FilePlus2 />}
             appearance="primary"
             onClick={onAddChapter}
           />
-        </div>
+        </WorkspaceToolbarGroup>
         {!focus && (
-          <div className="tool-group panel-toggles">
+          <WorkspaceToolbarGroup className="manuscript-toolbar-group panel-toggles">
             <ToolbarButton
               label={t("chapters")}
               icon={<PanelLeft />}
@@ -128,45 +128,37 @@ export function ManuscriptToolbar({
                 if (current) onInspectorOpen(!inspectorOpen);
               }}
             />
-          </div>
+          </WorkspaceToolbarGroup>
         )}
-        <div className="tool-group">
-          <ToolbarButton
-            label={t("undoManuscript")}
-            labelMode="hidden"
-            icon={<Undo2 />}
-            disabled={!canUndo}
-            onClick={onUndo}
-            title={`${t("undoManuscript")} · ${keys("Z")}`}
-          />
-          <ToolbarButton
-            label={t("redoManuscript")}
-            labelMode="hidden"
-            icon={<Redo2 />}
-            disabled={!canRedo}
-            onClick={onRedo}
-            title={`${t("redoManuscript")} · ${keys("Z", { shift: true })}`}
-          />
-        </div>
-        <div className="tool-group">
+        <UndoRedoControls
+          className="manuscript-toolbar-group"
+          label={t("manuscript")}
+          undoLabel={t("undoManuscript")}
+          redoLabel={t("redoManuscript")}
+          onUndo={() => onUndo?.()}
+          onRedo={() => onRedo?.()}
+          canUndo={canUndo}
+          canRedo={canRedo}
+        />
+        <WorkspaceToolbarGroup className="manuscript-toolbar-group">
           <ToolbarButton
             label={t("focus")}
             icon={<Focus />}
             aria-pressed={focus}
             onClick={() => onFocus(!focus)}
           />
-        </div>
+        </WorkspaceToolbarGroup>
         {current && (
-          <div className="tool-group">
+          <WorkspaceToolbarGroup className="manuscript-toolbar-group">
             <ToolbarButton
               label={t("versions")}
               icon={<HistoryIcon />}
               aria-pressed={historyOpen}
               onClick={() => onHistoryOpen(!historyOpen)}
             />
-          </div>
+          </WorkspaceToolbarGroup>
         )}
-        <div className="tool-group">
+        <WorkspaceToolbarGroup className="manuscript-toolbar-group">
           <ToolbarButton
             ref={exportButton}
             label={t("exportManuscript")}
@@ -175,7 +167,7 @@ export function ManuscriptToolbar({
             aria-expanded={exportOpen}
             onClick={() => setExportOpen((value) => !value)}
           />
-        </div>
+        </WorkspaceToolbarGroup>
         <Popover
           anchorRef={exportButton}
           open={exportOpen}
@@ -204,7 +196,7 @@ export function ManuscriptToolbar({
             </MenuItem>
           </Menu>
         </Popover>
-      </div>
-    </div>
+      </WorkspaceToolbarActions>
+    </WorkspaceToolbar>
   );
 }

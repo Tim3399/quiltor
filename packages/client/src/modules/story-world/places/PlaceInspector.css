@@ -19,37 +19,6 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-color: var(--line-strong) var(--transparent);
-  scrollbar-width: thin;
-  scrollbar-gutter: stable;
-  --scrollbar-surface: var(--panel);
-}
-
-.places-inspector-body::-webkit-scrollbar {
-  width: var(--space-10);
-  height: var(--space-10);
-}
-
-.places-inspector-body::-webkit-scrollbar-track {
-  background: var(--transparent);
-}
-
-.places-inspector-body::-webkit-scrollbar-thumb {
-  min-width: var(--space-48);
-  min-height: var(--space-48);
-  border: var(--space-3) solid var(--scrollbar-surface);
-  border-radius: var(--radius-pill);
-  background: var(--line-strong);
-}
-
-.places-inspector-body::-webkit-scrollbar-thumb:hover {
-  background: var(--gold-border);
-}
-
-.places-inspector-body::-webkit-scrollbar-thumb:active {
-  background: var(--gold);
 }
 
 .places-manager-section {

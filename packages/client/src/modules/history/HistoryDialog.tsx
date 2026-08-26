@@ -1,11 +1,10 @@
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Button, IconButton } from "../../design";
+import { Button, EmptyState, IconButton, Sheet } from "../../design";
 import type { Translate } from "../../i18n";
 import { useI18n } from "../../i18n";
 import { applicationErrorMessage, quiltorClient } from "../../platform";
 import { useFlushedEffect } from "../../shared/hooks/useFlushedEffect";
-import { Sheet } from "../../shared/ui/Sheet";
 import type { SnapshotInfo } from "./model";
 import { describePath, type PathKind } from "./pathNames";
 import "./HistoryDialog.css";
@@ -175,8 +174,10 @@ export function HistoryDialog({
                 aria-pressed={selected === "WORK"}
                 onClick={() => setSelected("WORK")}
               >
-                <strong>{t("sinceCommit")}</strong>
-                <small>{t("workingState")}</small>
+                <span className="history-state-copy">
+                  <strong>{t("sinceCommit")}</strong>
+                  <small>{t("workingState")}</small>
+                </span>
               </Button>
               {commits.map((commit) => (
                 <Button
@@ -186,18 +187,24 @@ export function HistoryDialog({
                   aria-pressed={selected === commit.hash}
                   onClick={() => setSelected(commit.hash)}
                 >
-                  <strong>{commit.subject}</strong>
-                  <small>
-                    {commit.shortHash} · {commit.date}
-                  </small>
+                  <span className="history-state-copy">
+                    <strong>{commit.subject}</strong>
+                    <small>
+                      {commit.shortHash} · {commit.date}
+                    </small>
+                  </span>
                 </Button>
               ))}
             </nav>
             <div className="diff-view">
               {!result ? (
-                <p className="empty-message">{t("loading")}</p>
+                <EmptyState headingLevel={3} role="status" size="compact" title={t("loading")} />
               ) : segments.length === 0 ? (
-                <p className="empty-message">{result.empty || t("noChanges")}</p>
+                <EmptyState
+                  headingLevel={3}
+                  size="compact"
+                  title={result.empty || t("noChanges")}
+                />
               ) : (
                 <>
                   <ul className="diff-summary">
@@ -210,18 +217,20 @@ export function HistoryDialog({
                           aria-expanded={open.has(segment.path)}
                           onClick={() => toggle(segment.path)}
                         >
-                          {kindLabel(segment.kind, t) && (
-                            <span className="diff-kind">{kindLabel(segment.kind, t)}</span>
-                          )}
-                          <span className="diff-summary-title">{segment.title}</span>
-                          {!segment.binary && (
-                            <span className="diff-stat">
-                              {t(word ? "statWords" : "statLines", {
-                                added: segment.added,
-                                removed: segment.removed,
-                              })}
-                            </span>
-                          )}
+                          <span className="diff-summary-content">
+                            {kindLabel(segment.kind, t) && (
+                              <span className="diff-kind">{kindLabel(segment.kind, t)}</span>
+                            )}
+                            <span className="diff-summary-title">{segment.title}</span>
+                            {!segment.binary && (
+                              <span className="diff-stat">
+                                {t(word ? "statWords" : "statLines", {
+                                  added: segment.added,
+                                  removed: segment.removed,
+                                })}
+                              </span>
+                            )}
+                          </span>
                         </Button>
                       </li>
                     ))}
@@ -238,14 +247,14 @@ export function HistoryDialog({
                         {segment.binary ? (
                           <p className="diff-note">{t("binaryChange")}</p>
                         ) : (
-                          segment.lines.map((line, index) =>
+                          withOccurrenceKeys(segment.lines).map(({ key, value: line }) =>
                             line === GAP_MARK ? (
-                              <div key={index} className="diff-gap">
+                              <div key={key} className="diff-gap">
                                 {GAP_MARK}
                               </div>
                             ) : (
                               <div
-                                key={index}
+                                key={key}
                                 className={
                                   line.startsWith("+")
                                     ? "diff-add"
@@ -272,15 +281,22 @@ export function HistoryDialog({
 }
 
 function markWords(line: string) {
-  return line
-    .split(/(\[-.*?-\]|\{\+.*?\+\})/g)
-    .map((part, index) =>
-      part.startsWith("[-") ? (
-        <del key={index}>{part.slice(2, -2)}</del>
-      ) : part.startsWith("{+") ? (
-        <ins key={index}>{part.slice(2, -2)}</ins>
-      ) : (
-        part
-      ),
-    );
+  return withOccurrenceKeys(line.split(/(\[-.*?-\]|\{\+.*?\+\})/g)).map(({ key, value: part }) =>
+    part.startsWith("[-") ? (
+      <del key={key}>{part.slice(2, -2)}</del>
+    ) : part.startsWith("{+") ? (
+      <ins key={key}>{part.slice(2, -2)}</ins>
+    ) : (
+      part
+    ),
+  );
+}
+
+function withOccurrenceKeys(values: string[]) {
+  const occurrences = new Map<string, number>();
+  return values.map((value) => {
+    const occurrence = (occurrences.get(value) ?? 0) + 1;
+    occurrences.set(value, occurrence);
+    return { key: `${value}\u0000${occurrence}`, value };
+  });
 }

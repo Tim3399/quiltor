@@ -1,5 +1,5 @@
+import { Button, ListboxSelect } from "../../../design";
 import { useI18n } from "../../../i18n";
-import { SelectControl } from "../../../shared/ui/SelectControl";
 import type { FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import {
   figureJourney,
@@ -50,10 +50,11 @@ export function PresenceField({
     : t("placeInitial");
   return (
     <div className="presence-field-group">
-      <div className="field presence-field">
+      <div className="presence-field">
         <span>{fieldLabel}</span>
         {places.length ? (
-          <SelectControl
+          <ListboxSelect
+            className="presence-place-select"
             label={fieldLabel}
             value={editor.placeId}
             options={[
@@ -81,14 +82,15 @@ export function PresenceField({
           {stops.flatMap((stop, index) => {
             const place = state.nodes.find((node) => node.id === stop.placeId);
             const button = (
-              <button
-                type="button"
+              <Button
+                appearance="secondary"
+                size="compact"
                 key={stop.momentId ?? "base"}
-                className={index === currentStopIndex ? "active" : ""}
+                className={`presence-journey-stop ${index === currentStopIndex ? "active" : ""}`}
                 onClick={() => onSelectMoment(stop.momentId ?? null)}
               >
                 {place?.name ?? t("unknown")}
-              </button>
+              </Button>
             );
             return index > 0
               ? [

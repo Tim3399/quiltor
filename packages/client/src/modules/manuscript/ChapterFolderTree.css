@@ -16,6 +16,7 @@
   --binder-level-step: var(--space-12);
   --binder-indent-max: var(--space-48);
   padding: var(--space-4) var(--space-7) var(--space-8);
+  list-style: none;
 }
 .binder-tree-shell {
   min-height: 0;
@@ -57,7 +58,7 @@
   opacity: 0.4;
 }
 .binder-drop-before.is-active::after {
-  background: var(--focus);
+  background: var(--focus-border);
   opacity: 1;
 }
 .binder-drag-handle {
@@ -110,8 +111,9 @@
   background: var(--control-hover-subtle);
 }
 .binder-folder-row.is-drop-target {
-  border-color: var(--focus);
-  box-shadow: inset var(--ring-1) var(--focus);
+  border-color: var(--focus-border);
+  background: var(--focus-soft);
+  box-shadow: inset var(--ring-1) var(--focus-border);
 }
 .binder-folder-toggle {
   grid-area: main;
@@ -172,7 +174,7 @@
   width: 100%;
   height: var(--control-regular);
   padding: 0 var(--space-6);
-  border: 1px solid var(--focus);
+  border: 1px solid var(--focus-border);
   border-radius: var(--radius-xs);
   background: var(--paper);
   color: var(--ink);
@@ -204,6 +206,9 @@
 .binder-folder-children {
   min-width: 0;
   position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .binder-folder-children::before {
   content: "";
@@ -276,9 +281,9 @@
   pointer-events: auto;
 }
 .binder-root-drop.is-active {
-  border-color: var(--focus);
-  background: var(--control-hover-subtle);
-  box-shadow: inset var(--ring-1) var(--focus);
+  border-color: var(--focus-border);
+  background: var(--focus-soft);
+  box-shadow: inset var(--ring-1) var(--focus-border);
 }
 
 @media (max-width: 719px), (pointer: coarse) {

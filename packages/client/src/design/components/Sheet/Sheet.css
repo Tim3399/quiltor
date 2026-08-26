@@ -1,0 +1,110 @@
+.ui-sheet-backdrop {
+  position: fixed;
+  z-index: var(--z-modal);
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: var(--overlay);
+}
+
+.ui-sheet {
+  width: min(var(--sheet-max), 100%);
+  height: 100%;
+  overflow: auto;
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-drawer-left);
+  animation: ui-sheet-in var(--motion-regular) var(--ease-emphasized);
+}
+
+.ui-sheet--wide {
+  width: min(var(--sheet-wide), 100%);
+}
+
+.ui-sheet__header {
+  min-height: var(--toolbar-regular);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: 0 var(--space-16);
+  border-bottom: 1px solid var(--line);
+}
+
+.ui-sheet__header h2 {
+  min-width: 0;
+  margin: 0;
+  font: 600 var(--font-size-6) var(--prose);
+  overflow-wrap: anywhere;
+}
+
+.ui-sheet__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.ui-sheet__body {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-16);
+}
+
+/* Deprecated structural aliases retained until UtilitySheet consumers migrate to SheetHeader/Body. */
+.utility-sheet {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.utility-sheet > header {
+  min-height: var(--toolbar-regular);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-16);
+  border-bottom: 1px solid var(--line);
+}
+
+.utility-sheet > header h2 {
+  margin: 0;
+  font: 600 var(--font-size-6) var(--prose);
+}
+
+.utility-sheet-content {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-16);
+}
+
+@keyframes ui-sheet-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (max-width: 719px) {
+  .ui-sheet-backdrop {
+    align-items: flex-end;
+  }
+
+  .ui-sheet {
+    width: 100%;
+    height: min(88vh, 100%);
+    border-top: 1px solid var(--line-strong);
+    border-left: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    animation-name: ui-sheet-up;
+  }
+
+  @keyframes ui-sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+}

@@ -4,18 +4,7 @@ export const designIndexImports = Object.freeze([
   "./materials.css",
   "./motion.css",
   "./base.css",
-  "./components/button.css",
-  "./components/toolbar.css",
-  "./components/workspace.css",
-  "./components/segmented-control.css",
-  "./components/menu.css",
-  "./components/popover.css",
-  "./components/sheet.css",
-  "./components/sidebar.css",
-  "./components/dialog.css",
-  "./components/form.css",
-  "./components/feedback.css",
-  "./components/state.css",
+  "./typography.css",
 ]);
 
 /** The public design entrypoint is an import manifest, never a rule owner. */

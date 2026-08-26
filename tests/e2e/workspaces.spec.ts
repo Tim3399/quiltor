@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
-import type { Locator } from "@playwright/test";
 import type { Manuscript } from "../../packages/client/src/modules/manuscript";
 import {
   decodeSavedManuscript,
@@ -11,14 +11,24 @@ import {
   fulfillStoryWorld,
 } from "./support/application-api";
 
-async function openBlankWorld(
-  page: import("@playwright/test").Page,
-  title = "Testwelt",
-  backupUrl = "",
-) {
+async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
   const response = await page.request.post("/api/worlds/create", { data: { title, backupUrl } });
   const payload = await response.json();
   await page.goto(`/?world=${payload.world.id}`);
+  await waitForManuscriptReady(page);
+}
+
+function waitForManuscriptReady(page: Page, name: string | RegExp = "Manuskript") {
+  return page.getByRole("toolbar", { name }).waitFor();
+}
+
+function waitForSuccessfulManuscriptWrite(page: Page) {
+  return page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/manuscript") &&
+      response.request().method() !== "GET" &&
+      response.ok(),
+  );
 }
 
 test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async ({
@@ -43,6 +53,8 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
   );
   await openBlankWorld(page, "Mobile Layoutwelt");
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
+  const toolbarGroups = manuscriptToolbar.getByRole("group");
 
   const expectNoDocumentOverflow = async (label: string) => {
     const geometry = await page.locator("html").evaluate((element) => ({
@@ -54,30 +66,26 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
     );
   };
 
-  const actionRows = await page
-    .locator(".manuscript-toolbar-actions .tool-group")
-    .evaluateAll((groups) =>
-      groups
-        .filter((group) => group.getBoundingClientRect().width > 0)
-        .map((group) => Math.round(group.getBoundingClientRect().top)),
-    );
+  const actionRows = await toolbarGroups.evaluateAll((groups) =>
+    groups
+      .filter((group) => group.getBoundingClientRect().width > 0)
+      .map((group) => Math.round(group.getBoundingClientRect().top)),
+  );
   expect(new Set(actionRows).size).toBe(1);
-  const compactGroupInsets = await page
-    .locator(".manuscript-toolbar-actions .tool-group")
-    .evaluateAll((groups) =>
-      groups
-        .filter((group) => group.getBoundingClientRect().width > 0)
-        .map((group) => {
-          const style = getComputedStyle(group);
-          return {
-            left: Number.parseFloat(style.paddingInlineStart),
-            right: Number.parseFloat(style.paddingInlineEnd),
-          };
-        }),
-    );
+  const compactGroupInsets = await toolbarGroups.evaluateAll((groups) =>
+    groups
+      .filter((group) => group.getBoundingClientRect().width > 0)
+      .map((group) => {
+        const style = getComputedStyle(group);
+        return {
+          left: Number.parseFloat(style.paddingInlineStart),
+          right: Number.parseFloat(style.paddingInlineEnd),
+        };
+      }),
+  );
   expect(compactGroupInsets.filter(({ left, right }) => Math.abs(left - right) > 0.5)).toEqual([]);
-  const undersizedToolbarButtons = await page
-    .locator(".manuscript-toolbar-actions button")
+  const undersizedToolbarButtons = await manuscriptToolbar
+    .getByRole("button")
     .evaluateAll((buttons) =>
       buttons.flatMap((button) => {
         const box = button.getBoundingClientRect();
@@ -91,22 +99,20 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
     );
   expect(undersizedToolbarButtons).toEqual([]);
   await expect(page.getByRole("button", { name: "Exportieren" })).toBeVisible();
-  const offCenterToolbarIcons = await page
-    .locator(".manuscript-toolbar-actions .ui-button")
-    .evaluateAll((buttons) =>
-      buttons.flatMap((button) => {
-        const label = button.querySelector(".ui-button__label");
-        const icon = button.querySelector(".ui-button__icon");
-        if (!(label instanceof HTMLElement) || !(icon instanceof HTMLElement)) return [];
-        if (getComputedStyle(label).display !== "none") return [];
-        const buttonBox = button.getBoundingClientRect();
-        const iconBox = icon.getBoundingClientRect();
-        const offset = iconBox.x + iconBox.width / 2 - (buttonBox.x + buttonBox.width / 2);
-        return Math.abs(offset) > 0.5
-          ? [`${button.getAttribute("aria-label") ?? "Aktion"}: ${offset.toFixed(1)}px`]
-          : [];
-      }),
-    );
+  const offCenterToolbarIcons = await manuscriptToolbar.getByRole("button").evaluateAll((buttons) =>
+    buttons.flatMap((button) => {
+      const label = button.querySelector(".ui-button__label");
+      const icon = button.querySelector(".ui-button__icon");
+      if (!(label instanceof HTMLElement) || !(icon instanceof HTMLElement)) return [];
+      if (getComputedStyle(label).display !== "none") return [];
+      const buttonBox = button.getBoundingClientRect();
+      const iconBox = icon.getBoundingClientRect();
+      const offset = iconBox.x + iconBox.width / 2 - (buttonBox.x + buttonBox.width / 2);
+      return Math.abs(offset) > 0.5
+        ? [`${button.getAttribute("aria-label") ?? "Aktion"}: ${offset.toFixed(1)}px`]
+        : [];
+    }),
+  );
   expect(offCenterToolbarIcons).toEqual([]);
   await expectNoDocumentOverflow("Manuskript");
 
@@ -272,28 +278,93 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
   );
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
+  const toolbarActions = manuscriptToolbar.locator(".manuscript-toolbar-actions");
+  const toolbarGroups = manuscriptToolbar.getByRole("group");
 
-  for (const width of [320, 360, 390, 406, 414, 500, 719, 720, 878, 900, 998, 1099, 1100, 1440]) {
+  for (const width of [
+    320, 360, 390, 406, 414, 500, 719, 720, 820, 821, 878, 900, 998, 1099, 1100, 1329, 1440,
+  ]) {
     await page.setViewportSize({ width, height: 900 });
-    // Kein Knopf der Kontextleiste darf hinter dem Fensterrand liegen. Genau das war bei 390px
-    // der Fall: "Neues Kapitel" stand bei x 355-396, weil die Leiste das ganze Fenster auf
-    // 406px aufzog. (Die App-Leiste hat davon unabhängig einen eigenen Boden von rund 398px --
-    // das ist ein anderer, älterer Befund und hier ausdrücklich nicht mitgeprüft.)
-    const clipped = await page.locator(".context-bar button").evaluateAll(
-      (buttons, limit) =>
-        buttons
-          .filter((button) => {
-            const box = button.getBoundingClientRect();
-            return box.width > 0 && (box.right > limit + 0.5 || box.left < -0.5);
-          })
-          .map((button) => (button.textContent || button.getAttribute("aria-label") || "?").trim()),
-      width,
-    );
-    expect(clipped, `abgeschnittene Knöpfe bei ${width}px`).toEqual([]);
+    // Auf kompakten Breiten scrollen die Actions innerhalb der öffentlichen WorkspaceToolbar.
+    // Die Leiste und das Dokument selbst dürfen dadurch weiterhin nie breiter als das Fenster sein.
+    const containment = await page.evaluate(() => {
+      const root = document.documentElement;
+      const toolbar = document.querySelector<HTMLElement>(
+        '[role="toolbar"][aria-label="Manuskript"]',
+      );
+      const actions = toolbar?.querySelector<HTMLElement>(".manuscript-toolbar-actions");
+      const toolbarBox = toolbar?.getBoundingClientRect();
+      const actionsBox = actions?.getBoundingClientRect();
+      const summary = toolbar?.querySelector<HTMLElement>(".manuscript-toolbar__summary");
+      const summaryTitle = summary?.querySelector<HTMLElement>(".workspace-toolbar__title");
+      const summaryStats = summary?.querySelector<HTMLElement>(".manuscript-toolbar__stats");
+      const summaryTitleBox = summaryTitle?.getBoundingClientRect();
+      const summaryStatsBox = summaryStats?.getBoundingClientRect();
+      const visibleTitleChildren = summaryTitle
+        ? [...summaryTitle.children]
+            .map((child) => child.getBoundingClientRect())
+            .filter((box) => box.width > 0 && box.height > 0)
+        : [];
+      const titleContentHeight = visibleTitleChildren.length
+        ? Math.max(...visibleTitleChildren.map((box) => box.bottom)) -
+          Math.min(...visibleTitleChildren.map((box) => box.top))
+        : 0;
+      const overflowingElements = [...document.body.querySelectorAll<HTMLElement>("*")]
+        .filter((element) => {
+          const box = element.getBoundingClientRect();
+          return box.width > 0 && (box.left < -0.5 || box.right > root.clientWidth + 0.5);
+        })
+        .slice(0, 8)
+        .map((element) => `${element.tagName.toLowerCase()}.${element.className}`);
+      return {
+        documentClientWidth: root.clientWidth,
+        documentScrollWidth: root.scrollWidth,
+        overflowingElements,
+        toolbarLeft: toolbarBox?.left,
+        toolbarRight: toolbarBox?.right,
+        actionsLeft: actionsBox?.left,
+        actionsRight: actionsBox?.right,
+        actionsClientWidth: actions?.clientWidth,
+        actionsScrollWidth: actions?.scrollWidth,
+        actionsOverflowX: actions ? getComputedStyle(actions).overflowX : "missing",
+        summaryDirection: summary ? getComputedStyle(summary).flexDirection : "missing",
+        summaryTitleFlexGrow: summaryTitle ? getComputedStyle(summaryTitle).flexGrow : "missing",
+        summaryTitleFlexBasis: summaryTitle ? getComputedStyle(summaryTitle).flexBasis : "missing",
+        summaryTitleEmptyBlockSpace: summaryTitleBox
+          ? summaryTitleBox.height - titleContentHeight
+          : Number.POSITIVE_INFINITY,
+        summaryVerticalGap:
+          summaryTitleBox && summaryStatsBox && summaryStatsBox.top >= summaryTitleBox.bottom
+            ? summaryStatsBox.top - summaryTitleBox.bottom
+            : 0,
+      };
+    });
+    expect(
+      containment.documentScrollWidth,
+      `Dokument-Overflow bei ${width}px (Toolbar ${containment.toolbarLeft}-${containment.toolbarRight}, Actions ${containment.actionsLeft}-${containment.actionsRight}, ${containment.actionsClientWidth}/${containment.actionsScrollWidth}, overflow ${containment.actionsOverflowX}): ${containment.overflowingElements.join(", ")}`,
+    ).toBeLessThanOrEqual(containment.documentClientWidth + 1);
+    expect(containment.toolbarLeft).toBeGreaterThanOrEqual(-0.5);
+    expect(containment.toolbarRight).toBeLessThanOrEqual(width + 0.5);
+    expect(containment.actionsLeft).toBeGreaterThanOrEqual((containment.toolbarLeft ?? 0) - 0.5);
+    expect(containment.actionsRight).toBeLessThanOrEqual((containment.toolbarRight ?? width) + 0.5);
+    expect(containment.summaryTitleFlexGrow).toBe("0");
+    expect(containment.summaryTitleFlexBasis).toBe("auto");
+    expect(
+      containment.summaryTitleEmptyBlockSpace,
+      `Titel reserviert bei ${width}px unsichtbare Blockhöhe`,
+    ).toBeLessThanOrEqual(1);
+    if (containment.summaryDirection === "column") {
+      expect(
+        containment.summaryVerticalGap,
+        `Titel und Statistik driften bei ${width}px vertikal auseinander`,
+      ).toBeLessThanOrEqual(4);
+    }
 
     if (width === 900) {
       const asymmetricSeparators = await page
-        .locator(".manuscript-toolbar-actions .tool-group")
+        .getByRole("toolbar", { name: "Manuskript" })
+        .getByRole("group")
         .evaluateAll((groups) => {
           const visible = groups.filter((group) => group.getBoundingClientRect().width > 0);
           return visible.slice(1).flatMap((group, index) => {
@@ -321,25 +392,41 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
     }
   }
 
+  await page.setViewportSize({ width: 320, height: 900 });
+  const compactOverflow = await toolbarActions.evaluate((actions) => ({
+    clientWidth: actions.clientWidth,
+    overflowX: getComputedStyle(actions).overflowX,
+    scrollWidth: actions.scrollWidth,
+  }));
+  expect(compactOverflow.scrollWidth).toBeGreaterThan(compactOverflow.clientWidth);
+  expect(compactOverflow.overflowX).toBe("auto");
+
+  const exportAction = manuscriptToolbar.getByRole("button", { name: "Exportieren" });
+  await exportAction.focus();
+  const [actionsBox, exportBox] = await Promise.all([
+    toolbarActions.boundingBox(),
+    exportAction.boundingBox(),
+  ]);
+  if (!actionsBox || !exportBox) throw new Error("Fokussierte Toolbar-Aktion hat keine Geometrie");
+  expect(exportBox.x).toBeGreaterThanOrEqual(actionsBox.x - 0.5);
+  expect(exportBox.x + exportBox.width).toBeLessThanOrEqual(actionsBox.x + actionsBox.width + 0.5);
+
   // Die responsive ToolbarButton-API zeigt das sichtbare Label oberhalb ihrer kompakten
   // 720px-Grenze. Darunter bleibt das Symbol mit seinem aria-label erhalten.
-  const chapters = page
-    .locator(".panel-toggles")
-    .getByRole("button", { name: "Kapitel", exact: true });
-  const aid = page
-    .locator(".panel-toggles")
-    .getByRole("button", { name: "Schreibhilfe", exact: true });
+  const chapters = manuscriptToolbar.getByRole("button", { name: "Kapitel", exact: true });
+  const aid = manuscriptToolbar.getByRole("button", { name: "Schreibhilfe", exact: true });
   const chaptersLabel = chapters.getByText("Kapitel", { exact: true });
   const aidLabel = aid.getByText("Schreibhilfe", { exact: true });
   await page.setViewportSize({ width: 721, height: 900 });
   await expect(chaptersLabel).toBeVisible();
   await expect(aidLabel).toBeVisible();
 
-  // Direkt darunter bleibt nur das Symbol -- der Name muss dann über aria-label weiterleben,
-  // sonst wäre der Schalter wieder das stumme Symbol, das er ersetzen sollte.
+  // Die öffentliche ToolbarButton-API koppelt responsive Icon-only-Darstellung an einen groben
+  // Pointer, nicht an die Desktop-Fensterbreite. Bei feinem Pointer bleibt das Label sichtbar;
+  // der Accessible Name muss unabhängig davon am Button erhalten bleiben.
   await page.setViewportSize({ width: 720, height: 900 });
-  await expect(chaptersLabel).toBeHidden();
-  await expect(aidLabel).toBeHidden();
+  await expect(chaptersLabel).toBeVisible();
+  await expect(aidLabel).toBeVisible();
   await expect(chapters).toBeVisible();
   await expect(chapters).toHaveAttribute("aria-label", "Kapitel");
   await expect(aid).toHaveAttribute("aria-label", "Schreibhilfe");
@@ -356,16 +443,17 @@ test("Schmale Leisten behalten dieselbe visuelle Reihenfolge wie die breite Ansi
   await page.setViewportSize({ width: 717, height: 912 });
 
   const [workspaceNav, globalTools] = await Promise.all([
-    page.locator(".app-bar .workspace-switch").boundingBox(),
-    page.locator(".app-bar .global-actions").boundingBox(),
+    page.getByRole("navigation", { name: "Arbeitsbereich" }).boundingBox(),
+    page.getByRole("toolbar", { name: "Globale Werkzeuge" }).boundingBox(),
   ]);
   expect(workspaceNav).not.toBeNull();
   expect(globalTools).not.toBeNull();
   expect(globalTools!.x).toBeGreaterThanOrEqual(workspaceNav!.x + workspaceNav!.width);
 
-  const title = await page.locator(".context-title").boundingBox();
-  const actionRows = await page
-    .locator(".context-bar .tool-group")
+  const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
+  const title = await manuscriptToolbar.locator(".workspace-toolbar__title").boundingBox();
+  const actionRows = await manuscriptToolbar
+    .getByRole("group")
     .evaluateAll((groups) =>
       groups
         .filter((group) => group.getBoundingClientRect().width > 0)
@@ -385,7 +473,7 @@ test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn z
   );
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
-  const binder = page.locator("aside.binder");
+  const binder = page.getByRole("complementary", { name: "Kapitel" });
   const editorPage = page.locator(".editor-page");
 
   for (const width of [720, 800, 900, 1000, 1099]) {
@@ -417,36 +505,110 @@ test("Der Speicherstand weicht schmal ins Menü aus, der Fehler aber nie", async
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 
   await page.setViewportSize({ width: 400, height: 844 });
-  await expect(page.locator(".app-bar .save-status")).toBeVisible();
+  await expect(page.getByRole("status")).toBeVisible();
 
   // Ab hier fehlt der App-Leiste der Platz; der ruhige Stand zieht ins ⋯-Menü um.
   await page.setViewportSize({ width: 399, height: 844 });
-  await expect(page.locator(".app-bar .save-status")).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveCount(0);
   await page.getByRole("button", { name: "Mehr" }).click();
-  await expect(page.getByRole("dialog").locator(".save-status")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Aktionen" }).getByRole("status")).toBeVisible();
   await page.keyboard.press("Escape");
 });
 
-test("Weltenauswahl bleibt auch mit vielen Welten vollständig scrollbar", async ({ page }) => {
+test("Weltenauswahl bleibt auch mit vielen Welten vollständig scrollbar", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Test stellt beide relevanten Fensterhöhen selbst ein und muss nur einmal laufen.",
+  );
   const worlds = Array.from({ length: 30 }, (_, index) => ({
     id: `world-${index + 1}`,
     title: `Welt ${index + 1}`,
     updated: "2026-08-09T12:00:00Z",
   }));
   await page.route("**/api/worlds", (route) => route.fulfill({ json: { worlds } }));
+  await page.setViewportSize({ width: 1329, height: 912 });
   await page.goto("/");
+  const worldGate = page.locator(".world-gate");
   const worldList = page.locator(".world-list");
   const lastWorld = page.getByRole("button", {
     name: "Welt 30 – Welt öffnen",
     exact: true,
   });
+  const readScrollState = () =>
+    page.evaluate(() => {
+      const read = (selector: string) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Scrollfläche fehlt: ${selector}`);
+        const style = getComputedStyle(element);
+        const thumbStyle = getComputedStyle(element, "::-webkit-scrollbar-thumb");
+        const colorProbe = document.createElement("span");
+        colorProbe.style.color = "var(--gold-border)";
+        element.append(colorProbe);
+        const goldBorder = getComputedStyle(colorProbe).color;
+        colorProbe.remove();
+        const thumbBackground = thumbStyle.backgroundColor;
+        return {
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+          scrollTop: element.scrollTop,
+          overflowY: style.overflowY,
+          overflowing: element.scrollHeight > element.clientHeight + 1,
+          scrollbar: element.dataset.scrollbar,
+          scrollbarWidth: style.scrollbarWidth,
+          thumbBackground,
+          goldBorder,
+          thumbMatchesGoldBorder: thumbBackground === goldBorder,
+        };
+      };
+      const gate = read(".world-gate");
+      const list = read(".world-list");
+      return {
+        gate,
+        list,
+        overflowingCount: [gate, list].filter((area) => area.overflowing).length,
+      };
+    });
+
   await expect(lastWorld).toBeAttached();
-  await expect
-    .poll(() => worldList.evaluate((element) => element.scrollHeight > element.clientHeight))
-    .toBe(true);
+  await expect.poll(readScrollState).toMatchObject({
+    gate: { overflowY: "hidden", overflowing: false },
+    list: {
+      overflowY: "auto",
+      overflowing: true,
+      scrollbar: "thin",
+      scrollbarWidth: "thin",
+      thumbMatchesGoldBorder: true,
+    },
+    overflowingCount: 1,
+  });
   await lastWorld.scrollIntoViewIfNeeded();
   await expect(lastWorld).toBeVisible();
   expect(await worldList.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  await page.setViewportSize({ width: 1329, height: 560 });
+  await worldGate.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await worldList.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect.poll(readScrollState).toMatchObject({
+    gate: {
+      overflowY: "auto",
+      overflowing: true,
+      scrollbar: "thin",
+      scrollbarWidth: "thin",
+      thumbMatchesGoldBorder: true,
+    },
+    list: { overflowY: "visible", overflowing: false },
+    overflowingCount: 1,
+  });
+  await lastWorld.scrollIntoViewIfNeeded();
+  await expect(lastWorld).toBeVisible();
+  expect(await worldGate.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await worldList.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
 test("Text, Suche und Figurenboard laden ohne Laufzeitfehler", async ({ page }, testInfo) => {
@@ -456,12 +618,12 @@ test("Text, Suche und Figurenboard laden ohne Laufzeitfehler", async ({ page }, 
   await expect(page.getByRole("main")).toBeVisible();
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   if ((page.viewportSize()?.width || 0) <= 820) {
-    await expect(page.locator("aside.binder")).toHaveCount(0);
+    await expect(page.getByRole("complementary", { name: "Kapitel" })).toHaveCount(0);
     await page.getByRole("button", { name: "Kapitel", exact: true }).click();
     const navigation =
       (page.viewportSize()?.width || 0) < 720
         ? page.getByRole("dialog", { name: "Kapitel" })
-        : page.locator("aside.binder");
+        : page.getByRole("complementary", { name: "Kapitel" });
     await expect(navigation).toBeVisible();
     await page.getByRole("button", { name: "Kapitelnavigation schließen" }).click();
     await expect(navigation).toHaveCount(0);
@@ -511,21 +673,27 @@ test("CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil", a
 test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(40_000);
   test.skip(testInfo.project.name !== "wide", "Die Auszeichnung hängt nicht an der Fensterbreite.");
   await openBlankWorld(page);
   const editor = page.getByLabel("Kapiteltext");
+  const textSave = waitForSuccessfulManuscriptWrite(page);
   await editor.fill("Der Morgen lag still über dem Hafen.");
+  await textSave;
   const selectionMenu = page.getByRole("dialog", { name: "Aktionen für die Textauswahl" });
 
   await page.locator(".cm-line").selectText();
   await page.locator(".cm-line").click({ button: "right" });
+  const boldSave = waitForSuccessfulManuscriptWrite(page);
   await selectionMenu.getByRole("menuitem", { name: "Fett" }).click();
+  await boldSave;
   await expect(page.locator(".prose-editor .text-bold")).toContainText(
     "Der Morgen lag still über dem Hafen.",
   );
 
   await page.locator(".cm-line").selectText();
   await page.locator(".cm-line").click({ button: "right" });
+  const italicSave = waitForSuccessfulManuscriptWrite(page);
   await selectionMenu.getByRole("menuitem", { name: "Kursiv" }).click();
   await expect(page.locator(".prose-editor .text-italic")).toContainText(
     "Der Morgen lag still über dem Hafen.",
@@ -534,8 +702,10 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
   // Die Auszeichnung ist kein Zeichen im Text, sondern ein Bereich neben ihm (Chapter.marks).
   // Der Beweis dafür ist, dass der Text unverändert bleibt und die Bereiche das Speichern überstehen.
   await expect(editor).toHaveText("Der Morgen lag still über dem Hafen.");
-  await expect(page.locator(".save-saved")).toBeVisible();
+  await italicSave;
+  await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible();
   await page.reload();
+  await waitForManuscriptReady(page);
   await expect(page.getByLabel("Kapiteltext")).toHaveText("Der Morgen lag still über dem Hafen.");
   await expect(page.locator(".prose-editor .text-bold")).toContainText(
     "Der Morgen lag still über dem Hafen.",
@@ -550,9 +720,11 @@ test("Kapitel- und Schreibhilfe-Spalte lassen sich aus der Werkzeugleiste umscha
 }) => {
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
-  const toggles = page.locator(".panel-toggles");
-  const chapters = toggles.getByRole("button", { name: "Kapitel", exact: true });
-  const aid = toggles.getByRole("button", { name: "Schreibhilfe", exact: true });
+  const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
+  const chapters = manuscriptToolbar.getByRole("button", { name: "Kapitel", exact: true });
+  const aid = manuscriptToolbar.getByRole("button", { name: "Schreibhilfe", exact: true });
+  const chapterPanel = page.getByRole("complementary", { name: "Kapitel" });
+  const writingAidPanel = page.getByRole("complementary", { name: "Schreibhilfe" });
   await expect(chapters).toBeVisible();
   await expect(aid).toBeVisible();
   const width = page.viewportSize()?.width || 0;
@@ -561,17 +733,17 @@ test("Kapitel- und Schreibhilfe-Spalte lassen sich aus der Werkzeugleiste umscha
     // Breit ist Platz für beides: die Spalten stehen nebeneinander und schließen sich nicht aus.
     await expect(chapters).toHaveAttribute("aria-pressed", "true");
     await expect(aid).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("aside.binder")).toHaveCount(1);
-    await expect(page.locator("aside.inspector")).toHaveCount(1);
+    await expect(chapterPanel).toHaveCount(1);
+    await expect(writingAidPanel).toHaveCount(1);
     await chapters.click();
-    await expect(page.locator("aside.binder")).toHaveCount(0);
-    await expect(page.locator("aside.inspector")).toHaveCount(1);
+    await expect(chapterPanel).toHaveCount(0);
+    await expect(writingAidPanel).toHaveCount(1);
     await chapters.click();
-    await expect(page.locator("aside.binder")).toHaveCount(1);
+    await expect(chapterPanel).toHaveCount(1);
   } else if (width < 720) {
     // Unter 720px sind beide Spalten Sheets. Ein Sheet ist modal, also muss das eine zu sein,
     // bevor das andere aufgeht -- deshalb hier über den Schließen-Knopf statt über die Leiste.
-    await expect(page.locator("aside.binder")).toHaveCount(0);
+    await expect(chapterPanel).toHaveCount(0);
     await chapters.click();
     const binderSheet = page.getByRole("dialog", { name: "Kapitel" });
     await expect(binderSheet).toBeVisible();
@@ -589,13 +761,83 @@ test("Kapitel- und Schreibhilfe-Spalte lassen sich aus der Werkzeugleiste umscha
     await aid.click();
     await expect(aid).toHaveAttribute("aria-pressed", "true");
     await expect(chapters).toHaveAttribute("aria-pressed", "false");
-    await expect(page.locator("aside.binder")).toHaveCount(0);
-    await expect(page.locator("aside.inspector")).toHaveCount(1);
+    await expect(chapterPanel).toHaveCount(0);
+    await expect(writingAidPanel).toHaveCount(1);
     await chapters.click();
     await expect(chapters).toHaveAttribute("aria-pressed", "true");
     await expect(aid).toHaveAttribute("aria-pressed", "false");
-    await expect(page.locator("aside.inspector")).toHaveCount(0);
+    await expect(writingAidPanel).toHaveCount(0);
   }
+});
+
+test("Schreibhilfe zeigt alle Tabtitel in der 294px-Spalte vollständig", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Test stellt die gemeldete 1329px-Ansicht selbst her und muss nur einmal laufen.",
+  );
+  await page.setViewportSize({ width: 1329, height: 912 });
+  await openBlankWorld(page);
+  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+
+  const writingAid = page.getByRole("complementary", { name: "Schreibhilfe" });
+  await expect(writingAid).toBeVisible();
+  const panelWidth = await writingAid.evaluate((panel) => panel.getBoundingClientRect().width);
+  expect(panelWidth).toBeCloseTo(294, 0);
+
+  const tabLists = [
+    {
+      list: writingAid.getByRole("tablist", { name: "Bereich der Schreibhilfe" }),
+      labels: ["Nachschlagen", "Prüfen", "Einfügen"],
+    },
+    {
+      list: writingAid.getByRole("tablist", { name: "Nachschlagewerk" }),
+      labels: ["Wörterbuch", "Synonyme", "Übersetzen"],
+    },
+  ];
+
+  for (const { list, labels } of tabLists) {
+    await expect(list).toBeVisible();
+    const geometry = await list.evaluate((tabList) => {
+      const scroller = tabList.parentElement;
+      if (!(scroller instanceof HTMLElement)) throw new Error("Tab-Scrollbereich fehlt");
+      const scrollerBounds = scroller.getBoundingClientRect();
+      return {
+        scrollerClientWidth: scroller.clientWidth,
+        scrollerWithinPanel: scrollerBounds.width <= 294.5,
+        tabs: [...tabList.querySelectorAll<HTMLElement>("[role='tab']")].map((tab) => {
+          const bounds = tab.getBoundingClientRect();
+          return {
+            label: tab.textContent?.trim(),
+            clientWidth: tab.clientWidth,
+            scrollWidth: tab.scrollWidth,
+            insideScroller:
+              bounds.left >= scrollerBounds.left - 0.5 &&
+              bounds.right <= scrollerBounds.right + 0.5,
+          };
+        }),
+      };
+    });
+
+    expect(geometry.scrollerClientWidth).toBeGreaterThan(0);
+    expect(geometry.scrollerWithinPanel).toBe(true);
+    expect(geometry.tabs.map(({ label }) => label)).toEqual(labels);
+    for (const tab of geometry.tabs) {
+      expect(tab.scrollWidth, `${tab.label} ist horizontal abgeschnitten`).toBeLessThanOrEqual(
+        tab.clientWidth + 1,
+      );
+      expect(tab.insideScroller, `${tab.label} ist in der gemeldeten Ansicht nicht sichtbar`).toBe(
+        true,
+      );
+    }
+  }
+
+  const documentWidth = await page.locator("html").evaluate((root) => ({
+    client: root.clientWidth,
+    scroll: root.scrollWidth,
+  }));
+  expect(documentWidth.scroll).toBeLessThanOrEqual(documentWidth.client + 1);
 });
 
 test("Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab", async ({
@@ -611,52 +853,118 @@ test("Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab
   // Der Titel steht über dem Text, nicht mehr rechts in einer Eigenschaftenspalte.
   const title = page.getByRole("textbox", { name: "Kapiteltitel" });
   await expect(title).toBeVisible();
-  await expect(page.locator(".editor-document .chapter-title")).toHaveCount(1);
+  await expect(
+    page.getByRole("article").getByRole("textbox", { name: "Kapiteltitel" }),
+  ).toHaveCount(1);
 
-  // Die Zählungen sind Status und stehen in der Statuszeile.
-  const stats = page.locator(".context-bar .chapter-stats");
-  await expect(stats).toContainText("Wörter");
-  await expect(stats).toContainText("Zeichen");
-  await expect(stats).toContainText("Normseiten");
+  // Die Zählungen stehen als semantische Begriffe in der Manuskript-Werkzeugleiste.
+  const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
+  const stats = manuscriptToolbar.locator("dl");
+  for (const term of ["Wörter", "Zeichen", "Normseiten"]) {
+    await expect(stats.getByText(term, { exact: true })).toBeVisible();
+  }
 
   // Die Notiz liegt links unter der Kapitelliste.
-  await expect(page.locator("aside.binder").getByLabel("Kapitelnotiz")).toBeVisible();
+  const chapterPanel = page.getByRole("complementary", { name: "Kapitel" });
+  await expect(chapterPanel.getByLabel("Kapitelnotiz")).toBeVisible();
 
   // Der zweigeteilte Inspektor ist fort: rechts gibt es nur noch die Schreibhilfe.
   await expect(page.getByRole("tab", { name: "Kapitel", exact: true })).toHaveCount(0);
-  await expect(page.locator("aside.inspector")).toContainText("Schreibhilfe");
+  await expect(page.getByRole("complementary", { name: "Schreibhilfe" })).toContainText(
+    "Schreibhilfe",
+  );
 
   // Verschieben, Export und Löschen bleiben sichtbar oben in der Kapitelnavigation.
-  const actions = page.getByRole("group", { name: /Kapitelaktionen:/ });
+  const actions = chapterPanel.getByRole("group", { name: /Kapitelaktionen:/ });
   for (const item of ["Nach oben", "Nach unten", "Kapitel als Markdown", "Kapitel löschen"]) {
     await expect(actions.getByRole("button", { name: item, exact: true })).toBeVisible();
+  }
+  const actionToolbar = chapterPanel.getByRole("toolbar", { name: /Kapitelaktionen:/ });
+  const actionGeometry = await actionToolbar.evaluate((toolbar) => {
+    const group = toolbar.querySelector<HTMLElement>(".binder-chapter-toolbar-group");
+    if (!group) throw new Error("Kapitelaktionsgruppe fehlt");
+    const groupBounds = group.getBoundingClientRect();
+    const expectedTarget = Number.parseFloat(
+      getComputedStyle(group).getPropertyValue("--control-compact"),
+    );
+    return {
+      toolbarClientWidth: toolbar.clientWidth,
+      toolbarScrollWidth: toolbar.scrollWidth,
+      groupClientWidth: group.clientWidth,
+      groupScrollWidth: group.scrollWidth,
+      expectedTarget,
+      buttons: [...group.querySelectorAll<HTMLButtonElement>("button")].map((button) => {
+        const bounds = button.getBoundingClientRect();
+        const centerX = bounds.left + bounds.width / 2;
+        const centerY = bounds.top + bounds.height / 2;
+        const hit = document.elementFromPoint(centerX, centerY);
+        return {
+          label: button.getAttribute("aria-label"),
+          width: bounds.width,
+          height: bounds.height,
+          inside: bounds.left >= groupBounds.left - 0.5 && bounds.right <= groupBounds.right + 0.5,
+          hit: hit === button || (hit instanceof Node && button.contains(hit)),
+        };
+      }),
+    };
+  });
+  expect(actionGeometry.toolbarScrollWidth).toBeLessThanOrEqual(
+    actionGeometry.toolbarClientWidth + 1,
+  );
+  expect(actionGeometry.groupScrollWidth).toBeLessThanOrEqual(actionGeometry.groupClientWidth + 1);
+  expect(actionGeometry.expectedTarget).toBe(
+    (page.viewportSize()?.width ?? 0) <= 719 || testInfo.project.use.hasTouch ? 44 : 30,
+  );
+  expect(actionGeometry.buttons).toHaveLength(4);
+  for (const button of actionGeometry.buttons) {
+    expect(button.width, `${button.label} hat die falsche Breite`).toBeCloseTo(
+      actionGeometry.expectedTarget,
+      0,
+    );
+    expect(button.height, `${button.label} hat die falsche Höhe`).toBeCloseTo(
+      actionGeometry.expectedTarget,
+      0,
+    );
+    expect(button.inside, `${button.label} liegt außerhalb der Kapitelspalte`).toBe(true);
+    expect(button.hit, `${button.label} ist am Mittelpunkt nicht anklickbar`).toBe(true);
   }
 });
 
 test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async ({
   page,
 }, testInfo) => {
+  // Der Vertrag bestätigt acht reale, aufeinander aufbauende Manuskript-Writes inklusive Reloads.
+  // Das zusätzliche Budget ist kein Warten: jeder Schritt bleibt an die konkrete API-Response gebunden.
+  test.setTimeout(60_000);
   test.skip(
     testInfo.project.name !== "wide",
     "Die Ordnersemantik ist viewport-unabhängig und wird in der breiten Binder-Ansicht geprüft.",
   );
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const titleSave = waitForSuccessfulManuscriptWrite(page);
   await page.getByRole("textbox", { name: "Kapiteltitel" }).fill("Kapitel im Bogen");
+  await titleSave;
 
-  const binder = page.locator("aside.binder");
+  const binder = page.getByRole("complementary", { name: "Kapitel" });
   const addFolder = binder.getByRole("button", { name: "Ordner hinzufügen" });
   await addFolder.click();
   await binder.getByRole("textbox", { name: "Ordnername" }).fill("Teil A");
+  const folderASave = waitForSuccessfulManuscriptWrite(page);
   await binder.getByRole("textbox", { name: "Ordnername" }).press("Enter");
+  await folderASave;
   await expect(binder.getByText("Teil A", { exact: true })).toBeVisible();
 
   await addFolder.click();
   await binder.getByRole("textbox", { name: "Ordnername" }).fill("Bogen B");
+  const folderBSave = waitForSuccessfulManuscriptWrite(page);
   await binder.getByRole("textbox", { name: "Ordnername" }).press("Enter");
+  await folderBSave;
 
-  const folderA = binder.locator(".binder-folder-row").filter({ hasText: "Teil A" });
-  const folderB = binder.locator(".binder-folder-row").filter({ hasText: "Bogen B" });
+  const folderA = binder.getByRole("button", { name: /^Teil A, \d+ Kapitel:/ }).locator("xpath=..");
+  const folderB = binder
+    .getByRole("button", { name: /^Bogen B, \d+ Kapitel:/ })
+    .locator("xpath=..");
   const folderRowLayout = await folderA.evaluate((row) => {
     const rowBox = row.getBoundingClientRect();
     const toggle = row.querySelector<HTMLElement>(".binder-folder-toggle");
@@ -734,11 +1042,17 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
   expect(Math.abs(rowTopDuringDrag - rowTopBeforeDrag)).toBeLessThanOrEqual(1);
   await folderBHandle.dispatchEvent("dragend");
 
+  const nestedFolderSave = waitForSuccessfulManuscriptWrite(page);
   await folderBHandle.dragTo(folderA);
+  await nestedFolderSave;
+  const nestedChapterSave = waitForSuccessfulManuscriptWrite(page);
   await binder.getByRole("button", { name: /Kapitel im Bogen/ }).dragTo(folderB);
+  await nestedChapterSave;
 
   const folderAEntry = folderA.locator("xpath=..");
-  const folderBEntry = folderAEntry.locator(".binder-folder-entry").filter({ hasText: "Bogen B" });
+  const folderBEntry = binder
+    .getByRole("button", { name: /^Bogen B, \d+ Kapitel:/ })
+    .locator("xpath=../..");
   await expect(folderAEntry.getByRole("button", { name: /Teil A, 1 Kapitel/ })).toBeVisible();
   await expect(folderBEntry.getByRole("button", { name: /Bogen B, 1 Kapitel/ })).toBeVisible();
   await expect(folderBEntry.getByRole("button", { name: /Kapitel im Bogen/ })).toBeVisible();
@@ -783,16 +1097,20 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
   expect(Math.abs(hierarchyLayout.guideX - hierarchyLayout.connectorX)).toBeLessThanOrEqual(1);
   expect(hierarchyLayout.guideWidth).toBe(1);
   expect(hierarchyLayout.connectorWidth).toBeGreaterThanOrEqual(6);
-  await expect(page.locator(".save-status")).toContainText("Gespeichert", { timeout: 10_000 });
+  await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible({
+    timeout: 10_000,
+  });
 
   await page.reload();
+  await waitForManuscriptReady(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
-  const reloadedA = page
-    .locator("aside.binder .binder-folder-entry")
-    .filter({ has: page.getByText("Teil A", { exact: true }) });
+  const reloadedBinder = page.getByRole("complementary", { name: "Kapitel" });
+  const reloadedA = reloadedBinder
+    .getByRole("button", { name: /^Teil A, \d+ Kapitel:/ })
+    .locator("xpath=../..");
   const reloadedB = reloadedA
-    .locator(".binder-folder-entry")
-    .filter({ has: page.getByText("Bogen B", { exact: true }) });
+    .getByRole("button", { name: /^Bogen B, \d+ Kapitel:/ })
+    .locator("xpath=../..");
   await expect(reloadedB.getByRole("button", { name: /Kapitel im Bogen/ })).toBeVisible();
 
   const dragToRoot = async (source: Locator) => {
@@ -806,7 +1124,7 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
     await page.mouse.move(sourceBounds.x + sourceBounds.width / 2 + 10, sourceBounds.y + 8, {
       steps: 4,
     });
-    const target = page.locator("aside.binder .binder-root-drop");
+    const target = reloadedBinder.locator(".binder-root-drop");
     await expect(target).toHaveAttribute("aria-hidden", "false");
     const targetBounds = await target.boundingBox();
     if (!targetBounds) throw new Error("Root drop target is not visible during drag");
@@ -819,8 +1137,10 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
     await expect(target).toHaveAttribute("aria-hidden", "true");
   };
 
+  const rootChapterSave = waitForSuccessfulManuscriptWrite(page);
   await dragToRoot(reloadedB.getByRole("button", { name: /Kapitel im Bogen/ }));
-  const chapterAtRoot = binder.getByRole("button", { name: /Kapitel im Bogen/ });
+  await rootChapterSave;
+  const chapterAtRoot = reloadedBinder.getByRole("button", { name: /Kapitel im Bogen/ });
   await expect(chapterAtRoot).toBeVisible();
   expect(
     await chapterAtRoot.evaluate((row) =>
@@ -828,23 +1148,30 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
     ),
   ).toBe(true);
 
-  const reloadedBRow = binder.locator(".binder-folder-row").filter({ hasText: "Bogen B" });
+  const reloadedBRow = reloadedBinder
+    .getByRole("button", { name: /^Bogen B, \d+ Kapitel:/ })
+    .locator("xpath=..");
   await reloadedBRow.hover();
+  const rootFolderSave = waitForSuccessfulManuscriptWrite(page);
   await dragToRoot(reloadedBRow.locator('.binder-drag-handle[draggable="true"]'));
+  await rootFolderSave;
   expect(
     await reloadedBRow.evaluate((row) =>
       row.parentElement?.parentElement?.classList.contains("binder-tree"),
     ),
   ).toBe(true);
-  await expect(page.locator(".save-status")).toContainText("Gespeichert", { timeout: 10_000 });
+  await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible({
+    timeout: 10_000,
+  });
 
   await page.reload();
+  await waitForManuscriptReady(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
-  const persistedBinder = page.locator("aside.binder");
+  const persistedBinder = page.getByRole("complementary", { name: "Kapitel" });
   const persistedChapter = persistedBinder.getByRole("button", { name: /Kapitel im Bogen/ });
   const persistedFolderB = persistedBinder
-    .locator(".binder-folder-row")
-    .filter({ hasText: "Bogen B" });
+    .getByRole("button", { name: /^Bogen B, \d+ Kapitel:/ })
+    .locator("xpath=..");
   expect(
     await persistedChapter.evaluate((row) =>
       row.parentElement?.parentElement?.classList.contains("binder-tree"),
@@ -917,10 +1244,71 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
   const binder = page.getByRole("dialog", { name: "Kapitel" });
   await expect(binder).toBeVisible();
 
-  const rows = binder.locator(".binder-folder-row");
-  const rootRow = rows.filter({ hasText: "Erster sehr langer Abschnitt" });
-  const levelOneRow = rows.filter({ hasText: "Unterordner mit langem Titel" });
-  const levelTwoRow = rows.filter({ hasText: "Feine Unterebene mit langem Titel" });
+  const chapterActionToolbar = binder.getByRole("toolbar", { name: /Kapitelaktionen:/ });
+  const chapterActionGeometry = await chapterActionToolbar.evaluate((toolbar) => {
+    const dialog = toolbar.closest<HTMLElement>('[role="dialog"]');
+    const group = toolbar.querySelector<HTMLElement>(".binder-chapter-toolbar-group");
+    if (!dialog || !group) throw new Error("Kompakte Kapitelaktionsgruppe fehlt");
+    const dialogBounds = dialog.getBoundingClientRect();
+    const groupBounds = group.getBoundingClientRect();
+    return {
+      dialogClientWidth: dialog.clientWidth,
+      dialogScrollWidth: dialog.scrollWidth,
+      toolbarClientWidth: toolbar.clientWidth,
+      toolbarScrollWidth: toolbar.scrollWidth,
+      groupClientWidth: group.clientWidth,
+      groupScrollWidth: group.scrollWidth,
+      buttons: [...group.querySelectorAll<HTMLButtonElement>("button")].map((button) => {
+        const bounds = button.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.left + bounds.width / 2,
+          bounds.top + bounds.height / 2,
+        );
+        return {
+          label: button.getAttribute("aria-label"),
+          width: bounds.width,
+          height: bounds.height,
+          insideGroup:
+            bounds.left >= groupBounds.left - 0.5 && bounds.right <= groupBounds.right + 0.5,
+          insideDialog:
+            bounds.left >= dialogBounds.left - 0.5 && bounds.right <= dialogBounds.right + 0.5,
+          hit: hit === button || (hit instanceof Node && button.contains(hit)),
+        };
+      }),
+    };
+  });
+  expect(chapterActionGeometry.dialogScrollWidth).toBeLessThanOrEqual(
+    chapterActionGeometry.dialogClientWidth + 1,
+  );
+  expect(chapterActionGeometry.toolbarScrollWidth).toBeLessThanOrEqual(
+    chapterActionGeometry.toolbarClientWidth + 1,
+  );
+  expect(chapterActionGeometry.groupScrollWidth).toBeLessThanOrEqual(
+    chapterActionGeometry.groupClientWidth + 1,
+  );
+  expect(chapterActionGeometry.buttons.map(({ label }) => label)).toEqual([
+    "Nach oben",
+    "Nach unten",
+    "Kapitel als Markdown",
+    "Kapitel löschen",
+  ]);
+  for (const button of chapterActionGeometry.buttons) {
+    expect(button.width, `${button.label} ist kompakt nicht 44px breit`).toBeCloseTo(44, 0);
+    expect(button.height, `${button.label} ist kompakt nicht 44px hoch`).toBeCloseTo(44, 0);
+    expect(button.insideGroup, `${button.label} liegt außerhalb der Aktionsgruppe`).toBe(true);
+    expect(button.insideDialog, `${button.label} liegt außerhalb des Kapitel-Sheets`).toBe(true);
+    expect(button.hit, `${button.label} ist kompakt nicht anklickbar`).toBe(true);
+  }
+
+  const rootRow = binder
+    .getByRole("button", { name: /^Erster sehr langer Abschnitt, \d+ Kapitel:/ })
+    .locator("xpath=..");
+  const levelOneRow = binder
+    .getByRole("button", { name: /^Unterordner mit langem Titel, \d+ Kapitel:/ })
+    .locator("xpath=..");
+  const levelTwoRow = binder
+    .getByRole("button", { name: /^Feine Unterebene mit langem Titel, \d+ Kapitel:/ })
+    .locator("xpath=..");
   const geometry = await Promise.all(
     [rootRow, levelOneRow, levelTwoRow].map((row) =>
       row.evaluate((element) => {
@@ -1326,6 +1714,9 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
 });
 
 test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async ({ page }) => {
+  // Der Test umfasst Seed, verzögertes Autosave und einen vollständigen Reload in drei Viewports.
+  // Das zusätzliche Budget ersetzt kein Warten: der Persistenzschritt bleibt an die PUT-Response gebunden.
+  test.setTimeout(45_000);
   const response = await page.request.post("/api/worlds/create", {
     data: { title: `Drag Regression ${crypto.randomUUID()}` },
   });
@@ -1355,19 +1746,27 @@ test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async 
   });
   expect(saved.ok()).toBeTruthy();
   await page.goto(`/?world=${created.world.id}`);
+  await waitForManuscriptReady(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
   await expect(page.locator(".story-node")).toHaveCount(12);
   const node = page.locator(".react-flow__node").first();
   const box = await node.boundingBox();
   expect(box).not.toBeNull();
+  const autosave = page.waitForResponse(
+    (writeResponse) =>
+      writeResponse.url().includes("/api/state") &&
+      writeResponse.request().method() === "PUT" &&
+      writeResponse.ok(),
+  );
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.down();
   await page.mouse.move(box!.x + box!.width / 2 + 100, box!.y + box!.height / 2 + 70, { steps: 8 });
   await page.mouse.up();
   await expect(page.locator(".story-node")).toHaveCount(12);
   await expect(page.locator(".react-flow__edge")).toHaveCount(11);
-  await page.waitForTimeout(1100);
+  await autosave;
   await page.reload();
+  await waitForManuscriptReady(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
   await expect(page.locator(".story-node")).toHaveCount(12);
 });
@@ -1651,23 +2050,31 @@ test("Autosave überlebt Reload und meldet konkurrierende Änderungen", async ({
       : fulfillDocumentSave(route, 1),
   );
   await openBlankWorld(page);
+  const initialSave = waitForSuccessfulManuscriptWrite(page);
   await page.getByLabel("Kapiteltext").fill("Nach Reload vorhanden");
+  await initialSave;
   // Unter 400px ist in der App-Leiste kein Platz mehr für den ruhigen Speicherstand; er steht
   // dort im ⋯-Menü. Gemeldet wird er also weiterhin, nur eine Ebene tiefer.
   if ((page.viewportSize()?.width || 0) < 400) {
     await page.getByRole("button", { name: "Mehr" }).click();
-    await expect(page.getByRole("dialog").locator(".save-saved")).toBeVisible();
+    await expect(
+      page
+        .getByRole("dialog", { name: "Aktionen" })
+        .getByRole("status")
+        .filter({ hasText: "Gespeichert" }),
+    ).toBeVisible();
     await page.keyboard.press("Escape");
   } else {
-    await expect(page.locator(".save-saved")).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible();
   }
   await page.reload();
+  await waitForManuscriptReady(page);
   await expect(page.getByLabel("Kapiteltext")).toHaveText("Nach Reload vorhanden");
   revision += 1;
   await page.getByLabel("Kapiteltext").fill("Konkurrierender Stand");
   // Der Fehler dagegen bleibt in jeder Breite in der Leiste stehen -- ein fehlgeschlagenes
   // Speichern, das man erst hinter einem Menü fände, wäre schlimmer als ein abgeschnittener Knopf.
-  await expect(page.locator(".app-bar .save-error")).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Nicht gespeichert" })).toBeVisible();
 });
 
 test("Kernansichten haben keine automatisiert erkennbaren WCAG-A/AA-Verstöße", async ({ page }) => {
@@ -1697,6 +2104,7 @@ test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", 
   await page.getByRole("menuitem", { name: "Dunkel" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.reload();
+  await waitForManuscriptReady(page);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "Mehr" }).click();
   await expect(page.getByRole("menuitem", { name: "Hell" })).toBeVisible();
@@ -1770,6 +2178,7 @@ test("Welt lässt sich nur durch anhaltendes Halten lokal löschen", async ({ pa
 });
 
 test("Sprachwahl erfolgt ausschließlich in der Welt-Auswahl", async ({ page }) => {
+  test.setTimeout(30_000);
   await page.request.post("/api/worlds/create", {
     data: { title: "Language Test World", backupUrl: "https://backup.example.com/language-test" },
   });
@@ -1780,6 +2189,7 @@ test("Sprachwahl erfolgt ausschließlich in der Welt-Auswahl", async ({ page }) 
     .getByRole("button", { name: "Language Test World – Open a world", exact: true })
     .last()
     .click();
+  await waitForManuscriptReady(page, "Manuscript");
   await expect(
     page.locator(".workspace-switch").getByRole("button", { name: "Manuscript", exact: true }),
   ).toBeVisible();

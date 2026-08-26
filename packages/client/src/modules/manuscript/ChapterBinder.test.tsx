@@ -2,10 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TestProviders } from "./TextWorkspace.testSupport";
-import { ChapterBinder } from "./ChapterBinder";
+import { SidePanel } from "../../design";
 import { flattenChapterIds } from "./binder/manuscriptTree";
+import { ChapterBinder } from "./ChapterBinder";
 import type { Manuscript } from "./model";
+import { requireValue, TestProviders } from "./TextWorkspace.testSupport";
 
 const nestedManuscript: Manuscript = {
   chapters: [
@@ -58,7 +59,7 @@ function renderBinder(
     onSelect,
     ...render(
       <TestProviders>
-        <div className="binder">
+        <SidePanel className="manuscript-binder-panel" label="Kapitel" side="start">
           <ChapterBinder
             manuscript={manuscript}
             current={manuscript.chapters[0]}
@@ -71,7 +72,7 @@ function renderBinder(
             onExportCurrent={vi.fn()}
             onRequestDelete={vi.fn()}
           />
-        </div>
+        </SidePanel>
       </TestProviders>,
     ),
   };
@@ -80,6 +81,47 @@ function renderBinder(
 describe("ChapterBinder folders", () => {
   beforeEach(() => localStorage.clear());
   afterEach(cleanup);
+
+  it("keeps all chapter actions as compact icon targets inside one bounded group", () => {
+    renderBinder();
+
+    const toolbar = screen.getByRole("toolbar", { name: "Kapitelaktionen: Ankunft" });
+    const group = within(toolbar).getByRole("group", { name: "Kapitelaktionen: Ankunft" });
+    const actions = within(group).getAllByRole("button");
+    expect(actions).toHaveLength(4);
+    expect(actions.map((action) => action.getAttribute("aria-label"))).toEqual([
+      "Nach oben",
+      "Nach unten",
+      "Kapitel als Markdown",
+      "Kapitel löschen",
+    ]);
+    actions.forEach((action) => {
+      expect(action).toHaveClass("icon-button", "icon-button--compact", "binder-chapter-action");
+      expect(action).toHaveAttribute("data-size", "compact");
+    });
+
+    const chapterCss = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/manuscript/ChapterBinder.css"),
+      "utf8",
+    );
+    const tokensCss = readFileSync(
+      join(process.cwd(), "packages/client/src/design/tokens.css"),
+      "utf8",
+    );
+    expect(chapterCss).toMatch(
+      /\.binder-chapter-toolbar\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;/s,
+    );
+    expect(chapterCss).toMatch(
+      /\.binder-chapter-toolbar-group\s*\{[^}]*grid-template-columns:\s*repeat\(4, var\(--control-compact\)\);[^}]*justify-content:\s*space-between;/s,
+    );
+    expect(chapterCss).not.toMatch(
+      /\.binder-chapter-actions \.binder-chapter-action\s*\{[^}]*width:/s,
+    );
+    expect(tokensCss).toMatch(/--control-compact:\s*30px;/);
+    expect(tokensCss).toMatch(
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?--control-compact:\s*var\(--control-touch\);/,
+    );
+  });
 
   it("renders arbitrary nesting with a useful chapter breadcrumb and persistent collapse", () => {
     renderBinder();
@@ -93,7 +135,10 @@ describe("ChapterBinder folders", () => {
   it("moves a root chapter into a nested folder through the visible drop target", () => {
     const { onStructureChange, container } = renderBinder();
     const chapter = screen.getByRole("button", { name: /Aufbruch/ });
-    const folder = screen.getByText("Ankunftsbogen").closest(".binder-folder-row")!;
+    const folder = requireValue(
+      screen.getByText("Ankunftsbogen").closest(".binder-folder-row"),
+      "Nested folder row missing",
+    );
 
     fireEvent.dragStart(chapter);
     fireEvent.dragOver(folder);
@@ -110,9 +155,15 @@ describe("ChapterBinder folders", () => {
   it("starts folder drags only on the handle and carries the item id in DataTransfer", () => {
     const onStructureChange = vi.fn();
     renderBinder(onStructureChange);
-    const partRow = screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row")!;
+    const partRow = requireValue(
+      screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row"),
+      "Part row missing",
+    );
     const toggle = within(partRow).getByRole("button", { name: /Teil I, 1 Kapitel/ });
-    const handle = partRow.querySelector<HTMLElement>('.binder-drag-handle[draggable="true"]')!;
+    const handle = requireValue(
+      partRow.querySelector<HTMLElement>('.binder-drag-handle[draggable="true"]'),
+      "Part drag handle missing",
+    );
     const rootTarget = screen.getByText("Auf die oberste Ebene verschieben");
 
     expect(partRow).not.toHaveAttribute("draggable");
@@ -175,8 +226,14 @@ describe("ChapterBinder folders", () => {
     onStructureChange.mockClear();
     transfer = createDataTransfer();
     fireEvent.dragStart(gamma, { dataTransfer: transfer });
-    const alphaEntry = alpha.closest<HTMLElement>(".binder-tree-entry")!;
-    const before = alphaEntry.querySelector<HTMLElement>(":scope > .binder-drop-before")!;
+    const alphaEntry = requireValue(
+      alpha.closest<HTMLElement>(".binder-tree-entry"),
+      "Alpha tree entry missing",
+    );
+    const before = requireValue(
+      alphaEntry.querySelector<HTMLElement>(":scope > .binder-drop-before"),
+      "Alpha drop target missing",
+    );
     fireEvent.dragOver(before, { dataTransfer: transfer });
     expect(before).toHaveClass("is-active");
     fireEvent.drop(before, { dataTransfer: transfer });
@@ -193,9 +250,18 @@ describe("ChapterBinder folders", () => {
   it("rejects cycle drops and expands a collapsed folder after a successful drop", () => {
     const onStructureChange = vi.fn();
     renderBinder(onStructureChange);
-    const partRow = screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row")!;
-    const arcRow = screen.getByText("Ankunftsbogen").closest<HTMLElement>(".binder-folder-row")!;
-    const partHandle = partRow.querySelector<HTMLElement>('.binder-drag-handle[draggable="true"]')!;
+    const partRow = requireValue(
+      screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row"),
+      "Part row missing",
+    );
+    const arcRow = requireValue(
+      screen.getByText("Ankunftsbogen").closest<HTMLElement>(".binder-folder-row"),
+      "Arc row missing",
+    );
+    const partHandle = requireValue(
+      partRow.querySelector<HTMLElement>('.binder-drag-handle[draggable="true"]'),
+      "Part drag handle missing",
+    );
 
     let transfer = createDataTransfer();
     fireEvent.dragStart(partHandle, { dataTransfer: transfer });
@@ -224,7 +290,10 @@ describe("ChapterBinder folders", () => {
 
   it("deletes only the folder metadata and keeps every descendant chapter", () => {
     const { onStructureChange } = renderBinder();
-    const partRow = screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row")!;
+    const partRow = requireValue(
+      screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row"),
+      "Part row missing",
+    );
     fireEvent.click(within(partRow).getByRole("button", { name: "Aktionen: Teil I" }));
     fireEvent.click(
       within(screen.getByRole("menu", { name: "Aktionen: Teil I" })).getByRole("menuitem", {
@@ -294,12 +363,13 @@ describe("ChapterBinder folders", () => {
 
   it("keeps long folder names available and explains an expanded empty folder", () => {
     const longTitle = "Ein außergewöhnlich langer Ordnername für den vollständigen zweiten Akt";
+    const nestedStructure = requireValue(nestedManuscript.structure, "Nested structure missing");
     const manuscript: Manuscript = {
       ...nestedManuscript,
       structure: {
-        folders: [...nestedManuscript.structure!.folders, { id: "empty", title: longTitle }],
+        folders: [...nestedStructure.folders, { id: "empty", title: longTitle }],
         items: [
-          ...nestedManuscript.structure!.items,
+          ...nestedStructure.items,
           { id: "empty-item", kind: "folder", folderId: "empty", position: 2 },
         ],
       },
@@ -317,7 +387,10 @@ describe("ChapterBinder folders", () => {
   it("renames a folder through an explicit keyboard-confirmable edit state", async () => {
     const onStructureChange = vi.fn();
     renderBinder(onStructureChange);
-    const partRow = screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row")!;
+    const partRow = requireValue(
+      screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row"),
+      "Part row missing",
+    );
 
     fireEvent.click(within(partRow).getByRole("button", { name: "Aktionen: Teil I" }));
     fireEvent.click(

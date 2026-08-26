@@ -41,7 +41,14 @@ describe("PlaceInspector", () => {
     expect(whoWasHere?.querySelector("summary > .places-section-heading")).toBeInTheDocument();
     expect(whoWasHere?.querySelector(".places-stay-row .places-stay-range")).toBeInTheDocument();
     expect(chronicle?.querySelector(".places-chronicle-entry")).toBeInTheDocument();
-    expect(container.querySelector(".places-inspector-body")).toBeInTheDocument();
+    const body = container.querySelector(".places-inspector-body");
+    expect(body?.tagName).toBe("DIV");
+    expect(body).toHaveClass("side-panel__body", "scroll-area", "places-inspector-body");
+    expect(body).toHaveAttribute("data-axis", "y");
+    expect(body).toHaveAttribute("data-gutter", "stable");
+    expect(body).toHaveAttribute("data-overscroll", "auto");
+    expect(body).toHaveAttribute("data-scrollbar", "thin");
+    expect(body).toHaveAttribute("data-surface", "panel");
 
     const css = readFileSync(
       join(process.cwd(), "packages/client/src/modules/story-world/places/PlaceInspector.css"),
@@ -59,9 +66,12 @@ describe("PlaceInspector", () => {
     );
     expect(css).toMatch(/\.places-chronicle-entry\s*>\s*strong,[\s\S]*?overflow-wrap:\s*anywhere;/);
     expect(css).toMatch(
-      /\.places-inspector-body\s*\{[^}]*overflow-x:\s*hidden;[^}]*scrollbar-color:\s*var\(--line-strong\)\s+var\(--transparent\);/s,
+      /\.places-inspector-body\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*gap:\s*0;/s,
     );
-    expect(css).toContain(".places-inspector-body::-webkit-scrollbar-thumb");
+    expect(css).not.toMatch(
+      /\.places-inspector-body(?:\s*\{|::)[^}]*(?:overflow|scrollbar|--scrollbar-surface)/s,
+    );
+    expect(css).not.toContain(".places-inspector-body::-webkit-scrollbar");
   });
 
   it("owns favorite/lock editing and cross-workspace history links", () => {

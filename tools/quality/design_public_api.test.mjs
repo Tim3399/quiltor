@@ -7,9 +7,11 @@ import {
   analyzeDesignPublicIndex,
   checkDesignPublicApi,
   closeDesignPublicApiParser,
+  designLooseComponentStyleViolations,
   designProductImportViolations,
   designPublicApiParserContract,
   designPublicFolderViolations,
+  designRetiredLegacyViolations,
   discoverDesignPublicApiProductFiles,
 } from "./design_public_api.mjs";
 
@@ -39,6 +41,7 @@ function productViolations(source) {
 function createCompleteFolder(path, component = "Component") {
   write(`${path}/index.ts`, `export * from "./${component}";`);
   write(`${path}/${component}.tsx`, `export function ${component}() { return null; }`);
+  write(`${path}/${component}.css`, `.${component} { display: block; }\n`);
   write(`${path}/${component}.test.tsx`, "export {};\n");
   write(`${path}/${component}.story.tsx`, "export function Default() { return null; }\n");
 }
@@ -77,6 +80,22 @@ test("rejects static, dynamic, type and CommonJS deep imports into design", () =
     assert.match(failures.join("\n"), new RegExp(`design/primitives/${name}`));
   }
   assert.match(failures.join("\n"), /@\/design\/internal\/private-helper/);
+});
+
+test("rejects every shared/ui dependency without utility exceptions", () => {
+  const failures = productViolations(`
+    import { useShortcut } from "../../shared/ui/shortcuts";
+    import type { ShortcutDefinition } from "@/shared/ui/shortcuts";
+    import { Dialog } from "../../shared/ui";
+    export { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
+    type Item = import("../../shared/ui/CommandPalette").CommandPaletteItem;
+    const menu = import("@/shared/ui/SelectionMenu");
+    const sheet = require("@/shared/ui/Sheet");
+    void useShortcut; void Dialog; void menu; void sheet;
+  `);
+  assert.equal(failures.length, 7);
+  assert.match(failures.join("\n"), /shared\/ui\/shortcuts.*retired shared\/ui/);
+  assert.match(failures.join("\n"), /shared\/ui\/ConfirmDialog.*retired shared\/ui/);
 });
 
 test("ignores comments, ordinary strings and dependencies outside design", () => {
@@ -146,7 +165,7 @@ test("extracts explicit public folders and rejects collector, deep and duplicate
   assert.match(failures, /\.\/patterns\/Dialog\/Dialog.*explicit/);
 });
 
-test("accepts a public folder with local implementation, barrel, test and story", () => {
+test("accepts a public folder with exact implementation, stylesheet, barrel, test and story", () => {
   const directory = resolve(designRoot, "primitives", "Complete");
   createCompleteFolder("packages/client/src/design/primitives/Complete", "Complete");
   assert.deepEqual(designPublicFolderViolations(directory), []);
@@ -157,13 +176,54 @@ test("reports every missing colocated public-folder contract", () => {
   mkdirSync(directory, { recursive: true });
   write("packages/client/src/design/components/Incomplete/notes.md", "not an implementation");
   const failures = designPublicFolderViolations(directory).join("\n");
-  assert.match(failures, /missing local TSX implementation/);
-  assert.match(failures, /missing local index\.ts barrel/);
-  assert.match(failures, /missing colocated \*\.test\.tsx/);
-  assert.match(failures, /missing colocated \*\.story\.tsx/);
+  assert.match(failures, /missing required Incomplete\.tsx/);
+  assert.match(failures, /missing required Incomplete\.css/);
+  assert.match(failures, /missing required Incomplete\.test\.tsx/);
+  assert.match(failures, /missing required Incomplete\.story\.tsx/);
+  assert.match(failures, /missing required index\.ts/);
 });
 
-test("checks product imports and all exported folders together", () => {
+test("requires contract files to match the public folder name", () => {
+  const directory = resolve(designRoot, "patterns", "NamedPattern");
+  createCompleteFolder("packages/client/src/design/patterns/NamedPattern", "WrongName");
+  const failures = designPublicFolderViolations(directory).join("\n");
+  for (const suffix of [".tsx", ".css", ".test.tsx", ".story.tsx"]) {
+    assert.match(
+      failures,
+      new RegExp(`missing required NamedPattern${suffix.replaceAll(".", "\\.")}`),
+    );
+  }
+  assert.doesNotMatch(failures, /missing required index\.ts/);
+});
+
+test("rejects loose component styles and ignores colocated component styles", () => {
+  const loose = write("packages/client/src/design/components/legacy.css", ".legacy {}\n");
+  write(
+    "packages/client/src/design/components/Colocated/Colocated.css",
+    ".Colocated { display: block; }\n",
+  );
+  const failures = designLooseComponentStyleViolations(designRoot);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /components\/legacy\.css.*owning component folder/);
+  rmSync(loose);
+});
+
+test("rejects the retired global legacy stylesheet and owner directory", () => {
+  const legacyFile = write("packages/client/src/design/internal/legacy.css", ".legacy {}\n");
+  const legacyOwner = write(
+    "packages/client/src/design/internal/legacy/actions.css",
+    ".secondary-action {}\n",
+  );
+  const failures = designRetiredLegacyViolations(designRoot);
+  assert.equal(failures.length, 2);
+  assert.match(failures.join("\n"), /internal\/legacy\.css.*forbidden/);
+  assert.match(failures.join("\n"), /internal\/legacy.*forbidden/);
+  rmSync(legacyOwner);
+  rmSync(legacyFile);
+  rmSync(resolve(designRoot, "internal", "legacy"), { recursive: true });
+});
+
+test("checks product imports, loose styles and all exported folders together", () => {
   const root = resolve(fixtureRoot, "integration");
   mkdirSync(resolve(root, "packages/client/src/shared"), { recursive: true });
   write(
@@ -171,6 +231,7 @@ test("checks product imports and all exported folders together", () => {
     'export * from "./primitives/Button";\n',
   );
   createCompleteFolder("integration/packages/client/src/design/primitives/Button", "Button");
+  write("integration/packages/client/src/design/components/legacy.css", ".legacy {}\n");
   write(
     "integration/packages/client/src/app/App.tsx",
     'import { Button } from "../design"; void Button;',
@@ -182,6 +243,7 @@ test("checks product imports and all exported folders together", () => {
   const result = checkDesignPublicApi(root);
   assert.equal(result.productFiles, 2);
   assert.equal(result.exportedFolders, 1);
-  assert.equal(result.violations.length, 1);
-  assert.match(result.violations[0], /Editor\.tsx.*deep-imports design internals/);
+  assert.equal(result.violations.length, 2);
+  assert.match(result.violations.join("\n"), /Editor\.tsx.*deep-imports design internals/);
+  assert.match(result.violations.join("\n"), /components\/legacy\.css.*owning component folder/);
 });

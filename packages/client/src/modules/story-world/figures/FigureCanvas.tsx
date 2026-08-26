@@ -1,15 +1,10 @@
-import {
-  Background,
-  BackgroundVariant,
-  ConnectionMode,
-  Controls,
-  MiniMap,
-  ReactFlow,
-} from "@xyflow/react";
-import { Link2, Plus, UserRound, X } from "lucide-react";
+import { ConnectionMode } from "@xyflow/react";
+import { Link2, Plus, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "../../../design";
+import { Button, EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { ModeBanner } from "../ModeBanner";
+import { StoryGraphCanvas } from "../StoryGraphCanvas";
 import {
   type FigureCardData,
   type FigureFlowNode,
@@ -45,73 +40,63 @@ export function FigureCanvas({
   const { t } = useI18n();
   const { nodes, edges, zoomTier } = controller;
   return (
-    <div
-      className={`flow-area zoom-${zoomTier} ${children ? "has-timeline" : ""} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
-    >
-      {connecting && (
-        <div className="mode-banner" role="status">
-          <Link2 />
-          <span>{t("connectModeHint")}</span>
-          <button type="button" onClick={onCancelConnecting}>
-            <X />
-            <span className="sr-only">{t("cancel")}</span>
-          </button>
-        </div>
-      )}
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={figureNodeTypes}
-        connectionMode={ConnectionMode.Loose}
-        onInit={controller.onInit}
-        onMove={(_, viewport) => controller.onMove(viewport)}
-        onNodeClick={(_, node: FigureFlowNode) => onSelectNode(node.id)}
-        onNodeContextMenu={(event, node) => {
+    <StoryGraphCanvas
+      nodes={nodes}
+      edges={edges}
+      zoomTier={zoomTier}
+      className={`${children ? "has-timeline" : ""} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
+      showGrid={controller.snapToGrid}
+      gridSize={GRID_SIZE}
+      overlay={
+        connecting ? (
+          <ModeBanner icon={<Link2 />} dismissLabel={t("cancel")} onDismiss={onCancelConnecting}>
+            {t("connectModeHint")}
+          </ModeBanner>
+        ) : null
+      }
+      flowProps={{
+        nodeTypes: figureNodeTypes,
+        connectionMode: ConnectionMode.Loose,
+        onInit: controller.onInit,
+        onMove: (_, viewport) => controller.onMove(viewport),
+        onNodeClick: (_, node: FigureFlowNode) => onSelectNode(node.id),
+        onNodeContextMenu: (event, node) => {
           event.preventDefault();
           onOpenNodeMenu(node, event.clientX, event.clientY);
-        }}
-        onPaneClick={onClearSelection}
-        onNodesChange={controller.onNodesChange}
-        onNodeDragStop={(_, node) => controller.onNodeDragStop(node)}
-        onConnect={controller.onConnect}
-        nodesConnectable={connecting}
-        snapToGrid={controller.snapToGrid && !controller.gridOverride}
-        snapGrid={[GRID_SIZE, GRID_SIZE]}
-        fitView
-        minZoom={0.08}
-        maxZoom={2.2}
-        deleteKeyCode={null}
-      >
-        {controller.snapToGrid && zoomTier !== "overview" && (
-          <Background
-            className={`board-grid board-grid-${zoomTier}`}
-            variant={BackgroundVariant.Lines}
-            gap={GRID_SIZE}
-            size={0.55}
-            color="var(--line)"
-          />
-        )}
-        <Controls position="bottom-left" />
-        <MiniMap
-          position="bottom-right"
-          pannable
-          zoomable
-          nodeComponent={FigureMiniMapNode}
-          nodeColor={(node) => minimapColorForKind((node.data as FigureCardData).figure.type)}
-          maskColor="var(--minimap-mask)"
-        />
-      </ReactFlow>
+        },
+        onPaneClick: onClearSelection,
+        onNodesChange: controller.onNodesChange,
+        onNodeDragStop: (_, node) => controller.onNodeDragStop(node),
+        onConnect: controller.onConnect,
+        nodesConnectable: connecting,
+        snapToGrid: controller.snapToGrid && !controller.gridOverride,
+        snapGrid: [GRID_SIZE, GRID_SIZE],
+      }}
+      minimapProps={{
+        nodeComponent: FigureMiniMapNode,
+        nodeColor: (node) => minimapColorForKind((node.data as FigureCardData).figure.type),
+      }}
+    >
       {!nodes.length && (
-        <section className="figure-empty-state" aria-label={t("createElementMenu")}>
-          <UserRound aria-hidden="true" />
-          <strong>{t("createElementMenu")}</strong>
+        <EmptyState
+          className="figure-empty-state"
+          aria-label={t("createElementMenu")}
+          icon={<UserRound className="figure-empty-icon" />}
+          title={t("createElementMenu")}
+          actions={
+            <Button
+              appearance="primary"
+              icon={<Plus />}
+              onClick={() => controller.addNode("person")}
+            >
+              {t("newFigureName")}
+            </Button>
+          }
+        >
           <p className="figure-empty-copy">{t("noFiguresOrAnimalsYet")}</p>
-          <Button appearance="primary" icon={<Plus />} onClick={() => controller.addNode("person")}>
-            {t("newFigureName")}
-          </Button>
-        </section>
+        </EmptyState>
       )}
       {children}
-    </div>
+    </StoryGraphCanvas>
   );
 }

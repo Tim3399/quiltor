@@ -1,0 +1,80 @@
+.design-chip-list {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.design-chip-item {
+  display: inline-flex;
+  list-style: none;
+}
+
+.design-chip {
+  min-width: 0;
+  min-height: var(--control-compact);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-10);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--panel);
+  color: var(--soft);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.design-chip {
+  cursor: pointer;
+}
+
+button.design-chip:hover {
+  background: var(--control-hover);
+  color: var(--ink);
+}
+
+.design-chip[aria-pressed="true"],
+.design-chip--accent {
+  border-color: var(--gold-border);
+  background: var(--gold-soft);
+  color: var(--gold-text);
+}
+
+.design-chip--danger {
+  border-color: var(--error-border);
+  color: var(--error-text);
+}
+
+.design-chip--removable {
+  padding-inline-end: var(--space-2);
+}
+
+.design-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.design-chip--removable .icon-button {
+  min-width: calc(var(--control-compact) - var(--space-4));
+  width: calc(var(--control-compact) - var(--space-4));
+  height: calc(var(--control-compact) - var(--space-4));
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  .design-chip {
+    min-height: var(--control-touch);
+  }
+
+  .design-chip--removable .icon-button {
+    min-width: var(--control-touch);
+    width: var(--control-touch);
+    height: var(--control-touch);
+  }
+}

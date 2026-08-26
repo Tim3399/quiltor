@@ -1,9 +1,19 @@
-import { useState, type RefObject } from "react";
-import { Bot, Check, ChevronDown, EyeOff, Pencil, RotateCw } from "lucide-react";
+import { Bot, Check, EyeOff, Pencil, RotateCw } from "lucide-react";
+import { type RefObject, useState } from "react";
+import {
+  Alert,
+  Button,
+  ChipAction,
+  ChipList,
+  Disclosure,
+  EmptyState,
+  ListboxSelect,
+  ProgressBar,
+} from "../../design";
 import { useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
-import { SelectControl } from "../../shared/ui/SelectControl";
 import type { FigureState } from "../story-world";
+import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import type { AssistantBatchProgress, AssistantEntry } from "./conversationTypes";
 import { resolveAssistantMessage } from "./formatting";
 import type {
@@ -12,7 +22,6 @@ import type {
   AssistantReply,
   AssistantSource,
 } from "./model";
-import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import { proposalLabel } from "./proposals";
 import "./AssistantConversation.css";
 
@@ -55,17 +64,23 @@ export function AssistantConversation({
   return (
     <div className="assistant-messages">
       {!entries.length && (
-        <div className="assistant-empty">
-          <Bot />
-          <h2>{t("assistantGreeting")}</h2>
+        <EmptyState
+          className="assistant-empty"
+          icon={<Bot />}
+          title={t("assistantGreeting")}
+          actions={
+            <>
+              <Button onClick={() => onDraftChange(t("findMissingFiguresPrompt"))}>
+                {t("findMissingFigures")}
+              </Button>
+              <Button onClick={() => onDraftChange(t("checkTimelinePrompt"))}>
+                {t("checkTimeline")}
+              </Button>
+            </>
+          }
+        >
           <p>{t("assistantGreetingBody")}</p>
-          <button onClick={() => onDraftChange(t("findMissingFiguresPrompt"))}>
-            {t("findMissingFigures")}
-          </button>
-          <button onClick={() => onDraftChange(t("checkTimelinePrompt"))}>
-            {t("checkTimeline")}
-          </button>
-        </div>
+        </EmptyState>
       )}
       {entries.map((entry) => (
         <AssistantExchange
@@ -85,28 +100,21 @@ export function AssistantConversation({
         />
       ))}
       {sending && batchProgress && (
-        <div className="assistant-progress">
-          <span id={batchProgressId}>
-            {batchProgress.labelKey
+        <ProgressBar
+          id={batchProgressId}
+          className="assistant-progress"
+          label={`${
+            batchProgress.labelKey
               ? t(batchProgress.labelKey, batchProgress.labelParams)
-              : t("processingChapterGroups")}{" "}
-            {batchProgress.total ? `(${batchProgress.done}/${batchProgress.total})` : ""}
-          </span>
-          <div
-            className="assistant-progress-bar"
-            role="progressbar"
-            aria-labelledby={batchProgressId}
-            aria-valuenow={batchProgress.done}
-            aria-valuemin={0}
-            aria-valuemax={batchProgress.total || undefined}
-          >
-            <span
-              style={{
-                width: `${batchProgress.total ? Math.round((batchProgress.done / batchProgress.total) * 100) : 0}%`,
-              }}
-            />
-          </div>
-        </div>
+              : t("processingChapterGroups")
+          }${batchProgress.total ? ` (${batchProgress.done}/${batchProgress.total})` : ""}`}
+          value={batchProgress.total ? batchProgress.done : undefined}
+          max={batchProgress.total || undefined}
+          valueLabel={
+            batchProgress.total ? `${batchProgress.done}/${batchProgress.total}` : undefined
+          }
+          showValue
+        />
       )}
       {sending && !batchProgress && (
         <div className="assistant-thinking">
@@ -154,13 +162,24 @@ function AssistantExchange({
     <article className="assistant-exchange">
       <p className="assistant-question">{entry.question}</p>
       {entry.error && (
-        <div className="assistant-error" role="alert">
-          <span>{entry.error}</span>
-          <button disabled={sending} onClick={() => onRetry(entry.id)}>
-            <RotateCw />
-            {t("retry")}
-          </button>
-        </div>
+        <Alert
+          className="assistant-error"
+          tone="danger"
+          action={
+            <Button
+              appearance="ghost"
+              tone="danger"
+              size="compact"
+              disabled={sending}
+              icon={<RotateCw />}
+              onClick={() => onRetry(entry.id)}
+            >
+              {t("retry")}
+            </Button>
+          }
+        >
+          {entry.error}
+        </Alert>
       )}
       {reply && (
         <div className="assistant-answer">
@@ -169,8 +188,9 @@ function AssistantExchange({
             <div className="assistant-broadscope">
               <div className="assistant-broadscope-actions">
                 {reply.clarification.candidates.map((candidate) => (
-                  <button
-                    type="button"
+                  <Button
+                    className="assistant-broadscope-action"
+                    size="compact"
                     disabled={sending}
                     key={candidate.id}
                     aria-label={candidate.name}
@@ -181,7 +201,7 @@ function AssistantExchange({
                     }
                   >
                     {t("useExistingElement", { name: candidate.name })}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -189,12 +209,21 @@ function AssistantExchange({
           {reply.broadScope && (
             <div className="assistant-broadscope">
               <div className="assistant-broadscope-actions">
-                <button type="button" onClick={onOpenChapterPicker}>
+                <Button
+                  className="assistant-broadscope-action"
+                  size="compact"
+                  onClick={onOpenChapterPicker}
+                >
                   {t("pickChaptersIndividually")}
-                </button>
-                <button type="button" disabled={sending} onClick={() => onRunBatch(entry.id)}>
+                </Button>
+                <Button
+                  className="assistant-broadscope-action"
+                  size="compact"
+                  disabled={sending}
+                  onClick={() => onRunBatch(entry.id)}
+                >
                   {t("runInChapterGroups")}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -218,13 +247,12 @@ function AssistantExchange({
             />
           )}
           {!!reply.agentTrace?.length && (
-            <details className="assistant-trace">
-              <summary>
-                <ChevronDown />
-                {t("agentTraceSteps").replace("{n}", String(reply.agentTrace.length))}
-              </summary>
+            <Disclosure
+              className="assistant-trace"
+              summary={t("agentTraceSteps").replace("{n}", String(reply.agentTrace.length))}
+            >
               <pre>{JSON.stringify(reply.agentTrace, null, 2)}</pre>
-            </details>
+            </Disclosure>
           )}
         </div>
       )}
@@ -241,19 +269,15 @@ function SourceList({
 }) {
   const { t } = useI18n();
   return (
-    <details className="assistant-sources">
-      <summary>
-        <ChevronDown />
-        {t("sources")} · {sources.length}
-      </summary>
-      <div>
+    <Disclosure className="assistant-sources" summary={`${t("sources")} · ${sources.length}`}>
+      <ChipList label={t("sources")}>
         {sources.map((source) => (
-          <button key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>
+          <ChipAction key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>
             {source.title}
-          </button>
+          </ChipAction>
         ))}
-      </div>
-    </details>
+      </ChipList>
+    </Disclosure>
   );
 }
 
@@ -308,23 +332,21 @@ function ProposalList({
   };
   const allPending = applicable(proposals.map((_proposal, index) => index));
   return (
-    <details className="assistant-proposals" open>
-      <summary className="assistant-proposal-heading">
+    <section className="assistant-proposals">
+      <header className="assistant-proposal-heading">
         <span>
-          <ChevronDown />
           <strong>{t("nProposals").replace("{n}", String(proposals.length))}</strong>
         </span>
-        <button
+        <Button
+          appearance="ghost"
+          size="compact"
+          icon={<Check />}
           disabled={!allPending.length}
-          onClick={(event) => {
-            event.preventDefault();
-            onApply(entryId, allPending.map(effective), allPending);
-          }}
+          onClick={() => onApply(entryId, allPending.map(effective), allPending)}
         >
-          <Check />
           {t("applyAll")}
-        </button>
-      </summary>
+        </Button>
+      </header>
       {groups.map((group) => {
         const groupPending = applicable(group.proposalIndexes);
         return (
@@ -332,14 +354,15 @@ function ProposalList({
             {group.id !== "all" && (
               <header>
                 <strong>{groupTitle(group.id)}</strong>
-                <button
-                  type="button"
+                <Button
+                  appearance="ghost"
+                  size="compact"
+                  icon={<Check />}
                   disabled={!groupPending.length}
                   onClick={() => onApply(entryId, groupPending.map(effective), groupPending)}
                 >
-                  <Check />
                   {t("applyGroup")}
-                </button>
+                </Button>
               </header>
             )}
             {group.proposalIndexes.map((index) => {
@@ -362,28 +385,27 @@ function ProposalList({
                       </small>
                     )}
                     {!!envelope?.evidence.length && (
-                      <details className="assistant-proposal-evidence">
-                        <summary>
-                          {t("proposalEvidence")} · {envelope.evidence.length}
-                        </summary>
-                        <div>
+                      <Disclosure
+                        className="assistant-proposal-evidence"
+                        summary={`${t("proposalEvidence")} · ${envelope.evidence.length}`}
+                      >
+                        <ChipList label={t("proposalEvidence")}>
                           {envelope.evidence.map((source) => (
-                            <button
-                              type="button"
+                            <ChipAction
                               key={source.id}
                               title={source.text}
                               onClick={() => onNavigate(source.target)}
                             >
                               {source.title}
-                            </button>
+                            </ChipAction>
                           ))}
-                        </div>
-                      </details>
+                        </ChipList>
+                      </Disclosure>
                     )}
                     {extraction && !applied && !dismissed && (
                       <div className="assistant-claim-review">
                         <span>{t("claimStatusLabel")}</span>
-                        <SelectControl
+                        <ListboxSelect
                           label={t("claimStatusLabel")}
                           value={claimStatus(index)}
                           options={[
@@ -408,18 +430,28 @@ function ProposalList({
                   <div className="assistant-proposal-actions">
                     {!applied && !dismissed && !grouped && (
                       <>
-                        <button type="button" onClick={() => setEditingIndex(index)}>
-                          <Pencil />
+                        <Button
+                          appearance="ghost"
+                          size="compact"
+                          icon={<Pencil />}
+                          onClick={() => setEditingIndex(index)}
+                        >
                           {t("editProposal")}
-                        </button>
-                        <button type="button" onClick={() => onDismiss(entryId, index)}>
-                          <EyeOff />
+                        </Button>
+                        <Button
+                          appearance="ghost"
+                          size="compact"
+                          icon={<EyeOff />}
+                          onClick={() => onDismiss(entryId, index)}
+                        >
                           {t("ignoreProposal")}
-                        </button>
+                        </Button>
                       </>
                     )}
-                    <button
-                      type="button"
+                    <Button
+                      appearance="ghost"
+                      size="compact"
+                      icon={applied ? <Check /> : undefined}
                       disabled={applied || dismissed || grouped || !canApply}
                       title={
                         !canApply
@@ -430,19 +462,14 @@ function ProposalList({
                       }
                       onClick={() => onApply(entryId, [proposal], [index])}
                     >
-                      {applied ? (
-                        <>
-                          <Check />
-                          {t("applied")}
-                        </>
-                      ) : dismissed ? (
-                        t("ignoredProposal")
-                      ) : grouped ? (
-                        t("inPackage")
-                      ) : (
-                        t("apply")
-                      )}
-                    </button>
+                      {applied
+                        ? t("applied")
+                        : dismissed
+                          ? t("ignoredProposal")
+                          : grouped
+                            ? t("inPackage")
+                            : t("apply")}
+                    </Button>
                   </div>
                 </div>
               );
@@ -458,6 +485,6 @@ function ProposalList({
           onClose={() => setEditingIndex(null)}
         />
       )}
-    </details>
+    </section>
   );
 }

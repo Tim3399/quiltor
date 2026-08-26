@@ -3,8 +3,8 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -88,6 +88,7 @@ test("the retired global application stylesheet cannot return under a generic ro
     "materials.css",
     "motion.css",
     "tokens.css",
+    "typography.css",
   ];
   assert.equal(existsSync(resolve(designRoot, "application.css")), false);
   assert.deepEqual(

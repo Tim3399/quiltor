@@ -3,7 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/design",
   fullyParallel: true,
-  timeout: 60_000,
+  // Each accessibility test intentionally walks the complete story catalog. Keeping the
+  // concurrency bounded prevents the local Vite server and Chromium from exhausting Windows
+  // sockets while still running viewport projects in parallel.
+  workers: 2,
+  timeout: 120_000,
   use: {
     baseURL: "http://127.0.0.1:4174",
     locale: "de-DE",
@@ -15,6 +19,14 @@ export default defineConfig({
     {
       name: "design-desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1100, height: 800 } },
+    },
+    {
+      name: "design-intermediate",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 820, height: 800 } },
+    },
+    {
+      name: "design-compact-boundary",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 719, height: 800 } },
     },
     {
       name: "design-touch",

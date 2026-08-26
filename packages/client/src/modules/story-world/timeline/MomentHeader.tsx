@@ -1,4 +1,3 @@
-import { useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -10,10 +9,10 @@ import {
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
-import type { TimelineMoment } from "../model";
+import { useRef, useState } from "react";
+import { Button, IconButton, Menu, MenuItem, MenuSeparator, Popover } from "../../../design";
 import type { Translate } from "../../../i18n";
-import { Menu, MenuItem, MenuSeparator } from "../../../shared/ui/Menu";
-import { Popover } from "../../../shared/ui/Popover";
+import type { TimelineMoment } from "../model";
 import "./MomentHeader.css";
 
 export type TimelineChapterReference = Readonly<{
@@ -62,13 +61,21 @@ export function MomentHeader({
   return (
     <header className="storyboard-header">
       <div className="storyboard-stepper">
-        <button disabled={index <= 0} onClick={onSelectPrevious} aria-label={t("timelinePrevious")}>
-          <ChevronLeft />
-        </button>
+        <IconButton
+          className="storyboard-stepper-action"
+          label={t("timelinePrevious")}
+          icon={<ChevronLeft />}
+          disabled={index <= 0}
+          onClick={onSelectPrevious}
+        />
         <span>{t("timelineOf", { current: index + 1, total })}</span>
-        <button disabled={index >= total - 1} onClick={onSelectNext} aria-label={t("timelineNext")}>
-          <ChevronRight />
-        </button>
+        <IconButton
+          className="storyboard-stepper-action"
+          label={t("timelineNext")}
+          icon={<ChevronRight />}
+          disabled={index >= total - 1}
+          onClick={onSelectNext}
+        />
       </div>
       <div className="storyboard-title">
         <span>{t("timelinePoint", { number: index + 1 })}</span>
@@ -91,13 +98,12 @@ export function MomentHeader({
               )}
             </p>
             {onOpenChapter && (
-              <button
-                type="button"
-                className="secondary-action"
+              <Button
+                className="storyboard-chapter-action"
                 onClick={() => onOpenChapter(chapterReferences[0].id)}
               >
                 {t("timelineOpenChapter", { chapter: chapterTitle(chapterReferences[0]) })}
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -113,27 +119,28 @@ export function MomentHeader({
               </span>
             </p>
             {onOpenChapter && (
-              <button
-                type="button"
-                className="secondary-action"
+              <Button
+                className="storyboard-chapter-action"
                 onClick={() => onOpenChapter(rangeConflict.id)}
               >
                 {t("timelineOpenChapter", { chapter: chapterTitle(rangeConflict) })}
-              </button>
+              </Button>
             )}
           </div>
         )}
       </div>
       <div className="storyboard-actions">
-        <button
+        <Button
           ref={actionsButton}
+          className="storyboard-actions-trigger"
+          appearance="ghost"
+          icon={<MoreHorizontal />}
           aria-haspopup="menu"
           aria-expanded={actionsOpen}
           onClick={() => setActionsOpen((value) => !value)}
         >
-          <MoreHorizontal />
           {t("menuActions")}
-        </button>
+        </Button>
         <Popover
           anchorRef={actionsButton}
           open={actionsOpen}

@@ -1,10 +1,12 @@
 import { forwardRef, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { Field, type FieldMessageProps } from "../Field";
+import "./TextArea.css";
 
 export interface TextAreaProps
   extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "children">,
     FieldMessageProps {
   label: ReactNode;
+  labelHidden?: boolean;
   fieldId?: string;
   fieldClassName?: string;
 }
@@ -12,6 +14,7 @@ export interface TextAreaProps
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea(
   {
     label,
+    labelHidden,
     fieldId,
     fieldClassName,
     description,
@@ -29,6 +32,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
       id={fieldId}
       className={fieldClassName}
       label={label}
+      labelHidden={labelHidden}
       description={description}
       descriptionId={descriptionId}
       hint={hint}

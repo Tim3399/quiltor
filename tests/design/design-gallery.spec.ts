@@ -231,3 +231,33 @@ test("toolbar and selection patterns keep their responsive interaction contracts
   await expect(remove).toBeFocused();
   await expect(actionableCard.locator("button button")).toHaveCount(0);
 });
+
+test("composite components keep their keyboard and disclosure contracts", async ({ page }) => {
+  await openStory(page, "Tabs/ThreeTabs");
+  const cardTab = page.getByRole("tab", { name: "Karte" });
+  const profileTab = page.getByRole("tab", { name: "Profil" });
+  await cardTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(profileTab).toBeFocused();
+  await expect(profileTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tabpanel")).toHaveText("Profilinhalt");
+
+  await openStory(page, "ListboxSelect/Default");
+  const select = page.getByRole("combobox", { name: "Sprache" });
+  await select.click();
+  const german = page.getByRole("option", { name: "Deutsch" });
+  const english = page.getByRole("option", { name: "Englisch" });
+  await expect(german).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(english).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(select).toContainText("Englisch");
+  await expect(select).toHaveAttribute("aria-expanded", "false");
+
+  await openStory(page, "Disclosure/Closed");
+  const disclosure = page.locator("details");
+  await expect(disclosure).not.toHaveAttribute("open", "");
+  await page.getByText("Weitere Einstellungen", { exact: true }).click();
+  await expect(disclosure).toHaveAttribute("open", "");
+  await expect(page.getByText("Zusätzliche Optionen")).toBeVisible();
+});

@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeftRight, ChevronDown, ChevronRight, Skull, Undo2, X } from "lucide-react";
-import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from "../model";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Button, IconButton, SegmentedControl, Select, Sheet, TextField } from "../../../design";
 import type { Translate } from "../../../i18n";
-import { Sheet } from "../../../shared/ui/Sheet";
+import { patchPresence } from "../figures/presence";
 import {
   patchRelationship,
   relationshipLabelEditor,
   resolveRelationship,
 } from "../figures/relationships";
-import { patchPresence } from "../figures/presence";
+import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from "../model";
 import { PresenceBoard } from "./PresenceBoard";
 import "./StateChangePanels.css";
 
@@ -35,6 +35,7 @@ export function MomentStateWorkspace({
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia("(max-width: 719px)").matches,
   );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Changing the active moment intentionally closes its relationship inspector.
   useEffect(() => setSelectedEdgeId(null), [moment.id]);
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
@@ -137,35 +138,38 @@ export function MomentStateWorkspace({
           >
             <div className="storyboard-mode-row">
               <span>{t("timelineRelationshipView")}</span>
-              <div className="storyboard-mode" role="group" aria-label={t("timelineView")}>
-                <button aria-pressed={mode === "changes"} onClick={() => setMode("changes")}>
-                  {t("timelineOnlyChanges")}
-                </button>
-                <button aria-pressed={mode === "state"} onClick={() => setMode("state")}>
-                  {t("timelineWholeState")}
-                </button>
-              </div>
+              <SegmentedControl<BoardMode>
+                className="storyboard-mode"
+                label={t("timelineView")}
+                value={mode}
+                options={[
+                  { value: "changes", label: t("timelineOnlyChanges") },
+                  { value: "state", label: t("timelineWholeState") },
+                ]}
+                onChange={setMode}
+                size="compact"
+              />
             </div>
             <div className="relationship-add">
-              <label>
-                <span className="sr-only">{t("timelineChangeRelation")}</span>
-                <select
-                  defaultValue=""
-                  onChange={(event) => {
-                    if (event.target.value) addRelationshipChange(event.target.value);
-                    event.target.value = "";
-                  }}
-                >
-                  <option value="">{t("timelineChangeRelation")}</option>
-                  {state.edges
-                    .filter((edge) => !edgeChanges.includes(edge))
-                    .map((edge) => (
-                      <option value={edge.id} key={edge.id}>
-                        {relationshipName(edge, state.nodes, timeline, moment.id, t)}
-                      </option>
-                    ))}
-                </select>
-              </label>
+              <Select
+                className="relationship-add-select"
+                label={t("timelineChangeRelation")}
+                labelHidden
+                defaultValue=""
+                onChange={(event) => {
+                  if (event.target.value) addRelationshipChange(event.target.value);
+                  event.target.value = "";
+                }}
+              >
+                <option value="">{t("timelineChangeRelation")}</option>
+                {state.edges
+                  .filter((edge) => !edgeChanges.includes(edge))
+                  .map((edge) => (
+                    <option value={edge.id} key={edge.id}>
+                      {relationshipName(edge, state.nodes, timeline, moment.id, t)}
+                    </option>
+                  ))}
+              </Select>
             </div>
             <div className="relationship-change-list">
               {visibleEdges.map((edge) => (
@@ -221,10 +225,10 @@ export function MomentStateWorkspace({
             <div className="life-event-board">
               <div className="life-event-roster">
                 {lifeNodes.map((node) => (
-                  <button
+                  <Button
                     key={node.id}
                     draggable
-                    className={selectedLifeId === node.id ? "selected" : ""}
+                    className={`life-event-person ${selectedLifeId === node.id ? "selected" : ""}`}
                     aria-pressed={selectedLifeId === node.id}
                     onDragStart={(event) =>
                       event.dataTransfer.setData("application/x-quiltor-life", node.id)
@@ -233,13 +237,18 @@ export function MomentStateWorkspace({
                       setSelectedLifeId((value) => (value === node.id ? null : node.id))
                     }
                   >
-                    <strong>{node.name}</strong>
-                    <small>{node.type === "tier" ? t("animal") : t("figure")}</small>
-                  </button>
+                    <span className="life-event-person-copy">
+                      <strong>{node.name}</strong>
+                      <small>{node.type === "tier" ? t("animal") : t("figure")}</small>
+                    </span>
+                  </Button>
                 ))}
               </div>
-              <button
+              <Button
                 className="death-dropzone"
+                appearance="secondary"
+                tone="danger"
+                icon={<Skull />}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
@@ -248,25 +257,30 @@ export function MomentStateWorkspace({
                 }}
                 onClick={() => selectedLifeId && markDeath(selectedLifeId)}
               >
-                <Skull />
-                <span>
+                <span className="death-dropzone-copy">
                   <strong>{t("timelineDeathHere")}</strong>
                   <small>
                     {selectedLifeId ? t("timelineDeathSelected") : t("timelineDeathHelp")}
                   </small>
                 </span>
-              </button>
+              </Button>
               {!!lifeChanges.length && (
                 <div className="life-change-list">
                   {lifeChanges.map((node) => (
-                    <button key={node.id} onClick={() => markDeath(node.id)}>
-                      <Skull />
-                      <span>
-                        <strong>{node.name}</strong>
-                        <small>{t("removeDeathMarker")}</small>
+                    <Button
+                      key={node.id}
+                      className="life-change-action"
+                      icon={<Skull />}
+                      onClick={() => markDeath(node.id)}
+                    >
+                      <span className="life-change-content">
+                        <span className="life-change-copy">
+                          <strong>{node.name}</strong>
+                          <small>{t("removeDeathMarker")}</small>
+                        </span>
+                        <X />
                       </span>
-                      <X />
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
@@ -305,22 +319,24 @@ function ManagerSection({
   return (
     <section className={`timeline-manager-section ${open ? "open" : ""}`}>
       <header>
-        <button
+        <Button
+          appearance="ghost"
           className="timeline-section-toggle"
           aria-label={title}
           aria-expanded={open}
           aria-controls={panelId}
           onClick={onToggle}
+          icon={<ChevronDown className="timeline-section-chevron" />}
+          iconPosition="end"
         >
-          <div>
-            <h2>{title}</h2>
-            <p>{description}</p>
-          </div>
-          <span className="timeline-section-summary">
+          <span className="timeline-section-content">
+            <span className="timeline-section-heading">
+              <h2>{title}</h2>
+              <p>{description}</p>
+            </span>
             <span className="section-count">{count}</span>
-            <ChevronDown />
           </span>
-        </button>
+        </Button>
       </header>
       {open && (
         <div id={panelId} className="timeline-section-body">
@@ -360,11 +376,14 @@ function RelationshipCard({
     to = nodes.find((node) => node.id === current.to);
   const changedLabel = explicit && before.label !== current.label;
   return (
-    <button
+    <Button
+      appearance="secondary"
       className={`relationship-change-card ${selected ? "selected" : ""} ${!current.active ? "inactive" : ""}`}
       onClick={onSelect}
+      icon={<ChevronRight />}
+      iconPosition="end"
     >
-      <div className="relationship-card-main">
+      <span className="relationship-card-main">
         <span className="change-badge">
           {explicit
             ? current.active
@@ -384,9 +403,8 @@ function RelationshipCard({
               })
             : current.label || t("timelineWithoutLabel")}
         </small>
-      </div>
-      <ChevronRight />
-    </button>
+      </span>
+    </Button>
   );
 }
 
@@ -424,52 +442,53 @@ function RelationshipInspector({
             {from?.name || t("unknown")} {resolved.gerichtet ? "→" : "↔"} {to?.name || t("unknown")}
           </strong>
         </div>
-        <button className="icon-button" onClick={onClose} aria-label={t("timelineCloseRelation")}>
-          <X />
-        </button>
+        <IconButton label={t("timelineCloseRelation")} icon={<X />} onClick={onClose} />
       </header>
-      <div className="panel-body">
-        <label className="field">
-          <span>{t("timelineLabelFromHere")}</span>
-          <input
-            value={labelEditor.value}
-            placeholder={
-              labelEditor.inherited
-                ? t("timelineInherited", { value: labelEditor.inherited })
-                : t("relationship")
-            }
-            disabled={!resolved.active}
-            onChange={(event) => onPatch({ label: event.target.value })}
-          />
-        </label>
+      <div className="storyboard-inspector-body">
+        <TextField
+          fieldClassName="relationship-label-field"
+          label={t("timelineLabelFromHere")}
+          value={labelEditor.value}
+          placeholder={
+            labelEditor.inherited
+              ? t("timelineInherited", { value: labelEditor.inherited })
+              : t("relationship")
+          }
+          disabled={!resolved.active}
+          onChange={(event) => onPatch({ label: event.target.value })}
+        />
         <div className="relationship-inspector-actions">
-          <button
+          <Button
+            className="relationship-inspector-action"
             aria-pressed={resolved.active}
             onClick={() => onPatch({ active: !resolved.active })}
           >
             {resolved.active ? t("timelineAppliesHere") : t("timelineEndsHere")}
-          </button>
-          <button
+          </Button>
+          <Button
+            className="relationship-inspector-action"
             aria-pressed={!!resolved.gerichtet}
             disabled={!resolved.active}
             onClick={() => onPatch({ gerichtet: !resolved.gerichtet })}
           >
             {resolved.gerichtet ? t("directed") : t("undirected")}
-          </button>
-          <button
+          </Button>
+          <Button
+            className="relationship-inspector-action"
             disabled={!resolved.active || !resolved.gerichtet}
             onClick={() => onPatch({ from: resolved.to, to: resolved.from })}
+            icon={<ArrowLeftRight />}
           >
-            <ArrowLeftRight />
             {t("reverseDirection")}
-          </button>
+          </Button>
         </div>
         {explicit ? (
-          <button className="secondary-action reset-inheritance" onClick={onReset}>
-            <Undo2 />
-            {t("timelineRemoveOwn")}
-            <small>{t("timelineInheritPrevious")}</small>
-          </button>
+          <Button className="reset-inheritance" onClick={onReset} icon={<Undo2 />}>
+            <span className="reset-inheritance-copy">
+              <span>{t("timelineRemoveOwn")}</span>
+              <small>{t("timelineInheritPrevious")}</small>
+            </span>
+          </Button>
         ) : (
           <p className="inherited-note">{t("timelineInheritedHelp")}</p>
         )}

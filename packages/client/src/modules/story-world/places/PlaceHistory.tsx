@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Button, ScrollArea, SidePanelBody } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { Workspace } from "../../../shared";
 import { placeChronicle, placeJourney, stopDateDiff } from "../figures/presence";
@@ -25,7 +26,15 @@ export function PlaceHistory({
     [place.id, state.nodes, presence, timeline],
   );
   return (
-    <div className="panel-body places-inspector-body">
+    <ScrollArea
+      as={SidePanelBody}
+      axis="y"
+      gutter="stable"
+      overscroll="auto"
+      scrollbar="thin"
+      surface="panel"
+      className="places-inspector-body"
+    >
       <details className="places-manager-section" open>
         <summary>
           <div className="places-section-heading">
@@ -44,13 +53,13 @@ export function PlaceHistory({
             ].join(":");
             return (
               <div className="places-stay-row" key={stayKey}>
-                <button
-                  type="button"
+                <Button
+                  appearance="ghost"
                   className="places-link places-stay-person"
                   onClick={() => onOpen({ workspace: "figures", id: figure.id })}
                 >
                   {figure.name}
-                </button>
+                </Button>
                 <span className="places-stay-duration">
                   {stay.leftAt
                     ? stopDateDiff(stay.arrivedAt, stay.leftAt, timeline, state.timeSystem).label
@@ -93,13 +102,13 @@ export function PlaceHistory({
               <div className="places-chronicle-entry" key={row.index}>
                 <strong>
                   {moment ? (
-                    <button
-                      type="button"
+                    <Button
+                      appearance="ghost"
                       className="places-link"
                       onClick={() => onOpen({ workspace: "timeline", id: moment.id })}
                     >
                       {moment.title}
-                    </button>
+                    </Button>
                   ) : (
                     t("initialState")
                   )}
@@ -125,6 +134,6 @@ export function PlaceHistory({
           {!chronicle.length && <p className="places-section-empty">{t("noMovementYet")}</p>}
         </div>
       </details>
-    </div>
+    </ScrollArea>
   );
 }

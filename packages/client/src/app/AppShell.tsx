@@ -1,11 +1,8 @@
 import {
   ArrowLeft,
-  Clock3,
   DatabaseBackup,
-  FileText,
   History,
   LogOut,
-  MapPin,
   Moon,
   MoreHorizontal,
   PanelLeft,
@@ -13,18 +10,23 @@ import {
   Search,
   Sparkles,
   Sun,
-  Users,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { PRODUCT_NAME } from "../config/branding";
-import { Button, IconButton } from "../design";
-import { useI18n } from "../i18n";
+import { Button, DropdownMenu, IconButton, MenuItem, MenuSeparator, SaveStatus } from "../design";
+import { type MessageKey, useI18n } from "../i18n";
 import type { SavePhase, Theme, Workspace } from "../shared";
-import { Menu, MenuItem, MenuSeparator } from "../shared/ui/Menu";
-import { Popover } from "../shared/ui/Popover";
-import { SaveStatus } from "../shared/ui/SaveStatus";
-import { useShortcut } from "../shared/ui/shortcuts";
 import "./AppShell.css";
+import { useShortcut } from "./shell/useShortcut";
+import { WorkspaceSwitcher } from "./shell/WorkspaceSwitcher";
+
+const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
+  idle: "ready",
+  dirty: "unsaved",
+  saving: "saving",
+  saved: "saved",
+  error: "notSaved",
+};
 
 // Unterhalb von 400px reicht die App-Leiste nicht mehr fuer alles: Marke, drei 44px-Touchziele
 // und der Speicherstand ergeben zusammen rund 398px. Der Speicherstand zieht deshalb dort ins
@@ -93,12 +95,6 @@ export function AppShell({
   const { t } = useI18n();
   const keys = useShortcut();
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const overflowButton = useRef<HTMLButtonElement>(null);
-  const closeOverflow = useCallback(() => setOverflowOpen(false), []);
-  const runOverflow = (action: () => void) => {
-    setOverflowOpen(false);
-    action();
-  };
   // Ein fehlgeschlagenes Speichern bleibt in der Leiste, auch auf dem schmalsten Geraet. Der
   // Speicherstand ist keine Zierde -- er ist die einzige Auskunft darueber, ob der Text sicher
   // ist -- und hinter einem geschlossenen Menue waere ein Fehler unsichtbar. Die ruhigen
@@ -112,6 +108,7 @@ export function AppShell({
         <div className="app-bar__leading">
           {navigationAvailable && (
             <IconButton
+              className="app-bar__navigation-action"
               label={t("toggleNavigation")}
               icon={<PanelLeft />}
               appearance="ghost"
@@ -132,130 +129,108 @@ export function AppShell({
             </small>
           </div>
         </div>
-        <nav className="workspace-switch" aria-label={t("workspaceNav")}>
-          <Button
-            className="app-bar__workspace-button"
-            appearance="ghost"
-            icon={<FileText />}
-            aria-label={t("text")}
-            aria-current={workspace === "text" ? "page" : undefined}
-            onClick={() => onWorkspace("text")}
-          >
-            {t("text")}
-          </Button>
-          <Button
-            className="app-bar__workspace-button"
-            appearance="ghost"
-            icon={<Users />}
-            aria-label={t("figures")}
-            aria-current={workspace === "figures" ? "page" : undefined}
-            onClick={() => onWorkspace("figures")}
-          >
-            {t("figures")}
-          </Button>
-          <Button
-            className="app-bar__workspace-button"
-            appearance="ghost"
-            icon={<Clock3 />}
-            aria-label={t("timeline")}
-            aria-current={workspace === "timeline" ? "page" : undefined}
-            onClick={() => onWorkspace("timeline")}
-          >
-            {t("timeline")}
-          </Button>
-          <Button
-            className="app-bar__workspace-button"
-            appearance="ghost"
-            icon={<MapPin />}
-            aria-label={t("places")}
-            aria-current={workspace === "places" ? "page" : undefined}
-            onClick={() => onWorkspace("places")}
-          >
-            {t("places")}
-          </Button>
-        </nav>
+        <WorkspaceSwitcher value={workspace} onChange={onWorkspace} />
         <div className="global-actions" role="toolbar" aria-label={t("globalTools")}>
           <Button
+            className="global-action"
             appearance="ghost"
             icon={<Sparkles />}
             onClick={onAssistant}
             aria-label={t("openAssistant")}
             title={t("localAssistant")}
           >
-            {t("assistant")}
+            <span className="global-action__content">{t("assistant")}</span>
           </Button>
           <Button
+            className="global-action"
             appearance="ghost"
             icon={<Search />}
             onClick={onSearch}
             aria-label={t("openSearch")}
             title={t("searchCommands")}
           >
-            {t("search")}
-            <kbd>{keys("K")}</kbd>
+            <span className="global-action__content">
+              {t("search")}
+              <kbd>{keys("K")}</kbd>
+            </span>
           </Button>
-          <IconButton
-            ref={overflowButton}
-            label={t("menuMore")}
-            icon={<MoreHorizontal />}
-            appearance="ghost"
-            size="regular"
-            aria-haspopup="menu"
-            aria-expanded={overflowOpen}
-            onClick={() => setOverflowOpen((value) => !value)}
-            title={t("menuMore")}
-          />
-        </div>
-        {saveStatusInBar && <SaveStatus phase={phase} error={error} onRetry={retry} />}
-        <Popover
-          anchorRef={overflowButton}
-          open={overflowOpen}
-          onClose={closeOverflow}
-          label={t("menuActions")}
-        >
-          <Menu label={t("menuActions")} onClose={closeOverflow}>
+          <DropdownMenu
+            label={t("menuActions")}
+            open={overflowOpen}
+            onOpenChange={setOverflowOpen}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <IconButton
+                {...triggerProps}
+                ref={ref}
+                className="global-action global-action--icon"
+                label={t("menuMore")}
+                icon={<MoreHorizontal />}
+                appearance="ghost"
+                size="regular"
+                title={t("menuMore")}
+              />
+            )}
+          >
             {!saveStatusInBar && (
               <div className="menu-save-status">
-                <SaveStatus phase={phase} error={error} onRetry={retry} />
+                <SaveStatus
+                  className="app-save-status"
+                  phase={phase}
+                  label={t(SAVE_STATUS_LABEL_KEYS[phase])}
+                  error={error}
+                  retryLabel={t("retry")}
+                  onRetry={retry}
+                />
               </div>
             )}
             {!saveStatusInBar && <MenuSeparator />}
-            <MenuItem onSelect={() => runOverflow(onExitWorld)}>
+            <MenuItem onSelect={onExitWorld}>
               <ArrowLeft />
               {t("returnToWorldSelection")}
             </MenuItem>
             <MenuSeparator />
-            <MenuItem onSelect={() => runOverflow(onHistory)}>
+            <MenuItem onSelect={onHistory}>
               <History />
               {t("history")}
             </MenuItem>
-            <MenuItem onSelect={() => runOverflow(onBackups)}>
+            <MenuItem onSelect={onBackups}>
               <DatabaseBackup />
               {t("backups")}
             </MenuItem>
             <MenuSeparator />
-            <MenuItem onSelect={() => runOverflow(onSnapshot)}>
+            <MenuItem onSelect={onSnapshot}>
               <Save />
               {t("snapshotSave")}
             </MenuItem>
             <MenuSeparator />
-            <MenuItem onSelect={() => runOverflow(onTheme)}>
+            <MenuItem onSelect={onTheme}>
               {theme === "dark" ? <Sun /> : <Moon />}
               {theme === "dark" ? t("themeLight") : t("themeDark")}
             </MenuItem>
             {whoami && onLogout && (
               <>
                 <MenuSeparator />
-                <MenuItem onSelect={() => runOverflow(onLogout)}>
+                <MenuItem onSelect={onLogout}>
                   <LogOut />
                   {t("logout")}
                 </MenuItem>
               </>
             )}
-          </Menu>
-        </Popover>
+          </DropdownMenu>
+        </div>
+        {saveStatusInBar && (
+          <SaveStatus
+            className="app-save-status"
+            phase={phase}
+            label={t(SAVE_STATUS_LABEL_KEYS[phase])}
+            labelVisibility="attention"
+            error={error}
+            retryLabel={t("retry")}
+            onRetry={retry}
+          />
+        )}
       </header>
-      <main className="workspace">{children}</main>
+      <main className="app-workspace">{children}</main>
     </div>
   );
 }

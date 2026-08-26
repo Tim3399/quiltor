@@ -1,8 +1,14 @@
-import { Plus, Redo2, Undo2 } from "lucide-react";
-import { Button, IconButton } from "../../../design";
-import type { TimeSystem, TimeSystemKind } from "../model";
+import { Plus } from "lucide-react";
+import {
+  Button,
+  UndoRedoControls,
+  WorkspaceToolbar,
+  WorkspaceToolbarActions,
+  WorkspaceToolbarGroup,
+  WorkspaceToolbarTitle,
+} from "../../../design";
 import type { Translate, UiLocale } from "../../../i18n";
-import { useShortcut } from "../../../shared/ui/shortcuts";
+import type { TimeSystem, TimeSystemKind } from "../model";
 import { TimeSystemControls } from "./TimeSystemControls";
 
 export function TimelineToolbar({
@@ -32,49 +38,46 @@ export function TimelineToolbar({
   locale: UiLocale;
   t: Translate;
 }) {
-  const keys = useShortcut();
   return (
-    <div className="context-bar">
-      <div className="context-title">
-        <strong>{t("timeline")}</strong>
-        <span>
-          {t("nMoments", { n: momentCount })} · {t("nRelationships", { n: relationshipCount })}
-        </span>
-      </div>
-      <div className="context-tools">
-        <TimeSystemControls
-          system={system}
-          onKindChange={onKindChange}
-          onPatch={onPatchSystem}
-          locale={locale}
-          t={t}
-        />
-        <div className="tool-group">
+    <WorkspaceToolbar className="timeline-toolbar" label={t("timeline")}>
+      <WorkspaceToolbarTitle
+        title={t("timeline")}
+        detail={
+          <>
+            {t("nMoments", { n: momentCount })} · {t("nRelationships", { n: relationshipCount })}
+          </>
+        }
+      />
+      <WorkspaceToolbarActions className="timeline-toolbar-actions">
+        <WorkspaceToolbarGroup className="timeline-time-group" label={t("timelineTimeSystem")}>
+          <TimeSystemControls
+            system={system}
+            onKindChange={onKindChange}
+            onPatch={onPatchSystem}
+            locale={locale}
+            t={t}
+          />
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup className="timeline-add-group" label={t("addMoment")}>
           <Button appearance="primary" icon={<Plus />} onClick={onAddMoment}>
             {t("addMoment")}
           </Button>
-        </div>
-        <div className="tool-group">
-          <IconButton
-            label={t("timelineUndo")}
-            icon={<Undo2 />}
-            appearance="ghost"
-            size="regular"
-            disabled={!canUndo}
-            onClick={onUndo}
-            title={`${t("timelineUndo")} · ${keys("Z")}`}
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup
+          className="timeline-history-group"
+          label={`${t("timelineUndo")} / ${t("timelineRedo")}`}
+        >
+          <UndoRedoControls
+            label={`${t("timelineUndo")} / ${t("timelineRedo")}`}
+            undoLabel={t("timelineUndo")}
+            redoLabel={t("timelineRedo")}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={() => onUndo?.()}
+            onRedo={() => onRedo?.()}
           />
-          <IconButton
-            label={t("timelineRedo")}
-            icon={<Redo2 />}
-            appearance="ghost"
-            size="regular"
-            disabled={!canRedo}
-            onClick={onRedo}
-            title={`${t("timelineRedo")} · ${keys("Z", { shift: true })}`}
-          />
-        </div>
-      </div>
-    </div>
+        </WorkspaceToolbarGroup>
+      </WorkspaceToolbarActions>
+    </WorkspaceToolbar>
   );
 }

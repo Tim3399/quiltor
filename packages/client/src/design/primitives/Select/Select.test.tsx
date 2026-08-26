@@ -30,7 +30,7 @@ describe("Select", () => {
     expect(ref.current).toBe(select);
     expect(select).toHaveAttribute("name", "calendar");
     expect(select).toBeRequired();
-    expect(select).toHaveClass("calendar-select");
+    expect(select).toHaveClass("ui-select", "calendar-select");
     expect(select).toHaveValue("custom");
     expect(document.getElementById("calendar-field")).toHaveClass("ui-field", "calendar-layout");
 

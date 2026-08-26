@@ -83,6 +83,24 @@ test("attributes BEM element and modifier selectors to their design owner", () =
   });
 });
 
+test("counts retired composition recipes as CSS owner debt", () => {
+  const debt = analyze(`
+    .context-bar, .panel-heading--inspector { display: flex; }
+    .context-tools > .tool-group { gap: 1rem; }
+    .empty-message { color: gray; }
+  `);
+
+  assert.deepEqual(debt, {
+    designOwnerOverrides: {
+      "empty-message": 1,
+      "panel-heading": 1,
+      "context-bar": 1,
+      "context-tools": 1,
+      "tool-group": 1,
+    },
+  });
+});
+
 test("understands selector-list pseudos without treating arbitrary function arguments as selectors", () => {
   const debt = analyze(`
     :is(button, input).ui-button,

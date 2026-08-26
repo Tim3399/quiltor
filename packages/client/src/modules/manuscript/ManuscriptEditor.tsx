@@ -1,4 +1,3 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Annotation, EditorSelection, EditorState } from "@codemirror/state";
 import {
   EditorView,
@@ -6,10 +5,8 @@ import {
   keymap,
   placeholder as placeholderExtension,
 } from "@codemirror/view";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FigureNode } from "../story-world";
-import type { EntityMention, TextMark, TextMarkKind, WritingIssue } from "./model";
-import { mapMentions } from "./mentions";
-import { mapMarks, toggleMark } from "./marks";
 import {
   createdMention,
   type EditorCompletion,
@@ -23,6 +20,9 @@ import {
   setMentionDecorations,
   setSearchDecorations,
 } from "./editorDecorations";
+import { mapMarks, toggleMark } from "./marks";
+import { mapMentions } from "./mentions";
+import type { EntityMention, TextMark, TextMarkKind, WritingIssue } from "./model";
 
 const controlledUpdate = Annotation.define<boolean>();
 
@@ -112,6 +112,7 @@ export function ManuscriptEditor({
   issuesRef.current = issues;
   entitiesRef.current = entities || [];
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The editor view is created once; controlled document updates are synchronized by the value effect below.
   useLayoutEffect(() => {
     if (!host.current) return;
     // `asked` separates the two things a selection can mean. Marking text only ever
@@ -194,6 +195,7 @@ export function ManuscriptEditor({
                 const detail = document.createElement("span");
                 detail.textContent = describeEntityRef.current(entity);
                 const button = document.createElement("button");
+                button.className = "entity-mention-card__open";
                 button.type = "button";
                 button.textContent = "→";
                 button.setAttribute("aria-label", entity.name);
@@ -447,7 +449,7 @@ export function ManuscriptEditor({
   }, [issues]);
   useEffect(() => {
     view.current?.dispatch({ effects: setHeldSelection.of(held) });
-  }, [held?.from, held?.to]);
+  }, [held]);
   useEffect(() => {
     view.current?.dispatch({
       effects: setSearchDecorations.of({ matches: searchMatches, active: activeSearchMatch }),

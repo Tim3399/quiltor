@@ -1,9 +1,15 @@
-import { useState } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { TextWorkspace } from "./TextWorkspace";
 import type { Manuscript } from "./model";
-import { figures, manuscript, renderWorkspace, TestProviders } from "./TextWorkspace.testSupport";
+import { TextWorkspace } from "./TextWorkspace";
+import {
+  figures,
+  manuscript,
+  renderWorkspace,
+  requireValue,
+  TestProviders,
+} from "./TextWorkspace.testSupport";
 
 describe("TextWorkspace chapter binder", () => {
   it("speichert die Kapitelnotiz aus der linken Spalte", () => {
@@ -18,7 +24,7 @@ describe("TextWorkspace chapter binder", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    const binder = within(view.container.querySelector(".binder")!);
+    const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
     fireEvent.change(binder.getByLabelText("Kapitelnotiz"), {
       target: { value: "Die Unruhe nur andeuten." },
     });
@@ -50,7 +56,7 @@ describe("TextWorkspace chapter binder", () => {
         <Stateful />
       </TestProviders>,
     );
-    const status = within(view.container.querySelector(".context-bar")!);
+    const status = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
     expect(status.getByText("Wörter").nextSibling).toHaveTextContent("2");
     expect(status.getByText("Zeichen").nextSibling).toHaveTextContent("10");
     expect(status.getByText("Normseiten").nextSibling).toHaveTextContent("0,0");
@@ -79,7 +85,7 @@ describe("TextWorkspace chapter binder", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    const binder = within(view.container.querySelector(".binder")!);
+    const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
     const actions = within(binder.getByRole("group", { name: "Kapitelaktionen: Prolog" }));
     expect(actions.getByRole("button", { name: "Nach oben" })).toBeDisabled();
     expect(actions.getByRole("button", { name: "Kapitel als Markdown" })).toBeVisible();
@@ -104,7 +110,7 @@ describe("TextWorkspace chapter binder", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    const binder = within(view.container.querySelector(".binder")!);
+    const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
     const actions = within(binder.getByRole("group", { name: "Kapitelaktionen: Prolog" }));
     fireEvent.click(actions.getByRole("button", { name: "Kapitel löschen" }));
     const dialog = within(await screen.findByRole("alertdialog"));
@@ -150,9 +156,11 @@ describe("TextWorkspace chapter binder", () => {
         <Stateful />
       </TestProviders>,
     );
-    const binder = within(view.container.querySelector(".binder")!);
+    const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
     fireEvent.click(binder.getByRole("button", { name: /Rückblende/ }));
-    fireEvent.click(binder.getByText("Handlungszeit").closest("summary")!);
+    fireEvent.click(
+      requireValue(binder.getByText("Handlungszeit").closest("summary"), "Story-time summary missing"),
+    );
     fireEvent.click(binder.getByRole("radio", { name: "Zeitpunkt" }));
 
     expect(onChange).toHaveBeenLastCalledWith(

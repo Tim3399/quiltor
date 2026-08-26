@@ -1,15 +1,17 @@
 import type { MutableRefObject } from "react";
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { Button, EmptyState, ScrollArea, TextField } from "../../design";
 import { useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
 import type { SnapshotInfo } from "../history";
-import { kindLabel, type FigureNode, type FigureState } from "../story-world";
+import { type FigureNode, type FigureState, kindLabel } from "../story-world";
+import { ChapterHistoryPanel } from "./ChapterHistoryPanel";
 import {
-  ManuscriptEditor,
   type EditorTextSelection,
+  ManuscriptEditor,
   type ManuscriptEditorHandle,
 } from "./ManuscriptEditor";
 import type { Chapter, EntityMention, TextMark, WritingIssue } from "./model";
+import { SearchNavigation } from "./SearchNavigation";
 import type { ManuscriptSearchMatch } from "./search";
 import type { ChapterHistoryState } from "./useChapterHistory";
 import type { WorkspaceSelection } from "./workspaceTypes";
@@ -77,58 +79,36 @@ export function EditorSurface({
   const { t } = useI18n();
 
   return (
-    <article className="editor-scroll">
+    <ScrollArea
+      as="article"
+      axis="y"
+      gutter="both-edges"
+      overscroll="auto"
+      scrollbar="thin"
+      surface="paper"
+      className="editor-scroll"
+    >
       {current ? (
         <div className={`editor-page ${historyOpen ? "has-chapter-history" : ""}`}>
           <div className="editor-document">
-            <input
+            <TextField
+              fieldClassName="chapter-title-field"
               className="chapter-title"
-              aria-label={t("chapterTitle")}
+              label={t("chapterTitle")}
+              labelHidden
               value={current.title}
               onChange={(event) => onUpdateTitle(event.target.value)}
               placeholder={t("chapterTitle")}
             />
             {searchQuery && (
-              <div
-                className="text-search-navigation"
-                role="search"
-                aria-label={t("textSearchResults")}
-              >
-                <Search aria-hidden="true" />
-                <strong title={searchQuery}>{searchQuery}</strong>
-                <span role="status" aria-live="polite">
-                  {t("searchResultPosition", {
-                    current: activeSearchMatch ? activeSearchIndex + 1 : 0,
-                    total: searchMatches.length,
-                  })}
-                </span>
-                <button
-                  className="icon-button"
-                  disabled={!searchMatches.length}
-                  onClick={() => onNavigateSearch(-1)}
-                  aria-label={t("previousSearchResult")}
-                  title={t("previousSearchResult")}
-                >
-                  <ChevronLeft />
-                </button>
-                <button
-                  className="icon-button"
-                  disabled={!searchMatches.length}
-                  onClick={() => onNavigateSearch(1)}
-                  aria-label={t("nextSearchResult")}
-                  title={t("nextSearchResult")}
-                >
-                  <ChevronRight />
-                </button>
-                <button
-                  className="icon-button"
-                  onClick={onCloseSearch}
-                  aria-label={t("closeTextSearch")}
-                  title={t("closeTextSearch")}
-                >
-                  <X />
-                </button>
-              </div>
+              <SearchNavigation
+                query={searchQuery}
+                current={activeSearchMatch ? activeSearchIndex + 1 : 0}
+                total={searchMatches.length}
+                onPrevious={() => onNavigateSearch(-1)}
+                onNext={() => onNavigateSearch(1)}
+                onClose={onCloseSearch}
+              />
             )}
             <ManuscriptEditor
               key={current.id}
@@ -168,59 +148,28 @@ export function EditorSurface({
             />
           </div>
           {historyOpen && (
-            <aside className="chapter-history" aria-label={t("versions")}>
-              <header>
-                <div>
-                  <strong>{t("previousVersion")}</strong>
-                  <span>{t("nextToCurrent")}</span>
-                </div>
-                <button
-                  className="icon-button"
-                  onClick={onCloseHistory}
-                  aria-label={t("closeVersions")}
-                >
-                  <X />
-                </button>
-              </header>
-              {historyCommits.length ? (
-                <label className="field">
-                  <span>{t("state")}</span>
-                  <select value={historyRef} onChange={(event) => onHistoryRef(event.target.value)}>
-                    {historyCommits.map((commit) => (
-                      <option key={commit.hash} value={commit.hash}>
-                        {commit.date} · {commit.subject}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                historyState !== "loading" && <p className="muted">{t("noVersion")}</p>
-              )}
-              {historyState === "loading" ? (
-                <p className="muted">{t("loadingVersion")}</p>
-              ) : historyState === "error" ? (
-                <div className="error-box">{t("versionLoadError")}</div>
-              ) : (
-                historyCommits.length > 0 && (
-                  <div className="historical-prose">
-                    {historicalText || <em>{t("chapterNotYetExisting")}</em>}
-                  </div>
-                )
-              )}
-            </aside>
+            <ChapterHistoryPanel
+              commits={historyCommits}
+              selectedRef={historyRef}
+              historicalText={historicalText}
+              state={historyState}
+              onClose={onCloseHistory}
+              onRefChange={onHistoryRef}
+            />
           )}
         </div>
       ) : (
-        <div className="empty-state">
-          <span className="empty-glyph" aria-hidden="true">
-            Aa
-          </span>
-          <h2>{t("noChapterYet")}</h2>
-          <button className="primary" onClick={onCreateChapter}>
-            {t("createFirstChapter")}
-          </button>
-        </div>
+        <EmptyState
+          className="empty-state"
+          title={t("noChapterYet")}
+          icon={<span className="empty-glyph">Aa</span>}
+          actions={
+            <Button appearance="primary" onClick={onCreateChapter}>
+              {t("createFirstChapter")}
+            </Button>
+          }
+        />
       )}
-    </article>
+    </ScrollArea>
   );
 }

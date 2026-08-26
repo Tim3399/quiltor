@@ -13,7 +13,8 @@
   background: var(--panel);
 }
 
-.places-scale-legend label {
+.places-scale-value-group,
+.places-scale-value-field {
   display: flex;
   align-items: center;
   gap: var(--space-6);
@@ -21,7 +22,7 @@
   font-size: var(--font-size-2);
 }
 
-.places-scale-legend input[type="number"] {
+.places-scale-value {
   width: 64px;
   padding: var(--space-4) var(--space-6);
   border: 1px solid var(--line);
@@ -29,7 +30,7 @@
   background: var(--paper);
 }
 
-.places-scale-legend input:not([type="number"]) {
+.places-scale-unit {
   width: 100px;
   padding: var(--space-4) var(--space-6);
   border: 1px solid var(--line);
@@ -95,12 +96,13 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
   }
-  .places-scale-legend label,
-  .places-scale-legend input:not([type="number"]) {
+  .places-scale-value-group,
+  .places-scale-unit-field,
+  .places-scale-unit {
     width: 100%;
     min-width: 0;
   }
-  .places-scale-legend label:first-child {
+  .places-scale-value-group {
     display: grid;
     grid-template-columns: auto minmax(56px, 1fr) auto;
   }

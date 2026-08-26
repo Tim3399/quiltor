@@ -39,3 +39,11 @@ export function LongContent() {
     </Field>
   );
 }
+
+export function HiddenLabel() {
+  return (
+    <Field label="Schnellsuche" labelHidden>
+      <input type="search" placeholder="Welt durchsuchen" />
+    </Field>
+  );
+}

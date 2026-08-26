@@ -1,8 +1,16 @@
-import { MapPin, Pin, Star, X } from "lucide-react";
-import { Button, IconButton, TextArea, TextField } from "../../../design";
+import { MapPin, X } from "lucide-react";
+import {
+  IconButton,
+  SidePanelBody,
+  SidePanelEmpty,
+  SidePanelHeader,
+  TextArea,
+  TextField,
+} from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { Workspace } from "../../../shared";
 import type { FigureNode, FigureState } from "../model";
+import { NodePriorityActions } from "../NodePriorityActions";
 import { PlaceHistory } from "./PlaceHistory";
 import "./PlaceInspector.css";
 
@@ -22,19 +30,26 @@ export function PlaceInspector({
   const { t } = useI18n();
   return (
     <>
-      <div className="panel-heading">
-        <span>{selected ? selected.name : t("inspector")}</span>
-        {selected && <IconButton label={t("closeSelection")} icon={<X />} onClick={onClose} />}
-      </div>
+      <SidePanelHeader
+        className="places-inspector-header"
+        title={selected ? selected.name : t("inspector")}
+        actions={
+          selected ? (
+            <IconButton label={t("closeSelection")} icon={<X />} onClick={onClose} />
+          ) : undefined
+        }
+      />
       {!selected ? (
-        <div className="empty-inspector">
-          <MapPin />
-          <h2>{t("selectPlace")}</h2>
+        <SidePanelEmpty
+          className="places-inspector-empty"
+          icon={<MapPin />}
+          title={t("selectPlace")}
+        >
           <p>{t("selectPlaceBody")}</p>
-        </div>
+        </SidePanelEmpty>
       ) : (
         <>
-          <div className="panel-body places-place-fields">
+          <SidePanelBody className="places-place-fields">
             <TextField
               id="place-name"
               label={t("name")}
@@ -47,27 +62,17 @@ export function PlaceInspector({
               value={selected.sub || ""}
               onChange={(event) => onPatch({ sub: event.target.value })}
             />
-            <div className="places-priority-actions">
-              <Button
-                className="places-priority-action"
-                appearance={selected.important ? "primary" : "secondary"}
-                icon={<Star />}
-                aria-pressed={!!selected.important}
-                onClick={() => onPatch({ important: !selected.important })}
-              >
-                {selected.important ? t("unfavoritePlace") : t("favoritePlace")}
-              </Button>
-              <Button
-                className="places-priority-action"
-                appearance={selected.pinned ? "primary" : "secondary"}
-                icon={<Pin />}
-                aria-pressed={!!selected.pinned}
-                onClick={() => onPatch({ pinned: !selected.pinned })}
-              >
-                {selected.pinned ? t("unlockPlacePosition") : t("lockPlacePosition")}
-              </Button>
-            </div>
-          </div>
+            <NodePriorityActions
+              className="places-priority-actions"
+              actionClassName="places-priority-action"
+              important={!!selected.important}
+              pinned={!!selected.pinned}
+              importantLabel={selected.important ? t("unfavoritePlace") : t("favoritePlace")}
+              pinnedLabel={selected.pinned ? t("unlockPlacePosition") : t("lockPlacePosition")}
+              onImportantChange={(important) => onPatch({ important })}
+              onPinnedChange={(pinned) => onPatch({ pinned })}
+            />
+          </SidePanelBody>
           <PlaceHistory place={selected} state={state} onOpen={onOpen} />
         </>
       )}

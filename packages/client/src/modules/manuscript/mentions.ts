@@ -1,7 +1,7 @@
 import type { ChangeSet } from "@codemirror/state";
 import type { FigureNode } from "../story-world";
-import type { Chapter, EntityMention, Manuscript } from "./model";
 import { marksAfterReplacement } from "./marks";
+import type { Chapter, EntityMention, Manuscript } from "./model";
 
 export type AmbiguousMentionCandidate = {
   from: number;

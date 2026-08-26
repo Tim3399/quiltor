@@ -2,35 +2,6 @@
   min-width: 0;
   padding: var(--space-14) var(--space-18) var(--space-12);
   border-bottom: 1px solid var(--line);
-  background: var(--panel);
-  overflow-x: auto;
-  scrollbar-color: var(--line-strong) var(--transparent);
-  scrollbar-width: thin;
-  scrollbar-gutter: stable;
-  --scrollbar-surface: var(--panel);
-}
-.story-timeline::-webkit-scrollbar {
-  width: var(--space-10);
-  height: var(--space-10);
-}
-.story-timeline::-webkit-scrollbar-track {
-  background: var(--transparent);
-}
-.story-timeline::-webkit-scrollbar-thumb {
-  min-width: var(--space-48);
-  min-height: var(--space-48);
-  border: var(--space-3) solid var(--scrollbar-surface);
-  border-radius: var(--radius-pill);
-  background: var(--line-strong);
-}
-.story-timeline::-webkit-scrollbar-thumb:hover {
-  background: var(--gold-border);
-}
-.story-timeline::-webkit-scrollbar-thumb:active {
-  background: var(--gold);
-}
-.story-timeline::-webkit-scrollbar-corner {
-  background: var(--scrollbar-surface);
 }
 .story-track {
   min-width: max-content;
@@ -47,19 +18,23 @@
   position: relative;
   width: 190px;
   min-height: 64px;
+  display: block;
+  padding: var(--space-9) var(--space-12);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--elevation-1) var(--node-shadow);
+}
+.story-moment > span:first-child {
+  display: block;
+}
+.story-moment-content {
+  min-width: 0;
+  width: 100%;
   display: grid;
   grid-template-columns: 18px 22px minmax(0, 1fr);
   grid-template-areas: "grip index title" "grip index meta";
   align-items: center;
   gap: var(--space-2) var(--space-7);
-  padding: var(--space-9) var(--space-12);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--paper);
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-  box-shadow: var(--elevation-1) var(--node-shadow);
 }
 .story-moment::after {
   content: "";
@@ -80,25 +55,25 @@
     var(--ring-2) var(--gold-soft),
     var(--elevation-2) var(--node-shadow);
 }
-.story-moment > svg {
+.story-moment-content > svg {
   grid-area: grip;
   width: 15px;
   color: var(--muted);
   cursor: grab;
 }
-.story-moment > span {
+.story-moment-index {
   grid-area: index;
   color: var(--gold-text);
   font-size: var(--font-size-2);
 }
-.story-moment > strong {
+.story-moment-content > strong {
   grid-area: title;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: 600 var(--font-size-5) var(--prose);
 }
-.story-moment > small {
+.story-moment-content > small {
   grid-area: meta;
   color: var(--muted);
   font-size: var(--font-size-1);
@@ -125,20 +100,6 @@
 .timeline-manager-empty p {
   max-width: 480px;
   line-height: 1.5;
-}
-.timeline-manager-empty button {
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-7);
-  padding: 0 var(--space-12);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  cursor: pointer;
-}
-.timeline-manager-empty button svg {
-  width: 15px;
 }
 @media (max-width: 640px) {
   .story-timeline {

@@ -1,61 +1,111 @@
-:root {
+/*
+ * Warm writer-tool color system
+ *
+ * Light mode: parchment, ivory, ink, moss and aged gold.
+ * Dark mode: candlelit charcoal, aged ivory, brass and muted earth tones.
+ *
+ * The core palette follows the final light/dark reference image. Warning
+ * colors intentionally use burnt orange so they remain distinct from gold.
+ */
+
+:root,
+:root[data-theme="light"] {
   color-scheme: light;
+
   --transparent: transparent;
-  --canvas: #ebe9e1;
-  --chrome: #f3f1ea;
-  --paper: #fffdf8;
-  --panel: #f8f6ef;
-  --ink: #25261f;
-  --soft: #4f5149;
-  --muted: #65675e;
-  --line: #d7d3c7;
-  --line-strong: #b6b09f;
-  --gold: #806018;
-  --gold-soft: #f0e6cf;
-  --gold-text: #674a0b;
-  --gold-border: #c9ae6f;
-  --rose: #9d5361;
-  --moss: #4f7254;
-  --danger: #a3424f;
-  --danger-on: #ffffff;
-  --focus: #35649e;
-  --control-hint: rgb(0 0 0 / 0.04);
-  --control-hover: rgb(0 0 0 / 0.05);
-  --control-hover-subtle: rgb(0 0 0 / 0.035);
-  --active-surface: rgb(255 255 255 / 0.32);
-  --material-toolbar: rgb(243 241 234 / 0.88);
-  --material-popover: rgb(255 253 248 / 0.94);
-  --material-sheet: rgb(248 246 239 / 0.97);
-  --selection-surface: rgb(201 174 111 / 0.28);
-  --disabled-surface: rgb(79 81 73 / 0.08);
-  --disabled-content: rgb(79 81 73 / 0.52);
-  --table-highlight: rgb(150 114 41 / 0.07);
-  --overlay: rgb(30 30 25 / 0.32);
-  --shadow-color: rgb(31 30 25 / 0.18);
-  --drawer-shadow: rgb(30 30 25 / 0.12);
-  --node-shadow: rgb(35 34 29 / 0.12);
-  --warning-bg: #fff9e9;
-  --warning-border: #c3a65e;
-  --warning-text: #604912;
-  --warning-shadow: rgb(65 52 23 / 0.12);
-  --error-bg: #f7e8e9;
-  --error-border: #d59aa1;
-  --error-text: #782f39;
-  --diff-add: #e7f0e5;
-  --diff-delete: #f3e4e6;
-  --diff-word-add: #bcd8b8;
-  --diff-word-delete: #e2b8bf;
-  --minimap-node: #b5ac92;
+
+  /* Surfaces */
+  --canvas: #e9e0d2;
+  --chrome: #f7eede;
+  --paper: #fcf6ed;
+  --panel: #f7eddd;
+
+  /* Text and structure */
+  --ink: #13130f;
+  --soft: #474840;
+  --muted: #625a50;
+  --line: #cfbfa8;
+  --line-strong: #aa9479;
+
+  /* Accent families: base, soft surface, readable text and structural border */
+  --gold: #a06a17;
+  --gold-soft: #f3d9af;
+  --gold-text: #6c4204;
+  --gold-border: #956018;
+
+  --rose: #aa4643;
+  --rose-soft: #f4d8d2;
+  --rose-text: #732b2c;
+  --rose-border: #aa5a56;
+
+  --moss: #4c644a;
+  --moss-soft: #dde6d9;
+  --moss-text: #304730;
+  --moss-border: #667b64;
+
+  --focus: #21456a;
+  --focus-soft: #dce9f2;
+  --focus-text: #173d60;
+  --focus-border: #4b6f8d;
+
+  /* Destructive actions */
+  --danger: #8f2f25;
+  --danger-fill: #9b261b;
+  --danger-on: #fff8ee;
+
+  /* Controls and interaction */
+  --control-hint: rgb(19 19 15 / 0.035);
+  --control-hover: rgb(19 19 15 / 0.055);
+  --control-hover-subtle: rgb(19 19 15 / 0.035);
+  --active-surface: rgb(255 255 255 / 0.34);
+  --selection-surface: rgb(160 106 23 / 0.22);
+  --disabled-surface: rgb(71 72 64 / 0.08);
+  --disabled-content: rgb(71 72 64 / 0.48);
+  --table-highlight: rgb(160 106 23 / 0.08);
+
+  /* Translucent materials */
+  --material-toolbar: rgb(247 238 222 / 0.9);
+  --material-popover: rgb(252 246 237 / 0.96);
+  --material-sheet: rgb(247 237 221 / 0.98);
+
+  /* Depth */
+  --overlay: rgb(19 19 15 / 0.34);
+  --shadow-color: rgb(19 19 15 / 0.18);
+  --drawer-shadow: rgb(19 19 15 / 0.13);
+  --node-shadow: rgb(19 19 15 / 0.12);
+
+  /* Warning: deliberately burnt orange, not gold */
+  --warning-bg: #fff0e8;
+  --warning-border: #d86a28;
+  --warning-text: #7a2b0b;
+  --warning-shadow: rgb(122 43 11 / 0.14);
+
+  /* Error */
+  --error-bg: #f5c9bf;
+  --error-border: #a75145;
+  --error-text: #5f1a14;
+
+  /* Diff */
+  --diff-add: #e6ecdf;
+  --diff-delete: #f3ddd9;
+  --diff-word-add: #bfd0b2;
+  --diff-word-delete: #e2b5ae;
+
+  /* Graph and minimap */
+  --minimap-node: #aa9479;
   --minimap-person: var(--gold);
-  --minimap-animal: #58758a;
-  --minimap-organisation: #765b8f;
-  --minimap-object: #80684f;
+  --minimap-animal: #4f7185;
+  --minimap-organisation: #735d80;
+  --minimap-object: #80644d;
   --minimap-place: var(--moss);
   --minimap-concept: var(--rose);
-  --minimap-mask: rgb(235 233 225 / 0.72);
-  --edge-label-bg: #fffdf8;
-  --edge-label-text: #25261f;
-  --attribution: #4f5149;
+  --minimap-mask: rgb(233 224 210 / 0.74);
+
+  --edge-label-bg: var(--paper);
+  --edge-label-text: var(--ink);
+  --attribution: #414039;
+
+  /* Printing remains independent of the active UI theme */
   --print-paper: #ffffff;
   --print-ink: #111111;
   --print-muted: #5d5a54;
@@ -63,60 +113,95 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  /* Keep the application shell quiet and neutral; warmth is reserved for meaning, not surfaces. */
-  --canvas: #181a1f;
-  --chrome: #1e2126;
-  --paper: #282c33;
-  --panel: #22262c;
-  --ink: #f1f3f5;
-  --soft: #c9ced5;
-  --muted: #9da5b0;
-  --line: #363c45;
-  --line-strong: #535c69;
-  --gold: #d4b36b;
-  --gold-soft: #373329;
-  --gold-text: #e8c97f;
-  --gold-border: #78643d;
-  --rose: #d68e9c;
-  --moss: #8fbd9a;
-  --danger: #ed96a2;
-  --danger-on: #201316;
-  --focus: #8ebaff;
-  --control-hint: rgb(255 255 255 / 0.045);
-  --control-hover: rgb(255 255 255 / 0.07);
-  --control-hover-subtle: rgb(255 255 255 / 0.045);
-  --active-surface: rgb(218 225 235 / 0.07);
-  --material-toolbar: rgb(30 33 38 / 0.9);
-  --material-popover: rgb(40 44 51 / 0.96);
-  --material-sheet: rgb(34 38 44 / 0.98);
-  --selection-surface: rgb(212 179 107 / 0.2);
-  --disabled-surface: rgb(201 206 213 / 0.08);
-  --disabled-content: rgb(201 206 213 / 0.5);
-  --table-highlight: rgb(212 179 107 / 0.08);
-  --overlay: rgb(0 0 0 / 0.62);
-  --shadow-color: rgb(0 0 0 / 0.44);
-  --drawer-shadow: rgb(0 0 0 / 0.36);
-  --node-shadow: rgb(0 0 0 / 0.4);
-  --warning-bg: #332f26;
-  --warning-border: #7d6940;
-  --warning-text: #e8d294;
-  --warning-shadow: rgb(0 0 0 / 0.32);
-  --error-bg: #3d282d;
-  --error-border: #8d535e;
-  --error-text: #fac1c8;
-  --diff-add: #26372e;
-  --diff-delete: #3d292e;
-  --diff-word-add: #365142;
-  --diff-word-delete: #5d3640;
-  --minimap-node: #8993a0;
-  --minimap-person: var(--gold);
-  --minimap-animal: #87aac1;
-  --minimap-organisation: #ad97c4;
-  --minimap-object: #b69b7c;
-  --minimap-place: var(--moss);
-  --minimap-concept: var(--rose);
-  --minimap-mask: rgb(24 26 31 / 0.78);
-  --edge-label-bg: #282c33;
-  --edge-label-text: #f1f3f5;
-  --attribution: #bfc5cd;
+
+  /* Surfaces */
+  --canvas: #050605;
+  --chrome: #110f0a;
+  --paper: #16120b;
+  --panel: #251c15;
+
+  /* Text and structure */
+  --ink: #e9d6bb;
+  --soft: #b9a083;
+  --muted: #a78f74;
+  --line: #31251b;
+  --line-strong: #4a3b2d;
+
+  /* Accent families: base, soft surface, readable text and structural border */
+  --gold: #a16819;
+  --gold-soft: #2b2114;
+  --gold-text: #d0a45f;
+  --gold-border: #a87528;
+
+  --rose: #a14a47;
+  --rose-soft: #331b1a;
+  --rose-text: #efaaa5;
+  --rose-border: #b05a56;
+
+  --moss: #62694b;
+  --moss-soft: #20271d;
+  --moss-text: #b8c39e;
+  --moss-border: #7f8b67;
+
+  --focus: #7eb1d5;
+  --focus-soft: #132735;
+  --focus-text: #b9dcf3;
+  --focus-border: #6d9ab9;
+
+  /* Destructive actions */
+  --danger: #df8271;
+  --danger-fill: #8c2619;
+  --danger-on: #fff1e1;
+
+  /* Controls and interaction */
+  --control-hint: rgb(233 214 187 / 0.035);
+  --control-hover: rgb(233 214 187 / 0.065);
+  --control-hover-subtle: rgb(233 214 187 / 0.04);
+  --active-surface: rgb(233 214 187 / 0.055);
+  --selection-surface: rgb(155 99 23 / 0.22);
+  --disabled-surface: rgb(156 134 105 / 0.08);
+  --disabled-content: rgb(156 134 105 / 0.5);
+  --table-highlight: rgb(155 99 23 / 0.1);
+
+  /* Translucent materials */
+  --material-toolbar: rgb(17 15 10 / 0.93);
+  --material-popover: rgb(37 28 21 / 0.97);
+  --material-sheet: rgb(22 18 11 / 0.98);
+
+  /* Depth */
+  --overlay: rgb(0 0 0 / 0.68);
+  --shadow-color: rgb(0 0 0 / 0.5);
+  --drawer-shadow: rgb(0 0 0 / 0.42);
+  --node-shadow: rgb(0 0 0 / 0.44);
+
+  /* Warning: copper-orange, clearly separate from brass gold */
+  --warning-bg: #351b12;
+  --warning-border: #d56a2a;
+  --warning-text: #ffb187;
+  --warning-shadow: rgb(0 0 0 / 0.36);
+
+  /* Error */
+  --error-bg: #351714;
+  --error-border: #ad5b51;
+  --error-text: #f0a8a1;
+
+  /* Diff */
+  --diff-add: #1c281b;
+  --diff-delete: #321817;
+  --diff-word-add: #33462f;
+  --diff-word-delete: #5a2926;
+
+  /* Graph and minimap */
+  --minimap-node: #8a755b;
+  --minimap-person: var(--gold-text);
+  --minimap-animal: #6f91a5;
+  --minimap-organisation: #9b84a8;
+  --minimap-object: #a27b58;
+  --minimap-place: #7c8762;
+  --minimap-concept: #c06662;
+  --minimap-mask: rgb(5 6 5 / 0.82);
+
+  --edge-label-bg: var(--paper);
+  --edge-label-text: var(--ink);
+  --attribution: #9c8669;
 }

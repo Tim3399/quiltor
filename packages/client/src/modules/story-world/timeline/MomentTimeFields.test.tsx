@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider, useI18n } from "../../../i18n";
-import type { TimeSystem, TimelineMoment } from "../model";
-import { DEFAULT_TIME_SYSTEM } from "./timeSystem";
+import type { TimelineMoment, TimeSystem } from "../model";
 import { MomentCalendarFields, RelativeMomentFields } from "./MomentTimeFields";
+import { DEFAULT_TIME_SYSTEM } from "./timeSystem";
 
 afterEach(cleanup);
 
@@ -42,7 +42,9 @@ describe("MomentTimeFields", () => {
     );
     const date = screen.getByRole("group", { name: "Datum" });
     expect(
-      [...date.querySelectorAll(":scope > label > span")].map((item) => item.textContent),
+      [...date.querySelectorAll(":scope > .calendar-coordinate-field > label")].map(
+        (item) => item.textContent,
+      ),
     ).toEqual(["Tag", "Monat", "Jahr"]);
     fireEvent.change(within(date).getByRole("combobox", { name: "Tag" }), {
       target: { value: "" },

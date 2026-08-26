@@ -1,6 +1,5 @@
 import { ChangeSet } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import type { TextMark } from "./model";
 import {
   bodyParagraphs,
   hasMark,
@@ -11,6 +10,7 @@ import {
   normalizeMarks,
   toggleMark,
 } from "./marks";
+import type { TextMark } from "./model";
 
 const bold = (from: number, to: number): TextMark => ({ from, to, kind: "bold" });
 const italic = (from: number, to: number): TextMark => ({ from, to, kind: "italic" });

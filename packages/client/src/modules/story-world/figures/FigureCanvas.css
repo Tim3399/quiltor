@@ -1,3 +1,12 @@
+.figure-workspace {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(var(--context), auto) minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .figure-workspace
   .flow-area.is-connecting.zoom-overview
   .story-node
@@ -74,7 +83,7 @@
 }
 
 .figure-workspace .react-flow__edge.edge-blood .react-flow__edge-path {
-  stroke: var(--rose);
+  stroke: var(--rose-border);
   stroke-width: 2;
 }
 
@@ -155,7 +164,7 @@
   right: 0;
   left: 0;
   overflow: hidden;
-  color: var(--moss);
+  color: var(--moss-text);
   font: 600 var(--font-size-2) var(--ui);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -205,15 +214,10 @@
   transform: translate(-50%, -50%);
 }
 
-.figure-empty-state > svg {
+.figure-empty-icon {
   width: 32px;
   height: 32px;
   color: var(--gold);
-}
-
-.figure-empty-state > strong {
-  color: var(--ink);
-  font: 600 var(--font-size-6) / 1.3 var(--prose);
 }
 
 .figure-empty-copy {

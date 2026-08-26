@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useI18n } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
+import { StoryNodeCard } from "../StoryNodeCard";
 import "./PlaceNode.css";
 
 export type PlaceCardData = {
@@ -67,7 +68,16 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
         className="place-coordinate-handle"
         style={placeCoordinateHandleStyle}
       />
-      <div
+      <StoryNodeCard
+        zoomTier={data.zoomTier}
+        kind="ort"
+        accent={item.accent || "ink"}
+        important={!!item.important}
+        selected={selected}
+        modifiers={[
+          data.measuring ? "is-measuring" : "",
+          data.measureStart ? "is-measure-start" : "",
+        ]}
         style={
           {
             "--semantic-scale": semanticScale,
@@ -78,7 +88,6 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
             "--compact-touch-font-size": `${16 / safeZoom}px`,
           } as CSSProperties
         }
-        className={`story-node zoom-${data.zoomTier} type-ort accent-${item.accent || "ink"} ${item.important ? "is-important" : ""} ${data.measuring ? "is-measuring" : ""} ${data.measureStart ? "is-measure-start" : ""} ${selected ? "selected" : ""}`}
       >
         <span className="node-kind">{t("place")}</span>
         <span className="place-node-monogram" aria-hidden="true">
@@ -91,7 +100,7 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
           {item.name}
         </strong>
         {item.sub && <small>{item.sub}</small>}
-      </div>
+      </StoryNodeCard>
     </div>
   );
 }

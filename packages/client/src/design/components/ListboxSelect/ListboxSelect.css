@@ -1,0 +1,90 @@
+.ui-select-control {
+  min-width: 130px;
+  min-height: var(--control-regular);
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset var(--ring-1) var(--control-hint);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-quick) var(--ease-standard),
+    background-color var(--motion-quick) var(--ease-standard),
+    box-shadow var(--motion-quick) var(--ease-standard);
+}
+
+.ui-select-control[data-size="compact"] {
+  min-height: var(--control-compact);
+}
+
+.ui-select-control[data-size="touch"] {
+  min-height: var(--control-touch);
+  padding-inline: var(--space-16);
+}
+
+.ui-select-control:hover,
+.ui-select-control[aria-expanded="true"] {
+  border-color: var(--line-strong);
+  background: var(--active-surface);
+}
+
+.ui-select-control:focus-visible {
+  border-color: var(--focus);
+  outline: none;
+  box-shadow: var(--ring-2) var(--focus);
+}
+
+.ui-select-control:disabled {
+  background: var(--disabled-surface);
+  color: var(--disabled-content);
+  cursor: default;
+}
+
+.ui-select-control svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  transition: transform var(--motion-quick) var(--ease-standard);
+}
+
+.ui-select-control[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.ui-select-listbox {
+  min-width: var(--popover-min);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
+.ui-select-listbox [role="option"] {
+  min-height: var(--control-regular);
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-sm);
+  background: var(--transparent);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-select-listbox [role="option"]:hover,
+.ui-select-listbox [role="option"]:focus-visible {
+  background: var(--control-hover);
+  outline: none;
+}
+
+.ui-select-listbox [role="option"][aria-selected="true"] {
+  background: var(--selection-surface);
+  box-shadow: inset var(--ring-1) var(--gold-border);
+}
+
+.ui-select-listbox [role="option"]:disabled {
+  color: var(--disabled-content);
+  cursor: default;
+}

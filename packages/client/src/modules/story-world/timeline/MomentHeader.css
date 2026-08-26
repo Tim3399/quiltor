@@ -10,8 +10,8 @@
   align-items: center;
   gap: var(--space-7);
 }
-.storyboard-stepper button,
-.storyboard-actions button {
+.storyboard-stepper-action,
+.storyboard-actions-trigger {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -69,8 +69,7 @@
   display: grid;
   gap: var(--space-3);
 }
-.storyboard-chapter-usage .secondary-action,
-.storyboard-range-conflict .secondary-action {
+.storyboard-chapter-action {
   white-space: nowrap;
 }
 .storyboard-actions {
@@ -86,14 +85,15 @@
   border-radius: var(--radius);
   background: var(--panel);
 }
-.timeline-meta-card .field {
+.timeline-title-field,
+.timeline-note-field {
   margin-bottom: 0;
 }
-.timeline-meta-card .timeline-note {
+.timeline-note-field {
   grid-column: 1 / -1;
   margin-top: var(--space-14);
 }
-.timeline-meta-card textarea {
+.timeline-note-control {
   min-height: 68px;
 }
 @media (max-width: 900px) {
@@ -104,12 +104,12 @@
     display: flex;
     grid-column: 1 / -1;
   }
-  .storyboard-actions button {
+  .storyboard-actions-trigger {
     font-size: 0;
     min-width: 40px;
     padding: 0;
   }
-  .storyboard-actions button svg {
+  .storyboard-actions-trigger svg {
     margin: 0;
   }
 }
@@ -135,8 +135,7 @@
   .storyboard-range-conflict {
     grid-template-columns: auto minmax(0, 1fr);
   }
-  .storyboard-chapter-usage .secondary-action,
-  .storyboard-range-conflict .secondary-action {
+  .storyboard-chapter-action {
     grid-column: 2;
     justify-self: start;
     white-space: normal;

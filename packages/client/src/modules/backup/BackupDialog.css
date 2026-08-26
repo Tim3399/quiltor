@@ -14,6 +14,8 @@
 }
 .backup-list-item {
   width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   justify-content: flex-start;
   text-align: left;
 }
@@ -21,10 +23,10 @@
   border-color: var(--gold-border);
   background: var(--gold-soft);
 }
-.backup-list-item .ui-button__icon {
+.backup-list-item-icon {
   color: var(--muted);
 }
-.backup-list-item .ui-button__label {
+.backup-list-item-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;

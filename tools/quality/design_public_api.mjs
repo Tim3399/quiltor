@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { version as typescriptVersion } from "typescript";
 import { SyntaxKind } from "typescript/unstable/ast";
 import {
@@ -135,7 +135,11 @@ export function discoverDesignPublicApiProductFiles(clientRoot) {
   return files.sort((left, right) => normalizedPath(left).localeCompare(normalizedPath(right)));
 }
 
-/** Forbid every product dependency below design/ while allowing the design/ barrel itself. */
+/**
+ * Forbid every product dependency below design/ while allowing the design/ barrel itself.
+ * The retired shared/ui layer has no public surface: components belong to design and utilities to
+ * their app, module or shared owner.
+ */
 export function designProductImportViolations({ file, source, clientRoot }) {
   let sourceFile;
   try {
@@ -144,6 +148,7 @@ export function designProductImportViolations({ file, source, clientRoot }) {
     return [`source could not be parsed for the design Public-API boundary: ${error}`];
   }
   const designRoot = resolve(clientRoot, "design");
+  const sharedUiRoot = resolve(clientRoot, "shared", "ui");
   const violations = [];
   for (const specifier of importedSpecifiers(sourceFile)) {
     if (!specifier.startsWith(".") && !isAbsolute(specifier)) {
@@ -152,12 +157,22 @@ export function designProductImportViolations({ file, source, clientRoot }) {
           `${JSON.stringify(specifier)} deep-imports design internals; import from the public design barrel`,
         );
       }
+      if (/(?:^|\/)shared\/ui(?:\/|$)/.test(specifier)) {
+        violations.push(
+          `${JSON.stringify(specifier)} imports retired shared/ui; import components from the public design barrel and utilities from their owning layer`,
+        );
+      }
       continue;
     }
     const target = resolve(dirname(file), specifier);
     if (isWithin(designRoot, target) && target !== designRoot) {
       violations.push(
         `${JSON.stringify(specifier)} deep-imports design internals; import from the public design barrel`,
+      );
+    }
+    if (isWithin(sharedUiRoot, target)) {
+      violations.push(
+        `${JSON.stringify(specifier)} imports retired shared/ui; import components from the public design barrel and utilities from their owning layer`,
       );
     }
   }
@@ -200,7 +215,7 @@ export function analyzeDesignPublicIndex({ file, source, designRoot }) {
   return { exports, violations };
 }
 
-/** Require colocated implementation, barrel, component test and gallery story. */
+/** Require the exact colocated implementation, stylesheet, test, story and folder barrel. */
 export function designPublicFolderViolations(directory) {
   const display = normalizedPath(directory);
   if (!existsSync(directory) || !statSync(directory).isDirectory()) {
@@ -208,20 +223,42 @@ export function designPublicFolderViolations(directory) {
   }
   const entries = readdirSync(directory, { withFileTypes: true }).filter((entry) => entry.isFile());
   const names = entries.map((entry) => entry.name);
+  const component = basename(directory);
   const violations = [];
-  const implementations = names.filter(
-    (name) =>
-      name.endsWith(".tsx") && !/\.(?:test|spec|story|stories|testSupport)\.tsx$/i.test(name),
-  );
-  if (!implementations.length) violations.push(`${display}: missing local TSX implementation`);
-  if (!names.includes("index.ts")) violations.push(`${display}: missing local index.ts barrel`);
-  if (!names.some((name) => name.endsWith(".test.tsx"))) {
-    violations.push(`${display}: missing colocated *.test.tsx`);
-  }
-  if (!names.some((name) => name.endsWith(".story.tsx"))) {
-    violations.push(`${display}: missing colocated *.story.tsx`);
+  for (const required of [
+    `${component}.tsx`,
+    `${component}.css`,
+    `${component}.test.tsx`,
+    `${component}.story.tsx`,
+    "index.ts",
+  ]) {
+    if (!names.includes(required)) {
+      violations.push(`${display}: missing required ${required}`);
+    }
   }
   return violations;
+}
+
+/** Public component folders own styles; design/components itself must never become a CSS bucket. */
+export function designLooseComponentStyleViolations(designRoot) {
+  const componentsRoot = resolve(designRoot, "components");
+  if (!existsSync(componentsRoot) || !statSync(componentsRoot).isDirectory()) return [];
+  return readdirSync(componentsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".css"))
+    .map(
+      (entry) =>
+        `${normalizedPath(resolve(componentsRoot, entry.name))}: loose component stylesheet must move to its owning component folder`,
+    );
+}
+
+/** Retired global recipes must not return after product migration to public component owners. */
+export function designRetiredLegacyViolations(designRoot) {
+  return [resolve(designRoot, "internal", "legacy.css"), resolve(designRoot, "internal", "legacy")]
+    .filter((path) => existsSync(path))
+    .map(
+      (path) =>
+        `${normalizedPath(path)}: retired design legacy styles are forbidden; use a public component or a colocated feature owner`,
+    );
 }
 
 export function checkDesignPublicApi(repositoryRoot) {
@@ -240,6 +277,18 @@ export function checkDesignPublicApi(repositoryRoot) {
       ...failures.map((message) => `${normalizedPath(relative(repositoryRoot, file))}: ${message}`),
     );
   }
+  violations.push(
+    ...designLooseComponentStyleViolations(designRoot).map((message) => {
+      const prefix = normalizedPath(resolve(repositoryRoot));
+      return message.startsWith(`${prefix}/`) ? message.slice(prefix.length + 1) : message;
+    }),
+  );
+  violations.push(
+    ...designRetiredLegacyViolations(designRoot).map((message) => {
+      const prefix = normalizedPath(resolve(repositoryRoot));
+      return message.startsWith(`${prefix}/`) ? message.slice(prefix.length + 1) : message;
+    }),
+  );
   if (!existsSync(indexFile)) {
     violations.push("packages/client/src/design/index.ts: public design barrel is missing");
     return { exportedFolders: 0, productFiles: productFiles.length, violations };

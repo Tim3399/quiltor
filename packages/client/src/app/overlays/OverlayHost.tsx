@@ -1,13 +1,13 @@
 import { lazy } from "react";
+import { ConfirmDialog } from "../../design";
+import { useI18n } from "../../i18n";
 import { applyAssistantProposals, loadAssistantDrawer } from "../../modules/assistant";
 import { loadBackupDialog } from "../../modules/backup";
 import { loadHistoryDialog, loadSnapshotDialog } from "../../modules/history";
-import { orderedChapters, replaceEntityMentions, type Manuscript } from "../../modules/manuscript";
+import { type Manuscript, orderedChapters, replaceEntityMentions } from "../../modules/manuscript";
 import { loadSearchDialog } from "../../modules/search";
 import type { FigureState } from "../../modules/story-world";
 import type { Workspace, WorkspaceTarget } from "../../shared";
-import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
-import { useI18n } from "../../i18n";
 import type { Overlay } from "./useOverlayController";
 
 const AssistantDrawer = lazy(loadAssistantDrawer);
@@ -100,6 +100,8 @@ export function OverlayHost({
           description={t("updateEntityMentionsDescription")
             .replace("{from}", pendingRename.from)
             .replace("{to}", pendingRename.to)}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("updateMentions")}
           onConfirm={() => {
             onManuscriptChange(

@@ -2,7 +2,7 @@
   margin-top: var(--space-12);
 }
 
-.presence-field .ui-select-control {
+.presence-place-select {
   width: 100%;
   min-width: 0;
 }
@@ -15,7 +15,7 @@
   margin-top: var(--space-8);
 }
 
-.presence-journey button {
+.presence-journey-stop {
   min-height: 26px;
   padding: 0 var(--space-8);
   border: 1px solid var(--line);
@@ -26,7 +26,7 @@
   cursor: pointer;
 }
 
-.presence-journey button.active {
+.presence-journey-stop.active {
   border-color: var(--gold);
   background: var(--gold-soft);
   color: var(--gold-text);

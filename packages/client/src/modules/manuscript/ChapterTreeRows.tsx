@@ -1,0 +1,362 @@
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Ellipsis,
+  Folder,
+  GripVertical,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
+import { type CSSProperties, type DragEvent, type ReactNode, useRef, useState } from "react";
+import { Button, IconButton, Menu, MenuItem, Popover, TextField } from "../../design";
+import { useI18n } from "../../i18n";
+import type { ChapterFolder, ManuscriptTreeItem } from "./model";
+import type { ChapterTreeDragDrop } from "./useChapterTreeDragDrop";
+
+function depthStyle(depth: number) {
+  return { "--binder-depth": depth } as CSSProperties;
+}
+
+export function ChapterTreeDragHandle({
+  item,
+  dragDrop,
+  dragSource = false,
+}: {
+  item: ManuscriptTreeItem;
+  dragDrop: ChapterTreeDragDrop;
+  dragSource?: boolean;
+}) {
+  return (
+    <span
+      className="binder-drag-handle"
+      draggable={dragSource || undefined}
+      onDragStart={dragSource ? (event) => dragDrop.beginDrag(event, item.id) : undefined}
+      onDragEnd={dragSource ? dragDrop.endDrag : undefined}
+      aria-hidden="true"
+    >
+      <GripVertical />
+    </span>
+  );
+}
+
+export function ChapterTreeDropBefore({
+  item,
+  depth,
+  dragDrop,
+}: {
+  item: ManuscriptTreeItem;
+  depth: number;
+  dragDrop: ChapterTreeDragDrop;
+}) {
+  const destination = {
+    key: `before:${item.id}`,
+    parentFolderId: item.parentFolderId,
+    beforeItemId: item.id,
+  };
+  return (
+    <div
+      role="presentation"
+      className={`binder-drop-before ${dragDrop.draggedItemId ? "is-visible" : ""} ${
+        dragDrop.dropTarget === destination.key ? "is-active" : ""
+      }`}
+      style={depthStyle(depth)}
+      onDragEnter={(event) => dragDrop.allowDrop(event, destination)}
+      onDragOver={(event) => dragDrop.allowDrop(event, destination)}
+      onDragLeave={(event) => dragDrop.leaveDropTarget(event, destination.key)}
+      onDrop={(event) => dragDrop.drop(event, destination)}
+      aria-hidden="true"
+    />
+  );
+}
+
+export interface ChapterTreeChapterRowProps {
+  item: ManuscriptTreeItem;
+  depth: number;
+  selected: boolean;
+  label: string;
+  number: string;
+  words: ReactNode;
+  storyTime: ReactNode;
+  breadcrumb?: ReactNode;
+  dragDrop: ChapterTreeDragDrop;
+  onSelect: () => void;
+}
+
+export function ChapterTreeChapterRow({
+  item,
+  depth,
+  selected,
+  label,
+  number,
+  words,
+  storyTime,
+  breadcrumb,
+  dragDrop,
+  onSelect,
+}: ChapterTreeChapterRowProps) {
+  const rowDestination = (event: DragEvent<HTMLElement>) =>
+    dragDrop.chapterRowDestination(event, item);
+  return (
+    <li className="binder-tree-entry" data-binder-depth={depth} style={depthStyle(depth)}>
+      <ChapterTreeDropBefore item={item} depth={depth} dragDrop={dragDrop} />
+      <Button
+        appearance="ghost"
+        size="touch"
+        icon={<ChapterTreeDragHandle item={item} dragDrop={dragDrop} />}
+        draggable
+        data-binder-item
+        data-binder-depth={depth}
+        aria-current={selected ? "page" : undefined}
+        className={`binder-chapter-row ${selected ? "active" : ""}`}
+        style={depthStyle(depth)}
+        onClick={(event) => {
+          if (dragDrop.suppressSelectionRef.current) {
+            event.preventDefault();
+            return;
+          }
+          onSelect();
+        }}
+        onDragStart={(event) => dragDrop.beginDrag(event, item.id, true)}
+        onDragEnd={dragDrop.endDrag}
+        onDragEnter={(event) => dragDrop.allowDrop(event, rowDestination(event))}
+        onDragOver={(event) => dragDrop.allowDrop(event, rowDestination(event))}
+        onDragLeave={(event) => {
+          dragDrop.leaveDropTarget(event, `row-before:${item.id}`);
+          dragDrop.leaveDropTarget(event, `row-after:${item.id}`);
+        }}
+        onDrop={(event) => dragDrop.drop(event, rowDestination(event))}
+        data-drop-position={
+          dragDrop.dropTarget === `row-before:${item.id}`
+            ? "before"
+            : dragDrop.dropTarget === `row-after:${item.id}`
+              ? "after"
+              : undefined
+        }
+      >
+        <span className="binder-chapter-content">
+          <span className="chapter-number">{number}</span>
+          <span className="chapter-name">{label}</span>
+          <span className="chapter-words">{words}</span>
+          <span className="chapter-story-time-summary">{storyTime}</span>
+          {breadcrumb && <span className="chapter-breadcrumb">{breadcrumb}</span>}
+        </span>
+      </Button>
+    </li>
+  );
+}
+
+function FolderRowActions({
+  title,
+  editing,
+  onRename,
+  onDelete,
+  onCommit,
+  onCancel,
+}: {
+  title: string;
+  editing: boolean;
+  onRename: () => void;
+  onDelete: () => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnchor = useRef<HTMLButtonElement>(null);
+  const menuLabel = `${t("menuActions")}: ${title}`;
+
+  if (editing)
+    return (
+      <div className="binder-folder-actions">
+        <IconButton
+          className="binder-folder-action"
+          icon={<Check />}
+          label={t("apply")}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={onCommit}
+        />
+        <IconButton
+          className="binder-folder-action"
+          icon={<X />}
+          label={t("cancel")}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={onCancel}
+        />
+      </div>
+    );
+
+  return (
+    <div className="binder-folder-actions">
+      <div className="binder-folder-direct-actions">
+        <IconButton
+          className="binder-folder-action"
+          icon={<Pencil />}
+          label={`${t("renameFolder")}: ${title}`}
+          onClick={onRename}
+        />
+        <IconButton
+          className="binder-folder-action chapter-action-delete"
+          icon={<Trash2 />}
+          label={`${t("deleteFolder")}: ${title}`}
+          tone="danger"
+          onClick={onDelete}
+          title={t("deleteFolderKeepsContents")}
+        />
+      </div>
+      <IconButton
+        ref={menuAnchor}
+        className="binder-folder-action binder-folder-more"
+        icon={<Ellipsis />}
+        label={menuLabel}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((value) => !value)}
+      />
+      <Popover
+        anchorRef={menuAnchor}
+        open={menuOpen}
+        label={menuLabel}
+        onClose={() => setMenuOpen(false)}
+      >
+        <Menu label={menuLabel} onClose={() => setMenuOpen(false)}>
+          <MenuItem
+            onSelect={() => {
+              setMenuOpen(false);
+              queueMicrotask(onRename);
+            }}
+          >
+            <Pencil />
+            {t("renameFolder")}
+          </MenuItem>
+          <MenuItem
+            onSelect={() => {
+              setMenuOpen(false);
+              onDelete();
+            }}
+          >
+            <Trash2 />
+            {t("deleteFolderKeepsContents")}
+          </MenuItem>
+        </Menu>
+      </Popover>
+    </div>
+  );
+}
+
+export interface ChapterTreeFolderRowProps {
+  item: ManuscriptTreeItem;
+  folder: ChapterFolder;
+  depth: number;
+  collapsed: boolean;
+  editing: boolean;
+  title: string;
+  chapterCount: number;
+  childrenId: string;
+  folderTitle: string;
+  dragDrop: ChapterTreeDragDrop;
+  onFolderTitle: (title: string) => void;
+  onToggle: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+  onCommit: () => void;
+  onCancel: () => void;
+  onDropIntoFolder: () => void;
+}
+
+export function ChapterTreeFolderRow({
+  item,
+  folder,
+  depth,
+  collapsed,
+  editing,
+  title,
+  chapterCount,
+  childrenId,
+  folderTitle,
+  dragDrop,
+  onFolderTitle,
+  onToggle,
+  onRename,
+  onDelete,
+  onCommit,
+  onCancel,
+  onDropIntoFolder,
+}: ChapterTreeFolderRowProps) {
+  const { t } = useI18n();
+  const destination = { key: `folder:${folder.id}`, parentFolderId: folder.id };
+  return (
+    // Native drag targets do not represent an additional keyboard interaction or ARIA widget.
+    // biome-ignore lint/a11y/noStaticElementInteractions: the nested controls own interaction.
+    <div
+      className={`binder-folder-row ${
+        dragDrop.dropTarget === destination.key ? "is-drop-target" : ""
+      }`}
+      data-binder-depth={depth}
+      onDragOver={(event) => dragDrop.allowDrop(event, destination)}
+      onDragEnter={(event) => dragDrop.allowDrop(event, destination)}
+      onDragLeave={(event) => dragDrop.leaveDropTarget(event, destination.key)}
+      onDrop={(event) => {
+        if (dragDrop.drop(event, destination)) onDropIntoFolder();
+      }}
+    >
+      <ChapterTreeDragHandle item={item} dragDrop={dragDrop} dragSource />
+      {editing ? (
+        <TextField
+          fieldClassName="binder-folder-editor"
+          className="binder-folder-input"
+          label={t("folderName")}
+          labelHidden
+          value={folderTitle}
+          autoFocus
+          onChange={(event) => onFolderTitle(event.target.value)}
+          onBlur={onCommit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") onCommit();
+            if (event.key === "Escape") onCancel();
+          }}
+        />
+      ) : (
+        <Button
+          appearance="ghost"
+          size="touch"
+          className="binder-folder-toggle"
+          icon={collapsed ? <ChevronRight /> : <ChevronDown />}
+          onClick={onToggle}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowRight" && collapsed) {
+              event.preventDefault();
+              onToggle();
+            }
+            if (event.key === "ArrowLeft" && !collapsed) {
+              event.preventDefault();
+              onToggle();
+            }
+          }}
+          data-binder-item
+          aria-expanded={!collapsed}
+          aria-controls={childrenId}
+          aria-label={`${title}, ${t("folderChapterCount", { count: chapterCount })}: ${
+            collapsed ? t("expandFolder") : t("collapseFolder")
+          }`}
+          title={title}
+        >
+          <span className="binder-folder-label">
+            <Folder className="binder-folder-icon" aria-hidden="true" />
+            <span className="binder-folder-name">{title}</span>
+            <span className="binder-folder-count">{chapterCount}</span>
+          </span>
+        </Button>
+      )}
+      <FolderRowActions
+        title={title}
+        editing={editing}
+        onRename={onRename}
+        onDelete={onDelete}
+        onCommit={onCommit}
+        onCancel={onCancel}
+      />
+    </div>
+  );
+}

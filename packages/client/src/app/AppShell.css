@@ -6,9 +6,15 @@
   /* minmax(0, 1fr) prevents a wide workspace toolbar from widening the viewport. */
   grid-template-columns: minmax(0, 1fr);
 }
+.app-workspace {
+  min-height: 0;
+}
 .app-bar {
   z-index: var(--z-app-bar);
+  min-width: 0;
+  max-width: 100%;
   height: var(--bar);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: var(--space-12);
@@ -43,10 +49,12 @@
   letter-spacing: 0.14em;
 }
 .workspace-switch {
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   align-self: stretch;
 }
-.workspace-switch button {
+.app-bar__workspace-button {
   display: flex;
   align-items: center;
   gap: var(--space-7);
@@ -59,19 +67,20 @@
 .workspace-switch svg {
   width: 16px;
 }
-.workspace-switch button[aria-current="page"] {
+.app-bar__workspace-button[aria-current="page"] {
   border-bottom-color: var(--gold);
   background: var(--active-surface);
   color: var(--ink);
 }
 .global-actions {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-2);
   margin-left: auto;
 }
-.global-actions button,
-.app-bar__leading > button {
+.global-action,
+.app-bar__navigation-action {
   height: 34px;
   display: inline-flex;
   align-items: center;
@@ -85,94 +94,63 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.global-actions > .icon-button,
-.app-bar__leading > .icon-button {
+.global-action--icon,
+.app-bar__navigation-action {
   padding: 0;
 }
-.global-actions .ui-button__label {
+.global-action__content {
   display: inline-flex;
   align-items: center;
   gap: var(--space-7);
 }
-.global-actions button:hover,
-.app-bar__leading > button:hover {
+.global-action:hover,
+.app-bar__navigation-action:hover {
   background: var(--control-hover);
   color: var(--ink);
 }
-.global-actions svg,
-.app-bar__leading svg {
+.global-action svg,
+.app-bar__navigation-action svg {
   width: 16px;
   height: 16px;
 }
-.save-status {
+.app-save-status {
+  min-width: 0;
   height: 32px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
+  flex: 0 1 auto;
   padding: 0 var(--space-8);
-  border: 0;
-  border-radius: var(--radius);
-  background: var(--transparent);
   color: var(--muted);
-  font-size: var(--font-size-3);
-}
-.save-status span {
-  display: none;
-}
-.save-saving span,
-.save-error span {
-  display: inline;
 }
 .menu-save-status {
   display: flex;
   align-items: center;
   padding: var(--space-6) var(--space-12);
 }
-.menu-save-status .save-status {
+.menu-save-status .app-save-status {
   height: auto;
   padding: 0;
 }
-.menu-save-status .save-status span {
-  display: inline;
-}
-.save-error {
-  color: var(--danger);
-  cursor: pointer;
-}
-.save-dirty,
-.save-saving {
-  color: var(--gold);
-}
-.save-saved {
-  color: var(--moss);
-}
 
 @media (max-width: 1099px) {
-  .app-bar .global-actions button > .ui-button__label,
-  .app-bar .global-actions kbd,
+  .app-bar .global-action__content,
   .app-bar .brand small {
     display: none;
   }
 }
 @media (max-width: 1050px) {
   .brand small,
-  .global-actions .ui-button__label,
-  .global-actions kbd {
+  .global-action__content {
     display: none;
   }
   .app-bar {
     gap: var(--space-10);
   }
-  .workspace-switch button {
+  .app-bar__workspace-button {
     padding: 0 var(--space-10);
-  }
-  .save-status span {
-    display: none;
   }
   .global-actions {
     gap: 0;
   }
-  .global-actions button {
+  .global-action {
     padding: 0 var(--space-7);
   }
 }
@@ -189,14 +167,11 @@
     position: static;
     transform: none;
   }
-  .workspace-switch button {
+  .app-bar__workspace-button {
     padding: 0 var(--space-10);
   }
   .global-actions {
     margin-left: auto;
-  }
-  .save-status span {
-    display: none;
   }
 }
 @media (max-width: 719px) {
@@ -208,27 +183,33 @@
     display: none;
   }
   .app-bar .workspace-switch {
-    flex: 1;
-    justify-content: center;
+    flex: 1 1 0;
+    justify-content: safe center;
   }
-  .app-bar .workspace-switch button {
+  .app-bar .app-bar__workspace-button {
     min-width: var(--control-touch);
     justify-content: center;
     padding: 0 var(--space-8);
   }
-  .app-bar .workspace-switch .ui-button__label {
+  .app-bar .app-bar__workspace-label {
     display: none;
   }
-  .app-bar .workspace-switch button svg {
+  .app-bar .app-bar__workspace-button svg {
     width: 18px;
   }
-  .app-bar .global-actions button {
+  .app-bar .global-action {
     min-width: var(--control-touch);
     height: var(--control-touch);
     padding: 0;
   }
-  .app-bar .save-status {
+  .app-bar .app-save-status {
     padding-inline: var(--space-4);
+  }
+}
+@media (max-width: 359px) {
+  .app-bar {
+    gap: 0;
+    padding-inline: 0;
   }
 }
 @media (max-width: 640px) {
@@ -243,10 +224,10 @@
     max-width: 86px;
     font-size: var(--font-size-4);
   }
-  .workspace-switch button {
+  .app-bar__workspace-button {
     padding: 0 var(--space-7);
   }
-  .workspace-switch .ui-button__label {
+  .app-bar .app-bar__workspace-label {
     display: none;
   }
   .workspace-switch {

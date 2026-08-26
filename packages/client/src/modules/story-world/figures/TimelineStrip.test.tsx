@@ -8,7 +8,7 @@ import { TimelineStrip } from "./TimelineStrip";
 afterEach(cleanup);
 
 describe("TimelineStrip", () => {
-  it("keeps its horizontal rail on the Quiltor scrollbar contract", () => {
+  it("delegates its horizontal rail to the public ScrollArea contract", () => {
     const { container } = render(
       <I18nProvider>
         <TimelineStrip
@@ -23,23 +23,22 @@ describe("TimelineStrip", () => {
         />
       </I18nProvider>,
     );
-    expect(container.querySelector(".timeline-track")).toBeInTheDocument();
+    const track = container.querySelector(".timeline-track");
+    expect(track).toHaveClass("scroll-area", "timeline-track");
+    expect(track).toHaveAttribute("data-axis", "x");
+    expect(track).toHaveAttribute("data-gutter", "stable");
+    expect(track).toHaveAttribute("data-scrollbar", "thin");
+    expect(track).toHaveAttribute("data-surface", "panel");
 
     const css = readFileSync(
       join(process.cwd(), "packages/client/src/modules/story-world/figures/TimelineStrip.css"),
       "utf8",
     );
     expect(css).toMatch(
-      /\.timeline-track\s*\{[^}]*scrollbar-color:\s*var\(--line-strong\)\s+var\(--transparent\);[^}]*scrollbar-width:\s*thin;[^}]*--scrollbar-surface:\s*var\(--panel\);/s,
+      /\.timeline-track\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*padding:\s*var\(--space-3\) var\(--space-4\);/s,
     );
-    expect(css).toMatch(
-      /\.timeline-track::\-webkit-scrollbar\s*\{[^}]*height:\s*var\(--space-10\);/s,
-    );
-    expect(css).toMatch(
-      /\.timeline-track::\-webkit-scrollbar-thumb\s*\{[^}]*border:\s*var\(--space-3\)\s+solid\s+var\(--scrollbar-surface\);[^}]*background:\s*var\(--line-strong\);/s,
-    );
-    expect(css).toContain(".timeline-track::-webkit-scrollbar-thumb:hover");
-    expect(css).toContain(".timeline-track::-webkit-scrollbar-thumb:active");
+    expect(css).not.toMatch(/\.timeline-track(?:\s*\{|::)[^}]*(?:overflow|scrollbar)/s);
+    expect(css).not.toContain(".timeline-track::-webkit-scrollbar");
   });
 
   it("owns timeline selection, playback, and moment creation controls", () => {

@@ -1,5 +1,5 @@
-import type { ComponentProps } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import type { WorldInfo } from "../model";
@@ -95,5 +95,22 @@ describe("WorldGate", () => {
 
     expect(screen.getByText("Chronik 42")).toBeInTheDocument();
     expect(screen.queryByText("Chronik 41")).not.toBeInTheDocument();
+  });
+
+  it("composes the page and catalog through the public scroll-area contract", () => {
+    const worlds = Array.from({ length: 12 }, (_, index) => world(String(index + 1)));
+    renderGate(worlds);
+
+    const gate = screen.getByRole("main");
+    const list = screen.getByRole("list");
+    expect(gate).toHaveClass("scroll-area", "world-gate");
+    expect(gate).toHaveAttribute("data-axis", "y");
+    expect(gate).toHaveAttribute("data-scrollbar", "thin");
+    expect(gate).toHaveAttribute("data-surface", "canvas");
+    expect(list).toHaveClass("scroll-area", "world-list");
+    expect(list).toHaveAttribute("data-axis", "y");
+    expect(list).toHaveAttribute("data-scrollbar", "thin");
+    expect(list).toHaveAttribute("data-surface", "panel");
+    expect(list.closest(".world-list-panel")).toHaveAttribute("data-long", "true");
   });
 });

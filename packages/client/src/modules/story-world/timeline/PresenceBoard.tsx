@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { FigureNode, PresenceEntry, TimelineMoment } from "../model";
-import { presenceFieldEditor } from "../figures/presence";
+import { Button } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { presenceFieldEditor } from "../figures/presence";
+import type { FigureNode, PresenceEntry, TimelineMoment } from "../model";
 import "./PresenceBoard.css";
 
 const UNCHANGED = "__unchanged__";
@@ -37,11 +38,7 @@ export function PresenceBoard({
 
   return (
     <div className="presence-board">
-      <div
-        className="presence-board-roster"
-        role="list"
-        aria-label={t("figuresAndAnimalsListLabel")}
-      >
+      <ul className="presence-board-roster" aria-label={t("figuresAndAnimalsListLabel")}>
         {nodes.map((node) => {
           const editor = editorFor(node);
           const inheritedName =
@@ -49,26 +46,28 @@ export function PresenceBoard({
               ? places.find((place) => place.id === editor.inheritedPlaceId)?.name
               : undefined;
           return (
-            <button
-              key={node.id}
-              role="listitem"
-              draggable
-              className={`presence-chip type-${node.type} ${selectedChip === node.id ? "selected" : ""}`}
-              aria-pressed={selectedChip === node.id}
-              onDragStart={(event) =>
-                event.dataTransfer.setData("application/x-quiltor-figure", node.id)
-              }
-              onClick={() => setSelectedChip((current) => (current === node.id ? null : node.id))}
-            >
-              <strong>{node.name}</strong>
-              {inheritedName && (
-                <small>{t("inheritedFrom").replace("{name}", inheritedName)}</small>
-              )}
-            </button>
+            <li key={node.id}>
+              <Button
+                draggable
+                className={`presence-chip type-${node.type} ${selectedChip === node.id ? "selected" : ""}`}
+                aria-pressed={selectedChip === node.id}
+                onDragStart={(event) =>
+                  event.dataTransfer.setData("application/x-quiltor-figure", node.id)
+                }
+                onClick={() => setSelectedChip((current) => (current === node.id ? null : node.id))}
+              >
+                <span className="presence-chip-copy">
+                  <strong>{node.name}</strong>
+                  {inheritedName && (
+                    <small>{t("inheritedFrom").replace("{name}", inheritedName)}</small>
+                  )}
+                </span>
+              </Button>
+            </li>
           );
         })}
-        {!nodes.length && <p className="timeline-section-empty">{t("noFiguresOrAnimalsYet")}</p>}
-      </div>
+        {!nodes.length && <li className="timeline-section-empty">{t("noFiguresOrAnimalsYet")}</li>}
+      </ul>
       <div className="presence-board-lanes">
         {lanes.map((lane) => {
           const occupants = nodes.filter((node) => {
@@ -76,7 +75,8 @@ export function PresenceBoard({
             return lane.id === UNCHANGED ? !editor.placeId : editor.placeId === lane.id;
           });
           return (
-            <div
+            <Button
+              appearance="ghost"
               key={lane.id}
               className={`presence-lane ${dropTarget === lane.id ? "drop-active" : ""}`}
               onDragOver={(event) => {
@@ -97,16 +97,18 @@ export function PresenceBoard({
                 }
               }}
             >
-              <header>{lane.name}</header>
-              <div className="presence-lane-items">
-                {occupants.map((node) => (
-                  <span key={node.id} className={`presence-chip-mini type-${node.type}`}>
-                    {node.name}
-                  </span>
-                ))}
-                {!occupants.length && <span className="presence-lane-empty">—</span>}
-              </div>
-            </div>
+              <span className="presence-lane-content">
+                <strong className="presence-lane-heading">{lane.name}</strong>
+                <span className="presence-lane-items">
+                  {occupants.map((node) => (
+                    <span key={node.id} className={`presence-chip-mini type-${node.type}`}>
+                      {node.name}
+                    </span>
+                  ))}
+                  {!occupants.length && <span className="presence-lane-empty">—</span>}
+                </span>
+              </span>
+            </Button>
           );
         })}
         {!places.length && <p className="timeline-section-empty">{t("noPlacesInBoard")}</p>}

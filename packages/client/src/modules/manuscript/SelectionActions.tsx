@@ -1,8 +1,8 @@
-import { useRef, type MutableRefObject } from "react";
+import { type MutableRefObject, useRef } from "react";
+import { Button, SelectionMenu } from "../../design";
 import { useI18n } from "../../i18n";
-import { SelectionMenu } from "../../shared/ui/SelectionMenu";
-import { useShortcut } from "../../shared/ui/shortcuts";
 import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
+import { useManuscriptShortcut } from "./shortcuts";
 import type { WorkspaceSelection, WritingTool } from "./workspaceTypes";
 import "./SelectionActions.css";
 
@@ -28,14 +28,15 @@ export function SelectionActions({
   onOpenWritingTool,
 }: SelectionActionsProps) {
   const { t } = useI18n();
-  const keys = useShortcut();
+  const keys = useManuscriptShortcut();
   const anchorRef = useRef<HTMLButtonElement>(null);
 
   return (
     <>
-      <button
+      <Button
         ref={anchorRef}
         className="selection-anchor"
+        appearance="ghost"
         tabIndex={-1}
         aria-hidden="true"
         style={
@@ -49,7 +50,9 @@ export function SelectionActions({
             : undefined
         }
         onFocus={() => editorRef.current?.focus()}
-      />
+      >
+        <span />
+      </Button>
       <SelectionMenu
         anchorRef={anchorRef}
         open={open && !!liveSelection}

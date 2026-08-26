@@ -57,7 +57,7 @@ describe("TextField", () => {
     expect(input).toHaveAttribute("autocomplete", "off");
     expect(input).toBeRequired();
     expect(input).toHaveAttribute("readonly");
-    expect(input).toHaveClass("search-input");
+    expect(input).toHaveClass("ui-text-field", "search-input");
     expect(input).toHaveValue("Hafen");
     expect(document.getElementById("search-field")).toHaveClass("ui-field", "search-layout");
   });
@@ -69,5 +69,15 @@ describe("TextField", () => {
       "aria-invalid",
       "spelling",
     );
+  });
+
+  it("owns number-control styling while preserving native numeric constraints", () => {
+    render(<TextField label="Monatstage" type="number" min={1} step={1} defaultValue={30} />);
+
+    const input = screen.getByRole("spinbutton", { name: "Monatstage" });
+    expect(input).toHaveClass("ui-text-field");
+    expect(input).toHaveAttribute("type", "number");
+    expect(input).toHaveAttribute("min", "1");
+    expect(input).toHaveAttribute("step", "1");
   });
 });

@@ -3,6 +3,7 @@ import { Skull, Star } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useI18n } from "../../../i18n";
 import type { FigureKind, FigureNode as FigureNodeModel } from "../model";
+import { StoryNodeCard } from "../StoryNodeCard";
 import { kindLabel, type SemanticZoomTier } from "./relationships";
 
 export type FigureCardData = {
@@ -22,9 +23,15 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
   const item = data.figure;
   const semanticScale = data.zoomTier === "overview" ? 1 / Math.max(data.zoom, 0.08) : 1;
   return (
-    <div
+    <StoryNodeCard
+      zoomTier={data.zoomTier}
+      kind={item.type || "person"}
+      accent={item.accent || "ink"}
+      important={!!item.important}
+      dashed={!!item.dash}
+      selected={selected}
+      modifiers={[data.deceased ? "is-deceased" : "", data.guests.length ? "has-guests" : ""]}
       style={{ "--semantic-scale": semanticScale } as CSSProperties}
-      className={`story-node zoom-${data.zoomTier} type-${item.type || "person"} accent-${item.accent || "ink"} ${item.important ? "is-important" : ""} ${item.dash ? "dashed" : ""} ${data.deceased ? "is-deceased" : ""} ${data.guests.length ? "has-guests" : ""} ${selected ? "selected" : ""}`}
     >
       <Handle
         id="in"
@@ -80,7 +87,7 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
         type="source"
         position={Position.Bottom}
       />
-    </div>
+    </StoryNodeCard>
   );
 }
 

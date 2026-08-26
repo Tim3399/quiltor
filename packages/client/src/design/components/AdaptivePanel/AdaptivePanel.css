@@ -1,0 +1,24 @@
+.adaptive-panel__backdrop {
+  position: fixed;
+  z-index: var(--z-modal);
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: var(--overlay);
+}
+
+.adaptive-panel__overlay {
+  width: min(var(--sheet-max), 100%);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--material-sheet);
+  box-shadow: var(--shadow-drawer-left);
+}
+
+@media (max-width: 719px) {
+  .adaptive-panel__overlay {
+    width: 100%;
+  }
+}

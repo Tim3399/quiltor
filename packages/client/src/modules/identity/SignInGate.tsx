@@ -1,7 +1,7 @@
 import { PRODUCT_MARK } from "../../config/branding";
-import { useI18n } from "../../i18n";
+import { Alert, Button, PageState } from "../../design";
 import type { MessageKey } from "../../i18n";
-import "./SignInGate.css";
+import { useI18n } from "../../i18n";
 
 // Keys handle_auth_callback's four failure branches redirect here with
 // (server.py, "?authError="); anything else -- including no code at all --
@@ -16,23 +16,23 @@ const REASON_KEYS: Record<string, MessageKey> = {
 export function SignInGate({ authError }: { authError: string | null }) {
   const { t } = useI18n();
   return (
-    <main className="fatal-state">
-      <div className="loading-mark">{PRODUCT_MARK}</div>
-      <h1>{t("signInHeading")}</h1>
+    <PageState
+      kind={authError ? "error" : "empty"}
+      mark={PRODUCT_MARK}
+      title={t("signInHeading")}
+      actions={
+        <Button
+          appearance="primary"
+          onClick={() => {
+            location.href = "/login";
+          }}
+        >
+          {t("signInButton")}
+        </Button>
+      }
+    >
       <p>{t("signInIntro")}</p>
-      {authError && (
-        <div className="error-box" role="alert">
-          {t(REASON_KEYS[authError] ?? "authErrorGeneric")}
-        </div>
-      )}
-      <button
-        className="sign-in-action"
-        onClick={() => {
-          location.href = "/login";
-        }}
-      >
-        {t("signInButton")}
-      </button>
-    </main>
+      {authError && <Alert tone="danger">{t(REASON_KEYS[authError] ?? "authErrorGeneric")}</Alert>}
+    </PageState>
   );
 }

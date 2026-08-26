@@ -1,15 +1,15 @@
-import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { useI18n, type Translate } from "../../i18n";
+import { useState } from "react";
+import { ListboxSelect, SegmentedControl } from "../../design";
+import { type Translate, useI18n } from "../../i18n";
 import {
   canonicalTimelineOrder,
   momentBoundaryTimeLabel,
   momentTimeLabel,
   normalizeTimeSystem,
-  type TimeSystem,
   type TimelineMoment,
+  type TimeSystem,
 } from "../story-world";
-import { SegmentedControl, SelectControl } from "../../shared/ui";
 import type { Chapter, ChapterStoryTime } from "./model";
 
 type StoryTimeMode = "open" | "point" | "range";
@@ -158,8 +158,8 @@ export function ChapterStoryTimeFields({
 
   return (
     <details className="binder-story-time" open={expanded}>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: HTML summary is natively interactive, but Biome currently models it as static. */}
       <summary
-        aria-expanded={expanded}
         onClick={(event) => {
           event.preventDefault();
           setExpanded((value) => !value);
@@ -179,9 +179,11 @@ export function ChapterStoryTimeFields({
         <div className="binder-story-time-panel">
           <p className="binder-story-time-help">{t("chapterStoryTimeHelp")}</p>
           <SegmentedControl
+            className="binder-story-time-mode"
             label={t("chapterStoryTimeMode")}
             value={mode}
             onChange={setMode}
+            size="compact"
             options={[
               { value: "open", label: t("chapterStoryTimeOpenMode") },
               { value: "point", label: t("chapterStoryTimePoint"), disabled: !timeline.length },
@@ -193,11 +195,12 @@ export function ChapterStoryTimeFields({
           )}
           {mode !== "open" && timeline.length > 0 && (
             <div className="binder-story-time-fields">
-              <label>
+              <div className="binder-story-time-field">
                 <span>
                   {mode === "range" ? t("chapterStoryTimeStart") : t("chapterStoryTimePoint")}
                 </span>
-                <SelectControl
+                <ListboxSelect
+                  className="binder-story-time-select"
                   label={mode === "range" ? t("chapterStoryTimeStart") : t("chapterStoryTimePoint")}
                   value={startMomentId}
                   options={startOptions}
@@ -219,11 +222,12 @@ export function ChapterStoryTimeFields({
                     });
                   }}
                 />
-              </label>
+              </div>
               {mode === "range" && (
-                <label>
+                <div className="binder-story-time-field">
                   <span>{t("chapterStoryTimeEnd")}</span>
-                  <SelectControl
+                  <ListboxSelect
+                    className="binder-story-time-select"
                     label={t("chapterStoryTimeEnd")}
                     value={endMomentId}
                     options={endOptions}
@@ -231,7 +235,7 @@ export function ChapterStoryTimeFields({
                       onChange({ startMomentId, endMomentId: nextEndMomentId })
                     }
                   />
-                </label>
+                </div>
               )}
             </div>
           )}

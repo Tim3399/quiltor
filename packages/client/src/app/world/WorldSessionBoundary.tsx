@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { PRODUCT_MARK } from "../../config/branding";
+import { PageState } from "../../design";
 import { useI18n } from "../../i18n";
 import { SignInGate } from "../../modules/identity";
 import { WorldGate, type WorldInfo } from "../../modules/story-world";
@@ -34,10 +35,9 @@ export function WorldSessionBoundary({
 }) {
   const { t } = useI18n();
   const loading = (message: string) => (
-    <main className="loading-state">
-      <div className="loading-mark">{PRODUCT_MARK}</div>
+    <PageState kind="loading" mark={PRODUCT_MARK}>
       <p>{message}</p>
-    </main>
+    </PageState>
   );
 
   if (needsSignIn) return <SignInGate authError={authError} />;
@@ -57,15 +57,14 @@ export function WorldSessionBoundary({
   if (loadError) {
     const [prefix, suffix] = t("restartServerHint").split("{code}");
     return (
-      <main className="fatal-state">
-        <h1>{t("unreachable")}</h1>
+      <PageState kind="error" title={t("unreachable")}>
         <p>{loadError}</p>
         <p>
           {prefix}
           <code>python apps/web/server.py</code>
           {suffix}
         </p>
-      </main>
+      </PageState>
     );
   }
   return ready ? children : loading(t("openingWorkshop"));

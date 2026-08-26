@@ -83,14 +83,14 @@
 }
 
 .icon-button--primary.icon-button--danger {
-  border-color: var(--danger);
-  background: var(--danger);
+  border-color: var(--danger-fill);
+  background: var(--danger-fill);
   color: var(--danger-on);
 }
 
 .icon-button--primary.icon-button--danger:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--danger) 88%, var(--ink));
-  background: color-mix(in srgb, var(--danger) 88%, var(--ink));
+  border-color: color-mix(in srgb, var(--danger-fill) 88%, var(--ink));
+  background: color-mix(in srgb, var(--danger-fill) 88%, var(--ink));
   color: var(--danger-on);
 }
 

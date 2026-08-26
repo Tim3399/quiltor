@@ -1,0 +1,106 @@
+.scroll-area {
+  min-width: 0;
+  min-height: 0;
+  background: var(--scrollbar-surface);
+  --scrollbar-surface: var(--transparent);
+}
+
+.scroll-area[data-surface="canvas"] {
+  --scrollbar-surface: var(--canvas);
+}
+
+.scroll-area[data-surface="paper"] {
+  --scrollbar-surface: var(--paper);
+}
+
+.scroll-area[data-surface="panel"] {
+  --scrollbar-surface: var(--panel);
+}
+
+.scroll-area[data-surface="transparent"] {
+  --scrollbar-surface: var(--transparent);
+}
+
+.scroll-area[data-axis="y"] {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.scroll-area[data-axis="x"] {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.scroll-area[data-axis="both"] {
+  overflow: auto;
+}
+
+.scroll-area[data-gutter="auto"] {
+  scrollbar-gutter: auto;
+}
+
+.scroll-area[data-gutter="stable"] {
+  scrollbar-gutter: stable;
+}
+
+.scroll-area[data-gutter="both-edges"] {
+  scrollbar-gutter: stable both-edges;
+}
+
+.scroll-area[data-overscroll="auto"] {
+  overscroll-behavior: auto;
+}
+
+.scroll-area[data-overscroll="contain"] {
+  overscroll-behavior: contain;
+}
+
+.scroll-area[data-scrollbar="thin"] {
+  scrollbar-color: var(--gold-border) var(--transparent);
+  scrollbar-width: thin;
+}
+
+.scroll-area[data-scrollbar="hidden"] {
+  scrollbar-width: none;
+}
+
+.scroll-area[data-scrollbar="thin"]::-webkit-scrollbar {
+  width: var(--space-10);
+  height: var(--space-10);
+}
+
+.scroll-area[data-scrollbar="hidden"]::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll-area[data-scrollbar="thin"]::-webkit-scrollbar-track {
+  background: var(--transparent);
+}
+
+.scroll-area[data-scrollbar="thin"]::-webkit-scrollbar-thumb {
+  min-width: var(--space-48);
+  min-height: var(--space-48);
+  border: var(--space-3) solid var(--scrollbar-surface);
+  border-radius: var(--radius-pill);
+  background: var(--gold-border);
+  background-clip: padding-box;
+}
+
+.scroll-area[data-scrollbar="thin"]::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+  background-clip: padding-box;
+}
+
+.scroll-area[data-scrollbar="thin"]::-webkit-scrollbar-thumb:active {
+  background: var(--gold-text);
+  background-clip: padding-box;
+}
+
+.scroll-area[data-scrollbar="thin"]::-webkit-scrollbar-corner {
+  background: var(--scrollbar-surface);
+}
+
+.scroll-area:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}

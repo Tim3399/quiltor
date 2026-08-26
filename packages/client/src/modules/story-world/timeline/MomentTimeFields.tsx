@@ -1,110 +1,11 @@
 import { Plus, X } from "lucide-react";
-import type { TimeSystem, TimelineMoment } from "../model";
+import { Button, Select, TextField } from "../../../design";
 import type { Translate, UiLocale } from "../../../i18n";
-import {
-  type CalendarCoordinate,
-  calendarCoordinate,
-  timeFromCalendarCoordinate,
-  timeOfMoment,
-} from "./timeSystem";
-import { calendarDayCount, gregorianMonthLabel, momentTimeLabel } from "./timelinePresentation";
+import type { TimelineMoment, TimeSystem } from "../model";
+import { CalendarCoordinateFields } from "./CalendarCoordinateFields";
+import { momentTimeLabel } from "./timelinePresentation";
+import { calendarCoordinate, timeFromCalendarCoordinate, timeOfMoment } from "./timeSystem";
 import "./MomentTimeFields.css";
-
-function CalendarCoordinateInput({
-  system,
-  time,
-  precision,
-  label,
-  onChange,
-  locale,
-  t,
-}: {
-  system: TimeSystem;
-  time: number;
-  precision: NonNullable<TimelineMoment["precision"]>;
-  label: string;
-  onChange: (time: number, precision: NonNullable<TimelineMoment["precision"]>) => void;
-  locale: UiLocale;
-  t: Translate;
-}) {
-  const coordinate = calendarCoordinate(system, time) || {
-    year: system.epochYear,
-    month: system.epochMonth,
-    day: system.epochDay,
-  };
-  const apply = (
-    patch: Partial<CalendarCoordinate>,
-    nextPrecision: NonNullable<TimelineMoment["precision"]> = precision,
-  ) => {
-    const next = { ...coordinate, ...patch };
-    const maxDay = calendarDayCount(system, next.year, next.month);
-    next.day = Math.min(Math.max(next.day, 1), maxDay);
-    const nextTime = timeFromCalendarCoordinate(system, next);
-    if (nextTime !== null) onChange(nextTime, nextPrecision);
-  };
-  const monthOptions =
-    system.kind === "custom"
-      ? system.months.map((month, index) => ({ value: index + 1, label: month.name }))
-      : Array.from({ length: 12 }, (_, index) => ({
-          value: index + 1,
-          label: gregorianMonthLabel(locale, index + 1),
-        }));
-  return (
-    <fieldset className="timeline-calendar-date">
-      <legend>{label}</legend>
-      <label>
-        <span>{t("timelineDay")}</span>
-        <select
-          disabled={precision === "year"}
-          value={precision === "day" ? coordinate.day : ""}
-          onChange={(event) =>
-            event.target.value
-              ? apply({ day: Number(event.target.value) }, "day")
-              : apply({ day: 1 }, "month")
-          }
-        >
-          <option value="">{t("timelineUnknown")}</option>
-          {Array.from(
-            { length: calendarDayCount(system, coordinate.year, coordinate.month) },
-            (_, index) => (
-              <option value={index + 1} key={index + 1}>
-                {index + 1}
-              </option>
-            ),
-          )}
-        </select>
-      </label>
-      <label>
-        <span>{t("timelineMonth")}</span>
-        <select
-          value={precision === "year" ? "" : coordinate.month}
-          onChange={(event) =>
-            event.target.value
-              ? apply({ month: Number(event.target.value), day: 1 }, "month")
-              : apply({ month: 1, day: 1 }, "year")
-          }
-        >
-          <option value="">{t("timelineUnknown")}</option>
-          {monthOptions.map((month) => (
-            <option value={month.value} key={month.value}>
-              {month.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>{t("timelineYear")}</span>
-        <input
-          type="number"
-          value={coordinate.year}
-          min={system.kind === "gregorian" ? 1 : -Number.MAX_SAFE_INTEGER}
-          max={system.kind === "gregorian" ? 9999 : Number.MAX_SAFE_INTEGER}
-          onChange={(event) => apply({ year: Math.trunc(Number(event.target.value) || 1) })}
-        />
-      </label>
-    </fieldset>
-  );
-}
 
 export function RelativeMomentFields({
   system,
@@ -135,53 +36,53 @@ export function RelativeMomentFields({
     <fieldset className="timeline-relative-position">
       <legend>{t("timelineRelativePlacement")}</legend>
       <p>{t("timelineRelativePlacementHelp")}</p>
-      <label>
-        <span>{t("timelineBaseMoment")}</span>
-        <select
-          value={effectiveBaseId}
-          onChange={(event) => onChange(amount, direction, event.target.value)}
-        >
-          {candidates.map((moment) => (
-            <option key={moment.id} value={moment.id}>
-              {moment.title ||
-                t("timelinePoint", {
-                  number: timeline.findIndex((item) => item.id === moment.id) + 1,
-                })}
-              {" · "}
-              {momentTimeLabel(system, moment, timeline.indexOf(moment), t)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>{t("timelineDirection")}</span>
-        <select
-          value={direction}
-          onChange={(event) =>
-            onChange(amount, event.target.value as "before" | "after", effectiveBaseId)
-          }
-        >
-          <option value="before">{t("timelineBefore")}</option>
-          <option value="after">{t("timelineAfter")}</option>
-        </select>
-      </label>
-      <label>
-        <span>{distanceLabel}</span>
-        <input
-          type="number"
-          min="0"
-          max={Number.MAX_SAFE_INTEGER}
-          step="1"
-          value={amount}
-          onChange={(event) =>
-            onChange(
-              Math.max(0, Math.trunc(Number(event.target.value) || 0)),
-              direction,
-              effectiveBaseId,
-            )
-          }
-        />
-      </label>
+      <Select
+        className="timeline-relative-control"
+        fieldClassName="timeline-relative-field"
+        label={t("timelineBaseMoment")}
+        value={effectiveBaseId}
+        onChange={(event) => onChange(amount, direction, event.target.value)}
+      >
+        {candidates.map((moment) => (
+          <option key={moment.id} value={moment.id}>
+            {moment.title ||
+              t("timelinePoint", {
+                number: timeline.findIndex((item) => item.id === moment.id) + 1,
+              })}
+            {" · "}
+            {momentTimeLabel(system, moment, timeline.indexOf(moment), t)}
+          </option>
+        ))}
+      </Select>
+      <Select
+        className="timeline-relative-control"
+        fieldClassName="timeline-relative-field"
+        label={t("timelineDirection")}
+        value={direction}
+        onChange={(event) =>
+          onChange(amount, event.target.value as "before" | "after", effectiveBaseId)
+        }
+      >
+        <option value="before">{t("timelineBefore")}</option>
+        <option value="after">{t("timelineAfter")}</option>
+      </Select>
+      <TextField
+        className="timeline-relative-control"
+        fieldClassName="timeline-relative-field"
+        label={distanceLabel}
+        type="number"
+        min="0"
+        max={Number.MAX_SAFE_INTEGER}
+        step="1"
+        value={amount}
+        onChange={(event) =>
+          onChange(
+            Math.max(0, Math.trunc(Number(event.target.value) || 0)),
+            direction,
+            effectiveBaseId,
+          )
+        }
+      />
     </fieldset>
   );
 }
@@ -207,44 +108,63 @@ export function MomentCalendarFields({
 }) {
   const startTime = timeOfMoment(moment, fallback);
   const precision = moment.precision || "day";
+  const coordinateFor = (time: number) =>
+    calendarCoordinate(system, time) || {
+      year: system.epochYear,
+      month: system.epochMonth,
+      day: system.epochDay,
+    };
+  const changeTime = (
+    coordinate: ReturnType<typeof coordinateFor>,
+    nextPrecision: NonNullable<TimelineMoment["precision"]>,
+    onChange: (time: number, precision: NonNullable<TimelineMoment["precision"]>) => void,
+  ) => {
+    const nextTime = timeFromCalendarCoordinate(system, coordinate);
+    if (nextTime !== null) onChange(nextTime, nextPrecision);
+  };
   return (
     <div className="timeline-calendar-range">
-      <CalendarCoordinateInput
+      <CalendarCoordinateFields
         system={system}
-        time={startTime}
+        coordinate={coordinateFor(startTime)}
         precision={precision}
+        allowUnknown
         label={
           Number.isSafeInteger(moment.endTime) ? t("timelineDateStart") : t("timelineDateSingle")
         }
-        onChange={onStartChange}
+        onChange={(coordinate, nextPrecision) =>
+          changeTime(coordinate, nextPrecision, onStartChange)
+        }
         locale={locale}
         t={t}
       />
       {Number.isSafeInteger(moment.endTime) ? (
         <div className="timeline-calendar-end">
-          <CalendarCoordinateInput
+          <CalendarCoordinateFields
             system={system}
-            time={moment.endTime as number}
+            coordinate={coordinateFor(moment.endTime as number)}
             precision={moment.endPrecision || precision}
+            allowUnknown
             label={t("timelineDateEnd")}
-            onChange={(time, endPrecision) => onEndChange(Math.max(time, startTime), endPrecision)}
+            onChange={(coordinate, endPrecision) => {
+              const endTime = timeFromCalendarCoordinate(system, coordinate);
+              if (endTime !== null) onEndChange(Math.max(endTime, startTime), endPrecision);
+            }}
             locale={locale}
             t={t}
           />
-          <button type="button" className="timeline-inline-remove" onClick={onClearEnd}>
-            <X />
+          <Button className="timeline-inline-remove" icon={<X />} onClick={onClearEnd}>
             {t("timelineRemoveEnd")}
-          </button>
+          </Button>
         </div>
       ) : (
-        <button
-          type="button"
+        <Button
           className="timeline-inline-add"
+          icon={<Plus />}
           onClick={() => onEndChange(startTime, precision)}
         >
-          <Plus />
           {t("timelineAddEnd")}
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -1,11 +1,18 @@
+import { Archive, RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { Archive, RotateCcw, X } from "lucide-react";
-import { Button, IconButton } from "../../design";
-import { applicationErrorMessage, quiltorClient } from "../../platform";
-import { Sheet } from "../../shared/ui/Sheet";
-import { ConfirmDialog, IRREVERSIBLE_HOLD_MS } from "../../shared/ui/ConfirmDialog";
-import { useFlushedEffect } from "../../shared/hooks/useFlushedEffect";
+import {
+  Alert,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  IRREVERSIBLE_HOLD_MS,
+  Sheet,
+  SheetBody,
+  SheetHeader,
+} from "../../design";
 import { useI18n } from "../../i18n";
+import { applicationErrorMessage, quiltorClient } from "../../platform";
+import { useFlushedEffect } from "../../shared/hooks/useFlushedEffect";
 import "./BackupDialog.css";
 
 export function BackupDialog({
@@ -41,17 +48,10 @@ export function BackupDialog({
     <>
       <Sheet open label={t("backups")} onClose={onClose} wide>
         <div className="utility-sheet">
-          <header>
-            <h2>{t("backups")}</h2>
-            <IconButton label={t("closeDialog")} icon={<X />} onClick={onClose} />
-          </header>
-          <div className="utility-sheet-content">
+          <SheetHeader title={t("backups")} closeLabel={t("closeDialog")} onClose={onClose} />
+          <SheetBody className="utility-sheet-content">
             <p className="muted">{t("backupAutoNote")}</p>
-            {error && (
-              <div className="error-box" role="alert">
-                {error}
-              </div>
-            )}
+            {error && <Alert tone="danger">{error}</Alert>}
             <div className="utility-split backup-browser">
               <nav className="backup-list" aria-label={t("backups")}>
                 {items.map((item) => (
@@ -59,17 +59,19 @@ export function BackupDialog({
                     key={item.name}
                     className="backup-list-item"
                     appearance="secondary"
-                    icon={<Archive />}
+                    icon={<Archive className="backup-list-item-icon" />}
                     aria-pressed={selected === item.name}
                     onClick={() => setSelected(item.name)}
                   >
-                    <>
+                    <span className="backup-list-item-copy">
                       <strong>{new Date(item.created).toLocaleString()}</strong>
                       <small>{(item.size / 1024).toFixed(0)} KB</small>
-                    </>
+                    </span>
                   </Button>
                 ))}
-                {!items.length && !error && <p>{t("noBackup")}</p>}
+                {!items.length && !error && (
+                  <EmptyState title={t("noBackup")} size="compact" headingLevel={3} />
+                )}
               </nav>
               <section className="backup-preview">
                 {selectedItem ? (
@@ -90,23 +92,29 @@ export function BackupDialog({
                     </Button>
                   </>
                 ) : (
-                  <>
-                    <Archive />
-                    <h3>{t("backupSelectTitle")}</h3>
+                  <EmptyState icon={<Archive />} title={t("backupSelectTitle")} headingLevel={3}>
                     <p>{t("backupSelectDescription")}</p>
-                  </>
+                  </EmptyState>
                 )}
               </section>
             </div>
-          </div>
+          </SheetBody>
         </div>
       </Sheet>
       {restoreTarget && (
         <ConfirmDialog
           title={t("restoreBackup")}
           description={t("restoreConfirmDescription")}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("restore")}
+          confirmation="hold"
           holdDurationMs={IRREVERSIBLE_HOLD_MS}
+          holdLabels={{
+            accessible: t("holdAriaLabel", { label: t("restore") }),
+            idle: t("holdToConfirm", { label: t("restore") }),
+            active: t("keepHolding"),
+          }}
           onConfirm={() => void restore()}
           onClose={() => setRestoreTarget(null)}
         />

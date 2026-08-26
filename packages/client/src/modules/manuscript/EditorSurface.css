@@ -1,8 +1,5 @@
 .editor-scroll {
   min-width: 0;
-  overflow-y: auto;
-  background: var(--paper);
-  scrollbar-gutter: stable;
 }
 .editor-page {
   width: min(100% - 64px, 760px);
@@ -59,26 +56,22 @@
   border-left: 1px solid var(--line);
   background: var(--paper);
 }
-.chapter-history > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-10);
+.chapter-history__header {
   margin-bottom: var(--space-16);
 }
-.chapter-history > header > div {
+.chapter-history__title {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
-.chapter-history > header strong {
+.chapter-history__title > span {
   font: 600 var(--font-size-5) var(--prose);
 }
-.chapter-history > header span {
+.chapter-history__title > small {
   color: var(--muted);
   font-size: var(--font-size-2);
 }
-.chapter-history .field {
+.chapter-history-state {
   margin-bottom: var(--space-12);
 }
 .historical-prose {
@@ -211,7 +204,7 @@
   grid-column: 1;
   color: var(--muted);
 }
-.entity-mention-card button {
+.entity-mention-card__open {
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: center;
@@ -246,7 +239,7 @@
   margin-left: auto;
   white-space: nowrap;
 }
-.text-search-navigation .icon-button {
+.text-search-navigation__action {
   flex: none;
 }
 

@@ -12,14 +12,14 @@
   color: var(--muted);
   font-size: var(--font-size-2);
 }
-.timeline-calendar-date > label {
+.calendar-coordinate-field {
   min-width: 0;
   display: grid;
   gap: var(--space-4);
   color: var(--muted);
   font-size: var(--font-size-2);
 }
-.timeline-calendar-date > label > :is(input, select) {
+.calendar-coordinate-control {
   width: 100%;
   min-width: 0;
 }
@@ -53,15 +53,14 @@
   color: var(--muted);
   font-size: var(--font-size-2);
 }
-.timeline-relative-position > label {
+.timeline-relative-position > .timeline-relative-field {
   min-width: 0;
   display: grid;
   gap: var(--space-4);
   color: var(--muted);
   font-size: var(--font-size-2);
 }
-.timeline-relative-position input,
-.timeline-relative-position select {
+.timeline-relative-control {
   width: 100%;
 }
 .timeline-calendar-end {
@@ -88,10 +87,6 @@
 .timeline-inline-remove svg {
   width: 14px;
 }
-.timeline-meta-card .field > small {
-  margin-top: var(--space-4);
-  color: var(--muted);
-}
 @media (max-width: 640px) {
   .timeline-meta-card {
     grid-template-columns: 1fr;
@@ -99,9 +94,6 @@
   }
   .timeline-relative-position {
     grid-template-columns: 1fr;
-  }
-  .timeline-meta-card .field:nth-child(2) {
-    margin-top: var(--space-12);
   }
   .timeline-calendar-end {
     grid-template-columns: minmax(0, 1fr);

@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { orderedChapters, type Chapter, type Manuscript } from "../../manuscript";
-import type { FigureState, TimeSystem, TimeSystemKind, TimelineMoment } from "../model";
+import { ConfirmDialog } from "../../../design";
+import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
-import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
+import { type Chapter, type Manuscript, orderedChapters } from "../../manuscript";
+import type { FigureState, TimelineMoment, TimeSystem, TimeSystemKind } from "../model";
+import { storyShortcutLabel } from "../shortcutLabels";
+import { MomentBoard } from "./MomentBoard";
+import { MomentEditor } from "./MomentEditor";
+import type { TimelineChapterReference } from "./MomentHeader";
 import {
   insertTimelineMoment,
   insertTimelineMomentAtTime,
@@ -10,14 +15,10 @@ import {
   removeTimelineMoment,
   setTimelineMomentTime,
 } from "./order";
-import { normalizeTimeSystem, timeOfMoment } from "./timeSystem";
-import { useI18n } from "../../../i18n";
-import { MomentBoard } from "./MomentBoard";
-import { MomentHeader, type TimelineChapterReference } from "./MomentHeader";
-import { MomentCalendarFields, RelativeMomentFields } from "./MomentTimeFields";
 import { MomentStateWorkspace } from "./StateChangePanels";
 import { TimelineToolbar } from "./TimelineToolbar";
 import { countMomentChanges, defaultDisplayFormat } from "./timelinePresentation";
+import { normalizeTimeSystem, timeOfMoment } from "./timeSystem";
 import "./TimelineWorkspace.css";
 
 export function chaptersUsingTimelineMoment(
@@ -112,7 +113,7 @@ export function TimelineWorkspace({
     setRelativeBaseId(base.id);
     setRelativeDirection(delta < 0 ? "before" : "after");
     setRelativeAmount(Math.abs(delta));
-  }, [selectedId]);
+  }, [selected, selectedIndex, timeline]);
 
   const addMomentAt = (index: number, preferredTime?: number) => {
     const moment: TimelineMoment = { id: uid("t"), title: t("newMoment") };
@@ -255,74 +256,41 @@ export function TimelineWorkspace({
   };
 
   const editor = selected ? (
-    <>
-      <MomentHeader
-        moment={selected}
-        index={selectedIndex}
-        total={timeline.length}
-        changeCount={countMomentChanges(state, selected.id)}
-        onSelectPrevious={() => setSelectedId(timeline[selectedIndex - 1]?.id)}
-        onSelectNext={() => setSelectedId(timeline[selectedIndex + 1]?.id)}
-        onMoveEarlier={() => moveMoment(-1)}
-        onMoveLater={() => moveMoment(1)}
-        onDuplicate={duplicateMoment}
-        onDelete={() => {
-          if (!selectedChapterReferences.length) setDeleteMoment(selected);
-        }}
-        chapterReferences={selectedChapterReferences}
-        rangeConflict={rangeConflict}
-        onOpenChapter={onOpenChapter}
-        t={t}
-      />
-      <section className="timeline-meta-card">
-        <label className="field">
-          <span>{t("name")}</span>
-          <input
-            value={selected.title}
-            onChange={(event) => patchMoment({ title: event.target.value })}
-          />
-        </label>
-        {timeSystem.kind !== "relative" && (
-          <MomentCalendarFields
-            system={timeSystem}
-            moment={selected}
-            fallback={selectedIndex}
-            onStartChange={(time, precision) =>
-              patchMomentTime(time, {
-                precision,
-                ...(Number.isSafeInteger(selected.endTime) && (selected.endTime as number) < time
-                  ? { endTime: time }
-                  : {}),
-              })
-            }
-            onEndChange={(endTime, endPrecision) => patchMoment({ endTime, endPrecision })}
-            onClearEnd={() => patchMoment({ endTime: undefined, endPrecision: undefined })}
-            locale={locale}
-            t={t}
-          />
-        )}
-        {timeSystem.kind === "relative" && timeline.length > 1 && (
-          <RelativeMomentFields
-            system={timeSystem}
-            timeline={timeline}
-            selected={selected}
-            amount={relativeAmount}
-            direction={relativeDirection}
-            baseId={relativeBaseId}
-            onChange={patchRelativePlacement}
-            t={t}
-          />
-        )}
-        <label className="field timeline-note">
-          <span>{t("optionalNote")}</span>
-          <textarea
-            value={selected.note || ""}
-            placeholder={t("timelineNotePlaceholder")}
-            onChange={(event) => patchMoment({ note: event.target.value })}
-          />
-        </label>
-      </section>
-    </>
+    <MomentEditor
+      state={state}
+      timeline={timeline}
+      system={timeSystem}
+      moment={selected}
+      index={selectedIndex}
+      relativeAmount={relativeAmount}
+      relativeDirection={relativeDirection}
+      relativeBaseId={relativeBaseId}
+      chapterReferences={selectedChapterReferences}
+      rangeConflict={rangeConflict}
+      locale={locale}
+      t={t}
+      onOpenChapter={onOpenChapter}
+      onSelectPrevious={() => setSelectedId(timeline[selectedIndex - 1]?.id)}
+      onSelectNext={() => setSelectedId(timeline[selectedIndex + 1]?.id)}
+      onMoveEarlier={() => moveMoment(-1)}
+      onMoveLater={() => moveMoment(1)}
+      onDuplicate={duplicateMoment}
+      onDelete={() => {
+        if (!selectedChapterReferences.length) setDeleteMoment(selected);
+      }}
+      onPatch={patchMoment}
+      onStartChange={(time, precision) =>
+        patchMomentTime(time, {
+          precision,
+          ...(Number.isSafeInteger(selected.endTime) && (selected.endTime as number) < time
+            ? { endTime: time }
+            : {}),
+        })
+      }
+      onEndChange={(endTime, endPrecision) => patchMoment({ endTime, endPrecision })}
+      onClearEnd={() => patchMoment({ endTime: undefined, endPrecision: undefined })}
+      onRelativeChange={patchRelativePlacement}
+    />
   ) : null;
 
   return (
@@ -366,8 +334,10 @@ export function TimelineWorkspace({
             title: deleteMoment.title,
             count: countMomentChanges(state, deleteMoment.id),
           })}
+          supportingText={t("undoHint", { shortcut: storyShortcutLabel("Z", locale) })}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("deleteMoment")}
-          undoable
           onClose={() => setDeleteMoment(null)}
           onConfirm={confirmDelete}
         />

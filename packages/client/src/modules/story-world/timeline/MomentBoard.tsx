@@ -1,7 +1,8 @@
-import { useState } from "react";
 import { Clock3, GripVertical } from "lucide-react";
-import type { FigureState, TimeSystem, TimelineMoment } from "../model";
+import { useState } from "react";
+import { Button, ScrollArea } from "../../../design";
 import type { Translate } from "../../../i18n";
+import type { FigureState, TimelineMoment, TimeSystem } from "../model";
 import { countMomentChanges, momentTimeLabel } from "./timelinePresentation";
 import "./MomentBoard.css";
 
@@ -33,11 +34,17 @@ export function MomentBoard({
     );
   }
   return (
-    <nav className="story-timeline" aria-label={t("timeline")}>
+    <ScrollArea
+      as="nav"
+      axis="x"
+      className="story-timeline"
+      surface="panel"
+      aria-label={t("timeline")}
+    >
       <div className="story-track">
         {timeline.map((moment, index) => (
           <div className="story-moment-wrap" key={moment.id}>
-            <button
+            <Button
               draggable
               className={`story-moment ${moment.id === selectedId ? "active" : ""}`}
               aria-current={moment.id === selectedId ? "step" : undefined}
@@ -51,17 +58,19 @@ export function MomentBoard({
               }}
               onClick={() => onSelect(moment.id)}
             >
-              <GripVertical aria-hidden="true" />
-              <span>{index + 1}</span>
-              <strong>{moment.title || t("untitled")}</strong>
-              <small>
-                {momentTimeLabel(system, moment, index, t)} ·{" "}
-                {t("nChanges", { n: countMomentChanges(state, moment.id) })}
-              </small>
-            </button>
+              <span className="story-moment-content">
+                <GripVertical aria-hidden="true" />
+                <span className="story-moment-index">{index + 1}</span>
+                <strong>{moment.title || t("untitled")}</strong>
+                <small>
+                  {momentTimeLabel(system, moment, index, t)} ·{" "}
+                  {t("nChanges", { n: countMomentChanges(state, moment.id) })}
+                </small>
+              </span>
+            </Button>
           </div>
         ))}
       </div>
-    </nav>
+    </ScrollArea>
   );
 }

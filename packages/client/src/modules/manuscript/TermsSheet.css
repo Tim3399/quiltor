@@ -2,51 +2,49 @@
   display: grid;
   gap: var(--space-12);
 }
-.terms-sheet header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
+
+.terms-sheet__header {
+  padding: 0;
 }
-.terms-sheet h2 {
-  margin: 0;
-  font: 600 var(--font-size-6) var(--prose);
-}
-.terms-sheet p {
+
+.terms-sheet > p {
   margin: 0;
   font-size: var(--font-size-3);
 }
-.terms-sheet .add-term {
-  margin: 0;
-}
-.editable-chips span {
-  display: flex;
-}
-.editable-chips span > button:first-child {
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-}
-.editable-chips span > button:last-child {
-  border-left: 0;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  color: var(--danger);
-}
+
 .add-term {
+  min-width: 0;
   display: flex;
-  margin-top: var(--space-8);
+  align-items: end;
+  gap: var(--space-6);
 }
-.add-term input {
+
+.add-term__field {
   min-width: 0;
   flex: 1;
-  padding: var(--space-7) var(--space-8);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-  background: var(--paper);
 }
-.add-term button {
-  width: 32px;
-  border: 1px solid var(--line);
-  border-left: 0;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--paper);
-  cursor: pointer;
+
+.add-term__input {
+  width: 100%;
+}
+
+.add-term__button {
+  flex: none;
+}
+
+.editable-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.terms-sheet__chip {
+  max-width: 100%;
+}
+
+.terms-sheet__term-action {
+  max-width: min(280px, 60vw);
 }

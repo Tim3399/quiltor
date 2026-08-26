@@ -29,7 +29,7 @@
   padding: var(--space-9) var(--space-10);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--paper);
+  background-color: var(--paper);
   color: var(--ink);
   box-shadow: inset var(--ring-1) var(--control-hint);
   transition:
@@ -56,7 +56,7 @@
 .ui-field > input:disabled,
 .ui-field > textarea:disabled,
 .ui-field > select:disabled {
-  background: var(--disabled-surface);
+  background-color: var(--disabled-surface);
   color: var(--disabled-content);
 }
 .ui-field > textarea {

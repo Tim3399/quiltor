@@ -1,10 +1,9 @@
-import { ChevronDown, LogIn, LogOut, Save, UploadCloud } from "lucide-react";
+import { LogIn, LogOut, Save, UploadCloud } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button, TextArea } from "../../design";
+import { Alert, Button, Dialog, Disclosure, TextArea } from "../../design";
 import { useI18n } from "../../i18n";
 import { applicationErrorMessage, type BackupLoginStatus, quiltorClient } from "../../platform";
 import { useFlushedEffect } from "../../shared/hooks/useFlushedEffect";
-import { Dialog } from "../../shared/ui/Dialog";
 import type { BackupStatus } from "../backup";
 import { changedPath, describePath } from "./pathNames";
 import "./SnapshotDialog.css";
@@ -143,12 +142,42 @@ export function SnapshotDialog({
       setBusy(false);
     }
   };
+  const actions =
+    status && !statusError ? (
+      <>
+        <Button disabled={busy || !message.trim()} icon={<Save />} onClick={() => void send(false)}>
+          {t("saveOnly")}
+        </Button>
+        {canSignIn || checking ? (
+          <Button
+            appearance="primary"
+            disabled={busy || checking}
+            icon={<LogIn />}
+            onClick={() => void signIn()}
+          >
+            {t("backupSignIn")}
+          </Button>
+        ) : (
+          <Button
+            appearance="primary"
+            disabled={busy || !message.trim() || !canUpload}
+            icon={<UploadCloud />}
+            onClick={() => void send(true)}
+          >
+            {t("saveAndUpload")}
+          </Button>
+        )}
+      </>
+    ) : undefined;
   return (
-    <Dialog title={t("snapshotSave")} onClose={onClose}>
+    <Dialog
+      title={t("snapshotSave")}
+      closeLabel={t("closeDialog")}
+      footer={actions}
+      onClose={onClose}
+    >
       {statusError ? (
-        <div className="error-box" role="alert">
-          {statusError}
-        </div>
+        <Alert tone="danger">{statusError}</Alert>
       ) : !status ? (
         <p>{t("loadingBackupStatus")}</p>
       ) : (
@@ -160,9 +189,7 @@ export function SnapshotDialog({
           />
           {needsSignIn &&
             (staleSession ? (
-              <div className="error-box" role="alert">
-                {t("backupSessionExpired")}
-              </div>
+              <Alert tone="danger">{t("backupSessionExpired")}</Alert>
             ) : checking ? (
               <p className="muted" role="status">
                 {t("backupIssuerChecking")}
@@ -170,58 +197,20 @@ export function SnapshotDialog({
             ) : canSignIn ? (
               <p className="muted">{t("backupSignInHint")}</p>
             ) : (
-              <div className="error-box" role="alert">
-                {t("backupIssuerUnreachable")}
-              </div>
+              <Alert tone="danger">{t("backupIssuerUnreachable")}</Alert>
             ))}
           {waiting && (
             <p className="muted" role="status">
               {t("backupSignInWaiting")}
             </p>
           )}
-          {loginError && (
-            <div className="error-box" role="alert">
-              {loginError}
-            </div>
-          )}
-          <div className="dialog-actions">
-            <Button
-              disabled={busy || !message.trim()}
-              icon={<Save />}
-              onClick={() => void send(false)}
-            >
-              {t("saveOnly")}
-            </Button>
-            {canSignIn || checking ? (
-              <Button
-                appearance="primary"
-                disabled={busy || checking}
-                icon={<LogIn />}
-                onClick={() => void signIn()}
-              >
-                {t("backupSignIn")}
-              </Button>
-            ) : (
-              <Button
-                appearance="primary"
-                disabled={busy || !message.trim() || !canUpload}
-                icon={<UploadCloud />}
-                onClick={() => void send(true)}
-              >
-                {t("saveAndUpload")}
-              </Button>
-            )}
-          </div>
+          {loginError && <Alert tone="danger">{loginError}</Alert>}
           {output && (
             <pre className="snapshot-output" role="status">
               {output}
             </pre>
           )}
-          <details className="utility-disclosure">
-            <summary>
-              <ChevronDown />
-              {t("technicalDetails")}
-            </summary>
+          <Disclosure className="utility-disclosure" summary={t("technicalDetails")}>
             <dl className="snapshot-facts">
               <div>
                 <dt>{t("target")}</dt>
@@ -261,7 +250,7 @@ export function SnapshotDialog({
                 })}
               </div>
             )}
-          </details>
+          </Disclosure>
         </>
       )}
     </Dialog>

@@ -1,0 +1,4 @@
+.ui-dropdown-menu {
+  max-height: min(420px, calc(100vh - var(--space-24)));
+  overflow-y: auto;
+}

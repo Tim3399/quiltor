@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
 import { PanelLeft, PanelRight, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Button, ChipAction, ChipList, IconButton } from "../../design";
 import { useI18n } from "../../i18n";
 import type { FigureNode, FigureState } from "../story-world";
-import type { Chapter, Manuscript } from "./model";
 import { orderedChapters } from "./binder/manuscriptTree";
+import type { Chapter, Manuscript } from "./model";
 import { wordCount } from "./wordCount";
 import "./FocusPanels.css";
 
@@ -48,35 +49,41 @@ export function FocusPanels({
           className={`focus-chapters ${chaptersOpen ? "is-open" : ""}`}
           aria-label={t("focusChapterPickerLabel")}
         >
-          <button
+          <IconButton
             className="focus-side-toggle"
             aria-expanded={chaptersOpen}
             onClick={() => setChaptersOpen(!chaptersOpen)}
             title={t("selectChapters")}
-          >
-            {chaptersOpen ? <X /> : <PanelLeft />}
-            <span className="sr-only">
-              {chaptersOpen ? t("closeChapterPicker") : t("openChapterPicker")}
-            </span>
-          </button>
+            label={chaptersOpen ? t("closeChapterPicker") : t("openChapterPicker")}
+            icon={chaptersOpen ? <X /> : <PanelLeft />}
+          />
           {chaptersOpen && (
             <nav className="focus-chapter-list">
               {chapters.map((chapter, index) => (
-                <button
+                <Button
                   key={chapter.id}
-                  className={chapter.id === current?.id ? "active" : ""}
+                  className="focus-chapter-row"
+                  title={chapter.title || t("untitled")}
+                  appearance="ghost"
+                  size="touch"
                   aria-current={chapter.id === current?.id ? "page" : undefined}
                   onClick={() => {
                     onSelectChapter(chapter.id);
                     requestAnimationFrame(onFocusEditor);
                   }}
                 >
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <strong>{chapter.title || t("untitled")}</strong>
-                  <small>
-                    {wordCount(chapter.body)} {t("words")}
-                  </small>
-                </button>
+                  <span className="focus-chapter-row__content">
+                    <span className="focus-chapter-row__number">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="focus-chapter-row__copy">
+                      <strong>{chapter.title || t("untitled")}</strong>
+                      <small>
+                        {wordCount(chapter.body)} {t("words")}
+                      </small>
+                    </span>
+                  </span>
+                </Button>
               ))}
             </nav>
           )}
@@ -86,60 +93,72 @@ export function FocusPanels({
         className={`focus-helper ${helpersOpen ? "is-open" : ""}`}
         aria-label={t("writingAidPanelLabel")}
       >
-        <button
+        <IconButton
           className="focus-helper-toggle"
           aria-expanded={helpersOpen}
           onClick={() => setHelpersOpen(!helpersOpen)}
           title={t("writingAid")}
-        >
-          {helpersOpen ? <X /> : <PanelRight />}
-          <span className="sr-only">
-            {helpersOpen ? t("closeWritingAid") : t("openWritingAid")}
-          </span>
-        </button>
+          label={helpersOpen ? t("closeWritingAid") : t("openWritingAid")}
+          icon={helpersOpen ? <X /> : <PanelRight />}
+        />
         {helpersOpen && (
           <div className="focus-helper-panel">
             <section>
               <h3>{t("figuresPlaces")}</h3>
-              <div className="focus-helper-chips">
+              <ChipList className="focus-helper-chips" label={t("figuresPlaces")}>
                 {figures.nodes.map((node) => (
-                  <button key={node.id} onClick={() => onInsertEntity(node)}>
+                  <ChipAction
+                    className="focus-helper-chip"
+                    key={node.id}
+                    onClick={() => onInsertEntity(node)}
+                  >
                     {node.name}
-                  </button>
+                  </ChipAction>
                 ))}
-              </div>
+              </ChipList>
             </section>
             {!!(manuscript.words || []).length && (
               <section>
                 <h3>{t("ownTerms")}</h3>
-                <div className="focus-helper-chips">
-                  {(manuscript.words || []).map((item, index) => {
+                <ChipList className="focus-helper-chips" label={t("ownTerms")}>
+                  {(manuscript.words || []).map((item) => {
                     const word = typeof item === "string" ? item : item.w;
                     return (
-                      <button key={`${word}-${index}`} onClick={() => onInsert(word)}>
+                      <ChipAction
+                        className="focus-helper-chip"
+                        key={word}
+                        onClick={() => onInsert(word)}
+                      >
                         {word}
-                      </button>
+                      </ChipAction>
                     );
                   })}
-                </div>
+                </ChipList>
               </section>
             )}
             <section>
               <h3>{t("specialCharacters")}</h3>
-              <div className="focus-helper-chips focus-helper-symbols">
+              <ChipList
+                className="focus-helper-chips focus-helper-symbols"
+                label={t("specialCharacters")}
+              >
                 {(manuscript.zeichenAktiv || ["„", "“", "–", "—", "…"]).map((symbol) => (
-                  <button key={symbol} onClick={() => onInsert(symbol)}>
+                  <ChipAction
+                    className="focus-helper-chip focus-helper-symbol"
+                    key={symbol}
+                    onClick={() => onInsert(symbol)}
+                  >
                     {symbol}
-                  </button>
+                  </ChipAction>
                 ))}
-              </div>
+              </ChipList>
             </section>
           </div>
         )}
       </aside>
-      <button className="exit-focus" onClick={onLeave}>
+      <Button className="exit-focus" appearance="secondary" size="compact" onClick={onLeave}>
         {t("leaveFocus")} <kbd>Esc</kbd>
-      </button>
+      </Button>
     </>
   );
 }

@@ -1,10 +1,12 @@
-import { Background, BackgroundVariant, Controls, MiniMap, ReactFlow } from "@xyflow/react";
+import type { Edge } from "@xyflow/react";
 import { MapPin } from "lucide-react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback } from "react";
+import { EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { GRID_SIZE } from "../figures/relationships";
 import type { FigureState } from "../model";
+import { StoryGraphCanvas } from "../StoryGraphCanvas";
 import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
 import { placeNodeTypes } from "./PlaceNode";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
@@ -47,59 +49,44 @@ export function PlaceCanvas({
   );
 
   return (
-    <div
-      className={`flow-area places-flow-area zoom-${controller.zoomTier} ${measuring ? "is-connecting" : ""}`}
-    >
-      {measuring && (
-        <PlaceMeasurementOverlay
-          measureSelection={measureSelection}
-          scale={scale}
-          onScale={onScale}
-          onStop={onStopMeasuring}
-        />
-      )}
-      <ReactFlow
-        nodes={controller.nodes}
-        edges={controller.edges}
-        nodeTypes={placeNodeTypes}
-        nodesConnectable
-        onKeyDown={selectPlaceFromKeyboard}
-        onInit={controller.onInit}
-        onMove={(_, viewport) => controller.onMove(viewport)}
-        onNodeClick={(_, node) => onSelectPlace(node.id)}
-        onPaneClick={onClearSelection}
-        onNodesChange={controller.onNodesChange}
-        onNodeDragStop={(_, node) => controller.onNodeDragStop(node)}
-        fitView
-        minZoom={0.08}
-        maxZoom={2.2}
-        deleteKeyCode={null}
-      >
-        {controller.zoomTier !== "overview" && (
-          <Background
-            className={`board-grid board-grid-${controller.zoomTier}`}
-            variant={BackgroundVariant.Lines}
-            gap={GRID_SIZE}
-            size={0.55}
-            color="var(--line)"
+    <StoryGraphCanvas
+      nodes={controller.nodes}
+      edges={controller.edges as Edge[]}
+      zoomTier={controller.zoomTier}
+      className={`places-flow-area ${measuring ? "is-connecting" : ""}`}
+      gridSize={GRID_SIZE}
+      overlay={
+        measuring ? (
+          <PlaceMeasurementOverlay
+            measureSelection={measureSelection}
+            scale={scale}
+            onScale={onScale}
+            onStop={onStopMeasuring}
           />
-        )}
-        <Controls position="bottom-left" />
-        <MiniMap
-          position="bottom-right"
-          pannable
-          zoomable
-          nodeColor={() => "var(--minimap-place)"}
-          maskColor="var(--minimap-mask)"
-        />
-      </ReactFlow>
+        ) : null
+      }
+      flowProps={{
+        nodeTypes: placeNodeTypes,
+        nodesConnectable: true,
+        onKeyDown: selectPlaceFromKeyboard,
+        onInit: controller.onInit,
+        onMove: (_, viewport) => controller.onMove(viewport),
+        onNodeClick: (_, node) => onSelectPlace(node.id),
+        onPaneClick: onClearSelection,
+        onNodesChange: controller.onNodesChange,
+        onNodeDragStop: (_, node) => controller.onNodeDragStop(node),
+      }}
+      minimapProps={{ nodeColor: () => "var(--minimap-place)" }}
+    >
       {!placesCount && (
-        <div className="places-manager-empty">
-          <MapPin />
-          <h2>{t("noPlacesYet")}</h2>
+        <EmptyState
+          className="places-manager-empty"
+          icon={<MapPin className="places-empty-icon" />}
+          title={t("noPlacesYet")}
+        >
           <p>{t("noPlacesYetBody")}</p>
-        </div>
+        </EmptyState>
       )}
-    </div>
+    </StoryGraphCanvas>
   );
 }

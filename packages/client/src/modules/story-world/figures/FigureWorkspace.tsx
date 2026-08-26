@@ -1,10 +1,18 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ConfirmDialog,
+  IconButton,
+  SidePanel,
+  SidePanelEmpty,
+  SidePanelHeader,
+  Toast,
+} from "../../../design";
 import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
-import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
 import type { FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
+import { storyShortcutLabel } from "../shortcutLabels";
 import { insertTimelineMoment, removeTimelineMoment } from "../timeline/order";
 import { FigureCanvas } from "./FigureCanvas";
 import { FigureInspector } from "./FigureInspector";
@@ -44,7 +52,7 @@ function FigureWorkspaceInner({
   canUndo = false,
   canRedo = false,
 }: FigureWorkspaceProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -214,29 +222,31 @@ function FigureWorkspaceInner({
             />
           )}
         </FigureCanvas>
-        <aside
-          className={`inspector figure-inspector ${selected ? "has-selection" : ""}`}
-          aria-label={t("figureInspectorLabel")}
+        <SidePanel
+          className={`figure-inspector ${selected ? "has-selection" : ""}`}
+          label={t("figureInspectorLabel")}
         >
-          <div className="panel-heading">
-            <span>{selected ? t("selection") : t("inspector")}</span>
-            {selected && (
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setSelectedId(null)}
-                aria-label={t("closeSelection")}
-              >
-                <X />
-              </button>
-            )}
-          </div>
+          <SidePanelHeader
+            className="figure-inspector-header"
+            title={selected ? t("selection") : t("inspector")}
+            actions={
+              selected ? (
+                <IconButton
+                  label={t("closeSelection")}
+                  icon={<X />}
+                  onClick={() => setSelectedId(null)}
+                />
+              ) : undefined
+            }
+          />
           {!selected ? (
-            <div className="empty-inspector">
-              <UserRound />
-              <h2>{t("selectElement")}</h2>
+            <SidePanelEmpty
+              className="figure-inspector-empty"
+              icon={<UserRound />}
+              title={t("selectElement")}
+            >
               <p>{t("selectElementHelp")}</p>
-            </div>
+            </SidePanelEmpty>
           ) : (
             <FigureInspector
               figure={selected}
@@ -251,7 +261,7 @@ function FigureWorkspaceInner({
               }}
             />
           )}
-        </aside>
+        </SidePanel>
       </div>
       <FigureNodeContextMenu
         menu={nodeMenu}
@@ -274,20 +284,22 @@ function FigureWorkspaceInner({
         }}
       />
       {connectionError && (
-        <div className="toast error-box" role="alert">
-          {connectionError}
-          <button type="button" onClick={() => setConnectionError("")}>
-            <X />
-            <span className="sr-only">{t("closeMessage")}</span>
-          </button>
-        </div>
+        <Toast
+          className="story-world-toast"
+          tone="danger"
+          title={connectionError}
+          dismissLabel={t("closeMessage")}
+          onDismiss={() => setConnectionError("")}
+        />
       )}
       {selected && confirmDelete && (
         <ConfirmDialog
           title={t("deleteElement")}
           description={t("deleteElementDescription").replace("{name}", selected.name)}
+          supportingText={t("undoHint", { shortcut: storyShortcutLabel("Z", locale) })}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("deleteElement")}
-          undoable
           onConfirm={removeSelected}
           onClose={() => setConfirmDelete(false)}
         />
@@ -296,8 +308,10 @@ function FigureWorkspaceInner({
         <ConfirmDialog
           title={t("deleteMoment")}
           description={t("deleteTimeMomentDescription").replace("{title}", deleteMoment.title)}
+          supportingText={t("undoHint", { shortcut: storyShortcutLabel("Z", locale) })}
+          closeLabel={t("closeDialog")}
+          cancelLabel={t("cancel")}
           confirmLabel={t("deleteMoment")}
-          undoable
           onConfirm={() => {
             onChange({
               ...state,

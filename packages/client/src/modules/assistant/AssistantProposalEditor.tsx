@@ -1,7 +1,6 @@
 import { useState } from "react";
+import { Button, Checkbox, Dialog, ListboxSelect, TextArea, TextField } from "../../design";
 import { useI18n } from "../../i18n";
-import { Dialog } from "../../shared/ui/Dialog";
-import { SelectControl } from "../../shared/ui/SelectControl";
 import type { FigureKind, FigureState } from "../story-world";
 import type { AssistantProposal } from "./model";
 
@@ -38,19 +37,27 @@ export function AssistantProposalEditor({
     value: string | undefined,
     onChange: (value: string) => void,
     multiline = false,
-  ) => (
-    <label className="assistant-edit-field">
-      <span>{label}</span>
-      {multiline ? (
-        <textarea value={value || ""} onChange={(event) => onChange(event.target.value)} />
-      ) : (
-        <input value={value || ""} onChange={(event) => onChange(event.target.value)} />
-      )}
-    </label>
-  );
+  ) =>
+    multiline ? (
+      <TextArea
+        className="assistant-edit-control assistant-edit-control--multiline"
+        fieldClassName="assistant-edit-field"
+        label={label}
+        value={value || ""}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    ) : (
+      <TextField
+        className="assistant-edit-control"
+        fieldClassName="assistant-edit-field"
+        label={label}
+        value={value || ""}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    );
 
   return (
-    <Dialog title={t("editProposal")} onClose={onClose}>
+    <Dialog title={t("editProposal")} closeLabel={t("closeDialog")} onClose={onClose}>
       <div className="assistant-proposal-editor">
         {draft.kind === "create_element" && (
           <>
@@ -59,7 +66,7 @@ export function AssistantProposalEditor({
             )}
             <div className="assistant-edit-field">
               <span>{t("proposalElement")}</span>
-              <SelectControl
+              <ListboxSelect
                 label={t("proposalElement")}
                 value={draft.element.type || "person"}
                 options={ELEMENT_TYPES.map((value) => ({ value, label: value }))}
@@ -160,12 +167,11 @@ export function AssistantProposalEditor({
             {textField(t("proposalLabel"), draft.relationship.label, (label) =>
               setDraft({ ...draft, relationship: { ...draft.relationship, label } }),
             )}
-            <button
-              type="button"
-              className="assistant-edit-checkbox"
-              role="checkbox"
-              aria-checked={Boolean(draft.relationship.directed)}
-              onClick={() =>
+            <Checkbox
+              containerClassName="assistant-edit-checkbox"
+              label={t("proposalDirected")}
+              checked={Boolean(draft.relationship.directed)}
+              onChange={() =>
                 setDraft({
                   ...draft,
                   relationship: {
@@ -174,10 +180,7 @@ export function AssistantProposalEditor({
                   },
                 })
               }
-            >
-              <span aria-hidden="true" className="assistant-edit-checkmark" />
-              <span>{t("proposalDirected")}</span>
-            </button>
+            />
           </>
         )}
         {draft.kind === "set_relationship_at_moment" && (
@@ -240,19 +243,16 @@ export function AssistantProposalEditor({
           </>
         )}
         <div className="assistant-edit-actions">
-          <button type="button" onClick={onClose}>
-            {t("cancelProposalEdit")}
-          </button>
-          <button
-            type="button"
-            className="primary"
+          <Button onClick={onClose}>{t("cancelProposalEdit")}</Button>
+          <Button
+            appearance="primary"
             onClick={() => {
               onSave(draft);
               onClose();
             }}
           >
             {t("saveProposalEdit")}
-          </button>
+          </Button>
         </div>
       </div>
     </Dialog>
@@ -273,7 +273,7 @@ function SelectionField({
   return (
     <div className="assistant-edit-field">
       <span>{label}</span>
-      <SelectControl label={label} value={value} options={options} onChange={onChange} />
+      <ListboxSelect label={label} value={value} options={options} onChange={onChange} />
     </div>
   );
 }

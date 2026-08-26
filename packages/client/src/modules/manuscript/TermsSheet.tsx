@@ -1,7 +1,16 @@
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
-import { X } from "lucide-react";
+import {
+  Button,
+  ChipList,
+  EmptyState,
+  IconButton,
+  RemovableChip,
+  Sheet,
+  SidePanelHeader,
+  TextField,
+} from "../../design";
 import { useI18n } from "../../i18n";
-import { Sheet } from "../../shared/ui/Sheet";
 import type { Manuscript } from "./model";
 import "./TermsSheet.css";
 
@@ -34,17 +43,19 @@ export function TermsSheet({ open, manuscript, onChange, onInsert, onClose }: Te
   return (
     <Sheet open={open} label={t("ownTerms")} onClose={onClose}>
       <div className="terms-sheet">
-        <header>
-          <h2>{t("ownTerms")}</h2>
-          <button className="icon-button" onClick={onClose} aria-label={t("close")}>
-            <X />
-          </button>
-        </header>
+        <SidePanelHeader
+          className="terms-sheet__header"
+          title={t("ownTerms")}
+          actions={<IconButton label={t("close")} icon={<X />} onClick={onClose} />}
+        />
         <p className="muted">{t("ownTermsIntro")}</p>
         <div className="add-term">
-          <input
+          <TextField
             data-autofocus
-            aria-label={t("newTerm")}
+            fieldClassName="add-term__field"
+            className="add-term__input"
+            label={t("newTerm")}
+            labelHidden
             value={newWord}
             onChange={(event) => setNewWord(event.target.value)}
             onKeyDown={(event) => {
@@ -52,34 +63,44 @@ export function TermsSheet({ open, manuscript, onChange, onInsert, onClose }: Te
             }}
             placeholder={t("addTerm")}
           />
-          <button onClick={addWord} aria-label={t("addTerm")}>
-            +
-          </button>
+          <IconButton
+            className="add-term__button"
+            appearance="secondary"
+            label={t("addTerm")}
+            icon={<Plus />}
+            onClick={addWord}
+          />
         </div>
         {projectDictionary.length ? (
-          <div className="chip-list editable-chips">
+          <ChipList className="editable-chips" label={t("ownTerms")}>
             {projectDictionary.map((item, index) => {
               const word = typeof item === "string" ? item : item.w;
               return (
-                <span key={`${word}-${index}`}>
-                  <button onClick={() => onInsert(word)}>{word}</button>
-                  <button
-                    aria-label={t("removeTerm").replace("{word}", word)}
-                    onClick={() =>
-                      onChange({
-                        ...manuscript,
-                        words: projectDictionary.filter((_, itemIndex) => itemIndex !== index),
-                      })
-                    }
+                <RemovableChip
+                  key={word}
+                  className="terms-sheet__chip"
+                  removeLabel={t("removeTerm").replace("{word}", word)}
+                  onRemove={() =>
+                    onChange({
+                      ...manuscript,
+                      words: projectDictionary.filter((_, itemIndex) => itemIndex !== index),
+                    })
+                  }
+                >
+                  <Button
+                    className="terms-sheet__term-action"
+                    appearance="ghost"
+                    size="compact"
+                    onClick={() => onInsert(word)}
                   >
-                    ×
-                  </button>
-                </span>
+                    {word}
+                  </Button>
+                </RemovableChip>
               );
             })}
-          </div>
+          </ChipList>
         ) : (
-          <p className="muted">{t("ownTermsEmpty")}</p>
+          <EmptyState title={t("ownTermsEmpty")} headingLevel={3} size="compact" />
         )}
       </div>
     </Sheet>

@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { useI18n } from "../../i18n";
-import { bodyParagraphs, markedSegments } from "./marks";
 import { orderedChapters } from "./binder/manuscriptTree";
+import { bodyParagraphs, markedSegments } from "./marks";
 import type { Chapter, Manuscript } from "./model";
 import "./PrintDocument.css";
 
