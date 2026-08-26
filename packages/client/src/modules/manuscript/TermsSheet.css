@@ -1,10 +1,10 @@
 .terms-sheet {
+  width: 100%;
+  min-width: 0;
   display: grid;
+  align-content: start;
   gap: var(--space-12);
-}
-
-.terms-sheet__header {
-  padding: 0;
+  overflow-x: hidden;
 }
 
 .terms-sheet > p {
@@ -13,19 +13,22 @@
 }
 
 .add-term {
+  width: 100%;
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: var(--space-6);
 }
 
 .add-term__field {
   min-width: 0;
-  flex: 1;
+  margin: 0;
 }
 
 .add-term__input {
   width: 100%;
+  min-width: 0;
 }
 
 .add-term__button {
@@ -33,6 +36,7 @@
 }
 
 .editable-chips {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-6);

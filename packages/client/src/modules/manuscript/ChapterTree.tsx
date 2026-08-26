@@ -14,6 +14,7 @@ import {
   flattenChapterIds,
   renameFolder,
 } from "./binder/manuscriptTree";
+import { ChapterActionsMenu, type ChapterActionsMenuProps } from "./ChapterActionsMenu";
 import { chapterStoryTimeLabel } from "./ChapterStoryTimeFields";
 import {
   ChapterTreeChapterRow,
@@ -38,6 +39,7 @@ export interface ChapterTreeProps {
   onClose: () => void;
   onSelect: (id: string) => void;
   onStructureChange: (structure: ManuscriptStructure) => void;
+  chapterActions?: ChapterActionsMenuProps;
 }
 
 export function ChapterTree({
@@ -50,6 +52,7 @@ export function ChapterTree({
   onClose,
   onSelect,
   onStructureChange,
+  chapterActions,
 }: ChapterTreeProps) {
   const { t } = useI18n();
   const chapterById = useMemo(
@@ -169,6 +172,11 @@ export function ChapterTree({
           storyTime={chapterStoryTimeLabel(chapter, timeline, timeSystem, t)}
           breadcrumb={breadcrumb || undefined}
           dragDrop={dragDrop}
+          actions={
+            chapter.id === current?.id && chapterActions ? (
+              <ChapterActionsMenu {...chapterActions} />
+            ) : undefined
+          }
           onSelect={() => {
             onSelect(chapter.id);
             if (viewportMode === "compact") onClose();

@@ -86,6 +86,22 @@ describe("Popover", () => {
     expect(screen.queryByRole("dialog", { name: "Werkzeuge" })).toBeNull();
   });
 
+  it("forwards a consumer class to its rendered surface", () => {
+    render(
+      <Popover
+        anchorRef={createRef()}
+        open
+        label="Werkzeuge"
+        className="consumer-popover"
+        onClose={() => undefined}
+      >
+        Inhalt
+      </Popover>,
+    );
+
+    expect(screen.getByRole("dialog", { name: "Werkzeuge" })).toHaveClass("consumer-popover");
+  });
+
   it("can expose a semantically neutral desktop surface for composite widgets", () => {
     const anchor = createRef<HTMLButtonElement>();
     render(

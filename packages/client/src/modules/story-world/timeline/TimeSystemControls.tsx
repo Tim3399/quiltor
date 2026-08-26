@@ -70,6 +70,7 @@ export function TimeSystemControls({
           anchorRef={settingsButton}
           open={settingsOpen}
           label={t("timelineConfigureTime")}
+          className="timeline-time-settings-popover"
           onClose={() => setSettingsOpen(false)}
         >
           <ScrollArea

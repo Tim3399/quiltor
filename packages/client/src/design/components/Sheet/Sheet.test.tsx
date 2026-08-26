@@ -63,4 +63,53 @@ describe("Sheet", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(trigger).toHaveFocus());
   });
+
+  it("keeps Escape and focus scoped to the topmost nested sheet", async () => {
+    function Example() {
+      const [outerOpen, setOuterOpen] = useState(false);
+      const [innerOpen, setInnerOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOuterOpen(true)}>
+            Äußeres Sheet öffnen
+          </button>
+          <Sheet open={outerOpen} label="Außen" onClose={() => setOuterOpen(false)}>
+            <button type="button" onClick={() => setInnerOpen(true)}>
+              Inneres Sheet öffnen
+            </button>
+          </Sheet>
+          <Sheet open={innerOpen} label="Innen" onClose={() => setInnerOpen(false)}>
+            <button type="button" data-autofocus>
+              Innere Aktion
+            </button>
+          </Sheet>
+        </>
+      );
+    }
+
+    render(<Example />);
+    const outerTrigger = screen.getByRole("button", { name: "Äußeres Sheet öffnen" });
+    outerTrigger.focus();
+    fireEvent.click(outerTrigger);
+    const outerSheet = screen.getByRole("dialog", { name: "Außen" });
+    const innerTrigger = screen.getByRole("button", { name: "Inneres Sheet öffnen" });
+    innerTrigger.focus();
+    fireEvent.click(innerTrigger);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Innere Aktion" })).toHaveFocus(),
+    );
+    expect(outerSheet).toHaveAttribute("aria-hidden", "true");
+    expect(outerSheet).toHaveAttribute("inert");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Innen" })).toBeNull());
+    expect(screen.getByRole("dialog", { name: "Außen" })).toBeVisible();
+    expect(outerSheet).not.toHaveAttribute("aria-hidden");
+    expect(outerSheet).not.toHaveAttribute("inert");
+    expect(innerTrigger).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Außen" })).toBeNull());
+    expect(outerTrigger).toHaveFocus();
+  });
 });

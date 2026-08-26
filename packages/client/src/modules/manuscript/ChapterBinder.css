@@ -8,18 +8,32 @@
   width: calc(100% - var(--binder-indent));
   min-height: var(--control-touch);
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  grid-template-areas: "drag main";
-  gap: 1px var(--space-6);
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-areas: "drag main actions";
+  align-items: center;
+  gap: var(--space-2);
   margin-inline-start: var(--binder-indent);
-  padding: var(--space-7) var(--space-6);
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--transparent);
   border-radius: var(--radius-sm);
   background: var(--transparent);
+}
+.binder-chapter-select {
+  width: 100%;
+  min-width: 0;
+  min-height: calc(var(--control-touch) - var(--space-4));
+  display: grid;
+  grid-area: main;
+  align-items: center;
+  padding: var(--space-5) var(--space-4);
+  color: var(--ink);
   text-align: left;
-  cursor: pointer;
+}
+.binder-chapter-select:hover:not(:disabled) {
+  background: var(--transparent);
 }
 .binder-chapter-content {
+  width: 100%;
   min-width: 0;
   display: grid;
   grid-area: main;
@@ -34,9 +48,10 @@
   border-color: var(--line);
   background: var(--paper);
 }
-.binder-chapter-row:focus-visible {
+.binder-chapter-row:focus-within {
   border-color: var(--focus-ring);
-  outline: 2px solid var(--focus-ring);
+}
+.binder-chapter-select:focus-visible {
   outline-offset: -2px;
 }
 .binder-chapter-row[data-drop-position="before"] {
@@ -83,8 +98,8 @@
 }
 @media (max-width: 719px), (pointer: coarse) {
   .binder-chapter-row {
-    grid-template-columns: var(--space-24) minmax(0, 1fr);
-    grid-template-areas: "drag main";
+    grid-template-columns: minmax(0, 1fr) var(--control-touch);
+    grid-template-areas: "main actions";
   }
   .binder-chapter-content {
     grid-template-columns: var(--space-24) minmax(0, 1fr);
@@ -95,47 +110,6 @@
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--font-size-2);
-}
-.binder-chapter-actions {
-  flex: none;
-  display: grid;
-  gap: var(--space-6);
-  padding: var(--space-8) var(--space-14);
-  border-bottom: 1px solid var(--line);
-}
-.binder-chapter-actions > span {
-  color: var(--muted);
-  font-size: var(--font-size-1);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-}
-.binder-chapter-toolbar {
-  width: 100%;
-  max-width: 100%;
-  min-height: 0;
-  display: grid;
-  padding: 0;
-}
-.binder-chapter-toolbar-group {
-  min-width: 0;
-  max-width: 100%;
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(4, var(--control-compact));
-  justify-content: space-between;
-  gap: 0;
-  padding: 0;
-  border: 0;
-}
-.binder-chapter-actions .binder-chapter-action {
-  color: var(--muted);
-}
-.binder-chapter-actions .binder-chapter-action:hover:not(:disabled) {
-  color: var(--ink);
-}
-.binder-chapter-actions .chapter-action-delete {
-  color: var(--danger);
 }
 .binder-note {
   margin: 0;

@@ -1,4 +1,4 @@
-.binder-chapter-row[draggable="true"],
+.binder-chapter-select[draggable="true"],
 .binder-drag-handle[draggable="true"] {
   cursor: grab;
 }
@@ -81,7 +81,7 @@
 }
 .binder-chapter-row:hover .binder-drag-handle,
 .binder-folder-row:hover .binder-drag-handle,
-.binder-chapter-row:focus-visible .binder-drag-handle {
+.binder-chapter-row:focus-within .binder-drag-handle {
   opacity: 1;
 }
 .binder-folder-row {

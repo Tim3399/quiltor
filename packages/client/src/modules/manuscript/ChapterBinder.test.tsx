@@ -61,10 +61,14 @@ function renderBinder(
   onStructureChange = vi.fn(),
   manuscript = nestedManuscript,
   onSelect = vi.fn(),
+  onExportCurrent = vi.fn(),
+  onRequestDelete = vi.fn(),
 ) {
   return {
     onStructureChange,
     onSelect,
+    onExportCurrent,
+    onRequestDelete,
     ...render(
       <TestProviders>
         <SidePanel className="manuscript-binder-panel" label="Kapitel" side="start">
@@ -77,8 +81,8 @@ function renderBinder(
             onSelect={onSelect}
             onStructureChange={onStructureChange}
             onUpdateCurrent={vi.fn()}
-            onExportCurrent={vi.fn()}
-            onRequestDelete={vi.fn()}
+            onExportCurrent={onExportCurrent}
+            onRequestDelete={onRequestDelete}
           />
         </SidePanel>
       </TestProviders>,
@@ -90,45 +94,71 @@ describe("ChapterBinder folders", () => {
   beforeEach(() => localStorage.clear());
   afterEach(cleanup);
 
-  it("keeps all chapter actions as compact icon targets inside one bounded group", () => {
-    renderBinder();
+  it("keeps one quiet, keyboard-accessible action menu attached to the active chapter", async () => {
+    const onExport = vi.fn();
+    const onDelete = vi.fn();
+    renderBinder(vi.fn(), nestedManuscript, vi.fn(), onExport, onDelete);
 
-    const toolbar = screen.getByRole("toolbar", { name: "Kapitelaktionen: Ankunft" });
-    const group = within(toolbar).getByRole("group", { name: "Kapitelaktionen: Ankunft" });
-    const actions = within(group).getAllByRole("button");
-    expect(actions).toHaveLength(4);
-    expect(actions.map((action) => action.getAttribute("aria-label"))).toEqual([
-      "Nach oben",
-      "Nach unten",
-      "Kapitel als Markdown",
-      "Kapitel löschen",
-    ]);
-    actions.forEach((action) => {
-      expect(action).toHaveClass("icon-button", "icon-button--compact", "binder-chapter-action");
-      expect(action).toHaveAttribute("data-size", "compact");
+    const activeRow = requireValue(
+      screen
+        .getByText("Ankunft", { selector: ".chapter-name" })
+        .closest<HTMLElement>(".binder-chapter-row"),
+      "Active chapter row missing",
+    );
+    const trigger = within(activeRow).getByRole("button", {
+      name: "Kapitelaktionen: Ankunft",
     });
+    expect(screen.queryByRole("toolbar", { name: "Kapitelaktionen: Ankunft" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /Kapitelaktionen:/ })).toEqual([trigger]);
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    const menu = await screen.findByRole("menu", { name: "Kapitelaktionen: Ankunft" });
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", menu.id);
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Nach oben", "Nach unten", "Kapitel als Markdown", "Kapitel löschen"]);
+    expect(within(menu).getByRole("menuitem", { name: "Nach oben" })).toBeDisabled();
+    expect(within(menu).getByRole("menuitem", { name: "Nach unten" })).toBeDisabled();
+    expect(within(menu).getAllByRole("separator")).toHaveLength(2);
+    expect(within(menu).getByRole("menuitem", { name: "Kapitel löschen" })).toHaveAttribute(
+      "data-tone",
+      "danger",
+    );
+
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Kapitel als Markdown" }));
+    expect(onExport).toHaveBeenCalledOnce();
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    fireEvent.click(
+      within(await screen.findByRole("menu", { name: "Kapitelaktionen: Ankunft" })).getByRole(
+        "menuitem",
+        { name: "Kapitel löschen" },
+      ),
+    );
+    expect(onDelete).toHaveBeenCalledOnce();
 
     const chapterCss = readFileSync(
       join(process.cwd(), "packages/client/src/modules/manuscript/ChapterBinder.css"),
       "utf8",
     );
-    const tokensCss = readFileSync(
-      join(process.cwd(), "packages/client/src/design/tokens.css"),
+    const actionsCss = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/manuscript/ChapterActionsMenu.css"),
       "utf8",
     );
     expect(chapterCss).toMatch(
-      /\.binder-chapter-toolbar\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;/s,
+      /\.binder-chapter-row\s*\{[^}]*grid-template-columns:\s*16px minmax\(0, 1fr\) auto;[^}]*grid-template-areas:\s*"drag main actions";/s,
     );
-    expect(chapterCss).toMatch(
-      /\.binder-chapter-toolbar-group\s*\{[^}]*grid-template-columns:\s*repeat\(4, var\(--control-compact\)\);[^}]*justify-content:\s*space-between;/s,
+    expect(actionsCss).toMatch(
+      /\.binder-chapter-action-trigger\s*\{[^}]*grid-area:\s*actions;[^}]*opacity:\s*0\.72;/s,
     );
-    expect(chapterCss).not.toMatch(
-      /\.binder-chapter-actions \.binder-chapter-action\s*\{[^}]*width:/s,
-    );
-    expect(tokensCss).toMatch(/--control-compact:\s*30px;/);
-    expect(tokensCss).toMatch(
-      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?--control-compact:\s*var\(--control-touch\);/,
-    );
+    expect(chapterCss).not.toContain("binder-chapter-toolbar");
   });
 
   it("links folder action triggers to a keyboard menu and marks deletion as dangerous", async () => {
@@ -157,6 +187,25 @@ describe("ChapterBinder folders", () => {
     await waitFor(() => expect(rename).toHaveFocus());
     fireEvent.keyDown(rename, { key: "Escape" });
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("moves the active chapter from its contextual menu", async () => {
+    const manuscript: Manuscript = {
+      chapters: [
+        { id: "a", title: "Alpha", body: "", note: "" },
+        { id: "b", title: "Beta", body: "", note: "" },
+      ],
+    };
+    const onStructureChange = vi.fn();
+    renderBinder(onStructureChange, manuscript);
+
+    fireEvent.click(screen.getByRole("button", { name: "Kapitelaktionen: Alpha" }));
+    const menu = await screen.findByRole("menu", { name: "Kapitelaktionen: Alpha" });
+    expect(within(menu).getByRole("menuitem", { name: "Nach oben" })).toBeDisabled();
+    expect(within(menu).getByRole("menuitem", { name: "Nach unten" })).toBeEnabled();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Nach unten" }));
+
+    expect(flattenChapterIds(onStructureChange.mock.calls.at(-1)?.[0])).toEqual(["b", "a"]);
   });
 
   it("renders arbitrary nesting with a useful chapter breadcrumb and persistent collapse", () => {
@@ -229,6 +278,28 @@ describe("ChapterBinder folders", () => {
     expect(rootTarget).toHaveAttribute("aria-hidden", "true");
   });
 
+  it("keeps the chapter drag handle functional beside the selection and action controls", () => {
+    renderBinder();
+    const row = requireValue(
+      screen
+        .getByText("Ankunft", { selector: ".chapter-name" })
+        .closest<HTMLElement>(".binder-chapter-row"),
+      "Chapter row missing",
+    );
+    const select = within(row).getByRole("button", { current: "page" });
+    const action = within(row).getByRole("button", { name: "Kapitelaktionen: Ankunft" });
+    const handle = requireValue(
+      row.querySelector<HTMLElement>('.binder-drag-handle[draggable="true"]'),
+      "Chapter drag handle missing",
+    );
+    const transfer = createDataTransfer();
+
+    expect(select).not.toContainElement(action);
+    fireEvent.dragStart(handle, { dataTransfer: transfer });
+    expect(transfer.effectAllowed).toBe("move");
+    expect(transfer.setData).toHaveBeenCalledWith("application/x-quiltor-binder-item", "c1-item");
+  });
+
   it("uses chapter row halves for before/after ordering and keeps the explicit before zone", async () => {
     const manuscript: Manuscript = {
       chapters: [
@@ -240,9 +311,19 @@ describe("ChapterBinder folders", () => {
     const onStructureChange = vi.fn();
     const onSelect = vi.fn();
     const { container } = renderBinder(onStructureChange, manuscript, onSelect);
-    const alpha = screen.getByRole("button", { name: /Alpha/ });
-    const gamma = screen.getByRole("button", { name: /Gamma/ });
-    vi.spyOn(alpha, "getBoundingClientRect").mockReturnValue({
+    const alpha = requireValue(
+      screen.getByText("Alpha", { selector: ".chapter-name" }).closest<HTMLButtonElement>("button"),
+      "Alpha selection missing",
+    );
+    const gamma = requireValue(
+      screen.getByText("Gamma", { selector: ".chapter-name" }).closest<HTMLButtonElement>("button"),
+      "Gamma selection missing",
+    );
+    const alphaRow = requireValue(
+      alpha.closest<HTMLElement>(".binder-chapter-row"),
+      "Alpha row missing",
+    );
+    vi.spyOn(alphaRow, "getBoundingClientRect").mockReturnValue({
       top: 100,
       bottom: 144,
       height: 44,
@@ -250,13 +331,13 @@ describe("ChapterBinder folders", () => {
 
     let transfer = createDataTransfer();
     fireEvent.dragStart(gamma, { dataTransfer: transfer });
-    const dragOverAfter = createEvent.dragOver(alpha, { dataTransfer: transfer });
+    const dragOverAfter = createEvent.dragOver(alphaRow, { dataTransfer: transfer });
     Object.defineProperty(dragOverAfter, "clientY", { value: 140 });
-    fireEvent(alpha, dragOverAfter);
-    expect(alpha).toHaveAttribute("data-drop-position", "after");
-    const dropAfter = createEvent.drop(alpha, { dataTransfer: transfer });
+    fireEvent(alphaRow, dragOverAfter);
+    expect(alphaRow).toHaveAttribute("data-drop-position", "after");
+    const dropAfter = createEvent.drop(alphaRow, { dataTransfer: transfer });
     Object.defineProperty(dropAfter, "clientY", { value: 140 });
-    fireEvent(alpha, dropAfter);
+    fireEvent(alphaRow, dropAfter);
     expect(flattenChapterIds(onStructureChange.mock.calls.at(-1)?.[0])).toEqual(["a", "c", "b"]);
 
     onStructureChange.mockClear();
@@ -389,7 +470,9 @@ describe("ChapterBinder folders", () => {
     const nestedChapter = screen
       .getByText("Teil I / Ankunftsbogen")
       .closest<HTMLElement>(".binder-chapter-row");
-    const rootChapter = screen.getByRole("button", { name: /Aufbruch/ });
+    const rootChapter = screen
+      .getByRole("button", { name: /Aufbruch/ })
+      .closest<HTMLElement>(".binder-chapter-row");
 
     expect(partRow).toHaveAttribute("data-binder-depth", "0");
     expect(arcRow).toHaveAttribute("data-binder-depth", "1");
@@ -506,7 +589,7 @@ describe("ChapterBinder folders", () => {
       /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-drag-handle\s*\{[^}]*display:\s*none;[\s\S]*?\.binder-folder-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;[^}]*grid-template-areas:\s*"main actions";/s,
     );
     expect(chapterCss).toMatch(
-      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-chapter-row\s*\{[^}]*grid-template-columns:\s*var\(--space-24\) minmax\(0, 1fr\);/s,
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-chapter-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-touch\);[^}]*grid-template-areas:\s*"main actions";/s,
     );
   });
 });

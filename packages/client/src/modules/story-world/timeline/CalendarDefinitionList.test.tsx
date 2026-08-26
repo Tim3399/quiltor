@@ -36,11 +36,16 @@ describe("CalendarDefinitionList", () => {
       />,
     );
 
+    const add = screen.getByRole("button", { name: "Add months" });
+    const remove = screen.getByRole("button", { name: "Remove Dawn" });
+    expect(add).toHaveAttribute("data-size", "regular");
+    expect(remove).toHaveAttribute("data-size", "regular");
+
     fireEvent.change(screen.getByRole("spinbutton", { name: "Month count" }), {
       target: { value: "3" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add months" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove Dawn" }));
+    fireEvent.click(add);
+    fireEvent.click(remove);
 
     expect(onCountChange).toHaveBeenCalledWith(3);
     expect(onAdd).toHaveBeenCalledOnce();

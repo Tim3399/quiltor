@@ -80,6 +80,7 @@ export interface ChapterTreeChapterRowProps {
   words: ReactNode;
   storyTime: ReactNode;
   breadcrumb?: ReactNode;
+  actions?: ReactNode;
   dragDrop: ChapterTreeDragDrop;
   onSelect: () => void;
 }
@@ -93,6 +94,7 @@ export function ChapterTreeChapterRow({
   words,
   storyTime,
   breadcrumb,
+  actions,
   dragDrop,
   onSelect,
 }: ChapterTreeChapterRowProps) {
@@ -101,25 +103,12 @@ export function ChapterTreeChapterRow({
   return (
     <li className="binder-tree-entry" data-binder-depth={depth} style={depthStyle(depth)}>
       <ChapterTreeDropBefore item={item} depth={depth} dragDrop={dragDrop} />
-      <Button
-        appearance="ghost"
-        size="touch"
-        icon={<ChapterTreeDragHandle item={item} dragDrop={dragDrop} />}
-        draggable
-        data-binder-item
+      {/* The action trigger must remain a sibling of the selection button: nested controls are invalid. */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: native drag-and-drop is owned by the focused controls inside this layout wrapper. */}
+      <div
         data-binder-depth={depth}
-        aria-current={selected ? "page" : undefined}
         className={`binder-chapter-row ${selected ? "active" : ""}`}
         style={depthStyle(depth)}
-        onClick={(event) => {
-          if (dragDrop.suppressSelectionRef.current) {
-            event.preventDefault();
-            return;
-          }
-          onSelect();
-        }}
-        onDragStart={(event) => dragDrop.beginDrag(event, item.id, true)}
-        onDragEnd={dragDrop.endDrag}
         onDragEnter={(event) => dragDrop.allowDrop(event, rowDestination(event))}
         onDragOver={(event) => dragDrop.allowDrop(event, rowDestination(event))}
         onDragLeave={(event) => {
@@ -135,14 +124,34 @@ export function ChapterTreeChapterRow({
               : undefined
         }
       >
-        <span className="binder-chapter-content">
-          <span className="chapter-number">{number}</span>
-          <span className="chapter-name">{label}</span>
-          <span className="chapter-words">{words}</span>
-          <span className="chapter-story-time-summary">{storyTime}</span>
-          {breadcrumb && <span className="chapter-breadcrumb">{breadcrumb}</span>}
-        </span>
-      </Button>
+        <ChapterTreeDragHandle item={item} dragDrop={dragDrop} dragSource />
+        <Button
+          appearance="ghost"
+          size="touch"
+          draggable
+          data-binder-item
+          aria-current={selected ? "page" : undefined}
+          className="binder-chapter-select"
+          onClick={(event) => {
+            if (dragDrop.suppressSelectionRef.current) {
+              event.preventDefault();
+              return;
+            }
+            onSelect();
+          }}
+          onDragStart={(event) => dragDrop.beginDrag(event, item.id, true)}
+          onDragEnd={dragDrop.endDrag}
+        >
+          <span className="binder-chapter-content">
+            <span className="chapter-number">{number}</span>
+            <span className="chapter-name">{label}</span>
+            <span className="chapter-words">{words}</span>
+            <span className="chapter-story-time-summary">{storyTime}</span>
+            {breadcrumb && <span className="chapter-breadcrumb">{breadcrumb}</span>}
+          </span>
+        </Button>
+        {actions}
+      </div>
     </li>
   );
 }

@@ -67,7 +67,7 @@ describe("TextWorkspace chapter binder", () => {
     expect(status.getByText("Wörter").nextSibling).toHaveTextContent("5");
   });
 
-  it("zeigt Kapitelbefehle dauerhaft oben im linken Kapitelreiter", () => {
+  it("bietet Kapitelbefehle im Kontextmenü der aktiven Kapitelzeile an", async () => {
     const twoChapters = {
       chapters: [
         ...manuscript.chapters,
@@ -86,11 +86,12 @@ describe("TextWorkspace chapter binder", () => {
       inspectorOpen: true,
     });
     const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
-    const actions = within(binder.getByRole("group", { name: "Kapitelaktionen: Prolog" }));
-    expect(actions.getByRole("button", { name: "Nach oben" })).toBeDisabled();
-    expect(actions.getByRole("button", { name: "Kapitel als Markdown" })).toBeVisible();
-    expect(actions.getByRole("button", { name: "Kapitel löschen" })).toBeVisible();
-    fireEvent.click(actions.getByRole("button", { name: "Nach unten" }));
+    fireEvent.click(binder.getByRole("button", { name: "Kapitelaktionen: Prolog" }));
+    const actions = within(await screen.findByRole("menu", { name: "Kapitelaktionen: Prolog" }));
+    expect(actions.getByRole("menuitem", { name: "Nach oben" })).toBeDisabled();
+    expect(actions.getByRole("menuitem", { name: "Kapitel als Markdown" })).toBeVisible();
+    expect(actions.getByRole("menuitem", { name: "Kapitel löschen" })).toBeVisible();
+    fireEvent.click(actions.getByRole("menuitem", { name: "Nach unten" }));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         chapters: [expect.objectContaining({ id: "c2" }), expect.objectContaining({ id: "c1" })],
@@ -111,8 +112,9 @@ describe("TextWorkspace chapter binder", () => {
       inspectorOpen: true,
     });
     const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
-    const actions = within(binder.getByRole("group", { name: "Kapitelaktionen: Prolog" }));
-    fireEvent.click(actions.getByRole("button", { name: "Kapitel löschen" }));
+    fireEvent.click(binder.getByRole("button", { name: "Kapitelaktionen: Prolog" }));
+    const actions = within(await screen.findByRole("menu", { name: "Kapitelaktionen: Prolog" }));
+    fireEvent.click(actions.getByRole("menuitem", { name: "Kapitel löschen" }));
     const dialog = within(await screen.findByRole("alertdialog"));
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.click(dialog.getByRole("button", { name: "Kapitel löschen" }));
@@ -159,7 +161,10 @@ describe("TextWorkspace chapter binder", () => {
     const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
     fireEvent.click(binder.getByRole("button", { name: /Rückblende/ }));
     fireEvent.click(
-      requireValue(binder.getByText("Handlungszeit").closest("summary"), "Story-time summary missing"),
+      requireValue(
+        binder.getByText("Handlungszeit").closest("summary"),
+        "Story-time summary missing",
+      ),
     );
     fireEvent.click(binder.getByRole("radio", { name: "Zeitpunkt" }));
 

@@ -14,8 +14,8 @@
   font-size: var(--font-size-2);
 }
 .timeline-time-settings-panel {
-  width: min(var(--popover-max), calc(100vw - var(--space-24)));
   max-height: min(620px, calc(100dvh - var(--space-88)));
+  contain: paint;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-10);
@@ -60,5 +60,25 @@
     width: var(--control-touch);
     min-width: var(--control-touch);
     padding: 0;
+  }
+}
+.timeline-time-settings-popover:has(> .timeline-time-settings-panel) {
+  width: min(var(--popover-max), calc(100vw - var(--space-24)));
+  overflow: clip;
+}
+.timeline-time-settings-popover > .timeline-time-settings-panel {
+  width: 100%;
+}
+@media (max-width: 719px) {
+  .timeline-time-settings-popover:has(.timeline-time-settings-panel) {
+    overflow: clip;
+  }
+  .timeline-time-settings-popover .timeline-time-settings-panel {
+    max-height: calc(
+      88dvh -
+      var(--spacing-regular-tight) -
+      var(--spacing-regular-tight) -
+      var(--space-1)
+    );
   }
 }

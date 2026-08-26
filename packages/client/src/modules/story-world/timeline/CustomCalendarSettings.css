@@ -16,7 +16,7 @@
 .timeline-calendar-item,
 .timeline-calendar-item-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 86px var(--control-compact);
+  grid-template-columns: minmax(0, 1fr) 86px var(--control-regular);
   gap: var(--space-6);
   align-items: center;
 }
@@ -27,31 +27,19 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-.calendar-definition-remove {
-  width: var(--control-compact);
-  min-height: 34px;
-}
 .timeline-calendar-item > .calendar-definition-field,
 .timeline-calendar-add-row > .calendar-definition-count-field {
   min-width: 0;
+  margin: 0;
 }
 .timeline-calendar-add-row {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
   gap: var(--space-6);
+  align-items: stretch;
 }
 .calendar-definition-add {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-6);
-  padding: 0 var(--space-10);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  color: var(--ink);
-  cursor: pointer;
+  height: 100%;
 }
 .timeline-calendar-add-row svg {
   width: 14px;
@@ -63,7 +51,7 @@
   }
   .timeline-calendar-item,
   .timeline-calendar-item-head {
-    grid-template-columns: minmax(0, 1fr) 68px var(--control-compact);
+    grid-template-columns: minmax(0, 1fr) 68px var(--control-regular);
   }
   .timeline-calendar-add-row {
     grid-template-columns: 64px minmax(0, 1fr);

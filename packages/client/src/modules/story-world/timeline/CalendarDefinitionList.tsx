@@ -66,6 +66,7 @@ export function CalendarDefinitionList<Item>({
             className="calendar-definition-remove"
             label={removeLabel(item, index)}
             icon={<X />}
+            size="regular"
             tone="danger"
             disabled={!canRemove(item, index)}
             onClick={() => onRemove(index)}
@@ -83,12 +84,7 @@ export function CalendarDefinitionList<Item>({
           value={count}
           onChange={(event) => onCountChange(Number(event.target.value))}
         />
-        <Button
-          className="calendar-definition-add"
-          size="compact"
-          icon={<Plus />}
-          onClick={onAdd}
-        >
+        <Button className="calendar-definition-add" size="regular" icon={<Plus />} onClick={onAdd}>
           {addLabel}
         </Button>
       </div>

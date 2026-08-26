@@ -51,7 +51,7 @@
   display: none;
 }
 
-@media (pointer: coarse) {
+@media (max-width: 719px), (pointer: coarse) {
   .ui-toolbar-button[data-label-mode="hidden"],
   .ui-toolbar-button[data-label-mode="responsive"] {
     width: var(--control-touch);

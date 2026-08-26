@@ -20,6 +20,20 @@ export function useOverlayFocus(
     const previous = document.activeElement as HTMLElement | null;
     const returnFocus = returnFocusRef?.current ?? previous;
     overlayStack.push(id);
+    const modal = container.current;
+    const renderedModals = [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')];
+    const modalIndex = modal ? renderedModals.indexOf(modal) : -1;
+    const obscuredModals = (modalIndex >= 0 ? renderedModals.slice(0, modalIndex) : []).map(
+      (element) => ({
+        element,
+        ariaHidden: element.getAttribute("aria-hidden"),
+        inert: element.hasAttribute("inert"),
+      }),
+    );
+    for (const { element } of obscuredModals) {
+      element.setAttribute("aria-hidden", "true");
+      element.setAttribute("inert", "");
+    }
     const frame = requestAnimationFrame(() => {
       const autofocus = container.current?.querySelector<HTMLElement>(
         "[data-autofocus],[autofocus]",
@@ -67,6 +81,12 @@ export function useOverlayFocus(
       document.removeEventListener("keydown", key);
       const index = overlayStack.lastIndexOf(id);
       if (index >= 0) overlayStack.splice(index, 1);
+      for (const { element, ariaHidden, inert } of obscuredModals) {
+        if (!element.isConnected) continue;
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+        if (!inert) element.removeAttribute("inert");
+      }
       if (returnFocus?.isConnected) returnFocus.focus();
     };
   }, [active, container, returnFocusRef]);

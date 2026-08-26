@@ -26,7 +26,10 @@
 }
 .writing-insert-symbol {
   min-width: 32px;
+  justify-content: center;
+  padding-inline: 0;
   font-size: var(--font-size-5);
+  text-align: center;
 }
 .symbol-picker {
   display: block;
@@ -46,10 +49,27 @@
 .symbol-picker__chip {
   width: 100%;
   height: 30px;
+  justify-content: center;
+  padding-inline: 0;
+  text-align: center;
 }
 .symbol-picker__chip[aria-pressed="true"] {
   border-color: var(--selection-border);
   background: var(--selection-surface);
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  .writing-insert-symbol {
+    min-width: var(--control-touch);
+  }
+
+  .symbol-picker__chips {
+    grid-template-columns: repeat(auto-fit, minmax(var(--control-touch), 1fr));
+  }
+
+  .symbol-picker__chip {
+    height: var(--control-touch);
+  }
 }
 
 .mention-review {

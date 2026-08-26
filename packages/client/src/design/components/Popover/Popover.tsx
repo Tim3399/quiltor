@@ -34,6 +34,7 @@ export interface PopoverProps {
   onClose: () => void;
   children: ReactNode;
   label: string;
+  className?: string;
   compactMode?: "sheet" | "popover";
   desktopRole?: "dialog" | "presentation";
   placement?: "block" | "inline-end";
@@ -46,6 +47,7 @@ export function Popover({
   onClose,
   children,
   label,
+  className = "",
   compactMode = "sheet",
   desktopRole = "dialog",
   placement = "block",
@@ -131,7 +133,7 @@ export function Popover({
       <Sheet
         open
         label={label}
-        className="ui-popover-sheet-container"
+        className={`ui-popover-sheet-container ${className}`.trim()}
         onClose={onClose}
         returnFocusRef={anchorRef}
       >
@@ -149,7 +151,7 @@ export function Popover({
     <div
       {...desktopAccessibilityProps}
       ref={panel}
-      className="ui-popover material-popover"
+      className={`ui-popover material-popover ${className}`.trim()}
       style={position}
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;

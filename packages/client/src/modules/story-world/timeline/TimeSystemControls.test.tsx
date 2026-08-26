@@ -33,7 +33,9 @@ describe("TimeSystemControls", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Zeitsystem konfigurieren" }));
     const panel = document.querySelector(".timeline-time-settings-panel");
+    const dialog = screen.getByRole("dialog", { name: "Zeitsystem konfigurieren" });
     expect(panel?.tagName).toBe("DIV");
+    expect(dialog).toHaveClass("timeline-time-settings-popover");
     expect(panel).toHaveClass("scroll-area", "timeline-time-settings-panel");
     expect(panel).toHaveAttribute("data-axis", "y");
     expect(panel).toHaveAttribute("data-gutter", "stable");
@@ -58,6 +60,16 @@ describe("TimeSystemControls", () => {
       /\.timeline-time-settings-panel(?:\s*\{|::)[^}]*(?:overflow|scrollbar|--scrollbar-surface)/s,
     );
     expect(css).not.toContain(".timeline-time-settings-panel::-webkit-scrollbar");
+    expect(css).toMatch(
+      /\.timeline-time-settings-popover:has\(> \.timeline-time-settings-panel\)\s*\{[^}]*width:\s*min\(var\(--popover-max\), calc\(100vw - var\(--space-24\)\)\);[^}]*overflow:\s*clip;/s,
+    );
+    expect(css).toMatch(
+      /\.timeline-time-settings-popover > \.timeline-time-settings-panel\s*\{[^}]*width:\s*100%;/s,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 719px\)[\s\S]*?\.timeline-time-settings-popover:has\(\.timeline-time-settings-panel\)\s*\{[^}]*overflow:\s*clip;[^}]*\}[\s\S]*?\.timeline-time-settings-popover \.timeline-time-settings-panel\s*\{[^}]*max-height:\s*calc\(\s*88dvh -\s*var\(--spacing-regular-tight\) -\s*var\(--spacing-regular-tight\) -\s*var\(--space-1\)\s*\);/s,
+    );
+    expect(css).toMatch(/\.timeline-time-settings-panel\s*\{[^}]*contain:\s*paint;/s);
   });
 
   it("adds a custom calendar and opens its labelled settings popover in one action", () => {
@@ -86,6 +98,12 @@ describe("TimeSystemControls", () => {
     const trigger = screen.getByRole("button", { name: "Zeitsystem konfigurieren" });
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    expect(trigger).toHaveAttribute("data-label-mode", "responsive");
+    expect(screen.getByRole("button", { name: "Kalender hinzufügen" })).toHaveAttribute(
+      "data-label-mode",
+      "responsive",
+    );
   });
 
   it("closes on outside input and restores focus to its trigger", async () => {

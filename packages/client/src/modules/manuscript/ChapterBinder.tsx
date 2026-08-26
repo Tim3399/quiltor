@@ -1,12 +1,6 @@
-import { ChevronDown, ChevronUp, Download, Trash2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useMemo } from "react";
-import {
-  IconButton,
-  SidePanelHeader,
-  TextArea,
-  WorkspaceToolbar,
-  WorkspaceToolbarGroup,
-} from "../../design";
+import { IconButton, SidePanelHeader, TextArea } from "../../design";
 import { useI18n } from "../../i18n";
 import type { ViewportMode } from "../../shared";
 import type { TimelineMoment, TimeSystem } from "../story-world";
@@ -56,11 +50,15 @@ export function ChapterBinder({
   const currentItem = current
     ? structure.items.find((item) => item.kind === "chapter" && item.chapterId === current.id)
     : undefined;
+  const currentSiblings = currentItem ? childrenOf(structure, currentItem.parentFolderId) : [];
+  const currentIndex = currentItem
+    ? currentSiblings.findIndex((item) => item.id === currentItem.id)
+    : -1;
 
   const moveCurrent = (delta: number) => {
     if (!currentItem) return;
-    const siblings = childrenOf(structure, currentItem.parentFolderId);
-    const index = siblings.findIndex((item) => item.id === currentItem.id);
+    const siblings = currentSiblings;
+    const index = currentIndex;
     const beforeItemId =
       delta < 0
         ? siblings[index - 1]?.id
@@ -87,60 +85,6 @@ export function ChapterBinder({
           />
         }
       />
-      {current && (
-        <section className="binder-chapter-actions">
-          <span>{t("chapterActions")}</span>
-          <WorkspaceToolbar
-            className="binder-chapter-toolbar"
-            label={`${t("chapterActions")}: ${current.title || t("untitled")}`}
-          >
-            <WorkspaceToolbarGroup
-              className="binder-chapter-toolbar-group"
-              label={`${t("chapterActions")}: ${current.title || t("untitled")}`}
-            >
-              <IconButton
-                className="binder-chapter-action"
-                icon={<ChevronUp />}
-                label={t("moveUp")}
-                size="compact"
-                disabled={!currentItem || currentItem.position <= 0}
-                onClick={() => moveCurrent(-1)}
-                title={t("moveUp")}
-              />
-              <IconButton
-                className="binder-chapter-action"
-                icon={<ChevronDown />}
-                label={t("moveDown")}
-                size="compact"
-                disabled={
-                  !currentItem ||
-                  currentItem.position >=
-                    childrenOf(structure, currentItem.parentFolderId).length - 1
-                }
-                onClick={() => moveCurrent(1)}
-                title={t("moveDown")}
-              />
-              <IconButton
-                className="binder-chapter-action"
-                icon={<Download />}
-                label={t("chapterMarkdown")}
-                size="compact"
-                onClick={onExportCurrent}
-                title={t("chapterMarkdown")}
-              />
-              <IconButton
-                className="binder-chapter-action chapter-action-delete"
-                icon={<Trash2 />}
-                label={t("deleteChapter")}
-                size="compact"
-                tone="danger"
-                onClick={onRequestDelete}
-                title={t("deleteChapter")}
-              />
-            </WorkspaceToolbarGroup>
-          </WorkspaceToolbar>
-        </section>
-      )}
       <ChapterTree
         manuscript={manuscript}
         structure={structure}
@@ -151,6 +95,19 @@ export function ChapterBinder({
         onClose={onClose}
         onSelect={onSelect}
         onStructureChange={onStructureChange}
+        chapterActions={
+          current
+            ? {
+                title: current.title || t("untitled"),
+                canMoveUp: currentIndex > 0,
+                canMoveDown: currentIndex >= 0 && currentIndex < currentSiblings.length - 1,
+                onMoveUp: () => moveCurrent(-1),
+                onMoveDown: () => moveCurrent(1),
+                onExport: onExportCurrent,
+                onDelete: onRequestDelete,
+              }
+            : undefined
+        }
       />
       {current && (
         <>

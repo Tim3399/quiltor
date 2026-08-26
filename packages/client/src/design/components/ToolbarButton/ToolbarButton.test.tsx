@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Plus } from "lucide-react";
 import { createRef } from "react";
@@ -15,6 +17,17 @@ describe("ToolbarButton", () => {
     expect(button).toHaveAttribute("data-label-mode", "responsive");
     expect(button).toHaveAttribute("title", "Neues Kapitel");
     expect(button).toHaveTextContent("Neues Kapitel");
+
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/design/components/ToolbarButton/ToolbarButton.css"),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.ui-toolbar-button\[data-label-mode="responsive"\] \{[^}]*width:\s*var\(--control-touch\);[^}]*gap:\s*0;[^}]*padding:\s*0;/s,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.ui-toolbar-button\[data-label-mode="responsive"\] \.ui-button__label\s*\{[^}]*display:\s*none;/s,
+    );
   });
 
   it("supports persistent labels, pressed state, native events and refs", () => {

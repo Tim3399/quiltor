@@ -291,6 +291,161 @@ test("Menüs und Untermenüs halten den gemeinsamen Tastatur-, Fokus- und Viewpo
   }
 });
 
+test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Test setzt den mobilen Viewport selbst und muss deshalb nur einmal laufen.",
+  );
+  test.setTimeout(45_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const worldTitle = `Schreibhilfe-Vertragswelt ${crypto.randomUUID()}`;
+  await openBlankWorld(page, worldTitle);
+
+  await page
+    .getByRole("toolbar", { name: "Manuskript" })
+    .getByRole("button", { name: "Schreibhilfe", exact: true })
+    .click();
+  const writingAid = page.getByRole("dialog", { name: "Schreibhilfe", exact: true });
+  const writingAidSurface = page.locator('[role="dialog"][aria-label="Schreibhilfe"]');
+  await writingAid.getByRole("tab", { name: "Einfügen", exact: true }).click();
+
+  await writingAid.locator("summary").filter({ hasText: "Sonderzeichen auswählen" }).click();
+  const symbols = writingAid.getByRole("list", {
+    name: "Sonderzeichen auswählen",
+    exact: true,
+  });
+  await expect(symbols.getByRole("button")).toHaveCount(22);
+  const symbolGeometry = await symbols.evaluate((list) => ({
+    clientWidth: list.clientWidth,
+    scrollWidth: list.scrollWidth,
+    buttons: [...list.querySelectorAll<HTMLButtonElement>("button")].map((button) => {
+      const buttonBounds = button.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(button);
+      const textBounds = range.getBoundingClientRect();
+      return {
+        label: button.textContent?.trim(),
+        width: buttonBounds.width,
+        height: buttonBounds.height,
+        centerOffsetX:
+          textBounds.left + textBounds.width / 2 - (buttonBounds.left + buttonBounds.width / 2),
+        centerOffsetY:
+          textBounds.top + textBounds.height / 2 - (buttonBounds.top + buttonBounds.height / 2),
+      };
+    }),
+  }));
+  expect(
+    symbolGeometry.scrollWidth,
+    "Sonderzeichenraster läuft horizontal über",
+  ).toBeLessThanOrEqual(symbolGeometry.clientWidth + 1);
+  for (const symbol of symbolGeometry.buttons) {
+    expect(symbol.width, `${symbol.label} ist als Touchziel zu schmal`).toBeGreaterThanOrEqual(44);
+    expect(symbol.height, `${symbol.label} ist als Touchziel zu niedrig`).toBeGreaterThanOrEqual(
+      44,
+    );
+    expect(
+      Math.abs(symbol.centerOffsetX),
+      `${symbol.label} ist horizontal nicht zentriert`,
+    ).toBeLessThanOrEqual(0.75);
+    expect(
+      Math.abs(symbol.centerOffsetY),
+      `${symbol.label} ist vertikal nicht zentriert`,
+    ).toBeLessThanOrEqual(0.75);
+  }
+
+  await writingAid.getByRole("button", { name: "Verwalten", exact: true }).click();
+  const terms = page.getByRole("dialog", { name: "Eigene Begriffe", exact: true });
+  await expect(terms).toBeVisible();
+  await expect(writingAidSurface).toHaveAttribute("aria-hidden", "true");
+  await expect(writingAidSurface).toHaveAttribute("inert", "");
+  await expectOverlayInsideViewport(terms, page, "Mobile / Eigene Begriffe");
+  const termsGeometry = await terms.evaluate((sheet) => {
+    const body = sheet.querySelector<HTMLElement>(".ui-sheet__body.terms-sheet");
+    const form = sheet.querySelector<HTMLElement>(".add-term");
+    const input = form?.querySelector<HTMLInputElement>("input");
+    const add = form?.querySelector<HTMLButtonElement>("button[type='submit']");
+    if (!body || !form || !input || !add)
+      throw new Error("Standardisiertes Begriffsformular fehlt");
+    const sheetBounds = sheet.getBoundingClientRect();
+    const bodyBounds = body.getBoundingClientRect();
+    const bodyStyle = getComputedStyle(body);
+    const inputBounds = input.getBoundingClientRect();
+    const addBounds = add.getBoundingClientRect();
+    return {
+      sheetClientWidth: sheet.clientWidth,
+      sheetScrollWidth: sheet.scrollWidth,
+      bodyPaddingLeft: Number.parseFloat(bodyStyle.paddingLeft),
+      bodyPaddingRight: Number.parseFloat(bodyStyle.paddingRight),
+      inputInsetLeft: inputBounds.left - sheetBounds.left,
+      addInsetRight: sheetBounds.right - addBounds.right,
+      inputInsideBody: inputBounds.left >= bodyBounds.left && inputBounds.right <= bodyBounds.right,
+      addInsideBody: addBounds.left >= bodyBounds.left && addBounds.right <= bodyBounds.right,
+      controlCenterOffset:
+        inputBounds.top + inputBounds.height / 2 - (addBounds.top + addBounds.height / 2),
+    };
+  });
+  expect(
+    termsGeometry.sheetScrollWidth,
+    "Begriffs-Sheet läuft horizontal über",
+  ).toBeLessThanOrEqual(termsGeometry.sheetClientWidth + 1);
+  expect(termsGeometry.bodyPaddingLeft).toBeGreaterThanOrEqual(12);
+  expect(termsGeometry.bodyPaddingRight).toBeGreaterThanOrEqual(12);
+  expect(termsGeometry.inputInsetLeft).toBeGreaterThanOrEqual(termsGeometry.bodyPaddingLeft - 0.5);
+  expect(termsGeometry.addInsetRight).toBeGreaterThanOrEqual(termsGeometry.bodyPaddingRight - 0.5);
+  expect(termsGeometry.inputInsideBody).toBe(true);
+  expect(termsGeometry.addInsideBody).toBe(true);
+  expect(Math.abs(termsGeometry.controlCenterOffset)).toBeLessThanOrEqual(0.75);
+
+  await terms.getByLabel("Neuer Begriff").fill("Nachtarchiv");
+  const termSave = waitForSuccessfulManuscriptWrite(page);
+  await terms.getByRole("button", { name: "Begriff hinzufügen" }).click();
+  await termSave;
+  await expect(terms.getByRole("button", { name: "Nachtarchiv", exact: true })).toBeVisible();
+
+  await page.goto("/");
+  await page.getByRole("button", { name: `${worldTitle} – Welt öffnen`, exact: true }).click();
+  await waitForManuscriptReady(page);
+  await page
+    .getByRole("toolbar", { name: "Manuskript" })
+    .getByRole("button", { name: "Schreibhilfe", exact: true })
+    .click();
+  const reloadedAid = page.getByRole("dialog", { name: "Schreibhilfe", exact: true });
+  await reloadedAid.getByRole("tab", { name: "Einfügen", exact: true }).click();
+  const persistedTerm = reloadedAid.getByRole("button", { name: "Nachtarchiv", exact: true });
+  await expect(persistedTerm).toBeVisible();
+  const insertSave = waitForSuccessfulManuscriptWrite(page);
+  await persistedTerm.click();
+  await insertSave;
+  await expect(page.getByLabel("Kapiteltext")).toContainText("Nachtarchiv");
+
+  await reloadedAid.getByRole("button", { name: "Verwalten", exact: true }).click();
+  const reloadedTerms = page.getByRole("dialog", { name: "Eigene Begriffe", exact: true });
+  const removeSave = waitForSuccessfulManuscriptWrite(page);
+  await reloadedTerms.getByRole("button", { name: "Nachtarchiv entfernen" }).click();
+  await removeSave;
+  await reloadedTerms.getByRole("button", { name: "Schließen", exact: true }).click();
+  await expect(reloadedAid).not.toHaveAttribute("aria-hidden");
+  await expect(reloadedAid).not.toHaveAttribute("inert");
+  await expect(reloadedAid.getByRole("button", { name: "Nachtarchiv", exact: true })).toHaveCount(
+    0,
+  );
+
+  await page.goto("/");
+  await page.getByRole("button", { name: `${worldTitle} – Welt öffnen`, exact: true }).click();
+  await waitForManuscriptReady(page);
+  await page
+    .getByRole("toolbar", { name: "Manuskript" })
+    .getByRole("button", { name: "Schreibhilfe", exact: true })
+    .click();
+  const afterRemovalReload = page.getByRole("dialog", { name: "Schreibhilfe", exact: true });
+  await afterRemovalReload.getByRole("tab", { name: "Einfügen", exact: true }).click();
+  await expect(
+    afterRemovalReload.getByRole("button", { name: "Nachtarchiv", exact: true }),
+  ).toHaveCount(0);
+});
+
 test("Orte behalten am 820px-Übergang die volle Kartenhöhe", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
@@ -1016,60 +1171,49 @@ test("Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab
     "Schreibhilfe",
   );
 
-  // Verschieben, Export und Löschen bleiben sichtbar oben in der Kapitelnavigation.
-  const actions = chapterPanel.getByRole("group", { name: /Kapitelaktionen:/ });
-  for (const item of ["Nach oben", "Nach unten", "Kapitel als Markdown", "Kapitel löschen"]) {
-    await expect(actions.getByRole("button", { name: item, exact: true })).toBeVisible();
-  }
-  const actionToolbar = chapterPanel.getByRole("toolbar", { name: /Kapitelaktionen:/ });
-  const actionGeometry = await actionToolbar.evaluate((toolbar) => {
-    const group = toolbar.querySelector<HTMLElement>(".binder-chapter-toolbar-group");
-    if (!group) throw new Error("Kapitelaktionsgruppe fehlt");
-    const groupBounds = group.getBoundingClientRect();
+  // Kapitelaktionen bleiben ruhig in der aktiven Zeile und öffnen ein semantisches Aktionsmenü.
+  const activeChapter = chapterPanel.locator(".binder-chapter-row.active");
+  const actionTrigger = activeChapter.getByRole("button", { name: /Kapitelaktionen:/ });
+  await expect(actionTrigger).toBeVisible();
+  const actionGeometry = await activeChapter.evaluate((row) => {
+    const trigger = row.querySelector<HTMLButtonElement>(".binder-chapter-action-trigger");
+    if (!trigger) throw new Error("Kontextueller Kapitelaktionstrigger fehlt");
+    const rowBounds = row.getBoundingClientRect();
+    const triggerBounds = trigger.getBoundingClientRect();
     const expectedTarget = Number.parseFloat(
-      getComputedStyle(group).getPropertyValue("--control-compact"),
+      getComputedStyle(trigger).getPropertyValue("--control-compact"),
+    );
+    const hit = document.elementFromPoint(
+      triggerBounds.left + triggerBounds.width / 2,
+      triggerBounds.top + triggerBounds.height / 2,
     );
     return {
-      toolbarClientWidth: toolbar.clientWidth,
-      toolbarScrollWidth: toolbar.scrollWidth,
-      groupClientWidth: group.clientWidth,
-      groupScrollWidth: group.scrollWidth,
+      rowClientWidth: row.clientWidth,
+      rowScrollWidth: row.scrollWidth,
       expectedTarget,
-      buttons: [...group.querySelectorAll<HTMLButtonElement>("button")].map((button) => {
-        const bounds = button.getBoundingClientRect();
-        const centerX = bounds.left + bounds.width / 2;
-        const centerY = bounds.top + bounds.height / 2;
-        const hit = document.elementFromPoint(centerX, centerY);
-        return {
-          label: button.getAttribute("aria-label"),
-          width: bounds.width,
-          height: bounds.height,
-          inside: bounds.left >= groupBounds.left - 0.5 && bounds.right <= groupBounds.right + 0.5,
-          hit: hit === button || (hit instanceof Node && button.contains(hit)),
-        };
-      }),
+      width: triggerBounds.width,
+      height: triggerBounds.height,
+      inside:
+        triggerBounds.left >= rowBounds.left - 0.5 && triggerBounds.right <= rowBounds.right + 0.5,
+      hit: hit === trigger || (hit instanceof Node && trigger.contains(hit)),
     };
   });
-  expect(actionGeometry.toolbarScrollWidth).toBeLessThanOrEqual(
-    actionGeometry.toolbarClientWidth + 1,
-  );
-  expect(actionGeometry.groupScrollWidth).toBeLessThanOrEqual(actionGeometry.groupClientWidth + 1);
+  expect(actionGeometry.rowScrollWidth).toBeLessThanOrEqual(actionGeometry.rowClientWidth + 1);
   expect(actionGeometry.expectedTarget).toBe(
     (page.viewportSize()?.width ?? 0) <= 719 || testInfo.project.use.hasTouch ? 44 : 30,
   );
-  expect(actionGeometry.buttons).toHaveLength(4);
-  for (const button of actionGeometry.buttons) {
-    expect(button.width, `${button.label} hat die falsche Breite`).toBeCloseTo(
-      actionGeometry.expectedTarget,
-      0,
-    );
-    expect(button.height, `${button.label} hat die falsche Höhe`).toBeCloseTo(
-      actionGeometry.expectedTarget,
-      0,
-    );
-    expect(button.inside, `${button.label} liegt außerhalb der Kapitelspalte`).toBe(true);
-    expect(button.hit, `${button.label} ist am Mittelpunkt nicht anklickbar`).toBe(true);
+  expect(actionGeometry.width).toBeCloseTo(actionGeometry.expectedTarget, 0);
+  expect(actionGeometry.height).toBeCloseTo(actionGeometry.expectedTarget, 0);
+  expect(actionGeometry.inside).toBe(true);
+  expect(actionGeometry.hit).toBe(true);
+
+  await actionTrigger.click();
+  const chapterMenu = page.getByRole("menu", { name: /Kapitelaktionen:/ });
+  for (const item of ["Nach oben", "Nach unten", "Kapitel als Markdown", "Kapitel löschen"]) {
+    await expect(chapterMenu.getByRole("menuitem", { name: item, exact: true })).toBeVisible();
   }
+  await chapterMenu.press("Escape");
+  await expect(actionTrigger).toBeFocused();
 });
 
 test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async ({
@@ -1386,61 +1530,53 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
   const binder = page.getByRole("dialog", { name: "Kapitel" });
   await expect(binder).toBeVisible();
 
-  const chapterActionToolbar = binder.getByRole("toolbar", { name: /Kapitelaktionen:/ });
-  const chapterActionGeometry = await chapterActionToolbar.evaluate((toolbar) => {
-    const dialog = toolbar.closest<HTMLElement>('[role="dialog"]');
-    const group = toolbar.querySelector<HTMLElement>(".binder-chapter-toolbar-group");
-    if (!dialog || !group) throw new Error("Kompakte Kapitelaktionsgruppe fehlt");
+  const chapterActionTrigger = binder.getByRole("button", { name: /Kapitelaktionen:/ });
+  const chapterActionGeometry = await chapterActionTrigger.evaluate((trigger) => {
+    const dialog = trigger.closest<HTMLElement>('[role="dialog"]');
+    const row = trigger.closest<HTMLElement>(".binder-chapter-row");
+    if (!dialog || !row) throw new Error("Kontextuelle Kapitelaktion fehlt");
     const dialogBounds = dialog.getBoundingClientRect();
-    const groupBounds = group.getBoundingClientRect();
+    const rowBounds = row.getBoundingClientRect();
+    const bounds = trigger.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2,
+    );
     return {
       dialogClientWidth: dialog.clientWidth,
       dialogScrollWidth: dialog.scrollWidth,
-      toolbarClientWidth: toolbar.clientWidth,
-      toolbarScrollWidth: toolbar.scrollWidth,
-      groupClientWidth: group.clientWidth,
-      groupScrollWidth: group.scrollWidth,
-      buttons: [...group.querySelectorAll<HTMLButtonElement>("button")].map((button) => {
-        const bounds = button.getBoundingClientRect();
-        const hit = document.elementFromPoint(
-          bounds.left + bounds.width / 2,
-          bounds.top + bounds.height / 2,
-        );
-        return {
-          label: button.getAttribute("aria-label"),
-          width: bounds.width,
-          height: bounds.height,
-          insideGroup:
-            bounds.left >= groupBounds.left - 0.5 && bounds.right <= groupBounds.right + 0.5,
-          insideDialog:
-            bounds.left >= dialogBounds.left - 0.5 && bounds.right <= dialogBounds.right + 0.5,
-          hit: hit === button || (hit instanceof Node && button.contains(hit)),
-        };
-      }),
+      rowClientWidth: row.clientWidth,
+      rowScrollWidth: row.scrollWidth,
+      width: bounds.width,
+      height: bounds.height,
+      insideRow: bounds.left >= rowBounds.left - 0.5 && bounds.right <= rowBounds.right + 0.5,
+      insideDialog:
+        bounds.left >= dialogBounds.left - 0.5 && bounds.right <= dialogBounds.right + 0.5,
+      hit: hit === trigger || (hit instanceof Node && trigger.contains(hit)),
     };
   });
   expect(chapterActionGeometry.dialogScrollWidth).toBeLessThanOrEqual(
     chapterActionGeometry.dialogClientWidth + 1,
   );
-  expect(chapterActionGeometry.toolbarScrollWidth).toBeLessThanOrEqual(
-    chapterActionGeometry.toolbarClientWidth + 1,
+  expect(chapterActionGeometry.rowScrollWidth).toBeLessThanOrEqual(
+    chapterActionGeometry.rowClientWidth + 1,
   );
-  expect(chapterActionGeometry.groupScrollWidth).toBeLessThanOrEqual(
-    chapterActionGeometry.groupClientWidth + 1,
-  );
-  expect(chapterActionGeometry.buttons.map(({ label }) => label)).toEqual([
-    "Nach oben",
-    "Nach unten",
-    "Kapitel als Markdown",
-    "Kapitel löschen",
-  ]);
-  for (const button of chapterActionGeometry.buttons) {
-    expect(button.width, `${button.label} ist kompakt nicht 44px breit`).toBeCloseTo(44, 0);
-    expect(button.height, `${button.label} ist kompakt nicht 44px hoch`).toBeCloseTo(44, 0);
-    expect(button.insideGroup, `${button.label} liegt außerhalb der Aktionsgruppe`).toBe(true);
-    expect(button.insideDialog, `${button.label} liegt außerhalb des Kapitel-Sheets`).toBe(true);
-    expect(button.hit, `${button.label} ist kompakt nicht anklickbar`).toBe(true);
+  expect(chapterActionGeometry.width).toBeCloseTo(44, 0);
+  expect(chapterActionGeometry.height).toBeCloseTo(44, 0);
+  expect(chapterActionGeometry.insideRow).toBe(true);
+  expect(chapterActionGeometry.insideDialog).toBe(true);
+  expect(chapterActionGeometry.hit).toBe(true);
+
+  await chapterActionTrigger.click();
+  const compactChapterMenu = page.getByRole("menu", { name: /Kapitelaktionen:/ });
+  for (const item of ["Nach oben", "Nach unten", "Kapitel als Markdown", "Kapitel löschen"]) {
+    const menuItem = compactChapterMenu.getByRole("menuitem", { name: item, exact: true });
+    await expect(menuItem).toBeVisible();
+    const itemHeight = await menuItem.evaluate((element) => element.getBoundingClientRect().height);
+    expect(itemHeight, `${item} ist kompakt kein 44px-Touchziel`).toBeGreaterThanOrEqual(44);
   }
+  await compactChapterMenu.press("Escape");
+  await expect(chapterActionTrigger).toBeFocused();
 
   const rootRow = binder
     .getByRole("button", { name: /^Erster sehr langer Abschnitt, \d+ Kapitel:/ })
@@ -1499,7 +1635,9 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
   expect(geometry[2].nameWidth).toBeGreaterThanOrEqual(64);
   expect(geometry[2].nameEllipses).toBe(true);
 
-  const nestedChapter = binder.getByRole("button", { name: /Kapitel in der tiefsten Ebene/ });
+  const nestedChapter = binder
+    .locator(".binder-chapter-row")
+    .filter({ hasText: "Kapitel in der tiefsten Ebene" });
   const chapterGeometry = await nestedChapter.evaluate((row) => {
     const handle = row.querySelector<HTMLElement>(".binder-drag-handle");
     return {

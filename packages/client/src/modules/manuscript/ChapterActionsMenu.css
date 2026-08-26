@@ -1,0 +1,42 @@
+.binder-chapter-action-trigger {
+  grid-area: actions;
+  align-self: center;
+  color: var(--muted);
+  opacity: 0.72;
+}
+
+.binder-chapter-row:hover .binder-chapter-action-trigger,
+.binder-chapter-row:focus-within .binder-chapter-action-trigger,
+.binder-chapter-action-trigger[aria-expanded="true"] {
+  color: var(--ink);
+  opacity: 1;
+}
+
+.binder-chapter-menu-header {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-12);
+}
+
+.binder-chapter-menu-header > span {
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.binder-chapter-menu-header > strong {
+  overflow: hidden;
+  font-family: var(--prose);
+  font-size: var(--font-size-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  .binder-chapter-action-trigger {
+    opacity: 1;
+  }
+}

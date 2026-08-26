@@ -207,6 +207,21 @@ Auswahl-APIs bleiben semantisch getrennt:
 Menütrigger, unstrukturierte Einträge, destruktive Icons ohne Danger-Ton und zurückgezogene lokale
 Dropdown-Rezepte.
 
+## Produktzustands-Tiefe
+
+Ein grüner Komponenten- oder Workspace-Grundzustand deckt keine Oberfläche ab, die erst hinter
+Tabs, Disclosures, Untermenüs oder einem zweiten Modal sichtbar wird. Jeder produktive Zustand ab
+der zweiten Interaktionstiefe benötigt deshalb mindestens einen Browservertrag, der den echten Pfad
+dorthin ausführt. Eine reine Existenzprüfung in JSDOM zählt nicht als Layoutabdeckung.
+
+Der Browservertrag prüft am kleinsten unterstützten Viewport mindestens: vollständige Begrenzung im
+Viewport, keinen horizontalen inneren oder Dokument-Overflow, bei absichtlich langen Inhalten genau
+einen vertikalen Scroll-Owner, symmetrische Insets, Touchziele, geometrische Zentrierung kompakter
+Inhalte sowie eine tatsächlich erfolgreiche Kernaktion. Bei persistenten Editorzuständen umfasst die
+Kernaktion Speichern und Reload. Verschachtelte Modals prüfen zusätzlich, dass nur die oberste Ebene
+interaktiv und für Assistenztechnologien sichtbar ist, Escape nur diese Ebene schließt und den Fokus an
+ihren Auslöser zurückgibt.
+
 ## Umsetzungsstatus
 
 Die Architektur- und Produktmigration vom 25. August 2026 ist abgeschlossen: Alle Aufrufer
@@ -242,6 +257,8 @@ Eine öffentliche Komponente ist fertig, wenn:
 - die fünf Contract-Dateien vollständig sind;
 - Unit-Tests DOM-Semantik, Events, Disabled State, Tastatur und Fokus abdecken;
 - ihr Auditprofil alle relevanten Theme-, Viewport-, Portal-, Scroll- und Inhaltszustände benennt;
+- jeder produktive Zustand ab der zweiten Interaktionstiefe durch einen geometrischen Browservertrag
+  mit erfolgreicher Kernaktion abgedeckt ist;
 - sie über `design/index.ts` exportiert und ausschließlich darüber konsumiert wird;
 - Gallery-, Axe-, Canvas-/Portal-/Inner-Overflow-, Touch-, Narrow-Host- und relevante berechnete
   visuelle Verträge grün sind;
