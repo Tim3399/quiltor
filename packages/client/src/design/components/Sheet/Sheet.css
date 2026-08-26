@@ -25,8 +25,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-12);
-  padding: 0 var(--space-16);
+  gap: var(--spacing-regular-tight);
+  padding: 0 var(--spacing-regular-wide);
   border-bottom: 1px solid var(--line);
 }
 
@@ -40,13 +40,13 @@
 .ui-sheet__header-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--spacing-compact-tight);
 }
 
 .ui-sheet__body {
   min-height: 0;
   overflow: auto;
-  padding: var(--space-16);
+  padding: var(--spacing-regular-wide);
 }
 
 /* Deprecated structural aliases retained until UtilitySheet consumers migrate to SheetHeader/Body. */
@@ -61,7 +61,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-16);
+  padding: 0 var(--spacing-regular-wide);
   border-bottom: 1px solid var(--line);
 }
 
@@ -73,7 +73,7 @@
 .utility-sheet-content {
   min-height: 0;
   overflow: auto;
-  padding: var(--space-16);
+  padding: var(--spacing-regular-wide);
 }
 
 @keyframes ui-sheet-in {

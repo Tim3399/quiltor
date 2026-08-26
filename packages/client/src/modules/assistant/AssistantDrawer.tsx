@@ -38,12 +38,13 @@ export function AssistantDrawer({
   const [draft, setDraft] = useState("");
   const [confirmNewChat, setConfirmNewChat] = useState(false);
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
+  const [chapterPickerOpen, setChapterPickerOpen] = useState(false);
   const [extractionScope, setExtractionScope] = useState<"current" | "selected" | "all">("current");
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia("(max-width: 719px)").matches,
   );
   const endRef = useRef<HTMLDivElement>(null);
-  const chapterPickerRef = useRef<HTMLDetailsElement>(null);
+  const chapterPickerRef = useRef<HTMLButtonElement>(null);
   const { status, installState, checkStatus, startInstall } = useAssistantAvailability();
   const {
     entries,
@@ -77,11 +78,13 @@ export function AssistantDrawer({
     return () => media.removeEventListener("change", update);
   }, []);
 
+  useEffect(() => {
+    if (!open) setChapterPickerOpen(false);
+  }, [open]);
+
   const openChapterPicker = () => {
-    const picker = chapterPickerRef.current;
-    if (!picker) return;
-    picker.open = true;
-    picker.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setChapterPickerOpen(true);
+    chapterPickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
 
   const sendDraft = () => {
@@ -203,6 +206,8 @@ export function AssistantDrawer({
         forcedChapterIds={forcedChapterIds}
         onForcedChapterIdsChange={setForcedChapterIds}
         chapterPickerRef={chapterPickerRef}
+        chapterPickerOpen={chapterPickerOpen}
+        onChapterPickerOpenChange={setChapterPickerOpen}
         draft={draft}
         onDraftChange={setDraft}
         sending={sending}
@@ -227,7 +232,12 @@ export function AssistantDrawer({
   const className = `assistant-drawer ${status && !status.available ? "has-offline" : ""}`;
   // The component remains mounted while closed so requests and install polling survive.
   return compact ? (
-    <Sheet open={open} label={t("localAssistant")} onClose={onClose}>
+    <Sheet
+      open={open}
+      label={t("localAssistant")}
+      className="assistant-drawer-sheet"
+      onClose={onClose}
+    >
       <div className={className}>{content}</div>
     </Sheet>
   ) : open ? (

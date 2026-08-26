@@ -6,6 +6,7 @@ export const scrollbarOwner = "packages/client/src/design/components/ScrollArea/
 
 const clientCssRoot = "packages/client/src";
 const scrollbarColorDeclaration = /(?:^|[;{}])\s*(scrollbar-color)\s*:/giu;
+const scrollbarWidthDeclaration = /(?:^|[;{}])\s*(scrollbar-width)\s*:/giu;
 const webkitScrollbarSelector = /::-webkit-scrollbar(?:-[\w-]+)?/giu;
 
 function normalizedPath(path) {
@@ -120,6 +121,17 @@ export function analyzeScrollbarOwnershipSource({ file, source }) {
       line: sourceLine(source, originalIndex),
       kind: "scrollbar-color",
       message: "scrollbar-color declarations belong to the public ScrollArea owner",
+    });
+  }
+
+  for (const match of text.matchAll(scrollbarWidthDeclaration)) {
+    const identifierIndex = match.index + match[0].lastIndexOf(match[1]);
+    const originalIndex = sourceIndexes[identifierIndex];
+    violations.push({
+      file: normalizedPath(file),
+      line: sourceLine(source, originalIndex),
+      kind: "scrollbar-width",
+      message: "scrollbar-width declarations belong to the public ScrollArea owner",
     });
   }
 

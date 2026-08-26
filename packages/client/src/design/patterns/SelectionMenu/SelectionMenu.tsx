@@ -26,7 +26,13 @@ export interface SelectionMenuProps {
 /** A controlled action menu for a selection or editor context. */
 export function SelectionMenu({ anchorRef, open, label, actions, onClose }: SelectionMenuProps) {
   return (
-    <Popover anchorRef={anchorRef} open={open} onClose={onClose} label={label}>
+    <Popover
+      anchorRef={anchorRef}
+      open={open}
+      onClose={onClose}
+      label={label}
+      desktopRole="presentation"
+    >
       <Menu className="ui-selection-menu" label={label} onClose={onClose}>
         {actions.map((action, index) => (
           <Fragment key={action.id}>

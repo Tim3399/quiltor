@@ -37,17 +37,17 @@
   height: 36px;
   min-height: 36px;
   padding: 0;
-  border: 2px solid var(--gold);
+  border: 2px solid var(--accent-primary);
   border-radius: 50%;
   background: var(--minimap-place);
   box-shadow:
-    var(--ring-1) var(--gold),
+    var(--ring-1) var(--accent-primary),
     var(--elevation-1) var(--node-shadow);
 }
 
 .places-workspace .story-node.zoom-overview.selected {
   box-shadow:
-    var(--ring-2) var(--gold),
+    var(--ring-2) var(--selection-border),
     var(--elevation-4) var(--node-shadow);
 }
 
@@ -91,12 +91,12 @@
 }
 
 .places-workspace .story-node.type-ort.is-measuring {
-  border-color: var(--gold);
-  box-shadow: var(--ring-2) var(--gold-soft);
+  border-color: var(--accent-primary-border);
+  box-shadow: var(--ring-2) var(--accent-primary-soft);
 }
 
 .places-workspace .story-node.type-ort.is-measure-start {
-  box-shadow: var(--ring-2) var(--gold);
+  box-shadow: var(--ring-2) var(--accent-primary);
 }
 
 @media (max-width: 640px), (pointer: coarse) {

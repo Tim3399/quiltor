@@ -1,7 +1,7 @@
 .ui-segmented {
   display: inline-flex;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: var(--spacing-optical-tight);
+  padding: var(--spacing-optical-base);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--control-hint);
@@ -9,7 +9,7 @@
 
 .ui-segmented button {
   min-height: var(--control-regular);
-  padding: 0 var(--space-10);
+  padding: 0 var(--spacing-transition-control-inline-base);
   border: 0;
   border-radius: var(--radius);
   background: var(--transparent);
@@ -23,7 +23,7 @@
 
 .ui-segmented[data-size="touch"] button {
   min-height: var(--control-touch);
-  padding-inline: var(--space-16);
+  padding-inline: var(--spacing-regular-wide);
 }
 
 .ui-segmented button[aria-checked="true"] {

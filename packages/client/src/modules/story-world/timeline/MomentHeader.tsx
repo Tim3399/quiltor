@@ -9,8 +9,7 @@ import {
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
-import { useRef, useState } from "react";
-import { Button, IconButton, Menu, MenuItem, MenuSeparator, Popover } from "../../../design";
+import { Button, DropdownMenu, IconButton, MenuItem, MenuSeparator } from "../../../design";
 import type { Translate } from "../../../i18n";
 import type { TimelineMoment } from "../model";
 import "./MomentHeader.css";
@@ -51,12 +50,6 @@ export function MomentHeader({
   onOpenChapter?: (chapterId: string) => void;
   t: Translate;
 }) {
-  const [actionsOpen, setActionsOpen] = useState(false);
-  const actionsButton = useRef<HTMLButtonElement>(null);
-  const run = (action: () => void) => {
-    action();
-    setActionsOpen(false);
-  };
   const chapterTitle = (chapter: TimelineChapterReference) => chapter.title || t("untitled");
   return (
     <header className="storyboard-header">
@@ -130,43 +123,42 @@ export function MomentHeader({
         )}
       </div>
       <div className="storyboard-actions">
-        <Button
-          ref={actionsButton}
-          className="storyboard-actions-trigger"
-          appearance="ghost"
-          icon={<MoreHorizontal />}
-          aria-haspopup="menu"
-          aria-expanded={actionsOpen}
-          onClick={() => setActionsOpen((value) => !value)}
-        >
-          {t("menuActions")}
-        </Button>
-        <Popover
-          anchorRef={actionsButton}
-          open={actionsOpen}
-          onClose={() => setActionsOpen(false)}
+        <DropdownMenu
           label={t("timelineActions")}
+          renderTrigger={({ ref, ...triggerProps }) => (
+            <Button
+              {...triggerProps}
+              ref={ref}
+              className="storyboard-actions-trigger"
+              appearance="ghost"
+              icon={<MoreHorizontal />}
+            >
+              {t("menuActions")}
+            </Button>
+          )}
         >
-          <Menu label={t("timelineActions")} onClose={() => setActionsOpen(false)}>
-            <MenuItem disabled={index === 0} onSelect={() => run(onMoveEarlier)}>
-              <ArrowUp />
-              {t("timelineEarlier")}
-            </MenuItem>
-            <MenuItem disabled={index === total - 1} onSelect={() => run(onMoveLater)}>
-              <ArrowDown />
-              {t("timelineLater")}
-            </MenuItem>
-            <MenuItem onSelect={() => run(onDuplicate)}>
-              <Copy />
-              {t("timelineDuplicate")}
-            </MenuItem>
-            <MenuSeparator />
-            <MenuItem disabled={chapterReferences.length > 0} onSelect={() => run(onDelete)}>
-              <Trash2 />
-              {t("delete")}
-            </MenuItem>
-          </Menu>
-        </Popover>
+          <MenuItem
+            icon={<ArrowUp />}
+            label={t("timelineEarlier")}
+            disabled={index === 0}
+            onSelect={onMoveEarlier}
+          />
+          <MenuItem
+            icon={<ArrowDown />}
+            label={t("timelineLater")}
+            disabled={index === total - 1}
+            onSelect={onMoveLater}
+          />
+          <MenuItem icon={<Copy />} label={t("timelineDuplicate")} onSelect={onDuplicate} />
+          <MenuSeparator />
+          <MenuItem
+            icon={<Trash2 />}
+            label={t("delete")}
+            disabled={chapterReferences.length > 0}
+            tone="danger"
+            onSelect={onDelete}
+          />
+        </DropdownMenu>
       </div>
     </header>
   );

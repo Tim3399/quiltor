@@ -2,7 +2,16 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette, type CommandPaletteItem } from "./CommandPalette";
 
-afterEach(cleanup);
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+
+afterEach(() => {
+  cleanup();
+  if (originalScrollIntoView) {
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  } else {
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  }
+});
 
 function setup(items?: CommandPaletteItem[]) {
   const onClose = vi.fn();
@@ -100,5 +109,31 @@ describe("CommandPalette", () => {
     setup([]);
     expect(screen.getByRole("button", { name: "Palette schließen" })).toBeInTheDocument();
     expect(screen.getByText("Nichts gefunden")).toBeInTheDocument();
+  });
+
+  it("keeps keyboard navigation visible in a long result list", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    setup(
+      Array.from({ length: 18 }, (_, index) => ({
+        id: `item-${index}`,
+        label: `Eintrag ${String(index + 1).padStart(2, "0")}`,
+        onSelect: vi.fn(),
+      })),
+    );
+    scrollIntoView.mockClear();
+    const input = screen.getByRole("combobox");
+    for (let index = 0; index < 12; index += 1) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+    }
+
+    expect(screen.getByRole("option", { name: "Eintrag 13" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
   });
 });

@@ -4,6 +4,10 @@ import {
   formatScrollbarOwnershipViolation,
   scanScrollbarOwnership,
 } from "./scrollbar_ownership.mjs";
+import {
+  formatSemanticColorRoleViolation,
+  scanSemanticColorRoles,
+} from "./semantic_color_roles.mjs";
 
 const root = process.cwd();
 const clientRoot = join(root, "packages", "client", "src");
@@ -214,6 +218,16 @@ try {
   violations.push(`[Scrollbar-Owner] ${error instanceof Error ? error.message : String(error)}`);
 }
 
+try {
+  for (const violation of scanSemanticColorRoles(root)) {
+    violations.push(formatSemanticColorRoleViolation(violation));
+  }
+} catch (error) {
+  violations.push(
+    `[Semantische Farbrolle] ${error instanceof Error ? error.message : String(error)}`,
+  );
+}
+
 // --xy-* belongs to @xyflow/react and is defined inside the library stylesheet,
 // which is outside the scanned tree; overriding those variables is the
 // documented way to theme the graph.
@@ -227,6 +241,38 @@ for (const [path, line, name] of customPropertyUses) {
 
 const tokens = readFileSync(join(designRoot, "tokens.css"), "utf8");
 const colors = readFileSync(join(designRoot, "colors.css"), "utf8");
+
+function colorDeclarationsBySelector(source) {
+  const themes = { light: new Map(), dark: new Map(), shared: new Map() };
+  const rule = /([^{}]+)\{([^{}]*)\}/g;
+  for (const match of source.matchAll(rule)) {
+    const selector = match[1].replaceAll(/\/\*[\s\S]*?\*\//g, "").trim();
+    const target =
+      selector === ":root"
+        ? themes.shared
+        : selector.includes(':root[data-theme="dark"]')
+          ? themes.dark
+          : selector.includes(':root[data-theme="light"]')
+            ? themes.light
+            : undefined;
+    if (!target) continue;
+    for (const declaration of match[2].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+      target.set(declaration[1], declaration[2].trim());
+    }
+  }
+  return themes;
+}
+
+const colorThemes = colorDeclarationsBySelector(colors);
+
+function resolveThemeColor(theme, name, seen = new Set()) {
+  if (seen.has(name)) return { error: `zyklischer Alias bei ${name}` };
+  const value = colorThemes[theme].get(name) ?? colorThemes.shared.get(name);
+  if (!value) return { error: `${name} ist nicht definiert` };
+  const alias = /^var\(\s*(--[\w-]+)\s*\)$/u.exec(value)?.[1];
+  if (!alias) return { value };
+  return resolveThemeColor(theme, alias, new Set([...seen, name]));
+}
 
 const requiredTokens = [
   "control-compact",
@@ -267,17 +313,76 @@ const requiredColors = [
   "disabled-content",
 ];
 
+const chromaticFamilies = ["gold", "rose", "moss", "ink-blue", "copper"];
+const chromaticRoles = ["", "-soft", "-text", "-border"];
+
+const semanticColorRoles = {
+  "--accent-primary": "--gold",
+  "--accent-primary-soft": "--gold-soft",
+  "--accent-primary-text": "--gold-text",
+  "--accent-primary-border": "--gold-border",
+  "--focus-ring": "--ink-blue",
+  "--focus-surface": "--ink-blue-soft",
+  "--link": "--ink-blue-text",
+  "--link-hover": "--ink-blue",
+  "--link-visited": "--ink-blue-text",
+  "--success-bg": "--moss-soft",
+  "--success-border": "--moss-border",
+  "--success-text": "--moss-text",
+  "--success-icon": "--moss",
+  "--info-bg": "--ink-blue-soft",
+  "--info-border": "--ink-blue-border",
+  "--info-text": "--ink-blue-text",
+  "--info-icon": "--ink-blue",
+  "--warning-bg": "--copper-soft",
+  "--warning-border": "--copper-border",
+  "--warning-text": "--copper-text",
+  "--warning-icon": "--copper",
+  "--error-bg": "--rose-soft",
+  "--error-border": "--rose-border",
+  "--error-text": "--rose-text",
+  "--error-icon": "--rose",
+  "--danger": "--rose-text",
+  "--danger-fill": "--rose-fill",
+  "--selection-border": "--gold-border",
+  "--drop-target-surface": "--ink-blue-soft",
+  "--drop-target-border": "--ink-blue-border",
+  "--drop-target-text": "--ink-blue-text",
+  "--annotation-bg": "--gold-soft",
+  "--annotation-border": "--gold-border",
+  "--annotation-text": "--gold-text",
+  "--search-match-bg": "--gold-soft",
+  "--search-match-border": "--gold-border",
+  "--search-match-active": "--gold",
+};
+
 for (const name of requiredTokens) {
   if (!tokens.includes(`--${name}:`)) {
     violations.push(`${designPath}/tokens.css: [Pflicht-Token] --${name}`);
   }
 }
 
-for (const name of requiredColors) {
-  const definitions = colors.match(new RegExp(`--${name}:`, "g")) || [];
+for (const family of chromaticFamilies) {
+  for (const suffix of chromaticRoles) requiredColors.push(`${family}${suffix}`);
+}
 
-  if (definitions.length < 2) {
-    violations.push(`${designPath}/colors.css: [Theme-Parität] --${name} fehlt in Light oder Dark`);
+for (const name of requiredColors) {
+  for (const theme of ["light", "dark"]) {
+    const resolved = resolveThemeColor(theme, `--${name}`);
+    if (resolved.error) {
+      violations.push(
+        `${designPath}/colors.css: [Theme-Parität] ${theme} --${name}: ${resolved.error}`,
+      );
+    }
+  }
+}
+
+for (const [role, expectedFamilyRole] of Object.entries(semanticColorRoles)) {
+  const actual = colorThemes.shared.get(role);
+  if (actual !== `var(${expectedFamilyRole})`) {
+    violations.push(
+      `${designPath}/colors.css: [Semantische Farbrolle] ${role} muss var(${expectedFamilyRole}) sein, ist aber ${actual ?? "nicht definiert"}`,
+    );
   }
 }
 

@@ -1,8 +1,12 @@
 .ui-popover {
   position: fixed;
   z-index: var(--z-popover);
+  box-sizing: border-box;
   width: max-content;
   max-width: min(var(--popover-max), calc(100vw - var(--space-24)));
+  max-height: calc(100dvh - var(--space-24));
+  overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
@@ -21,5 +25,10 @@
 }
 
 .ui-popover-sheet {
-  padding: var(--space-12);
+  padding: var(--spacing-regular-tight);
+}
+
+.ui-sheet.ui-popover-sheet-container {
+  height: auto;
+  max-height: min(88dvh, 100%);
 }

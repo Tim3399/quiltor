@@ -5,7 +5,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--space-32);
+  padding: var(--spacing-section-base);
   background: var(--paper);
   color: var(--muted);
   text-align: center;
@@ -30,7 +30,7 @@
 
 .page-state h1 {
   max-width: 30ch;
-  margin: var(--space-18) 0 var(--space-8);
+  margin: var(--space-18) 0 var(--spacing-compact-wide);
   color: var(--ink);
   font: 600 var(--font-size-7) var(--prose);
 }
@@ -44,7 +44,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--space-8);
+  gap: var(--spacing-compact-wide);
   margin-top: var(--space-20);
 }
 

@@ -1,16 +1,16 @@
 .ui-menu {
   min-width: var(--popover-min);
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-6);
+  gap: var(--spacing-optical-base);
+  padding: var(--spacing-compact-tight);
 }
 
 .ui-menu button {
   min-height: var(--control-regular);
   display: flex;
   align-items: center;
-  gap: var(--space-8);
-  padding: 0 var(--space-10);
+  gap: var(--spacing-compact-wide);
+  padding: 0 var(--spacing-transition-control-inline-base);
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--transparent);
@@ -43,9 +43,6 @@
   height: 16px;
   flex: none;
   color: var(--muted);
-}
-
-.ui-menu__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -69,18 +66,43 @@
   overflow-wrap: anywhere;
 }
 
+.ui-menu__label > svg:first-child {
+  width: 16px;
+  height: 16px;
+  margin-right: var(--spacing-compact-wide);
+  color: var(--muted);
+  vertical-align: text-bottom;
+}
+
+.ui-menu button[data-tone="danger"] .ui-menu__icon,
+.ui-menu button[data-tone="danger"] > svg,
+.ui-menu button[data-tone="danger"] .ui-menu__label > svg:first-child {
+  color: currentColor;
+}
+
 .ui-menu__separator {
   height: 1px;
-  margin: var(--space-3) var(--space-6);
+  margin: var(--spacing-optical-base) var(--spacing-compact-tight);
   border: 0;
   background: var(--line);
 }
 
 .ui-menu__shortcut {
   margin-left: auto;
-  padding-left: var(--space-16);
+  padding-left: var(--spacing-regular-wide);
   color: var(--soft);
   font-family: inherit;
   font-size: var(--font-size-3);
   white-space: nowrap;
+}
+
+.ui-menu__submenu-indicator {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.ui-menu__submenu {
+  max-height: min(420px, calc(100dvh - var(--space-24)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }

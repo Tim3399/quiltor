@@ -1,13 +1,13 @@
 .ui-checkbox {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--spacing-field-message-gap);
 }
 
 .ui-checkbox__action {
   min-height: var(--control-touch);
   display: flex;
   align-items: flex-start;
-  gap: var(--space-10);
+  gap: var(--spacing-transition-field-choice-gap);
   color: var(--ink);
   cursor: pointer;
 }
@@ -42,8 +42,8 @@
 
 .ui-checkbox__messages {
   display: grid;
-  gap: var(--space-4);
-  margin-inline-start: calc(var(--font-size-5) + var(--space-10));
+  gap: var(--spacing-field-message-gap);
+  margin-inline-start: calc(var(--font-size-5) + var(--spacing-transition-field-choice-gap));
 }
 
 .ui-checkbox__description,

@@ -13,7 +13,7 @@ describe("workspace toolbar spacing contract", () => {
 
   it("places every separator between equal logical group insets", () => {
     expect(css).toMatch(
-      /\.workspace-toolbar__group,[^{]*\.workspace-toolbar__actions > fieldset,[^{]*\.workspace-toolbar > fieldset\s*\{[^}]*padding-inline:\s*var\(--space-9\);[^}]*border-inline-start:\s*1px solid var\(--line\);/s,
+      /\.workspace-toolbar__group,[^{]*\.workspace-toolbar__actions > fieldset,[^{]*\.workspace-toolbar > fieldset\s*\{[^}]*padding-inline:\s*var\(--spacing-transition-control-inline-compact\);[^}]*border-inline-start:\s*1px solid var\(--line\);/s,
     );
     expect(css).toMatch(/\.workspace-toolbar__actions\s*\{[^}]*gap:\s*0;/s);
     expect(css).toMatch(
@@ -29,7 +29,7 @@ describe("workspace toolbar spacing contract", () => {
 
   it("owns the outer insets of semantic composite fieldset groups", () => {
     expect(css).toMatch(
-      /\.workspace-toolbar__actions > fieldset,[^{]*\.workspace-toolbar > fieldset\s*\{[^}]*padding-inline:\s*var\(--space-9\);[^}]*border-inline-start:\s*1px solid var\(--line\);/s,
+      /\.workspace-toolbar__actions > fieldset,[^{]*\.workspace-toolbar > fieldset\s*\{[^}]*padding-inline:\s*var\(--spacing-transition-control-inline-compact\);[^}]*border-inline-start:\s*1px solid var\(--line\);/s,
     );
   });
 });

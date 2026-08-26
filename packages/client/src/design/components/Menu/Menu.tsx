@@ -1,17 +1,22 @@
+import { ChevronRight } from "lucide-react";
 import {
   createContext,
   type HTMLAttributes,
   type KeyboardEvent,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
+  useId,
   useRef,
+  useState,
 } from "react";
+import { Popover } from "../Popover";
 import "./Menu.css";
 
 type MenuContextValue = {
   close: () => void;
-  autoFocus: boolean;
+  closeAfterSelect: () => void;
 };
 
 const MenuContext = createContext<MenuContextValue | null>(null);
@@ -21,6 +26,8 @@ export interface MenuProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSelec
   children: ReactNode;
   onClose: () => void;
   autoFocus?: boolean;
+  initialFocus?: "first" | "last";
+  onSelectClose?: () => void;
 }
 
 /** A WAI-ARIA action menu with roving keyboard focus. */
@@ -29,16 +36,23 @@ export function Menu({
   children,
   onClose,
   autoFocus = true,
+  initialFocus = "first",
+  onSelectClose,
   className = "",
   onKeyDown,
+  onFocus,
   ...props
 }: MenuProps) {
   const root = useRef<HTMLDivElement>(null);
+  const focusInitialItem = useCallback(() => {
+    const items = [
+      ...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []),
+    ];
+    items[initialFocus === "last" ? items.length - 1 : 0]?.focus();
+  }, [initialFocus]);
   useEffect(() => {
-    if (autoFocus) {
-      root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
-    }
-  }, [autoFocus]);
+    if (autoFocus) focusInitialItem();
+  }, [autoFocus, focusInitialItem]);
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     onKeyDown?.(event);
     if (event.defaultPrevented) return;
@@ -70,14 +84,22 @@ export function Menu({
     }
   };
   return (
-    <MenuContext.Provider value={{ close: onClose, autoFocus }}>
+    <MenuContext.Provider value={{ close: onClose, closeAfterSelect: onSelectClose ?? onClose }}>
       <div
         {...props}
         ref={root}
         className={`ui-menu ${className}`.trim()}
         role="menu"
         aria-label={label}
+        tabIndex={0}
+        data-autofocus={autoFocus || undefined}
         onKeyDown={handleKeyDown}
+        onFocus={(event) => {
+          onFocus?.(event);
+          if (!event.defaultPrevented && event.target === event.currentTarget && autoFocus) {
+            focusInitialItem();
+          }
+        }}
       >
         {children}
       </div>
@@ -115,13 +137,12 @@ export function MenuItem({
       role="menuitem"
       disabled={disabled}
       tabIndex={-1}
-      data-autofocus={(context?.autoFocus && !disabled) || undefined}
       data-tone={tone}
       aria-current={selected || undefined}
       onClick={() => {
         if (disabled) return;
         onSelect();
-        if (closeOnSelect) context?.close();
+        if (closeOnSelect) context?.closeAfterSelect();
       }}
     >
       {icon && (
@@ -129,9 +150,102 @@ export function MenuItem({
           {icon}
         </span>
       )}
-      {label !== undefined ? <span className="ui-menu__label">{label}</span> : children}
+      <span className="ui-menu__label">{label !== undefined ? label : children}</span>
       {shortcut && <kbd className="ui-menu__shortcut">{shortcut}</kbd>}
     </button>
+  );
+}
+
+export interface MenuSubmenuProps {
+  label: string;
+  children: ReactNode;
+  icon?: ReactNode;
+  disabled?: boolean;
+}
+
+/** A keyboard- and pointer-accessible nested action menu with viewport-aware positioning. */
+export function MenuSubmenu({ label, children, icon, disabled = false }: MenuSubmenuProps) {
+  const parent = useContext(MenuContext);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  const [open, setOpen] = useState(false);
+  const [autoFocus, setAutoFocus] = useState(true);
+  const [initialFocus, setInitialFocus] = useState<"first" | "last">("first");
+  const close = useCallback(() => setOpen(false), []);
+  const openMenu = (target: "first" | "last", focus: boolean) => {
+    if (disabled) return;
+    setInitialFocus(target);
+    setAutoFocus(focus);
+    setOpen(true);
+  };
+  const closeAll = () => {
+    setOpen(false);
+    parent?.closeAfterSelect();
+  };
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        role="menuitem"
+        disabled={disabled}
+        tabIndex={-1}
+        data-tone="neutral"
+        className="ui-menu__submenu-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onPointerEnter={() => openMenu("first", false)}
+        onClick={() => (open ? close() : openMenu("first", true))}
+        onKeyDown={(event) => {
+          if (["ArrowRight", "Enter", " "].includes(event.key)) {
+            event.preventDefault();
+            event.stopPropagation();
+            openMenu("first", true);
+          } else if (event.key === "ArrowLeft" && open) {
+            event.preventDefault();
+            event.stopPropagation();
+            close();
+          }
+        }}
+      >
+        {icon && (
+          <span className="ui-menu__icon" aria-hidden="true">
+            {icon}
+          </span>
+        )}
+        <span className="ui-menu__label">{label}</span>
+        <ChevronRight className="ui-menu__submenu-indicator" aria-hidden="true" />
+      </button>
+      <Popover
+        anchorRef={triggerRef}
+        open={open}
+        onClose={close}
+        label={label}
+        compactMode="popover"
+        desktopRole="presentation"
+        placement="inline-end"
+      >
+        <Menu
+          id={menuId}
+          className="ui-menu__submenu"
+          label={label}
+          onClose={close}
+          onSelectClose={closeAll}
+          autoFocus={autoFocus}
+          initialFocus={initialFocus}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft") return;
+            event.preventDefault();
+            event.stopPropagation();
+            close();
+          }}
+        >
+          {children}
+        </Menu>
+      </Popover>
+    </>
   );
 }
 

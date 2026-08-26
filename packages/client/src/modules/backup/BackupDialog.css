@@ -20,8 +20,8 @@
   text-align: left;
 }
 .backup-list-item[aria-pressed="true"] {
-  border-color: var(--gold-border);
-  background: var(--gold-soft);
+  border-color: var(--selection-border);
+  background: var(--selection-surface);
 }
 .backup-list-item-icon {
   color: var(--muted);
@@ -46,7 +46,7 @@
 }
 .backup-preview > svg {
   width: 32px;
-  color: var(--gold);
+  color: var(--accent-primary);
 }
 .backup-preview h3 {
   margin: var(--space-12) 0 var(--space-5);

@@ -31,6 +31,55 @@ function waitForSuccessfulManuscriptWrite(page: Page) {
   );
 }
 
+async function expectKeyboardMenuContract(page: Page, triggerName: string, menuName = triggerName) {
+  const trigger = page.getByRole("button", { name: triggerName, exact: true });
+  await trigger.focus();
+  await page.keyboard.press("ArrowDown");
+
+  const menu = page.getByRole("menu", { name: menuName, exact: true });
+  await expect(menu).toBeVisible();
+  const menuId = await menu.getAttribute("id");
+  expect(menuId).toBeTruthy();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(trigger).toHaveAttribute("aria-controls", menuId ?? "");
+  await expect(
+    menu.locator('[role="menuitem"]:not([disabled]):not([aria-disabled="true"])').first(),
+  ).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+}
+
+async function expectOverlayInsideViewport(overlay: Locator, page: Page, label: string) {
+  await expect
+    .poll(
+      async () => {
+        const settledBox = await overlay.boundingBox();
+        const settledViewport = page.viewportSize();
+        return Boolean(
+          settledBox &&
+            settledViewport &&
+            settledBox.x >= 0 &&
+            settledBox.y >= 0 &&
+            settledBox.x + settledBox.width <= settledViewport.width + 1 &&
+            settledBox.y + settledBox.height <= settledViewport.height + 1,
+        );
+      },
+      { message: `${label} liegt nach der Öffnungsanimation vollständig im Viewport` },
+    )
+    .toBe(true);
+  const box = await overlay.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box, `${label} hat keine messbare Geometrie`).not.toBeNull();
+  expect(viewport, `${label} hat keinen Viewport`).not.toBeNull();
+  if (!box || !viewport) return;
+  expect(box.x, `${label} ragt links heraus`).toBeGreaterThanOrEqual(0);
+  expect(box.y, `${label} ragt oben heraus`).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width, `${label} ragt rechts heraus`).toBeLessThanOrEqual(viewport.width + 1);
+  expect(box.y + box.height, `${label} ragt unten heraus`).toBeLessThanOrEqual(viewport.height + 1);
+}
+
 test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async ({
   page,
 }, testInfo) => {
@@ -64,6 +113,22 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
     expect(geometry.scroll, `${label} verbreitert das Dokument`).toBeLessThanOrEqual(
       geometry.client + 1,
     );
+  };
+
+  const expectVisibleActionsTouchSized = async (label: string) => {
+    const undersized = await page
+      .locator('button:visible, [role="button"]:visible, [role="radio"]:visible')
+      .evaluateAll((controls) =>
+        controls.flatMap((control) => {
+          if (control.getAttribute("aria-hidden") === "true") return [];
+          const box = control.getBoundingClientRect();
+          if (box.width + 0.5 >= 44 && box.height + 0.5 >= 44) return [];
+          return [
+            `${control.getAttribute("aria-label") ?? control.textContent?.trim() ?? control.getAttribute("role") ?? control.tagName} [${control.className || "no-class"}]: ${Math.round(box.width)}x${Math.round(box.height)}`,
+          ];
+        }),
+      );
+    expect(undersized, `${label} enthält Touchziele unter 44px`).toEqual([]);
   };
 
   const actionRows = await toolbarGroups.evaluateAll((groups) =>
@@ -114,6 +179,7 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
     }),
   );
   expect(offCenterToolbarIcons).toEqual([]);
+  await expectVisibleActionsTouchSized("Manuskript");
   await expectNoDocumentOverflow("Manuskript");
 
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
@@ -130,10 +196,12 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
     }),
   );
   expect(undersizedNodes).toEqual([]);
+  await expectVisibleActionsTouchSized("Figurenboard");
   await expectNoDocumentOverflow("Figurenboard");
 
   await page.getByRole("button", { name: "Timeline", exact: true }).click();
   await expect(page.getByRole("main")).toBeVisible();
+  await expectVisibleActionsTouchSized("Timeline");
   await expectNoDocumentOverflow("Timeline");
 
   await page.getByRole("button", { name: "Orte", exact: true }).click();
@@ -146,7 +214,81 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
   const placeNodeBox = await placeNodes.first().boundingBox();
   expect(placeNodeBox?.width).toBeGreaterThanOrEqual(44);
   expect(placeNodeBox?.height).toBeGreaterThanOrEqual(44);
+  await expectVisibleActionsTouchSized("Orte");
   await expectNoDocumentOverflow("Orte");
+});
+
+test("Menüs und Untermenüs halten den gemeinsamen Tastatur-, Fokus- und Viewport-Vertrag", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Test durchläuft Desktop und Mobile selbst und muss deshalb nur einmal laufen.",
+  );
+  test.setTimeout(90_000);
+
+  await openBlankWorld(page, "Menü-Vertragswelt");
+
+  for (const viewport of [
+    { name: "Desktop", width: 1280, height: 800 },
+    { name: "Mobile", width: 390, height: 844 },
+  ]) {
+    await test.step(viewport.name, async () => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.reload();
+      await waitForManuscriptReady(page);
+
+      await expectKeyboardMenuContract(page, "Exportieren", "Exportoptionen");
+
+      await page.getByRole("button", { name: "Figuren", exact: true }).click();
+      await expectKeyboardMenuContract(page, "Element", "Element erstellen");
+      await expectKeyboardMenuContract(page, "Ansicht");
+      await expectKeyboardMenuContract(page, "Verwalten");
+
+      await page.getByRole("button", { name: "Timeline", exact: true }).click();
+      const timeTrigger = page.getByRole("button", {
+        name: "Zeitsystem konfigurieren",
+        exact: true,
+      });
+      await timeTrigger.click();
+      const timeSettings = page.getByRole("dialog", {
+        name: "Zeitsystem konfigurieren",
+        exact: true,
+      });
+      await expect(timeSettings).toBeVisible();
+      await expectOverlayInsideViewport(timeSettings, page, `${viewport.name} / Zeitsystem`);
+      await expect(timeSettings.locator(".timeline-time-settings-panel")).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(timeSettings).toHaveCount(0);
+      await expect(timeTrigger).toBeFocused();
+
+      const assistantTrigger = page.getByRole("button", {
+        name: "Lokalen Assistenten öffnen",
+        exact: true,
+      });
+      await assistantTrigger.click();
+      const chapterTrigger = page.getByRole("button", {
+        name: "Kontext: gesamte Welt",
+        exact: true,
+      });
+      await chapterTrigger.click();
+      const chapterPicker = page.getByRole("dialog", {
+        name: "Kapitel einzeln auswählen",
+        exact: true,
+      });
+      await expect(chapterPicker).toBeVisible();
+      await expectOverlayInsideViewport(
+        chapterPicker,
+        page,
+        `${viewport.name} / Assistentenkontext`,
+      );
+      await expect(chapterPicker.getByRole("checkbox").first()).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(chapterPicker).toHaveCount(0);
+      await expect(chapterTrigger).toBeFocused();
+      await page.getByRole("button", { name: "Assistent schließen", exact: true }).click();
+    });
+  }
 });
 
 test("Orte behalten am 820px-Übergang die volle Kartenhöhe", async ({ page }, testInfo) => {
@@ -2130,6 +2272,7 @@ test("Startseite lädt eine Welt und übernimmt ihren variablen Titel", async ({
     .getByRole("button", { name: "Öffentliche Testwelt – Welt öffnen", exact: true })
     .last()
     .click();
+  await waitForManuscriptReady(page);
   await expect(page.locator(".brand")).toContainText("Öffentliche Testwelt");
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 });

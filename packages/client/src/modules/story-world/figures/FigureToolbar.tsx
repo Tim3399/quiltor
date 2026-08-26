@@ -13,11 +13,10 @@ import { useRef, useState } from "react";
 import {
   Button,
   ConfirmDialog,
+  DropdownMenu,
   IconButton,
-  Menu,
   MenuItem,
   MenuSeparator,
-  Popover,
   TextField,
   Toast,
   UndoRedoControls,
@@ -74,16 +73,10 @@ export function FigureToolbar({
   onImport,
 }: FigureToolbarProps) {
   const { t } = useI18n();
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [viewMenuOpen, setViewMenuOpen] = useState(false);
-  const [manageMenuOpen, setManageMenuOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<FigureState | null>(null);
   const [importError, setImportError] = useState("");
   const [exportError, setExportError] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const createButton = useRef<HTMLButtonElement>(null);
-  const viewButton = useRef<HTMLButtonElement>(null);
-  const manageButton = useRef<HTMLButtonElement>(null);
 
   const runExport = (task: Promise<void>) => {
     void task
@@ -114,37 +107,23 @@ export function FigureToolbar({
           }
         />
         <WorkspaceToolbarGroup className="figure-create-group" label={t("createElementMenu")}>
-          <Button
-            ref={createButton}
-            appearance="primary"
-            icon={<Plus />}
-            aria-expanded={createMenuOpen}
-            aria-haspopup="menu"
-            onClick={() => setCreateMenuOpen((value) => !value)}
-          >
-            {t("element")}
-          </Button>
-          <Popover
-            anchorRef={createButton}
-            open={createMenuOpen}
-            onClose={() => setCreateMenuOpen(false)}
+          <DropdownMenu
             label={t("createElementMenu")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <Button ref={ref} {...triggerProps} appearance="primary" icon={<Plus />}>
+                {t("element")}
+              </Button>
+            )}
           >
-            <Menu label={t("createElementMenu")} onClose={() => setCreateMenuOpen(false)}>
-              {FIGURE_ELEMENT_TYPES.map((type) => (
-                <MenuItem
-                  key={type.kind}
-                  onSelect={() => {
-                    onAddNode(type.kind);
-                    setCreateMenuOpen(false);
-                  }}
-                >
-                  <Plus />
-                  {t(type.label)}
-                </MenuItem>
-              ))}
-            </Menu>
-          </Popover>
+            {FIGURE_ELEMENT_TYPES.map((type) => (
+              <MenuItem
+                key={type.kind}
+                icon={<Plus />}
+                label={t(type.label)}
+                onSelect={() => onAddNode(type.kind)}
+              />
+            ))}
+          </DropdownMenu>
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={t("connect")}>
           <Button
@@ -160,73 +139,43 @@ export function FigureToolbar({
           </Button>
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={t("figureViewMenu")}>
-          <Button
-            ref={viewButton}
-            appearance="ghost"
-            icon={<Grid3X3 />}
-            aria-expanded={viewMenuOpen}
-            aria-haspopup="menu"
-            onClick={() => setViewMenuOpen((value) => !value)}
-          >
-            {t("figureViewMenu")}
-          </Button>
-          <Popover
-            anchorRef={viewButton}
-            open={viewMenuOpen}
-            onClose={() => setViewMenuOpen(false)}
+          <DropdownMenu
             label={t("figureViewMenu")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <Button ref={ref} {...triggerProps} appearance="ghost" icon={<Grid3X3 />}>
+                {t("figureViewMenu")}
+              </Button>
+            )}
           >
-            <Menu label={t("figureViewMenu")} onClose={() => setViewMenuOpen(false)}>
-              <MenuItem
-                onSelect={() => {
-                  onSnapToGridChange(!snapToGrid);
-                  setViewMenuOpen(false);
-                }}
-              >
-                <Grid3X3 />
-                {snapToGrid ? t("hideGrid") : t("showGrid")}
-              </MenuItem>
-              <MenuItem
-                disabled={!state.nodes.length}
-                onSelect={() => {
-                  onAlignAllNodes();
-                  setViewMenuOpen(false);
-                }}
-              >
-                <LayoutGrid />
-                {t("arrangeGrid")}
-              </MenuItem>
-              <MenuItem
-                disabled={!state.edges.length}
-                onSelect={() => {
-                  onRelationshipsVisibleChange(!relationshipsVisible);
-                  setViewMenuOpen(false);
-                }}
-              >
-                <Link2 />
-                {relationshipsVisible ? t("hideRelationships") : t("showRelationships")}
-              </MenuItem>
-              <MenuSeparator />
-              <MenuItem
-                onSelect={() => {
-                  onTimelineOpenChange(!timelineOpen);
-                  setViewMenuOpen(false);
-                }}
-              >
-                <Clock3 />
-                {timelineOpen ? t("hideTimeline") : t("showTimeline")}
-              </MenuItem>
-              <MenuItem
-                onSelect={() => {
-                  onJourneyOverlayOpenChange(!journeyOverlayOpen);
-                  setViewMenuOpen(false);
-                }}
-              >
-                <MapPin />
-                {journeyOverlayOpen ? t("hidePaths") : t("showPaths")}
-              </MenuItem>
-            </Menu>
-          </Popover>
+            <MenuItem
+              icon={<Grid3X3 />}
+              label={snapToGrid ? t("hideGrid") : t("showGrid")}
+              onSelect={() => onSnapToGridChange(!snapToGrid)}
+            />
+            <MenuItem
+              disabled={!state.nodes.length}
+              icon={<LayoutGrid />}
+              label={t("arrangeGrid")}
+              onSelect={onAlignAllNodes}
+            />
+            <MenuItem
+              disabled={!state.edges.length}
+              icon={<Link2 />}
+              label={relationshipsVisible ? t("hideRelationships") : t("showRelationships")}
+              onSelect={() => onRelationshipsVisibleChange(!relationshipsVisible)}
+            />
+            <MenuSeparator />
+            <MenuItem
+              icon={<Clock3 />}
+              label={timelineOpen ? t("hideTimeline") : t("showTimeline")}
+              onSelect={() => onTimelineOpenChange(!timelineOpen)}
+            />
+            <MenuItem
+              icon={<MapPin />}
+              label={journeyOverlayOpen ? t("hidePaths") : t("showPaths")}
+              onSelect={() => onJourneyOverlayOpenChange(!journeyOverlayOpen)}
+            />
+          </DropdownMenu>
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={`${t("undoDiagram")} / ${t("redoDiagram")}`}>
           <UndoRedoControls
@@ -240,53 +189,36 @@ export function FigureToolbar({
           />
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={t("figureManageMenu")}>
-          <IconButton
-            ref={manageButton}
+          <DropdownMenu
             label={t("figureManageMenu")}
-            icon={<MoreHorizontal />}
-            appearance="ghost"
-            size="regular"
-            aria-expanded={manageMenuOpen}
-            aria-haspopup="menu"
-            onClick={() => setManageMenuOpen((value) => !value)}
-          />
-          <Popover
-            anchorRef={manageButton}
-            open={manageMenuOpen}
-            onClose={() => setManageMenuOpen(false)}
-            label={t("figureManageMenu")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <IconButton
+                ref={ref}
+                {...triggerProps}
+                label={t("figureManageMenu")}
+                icon={<MoreHorizontal />}
+                appearance="ghost"
+                size="regular"
+              />
+            )}
           >
-            <Menu label={t("figureManageMenu")} onClose={() => setManageMenuOpen(false)}>
-              <MenuItem
-                onSelect={() => {
-                  runExport(saveFigureProfiles(state, t));
-                  setManageMenuOpen(false);
-                }}
-              >
-                <Download />
-                {t("profiles")}
-              </MenuItem>
-              <MenuItem
-                onSelect={() => {
-                  runExport(saveFigureState(state, t));
-                  setManageMenuOpen(false);
-                }}
-              >
-                <Download />
-                JSON
-              </MenuItem>
-              <MenuSeparator />
-              <MenuItem
-                onSelect={() => {
-                  input.current?.click();
-                  setManageMenuOpen(false);
-                }}
-              >
-                <Upload />
-                {t("import")}
-              </MenuItem>
-            </Menu>
-          </Popover>
+            <MenuItem
+              icon={<Download />}
+              label={t("profiles")}
+              onSelect={() => runExport(saveFigureProfiles(state, t))}
+            />
+            <MenuItem
+              icon={<Download />}
+              label="JSON"
+              onSelect={() => runExport(saveFigureState(state, t))}
+            />
+            <MenuSeparator />
+            <MenuItem
+              icon={<Upload />}
+              label={t("import")}
+              onSelect={() => input.current?.click()}
+            />
+          </DropdownMenu>
           <TextField
             ref={input}
             fieldClassName="figure-import-field"

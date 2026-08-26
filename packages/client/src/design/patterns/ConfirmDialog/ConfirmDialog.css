@@ -1,8 +1,8 @@
 .ui-confirm-dialog__message {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-12);
-  padding: var(--space-2) 0 var(--space-6);
+  gap: var(--spacing-regular-tight);
+  padding: var(--spacing-optical-tight) 0 var(--spacing-compact-tight);
 }
 
 .ui-confirm-dialog__icon {
@@ -15,7 +15,7 @@
 .ui-confirm-dialog__copy {
   min-width: 0;
   display: grid;
-  gap: var(--space-7);
+  gap: var(--spacing-compact-base);
   overflow-wrap: anywhere;
   line-height: 1.55;
 }

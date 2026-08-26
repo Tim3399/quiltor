@@ -40,29 +40,63 @@ Jeder öffentliche Ordner besitzt genau einen visuellen Owner. Lose Styles direk
 enthält ausschließlich nicht öffentliche Implementierungsdetails wie den gemeinsamen
 Overlay-Fokusvertrag.
 
-## Akzentfarben als semantischer Vertrag
+## Fünf Akzentfamilien als semantischer Vertrag
 
 Akzentfarbe kommuniziert Bedeutung und darf nicht nur Dekoration sein. Jede Akzentfamilie besitzt
 vier Rollen: `base` für graphische Fills und starke Marken, `soft` für getönte Flächen, `text` für
 kleine Schrift und Icons sowie `border` für Zustandsränder und Linien.
 
-| Familie | Bedeutung | Typische Verwendung |
-| ------- | --------- | ------------------- |
-| Gold | aktive Auswahl und aktueller Arbeitskontext | Selection, aktive Navigation, priorisierte Aktion |
-| Rose | Beziehungen und Lebensereignisse | Beziehungsgraph, aktive Lebensereignis-Aktion |
-| Moss | Erfolg, gespeicherter Zustand und Präsenz | SaveStatus, Success Alert, Präsenzmarke |
-| Focus | Tastaturfokus, Drag-and-drop und Editierziel | Fokus-Ring, Drop-Fläche, Einfügelinie |
+| Familie  | Bedeutung                                           | Typische Verwendung                               |
+| -------- | --------------------------------------------------- | ------------------------------------------------- |
+| Gold     | Marke, aktive Auswahl und aktueller Arbeitskontext  | Selection, aktive Navigation, priorisierte Aktion |
+| Rose     | Fehler, destruktive Aktion und entferntes Element   | Error, Danger, Diff-Delete, Beziehungsgraph       |
+| Moss     | Erfolg, Bestätigung und hinzugefügtes Element       | SaveStatus, Success, Diff-Add, Präsenzmarke       |
+| Ink Blue | Tastaturfokus, Information, Link und Editierziel    | Focus Ring, Info, Link, Drop-Fläche               |
+| Copper   | ausschließlich Warning und konfliktfreie Vorwarnung | Warning Alert/Toast/Banner/Formfeedback           |
 
 Für Text und Icons wird immer `*-text`, für bedeutungstragende Linien und Ränder `*-border` und
-für getönte Hintergründe `*-soft` verwendet. `base` bleibt graphischen Fills vorbehalten. Goldene
-Akzente ersetzen weder das orange Warning-System noch rote Error-/Danger-Rollen. Die
-Kontrasttests sichern kleine Schrift mit mindestens 4,5:1 und nicht-textuelle Zustände mit
-mindestens 3:1 in beiden Themes sowie auf interaktiven Materialflächen ab.
+für getönte Hintergründe `*-soft` verwendet. `base` bleibt graphischen Fills vorbehalten.
+Komponenten konsumieren bevorzugt semantische Rollen wie `--info-*`, `--success-*`,
+`--warning-*`, `--error-*`, `--accent-primary-*` und `--focus-*`. Produkt-CSS verwendet direkte
+Familienrollen nur in explizit geprüften Visualisierungen.
+
+Goldene Akzente ersetzen niemals Copper-Warning oder Rose-Error/Danger. Die Kontrasttests lösen
+auch Alias-Ketten auf und sichern kleine Schrift mit mindestens 4,5:1 sowie nicht-textuelle
+Zustände mit mindestens 3:1 in beiden Themes und auf interaktiven Materialflächen ab. Zusätzlich
+erzwingen OKLab-Farbdistanz und Hue-Abstand, dass Warning insbesondere im Light Mode klar von Gold
+unterscheidbar bleibt.
+
+## Spacing-Rhythmus und Ausnahmeratchet
+
+Die numerische `--space-*`-Skala ist ausschließlich Geometriequelle. Öffentliche Design-CSS-Owner
+verwenden für Layoutabstände semantische `--spacing-*`-Rollen aus vier geprüften Rhythmen:
+
+| Rhythmus | Werte    | Einsatz                                      |
+| -------- | -------- | -------------------------------------------- |
+| Optical  | 1–4 px   | feine Icon-, Label- und Fokusbeziehungen     |
+| Compact  | 6–8 px   | dichte Controls und zusammengehörige Inhalte |
+| Regular  | 12–16 px | Karten, Felder und reguläre Inhaltsgruppen   |
+| Section  | 24–32 px | Panels, Abschnitte und große Inhaltsflächen  |
+
+Die bestehenden 9-/10-px-Beziehungen sind als benannte `--spacing-transition-*`-Rollen
+eingefroren. Neue Transition-Rollen sind nicht erlaubt. Der Ratchet prüft alle öffentlichen
+Primitive-, Component- und Pattern-CSS-Dateien für `padding`, `margin`, `gap`, logische und
+physische Insets, Scroll-Insets sowie `border-spacing`. Ein direkter numerischer Token ist dort nur
+zulässig, wenn er in `testing/spacingExceptions.ts` exakt mit Owner, Property, Wert, Tokenfolge,
+Beziehungsname und belastbarer Begründung registriert ist. Anonyme Mengen- oder Maximalbudgets gibt
+es nicht.
+
+Die wenigen verbleibenden 18-/20-/28-px-Geometrien sind so deklarationsgenau eingefroren. Eine
+Änderung an Wert oder Vorkommen schlägt fehl. Nach browsergeprüfter Normalisierung wird der Eintrag
+gelöscht; neue Einträge dürfen den Ratchet nicht als bequemen Ersatz für eine semantische Rolle
+verwenden. Größen-, Border- oder Transform-Geometrie außerhalb von Layoutabständen bleibt weiterhin
+bei ihrem jeweils zuständigen Größenvertrag.
 
 ## Öffentlicher Katalog
 
-Der öffentliche Barrel umfasst 34 vollständig colocated und nach dem Architektur- und
-Accessibility-Review als `stable` eingestufte APIs.
+Der öffentliche Barrel umfasst 34 vollständig colocated APIs. Ihre Architektur ist stabil; ihre
+visuellen Zustände werden zusätzlich durch die maschinenlesbare Auditmatrix unter
+`testing/gallery/auditProfiles.ts` geratet.
 
 ### Primitives
 
@@ -88,12 +122,12 @@ Accessibility-Review als `stable` eingestufte APIs.
 | `Disclosure`       | Ein- und ausklappbarer Inhaltsbereich                 |
 | `EmptyState`       | Konsistenter leerer Zustand mit optionaler Aktion     |
 | `ListboxSelect`    | Tastaturbedienbare Listbox-Auswahl                    |
-| `Menu`             | Menü, Menüeintrag, Separator und Kontextmenü          |
+| `Menu`             | Menü, Eintrag, Separator, Unter- und Kontextmenü      |
 | `PageState`        | Seitenfüllender Loading-, Error- oder Empty-State     |
 | `Popover`          | Nicht modales, positioniertes Overlay                 |
 | `ProgressBar`      | Semantischer bestimmter oder unbestimmter Fortschritt |
 | `SaveStatus`       | Kompakter Speicher- und Synchronisationszustand       |
-| `ScrollArea`       | Semantikerhaltende, gestaltete Scrollfläche            |
+| `ScrollArea`       | Semantikerhaltende, gestaltete Scrollfläche           |
 | `Sheet`            | Modale Seitenfläche mit Fokusvertrag                  |
 | `SidePanel`        | Binder-/Inspector-Fläche mit Default- und Fill-Breite |
 | `Tabs`             | Zugängliche Tab-Navigation und Panels                 |
@@ -131,8 +165,9 @@ leer sein oder ausschließlich lokale Komposition enthalten. Der statische Publi
 diese fünf Dateien anhand des Ordnernamens.
 
 Interaktive Komponenten benötigen sichere native Defaults, Accessible Name und Rolle,
-Tastaturverträge sowie definiertes Fokusverhalten. Relevante Stories decken mindestens Default,
-Disabled, Light/Dark, Compact/Touch und lange Inhalte ab.
+Tastaturverträge sowie definiertes Fokusverhalten. Das Auditprofil ordnet relevante Stories
+explizit Capabilities wie Disabled, Loading, Error, LongContent, Touch, Overlay und Scrolling zu.
+Neue Folder oder Gallery-Stories ohne diese bewusste Zuordnung scheitern im Test.
 
 ## Feature-CSS
 
@@ -143,16 +178,49 @@ Variante, wird sie zuerst als typisierte Design-API modelliert.
 
 Im produktiven TSX gelten absolute Nullverbote für rohe `button`-, `input`-, `select`- und
 `textarea`-Controls sowie für retired Recipe-Klassen. Produkt-CSS darf weder native Control-Typen
-selektieren noch colocated Design-Owner-Klassen überschreiben. Diese Regeln besitzen keine
-produktive Ausnahme- oder Übergangsschicht.
+selektieren noch colocated Design-Owner-Klassen überschreiben. Ein explizites Manifest schützt die
+Owner aller 34 Folder inklusive BEM-Elementen, Modifiern und Portal-/Listen-Unterowner. Diese Regeln
+besitzen keine produktive Ausnahme- oder Übergangsschicht.
+
+## Menü- und Auswahlvertrag
+
+Produktcode baut Aktionsmenüs nie direkt aus `Menu`, `Popover` und eigenem Open State zusammen.
+Er verwendet `DropdownMenu`; dessen Trigger-Props besitzen `aria-haspopup`, `aria-expanded`,
+`aria-controls`, ArrowUp-/ArrowDown-Öffnung, Escape und Fokus-Restore. `MenuItem` erhält sichtbare
+Inhalte über `label` und `icon`; Löschen und andere irreversible Aktionen tragen `tone="danger"`.
+Nicht interaktive Statusinhalte stehen über `DropdownMenu.header` außerhalb von `role="menu"`.
+
+`MenuSubmenu` ist der einzige verschachtelte Menüvertrag. ArrowRight, Enter und Leertaste öffnen,
+ArrowLeft kehrt zum Elternmenü zurück; das Untermenü wird an allen Viewportkanten begrenzt. Kurze
+mobile Popover-/Menüinhalte werden als inhaltshohe Bottom-Sheets dargestellt. Lange Inhalte wachsen
+bis höchstens 88 dVH und scrollen im expliziten Design-Owner.
+
+Auswahl-APIs bleiben semantisch getrennt:
+
+- `Select`: natives, beschriftetes Formularfeld für dichte Einstellungen;
+- `ListboxSelect`: adaptive, gestaltete Auswahl in Toolbars und Overlays;
+- `SelectionMenu`: Aktionen auf einer Textauswahl;
+- `CommandPalette`: durchsuchbare Befehlsauswahl;
+- `DropdownMenu`: Aktionsliste; `MenuSubmenu`: verschachtelte Aktionsliste.
+
+`check_menu_contracts.mjs` blockiert direkte produktive `<Menu>`-Nutzung, handgeschriebene
+Menütrigger, unstrukturierte Einträge, destruktive Icons ohne Danger-Ton und zurückgezogene lokale
+Dropdown-Rezepte.
 
 ## Umsetzungsstatus
 
-Die Produktmigration und ihre Abschlussverifikation sind vollständig abgeschlossen: Alle Aufrufer
+Die Architektur- und Produktmigration vom 25. August 2026 ist abgeschlossen: Alle Aufrufer
 verwenden den öffentlichen Design-Barrel, `shared/ui` und die Legacy-Styles sind entfernt, und die
-statischen Debt-Inventare stehen auf null.
+statischen Debt-Inventare stehen auf null. Dieser historische Nachweis ist ausdrücklich kein
+vollständiger visueller Abschlussnachweis.
 
-Abschlussnachweis vom 25. August 2026:
+Seit dem 26. August läuft deshalb das strengere
+[`Design-Component-Audit v2`](../../../../ai/design-component-audit-2026-08.md). Es prüft zusätzlich
+semantische Farbrollen, Spacing-Rhythmus, innere und Portal-Overflows, Narrow-Container,
+Hit-Targets sowie Produktkompositionen. Sein Definition-of-Done ersetzt für visuelle Konsistenz die
+frühere Aussage „alle Gallery-Tests sind grün“.
+
+Historischer Architektur-Nachweis vom 25. August 2026:
 
 - 34 öffentliche Ordner mit jeweils fünf Contract-Dateien, also 170 colocated Vertragsdateien;
 - 132 Vitest-Dateien mit 547 bestandenen Tests;
@@ -173,9 +241,10 @@ Eine öffentliche Komponente ist fertig, wenn:
 - alle sichtbaren Texte und Accessible Labels per Props kommen;
 - die fünf Contract-Dateien vollständig sind;
 - Unit-Tests DOM-Semantik, Events, Disabled State, Tastatur und Fokus abdecken;
-- Stories die relevanten Theme-, Viewport- und Inhaltszustände rendern;
+- ihr Auditprofil alle relevanten Theme-, Viewport-, Portal-, Scroll- und Inhaltszustände benennt;
 - sie über `design/index.ts` exportiert und ausschließlich darüber konsumiert wird;
-- Gallery-, Axe-, Overflow- und relevante visuelle Verträge grün sind;
+- Gallery-, Axe-, Canvas-/Portal-/Inner-Overflow-, Touch-, Narrow-Host- und relevante berechnete
+  visuelle Verträge grün sind;
 - ihr erster Produkteinsatz keine lokale Sonderlösung und keinen Debt-Eintrag benötigt.
 
 ## Enforcement
@@ -187,8 +256,14 @@ Eine öffentliche Komponente ist fertig, wenn:
 - keine losen CSS-Dateien unter `design/components`;
 - absolute Nullbestände für rohe Controls, retired Recipe-Klassen, native Control-Selektoren und
   direkte CSS-Design-Owner-Overrides;
-- genau ein öffentlicher Scrollbar-Owner: lokale `scrollbar-color`- oder
+- keine lokale Menükomposition, manuelle Menütrigger oder unstrukturierte/destruktiv falsch
+  getönte Menüeinträge im Produktcode;
+- genau ein öffentlicher Scrollbar-Owner: lokale `scrollbar-color`-, `scrollbar-width`- oder
   `::-webkit-scrollbar`-Rezepte sind ohne Ausnahme verboten;
+- vollständiges CSS-Owner-Manifest für jeden öffentlichen Design-Folder;
+- exakt fünf chromatische Familien, Theme-Parität und verbindliche semantische Rollenzuordnung;
+- vier semantische Spacing-Rhythmen und ausschließlich deklarationsgenaue, begründete
+  Zwischenwert-Ausnahmen statt anonymer Budgets;
 - Biome über den gesamten Ordner `packages/client/src/design`.
 
 Die lokalen Einstiegspunkte sind:

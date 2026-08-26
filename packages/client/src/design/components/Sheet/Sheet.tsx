@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { forwardRef, type HTMLAttributes, type ReactNode, useRef } from "react";
+import { forwardRef, type HTMLAttributes, type ReactNode, type RefObject, useRef } from "react";
 import { useOverlayFocus } from "../../internal/useOverlayFocus";
 import { IconButton } from "../../primitives/IconButton";
 import "./Sheet.css";
@@ -11,6 +11,7 @@ export interface SheetProps {
   children: ReactNode;
   wide?: boolean;
   className?: string;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 /** A modal side sheet which becomes a bottom sheet on compact viewports. */
@@ -21,9 +22,10 @@ export function Sheet({
   children,
   wide = false,
   className = "",
+  returnFocusRef,
 }: SheetProps) {
   const panel = useRef<HTMLElement>(null);
-  useOverlayFocus(panel, open, onClose);
+  useOverlayFocus(panel, open, onClose, returnFocusRef);
   if (!open) return null;
   return (
     <div

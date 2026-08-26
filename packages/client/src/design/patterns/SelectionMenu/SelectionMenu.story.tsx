@@ -50,3 +50,26 @@ export function DisabledAction() {
     </>
   );
 }
+
+export function LongManyActions() {
+  const anchor = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <Button ref={anchor}>Umfangreiche Auswahlaktionen</Button>
+      <SelectionMenu
+        anchorRef={anchor}
+        open
+        label="Umfangreiche Auswahlaktionen"
+        onClose={() => undefined}
+        actions={Array.from({ length: 24 }, (_, index) => ({
+          id: `action-${index}`,
+          label:
+            index === 23
+              ? "Ausgewählten Text mit einer besonders ausführlichen Beschreibung bearbeiten"
+              : `Auswahlaktion ${String(index + 1).padStart(2, "0")}`,
+          run() {},
+        }))}
+      />
+    </>
+  );
+}

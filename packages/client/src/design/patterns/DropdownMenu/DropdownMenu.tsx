@@ -26,6 +26,7 @@ export interface DropdownMenuProps {
   label: string;
   renderTrigger: (props: DropdownMenuTriggerProps) => ReactNode;
   children: ReactNode;
+  header?: ReactNode;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -37,6 +38,7 @@ export function DropdownMenu({
   label,
   renderTrigger,
   children,
+  header,
   open,
   defaultOpen = false,
   onOpenChange,
@@ -45,6 +47,7 @@ export function DropdownMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const [initialFocus, setInitialFocus] = useState<"first" | "last">("first");
   const resolvedOpen = open ?? internalOpen;
   const setOpen = useCallback(
     (next: boolean) => {
@@ -54,6 +57,10 @@ export function DropdownMenu({
     [onOpenChange, open],
   );
   const close = useCallback(() => setOpen(false), [setOpen]);
+  const openWithFocus = (target: "first" | "last") => {
+    setInitialFocus(target);
+    setOpen(true);
+  };
 
   const triggerProps: DropdownMenuTriggerProps = {
     ref: triggerRef,
@@ -61,11 +68,14 @@ export function DropdownMenu({
     "aria-haspopup": "menu",
     "aria-expanded": resolvedOpen,
     "aria-controls": resolvedOpen ? menuId : undefined,
-    onClick: () => setOpen(!resolvedOpen),
+    onClick: () => {
+      if (resolvedOpen) close();
+      else openWithFocus("first");
+    },
     onKeyDown: (event) => {
       if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
         event.preventDefault();
-        setOpen(true);
+        openWithFocus(event.key === "ArrowUp" ? "last" : "first");
       } else if (event.key === "Escape" && resolvedOpen) {
         event.preventDefault();
         close();
@@ -82,10 +92,20 @@ export function DropdownMenu({
         onClose={close}
         label={label}
         compactMode={compactMode}
+        desktopRole="presentation"
       >
-        <Menu id={menuId} className="ui-dropdown-menu" label={label} onClose={close}>
-          {children}
-        </Menu>
+        <div className="ui-dropdown-menu__surface">
+          {header && <div className="ui-dropdown-menu__header">{header}</div>}
+          <Menu
+            id={menuId}
+            className="ui-dropdown-menu"
+            label={label}
+            onClose={close}
+            initialFocus={initialFocus}
+          >
+            {children}
+          </Menu>
+        </div>
       </Popover>
     </>
   );

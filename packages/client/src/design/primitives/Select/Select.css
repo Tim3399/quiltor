@@ -2,15 +2,18 @@
   --ui-select-arrow: var(--soft);
 
   appearance: none;
-  padding-inline-end: calc(var(--space-10) + var(--space-16));
+  padding-inline-end: calc(
+    var(--spacing-transition-field-control-inline) +
+    var(--spacing-regular-wide)
+  );
   background-image:
     linear-gradient(45deg, transparent 50%, var(--ui-select-arrow) 50%),
     linear-gradient(135deg, var(--ui-select-arrow) 50%, transparent 50%);
   background-position:
-    calc(100% - var(--space-12)) calc(50% - 1px),
-    calc(100% - var(--space-8)) calc(50% - 1px);
+    calc(100% - var(--spacing-select-arrow-offset-far)) calc(50% - 1px),
+    calc(100% - var(--spacing-select-arrow-offset-near)) calc(50% - 1px);
   background-repeat: no-repeat;
-  background-size: var(--space-4) var(--space-4);
+  background-size: var(--spacing-select-arrow-size) var(--spacing-select-arrow-size);
 }
 
 .ui-select:disabled {

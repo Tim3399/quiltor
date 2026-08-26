@@ -17,7 +17,7 @@
 }
 
 .timeline-strip.is-playing {
-  border-color: var(--gold);
+  border-color: var(--accent-primary-border);
 }
 
 .timeline-playing .react-flow__edge {
@@ -42,7 +42,7 @@
 
 .timeline-heading > svg {
   width: 16px;
-  color: var(--gold);
+  color: var(--accent-primary);
 }
 
 .timeline-heading > span {
@@ -53,7 +53,6 @@
 }
 
 .timeline-heading-action {
-  height: 30px;
   padding: 0 var(--space-9);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -63,13 +62,12 @@
 }
 
 .timeline-heading-action.active {
-  border-color: var(--gold-border);
-  background: var(--gold-soft);
-  color: var(--gold-text);
+  border-color: var(--selection-border);
+  background: var(--selection-surface);
+  color: var(--selection-text);
 }
 
 .timeline-heading .timeline-play {
-  width: 30px;
   padding: 0;
 }
 
@@ -114,7 +112,6 @@
 }
 
 .timeline-moment-button {
-  min-height: 34px;
   max-width: 160px;
   display: flex;
   flex-direction: column;
@@ -141,9 +138,9 @@
 }
 
 .timeline-moment-button.active {
-  border-color: var(--gold);
-  background: var(--gold-soft);
-  color: var(--gold-text);
+  border-color: var(--selection-border);
+  background: var(--selection-surface);
+  color: var(--selection-text);
 }
 
 .timeline-title,

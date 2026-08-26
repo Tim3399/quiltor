@@ -12,8 +12,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-10);
-  padding: var(--space-8) var(--space-12);
+  gap: var(--spacing-transition-control-gap-wide);
+  padding: var(--spacing-compact-wide) var(--spacing-regular-tight);
   color: var(--ink);
   cursor: pointer;
   list-style: none;
@@ -47,7 +47,7 @@
 
 .design-disclosure__content {
   min-width: 0;
-  padding: var(--space-12);
+  padding: var(--spacing-regular-tight);
   border-top: 1px solid var(--line);
   overflow-wrap: anywhere;
 }

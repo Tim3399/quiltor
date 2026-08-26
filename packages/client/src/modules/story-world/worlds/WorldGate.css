@@ -34,9 +34,9 @@
   flex: none;
   display: grid;
   place-items: center;
-  border: 1px solid var(--gold);
+  border: 1px solid var(--accent-primary);
   border-radius: 50%;
-  color: var(--gold);
+  color: var(--accent-primary);
   font: 600 var(--font-size-8) var(--prose);
 }
 .world-gate header small {

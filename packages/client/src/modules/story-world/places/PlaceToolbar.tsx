@@ -1,10 +1,8 @@
 import { Copy, MoreHorizontal, Plus, Ruler, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
 import {
-  Menu,
+  DropdownMenu,
   MenuItem,
   MenuSeparator,
-  Popover,
   ToolbarButton,
   UndoRedoControls,
   WorkspaceToolbar,
@@ -41,8 +39,6 @@ export function PlaceToolbar({
   onDelete: () => void;
 }) {
   const { t } = useI18n();
-  const [actionsOpen, setActionsOpen] = useState(false);
-  const actionsButton = useRef<HTMLButtonElement>(null);
   return (
     <WorkspaceToolbar className="places-toolbar" label={t("places")}>
       <WorkspaceToolbarTitle
@@ -79,46 +75,30 @@ export function PlaceToolbar({
           />
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={t("placeActions")}>
-          <ToolbarButton
-            ref={actionsButton}
+          <DropdownMenu
             label={t("placeActions")}
-            icon={<MoreHorizontal />}
-            labelMode="hidden"
-            appearance="ghost"
-            size="regular"
-            disabled={!selected}
-            aria-haspopup="menu"
-            aria-expanded={actionsOpen}
-            onClick={() => setActionsOpen((value) => !value)}
-          />
-          <Popover
-            anchorRef={actionsButton}
-            open={actionsOpen}
-            onClose={() => setActionsOpen(false)}
-            label={t("placeActions")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <ToolbarButton
+                {...triggerProps}
+                ref={ref}
+                label={t("placeActions")}
+                icon={<MoreHorizontal />}
+                labelMode="hidden"
+                appearance="ghost"
+                size="regular"
+                disabled={!selected}
+              />
+            )}
           >
-            <Menu label={t("placeActions")} onClose={() => setActionsOpen(false)}>
-              <MenuItem
-                onSelect={() => {
-                  onDuplicate();
-                  setActionsOpen(false);
-                }}
-              >
-                <Copy />
-                {t("duplicatePlace")}
-              </MenuItem>
-              <MenuSeparator />
-              <MenuItem
-                onSelect={() => {
-                  onDelete();
-                  setActionsOpen(false);
-                }}
-              >
-                <Trash2 />
-                {t("deletePlace")}
-              </MenuItem>
-            </Menu>
-          </Popover>
+            <MenuItem icon={<Copy />} label={t("duplicatePlace")} onSelect={onDuplicate} />
+            <MenuSeparator />
+            <MenuItem
+              icon={<Trash2 />}
+              label={t("deletePlace")}
+              tone="danger"
+              onSelect={onDelete}
+            />
+          </DropdownMenu>
         </WorkspaceToolbarGroup>
       </WorkspaceToolbarActions>
     </WorkspaceToolbar>

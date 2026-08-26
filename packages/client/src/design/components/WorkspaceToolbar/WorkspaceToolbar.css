@@ -6,8 +6,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-6) 0;
-  padding: var(--space-8) var(--space-14);
+  gap: var(--spacing-compact-tight) 0;
+  padding: var(--spacing-compact-wide) var(--spacing-regular-base);
   border-bottom: 1px solid var(--line);
   background: var(--panel);
 }
@@ -18,7 +18,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  gap: var(--space-2);
+  gap: var(--spacing-optical-tight);
 }
 
 .workspace-toolbar > .workspace-toolbar__title {
@@ -54,6 +54,7 @@
 }
 
 .workspace-toolbar__actions {
+  max-width: 100%;
   gap: 0;
 }
 
@@ -63,8 +64,8 @@
   min-inline-size: 0;
   margin: 0;
   flex-shrink: 0;
-  gap: var(--space-3);
-  padding-inline: var(--space-9);
+  gap: var(--spacing-optical-base);
+  padding-inline: var(--spacing-transition-control-inline-compact);
   padding-block: 0;
   border-inline-start: 1px solid var(--line);
   border-block: 0;
@@ -99,7 +100,7 @@
 
 @media (max-width: 719px) {
   .workspace-toolbar {
-    padding: var(--space-7) var(--space-10);
+    padding: var(--spacing-compact-base) var(--spacing-transition-container-inline-compact);
   }
 
   .workspace-toolbar > .workspace-toolbar__title {
@@ -107,7 +108,7 @@
     width: 100%;
     flex-direction: row;
     align-items: baseline;
-    gap: var(--space-8);
+    gap: var(--spacing-compact-wide);
   }
 
   .workspace-toolbar > .workspace-toolbar__title span {
@@ -117,12 +118,11 @@
   .workspace-toolbar__actions {
     width: 100%;
     contain: layout inline-size;
-    overflow-x: auto;
   }
 
   .workspace-toolbar__group,
   .workspace-toolbar__actions > fieldset,
   .workspace-toolbar > fieldset {
-    padding-inline: var(--space-6);
+    padding-inline: var(--spacing-compact-tight);
   }
 }

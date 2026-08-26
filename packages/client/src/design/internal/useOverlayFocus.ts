@@ -9,6 +9,7 @@ export function useOverlayFocus(
   container: RefObject<HTMLElement | null>,
   active: boolean,
   onClose: () => void,
+  returnFocusRef?: RefObject<HTMLElement | null>,
 ) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -17,6 +18,7 @@ export function useOverlayFocus(
     if (!active) return;
     const id = Symbol("overlay");
     const previous = document.activeElement as HTMLElement | null;
+    const returnFocus = returnFocusRef?.current ?? previous;
     overlayStack.push(id);
     const frame = requestAnimationFrame(() => {
       const autofocus = container.current?.querySelector<HTMLElement>(
@@ -65,7 +67,7 @@ export function useOverlayFocus(
       document.removeEventListener("keydown", key);
       const index = overlayStack.lastIndexOf(id);
       if (index >= 0) overlayStack.splice(index, 1);
-      if (previous?.isConnected) previous.focus();
+      if (returnFocus?.isConnected) returnFocus.focus();
     };
-  }, [active, container]);
+  }, [active, container, returnFocusRef]);
 }

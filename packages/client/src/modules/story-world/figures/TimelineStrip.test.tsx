@@ -41,6 +41,30 @@ describe("TimelineStrip", () => {
     expect(css).not.toContain(".timeline-track::-webkit-scrollbar");
   });
 
+  it("does not shrink compact timeline actions below the adaptive design size", () => {
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/story-world/figures/TimelineStrip.css"),
+      "utf8",
+    );
+    const tokensCss = readFileSync(
+      join(process.cwd(), "packages/client/src/design/tokens.css"),
+      "utf8",
+    );
+    const headingActionRule = css.match(/\.timeline-heading-action\s*\{([^}]*)\}/s)?.[1];
+    const playActionRule = css.match(/\.timeline-heading \.timeline-play\s*\{([^}]*)\}/s)?.[1];
+    const momentActionRule = css.match(/\.timeline-moment-button\s*\{([^}]*)\}/s)?.[1];
+
+    expect(headingActionRule).toBeDefined();
+    expect(headingActionRule).not.toMatch(/\b(?:min-)?height\s*:/);
+    expect(playActionRule).toBeDefined();
+    expect(playActionRule).not.toMatch(/\b(?:min-|max-)?(?:width|height)\s*:/);
+    expect(momentActionRule).toBeDefined();
+    expect(momentActionRule).not.toMatch(/\b(?:min-)?height\s*:/);
+    expect(tokensCss).toMatch(
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?--control-compact:\s*var\(--control-touch\);/,
+    );
+  });
+
   it("owns timeline selection, playback, and moment creation controls", () => {
     const onPlay = vi.fn();
     const onSelect = vi.fn();

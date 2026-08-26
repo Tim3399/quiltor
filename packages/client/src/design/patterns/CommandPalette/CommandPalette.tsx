@@ -88,6 +88,11 @@ export function CommandPalette({
   const activeOptionId = active >= 0 ? `${optionPrefix}-option-${active}` : undefined;
   const hasResults = results.length > 0;
 
+  useEffect(() => {
+    if (!activeOptionId) return;
+    document.getElementById(activeOptionId)?.scrollIntoView?.({ block: "nearest" });
+  }, [activeOptionId]);
+
   return (
     <Dialog open={open} title={label} closeLabel={closeLabel} onClose={onClose} size="wide">
       <label className="ui-command-palette__search">

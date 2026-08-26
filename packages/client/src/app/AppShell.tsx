@@ -158,6 +158,20 @@ export function AppShell({
             label={t("menuActions")}
             open={overflowOpen}
             onOpenChange={setOverflowOpen}
+            header={
+              !saveStatusInBar ? (
+                <div className="menu-save-status">
+                  <SaveStatus
+                    className="app-save-status"
+                    phase={phase}
+                    label={t(SAVE_STATUS_LABEL_KEYS[phase])}
+                    error={error}
+                    retryLabel={t("retry")}
+                    onRetry={retry}
+                  />
+                </div>
+              ) : undefined
+            }
             renderTrigger={({ ref, ...triggerProps }) => (
               <IconButton
                 {...triggerProps}
@@ -171,49 +185,26 @@ export function AppShell({
               />
             )}
           >
-            {!saveStatusInBar && (
-              <div className="menu-save-status">
-                <SaveStatus
-                  className="app-save-status"
-                  phase={phase}
-                  label={t(SAVE_STATUS_LABEL_KEYS[phase])}
-                  error={error}
-                  retryLabel={t("retry")}
-                  onRetry={retry}
-                />
-              </div>
-            )}
-            {!saveStatusInBar && <MenuSeparator />}
-            <MenuItem onSelect={onExitWorld}>
-              <ArrowLeft />
-              {t("returnToWorldSelection")}
-            </MenuItem>
+            <MenuItem
+              icon={<ArrowLeft />}
+              label={t("returnToWorldSelection")}
+              onSelect={onExitWorld}
+            />
             <MenuSeparator />
-            <MenuItem onSelect={onHistory}>
-              <History />
-              {t("history")}
-            </MenuItem>
-            <MenuItem onSelect={onBackups}>
-              <DatabaseBackup />
-              {t("backups")}
-            </MenuItem>
+            <MenuItem icon={<History />} label={t("history")} onSelect={onHistory} />
+            <MenuItem icon={<DatabaseBackup />} label={t("backups")} onSelect={onBackups} />
             <MenuSeparator />
-            <MenuItem onSelect={onSnapshot}>
-              <Save />
-              {t("snapshotSave")}
-            </MenuItem>
+            <MenuItem icon={<Save />} label={t("snapshotSave")} onSelect={onSnapshot} />
             <MenuSeparator />
-            <MenuItem onSelect={onTheme}>
-              {theme === "dark" ? <Sun /> : <Moon />}
-              {theme === "dark" ? t("themeLight") : t("themeDark")}
-            </MenuItem>
+            <MenuItem
+              icon={theme === "dark" ? <Sun /> : <Moon />}
+              label={theme === "dark" ? t("themeLight") : t("themeDark")}
+              onSelect={onTheme}
+            />
             {whoami && onLogout && (
               <>
                 <MenuSeparator />
-                <MenuItem onSelect={onLogout}>
-                  <LogOut />
-                  {t("logout")}
-                </MenuItem>
+                <MenuItem icon={<LogOut />} label={t("logout")} onSelect={onLogout} />
               </>
             )}
           </DropdownMenu>

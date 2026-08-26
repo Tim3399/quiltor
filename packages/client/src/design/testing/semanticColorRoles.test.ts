@@ -7,15 +7,17 @@ function source(path: string) {
 }
 
 describe("semantic color roles", () => {
-  it("uses the readable gold role for compact text and icons", () => {
+  it("uses the readable primary-accent role for compact text and icons", () => {
     const history = source("modules/history/HistoryDialog.css");
-    expect(history).toMatch(/\.diff-kind\s*\{[^}]*color:\s*var\(--gold-text\);/s);
-    expect(history).toMatch(/\.diff-segment h3\s*\{[^}]*color:\s*var\(--gold-text\);/s);
+    expect(history).toMatch(/\.diff-kind\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s);
+    expect(history).toMatch(/\.diff-segment h3\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s);
 
     const figures = source("modules/story-world/figures/FigureInspector.css");
-    expect(figures).toMatch(/\.relation-list span\s*\{[^}]*color:\s*var\(--gold-text\);/s);
     expect(figures).toMatch(
-      /\.relation-direction,\s*\.relation-undirected\s*\{[^}]*color:\s*var\(--gold-text\);/s,
+      /\.relation-list span\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s,
+    );
+    expect(figures).toMatch(
+      /\.relation-direction,\s*\.relation-undirected\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s,
     );
   });
 
@@ -33,7 +35,7 @@ describe("semantic color roles", () => {
     expect(toast.match(/\.design-toast--warning\s*\{([^}]*)\}/s)?.[1]).not.toContain("--gold");
   });
 
-  it("separates rose and moss fills, text and structural accents", () => {
+  it("keeps domain graph encodings on their intentional hue families", () => {
     const graph = source("modules/story-world/StoryGraph.css");
     expect(graph).toMatch(
       /\.story-node\.accent-rose\s*\{[^}]*border-left-color:\s*var\(--rose-border\);/s,
@@ -45,7 +47,7 @@ describe("semantic color roles", () => {
 
     const inspector = source("modules/story-world/figures/FigureInspector.css");
     expect(inspector).toMatch(
-      /\.timeline-life-action\.active\s*\{[^}]*border-color:\s*var\(--rose-border\);[^}]*background:\s*var\(--rose-soft\);[^}]*color:\s*var\(--rose-text\);/s,
+      /\.timeline-life-action\.active\s*\{[^}]*border-color:\s*var\(--error-border\);[^}]*background:\s*var\(--error-bg\);[^}]*color:\s*var\(--error-text\);/s,
     );
 
     const canvas = source("modules/story-world/figures/FigureCanvas.css");
@@ -53,5 +55,18 @@ describe("semantic color roles", () => {
       /\.react-flow__edge\.edge-blood \.react-flow__edge-path\s*\{[^}]*stroke:\s*var\(--rose-border\);/s,
     );
     expect(canvas).toMatch(/\.story-node \.neutral-handle\s*\{[^}]*background:\s*var\(--moss\);/s);
+  });
+
+  it("keeps selection, focus and drag targets on distinct semantic roles", () => {
+    const binder = source("modules/manuscript/ChapterFolderTree.css");
+    expect(binder).toMatch(/:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--focus-ring\);/s);
+    expect(binder).toMatch(
+      /\.binder-folder-row\.is-drop-target\s*\{[^}]*border-color:\s*var\(--drop-target-border\);[^}]*background:\s*var\(--drop-target-surface\);/s,
+    );
+
+    const history = source("modules/history/HistoryDialog.css");
+    expect(history).toMatch(
+      /\.diff-summary-button\[aria-expanded="true"\]\s*\{[^}]*border-color:\s*var\(--selection-border\);/s,
+    );
   });
 });

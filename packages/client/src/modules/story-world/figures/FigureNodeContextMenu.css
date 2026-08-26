@@ -1,7 +1,9 @@
 .node-context-menu {
   position: fixed;
   z-index: var(--z-popover);
+  width: max-content;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
   overflow: auto;
+  overscroll-behavior: contain;
 }

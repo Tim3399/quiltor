@@ -217,7 +217,7 @@
 .figure-empty-icon {
   width: 32px;
   height: 32px;
-  color: var(--gold);
+  color: var(--accent-primary);
 }
 
 .figure-empty-copy {

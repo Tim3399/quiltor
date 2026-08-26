@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api, askQuestion, preferences, reply, setup } from "./AssistantDrawer.testSupport";
 
@@ -141,8 +141,16 @@ describe("assistant conversation content", () => {
     vi.mocked(api.chat).mockResolvedValue(reply());
     setup();
     await screen.findByText("Was soll ich in der Welt nachtragen?");
-    fireEvent.click(screen.getByText("1. Die Krönung"));
+    const trigger = screen.getByRole("button", { name: "Kontext: gesamte Welt" });
+    fireEvent.click(trigger);
+    const picker = screen.getByRole("dialog", { name: "Kapitel einzeln auswählen" });
+    const chapter = within(picker).getByRole("checkbox", { name: "1. Die Krönung" });
+    await waitFor(() => expect(chapter).toHaveFocus());
+    fireEvent.click(chapter);
     expect(screen.getByText("Kontext: Kapitelauswahl (1)")).toBeInTheDocument();
+    fireEvent.keyDown(picker, { key: "Escape" });
+    await waitFor(() => expect(picker).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
     await askQuestion("Fasse das zusammen.");
     expect(vi.mocked(api.chat).mock.calls[0][3]).toEqual(["c1"]);
   });

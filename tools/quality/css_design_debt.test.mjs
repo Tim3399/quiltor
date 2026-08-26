@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { after, test } from "node:test";
 import {
   analyzeCssDesignDebtSource,
+  cssDesignOwnerClassesByComponent,
   compareCssDesignDebt,
   createCssDesignDebtManifest,
   cssDesignDebtBaselineUpdateCommand,
@@ -81,6 +82,48 @@ test("attributes BEM element and modifier selectors to their design owner", () =
       "selection-card": 1,
     },
   });
+});
+
+test("protects every current public design owner, including portal and list subtrees", () => {
+  const debt = analyzeCssDesignDebtSource({
+    file: "packages/client/src/modules/example/Example.css",
+    source: `
+      .feature .workspace-toolbar__actions { gap: 0; }
+      .feature > .design-tabs__tab { min-width: 0; }
+      :where(.ui-sheet-backdrop, .ui-popover-sheet) { inset: 0; }
+      .feature .design-chip-list { margin: 0; }
+      .feature .scroll-area[data-axis="x"] { overflow: hidden; }
+    `,
+  });
+
+  assert.deepEqual(debt.designOwnerOverrides, {
+    "workspace-toolbar": 1,
+    "design-tabs": 1,
+    "ui-sheet-backdrop": 1,
+    "ui-popover-sheet": 1,
+    "design-chip-list": 1,
+    "scroll-area": 1,
+  });
+});
+
+test("keeps an explicit protected owner entry for every public design folder", () => {
+  const publicIndex = readFileSync(
+    resolve(process.cwd(), "packages/client/src/design/index.ts"),
+    "utf8",
+  );
+  const publicFolders = [
+    ...publicIndex.matchAll(
+      /export \* from "\.\/(?:components|patterns|primitives)\/([^"/]+)";/g,
+    ),
+  ]
+    .map((match) => match[1])
+    .sort();
+
+  assert.deepEqual(Object.keys(cssDesignOwnerClassesByComponent).sort(), publicFolders);
+  for (const [component, owners] of Object.entries(cssDesignOwnerClassesByComponent)) {
+    assert.ok(owners.length > 0, `${component} must declare at least one protected CSS owner`);
+    assert.equal(new Set(owners).size, owners.length, `${component} repeats a CSS owner`);
+  }
 });
 
 test("counts retired composition recipes as CSS owner debt", () => {

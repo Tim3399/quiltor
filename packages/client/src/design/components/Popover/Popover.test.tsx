@@ -86,6 +86,49 @@ describe("Popover", () => {
     expect(screen.queryByRole("dialog", { name: "Werkzeuge" })).toBeNull();
   });
 
+  it("can expose a semantically neutral desktop surface for composite widgets", () => {
+    const anchor = createRef<HTMLButtonElement>();
+    render(
+      <>
+        <button ref={anchor} type="button">
+          Auslöser
+        </button>
+        <Popover
+          anchorRef={anchor}
+          open
+          label="Werkzeuge"
+          desktopRole="presentation"
+          onClose={() => undefined}
+        >
+          <div role="menu" aria-label="Werkzeuge" />
+        </Popover>
+      </>,
+    );
+
+    expect(screen.getByRole("menu", { name: "Werkzeuge" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Werkzeuge" })).toBeNull();
+  });
+
+  it("allows scrolling inside a tall popover without closing it", () => {
+    const close = vi.fn();
+    const anchor = createRef<HTMLButtonElement>();
+    render(
+      <>
+        <button ref={anchor} type="button">
+          Auslöser
+        </button>
+        <Popover anchorRef={anchor} open label="Werkzeuge" onClose={close}>
+          <div>Inhalt</div>
+        </Popover>
+      </>,
+    );
+
+    fireEvent.scroll(screen.getByRole("dialog", { name: "Werkzeuge" }));
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.scroll(window);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("closes itself rather than an owning modal when Escape originates inside", async () => {
     const closePopover = vi.fn();
     const closeDialog = vi.fn();

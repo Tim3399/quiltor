@@ -173,9 +173,9 @@ function FigureWorkspaceInner({
           playing={playing}
           onCancelConnecting={() => setConnecting(false)}
           onSelectNode={setSelectedId}
-          onOpenNodeMenu={(node, x, y) => {
+          onOpenNodeMenu={(node, x, y, trigger) => {
             setSelectedId(node.id);
-            setNodeMenu({ id: node.id, x, y });
+            setNodeMenu({ id: node.id, x, y, trigger });
           }}
           onClearSelection={() => {
             setSelectedId(null);

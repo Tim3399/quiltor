@@ -270,7 +270,7 @@ function SourceList({
   const { t } = useI18n();
   return (
     <Disclosure className="assistant-sources" summary={`${t("sources")} · ${sources.length}`}>
-      <ChipList label={t("sources")}>
+      <ChipList className="assistant-source-list" label={t("sources")}>
         {sources.map((source) => (
           <ChipAction key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>
             {source.title}
@@ -389,7 +389,10 @@ function ProposalList({
                         className="assistant-proposal-evidence"
                         summary={`${t("proposalEvidence")} · ${envelope.evidence.length}`}
                       >
-                        <ChipList label={t("proposalEvidence")}>
+                        <ChipList
+                          className="assistant-evidence-list"
+                          label={t("proposalEvidence")}
+                        >
                           {envelope.evidence.map((source) => (
                             <ChipAction
                               key={source.id}

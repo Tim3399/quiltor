@@ -8,8 +8,8 @@
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--spacing-optical-base);
+  padding: var(--spacing-optical-wide);
   border-bottom: 1px solid var(--line);
   background: var(--panel);
 }
@@ -29,7 +29,7 @@
   min-width: 0;
   min-height: var(--control-regular);
   flex: 1 1 0;
-  padding: 0 var(--space-10);
+  padding: 0 var(--spacing-transition-control-inline-base);
   overflow: hidden;
   border: 1px solid var(--transparent);
   border-radius: var(--radius-sm);
@@ -60,7 +60,7 @@
 
 .design-tabs__panel {
   min-width: 0;
-  padding: var(--space-16);
+  padding: var(--spacing-regular-wide);
 }
 
 .design-tabs__panel[hidden] {

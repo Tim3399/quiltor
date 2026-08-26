@@ -28,6 +28,9 @@ describe("WorkspaceToolbar", () => {
     expect(within(toolbar).getByText("Kapitel 1")).toBeVisible();
     expect(within(toolbar).getByRole("group", { name: "Bearbeiten" })).toBeVisible();
     expect(within(toolbar).getByRole("button", { name: "Speichern" })).toBeEnabled();
+    expect(toolbar.querySelector(".workspace-toolbar__actions")).toMatchObject({
+      dataset: expect.objectContaining({ axis: "x", gutter: "auto", surface: "panel" }),
+    });
   });
 
   it("accepts a semantic composite fieldset as a direct action group", () => {

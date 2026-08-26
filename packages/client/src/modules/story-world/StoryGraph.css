@@ -73,7 +73,7 @@
 }
 .story-node.selected {
   box-shadow:
-    var(--ring-2) var(--gold),
+    var(--ring-2) var(--selection-border),
     var(--elevation-4) var(--node-shadow);
 }
 .story-node.dashed {
@@ -242,7 +242,6 @@
   margin-top: var(--space-12);
 }
 .node-priority-action {
-  min-height: 36px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -255,7 +254,7 @@
   cursor: pointer;
 }
 .node-priority-action.active {
-  border-color: var(--gold);
+  border-color: var(--selection-border);
   background: var(--control-hover);
   color: var(--ink);
 }
@@ -275,5 +274,30 @@
   }
   .flow-area .react-flow__minimap {
     display: none;
+  }
+}
+
+/* React Flow ships 26px navigation controls. That is acceptable for precise
+   desktop pointers, but falls far below the application's 44px touch contract.
+   Keep the override with the shared canvas owner so figures and places cannot
+   drift apart. */
+@media (max-width: 719px), (pointer: coarse) {
+  .flow-area .react-flow__controls-button {
+    width: var(--control-touch);
+    height: var(--control-touch);
+    padding: var(--space-12);
+  }
+
+  .flow-area .react-flow__controls-button svg {
+    max-width: var(--space-16);
+    max-height: var(--space-16);
+  }
+
+  .flow-area .react-flow__attribution a {
+    min-width: var(--control-touch);
+    min-height: var(--control-touch);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }

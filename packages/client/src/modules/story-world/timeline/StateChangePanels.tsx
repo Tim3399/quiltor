@@ -290,7 +290,12 @@ export function MomentStateWorkspace({
         {selectedEdge && !compact && inspector}
       </div>
       {selectedEdge && compact && (
-        <Sheet open label={t("relationship")} onClose={closeInspector}>
+        <Sheet
+          open
+          className="storyboard-inspector-sheet"
+          label={t("relationship")}
+          onClose={closeInspector}
+        >
           {inspector}
         </Sheet>
       )}

@@ -47,12 +47,9 @@
   --blur-popover: 24px;
   --blur-sheet: 32px;
 
-  /* spacing scale — clusters the padding/margin/gap literals found across styles.css and the
-     feature stylesheets, merging values within ~1-2px of each other (e.g. 11px/13px -> 12px,
-     22px/26px -> 24px). Values used heavily and independently (7 vs 8, 9 vs 10) are kept
-     distinct since both are clearly intentional, not drift. 1px/-1px and the -3px centering
-     nudge on .relation-direction/.relation-undirected are optical/hairline alignment, not
-     spacing-rhythm choices, so they stay as plain literals and aren't part of this scale. */
+  /* Numeric spacing scale. Component owners consume the semantic --spacing-* roles below;
+     these values remain the single geometry authority and a migration bridge for product CSS. */
+  --space-1: 1px;
   --space-2: 2px;
   --space-3: 3px;
   --space-4: 4px;
@@ -72,6 +69,62 @@
   --space-32: 32px;
   --space-48: 48px;
   --space-88: 88px;
+
+  /* Four-step spacing rhythm. The variants within each step preserve the established geometry
+     while making the intended density explicit: optical 1-4, compact 6-8, regular 12-16 and
+     section 24-32. New semantic roles must resolve through one of these tier roles. */
+  --spacing-optical-min: var(--space-1);
+  --spacing-optical-tight: var(--space-2);
+  --spacing-optical-base: var(--space-3);
+  --spacing-optical-wide: var(--space-4);
+  --spacing-compact-tight: var(--space-6);
+  --spacing-compact-base: var(--space-7);
+  --spacing-compact-wide: var(--space-8);
+  --spacing-regular-tight: var(--space-12);
+  --spacing-regular-base: var(--space-14);
+  --spacing-regular-wide: var(--space-16);
+  --spacing-section-tight: var(--space-24);
+  --spacing-section-base: var(--space-32);
+
+  /* Shared component roles. Choose the role by relationship, not by its current pixel value. */
+  --spacing-control-gap: var(--spacing-compact-base);
+  --spacing-control-inline: var(--spacing-regular-tight);
+  --spacing-control-inline-touch: var(--spacing-regular-wide);
+  --spacing-field-stack: var(--spacing-compact-tight);
+  --spacing-field-group: var(--spacing-regular-wide);
+  --spacing-field-message-gap: var(--spacing-optical-wide);
+  --spacing-toolbar-group: var(--spacing-compact-tight);
+  --spacing-toolbar-item-gap: var(--spacing-optical-tight);
+  --spacing-card-gap: var(--spacing-regular-tight);
+  --spacing-card-padding-block: var(--spacing-regular-tight);
+  --spacing-card-padding-inline: var(--spacing-regular-base);
+  --spacing-panel-gap: var(--spacing-regular-wide);
+  --spacing-panel-padding: var(--spacing-section-tight);
+  --spacing-section-gap: var(--spacing-section-tight);
+  --spacing-section-padding: var(--spacing-section-base);
+
+  /* Feedback and select geometry are recurring component relationships built on the core rhythm. */
+  --spacing-feedback-stack: var(--spacing-compact-wide);
+  --spacing-feedback-padding-inline-compact: var(--spacing-regular-tight);
+  --spacing-feedback-edge: var(--spacing-optical-base);
+  --spacing-feedback-icon-block: var(--spacing-optical-tight);
+  --spacing-feedback-title-gap: var(--spacing-optical-base);
+  --spacing-feedback-title-gap-compact: var(--spacing-optical-tight);
+  --spacing-select-arrow-offset-far: var(--spacing-regular-tight);
+  --spacing-select-arrow-offset-near: var(--spacing-compact-wide);
+  --spacing-select-arrow-size: var(--spacing-optical-wide);
+
+  /* Ratcheted intermediate roles. They retain today's 9/10px geometry until a browser-verified
+     normalization moves each relationship onto a core tier; do not add further transition roles. */
+  --spacing-transition-control-inline-compact: var(--space-9);
+  --spacing-transition-control-inline-base: var(--space-10);
+  --spacing-transition-control-gap-wide: var(--space-10);
+  --spacing-transition-container-inline-compact: var(--space-10);
+  --spacing-transition-field-control-block: var(--space-9);
+  --spacing-transition-field-control-inline: var(--space-10);
+  --spacing-transition-field-choice-gap: var(--space-10);
+  --spacing-transition-feedback-gap: var(--space-10);
+  --spacing-transition-feedback-padding-block: var(--space-10);
 
   /* radius scale — 6 named steps, down from 13 raw values */
   --radius-xs: 4px;

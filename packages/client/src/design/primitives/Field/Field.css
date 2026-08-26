@@ -1,7 +1,7 @@
 .ui-field {
   display: grid;
-  gap: var(--space-6);
-  margin: 0 0 var(--space-16);
+  gap: var(--spacing-field-stack);
+  margin: 0 0 var(--spacing-field-group);
 }
 .ui-field__label {
   color: var(--muted);
@@ -26,7 +26,8 @@
 .ui-field > select {
   width: 100%;
   min-height: var(--control-regular);
-  padding: var(--space-9) var(--space-10);
+  padding: var(--spacing-transition-field-control-block)
+    var(--spacing-transition-field-control-inline);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background-color: var(--paper);

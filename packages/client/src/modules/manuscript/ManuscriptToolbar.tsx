@@ -7,11 +7,9 @@ import {
   PanelRight,
   Printer,
 } from "lucide-react";
-import { useRef, useState } from "react";
 import {
-  Menu,
+  DropdownMenu,
   MenuItem,
-  Popover,
   ToolbarButton,
   UndoRedoControls,
   WorkspaceToolbar,
@@ -68,8 +66,6 @@ export function ManuscriptToolbar({
   onPrint,
 }: ManuscriptToolbarProps) {
   const { t, locale } = useI18n();
-  const [exportOpen, setExportOpen] = useState(false);
-  const exportButton = useRef<HTMLButtonElement>(null);
 
   return (
     <WorkspaceToolbar className="manuscript-toolbar" label={t("manuscript")}>
@@ -159,43 +155,26 @@ export function ManuscriptToolbar({
           </WorkspaceToolbarGroup>
         )}
         <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-          <ToolbarButton
-            ref={exportButton}
-            label={t("exportManuscript")}
-            icon={<Download />}
-            aria-haspopup="menu"
-            aria-expanded={exportOpen}
-            onClick={() => setExportOpen((value) => !value)}
-          />
-        </WorkspaceToolbarGroup>
-        <Popover
-          anchorRef={exportButton}
-          open={exportOpen}
-          onClose={() => setExportOpen(false)}
-          label={t("exportOptions")}
-        >
-          <Menu label={t("exportOptions")} onClose={() => setExportOpen(false)}>
+          <DropdownMenu
+            label={t("exportOptions")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <ToolbarButton
+                {...triggerProps}
+                ref={ref}
+                label={t("exportManuscript")}
+                icon={<Download />}
+              />
+            )}
+          >
+            <MenuItem icon={<Download />} label={t("manuscript")} onSelect={onExport} />
             <MenuItem
-              onSelect={() => {
-                onExport();
-                setExportOpen(false);
-              }}
-            >
-              <Download />
-              {t("manuscript")}
-            </MenuItem>
-            <MenuItem
+              icon={<Printer />}
+              label={pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
               disabled={pdfState === "loading"}
-              onSelect={() => {
-                onPrint();
-                setExportOpen(false);
-              }}
-            >
-              <Printer />
-              {pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
-            </MenuItem>
-          </Menu>
-        </Popover>
+              onSelect={onPrint}
+            />
+          </DropdownMenu>
+        </WorkspaceToolbarGroup>
       </WorkspaceToolbarActions>
     </WorkspaceToolbar>
   );

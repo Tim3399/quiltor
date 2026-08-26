@@ -280,17 +280,6 @@ export function ManuscriptEditor({
                 word = range.empty ? current.state.wordAt(range.head) : null;
               if (word) current.dispatch({ selection: EditorSelection.range(word.from, word.to) });
               requestAnimationFrame(() => reportSelection(current, true));
-              requestAnimationFrame(() =>
-                requestAnimationFrame(() =>
-                  [
-                    ...document.querySelectorAll<HTMLElement>(
-                      '.ui-popover [role="menuitem"], .ui-sheet [role="menuitem"]',
-                    ),
-                  ]
-                    .at(-1)
-                    ?.focus(),
-                ),
-              );
               return true;
             },
           }),

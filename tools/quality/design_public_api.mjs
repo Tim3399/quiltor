@@ -3,18 +3,31 @@ import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "
 import { version as typescriptVersion } from "typescript";
 import { SyntaxKind } from "typescript/unstable/ast";
 import {
+  isArrayBindingPattern,
+  isArrowFunction,
   isCallExpression,
+  isClassDeclaration,
+  isEnumDeclaration,
+  isExportAssignment,
   isExportDeclaration,
   isExternalModuleReference,
+  isFunctionDeclaration,
+  isFunctionExpression,
   isIdentifier,
   isImportDeclaration,
   isImportEqualsDeclaration,
+  isImportSpecifier,
   isImportTypeNode,
   isLiteralTypeNode,
   isMetaProperty,
+  isNamedExports,
+  isNamedImports,
+  isNamespaceImport,
   isNoSubstitutionTemplateLiteral,
+  isObjectBindingPattern,
   isPropertyAccessExpression,
   isStringLiteral,
+  isVariableStatement,
 } from "typescript/unstable/ast/is";
 import { API } from "typescript/unstable/sync";
 
@@ -62,6 +75,186 @@ function literalValue(node) {
   return node && (isStringLiteral(node) || isNoSubstitutionTemplateLiteral(node))
     ? node.text
     : null;
+}
+
+function hasModifier(node, kind) {
+  return node.modifiers?.some((modifier) => modifier.kind === kind) ?? false;
+}
+
+function bindingNames(name, names = []) {
+  if (isIdentifier(name)) {
+    names.push(name.text);
+  } else if (isObjectBindingPattern(name) || isArrayBindingPattern(name)) {
+    for (const element of name.elements) {
+      if (element.name) bindingNames(element.name, names);
+    }
+  }
+  return names;
+}
+
+/** Runtime names exported directly by an implementation module. */
+function runtimeExportNames(sourceFile) {
+  const localRuntime = new Set();
+  for (const statement of sourceFile.statements) {
+    if (
+      (isFunctionDeclaration(statement) ||
+        isClassDeclaration(statement) ||
+        isEnumDeclaration(statement)) &&
+      statement.name
+    ) {
+      localRuntime.add(statement.name.text);
+    } else if (isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        for (const name of bindingNames(declaration.name)) localRuntime.add(name);
+      }
+    }
+  }
+
+  const exported = new Set();
+  for (const statement of sourceFile.statements) {
+    if (isExportAssignment(statement) && !statement.isExportEquals) {
+      exported.add("default");
+      continue;
+    }
+    if (
+      (isFunctionDeclaration(statement) ||
+        isClassDeclaration(statement) ||
+        isEnumDeclaration(statement)) &&
+      hasModifier(statement, SyntaxKind.ExportKeyword)
+    ) {
+      if (hasModifier(statement, SyntaxKind.DefaultKeyword)) exported.add("default");
+      else if (statement.name) exported.add(statement.name.text);
+      continue;
+    }
+    if (isVariableStatement(statement) && hasModifier(statement, SyntaxKind.ExportKeyword)) {
+      for (const declaration of statement.declarationList.declarations) {
+        for (const name of bindingNames(declaration.name)) exported.add(name);
+      }
+      continue;
+    }
+    if (
+      isExportDeclaration(statement) &&
+      !statement.moduleSpecifier &&
+      !statement.isTypeOnly &&
+      statement.exportClause &&
+      isNamedExports(statement.exportClause)
+    ) {
+      for (const element of statement.exportClause.elements) {
+        if (element.isTypeOnly) continue;
+        const localName = element.propertyName?.text ?? element.name.text;
+        if (localRuntime.has(localName)) exported.add(element.name.text);
+      }
+    }
+  }
+  return [...exported].sort();
+}
+
+/** Callable named exports are the only values the gallery can safely mount as stories. */
+function callableStoryExportNames(sourceFile) {
+  const names = [];
+  for (const statement of sourceFile.statements) {
+    if (
+      isFunctionDeclaration(statement) &&
+      statement.name &&
+      hasModifier(statement, SyntaxKind.ExportKeyword) &&
+      !hasModifier(statement, SyntaxKind.DefaultKeyword)
+    ) {
+      names.push(statement.name.text);
+    } else if (isVariableStatement(statement) && hasModifier(statement, SyntaxKind.ExportKeyword)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (
+          isIdentifier(declaration.name) &&
+          declaration.initializer &&
+          (isArrowFunction(declaration.initializer) ||
+            isFunctionExpression(declaration.initializer))
+        ) {
+          names.push(declaration.name.text);
+        }
+      }
+    }
+  }
+  return names.sort();
+}
+
+function containsVitestCase(sourceFile) {
+  const testBindings = new Set();
+  const namespaceBindings = new Set();
+  for (const statement of sourceFile.statements) {
+    if (!isImportDeclaration(statement) || literalValue(statement.moduleSpecifier) !== "vitest") {
+      continue;
+    }
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && isNamedImports(bindings)) {
+      for (const element of bindings.elements) {
+        if (!isImportSpecifier(element)) continue;
+        const imported = element.propertyName?.text ?? element.name.text;
+        if (["it", "test"].includes(imported)) testBindings.add(element.name.text);
+      }
+    } else if (bindings && isNamespaceImport(bindings)) {
+      namespaceBindings.add(bindings.name.text);
+    }
+  }
+
+  let found = false;
+  function visit(node) {
+    if (found) return;
+    if (isCallExpression(node)) {
+      if (isIdentifier(node.expression) && testBindings.has(node.expression.text)) {
+        found = true;
+        return;
+      }
+      if (isPropertyAccessExpression(node.expression)) {
+        const owner = node.expression.expression;
+        if (
+          (isIdentifier(owner) &&
+            testBindings.has(owner.text) &&
+            ["each", "concurrent", "fails"].includes(node.expression.name.text)) ||
+          (isIdentifier(owner) &&
+            namespaceBindings.has(owner.text) &&
+            ["it", "test"].includes(node.expression.name.text))
+        ) {
+          found = true;
+          return;
+        }
+      }
+    }
+    node.forEachChild(visit);
+  }
+  visit(sourceFile);
+  return found;
+}
+
+function forwardedExports(sourceFile, expectedSpecifier) {
+  let all = false;
+  const named = new Map();
+  for (const statement of sourceFile.statements) {
+    if (
+      !isExportDeclaration(statement) ||
+      literalValue(statement.moduleSpecifier) !== expectedSpecifier
+    ) {
+      continue;
+    }
+    if (!statement.exportClause) {
+      if (!statement.isTypeOnly) all = true;
+      continue;
+    }
+    if (statement.isTypeOnly || !isNamedExports(statement.exportClause)) continue;
+    for (const element of statement.exportClause.elements) {
+      if (element.isTypeOnly) continue;
+      named.set(element.propertyName?.text ?? element.name.text, element.name.text);
+    }
+  }
+  return { all, named };
+}
+
+function hasMeaningfulCss(source) {
+  const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+  const hasDeclaration = /(?:^|[;{])\s*(?:--|-)?[a-zA-Z_][\w-]*\s*:\s*[^;{}]+[;}]/m.test(
+    withoutComments,
+  );
+  const documentsIntentionalInheritance =
+    /\/\*[\s\S]*\bintentionally\s+inherits?\b[\s\S]*\*\//i.test(source);
+  return hasDeclaration || documentsIntentionalInheritance;
 }
 
 function importedSpecifiers(sourceFile) {
@@ -195,7 +388,14 @@ export function analyzeDesignPublicIndex({ file, source, designRoot }) {
     const specifier = literalValue(statement.moduleSpecifier);
     if (!specifier) continue;
     const layerPrefix = new RegExp(`^\\./(${designPublicLayers.join("|")})(?:/|$)`).exec(specifier);
-    if (!layerPrefix) continue;
+    if (!layerPrefix) {
+      if (specifier.startsWith(".")) {
+        violations.push(
+          `${JSON.stringify(specifier)} is not a public primitive/component/pattern folder barrel`,
+        );
+      }
+      continue;
+    }
     const match = new RegExp(`^\\./(${designPublicLayers.join("|")})/([^/]+)/?$`).exec(specifier);
     if (!match || [".", ".."].includes(match[2])) {
       violations.push(
@@ -210,33 +410,194 @@ export function analyzeDesignPublicIndex({ file, source, designRoot }) {
       continue;
     }
     seen.add(key);
-    exports.push({ layer, name, specifier, directory: resolve(designRoot, layer, name) });
+    const forwarding = forwardedExports(sourceFile, specifier);
+    exports.push({
+      layer,
+      name,
+      specifier,
+      directory: resolve(designRoot, layer, name),
+      forwardsAllRuntime: forwarding.all && !statement.isTypeOnly,
+      forwardedRuntimeNames: [...forwarding.named.keys()].sort(),
+    });
   }
   return { exports, violations };
 }
 
-/** Require the exact colocated implementation, stylesheet, test, story and folder barrel. */
-export function designPublicFolderViolations(directory) {
+/** Every immediate directory in a public layer is itself part of the public design contract. */
+export function discoverDesignPublicFolders(designRoot) {
+  const folders = [];
+  for (const layer of designPublicLayers) {
+    const layerRoot = resolve(designRoot, layer);
+    if (!existsSync(layerRoot) || !statSync(layerRoot).isDirectory()) continue;
+    for (const entry of readdirSync(layerRoot, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        folders.push({
+          layer,
+          name: entry.name,
+          directory: resolve(layerRoot, entry.name),
+        });
+      }
+    }
+  }
+  return folders.sort((left, right) =>
+    `${left.layer}/${left.name}`.localeCompare(`${right.layer}/${right.name}`),
+  );
+}
+
+export function designPublicFolderSetViolations(designRoot, exportedFolders) {
+  const violations = [];
+  for (const layer of designPublicLayers) {
+    const layerRoot = resolve(designRoot, layer);
+    if (!existsSync(layerRoot) || !statSync(layerRoot).isDirectory()) {
+      violations.push(`${normalizedPath(layerRoot)}: public design layer is missing`);
+    }
+  }
+  const exported = new Set(exportedFolders.map(({ layer, name }) => `${layer}/${name}`));
+  for (const folder of discoverDesignPublicFolders(designRoot)) {
+    const key = `${folder.layer}/${folder.name}`;
+    if (!exported.has(key)) {
+      violations.push(
+        `${normalizedPath(folder.directory)}: public design folder is absent from packages/client/src/design/index.ts`,
+      );
+    }
+  }
+  return violations;
+}
+
+/** Require meaningful colocated implementation, stylesheet, test, story and folder barrel files. */
+export function analyzeDesignPublicFolder(directory) {
   const display = normalizedPath(directory);
   if (!existsSync(directory) || !statSync(directory).isDirectory()) {
-    return [`${display}: exported design folder is missing`];
+    return {
+      publicRuntimeExports: [],
+      violations: [`${display}: exported design folder is missing`],
+    };
   }
   const entries = readdirSync(directory, { withFileTypes: true }).filter((entry) => entry.isFile());
   const names = entries.map((entry) => entry.name);
   const component = basename(directory);
   const violations = [];
-  for (const required of [
-    `${component}.tsx`,
-    `${component}.css`,
-    `${component}.test.tsx`,
-    `${component}.story.tsx`,
-    "index.ts",
-  ]) {
+  const files = {
+    implementation: `${component}.tsx`,
+    stylesheet: `${component}.css`,
+    test: `${component}.test.tsx`,
+    story: `${component}.story.tsx`,
+    barrel: "index.ts",
+  };
+  for (const required of Object.values(files)) {
     if (!names.includes(required)) {
       violations.push(`${display}: missing required ${required}`);
     }
   }
-  return violations;
+
+  const source = {};
+  for (const [role, name] of Object.entries(files)) {
+    if (!names.includes(name)) continue;
+    source[role] = readFileSync(resolve(directory, name), "utf8");
+    if (!source[role].trim()) {
+      violations.push(`${display}: required ${name} is empty`);
+    }
+  }
+
+  if (source.stylesheet !== undefined && !hasMeaningfulCss(source.stylesheet)) {
+    violations.push(
+      `${display}: ${files.stylesheet} contains neither a CSS declaration nor documented intentional inheritance`,
+    );
+  }
+
+  let implementationSourceFile;
+  if (source.implementation !== undefined) {
+    try {
+      implementationSourceFile = parseCurrentSource(
+        resolve(directory, files.implementation),
+        source.implementation,
+      );
+    } catch (error) {
+      violations.push(`${display}: ${files.implementation} could not be parsed: ${error}`);
+    }
+  }
+  const implementationRuntimeExports = implementationSourceFile
+    ? runtimeExportNames(implementationSourceFile)
+    : [];
+  if (implementationSourceFile) {
+    const cssSpecifier = `./${files.stylesheet}`;
+    const importsCss = implementationSourceFile.statements.some(
+      (statement) =>
+        isImportDeclaration(statement) && literalValue(statement.moduleSpecifier) === cssSpecifier,
+    );
+    if (!importsCss) {
+      violations.push(
+        `${display}: ${files.implementation} must import its colocated ${cssSpecifier}`,
+      );
+    }
+    if (!implementationRuntimeExports.length) {
+      violations.push(`${display}: ${files.implementation} exports no runtime implementation`);
+    }
+  }
+
+  let barrelSourceFile;
+  if (source.barrel !== undefined) {
+    try {
+      barrelSourceFile = parseCurrentSource(resolve(directory, files.barrel), source.barrel);
+    } catch (error) {
+      violations.push(`${display}: ${files.barrel} could not be parsed: ${error}`);
+    }
+  }
+  const implementationSpecifier = `./${component}`;
+  const barrelForwarding = barrelSourceFile
+    ? forwardedExports(barrelSourceFile, implementationSpecifier)
+    : { all: false, named: new Map() };
+  if (barrelSourceFile && !barrelForwarding.all && !barrelForwarding.named.size) {
+    violations.push(
+      `${display}: ${files.barrel} must re-export the ${implementationSpecifier} implementation`,
+    );
+  }
+  const missingRuntimeExports = barrelForwarding.all
+    ? []
+    : implementationRuntimeExports.filter((name) => !barrelForwarding.named.has(name));
+  if (missingRuntimeExports.length) {
+    violations.push(
+      `${display}: ${files.barrel} omits runtime export${missingRuntimeExports.length === 1 ? "" : "s"} ${missingRuntimeExports.join(", ")} from ${implementationSpecifier}`,
+    );
+  }
+  const publicRuntimeExports = barrelForwarding.all
+    ? implementationRuntimeExports
+    : implementationRuntimeExports
+        .filter((name) => barrelForwarding.named.has(name))
+        .map((name) => barrelForwarding.named.get(name))
+        .sort();
+
+  if (source.test !== undefined) {
+    try {
+      const testSourceFile = parseCurrentSource(resolve(directory, files.test), source.test);
+      if (!containsVitestCase(testSourceFile)) {
+        violations.push(
+          `${display}: ${files.test} must contain an it/test case imported from vitest`,
+        );
+      }
+    } catch (error) {
+      violations.push(`${display}: ${files.test} could not be parsed: ${error}`);
+    }
+  }
+
+  if (source.story !== undefined) {
+    try {
+      const storySourceFile = parseCurrentSource(resolve(directory, files.story), source.story);
+      if (!callableStoryExportNames(storySourceFile).length) {
+        violations.push(
+          `${display}: ${files.story} must export at least one named callable gallery story`,
+        );
+      }
+    } catch (error) {
+      violations.push(`${display}: ${files.story} could not be parsed: ${error}`);
+    }
+  }
+
+  return { publicRuntimeExports, violations };
+}
+
+export function designPublicFolderViolations(directory) {
+  return analyzeDesignPublicFolder(directory).violations;
 }
 
 /** Public component folders own styles; design/components itself must never become a CSS bucket. */
@@ -301,13 +662,29 @@ export function checkDesignPublicApi(repositoryRoot) {
   violations.push(
     ...index.violations.map((message) => `packages/client/src/design/index.ts: ${message}`),
   );
+  violations.push(
+    ...designPublicFolderSetViolations(designRoot, index.exports).map((message) => {
+      const prefix = normalizedPath(resolve(repositoryRoot));
+      return message.startsWith(`${prefix}/`) ? message.slice(prefix.length + 1) : message;
+    }),
+  );
   for (const entry of index.exports) {
+    const folder = analyzeDesignPublicFolder(entry.directory);
     violations.push(
-      ...designPublicFolderViolations(entry.directory).map((message) => {
+      ...folder.violations.map((message) => {
         const prefix = normalizedPath(resolve(repositoryRoot));
         return message.startsWith(`${prefix}/`) ? message.slice(prefix.length + 1) : message;
       }),
     );
+    if (!entry.forwardsAllRuntime) {
+      const forwarded = new Set(entry.forwardedRuntimeNames);
+      const missing = folder.publicRuntimeExports.filter((name) => !forwarded.has(name));
+      if (missing.length) {
+        violations.push(
+          `packages/client/src/design/index.ts: ${entry.specifier} omits public runtime export${missing.length === 1 ? "" : "s"} ${missing.join(", ")}`,
+        );
+      }
+    }
   }
   return {
     exportedFolders: index.exports.length,

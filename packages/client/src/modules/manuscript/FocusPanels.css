@@ -95,7 +95,7 @@
   cursor: pointer;
 }
 .focus-helper-chip:hover {
-  border-color: var(--gold);
+  border-color: var(--accent-primary-border);
 }
 .focus-helper-symbol {
   min-width: 30px;

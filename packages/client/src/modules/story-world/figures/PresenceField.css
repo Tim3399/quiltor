@@ -27,9 +27,9 @@
 }
 
 .presence-journey-stop.active {
-  border-color: var(--gold);
-  background: var(--gold-soft);
-  color: var(--gold-text);
+  border-color: var(--selection-border);
+  background: var(--selection-surface);
+  color: var(--selection-text);
 }
 
 .presence-journey-duration {

@@ -4,7 +4,7 @@
   min-height: var(--control-compact);
   display: inline-flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--spacing-compact-tight);
   color: var(--muted);
   font-size: var(--font-size-3);
 }
@@ -14,7 +14,7 @@
   display: inline-flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--spacing-compact-tight);
   overflow: hidden;
 }
 

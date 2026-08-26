@@ -50,9 +50,9 @@
   transform: translateY(-1px);
 }
 .story-moment.active {
-  border-color: var(--gold);
+  border-color: var(--selection-border);
   box-shadow:
-    var(--ring-2) var(--gold-soft),
+    var(--ring-2) var(--selection-surface),
     var(--elevation-2) var(--node-shadow);
 }
 .story-moment-content > svg {
@@ -63,7 +63,7 @@
 }
 .story-moment-index {
   grid-area: index;
-  color: var(--gold-text);
+  color: var(--accent-primary-text);
   font-size: var(--font-size-2);
 }
 .story-moment-content > strong {
@@ -90,7 +90,7 @@
 }
 .timeline-manager-empty > svg {
   width: 30px;
-  color: var(--gold);
+  color: var(--accent-primary);
 }
 .timeline-manager-empty h2 {
   margin: var(--space-12) 0 var(--space-5);

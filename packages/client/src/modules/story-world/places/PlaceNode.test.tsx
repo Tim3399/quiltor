@@ -58,7 +58,7 @@ describe("PlaceNode overview marker", () => {
       /\.story-node\.zoom-overview \.place-node-monogram\s*\{[^}]*display:\s*grid;/s,
     );
     expect(css).toMatch(
-      /\.story-node\.zoom-overview\.is-important\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;[^}]*border:\s*2px solid var\(--gold\);[^}]*border-radius:\s*50%;/s,
+      /\.story-node\.zoom-overview\.is-important\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;[^}]*border:\s*2px solid var\(--accent-primary\);[^}]*border-radius:\s*50%;/s,
     );
     expect(css).toMatch(
       /@media \(max-width: 640px\), \(pointer: coarse\)[\s\S]*?\.story-node\.zoom-overview\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/,

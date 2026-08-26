@@ -39,7 +39,6 @@
   background: var(--canvas);
 }
 .storyboard-mode [role="radio"] {
-  min-height: 32px;
   padding: 0 var(--space-12);
   border-radius: var(--radius-sm);
   background: var(--transparent);
@@ -47,9 +46,9 @@
   cursor: pointer;
 }
 .storyboard-mode [role="radio"][aria-checked="true"] {
-  background: var(--gold-soft);
-  color: var(--gold-text);
-  box-shadow: inset var(--ring-1) var(--gold-border);
+  background: var(--selection-surface);
+  color: var(--selection-text);
+  box-shadow: inset var(--ring-1) var(--selection-border);
 }
 .timeline-manager-section {
   margin-top: var(--space-12);
@@ -107,8 +106,8 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-pill);
-  background: var(--gold-soft);
-  color: var(--gold-text);
+  background: var(--accent-primary-soft);
+  color: var(--accent-primary-text);
   font-size: var(--font-size-3);
   font-weight: 700;
 }
@@ -153,10 +152,10 @@
 }
 .relationship-change-card:hover,
 .relationship-change-card.selected {
-  border-color: var(--gold);
+  border-color: var(--selection-border);
 }
 .relationship-change-card.selected {
-  box-shadow: var(--ring-2) var(--gold-soft);
+  box-shadow: var(--ring-2) var(--selection-surface);
 }
 .relationship-change-card.inactive {
   border-style: dashed;
@@ -173,7 +172,7 @@
   white-space: nowrap;
 }
 .relationship-card-main strong i {
-  color: var(--gold-text);
+  color: var(--accent-primary-text);
   font-style: normal;
 }
 .relationship-card-main small {
@@ -181,7 +180,7 @@
 }
 .change-badge {
   width: max-content;
-  color: var(--gold-text);
+  color: var(--accent-primary-text);
   font-size: var(--font-size-1);
   font-weight: 700;
   text-transform: uppercase;
@@ -236,7 +235,6 @@
 }
 .relationship-inspector-action,
 .reset-inheritance {
-  min-height: 40px;
   display: flex;
   align-items: center;
   gap: var(--space-7);
@@ -247,9 +245,9 @@
   cursor: pointer;
 }
 .relationship-inspector-action[aria-pressed="true"] {
-  border-color: var(--gold-border);
-  background: var(--gold-soft);
-  color: var(--gold-text);
+  border-color: var(--selection-border);
+  background: var(--selection-surface);
+  color: var(--selection-text);
 }
 .relationship-inspector-action svg,
 .reset-inheritance svg {
@@ -296,8 +294,8 @@
   cursor: grab;
 }
 .life-event-person.selected {
-  border-color: var(--gold);
-  background: var(--gold-soft);
+  border-color: var(--selection-border);
+  background: var(--selection-surface);
 }
 .life-event-roster small {
   color: var(--muted);
@@ -356,7 +354,7 @@
 }
 .life-change-list svg {
   width: 14px;
-  color: var(--rose-text);
+  color: var(--error-text);
 }
 .life-change-copy {
   display: flex;
@@ -429,7 +427,7 @@
     top: var(--bar);
     width: 100%;
   }
-  .ui-sheet .storyboard-inspector {
+  .storyboard-inspector-sheet .storyboard-inspector {
     position: static;
     width: 100%;
     height: 100%;

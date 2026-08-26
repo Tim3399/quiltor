@@ -1,6 +1,7 @@
 import {
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -34,6 +35,8 @@ export interface PopoverProps {
   children: ReactNode;
   label: string;
   compactMode?: "sheet" | "popover";
+  desktopRole?: "dialog" | "presentation";
+  placement?: "block" | "inline-end";
 }
 
 /** An anchored desktop popover which can adapt to a modal compact sheet. */
@@ -44,6 +47,8 @@ export function Popover({
   children,
   label,
   compactMode = "sheet",
+  desktopRole = "dialog",
+  placement = "block",
 }: PopoverProps) {
   const panel = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -52,18 +57,37 @@ export function Popover({
   const compact = compactMode === "sheet" && compactViewport;
   const [position, setPosition] = useState({ left: 12, top: 12 });
 
-  useLayoutEffect(() => {
+  const updatePosition = useCallback(() => {
     if (!open || compact || !anchorRef.current || !panel.current) return;
     const anchor = anchorRef.current.getBoundingClientRect();
     const box = panel.current.getBoundingClientRect();
     const gap = 6;
     const margin = 12;
+    if (placement === "inline-end") {
+      const after = anchor.right + gap;
+      const left =
+        after + box.width <= innerWidth - margin
+          ? after
+          : Math.max(margin, anchor.left - box.width - gap);
+      const top = Math.max(margin, Math.min(anchor.top, innerHeight - box.height - margin));
+      setPosition({ left, top });
+      return;
+    }
     const left = Math.max(margin, Math.min(anchor.left, innerWidth - box.width - margin));
     const below = anchor.bottom + gap;
     const top =
       below + box.height <= innerHeight ? below : Math.max(margin, anchor.top - box.height - gap);
     setPosition({ left, top });
-  }, [open, compact, anchorRef]);
+  }, [anchorRef, compact, open, placement]);
+
+  useLayoutEffect(() => {
+    updatePosition();
+    if (!open || compact || typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(updatePosition);
+    if (anchorRef.current) observer.observe(anchorRef.current);
+    if (panel.current) observer.observe(panel.current);
+    return () => observer.disconnect();
+  }, [anchorRef, compact, open, updatePosition]);
 
   useEffect(() => {
     if (!open || compact) return;
@@ -83,16 +107,20 @@ export function Popover({
       event.preventDefault();
       closeRef.current();
     };
-    const close = () => closeRef.current();
+    const resize = () => closeRef.current();
+    const scroll = (event: Event) => {
+      if (event.target instanceof Node && panel.current?.contains(event.target)) return;
+      closeRef.current();
+    };
     document.addEventListener("pointerdown", pointer);
     trigger?.addEventListener("keydown", key);
-    window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", resize);
+    window.addEventListener("scroll", scroll, true);
     return () => {
       document.removeEventListener("pointerdown", pointer);
       trigger?.removeEventListener("keydown", key);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("scroll", scroll, true);
       if (trigger?.isConnected) trigger.focus();
     };
   }, [open, compact, anchorRef]);
@@ -100,18 +128,28 @@ export function Popover({
   if (!open) return null;
   if (compact) {
     return createPortal(
-      <Sheet open label={label} onClose={onClose}>
+      <Sheet
+        open
+        label={label}
+        className="ui-popover-sheet-container"
+        onClose={onClose}
+        returnFocusRef={anchorRef}
+      >
         <div className="ui-popover-sheet">{children}</div>
       </Sheet>,
       document.body,
     );
   }
+  const desktopAccessibilityProps =
+    desktopRole === "dialog"
+      ? ({ role: "dialog", "aria-label": label } as const)
+      : ({ role: "presentation" } as const);
   return createPortal(
+    // biome-ignore lint/a11y/noStaticElementInteractions: the semantic child owns interaction; this surface only contains Escape before it leaks to an owning modal.
     <div
+      {...desktopAccessibilityProps}
       ref={panel}
       className="ui-popover material-popover"
-      role="dialog"
-      aria-label={label}
       style={position}
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;

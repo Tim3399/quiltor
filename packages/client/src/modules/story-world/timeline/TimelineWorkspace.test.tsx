@@ -86,7 +86,43 @@ describe("TimelineWorkspace sections", () => {
       /\.calendar-coordinate-control\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
     );
     expect(panelsCss).toMatch(
-      /\.ui-sheet \.storyboard-inspector\s*\{[^}]*position:\s*static;[^}]*width:\s*100%;/s,
+      /\.storyboard-inspector-sheet \.storyboard-inspector\s*\{[^}]*position:\s*static;[^}]*width:\s*100%;/s,
+    );
+    expect(panelsCss).not.toContain(".ui-sheet .storyboard-inspector");
+  });
+
+  it("leaves touch sizing of segmented and inspector actions with the design controls", () => {
+    const headerCss = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/story-world/timeline/MomentHeader.css"),
+      "utf8",
+    );
+    const panelsCss = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/story-world/timeline/StateChangePanels.css"),
+      "utf8",
+    );
+    const tokensCss = readFileSync(
+      join(process.cwd(), "packages/client/src/design/tokens.css"),
+      "utf8",
+    );
+    const modeRule = panelsCss.match(/\.storyboard-mode \[role="radio"\]\s*\{([^}]*)\}/s)?.[1];
+    const inspectorActionRule = panelsCss.match(
+      /\.relationship-inspector-action,\s*\.reset-inheritance\s*\{([^}]*)\}/s,
+    )?.[1];
+
+    expect(modeRule).toBeDefined();
+    expect(modeRule).not.toMatch(/\b(?:min-)?height\s*:/);
+    expect(inspectorActionRule).toBeDefined();
+    expect(inspectorActionRule).not.toMatch(/\b(?:min-)?height\s*:/);
+    expect(
+      headerCss.match(
+        /\.storyboard-stepper-action,\s*\.storyboard-actions-trigger\s*\{([^}]*)\}/s,
+      )?.[1],
+    ).not.toMatch(/\b(?:min-)?height\s*:/);
+    expect(headerCss).toMatch(
+      /@media \(max-width: 900px\)[\s\S]*?\.storyboard-actions-trigger\s*\{[^}]*min-width:\s*var\(--control-touch\);/s,
+    );
+    expect(tokensCss).toMatch(
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?--control-regular:\s*var\(--control-touch\);/,
     );
   });
 
@@ -193,7 +229,11 @@ describe("TimelineWorkspace time system", () => {
 
     const next = onChange.mock.calls[0][0] as FigureState;
     expect(next.timeSystem?.kind).toBe("custom");
-    expect(screen.getByText("Zeitsystem konfigurieren").closest("details")).toHaveAttribute("open");
+    expect(screen.getByRole("dialog", { name: "Zeitsystem konfigurieren" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Zeitsystem konfigurieren" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
 
     view.rerender(
       <I18nProvider>
@@ -201,7 +241,7 @@ describe("TimelineWorkspace time system", () => {
       </I18nProvider>,
     );
     expect(screen.getByRole("button", { name: "Kalender hinzufügen" })).toBeVisible();
-    expect(screen.getByText("Zeitsystem konfigurieren").closest("details")).toHaveAttribute("open");
+    expect(screen.getByRole("dialog", { name: "Zeitsystem konfigurieren" })).toBeVisible();
   });
 
   it("edits calendar dates without exposing the canonical database value", () => {
@@ -219,6 +259,7 @@ describe("TimelineWorkspace time system", () => {
     expect(screen.queryByRole("textbox", { name: /Kanonischer Zeitwert/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Genauigkeit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Standard" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Zeitsystem konfigurieren" }));
     expect(screen.getByRole("combobox", { name: "Reihenfolge des Datums" })).toHaveValue(
       "{day:02d}.{month:02d}.{year:04d} {era}",
     );

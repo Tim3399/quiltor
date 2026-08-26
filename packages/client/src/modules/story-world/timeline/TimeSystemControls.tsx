@@ -1,6 +1,13 @@
 import { Plus, Settings2 } from "lucide-react";
-import { useState } from "react";
-import { ListboxSelect, ScrollArea, Select, TextField, ToolbarButton } from "../../../design";
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  ListboxSelect,
+  Popover,
+  ScrollArea,
+  Select,
+  TextField,
+  ToolbarButton,
+} from "../../../design";
 import type { Translate, UiLocale } from "../../../i18n";
 import type { TimeSystem, TimeSystemKind } from "../model";
 import { CalendarAnchorFields } from "./CalendarAnchorFields";
@@ -22,6 +29,16 @@ export function TimeSystemControls({
   t: Translate;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsButton = useRef<HTMLButtonElement>(null);
+  const settingsPanel = useRef<HTMLDivElement>(null);
+  const settingsPanelId = useId();
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const frame = requestAnimationFrame(() => settingsPanel.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [settingsOpen]);
+
   return (
     <div className="timeline-time-controls">
       <ListboxSelect
@@ -37,97 +54,111 @@ export function TimeSystemControls({
         ]}
         onChange={onKindChange}
       />
-      <details
-        className="timeline-time-settings"
-        open={settingsOpen}
-        onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
-      >
-        <summary>
-          <Settings2 aria-hidden="true" />
-          <span>{t("timelineConfigureTime")}</span>
-        </summary>
-        <ScrollArea
-          axis="y"
-          gutter="stable"
-          overscroll="auto"
-          scrollbar="thin"
-          surface="panel"
-          className="timeline-time-settings-panel"
+      <div className="timeline-time-settings">
+        <ToolbarButton
+          ref={settingsButton}
+          className="timeline-time-settings-trigger"
+          label={t("timelineConfigureTime")}
+          icon={<Settings2 />}
+          size="regular"
+          aria-haspopup="dialog"
+          aria-expanded={settingsOpen}
+          aria-controls={settingsOpen ? settingsPanelId : undefined}
+          onClick={() => setSettingsOpen((current) => !current)}
+        />
+        <Popover
+          anchorRef={settingsButton}
+          open={settingsOpen}
+          label={t("timelineConfigureTime")}
+          onClose={() => setSettingsOpen(false)}
         >
-          {system.kind === "custom" && (
-            <TextField
-              fieldClassName="timeline-time-setting-field"
-              label={t("timelineCalendarName")}
-              value={system.name}
-              onChange={(event) => onPatch({ name: event.target.value })}
-            />
-          )}
-          {system.kind === "relative" ? (
-            <Select
-              fieldClassName="timeline-time-setting-field"
-              label={t("timelineUnit")}
-              value={system.unit}
-              onChange={(event) => onPatch({ unit: event.target.value as TimeSystem["unit"] })}
-            >
-              <option value="day">{t("timelineDays")}</option>
-              <option value="abstract">{t("timelineAbstract")}</option>
-            </Select>
-          ) : (
-            <>
-              <CalendarAnchorFields system={system} onPatch={onPatch} locale={locale} t={t} />
+          <ScrollArea
+            ref={settingsPanel}
+            id={settingsPanelId}
+            tabIndex={-1}
+            data-autofocus
+            axis="y"
+            gutter="stable"
+            overscroll="auto"
+            scrollbar="thin"
+            surface="panel"
+            className="timeline-time-settings-panel"
+          >
+            {system.kind === "custom" && (
               <TextField
                 fieldClassName="timeline-time-setting-field"
-                label={t("timelineEra")}
-                value={system.eraName}
-                onChange={(event) => onPatch({ eraName: event.target.value })}
+                label={t("timelineCalendarName")}
+                value={system.name}
+                onChange={(event) => onPatch({ name: event.target.value })}
               />
-              <TextField
-                fieldClassName="timeline-time-setting-field"
-                label={t("timelineEraAbbreviation")}
-                value={system.eraAbbreviation}
-                onChange={(event) => onPatch({ eraAbbreviation: event.target.value })}
-              />
+            )}
+            {system.kind === "relative" ? (
               <Select
                 fieldClassName="timeline-time-setting-field"
-                label={t("timelineDisplayFormat")}
-                value={system.displayFormat || defaultDisplayFormat(system.kind)}
-                onChange={(event) => onPatch({ displayFormat: event.target.value })}
+                label={t("timelineUnit")}
+                value={system.unit}
+                onChange={(event) => onPatch({ unit: event.target.value as TimeSystem["unit"] })}
               >
-                <option
-                  value={
-                    system.kind === "custom"
-                      ? "{day} {monthName}, {year} {era}"
-                      : "{day:02d}.{month:02d}.{year:04d} {era}"
-                  }
-                >
-                  {t("timelineFormatDayMonthYear")}
-                </option>
-                <option
-                  value={
-                    system.kind === "custom"
-                      ? "{monthName} {day}, {year} {era}"
-                      : "{month:02d}/{day:02d}/{year:04d} {era}"
-                  }
-                >
-                  {t("timelineFormatMonthDayYear")}
-                </option>
-                <option
-                  value={
-                    system.kind === "custom"
-                      ? "{year} {monthName} {day} {era}"
-                      : "{year:04d}-{month:02d}-{day:02d} {era}"
-                  }
-                >
-                  {t("timelineFormatYearMonthDay")}
-                </option>
+                <option value="day">{t("timelineDays")}</option>
+                <option value="abstract">{t("timelineAbstract")}</option>
               </Select>
-            </>
-          )}
-          {system.kind === "custom" && (
-            <CustomCalendarSettings system={system} onPatch={onPatch} t={t} />
-          )}
-        </ScrollArea>
-      </details>
+            ) : (
+              <>
+                <CalendarAnchorFields system={system} onPatch={onPatch} locale={locale} t={t} />
+                <TextField
+                  fieldClassName="timeline-time-setting-field"
+                  label={t("timelineEra")}
+                  value={system.eraName}
+                  onChange={(event) => onPatch({ eraName: event.target.value })}
+                />
+                <TextField
+                  fieldClassName="timeline-time-setting-field"
+                  label={t("timelineEraAbbreviation")}
+                  value={system.eraAbbreviation}
+                  onChange={(event) => onPatch({ eraAbbreviation: event.target.value })}
+                />
+                <Select
+                  fieldClassName="timeline-time-setting-field"
+                  label={t("timelineDisplayFormat")}
+                  value={system.displayFormat || defaultDisplayFormat(system.kind)}
+                  onChange={(event) => onPatch({ displayFormat: event.target.value })}
+                >
+                  <option
+                    value={
+                      system.kind === "custom"
+                        ? "{day} {monthName}, {year} {era}"
+                        : "{day:02d}.{month:02d}.{year:04d} {era}"
+                    }
+                  >
+                    {t("timelineFormatDayMonthYear")}
+                  </option>
+                  <option
+                    value={
+                      system.kind === "custom"
+                        ? "{monthName} {day}, {year} {era}"
+                        : "{month:02d}/{day:02d}/{year:04d} {era}"
+                    }
+                  >
+                    {t("timelineFormatMonthDayYear")}
+                  </option>
+                  <option
+                    value={
+                      system.kind === "custom"
+                        ? "{year} {monthName} {day} {era}"
+                        : "{year:04d}-{month:02d}-{day:02d} {era}"
+                    }
+                  >
+                    {t("timelineFormatYearMonthDay")}
+                  </option>
+                </Select>
+              </>
+            )}
+            {system.kind === "custom" && (
+              <CustomCalendarSettings system={system} onPatch={onPatch} t={t} />
+            )}
+          </ScrollArea>
+        </Popover>
+      </div>
       <ToolbarButton
         label={t("timelineAddCustomCalendar")}
         icon={<Plus />}

@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { after, test } from "node:test";
 import {
+  analyzeDesignPublicFolder,
   analyzeDesignPublicIndex,
   checkDesignPublicApi,
   closeDesignPublicApiParser,
   designLooseComponentStyleViolations,
   designProductImportViolations,
   designPublicApiParserContract,
+  designPublicFolderSetViolations,
   designPublicFolderViolations,
   designRetiredLegacyViolations,
   discoverDesignPublicApiProductFiles,
@@ -40,9 +42,15 @@ function productViolations(source) {
 
 function createCompleteFolder(path, component = "Component") {
   write(`${path}/index.ts`, `export * from "./${component}";`);
-  write(`${path}/${component}.tsx`, `export function ${component}() { return null; }`);
+  write(
+    `${path}/${component}.tsx`,
+    `import "./${component}.css";\nexport function ${component}() { return null; }\n`,
+  );
   write(`${path}/${component}.css`, `.${component} { display: block; }\n`);
-  write(`${path}/${component}.test.tsx`, "export {};\n");
+  write(
+    `${path}/${component}.test.tsx`,
+    `import { test } from "vitest";\ntest("renders", () => {});\n`,
+  );
   write(`${path}/${component}.story.tsx`, "export function Default() { return null; }\n");
 }
 
@@ -146,6 +154,7 @@ test("extracts explicit public folders and rejects collector, deep and duplicate
     export { Button } from "./primitives/Button";
     export * from "./components";
     export * from "./patterns/Dialog/Dialog";
+    export * from "./internal/private";
     // export * from "./primitives/Commented";
     export type { ReactNode };
   `;
@@ -163,12 +172,100 @@ test("extracts explicit public folders and rejects collector, deep and duplicate
   assert.match(failures, /exports primitives\/Button more than once/);
   assert.match(failures, /\.\/components.*explicit/);
   assert.match(failures, /\.\/patterns\/Dialog\/Dialog.*explicit/);
+  assert.match(failures, /\.\/internal\/private.*not a public/);
 });
 
 test("accepts a public folder with exact implementation, stylesheet, barrel, test and story", () => {
   const directory = resolve(designRoot, "primitives", "Complete");
   createCompleteFolder("packages/client/src/design/primitives/Complete", "Complete");
+  const analysis = analyzeDesignPublicFolder(directory);
+  assert.deepEqual(analysis.violations, []);
+  assert.deepEqual(analysis.publicRuntimeExports, ["Complete"]);
+});
+
+test("rejects syntactically present placeholder contract files", () => {
+  const path = "packages/client/src/design/components/Placeholder";
+  const directory = resolve(designRoot, "components", "Placeholder");
+  write(`${path}/index.ts`, "export {};\n");
+  write(`${path}/Placeholder.tsx`, "export {};\n");
+  write(`${path}/Placeholder.css`, "/* placeholder */\n");
+  write(
+    `${path}/Placeholder.test.tsx`,
+    'import { test } from "vitest";\ntest.todo("write this later");\n',
+  );
+  write(`${path}/Placeholder.story.tsx`, "export const metadata = {};\n");
+
+  const failures = designPublicFolderViolations(directory).join("\n");
+  assert.match(failures, /Placeholder\.css.*neither a CSS declaration/);
+  assert.match(failures, /Placeholder\.tsx must import.*Placeholder\.css/);
+  assert.match(failures, /Placeholder\.tsx exports no runtime implementation/);
+  assert.match(failures, /index\.ts must re-export.*\.\/Placeholder/);
+  assert.match(failures, /Placeholder\.test\.tsx must contain an it\/test case/);
+  assert.match(failures, /Placeholder\.story\.tsx must export.*callable gallery story/);
+});
+
+test("rejects every blank required contract file", () => {
+  const path = "packages/client/src/design/components/Blank";
+  const directory = resolve(designRoot, "components", "Blank");
+  for (const name of ["index.ts", "Blank.tsx", "Blank.css", "Blank.test.tsx", "Blank.story.tsx"]) {
+    write(`${path}/${name}`, "");
+  }
+
+  const failures = designPublicFolderViolations(directory);
+  assert.equal(failures.filter((failure) => /required .* is empty/.test(failure)).length, 5);
+});
+
+test("allows explicitly documented CSS inheritance without accepting placeholder comments", () => {
+  const path = "packages/client/src/design/primitives/Inherited";
+  const directory = resolve(designRoot, "primitives", "Inherited");
+  createCompleteFolder(path, "Inherited");
+  write(
+    `${path}/Inherited.css`,
+    "/* Inherited intentionally inherits its control styling from Field. */\n",
+  );
   assert.deepEqual(designPublicFolderViolations(directory), []);
+});
+
+test("requires the folder barrel to preserve all implementation runtime exports", () => {
+  const path = "packages/client/src/design/patterns/RuntimeSurface";
+  const directory = resolve(designRoot, "patterns", "RuntimeSurface");
+  createCompleteFolder(path, "RuntimeSurface");
+  write(
+    `${path}/RuntimeSurface.tsx`,
+    'import "./RuntimeSurface.css";\nexport function RuntimeSurface() { return null; }\nexport const RUNTIME_LIMIT = 4;\n',
+  );
+  write(`${path}/index.ts`, 'export { RuntimeSurface } from "./RuntimeSurface";\n');
+
+  const analysis = analyzeDesignPublicFolder(directory);
+  assert.deepEqual(analysis.publicRuntimeExports, ["RuntimeSurface"]);
+  assert.match(analysis.violations.join("\n"), /index\.ts omits runtime export RUNTIME_LIMIT/);
+});
+
+test("accepts aliased vitest cases and callable const stories", () => {
+  const path = "packages/client/src/design/patterns/AliasedContract";
+  const directory = resolve(designRoot, "patterns", "AliasedContract");
+  createCompleteFolder(path, "AliasedContract");
+  write(
+    `${path}/AliasedContract.test.tsx`,
+    'import { test as scenario } from "vitest";\nscenario("works", () => {});\n',
+  );
+  write(`${path}/AliasedContract.story.tsx`, "export const Default = () => null;\n");
+  assert.deepEqual(designPublicFolderViolations(directory), []);
+});
+
+test("keeps the physical public folder set equal to the root barrel set", () => {
+  const root = resolve(fixtureRoot, "folder-set/design");
+  for (const layer of ["primitives", "components", "patterns"]) {
+    mkdirSync(resolve(root, layer), { recursive: true });
+  }
+  mkdirSync(resolve(root, "components", "Exported"), { recursive: true });
+  mkdirSync(resolve(root, "components", "Orphan"), { recursive: true });
+
+  const failures = designPublicFolderSetViolations(root, [
+    { layer: "components", name: "Exported" },
+  ]);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /components\/Orphan.*absent from.*design\/index\.ts/);
 });
 
 test("reports every missing colocated public-folder contract", () => {
@@ -223,9 +320,42 @@ test("rejects the retired global legacy stylesheet and owner directory", () => {
   rmSync(resolve(designRoot, "internal", "legacy"), { recursive: true });
 });
 
+test("requires the root barrel to preserve every public folder runtime export", () => {
+  const root = resolve(fixtureRoot, "runtime-integration");
+  for (const path of [
+    "packages/client/src/app",
+    "packages/client/src/modules",
+    "packages/client/src/shared",
+    "packages/client/src/design/primitives",
+    "packages/client/src/design/patterns",
+  ]) {
+    mkdirSync(resolve(root, path), { recursive: true });
+  }
+  write(
+    "runtime-integration/packages/client/src/design/index.ts",
+    'export { RuntimeSurface } from "./components/RuntimeSurface";\n',
+  );
+  createCompleteFolder(
+    "runtime-integration/packages/client/src/design/components/RuntimeSurface",
+    "RuntimeSurface",
+  );
+  write(
+    "runtime-integration/packages/client/src/design/components/RuntimeSurface/RuntimeSurface.tsx",
+    'import "./RuntimeSurface.css";\nexport function RuntimeSurface() { return null; }\nexport const RUNTIME_LIMIT = 4;\n',
+  );
+
+  const result = checkDesignPublicApi(root);
+  assert.equal(result.violations.length, 1);
+  assert.match(
+    result.violations[0],
+    /design\/index\.ts: \.\/components\/RuntimeSurface omits public runtime export RUNTIME_LIMIT/,
+  );
+});
+
 test("checks product imports, loose styles and all exported folders together", () => {
   const root = resolve(fixtureRoot, "integration");
   mkdirSync(resolve(root, "packages/client/src/shared"), { recursive: true });
+  mkdirSync(resolve(root, "packages/client/src/design/patterns"), { recursive: true });
   write(
     "integration/packages/client/src/design/index.ts",
     'export * from "./primitives/Button";\n',

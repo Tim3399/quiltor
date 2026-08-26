@@ -12,7 +12,6 @@
 }
 .storyboard-stepper-action,
 .storyboard-actions-trigger {
-  min-height: 36px;
   display: inline-flex;
   align-items: center;
   gap: var(--space-6);
@@ -106,7 +105,7 @@
   }
   .storyboard-actions-trigger {
     font-size: 0;
-    min-width: 40px;
+    min-width: var(--control-touch);
     padding: 0;
   }
   .storyboard-actions-trigger svg {

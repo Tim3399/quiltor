@@ -14,7 +14,7 @@
 .assistant-drawer.has-offline {
   grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
 }
-.ui-sheet .assistant-drawer {
+.assistant-drawer-sheet .assistant-drawer {
   position: static;
   width: 100%;
   height: 100%;
@@ -41,7 +41,7 @@
 }
 .assistant-drawer > header svg {
   width: 17px;
-  color: var(--gold);
+  color: var(--accent-primary-text);
 }
 .assistant-drawer > header span {
   display: flex;

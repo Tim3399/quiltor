@@ -31,11 +31,42 @@ describe("DropdownMenu", () => {
     expect(trigger).toHaveAttribute("aria-haspopup", "menu");
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", screen.getByRole("menu").id);
+    expect(screen.queryByRole("dialog", { name: "Aktionen" })).toBeNull();
     await waitFor(() => expect(screen.getByRole("menuitem", { name: "Umbenennen" })).toHaveFocus());
     fireEvent.click(screen.getByRole("menuitem", { name: "Umbenennen" }));
     expect(select).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu")).toBeNull();
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("opens from ArrowUp and focuses the last enabled action", async () => {
+    render(
+      <DropdownMenu label="Aktionen" renderTrigger={renderTrigger}>
+        <MenuItem label="Erste" onSelect={() => undefined} />
+        <MenuItem label="Gesperrt" disabled onSelect={() => undefined} />
+        <MenuItem label="Letzte" onSelect={() => undefined} />
+      </DropdownMenu>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Aktionen" }), { key: "ArrowUp" });
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Letzte" })).toHaveFocus());
+  });
+
+  it("renders non-action content outside the menu semantics", () => {
+    render(
+      <DropdownMenu
+        label="Aktionen"
+        defaultOpen
+        header={<span role="status">Gespeichert</span>}
+        renderTrigger={renderTrigger}
+      >
+        <MenuItem label="Umbenennen" onSelect={() => undefined} />
+      </DropdownMenu>,
+    );
+
+    const status = screen.getByRole("status");
+    expect(status.closest('[role="menu"]')).toBeNull();
   });
 
   it("opens from ArrowDown and reports controlled changes", () => {
@@ -73,6 +104,9 @@ describe("DropdownMenu", () => {
     );
 
     const first = screen.getByRole("menuitem", { name: "Umbenennen" });
+    expect(screen.getByRole("dialog", { name: "Aktionen" })).toHaveClass(
+      "ui-popover-sheet-container",
+    );
     await waitFor(() => expect(first).toHaveFocus());
     fireEvent.keyDown(first, { key: "Escape" });
 

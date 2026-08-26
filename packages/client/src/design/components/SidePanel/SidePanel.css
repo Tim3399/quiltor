@@ -26,8 +26,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-8);
-  padding-inline: var(--space-14);
+  gap: var(--spacing-compact-wide);
+  padding-inline: var(--spacing-regular-base);
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--font-size-2);
@@ -38,14 +38,14 @@
 .side-panel__header-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--spacing-optical-wide);
 }
 
 .side-panel__body {
   min-height: 0;
   flex: 1;
   overflow: auto;
-  padding: var(--space-16);
+  padding: var(--spacing-regular-wide);
 }
 
 .side-panel__empty {
@@ -65,7 +65,7 @@
 }
 
 .side-panel__empty h2 {
-  margin: var(--space-10) 0 var(--space-4);
+  margin: var(--spacing-transition-feedback-gap) 0 var(--spacing-optical-wide);
   color: var(--ink);
   font: 600 var(--font-size-6) var(--prose);
 }

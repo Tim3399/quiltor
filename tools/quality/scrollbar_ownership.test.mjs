@@ -25,7 +25,7 @@ function write(path, source) {
 
 test("allows scrollbar recipes only in the exact public ScrollArea CSS owner", () => {
   const source = `
-    .scroll-area { scrollbar-color: red transparent; }
+    .scroll-area { scrollbar-color: red transparent; scrollbar-width: thin; }
     .scroll-area::-webkit-scrollbar-thumb { background: red; }
   `;
   assert.deepEqual(analyzeScrollbarOwnershipSource({ file: scrollbarOwner, source }), []);
@@ -38,8 +38,19 @@ test("allows scrollbar recipes only in the exact public ScrollArea CSS owner", (
     violations.map(({ kind, line }) => [kind, line]),
     [
       ["scrollbar-color", 2],
+      ["scrollbar-width", 2],
       ["webkit-scrollbar-selector", 3],
     ],
+  );
+});
+
+test("rejects feature-local scrollbar-width even without a color recipe", () => {
+  assert.deepEqual(
+    analyzeScrollbarOwnershipSource({
+      file: "packages/client/src/modules/editor/Editor.css",
+      source: ".editor-scroll { overflow: auto; scrollbar-width: thin; }",
+    }).map(({ kind }) => kind),
+    ["scrollbar-width"],
   );
 });
 

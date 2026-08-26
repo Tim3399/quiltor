@@ -2,7 +2,7 @@
   min-inline-size: 0;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--spacing-optical-base);
   margin: 0;
   padding: 0;
   border: 0;

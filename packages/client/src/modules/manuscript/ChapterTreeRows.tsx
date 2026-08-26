@@ -9,8 +9,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { type CSSProperties, type DragEvent, type ReactNode, useRef, useState } from "react";
-import { Button, IconButton, Menu, MenuItem, Popover, TextField } from "../../design";
+import type { CSSProperties, DragEvent, ReactNode } from "react";
+import { Button, DropdownMenu, IconButton, MenuItem, MenuSeparator, TextField } from "../../design";
 import { useI18n } from "../../i18n";
 import type { ChapterFolder, ManuscriptTreeItem } from "./model";
 import type { ChapterTreeDragDrop } from "./useChapterTreeDragDrop";
@@ -163,8 +163,6 @@ function FolderRowActions({
   onCancel: () => void;
 }) {
   const { t } = useI18n();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuAnchor = useRef<HTMLButtonElement>(null);
   const menuLabel = `${t("menuActions")}: ${title}`;
 
   if (editing)
@@ -205,42 +203,31 @@ function FolderRowActions({
           title={t("deleteFolderKeepsContents")}
         />
       </div>
-      <IconButton
-        ref={menuAnchor}
-        className="binder-folder-action binder-folder-more"
-        icon={<Ellipsis />}
+      <DropdownMenu
         label={menuLabel}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((value) => !value)}
-      />
-      <Popover
-        anchorRef={menuAnchor}
-        open={menuOpen}
-        label={menuLabel}
-        onClose={() => setMenuOpen(false)}
+        renderTrigger={({ ref, ...triggerProps }) => (
+          <IconButton
+            {...triggerProps}
+            ref={ref}
+            className="binder-folder-action binder-folder-more"
+            icon={<Ellipsis />}
+            label={menuLabel}
+          />
+        )}
       >
-        <Menu label={menuLabel} onClose={() => setMenuOpen(false)}>
-          <MenuItem
-            onSelect={() => {
-              setMenuOpen(false);
-              queueMicrotask(onRename);
-            }}
-          >
-            <Pencil />
-            {t("renameFolder")}
-          </MenuItem>
-          <MenuItem
-            onSelect={() => {
-              setMenuOpen(false);
-              onDelete();
-            }}
-          >
-            <Trash2 />
-            {t("deleteFolderKeepsContents")}
-          </MenuItem>
-        </Menu>
-      </Popover>
+        <MenuItem
+          icon={<Pencil />}
+          label={t("renameFolder")}
+          onSelect={() => queueMicrotask(onRename)}
+        />
+        <MenuSeparator />
+        <MenuItem
+          icon={<Trash2 />}
+          label={t("deleteFolderKeepsContents")}
+          tone="danger"
+          onSelect={onDelete}
+        />
+      </DropdownMenu>
     </div>
   );
 }

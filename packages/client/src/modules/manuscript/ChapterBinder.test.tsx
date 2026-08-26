@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidePanel } from "../../design";
 import { flattenChapterIds } from "./binder/manuscriptTree";
@@ -121,6 +129,34 @@ describe("ChapterBinder folders", () => {
     expect(tokensCss).toMatch(
       /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?--control-compact:\s*var\(--control-touch\);/,
     );
+  });
+
+  it("links folder action triggers to a keyboard menu and marks deletion as dangerous", async () => {
+    renderBinder();
+    const partRow = requireValue(
+      screen.getByText("Teil I").closest<HTMLElement>(".binder-folder-row"),
+      "Part row missing",
+    );
+    const trigger = within(partRow).getByRole("button", { name: "Aktionen: Teil I" });
+
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+
+    const menu = await screen.findByRole("menu", { name: "Aktionen: Teil I" });
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", menu.id);
+    expect(within(menu).getByRole("separator")).toBeVisible();
+    expect(
+      within(menu).getByRole("menuitem", {
+        name: "Ordner löschen; Inhalte bleiben erhalten",
+      }),
+    ).toHaveAttribute("data-tone", "danger");
+
+    const rename = within(menu).getByRole("menuitem", { name: "Ordner umbenennen" });
+    await waitFor(() => expect(rename).toHaveFocus());
+    fireEvent.keyDown(rename, { key: "Escape" });
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("renders arbitrary nesting with a useful chapter breadcrumb and persistent collapse", () => {
@@ -461,7 +497,7 @@ describe("ChapterBinder folders", () => {
       /\.binder-folder-children > \.binder-tree-entry::before\s*\{[^}]*width:\s*var\(--space-6\);[^}]*border-top:/s,
     );
     expect(treeCss).toMatch(
-      /\.binder-folder-row:not\(\[data-binder-depth="0"\]\)\s*\{[^}]*border-inline-start-width:\s*var\(--space-2\);[^}]*border-inline-start-color:\s*var\(--gold-border\);/s,
+      /\.binder-folder-row:not\(\[data-binder-depth="0"\]\)\s*\{[^}]*border-inline-start-width:\s*var\(--space-2\);[^}]*border-inline-start-color:\s*var\(--accent-primary-border\);/s,
     );
     expect(treeCss).toMatch(
       /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-tree\s*\{[^}]*--binder-level-step:\s*var\(--space-10\);[^}]*--binder-indent-max:\s*var\(--space-24\);/s,

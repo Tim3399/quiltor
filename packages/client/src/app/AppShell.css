@@ -68,7 +68,7 @@
   width: 16px;
 }
 .app-bar__workspace-button[aria-current="page"] {
-  border-bottom-color: var(--gold);
+  border-bottom-color: var(--selection-border);
   background: var(--active-surface);
   color: var(--ink);
 }

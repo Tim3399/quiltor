@@ -2,13 +2,59 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { extname, relative, resolve, sep } from "node:path";
 
 export const cssDesignDebtNativeTypes = Object.freeze(["button", "input", "select", "textarea"]);
+export const cssDesignOwnerClassesByComponent = Object.freeze({
+  AdaptivePanel: Object.freeze(["adaptive-panel"]),
+  Alert: Object.freeze(["design-alert"]),
+  Button: Object.freeze(["ui-button"]),
+  Checkbox: Object.freeze(["ui-checkbox"]),
+  Chip: Object.freeze(["design-chip", "design-chip-item", "design-chip-list"]),
+  CommandPalette: Object.freeze(["ui-command-palette"]),
+  ConfirmDialog: Object.freeze(["ui-confirm-dialog"]),
+  Dialog: Object.freeze(["ui-dialog", "ui-dialog-backdrop"]),
+  Disclosure: Object.freeze(["design-disclosure"]),
+  DropdownMenu: Object.freeze(["ui-dropdown-menu"]),
+  EmptyState: Object.freeze(["empty-state-component"]),
+  Field: Object.freeze(["ui-field"]),
+  IconButton: Object.freeze(["icon-button"]),
+  ListboxSelect: Object.freeze(["ui-select-control", "ui-select-listbox"]),
+  Menu: Object.freeze(["ui-menu"]),
+  PageState: Object.freeze(["page-state"]),
+  Popover: Object.freeze(["ui-popover", "ui-popover-sheet"]),
+  ProgressBar: Object.freeze(["progress-component"]),
+  SaveStatus: Object.freeze(["save-status-component"]),
+  ScrollArea: Object.freeze(["scroll-area"]),
+  SegmentedControl: Object.freeze(["ui-segmented"]),
+  Select: Object.freeze(["ui-select"]),
+  SelectableRow: Object.freeze(["selectable-row"]),
+  SelectionCard: Object.freeze(["selection-card"]),
+  SelectionMenu: Object.freeze(["ui-selection-menu"]),
+  Sheet: Object.freeze([
+    "ui-sheet",
+    "ui-sheet-backdrop",
+    "utility-sheet",
+    "utility-sheet-content",
+  ]),
+  SidePanel: Object.freeze(["side-panel"]),
+  Tabs: Object.freeze(["design-tabs"]),
+  TextArea: Object.freeze(["ui-field"]),
+  TextField: Object.freeze(["ui-text-field"]),
+  Toast: Object.freeze(["design-toast", "design-toast-region"]),
+  ToolbarButton: Object.freeze(["ui-toolbar-button"]),
+  UndoRedoControls: Object.freeze(["undo-redo-controls"]),
+  WorkspaceToolbar: Object.freeze(["workspace-toolbar"]),
+});
+
+const currentDesignOwnerClasses = [
+  ...new Set(Object.values(cssDesignOwnerClassesByComponent).flat()),
+];
+
 export const cssDesignDebtOwnerClasses = Object.freeze([
-  "ui-button",
-  "icon-button",
-  "ui-field",
-  "ui-checkbox",
-  "ui-toolbar-button",
-  "selection-card",
+  // Product styles may add feature classes to a public component, but must
+  // never reach into these colocated implementation selectors.
+  ...currentDesignOwnerClasses,
+
+  // Retired product recipes remain protected so they cannot return under the
+  // guise of a feature-local component.
   "secondary-action",
   "danger-text",
   "empty-message",

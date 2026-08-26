@@ -1,11 +1,9 @@
+/* Writer theme colors v3.1 — five chromatic families, semantic roles first. */
 /*
- * Warm writer-tool color system
- *
- * Light mode: parchment, ivory, ink, moss and aged gold.
- * Dark mode: candlelit charcoal, aged ivory, brass and muted earth tones.
- *
- * The core palette follows the final light/dark reference image. Warning
- * colors intentionally use burnt orange so they remain distinct from gold.
+ * Gold, rose, moss, ink blue and copper are the only chromatic hue families.
+ * The neutral ramps, alpha materials and print colors are deliberately separate.
+ * Product and component styles should consume semantic roles; the aliases at the
+ * end keep the existing application stable while those consumers are migrated.
  */
 
 :root,
@@ -14,98 +12,76 @@
 
   --transparent: transparent;
 
-  /* Surfaces */
-  --canvas: #e9e0d2;
-  --chrome: #f7eede;
-  --paper: #fcf6ed;
-  --panel: #f7eddd;
+  /* Neutral foundation: receding canvas through raised content. */
+  --surface-canvas: #e3d6c3;
+  --surface-chrome: #ece0cf;
+  --surface-panel: #f4e9d9;
+  --surface-paper: #fcf6ed;
+  --surface-raised: #fffaf3;
 
-  /* Text and structure */
-  --ink: #13130f;
-  --soft: #474840;
-  --muted: #625a50;
-  --line: #cfbfa8;
-  --line-strong: #aa9479;
+  --text-primary: #17150f;
+  --text-secondary: #474036;
+  --text-muted: #5a5147;
+  --text-faint: #7f7467;
+  --text-inverse: #fff8ee;
 
-  /* Accent families: base, soft surface, readable text and structural border */
-  --gold: #a06a17;
+  --border-subtle: #d5c1a6;
+  --border-default: #b79b78;
+  --border-strong: #806447;
+
+  /* Brand and primary interaction. */
+  --gold: #965f10;
   --gold-soft: #f3d9af;
   --gold-text: #6c4204;
-  --gold-border: #956018;
+  --gold-border: #925c14;
 
+  /* Error, destructive actions and removed content. */
   --rose: #aa4643;
   --rose-soft: #f4d8d2;
   --rose-text: #732b2c;
-  --rose-border: #aa5a56;
+  --rose-border: #a5524e;
+  --rose-fill: var(--rose);
 
+  /* Success, confirmation and added content. */
   --moss: #4c644a;
   --moss-soft: #dde6d9;
   --moss-text: #304730;
-  --moss-border: #667b64;
+  --moss-border: #5c7159;
 
-  --focus: #21456a;
-  --focus-soft: #dce9f2;
-  --focus-text: #173d60;
-  --focus-border: #4b6f8d;
+  /* Focus, information, links and keyboard interaction. */
+  --ink-blue: #21456a;
+  --ink-blue-soft: #dce9f2;
+  --ink-blue-text: #173d60;
+  --ink-blue-border: #4b6f8d;
 
-  /* Destructive actions */
-  --danger: #8f2f25;
-  --danger-fill: #9b261b;
-  --danger-on: #fff8ee;
+  /* Warning only: deliberately vivid copper, never brand gold. */
+  --copper: #c03a00;
+  --copper-soft: #fff0e8;
+  --copper-text: #982000;
+  --copper-border: #b83200;
 
-  /* Controls and interaction */
-  --control-hint: rgb(19 19 15 / 0.035);
-  --control-hover: rgb(19 19 15 / 0.055);
-  --control-hover-subtle: rgb(19 19 15 / 0.035);
-  --active-surface: rgb(255 255 255 / 0.34);
-  --selection-surface: rgb(160 106 23 / 0.22);
-  --disabled-surface: rgb(71 72 64 / 0.08);
-  --disabled-content: rgb(71 72 64 / 0.48);
-  --table-highlight: rgb(160 106 23 / 0.08);
+  /* Interaction overlays. */
+  --state-hover-subtle: rgb(23 21 15 / 0.035);
+  --state-hover: rgb(23 21 15 / 0.06);
+  --state-active: rgb(23 21 15 / 0.09);
+  --state-selected: rgb(160 106 23 / 0.22);
+  --state-selected-subtle: rgb(160 106 23 / 0.08);
+  --state-disabled: rgb(71 64 54 / 0.08);
+  --state-disabled-content: rgb(71 64 54 / 0.48);
 
-  /* Translucent materials */
-  --material-toolbar: rgb(247 238 222 / 0.9);
-  --material-popover: rgb(252 246 237 / 0.96);
-  --material-sheet: rgb(247 237 221 / 0.98);
+  --material-toolbar: rgb(236 224 207 / 0.9);
+  --material-popover: rgb(255 250 243 / 0.96);
+  --material-sheet: rgb(252 246 237 / 0.98);
 
-  /* Depth */
-  --overlay: rgb(19 19 15 / 0.34);
-  --shadow-color: rgb(19 19 15 / 0.18);
-  --drawer-shadow: rgb(19 19 15 / 0.13);
-  --node-shadow: rgb(19 19 15 / 0.12);
+  --overlay: rgb(23 21 15 / 0.34);
+  --shadow-default: rgb(23 21 15 / 0.18);
+  --shadow-raised: rgb(23 21 15 / 0.13);
+  --shadow-node: rgb(23 21 15 / 0.12);
+  --shadow-warning: rgb(152 32 0 / 0.14);
 
-  /* Warning: deliberately burnt orange, not gold */
-  --warning-bg: #fff0e8;
-  --warning-border: #d86a28;
-  --warning-text: #7a2b0b;
-  --warning-shadow: rgb(122 43 11 / 0.14);
+  --minimap-mask: rgb(227 214 195 / 0.74);
 
-  /* Error */
-  --error-bg: #f5c9bf;
-  --error-border: #a75145;
-  --error-text: #5f1a14;
-
-  /* Diff */
-  --diff-add: #e6ecdf;
-  --diff-delete: #f3ddd9;
-  --diff-word-add: #bfd0b2;
-  --diff-word-delete: #e2b5ae;
-
-  /* Graph and minimap */
-  --minimap-node: #aa9479;
-  --minimap-person: var(--gold);
-  --minimap-animal: #4f7185;
-  --minimap-organisation: #735d80;
-  --minimap-object: #80644d;
-  --minimap-place: var(--moss);
-  --minimap-concept: var(--rose);
-  --minimap-mask: rgb(233 224 210 / 0.74);
-
-  --edge-label-bg: var(--paper);
-  --edge-label-text: var(--ink);
-  --attribution: #414039;
-
-  /* Printing remains independent of the active UI theme */
+  /* Printing is independent of the active UI theme. */
   --print-paper: #ffffff;
   --print-ink: #111111;
   --print-muted: #5d5a54;
@@ -114,94 +90,186 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* Surfaces */
-  --canvas: #050605;
-  --chrome: #110f0a;
-  --paper: #16120b;
-  --panel: #251c15;
+  --surface-canvas: #080806;
+  --surface-chrome: #12100c;
+  --surface-panel: #1d1711;
+  --surface-paper: #281f17;
+  --surface-raised: #34281e;
 
-  /* Text and structure */
-  --ink: #e9d6bb;
-  --soft: #b9a083;
-  --muted: #a78f74;
-  --line: #31251b;
-  --line-strong: #4a3b2d;
+  --text-primary: #ead9c0;
+  --text-secondary: #c5ad8f;
+  --text-muted: #baa285;
+  --text-faint: #8e7861;
+  --text-inverse: #17110b;
 
-  /* Accent families: base, soft surface, readable text and structural border */
-  --gold: #a16819;
-  --gold-soft: #2b2114;
-  --gold-text: #d0a45f;
-  --gold-border: #a87528;
+  --border-subtle: #3b2c21;
+  --border-default: #5b4533;
+  --border-strong: #a38465;
 
-  --rose: #a14a47;
-  --rose-soft: #331b1a;
-  --rose-text: #efaaa5;
-  --rose-border: #b05a56;
+  --gold: #b98225;
+  --gold-soft: #302316;
+  --gold-text: #e2b56f;
+  --gold-border: #b8863f;
 
-  --moss: #62694b;
-  --moss-soft: #20271d;
-  --moss-text: #b8c39e;
-  --moss-border: #7f8b67;
+  --rose: #b85c58;
+  --rose-soft: #351c1b;
+  --rose-text: #f0aaa5;
+  --rose-border: #c26f69;
+  --rose-fill: var(--rose-border);
 
-  --focus: #7eb1d5;
-  --focus-soft: #132735;
-  --focus-text: #b9dcf3;
-  --focus-border: #6d9ab9;
+  --moss: #77825d;
+  --moss-soft: #20281d;
+  --moss-text: #c5d1ab;
+  --moss-border: #8c9a71;
 
-  /* Destructive actions */
-  --danger: #df8271;
-  --danger-fill: #8c2619;
-  --danger-on: #fff1e1;
+  --ink-blue: #7eb1d5;
+  --ink-blue-soft: #132735;
+  --ink-blue-text: #c5e5fa;
+  --ink-blue-border: #79a9c8;
 
-  /* Controls and interaction */
-  --control-hint: rgb(233 214 187 / 0.035);
-  --control-hover: rgb(233 214 187 / 0.065);
-  --control-hover-subtle: rgb(233 214 187 / 0.04);
-  --active-surface: rgb(233 214 187 / 0.055);
-  --selection-surface: rgb(155 99 23 / 0.22);
-  --disabled-surface: rgb(156 134 105 / 0.08);
-  --disabled-content: rgb(156 134 105 / 0.5);
-  --table-highlight: rgb(155 99 23 / 0.1);
+  --copper: #f07832;
+  --copper-soft: #4b230f;
+  --copper-text: #ff9050;
+  --copper-border: #df6b28;
 
-  /* Translucent materials */
-  --material-toolbar: rgb(17 15 10 / 0.93);
-  --material-popover: rgb(37 28 21 / 0.97);
-  --material-sheet: rgb(22 18 11 / 0.98);
+  --state-hover-subtle: rgb(234 217 192 / 0.04);
+  --state-hover: rgb(234 217 192 / 0.07);
+  --state-active: rgb(234 217 192 / 0.1);
+  --state-selected: rgb(181 121 30 / 0.24);
+  --state-selected-subtle: rgb(181 121 30 / 0.1);
+  --state-disabled: rgb(170 146 118 / 0.08);
+  --state-disabled-content: rgb(170 146 118 / 0.5);
 
-  /* Depth */
+  --material-toolbar: rgb(18 16 12 / 0.93);
+  --material-popover: rgb(52 40 30 / 0.97);
+  --material-sheet: rgb(40 31 23 / 0.98);
+
   --overlay: rgb(0 0 0 / 0.68);
-  --shadow-color: rgb(0 0 0 / 0.5);
-  --drawer-shadow: rgb(0 0 0 / 0.42);
-  --node-shadow: rgb(0 0 0 / 0.44);
+  --shadow-default: rgb(0 0 0 / 0.5);
+  --shadow-raised: rgb(0 0 0 / 0.42);
+  --shadow-node: rgb(0 0 0 / 0.44);
+  --shadow-warning: rgb(0 0 0 / 0.36);
 
-  /* Warning: copper-orange, clearly separate from brass gold */
-  --warning-bg: #351b12;
-  --warning-border: #d56a2a;
-  --warning-text: #ffb187;
-  --warning-shadow: rgb(0 0 0 / 0.36);
+  --minimap-mask: rgb(8 8 6 / 0.82);
+}
 
-  /* Error */
-  --error-bg: #351714;
-  --error-border: #ad5b51;
-  --error-text: #f0a8a1;
+/* Semantic roles: components should depend on these rather than hue families. */
+:root {
+  --accent-primary: var(--gold);
+  --accent-primary-soft: var(--gold-soft);
+  --accent-primary-text: var(--gold-text);
+  --accent-primary-border: var(--gold-border);
+  --accent-fill: var(--gold-border);
+  --accent-on: var(--text-inverse);
 
-  /* Diff */
-  --diff-add: #1c281b;
-  --diff-delete: #321817;
-  --diff-word-add: #33462f;
-  --diff-word-delete: #5a2926;
+  --focus-ring: var(--ink-blue);
+  --focus-ring-offset-color: var(--surface-paper);
+  --focus-surface: var(--ink-blue-soft);
 
-  /* Graph and minimap */
-  --minimap-node: #8a755b;
-  --minimap-person: var(--gold-text);
-  --minimap-animal: #6f91a5;
-  --minimap-organisation: #9b84a8;
-  --minimap-object: #a27b58;
-  --minimap-place: #7c8762;
-  --minimap-concept: #c06662;
-  --minimap-mask: rgb(5 6 5 / 0.82);
+  --link: var(--ink-blue-text);
+  --link-hover: var(--ink-blue);
+  --link-visited: var(--ink-blue-text);
 
-  --edge-label-bg: var(--paper);
-  --edge-label-text: var(--ink);
-  --attribution: #9c8669;
+  --success-bg: var(--moss-soft);
+  --success-border: var(--moss-border);
+  --success-text: var(--moss-text);
+  --success-icon: var(--moss);
+
+  --info-bg: var(--ink-blue-soft);
+  --info-border: var(--ink-blue-border);
+  --info-text: var(--ink-blue-text);
+  --info-icon: var(--ink-blue);
+
+  --warning-bg: var(--copper-soft);
+  --warning-border: var(--copper-border);
+  --warning-text: var(--copper-text);
+  --warning-icon: var(--copper);
+  --warning-shadow: var(--shadow-warning);
+
+  --error-bg: var(--rose-soft);
+  --error-border: var(--rose-border);
+  --error-text: var(--rose-text);
+  --error-icon: var(--rose);
+
+  /* Destructive labels/icons need the readable text tone; fills are separate. */
+  --danger: var(--rose-text);
+  --danger-fill: var(--rose-fill);
+  --danger-on: var(--text-inverse);
+
+  --separator: var(--border-subtle);
+  --control-border: var(--border-strong);
+  --selection-border: var(--gold-border);
+  --selection-text: var(--text-primary);
+
+  --drop-target-surface: var(--ink-blue-soft);
+  --drop-target-border: var(--ink-blue-border);
+  --drop-target-text: var(--ink-blue-text);
+
+  --annotation-bg: var(--gold-soft);
+  --annotation-border: var(--gold-border);
+  --annotation-text: var(--gold-text);
+
+  --search-match-bg: var(--gold-soft);
+  --search-match-border: var(--gold-border);
+  --search-match-active: var(--gold);
+
+  --spelling-underline: var(--rose);
+  --grammar-underline: var(--ink-blue);
+  --style-underline: var(--gold);
+
+  --diff-add: var(--moss-soft);
+  --diff-add-text: var(--moss-text);
+  --diff-word-add: var(--moss-border);
+
+  --diff-delete: var(--rose-soft);
+  --diff-delete-text: var(--rose-text);
+  --diff-word-delete: var(--rose-border);
+
+  --diff-move: var(--ink-blue-soft);
+  --diff-move-text: var(--ink-blue-text);
+  --diff-word-move: var(--ink-blue-border);
+
+  /* Graph/minimap reuse the same hue families; kind is never encoded by color alone. */
+  --minimap-node: var(--border-strong);
+  --minimap-person: var(--gold);
+  --minimap-animal: var(--ink-blue-border);
+  --minimap-organisation: var(--ink-blue);
+  --minimap-object: var(--text-muted);
+  --minimap-place: var(--moss);
+  --minimap-concept: var(--rose);
+
+  --edge-label-bg: var(--surface-paper);
+  --edge-label-text: var(--text-primary);
+
+  /* Compatibility aliases. New component CSS should use the semantic names above. */
+  --canvas: var(--surface-canvas);
+  --chrome: var(--surface-chrome);
+  --panel: var(--surface-panel);
+  --paper: var(--surface-paper);
+
+  --ink: var(--text-primary);
+  --soft: var(--text-secondary);
+  --muted: var(--text-muted);
+  --attribution: var(--text-muted);
+
+  --line: var(--border-subtle);
+  --line-strong: var(--border-strong);
+
+  --focus: var(--ink-blue);
+  --focus-soft: var(--ink-blue-soft);
+  --focus-text: var(--ink-blue-text);
+  --focus-border: var(--ink-blue-border);
+
+  --control-hint: var(--state-hover-subtle);
+  --control-hover: var(--state-hover);
+  --control-hover-subtle: var(--state-hover-subtle);
+  --active-surface: var(--state-active);
+  --selection-surface: var(--state-selected);
+  --disabled-surface: var(--state-disabled);
+  --disabled-content: var(--state-disabled-content);
+  --table-highlight: var(--state-selected-subtle);
+
+  --shadow-color: var(--shadow-default);
+  --drawer-shadow: var(--shadow-raised);
+  --node-shadow: var(--shadow-node);
 }

@@ -38,7 +38,7 @@
   gap: var(--space-3);
 }
 .history-layout .history-state-button[aria-pressed="true"] {
-  background: var(--gold-soft);
+  background: var(--selection-surface);
 }
 .history-layout nav strong {
   font: 600 var(--font-size-3) var(--prose);
@@ -96,14 +96,14 @@
   gap: var(--space-8);
 }
 .diff-summary-button[aria-expanded="true"] {
-  border-color: var(--gold);
+  border-color: var(--selection-border);
 }
 .diff-kind {
   flex: none;
   padding: var(--space-2) var(--space-6);
   border-radius: var(--radius-pill);
-  background: var(--gold-soft);
-  color: var(--gold-text);
+  background: var(--accent-primary-soft);
+  color: var(--accent-primary-text);
   font-size: var(--font-size-1);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -127,7 +127,7 @@
 }
 .diff-segment h3 {
   margin: 0 0 var(--space-6);
-  color: var(--gold-text);
+  color: var(--accent-primary-text);
   font-size: var(--font-size-3);
 }
 .diff-note {

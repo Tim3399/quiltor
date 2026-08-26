@@ -1,8 +1,8 @@
 .ui-command-palette__search {
   display: flex;
   align-items: center;
-  gap: var(--space-10);
-  padding: 0 var(--space-12);
+  gap: var(--spacing-transition-field-choice-gap);
+  padding: 0 var(--spacing-regular-tight);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--paper);
@@ -33,16 +33,16 @@
 
 .ui-command-palette__results {
   display: grid;
-  gap: var(--space-3);
-  padding-top: var(--space-10);
+  gap: var(--spacing-optical-base);
+  padding-top: var(--spacing-transition-feedback-gap);
 }
 
 .ui-command-palette__option {
   min-height: var(--control-touch);
   display: flex;
   align-items: center;
-  gap: var(--space-10);
-  padding: var(--space-8) var(--space-10);
+  gap: var(--spacing-transition-control-gap-wide);
+  padding: var(--spacing-compact-wide) var(--spacing-transition-control-inline-base);
   border: 0;
   border-radius: var(--radius);
   background: var(--transparent);
@@ -100,7 +100,7 @@
 }
 
 .ui-command-palette__empty {
-  padding: var(--space-24);
+  padding: var(--spacing-section-tight);
   color: var(--muted);
   text-align: center;
 }

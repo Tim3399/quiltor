@@ -33,7 +33,7 @@
 .assistant-sources {
   margin-top: var(--space-9);
 }
-.assistant-sources .design-chip-list {
+.assistant-source-list {
   margin-top: var(--space-7);
 }
 .assistant-proposals {
@@ -122,7 +122,7 @@
   justify-content: flex-end;
   gap: var(--space-6);
 }
-.assistant-proposal-evidence .design-chip-list {
+.assistant-evidence-list {
   margin-top: var(--space-4);
 }
 .assistant-thinking {
@@ -136,7 +136,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--gold);
+  background: var(--accent-primary);
   animation: assistant-pulse var(--motion-pulse) infinite alternate;
 }
 .assistant-thinking span:nth-child(2) {

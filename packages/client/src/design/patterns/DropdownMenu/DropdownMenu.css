@@ -1,4 +1,18 @@
-.ui-dropdown-menu {
+.ui-dropdown-menu__surface {
+  min-width: var(--popover-min);
   max-height: min(420px, calc(100vh - var(--space-24)));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.ui-dropdown-menu__header {
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.ui-dropdown-menu {
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }

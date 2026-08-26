@@ -4,8 +4,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-12);
-  padding: 0 var(--space-10);
+  gap: var(--spacing-regular-tight);
+  padding: 0 var(--spacing-transition-field-control-inline);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--paper);
@@ -24,7 +24,7 @@
 
 .ui-select-control[data-size="touch"] {
   min-height: var(--control-touch);
-  padding-inline: var(--space-16);
+  padding-inline: var(--spacing-regular-wide);
 }
 
 .ui-select-control:hover,
@@ -58,18 +58,22 @@
 
 .ui-select-listbox {
   min-width: var(--popover-min);
+  max-height: min(420px, calc(100dvh - var(--space-24)));
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-6);
+  gap: var(--spacing-optical-base);
+  padding: var(--spacing-compact-tight);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .ui-select-listbox [role="option"] {
   min-height: var(--control-regular);
-  padding: 0 var(--space-10);
+  padding: 0 var(--spacing-transition-control-inline-base);
   border-radius: var(--radius-sm);
   background: var(--transparent);
   color: var(--ink);
   text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 

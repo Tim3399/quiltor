@@ -1,4 +1,5 @@
 import type { FieldsetHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import { ScrollArea } from "../ScrollArea";
 import "./WorkspaceToolbar.css";
 
 function classes(...values: Array<string | false | undefined>) {
@@ -40,7 +41,15 @@ export function WorkspaceToolbarTitle({
 }
 
 export function WorkspaceToolbarActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div {...props} className={classes("workspace-toolbar__actions", className)} />;
+  return (
+    <ScrollArea
+      {...props}
+      axis="x"
+      gutter="auto"
+      surface="panel"
+      className={classes("workspace-toolbar__actions", className)}
+    />
+  );
 }
 
 export function WorkspaceToolbarGroup({

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
@@ -17,6 +19,22 @@ const state: FigureState = {
 };
 
 describe("FigureInspector panels", () => {
+  it("keeps alias actions touch-sized and uses the semantic focus roles", () => {
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/story-world/figures/FigureInspector.css"),
+      "utf8",
+    );
+    const aliasActionRule = css.match(/\.alias-add\s*\{([^}]*)\}/s)?.[1];
+    const aliasFocusRule = css.match(/\.alias-add:focus-visible\s*\{([^}]*)\}/s)?.[1];
+
+    expect(aliasActionRule).toBeDefined();
+    expect(aliasActionRule).not.toMatch(/\bmin-height\s*:/);
+    expect(aliasFocusRule).toContain("border-color: var(--focus-ring)");
+    expect(aliasFocusRule).toContain("background: var(--focus-surface)");
+    expect(aliasFocusRule).toContain("color: var(--ink)");
+    expect(css).not.toMatch(/\.alias-input:focus-visible\s*\{/);
+  });
+
   it("keeps card priority changes inside the card panel contract", () => {
     const onPatch = vi.fn();
     render(

@@ -5,7 +5,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 9vh var(--space-20) var(--space-32);
+  padding: 9vh var(--space-20) var(--spacing-section-base);
   background: var(--overlay);
   backdrop-filter: blur(var(--blur-dialog));
 }
@@ -31,8 +31,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-12);
-  padding: var(--space-8) var(--space-16);
+  gap: var(--spacing-regular-tight);
+  padding: var(--spacing-compact-wide) var(--spacing-regular-wide);
   border-bottom: 1px solid var(--line);
 }
 
@@ -58,11 +58,11 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: var(--space-7);
+  gap: var(--spacing-compact-base);
 }
 
 .ui-dialog__footer {
-  padding: var(--space-12) var(--space-18) var(--space-18);
+  padding: var(--spacing-regular-tight) var(--space-18) var(--space-18);
 }
 
 /* Temporary styling for product dialogs that have not migrated to DialogFooter and Button yet. */
@@ -71,8 +71,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-7);
-  padding: 0 var(--space-10);
+  gap: var(--spacing-compact-base);
+  padding: 0 var(--spacing-transition-control-inline-base);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper);

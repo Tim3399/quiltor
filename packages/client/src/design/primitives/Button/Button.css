@@ -5,8 +5,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-7);
-  padding: 0 var(--space-12);
+  gap: var(--spacing-control-gap);
+  padding: 0 var(--spacing-control-inline);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper);
@@ -40,7 +40,7 @@
 
 .ui-button--compact {
   min-height: var(--control-compact);
-  padding-inline: var(--space-9);
+  padding-inline: var(--spacing-transition-control-inline-compact);
   border-radius: var(--radius-sm);
 }
 
@@ -50,7 +50,7 @@
 
 .ui-button--touch {
   min-height: var(--control-touch);
-  padding-inline: var(--space-16);
+  padding-inline: var(--spacing-control-inline-touch);
   border-radius: var(--radius-lg);
 }
 

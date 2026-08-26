@@ -44,8 +44,8 @@ export function createPlaceMeasurementEdges({
         distance,
       }),
       labelBgStyle: {
-        fill: pair.id === targeted?.id ? "var(--gold-soft)" : "var(--edge-label-bg)",
-        stroke: pair.id === targeted?.id ? "var(--gold-border)" : "var(--line)",
+        fill: pair.id === targeted?.id ? "var(--selection-surface)" : "var(--edge-label-bg)",
+        stroke: pair.id === targeted?.id ? "var(--selection-border)" : "var(--line)",
         strokeWidth: 1,
       },
       labelStyle: {

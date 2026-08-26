@@ -60,8 +60,8 @@ describe("place measurement graph", () => {
     expect(target).toMatchObject({
       className: "distance-edge is-targeted",
       labelBgStyle: {
-        fill: "var(--gold-soft)",
-        stroke: "var(--gold-border)",
+        fill: "var(--selection-surface)",
+        stroke: "var(--selection-border)",
       },
       labelStyle: { fontWeight: 700 },
     });

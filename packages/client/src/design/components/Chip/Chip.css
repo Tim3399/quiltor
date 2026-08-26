@@ -2,7 +2,7 @@
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-6);
+  gap: var(--spacing-compact-tight);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -18,8 +18,8 @@
   min-height: var(--control-compact);
   display: inline-flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-10);
+  gap: var(--spacing-optical-wide);
+  padding: 0 var(--spacing-transition-control-inline-base);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -52,7 +52,7 @@ button.design-chip:hover {
 }
 
 .design-chip--removable {
-  padding-inline-end: var(--space-2);
+  padding-inline-end: var(--spacing-optical-tight);
 }
 
 .design-chip__label {

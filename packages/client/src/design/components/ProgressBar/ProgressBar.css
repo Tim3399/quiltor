@@ -1,13 +1,13 @@
 .progress-component {
   min-width: 0;
   display: grid;
-  gap: var(--space-6);
+  gap: var(--spacing-compact-tight);
 }
 
 .progress-component__label {
   display: flex;
   justify-content: space-between;
-  gap: var(--space-10);
+  gap: var(--spacing-transition-feedback-gap);
   color: var(--muted);
   font-size: var(--font-size-3);
 }

@@ -1,16 +1,17 @@
 .design-toast-region {
   display: grid;
-  gap: var(--space-8);
+  gap: var(--spacing-feedback-stack);
   pointer-events: none;
 }
 
 .design-toast {
-  min-width: min(320px, calc(100vw - 2 * var(--space-16)));
-  max-width: min(480px, calc(100vw - 2 * var(--space-16)));
+  min-width: min(320px, calc(100vw - 2 * var(--spacing-regular-wide)));
+  max-width: min(480px, calc(100vw - 2 * var(--spacing-regular-wide)));
   display: flex;
   align-items: center;
-  gap: var(--space-10);
-  padding: var(--space-10) var(--space-12);
+  gap: var(--spacing-transition-feedback-gap);
+  padding: var(--spacing-transition-feedback-padding-block)
+    var(--spacing-feedback-padding-inline-compact);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--panel);
@@ -20,16 +21,33 @@
 }
 
 .design-toast--success {
-  border-color: var(--moss-border);
+  border-color: var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
 .design-toast--warning {
   border-color: var(--warning-border);
+  background: var(--warning-bg);
+  box-shadow:
+    inset var(--spacing-feedback-edge) 0 0 var(--warning-icon),
+    var(--elevation-3) var(--warning-shadow);
+  color: var(--warning-text);
 }
 
 .design-toast--danger {
   border-color: var(--error-border);
+  background: var(--error-bg);
+  box-shadow:
+    inset var(--spacing-feedback-edge) 0 0 var(--error-icon),
+    var(--elevation-3) var(--shadow-color);
   color: var(--error-text);
+}
+
+.design-toast--info {
+  border-color: var(--info-border);
+  background: var(--info-bg);
+  color: var(--info-text);
 }
 
 .design-toast__copy {
@@ -40,7 +58,7 @@
 
 .design-toast__copy strong {
   display: block;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--spacing-feedback-title-gap-compact);
 }
 
 .design-toast__action {

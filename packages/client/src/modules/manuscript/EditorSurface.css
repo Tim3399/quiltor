@@ -161,15 +161,15 @@
 }
 .prose-editor .text-search-match {
   border-radius: var(--radius-xs);
-  background: var(--gold-soft);
-  box-shadow: var(--ring-1) var(--gold-border);
+  background: var(--search-match-bg);
+  box-shadow: var(--ring-1) var(--search-match-border);
 }
 .prose-editor .text-search-match.is-active {
   background: var(--selection-surface);
-  box-shadow: var(--ring-2) var(--gold);
+  box-shadow: var(--ring-2) var(--search-match-active);
 }
 .prose-editor .entity-mention {
-  border-bottom: 1px solid var(--gold-border);
+  border-bottom: 1px solid var(--annotation-border);
   transition:
     background var(--motion-fast) ease,
     border-color var(--motion-fast) ease;
@@ -181,8 +181,8 @@
   font-style: italic;
 }
 .prose-editor .entity-mention:hover {
-  border-bottom-color: var(--gold);
-  background: var(--gold-soft);
+  border-bottom-color: var(--accent-primary);
+  background: var(--annotation-bg);
 }
 .prose-editor .cm-tooltip {
   border: 1px solid var(--line);
