@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Any, Literal
 
+from quiltor.domain.story_world.profile import normalize_profile
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
 
 DocumentKind = Literal["figures", "manuscript"]
@@ -145,7 +146,9 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                 continue
             profile = node.get("profile")
             if isinstance(profile, dict):
-                _canonical_note_reference_integers(profile)
+                normalized_profile = normalize_profile(profile, str(node.get("id", "")))
+                _canonical_note_reference_integers(normalized_profile)
+                node["profile"] = normalized_profile
 
     timeline = normalized.get("timeline")
     if isinstance(timeline, list):
@@ -237,6 +240,22 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
                 )
             ):
                 return False
+            fields = profile.get("fields")
+            if "fields" in profile:
+                if not isinstance(fields, list):
+                    return False
+                field_ids: set[str] = set()
+                for field in fields:
+                    if (
+                        not isinstance(field, dict)
+                        or not isinstance(field.get("id"), str)
+                        or not field["id"]
+                        or field["id"] in field_ids
+                        or not isinstance(field.get("key"), str)
+                        or not isinstance(field.get("value"), str)
+                    ):
+                        return False
+                    field_ids.add(field["id"])
 
     for edge in payload["edges"]:
         if edge.get("style", "solid") not in edge_styles:

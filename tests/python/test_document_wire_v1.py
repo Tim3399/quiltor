@@ -314,6 +314,186 @@ class DocumentWireV1Tests(unittest.TestCase):
                 )
                 self.assertEqual(decoded.payload["extension"]["source"], "contract-fixture")
 
+    def test_canonical_profile_fields_round_trip_with_extensions(self):
+        fixture = registered_fixture("application.story-world-wire")
+        profile = {
+            "notizen": "Mara kennt das Archiv.",
+            "noteReferences": [
+                {
+                    "id": "profile-reference-archive",
+                    "target": {"kind": "place", "id": "archive"},
+                    "from": 15,
+                    "to": 21,
+                    "surface": "Archiv",
+                }
+            ],
+            "futureProfileField": {"kept": True},
+            "fields": [
+                {
+                    "id": "profile-field-role",
+                    "key": "Rolle",
+                    "value": "Kartographin",
+                    "futureFieldData": {"source": "import"},
+                },
+                {
+                    "id": "profile-field-motive",
+                    "key": "Motiv",
+                    "value": "Wahrheit",
+                },
+            ],
+        }
+        fixture["payload"]["nodes"][0]["profile"] = deepcopy(profile)
+
+        decoded = decode_document_v1("figures", fixture)
+        self.assertEqual(decoded.payload["nodes"][0]["profile"], profile)
+        encoded = encode_document_v1("figures", decoded.payload, decoded.revision)
+        self.assertEqual(encoded["payload"]["nodes"][0]["profile"], profile)
+
+        decoded.payload["nodes"][0]["profile"]["fields"][0]["futureFieldData"]["source"] = "changed"
+        self.assertEqual(
+            fixture["payload"]["nodes"][0]["profile"]["fields"][0]["futureFieldData"],
+            {"source": "import"},
+        )
+
+    def test_legacy_profile_fields_normalize_deterministically_with_extensions(self):
+        fixture = registered_fixture("application.story-world-wire")
+        fixture["payload"]["nodes"][0]["profile"] = {
+            "alter": "32",
+            "rolle": "Kartographin",
+            "aussehen": "Reisemantel",
+            "herkunft": "Nordküste",
+            "stimme": "ruhig",
+            "notizen": "Mara kennt das Archiv.",
+            "noteReferences": [
+                {
+                    "id": "profile-reference-archive",
+                    "target": {"kind": "place", "id": "archive"},
+                    "from": 15,
+                    "to": 21,
+                    "surface": "Archiv",
+                }
+            ],
+            "extra": [
+                {
+                    "k": "Motiv",
+                    "v": "Wahrheit",
+                    "futureFieldData": {"source": "legacy-import"},
+                }
+            ],
+            "futureProfileField": {"kept": True},
+        }
+
+        decoded = decode_document_v1("figures", fixture)
+        profile = decoded.payload["nodes"][0]["profile"]
+        self.assertEqual(
+            profile,
+            {
+                "notizen": "Mara kennt das Archiv.",
+                "noteReferences": [
+                    {
+                        "id": "profile-reference-archive",
+                        "target": {"kind": "place", "id": "archive"},
+                        "from": 15,
+                        "to": 21,
+                        "surface": "Archiv",
+                    }
+                ],
+                "futureProfileField": {"kept": True},
+                "fields": [
+                    {
+                        "id": "profile-field:mara:legacy:alter",
+                        "key": "Alter",
+                        "value": "32",
+                    },
+                    {
+                        "id": "profile-field:mara:legacy:rolle",
+                        "key": "Rolle in der Geschichte",
+                        "value": "Kartographin",
+                    },
+                    {
+                        "id": "profile-field:mara:legacy:aussehen",
+                        "key": "Aussehen",
+                        "value": "Reisemantel",
+                    },
+                    {
+                        "id": "profile-field:mara:legacy:herkunft",
+                        "key": "Herkunft & Vorgeschichte",
+                        "value": "Nordküste",
+                    },
+                    {
+                        "id": "profile-field:mara:legacy:stimme",
+                        "key": "Stimme & Sprechweise",
+                        "value": "ruhig",
+                    },
+                    {
+                        "futureFieldData": {"source": "legacy-import"},
+                        "id": "profile-field:mara:extra:0",
+                        "key": "Motiv",
+                        "value": "Wahrheit",
+                    },
+                ],
+            },
+        )
+        self.assertNotIn("alter", profile)
+        self.assertNotIn("extra", profile)
+        self.assertEqual(
+            encode_document_v1("figures", decoded.payload, decoded.revision)["payload"]["nodes"][0][
+                "profile"
+            ],
+            profile,
+        )
+        self.assertIn("alter", fixture["payload"]["nodes"][0]["profile"])
+
+    def test_profile_field_ids_keys_and_values_are_strict(self):
+        invalid_fields = (
+            [
+                {"id": "duplicate", "key": "Rolle", "value": "Zeugin"},
+                {"id": "duplicate", "key": "Motiv", "value": "Wahrheit"},
+            ],
+            [{"id": "", "key": "Rolle", "value": "Zeugin"}],
+            [{"id": 7, "key": "Rolle", "value": "Zeugin"}],
+            [{"id": "field-role", "key": 7, "value": "Zeugin"}],
+            [{"id": "field-role", "key": "Rolle", "value": None}],
+        )
+        for fields in invalid_fields:
+            candidate = registered_fixture("application.story-world-wire")
+            candidate["payload"]["nodes"][0]["profile"] = {
+                "notizen": "",
+                "fields": fields,
+            }
+            with self.subTest(fields=fields), self.assertRaises(InvalidDocumentWireV1):
+                decode_document_v1("figures", candidate)
+
+        for invalid_extra in (None, [{"k": None, "v": "invalid"}]):
+            invalid_legacy_extra = registered_fixture("application.story-world-wire")
+            invalid_legacy_extra["payload"]["nodes"][0]["profile"]["extra"] = invalid_extra
+            with self.subTest(extra=invalid_extra), self.assertRaises(InvalidDocumentWireV1):
+                decode_document_v1("figures", invalid_legacy_extra)
+
+        canonical_with_valid_legacy_extra = registered_fixture("application.story-world-wire")
+        canonical_with_valid_legacy_extra["payload"]["nodes"][0]["profile"]["extra"] = [
+            {"k": "Ignored legacy", "v": "Canonical fields stay authoritative"}
+        ]
+        decoded = decode_document_v1("figures", canonical_with_valid_legacy_extra)
+        self.assertNotIn("extra", decoded.payload["nodes"][0]["profile"])
+
+    def test_legacy_profile_fields_support_long_owner_ids(self):
+        fixture = registered_fixture("application.story-world-wire")
+        owner_id = "owner" * 120
+        fixture["payload"]["nodes"][0]["id"] = owner_id
+        fixture["payload"]["edges"][0]["from"] = owner_id
+        fixture["payload"]["edges"][0]["versions"][0]["from"] = owner_id
+        fixture["payload"]["presence"][0]["elementId"] = owner_id
+        profile = fixture["payload"]["nodes"][0]["profile"]
+        del profile["fields"]
+        profile["alter"] = "32"
+
+        decoded = decode_document_v1("figures", fixture)
+        expected_id = f"profile-field:{owner_id}:legacy:alter"
+        self.assertEqual(decoded.payload["nodes"][0]["profile"]["fields"][0]["id"], expected_id)
+        encoded = encode_document_v1("figures", decoded.payload, decoded.revision)
+        self.assertEqual(encoded["payload"]["nodes"][0]["profile"]["fields"][0]["id"], expected_id)
+
     def test_envelope_is_strict_and_versioned(self):
         fixture = registered_fixture("application.manuscript-wire")
         malformed = []

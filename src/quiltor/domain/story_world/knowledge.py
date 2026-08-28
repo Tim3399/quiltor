@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Any
+
+from quiltor.domain.story_world.profile import normalize_profile
 
 
 @dataclass(frozen=True)
@@ -81,21 +83,16 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                 )
             )
     for node in nodes:
-        profile = node.get("profile") or {}
+        profile = normalize_profile(node.get("profile"), str(node.get("id", "")))
         profile_lines = [
             f"Art: {node.get('type', 'person')}",
             f"Rolle/Kategorie: {_clean(node.get('label'))}",
             f"Kurzbeschreibung: {_clean(node.get('sub'))}",
-            f"Alter: {_clean(profile.get('alter'))}",
-            f"Rolle: {_clean(profile.get('rolle'))}",
-            f"Aussehen: {_clean(profile.get('aussehen'))}",
-            f"Herkunft: {_clean(profile.get('herkunft'))}",
-            f"Stimme: {_clean(profile.get('stimme'))}",
             f"Notizen: {_clean(profile.get('notizen'))}",
         ]
         profile_lines.extend(
-            f"{_clean(field.get('k'))}: {_clean(field.get('v'))}"
-            for field in profile.get("extra") or []
+            f"{_clean(field.get('key'))}: {_clean(field.get('value'))}"
+            for field in profile.get("fields") or []
         )
         text = "\n".join(line for line in profile_lines if not line.endswith(": "))
         chunks.append(

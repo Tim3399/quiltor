@@ -84,7 +84,13 @@ describe("assistant proposals", () => {
           name: "Mara",
           type: "person",
           profile: {
-            rolle: "Zeugin",
+            fields: [
+              {
+                id: "profile-field:mara:legacy:rolle",
+                key: "Rolle in der Geschichte",
+                value: "Zeugin",
+              },
+            ],
             notizen: "Mara kennt das Archiv.",
             noteReferences: [
               {
@@ -108,7 +114,13 @@ describe("assistant proposals", () => {
     );
 
     expect(result.nodes[0].profile).toMatchObject({
-      rolle: "Heldin",
+      fields: [
+        {
+          id: "profile-field:mara:legacy:rolle",
+          key: "Rolle in der Geschichte",
+          value: "Heldin",
+        },
+      ],
       notizen: "Mara kennt das Archiv.",
       noteReferences: state.nodes[0].profile?.noteReferences,
     });
@@ -156,5 +168,46 @@ describe("assistant proposals", () => {
       notizen: "Mara kennt das neue Archiv.",
       noteReferences: [],
     });
+  });
+
+  it("merges canonical profile fields without duplicate ids or losing extensions", () => {
+    const state: FigureState = {
+      nodes: [
+        {
+          id: "mara",
+          x: 0,
+          y: 0,
+          name: "Mara",
+          profile: {
+            fields: [{ id: "role", key: "Rolle", value: "Zeugin", source: "manual" }],
+          },
+        },
+      ],
+      edges: [],
+    };
+
+    const result = applyAssistantProposals(
+      state,
+      [
+        {
+          kind: "update_element",
+          elementId: "mara",
+          patch: {
+            profile: {
+              fields: [
+                { id: " role ", key: "Rolle", value: "Heldin" },
+                { id: "role", key: "Doppelt", value: "Ignorieren" },
+                { id: "   ", key: "Leer", value: "Ignorieren" },
+              ],
+            },
+          },
+        },
+      ],
+      t,
+    );
+
+    expect(result.nodes[0].profile?.fields).toEqual([
+      { id: "role", key: "Rolle", value: "Heldin", source: "manual" },
+    ]);
   });
 });

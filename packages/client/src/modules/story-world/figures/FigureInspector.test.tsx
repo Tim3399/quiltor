@@ -8,7 +8,14 @@ afterEach(cleanup);
 
 const state: FigureState = {
   nodes: [
-    { id: "ada", x: 0, y: 0, name: "Ada", type: "person", profile: { extra: [] } },
+    {
+      id: "ada",
+      x: 0,
+      y: 0,
+      name: "Ada",
+      type: "person",
+      profile: { fields: [{ id: "age", key: "Alter", value: "" }] },
+    },
     { id: "bela", x: 300, y: 0, name: "Bela", type: "person" },
   ],
   edges: [{ id: "friends", from: "ada", to: "bela", label: "Freunde" }],
@@ -106,8 +113,12 @@ describe("FigureInspector", () => {
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "Steckbrief" }));
-    fireEvent.change(screen.getByLabelText("Alter"), { target: { value: "31" } });
-    expect(onPatch).toHaveBeenCalledWith({ profile: { extra: [], alter: "31" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Alter Inhalt" }), {
+      target: { value: "31" },
+    });
+    expect(onPatch).toHaveBeenCalledWith({
+      profile: { fields: [{ id: "age", key: "Alter", value: "31" }] },
+    });
 
     fireEvent.click(screen.getByRole("tab", { name: "Beziehungen" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Beziehung zu Bela" }), {

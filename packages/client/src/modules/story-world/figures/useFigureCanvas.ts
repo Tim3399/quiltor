@@ -262,7 +262,7 @@ export function useFigureCanvas({
         name: t(definition.initialName),
         sub: "",
         accent: "ink",
-        profile: { extra: [] },
+        profile: { fields: [] },
       };
       onChange({ ...state, nodes: [...state.nodes, node] });
       onSelectNode(node.id);

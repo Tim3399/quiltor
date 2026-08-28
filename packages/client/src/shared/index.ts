@@ -18,3 +18,13 @@ export {
   normalizeNoteReferenceSurface,
   worldReferenceKey,
 } from "./worldReference";
+export {
+  LEGACY_PROFILE_FIELD_KEYS,
+  LEGACY_PROFILE_FIELD_LABELS,
+  type LegacyProfileFieldKey,
+  type LegacyProfileFieldLabel,
+  type NormalizableProfile,
+  type NormalizableProfileField,
+  normalizeProfile,
+  normalizeProfileFields,
+} from "./profileNormalization";

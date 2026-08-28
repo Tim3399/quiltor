@@ -73,6 +73,7 @@ class _LiveServerTestCase(unittest.TestCase):
             inference=_UnavailableInference(),
             app_directories=self.directories,
         )
+        self.assertEqual(self.app.data_directory, root.resolve())
         self.app.bound_to_loopback = True
         self.app.assistant.progress = SQLiteAssistantProgressStore(
             root / "assistant-progress.sqlite3"

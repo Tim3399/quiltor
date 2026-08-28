@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from collections.abc import Mapping
 
+from quiltor.domain.story_world.profile import (
+    LEGACY_PROFILE_FIELDS,
+    legacy_extra_field_id,
+    legacy_profile_field_id,
+)
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.schema import SCHEMA_VERSION
 from quiltor.infrastructure.persistence.sqlite.temporal import migrate_legacy_state
@@ -89,6 +96,129 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
                 ORDER BY position
                 """
             )
+    if version < 10:
+        profile_tables = {
+            row[0]
+            for row in database.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name IN ('profiles','profile_fields')"
+            )
+        }
+        if profile_tables == {"profiles", "profile_fields"}:
+            profile_field_columns = {
+                row[1] for row in database.execute("PRAGMA table_info(profile_fields)")
+            }
+            if not {"field_id", "extra_json"} <= profile_field_columns:
+                database.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS profile_fields_v10 (
+                      figure_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+                      field_id TEXT NOT NULL,
+                      position INTEGER NOT NULL,
+                      label TEXT NOT NULL DEFAULT '',
+                      value TEXT NOT NULL DEFAULT '',
+                      extra_json TEXT NOT NULL DEFAULT '{}',
+                      PRIMARY KEY (figure_id, field_id),
+                      UNIQUE (figure_id, position)
+                    )
+                    """
+                )
+                for profile in database.execute(
+                    "SELECT figure_id,age,role,appearance,origin,voice,extra_json "
+                    "FROM profiles ORDER BY rowid"
+                ).fetchall():
+                    figure_id = profile[0]
+                    existing = database.execute(
+                        "SELECT label,value FROM profile_fields "
+                        "WHERE figure_id=? ORDER BY position",
+                        (figure_id,),
+                    ).fetchall()
+                    try:
+                        profile_extensions = json.loads(profile[6])
+                    except (TypeError, ValueError):
+                        profile_extensions = None
+                    has_canonical_fields = isinstance(profile_extensions, dict) and (
+                        "fields" in profile_extensions
+                    )
+                    canonical_fields = (
+                        profile_extensions.get("fields") if has_canonical_fields else None
+                    )
+                    if has_canonical_fields:
+                        if not isinstance(canonical_fields, list):
+                            raise ValueError("invalid canonical profile fields during migration")
+                        seen_ids: set[str] = set()
+                        migrated = []
+                        for field in canonical_fields:
+                            if (
+                                not isinstance(field, Mapping)
+                                or not isinstance(field.get("id"), str)
+                                or not field["id"]
+                                or field["id"] in seen_ids
+                                or not isinstance(field.get("key"), str)
+                                or not isinstance(field.get("value"), str)
+                            ):
+                                raise ValueError("invalid canonical profile field during migration")
+                            seen_ids.add(field["id"])
+                            migrated.append(
+                                (
+                                    field["id"],
+                                    field["key"],
+                                    field["value"],
+                                    json.dumps(
+                                        {
+                                            key: value
+                                            for key, value in field.items()
+                                            if key not in {"id", "key", "value"}
+                                        },
+                                        ensure_ascii=False,
+                                    ),
+                                )
+                            )
+                        del profile_extensions["fields"]
+                        database.execute(
+                            "UPDATE profiles SET extra_json=? WHERE figure_id=?",
+                            (
+                                json.dumps(profile_extensions, ensure_ascii=False),
+                                figure_id,
+                            ),
+                        )
+                    else:
+                        migrated = [
+                            (
+                                legacy_profile_field_id(figure_id, key),
+                                label,
+                                profile[column_index],
+                                "{}",
+                            )
+                            for (key, label), column_index in zip(
+                                LEGACY_PROFILE_FIELDS,
+                                range(1, 6),
+                                strict=True,
+                            )
+                            if profile[column_index]
+                        ]
+                        migrated.extend(
+                            (
+                                legacy_extra_field_id(figure_id, position),
+                                field[0],
+                                field[1],
+                                "{}",
+                            )
+                            for position, field in enumerate(existing)
+                        )
+                    database.executemany(
+                        "INSERT INTO profile_fields_v10("
+                        "figure_id,field_id,position,label,value,extra_json"
+                        ") VALUES(?,?,?,?,?,?)",
+                        [
+                            (figure_id, field_id, position, label, value, extra_json)
+                            for position, (field_id, label, value, extra_json) in enumerate(
+                                migrated
+                            )
+                        ],
+                    )
+                database.execute("DROP TABLE profile_fields")
+                database.execute("ALTER TABLE profile_fields_v10 RENAME TO profile_fields")
     database.execute(
         "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",
         (str(SCHEMA_VERSION),),

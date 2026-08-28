@@ -3,16 +3,31 @@ import type { NoteReference } from "../../shared";
 export interface ProfileExtra {
   k: string;
   v: string;
+  [key: string]: unknown;
+}
+
+export interface ProfileField {
+  id: string;
+  key: string;
+  value: string;
+  [key: string]: unknown;
 }
 
 export interface Profile {
+  fields?: ProfileField[];
+  /** @deprecated Legacy fixed fields remain readable until every persisted world is migrated. */
   alter?: string;
+  /** @deprecated Use fields. */
   rolle?: string;
+  /** @deprecated Use fields. */
   aussehen?: string;
+  /** @deprecated Use fields. */
   herkunft?: string;
+  /** @deprecated Use fields. */
   stimme?: string;
   notizen?: string;
   noteReferences?: NoteReference[];
+  /** @deprecated Legacy custom fields remain readable until every persisted world is migrated. */
   extra?: ProfileExtra[];
   [key: string]: unknown;
 }

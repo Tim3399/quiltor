@@ -38,6 +38,10 @@ const figures: FigureState = {
       x: 0,
       y: 0,
       aliases: [{ alias: "Die Kartografin" }],
+      profile: {
+        notizen: "Bewahrt die Seekarte.",
+        fields: [{ id: "motive", key: "Geheimnis", value: "Kennt die Sturmroute" }],
+      },
     },
     { id: "harbour", name: "Alter Hafen", type: "ort", x: 0, y: 0 },
   ],
@@ -72,6 +76,9 @@ describe("world reference index", () => {
       id: "mara",
     });
     expect(searchWorldReferences(candidates, "Kartografin")[0].target.id).toBe("mara");
+    expect(searchWorldReferences(candidates, "Seekarte")[0].target.id).toBe("mara");
+    expect(searchWorldReferences(candidates, "Geheimnis")[0].target.id).toBe("mara");
+    expect(searchWorldReferences(candidates, "Sturmroute")[0].target.id).toBe("mara");
     expect(searchWorldReferences(candidates, "Nebel")[0].target.id).toBe("c2");
     expect(searchWorldReferences(candidates, "Schiff").map((item) => item.target.id)).toEqual([
       "arrival",

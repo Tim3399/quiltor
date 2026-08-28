@@ -1,6 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
-import { expect, test } from "@playwright/test";
 import type { Manuscript } from "../../packages/client/src/modules/manuscript";
 import {
   decodeSavedManuscript,
@@ -10,11 +9,11 @@ import {
   fulfillRevisionConflict,
   fulfillStoryWorld,
 } from "./support/application-api";
+import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
-  const response = await page.request.post("/api/worlds/create", { data: { title, backupUrl } });
-  const payload = await response.json();
-  await page.goto(`/?world=${payload.world.id}`);
+  const world = await createTestWorld(page, title, backupUrl);
+  await page.goto(`/?world=${world.id}`);
   await waitForManuscriptReady(page);
 }
 
@@ -781,6 +780,39 @@ test("Schmale Leisten behalten dieselbe visuelle Reihenfolge wie die breite Ansi
   expect(workspaceNav).not.toBeNull();
   expect(globalTools).not.toBeNull();
   expect(globalTools!.x).toBeGreaterThanOrEqual(workspaceNav!.x + workspaceNav!.width);
+
+  const iconCenterOffsets = (
+    await Promise.all(
+      [
+        page.getByRole("navigation", { name: "Arbeitsbereich" }),
+        page.getByRole("toolbar", { name: "Globale Werkzeuge" }),
+      ].map((owner) =>
+        owner.getByRole("button").evaluateAll((buttons) =>
+          buttons.map((button) => {
+            const icon = button.querySelector<HTMLElement>(
+              ":scope > .ui-button__icon, :scope > .icon-button__icon",
+            );
+            if (!icon) throw new Error(`${button.getAttribute("aria-label")} hat kein Icon`);
+            const buttonBox = button.getBoundingClientRect();
+            const iconBox = icon.getBoundingClientRect();
+            return {
+              label: button.getAttribute("aria-label") ?? "Unbenannte Aktion",
+              x: iconBox.left + iconBox.width / 2 - (buttonBox.left + buttonBox.width / 2),
+              y: iconBox.top + iconBox.height / 2 - (buttonBox.top + buttonBox.height / 2),
+            };
+          }),
+        ),
+      ),
+    )
+  ).flat();
+  for (const offset of iconCenterOffsets) {
+    expect(Math.abs(offset.x), `${offset.label} ist horizontal nicht mittig`).toBeLessThanOrEqual(
+      0.5,
+    );
+    expect(Math.abs(offset.y), `${offset.label} ist vertikal nicht mittig`).toBeLessThanOrEqual(
+      0.5,
+    );
+  }
 
   const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
   const title = await manuscriptToolbar.locator(".workspace-toolbar__title").boundingBox();
@@ -1870,7 +1902,7 @@ test("Inhaltssuche und Befehle teilen eine Palette", async ({ page }) => {
   await expect(page.getByText("Nur Änderungen")).toBeVisible();
 });
 
-test("Notizreferenzen bleiben nach Umbenennung stabil und öffnen ihr Ziel", async ({
+test("Notizreferenzen und flexible Profilfelder bleiben nach Umbenennung stabil", async ({
   page,
 }, testInfo) => {
   test.setTimeout(40_000);
@@ -1879,11 +1911,8 @@ test("Notizreferenzen bleiben nach Umbenennung stabil und öffnen ihr Ziel", asy
     "Referenzpersistenz und Zielnavigation hängen nicht an der Fensterbreite.",
   );
 
-  const response = await page.request.post("/api/worlds/create", {
-    data: { title: `Notizreferenz ${crypto.randomUUID()}` },
-  });
-  const created = await response.json();
-  const worldId = encodeURIComponent(created.world.id);
+  const world = await createTestWorld(page, `Notizreferenz ${crypto.randomUUID()}`);
+  const worldId = encodeURIComponent(world.id);
   const initial = await page.request.get(`/api/state?world=${worldId}`);
   const revision = initial.headers().etag || '"0"';
   const saved = await page.request.put(`/api/state?world=${worldId}`, {
@@ -1897,7 +1926,13 @@ test("Notizreferenzen bleiben nach Umbenennung stabil und öffnen ihr Ziel", asy
             y: 120,
             type: "person",
             name: "Erzählerin",
-            profile: { notizen: "" },
+            profile: {
+              notizen: "",
+              fields: [
+                { id: "profile-age", key: "Alter", value: "42" },
+                { id: "profile-favourite-place", key: "Lieblingsort", value: "Nordhafen" },
+              ],
+            },
           },
           { id: "harbour", x: 480, y: 260, type: "ort", name: "Hafen" },
         ],
@@ -1929,6 +1964,14 @@ test("Notizreferenzen bleiben nach Umbenennung stabil und öffnen ihr Ziel", asy
   await expect(ownerNote).toContainText("Treffen mit Hafen");
   await expect(ownerNote.getByRole("button", { name: "Hafen", exact: true })).toBeVisible();
 
+  await expect(figureInspector.getByRole("textbox", { name: "Alter Inhalt" })).toHaveValue("42");
+  await expect(
+    figureInspector.getByRole("textbox", { name: "Feldname: Lieblingsort" }),
+  ).toHaveValue("Lieblingsort");
+  await expect(figureInspector.getByRole("textbox", { name: "Lieblingsort Inhalt" })).toHaveValue(
+    "Nordhafen",
+  );
+
   await page.getByRole("button", { name: "Orte", exact: true }).click();
   await page.locator(".places-workspace .story-node").filter({ hasText: "Hafen" }).click();
   const placeInspector = page.getByRole("complementary", { name: "Orte-Inspector" });
@@ -1939,12 +1982,17 @@ test("Notizreferenzen bleiben nach Umbenennung stabil und öffnen ihr Ziel", asy
   await renameDialog.getByRole("button", { name: "Abbrechen", exact: true }).click();
   await renameSave;
 
-  await page.reload();
-  await waitForManuscriptReady(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
   await page.locator(".story-node").filter({ hasText: "Erzählerin" }).click();
   await figureInspector.getByRole("tab", { name: "Steckbrief" }).click();
   await expect(ownerNote).toContainText("Treffen mit Hafen");
+  await expect(figureInspector.getByRole("textbox", { name: "Alter Inhalt" })).toHaveValue("42");
+  await expect(
+    figureInspector.getByRole("textbox", { name: "Feldname: Lieblingsort" }),
+  ).toHaveValue("Lieblingsort");
+  await expect(figureInspector.getByRole("textbox", { name: "Lieblingsort Inhalt" })).toHaveValue(
+    "Nordhafen",
+  );
 
   const persistedReference = ownerNote.getByRole("button", { name: "Nordhafen", exact: true });
   await expect(persistedReference).toBeVisible();
@@ -2145,14 +2193,11 @@ test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async 
   // Der Test umfasst Seed, verzögertes Autosave und einen vollständigen Reload in drei Viewports.
   // Das zusätzliche Budget ersetzt kein Warten: der Persistenzschritt bleibt an die PUT-Response gebunden.
   test.setTimeout(45_000);
-  const response = await page.request.post("/api/worlds/create", {
-    data: { title: `Drag Regression ${crypto.randomUUID()}` },
-  });
-  const created = await response.json();
+  const world = await createTestWorld(page, `Drag Regression ${crypto.randomUUID()}`);
   // Both calls name the world, exactly as the focused platform/http adapters do for every request:
   // creating a world no longer makes it the process's "active" one, so a request
   // that names none has no world at all and is answered with a 400.
-  const initial = await page.request.get(`/api/state?world=${created.world.id}`);
+  const initial = await page.request.get(`/api/state?world=${world.id}`);
   const revision = initial.headers()["etag"] || '"0"';
   const nodes = Array.from({ length: 12 }, (_, index) => ({
     id: `n${index}`,
@@ -2168,12 +2213,12 @@ test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async 
     label: `Beziehung ${index}`,
     gerichtet: index % 2 === 0,
   }));
-  const saved = await page.request.put(`/api/state?world=${encodeURIComponent(created.world.id)}`, {
+  const saved = await page.request.put(`/api/state?world=${encodeURIComponent(world.id)}`, {
     headers: { "If-Match": revision },
     data: encodeStoryWorldDocument({ nodes, edges }, Number(revision.replaceAll('"', ""))),
   });
   expect(saved.ok()).toBeTruthy();
-  await page.goto(`/?world=${created.world.id}`);
+  await page.goto(`/?world=${world.id}`);
   await waitForManuscriptReady(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
   await expect(page.locator(".story-node")).toHaveCount(12);
@@ -2589,6 +2634,37 @@ test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", 
   expect(results.violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("dark-text.png"), fullPage: true });
   await page.getByRole("button", { name: "Figuren" }).click();
+  await expect(page.locator(".react-flow__controls-button")).toHaveCount(4);
+  const graphControlTheme = await page
+    .locator(".react-flow__controls-button")
+    .evaluateAll((buttons) => {
+      const probe = document.createElement("span");
+      probe.style.background = "var(--paper)";
+      probe.style.color = "var(--ink)";
+      document.body.append(probe);
+      const expected = getComputedStyle(probe);
+      const expectedBackground = expected.backgroundColor;
+      const expectedColor = expected.color;
+      probe.remove();
+      return {
+        expectedBackground,
+        expectedColor,
+        buttons: buttons.map((button) => ({
+          label: button.getAttribute("aria-label") ?? "Unbenannte Kartensteuerung",
+          background: getComputedStyle(button).backgroundColor,
+          color: getComputedStyle(button).color,
+        })),
+      };
+    });
+  expect(graphControlTheme.buttons).toHaveLength(4);
+  for (const control of graphControlTheme.buttons) {
+    expect(control.background, `${control.label} hat keine Darkmode-Fläche`).toBe(
+      graphControlTheme.expectedBackground,
+    );
+    expect(control.color, `${control.label} hat keine Darkmode-Iconfarbe`).toBe(
+      graphControlTheme.expectedColor,
+    );
+  }
   results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
     .analyze();
@@ -2597,15 +2673,13 @@ test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", 
 });
 
 test("Startseite lädt eine Welt und übernimmt ihren variablen Titel", async ({ page }) => {
-  await page.request.post("/api/worlds/create", { data: { title: "Öffentliche Testwelt" } });
+  const title = `Öffentliche Testwelt ${crypto.randomUUID()}`;
+  await createTestWorld(page, title);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible();
-  await page
-    .getByRole("button", { name: "Öffentliche Testwelt – Welt öffnen", exact: true })
-    .last()
-    .click();
+  await page.getByRole("button", { name: `${title} – Welt öffnen`, exact: true }).click();
   await waitForManuscriptReady(page);
-  await expect(page.locator(".brand")).toContainText("Öffentliche Testwelt");
+  await expect(page.locator(".brand")).toContainText(title);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 });
 
@@ -2622,12 +2696,8 @@ test("Eine geöffnete Welt lässt sich über das globale Menü wieder verlassen"
 
 test("Welt lässt sich nur durch anhaltendes Halten lokal löschen", async ({ page }) => {
   const title = `Löschtest ${crypto.randomUUID()}`;
-  await page.request.post("/api/worlds/create", {
-    data: { title, backupUrl: "https://backup.example.com/remote-remains" },
-  });
-  await page.request.post("/api/worlds/create", {
-    data: { title: `Aktive Testwelt ${crypto.randomUUID()}` },
-  });
+  await createTestWorld(page, title, "https://backup.example.com/remote-remains");
+  await createTestWorld(page, `Aktive Testwelt ${crypto.randomUUID()}`);
   await page.goto("/");
   await page.getByRole("button", { name: `${title} – Welt löschen` }).click();
   await expect(page.getByRole("heading", { name: "Welt lokal löschen" })).toBeVisible();
@@ -2654,16 +2724,12 @@ test("Welt lässt sich nur durch anhaltendes Halten lokal löschen", async ({ pa
 
 test("Sprachwahl erfolgt ausschließlich in der Welt-Auswahl", async ({ page }) => {
   test.setTimeout(30_000);
-  await page.request.post("/api/worlds/create", {
-    data: { title: "Language Test World", backupUrl: "https://backup.example.com/language-test" },
-  });
+  const title = `Language Test World ${crypto.randomUUID()}`;
+  await createTestWorld(page, title, "https://backup.example.com/language-test");
   await page.goto("/");
   await page.getByRole("radio", { name: "English" }).click();
   await expect(page.getByRole("heading", { name: "Open a world" })).toBeVisible();
-  await page
-    .getByRole("button", { name: "Language Test World – Open a world", exact: true })
-    .last()
-    .click();
+  await page.getByRole("button", { name: `${title} – Open a world`, exact: true }).click();
   await waitForManuscriptReady(page, "Manuscript");
   await expect(
     page.locator(".workspace-switch").getByRole("button", { name: "Manuscript", exact: true }),

@@ -26,7 +26,11 @@ def _world():
                 "x": 0,
                 "y": 0,
                 "aliases": [{"alias": "Die Kartografin", "source": "manual"}],
-                "profile": {"rolle": "Navigatorin"},
+                "profile": {
+                    "fields": [
+                        {"id": "role", "key": "Rolle in der Geschichte", "value": "Navigatorin"}
+                    ]
+                },
             },
             {
                 "id": "ben",
@@ -163,7 +167,10 @@ class ReadToolExecutionTests(unittest.TestCase):
         self.assertTrue(resolution["ok"])
         self.assertEqual(resolution["result"]["resolvedId"], "ada")
         self.assertEqual(resolution["result"]["candidateCount"], 1)
-        self.assertEqual(entity["result"]["entity"]["profile"]["rolle"], "Navigatorin")
+        self.assertEqual(
+            entity["result"]["entity"]["profile"]["fields"],
+            [{"id": "role", "key": "Rolle in der Geschichte", "value": "Navigatorin"}],
+        )
         self.assertFalse(missing["ok"])
         self.assertEqual(missing["error"]["code"], "not_found")
 

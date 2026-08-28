@@ -7,7 +7,7 @@ from pathlib import Path
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -136,10 +136,13 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 CREATE TABLE IF NOT EXISTS profile_fields (
   figure_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,
+  field_id TEXT NOT NULL,
   position INTEGER NOT NULL,
   label TEXT NOT NULL DEFAULT '',
   value TEXT NOT NULL DEFAULT '',
-  PRIMARY KEY (figure_id, position)
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  PRIMARY KEY (figure_id, field_id),
+  UNIQUE (figure_id, position)
 );
 CREATE TABLE IF NOT EXISTS entity_aliases (
   element_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,

@@ -1,5 +1,6 @@
 import copy
 import json
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -452,7 +453,10 @@ class StorageTest(unittest.TestCase):
         self.assertTrue(manuscript["future"])
         self.assertEqual(manuscript["language"], "de-DE")
         self.assertEqual(manuscript["grammarMode"], "manual")
-        self.assertEqual(figures["nodes"][0]["profile"]["extra"][0]["k"], "Motiv")
+        self.assertEqual(
+            [(field["key"], field["value"]) for field in figures["nodes"][0]["profile"]["fields"]],
+            [("Rolle in der Geschichte", "Held"), ("Motiv", "Heimkehr")],
+        )
         self.assertEqual(
             figures["nodes"][0]["profile"]["noteReferences"][0]["target"],
             {"kind": "place", "id": "n2"},
@@ -800,9 +804,135 @@ class StorageTest(unittest.TestCase):
                         "WHERE figure_id='figure-ada' ORDER BY position"
                     )
                 ],
-                [(0, "Motiv", "Heimkehr")],
+                [
+                    (0, "Alter", "34"),
+                    (1, "Rolle in der Geschichte", "Protagonistin"),
+                    (2, "Aussehen", "Silberne Haarsträhne"),
+                    (3, "Herkunft & Vorgeschichte", "Nordhafen"),
+                    (4, "Stimme & Sprechweise", "ruhig"),
+                    (5, "Motiv", "Heimkehr"),
+                ],
             )
             self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_canonical_profile_fields_round_trip_edit_and_delete_without_fixed_columns(self):
+        schema.initialize()
+        state = {
+            "nodes": [
+                {
+                    "id": "figure-mara",
+                    "x": 12,
+                    "y": 24,
+                    "type": "person",
+                    "name": "Mara",
+                    "profile": {
+                        "notizen": "Mara kennt das Archiv.",
+                        "noteReferences": [
+                            {
+                                "id": "profile-reference-archive",
+                                "target": {"kind": "place", "id": "place-archive"},
+                                "from": 15,
+                                "to": 21,
+                                "surface": "Archiv",
+                            }
+                        ],
+                        "futureProfileField": {"kept": True},
+                        "fields": [
+                            {
+                                "id": "profile-field-role",
+                                "key": "Rolle",
+                                "value": "Zeugin",
+                                "futureFieldData": {"source": "import"},
+                            },
+                            {
+                                "id": "profile-field-motive",
+                                "key": "Motiv",
+                                "value": "Wahrheit",
+                            },
+                        ],
+                    },
+                },
+                {
+                    "id": "place-archive",
+                    "x": 240,
+                    "y": 24,
+                    "type": "ort",
+                    "name": "Archiv",
+                },
+            ],
+            "edges": [],
+        }
+
+        story_world.save(state)
+        profile = story_world.load()["nodes"][0]["profile"]
+        self.assertEqual(profile["notizen"], "Mara kennt das Archiv.")
+        self.assertEqual(profile["noteReferences"], state["nodes"][0]["profile"]["noteReferences"])
+        self.assertEqual(profile["futureProfileField"], {"kept": True})
+        self.assertEqual(profile["fields"], state["nodes"][0]["profile"]["fields"])
+
+        with sqlite_connection() as database:
+            self.assertEqual(
+                tuple(
+                    database.execute(
+                        "SELECT age,role,appearance,origin,voice,notes "
+                        "FROM profiles WHERE figure_id='figure-mara'"
+                    ).fetchone()
+                ),
+                ("", "", "", "", "", "Mara kennt das Archiv."),
+            )
+            rows = database.execute(
+                "SELECT rowid,field_id,position,label,value,extra_json "
+                "FROM profile_fields WHERE figure_id='figure-mara' ORDER BY position"
+            ).fetchall()
+            self.assertEqual(
+                [tuple(row)[1:5] for row in rows],
+                [
+                    ("profile-field-role", 0, "Rolle", "Zeugin"),
+                    ("profile-field-motive", 1, "Motiv", "Wahrheit"),
+                ],
+            )
+            self.assertEqual(json.loads(rows[0][5]), {"futureFieldData": {"source": "import"}})
+            retained_rowid = rows[0][0]
+
+        changed = story_world.load()
+        changed_profile = changed["nodes"][0]["profile"]
+        changed_profile["fields"] = [{**changed_profile["fields"][0], "value": "Hauptzeugin"}]
+        story_world.save(changed)
+
+        profile = story_world.load()["nodes"][0]["profile"]
+        self.assertEqual(
+            profile["fields"],
+            [
+                {
+                    "id": "profile-field-role",
+                    "key": "Rolle",
+                    "value": "Hauptzeugin",
+                    "futureFieldData": {"source": "import"},
+                }
+            ],
+        )
+        self.assertEqual(profile["noteReferences"], state["nodes"][0]["profile"]["noteReferences"])
+        self.assertEqual(profile["futureProfileField"], {"kept": True})
+        with sqlite_connection() as database:
+            self.assertEqual(
+                tuple(
+                    database.execute(
+                        "SELECT age,role,appearance,origin,voice,notes "
+                        "FROM profiles WHERE figure_id='figure-mara'"
+                    ).fetchone()
+                ),
+                ("", "", "", "", "", "Mara kennt das Archiv."),
+            )
+            rows = database.execute(
+                "SELECT rowid,field_id,position,label,value "
+                "FROM profile_fields WHERE figure_id='figure-mara' ORDER BY position"
+            ).fetchall()
+            self.assertEqual(
+                [tuple(row)[1:] for row in rows],
+                [("profile-field-role", 0, "Rolle", "Hauptzeugin")],
+            )
+            self.assertEqual(rows[0][0], retained_rowid)
+            self.assertEqual(database.execute("PRAGMA foreign_key_check").fetchall(), [])
 
     def test_figure_state_roundtrip_is_stable_across_repeated_saves(self):
         schema.initialize()
@@ -919,6 +1049,277 @@ class StorageTest(unittest.TestCase):
             )
             self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
 
+    def test_schema_v9_profiles_migrate_once_with_stable_fields_extensions_and_revisions(self):
+        legacy_db = config.DATA / "legacy-v9-profiles.sqlite3"
+        schema.initialize(legacy_db)
+        note_references = [
+            {
+                "id": "legacy-profile-reference",
+                "target": {"kind": "entity", "id": "legacy-figure"},
+                "from": 0,
+                "to": 4,
+                "surface": "Mara",
+            }
+        ]
+        with sqlite_connection(legacy_db) as database:
+            database.execute("DROP TABLE profile_fields")
+            database.execute(
+                "CREATE TABLE profile_fields("
+                "figure_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,"
+                "position INTEGER NOT NULL,"
+                "label TEXT NOT NULL DEFAULT '',"
+                "value TEXT NOT NULL DEFAULT '',"
+                "PRIMARY KEY(figure_id,position))"
+            )
+            database.execute("UPDATE meta SET value='9' WHERE key='schema_version'")
+            database.execute("UPDATE meta SET value='41' WHERE key='figures_revision'")
+            database.execute("UPDATE meta SET value='17' WHERE key='manuscript_revision'")
+            database.execute(
+                "INSERT INTO figures(id,position,x,y,kind,label,name,subtitle,accent,dashed,"
+                "pinned,extra_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    "legacy-figure",
+                    0,
+                    12.0,
+                    24.0,
+                    "person",
+                    "Zeugin",
+                    "Mara",
+                    "Archivarin",
+                    "ink",
+                    0,
+                    0,
+                    '{"legacyNodeField":true}',
+                ),
+            )
+            database.execute(
+                "INSERT INTO profiles(figure_id,age,role,appearance,origin,voice,notes,"
+                "extra_json) VALUES(?,?,?,?,?,?,?,?)",
+                (
+                    "legacy-figure",
+                    "62",
+                    "Zeugin",
+                    "",
+                    "Westen",
+                    "",
+                    "Mara kennt das Archiv.",
+                    json.dumps(
+                        {
+                            "noteReferences": note_references,
+                            "futureProfileField": {"kept": True},
+                        }
+                    ),
+                ),
+            )
+            database.execute(
+                "INSERT INTO profile_fields(figure_id,position,label,value) VALUES(?,?,?,?)",
+                ("legacy-figure", 0, "Erinnerung", "Der erste Sturm"),
+            )
+
+        schema.initialize(legacy_db)
+        expected_fields = [
+            {
+                "id": "profile-field:legacy-figure:legacy:alter",
+                "key": "Alter",
+                "value": "62",
+            },
+            {
+                "id": "profile-field:legacy-figure:legacy:rolle",
+                "key": "Rolle in der Geschichte",
+                "value": "Zeugin",
+            },
+            {
+                "id": "profile-field:legacy-figure:legacy:herkunft",
+                "key": "Herkunft & Vorgeschichte",
+                "value": "Westen",
+            },
+            {
+                "id": "profile-field:legacy-figure:extra:0",
+                "key": "Erinnerung",
+                "value": "Der erste Sturm",
+            },
+        ]
+        profile = story_world.load(db_path=legacy_db)["nodes"][0]["profile"]
+        self.assertEqual(profile["notizen"], "Mara kennt das Archiv.")
+        self.assertEqual(profile["noteReferences"], note_references)
+        self.assertEqual(profile["futureProfileField"], {"kept": True})
+        self.assertEqual(profile["fields"], expected_fields)
+        with sqlite_connection(legacy_db) as upgraded:
+            first_rows = [
+                tuple(row)
+                for row in upgraded.execute(
+                    "SELECT rowid,field_id,position,label,value,extra_json "
+                    "FROM profile_fields WHERE figure_id='legacy-figure' ORDER BY position"
+                )
+            ]
+            self.assertEqual(
+                [row[1:5] for row in first_rows],
+                [
+                    (
+                        field["id"],
+                        position,
+                        field["key"],
+                        field["value"],
+                    )
+                    for position, field in enumerate(expected_fields)
+                ],
+            )
+            self.assertTrue(all(row[5] == "{}" for row in first_rows))
+            self.assertEqual(
+                tuple(
+                    upgraded.execute(
+                        "SELECT age,role,appearance,origin,voice,notes,extra_json "
+                        "FROM profiles WHERE figure_id='legacy-figure'"
+                    ).fetchone()
+                ),
+                (
+                    "62",
+                    "Zeugin",
+                    "",
+                    "Westen",
+                    "",
+                    "Mara kennt das Archiv.",
+                    json.dumps(
+                        {
+                            "noteReferences": note_references,
+                            "futureProfileField": {"kept": True},
+                        }
+                    ),
+                ),
+            )
+            self.assertEqual(revisions.revision("figures", db_path=legacy_db), 41)
+            self.assertEqual(revisions.revision("manuscript", db_path=legacy_db), 17)
+
+        schema.initialize(legacy_db)
+        with sqlite_connection(legacy_db) as reopened:
+            second_rows = [
+                tuple(row)
+                for row in reopened.execute(
+                    "SELECT rowid,field_id,position,label,value,extra_json "
+                    "FROM profile_fields WHERE figure_id='legacy-figure' ORDER BY position"
+                )
+            ]
+            self.assertEqual(second_rows, first_rows)
+            self.assertEqual(
+                reopened.execute("SELECT COUNT(*) FROM profile_fields").fetchone()[0],
+                len(expected_fields),
+            )
+            self.assertEqual(revisions.revision("figures", db_path=legacy_db), 41)
+            self.assertEqual(revisions.revision("manuscript", db_path=legacy_db), 17)
+            self.assertEqual(reopened.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_schema_v9_preserves_authoritative_canonical_fields_from_profile_extensions(self):
+        schema.initialize()
+        canonical_fields = [
+            {
+                "id": "already-stable-role",
+                "key": "Rolle",
+                "value": "Zeugin",
+                "source": "early-client",
+            },
+            {"id": "already-stable-motive", "key": "Motiv", "value": "Wahrheit"},
+        ]
+        story_world.save(
+            {
+                "nodes": [
+                    {
+                        "id": "figure-early",
+                        "x": 0,
+                        "y": 0,
+                        "name": "Mara",
+                        "profile": {"fields": canonical_fields},
+                    }
+                ],
+                "edges": [],
+            }
+        )
+        with sqlite_connection() as database:
+            database.execute("DROP TABLE profile_fields")
+            database.execute(
+                "CREATE TABLE profile_fields("
+                "figure_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,"
+                "position INTEGER NOT NULL,label TEXT NOT NULL DEFAULT '',"
+                "value TEXT NOT NULL DEFAULT '',PRIMARY KEY(figure_id,position))"
+            )
+            database.execute(
+                "INSERT INTO profile_fields(figure_id,position,label,value) VALUES(?,?,?,?)",
+                ("figure-early", 0, "Legacy custom", "Must not reappear"),
+            )
+            database.execute(
+                "UPDATE profiles SET age='9',extra_json=? WHERE figure_id='figure-early'",
+                (json.dumps({"fields": canonical_fields, "future": {"kept": True}}),),
+            )
+            database.execute("UPDATE meta SET value='9' WHERE key='schema_version'")
+            database.execute("UPDATE meta SET value='23' WHERE key='figures_revision'")
+
+        schema.initialize()
+        profile = story_world.load()["nodes"][0]["profile"]
+        self.assertEqual(profile["fields"], canonical_fields)
+        self.assertEqual(profile["future"], {"kept": True})
+        with sqlite_connection() as database:
+            first_rows = [
+                tuple(row)
+                for row in database.execute(
+                    "SELECT rowid,field_id,position,label,value,extra_json "
+                    "FROM profile_fields ORDER BY position"
+                )
+            ]
+            self.assertEqual(
+                [row[1] for row in first_rows], [field["id"] for field in canonical_fields]
+            )
+            self.assertEqual(json.loads(first_rows[0][5]), {"source": "early-client"})
+            stored_extensions = json.loads(
+                database.execute(
+                    "SELECT extra_json FROM profiles WHERE figure_id='figure-early'"
+                ).fetchone()[0]
+            )
+            self.assertEqual(stored_extensions, {"future": {"kept": True}})
+            self.assertEqual(revisions.revision("figures"), 23)
+
+        schema.initialize()
+        with sqlite_connection() as database:
+            second_rows = [
+                tuple(row)
+                for row in database.execute(
+                    "SELECT rowid,field_id,position,label,value,extra_json "
+                    "FROM profile_fields ORDER BY position"
+                )
+            ]
+            self.assertEqual(second_rows, first_rows)
+            self.assertEqual(revisions.revision("figures"), 23)
+
+    def test_schema_v9_rejects_invalid_canonical_profile_fields_atomically(self):
+        schema.initialize()
+        story_world.save(
+            {
+                "nodes": [{"id": "figure-invalid", "x": 0, "y": 0, "name": "Mara"}],
+                "edges": [],
+            }
+        )
+        with sqlite_connection() as database:
+            database.execute("DROP TABLE profile_fields")
+            database.execute(
+                "CREATE TABLE profile_fields("
+                "figure_id TEXT NOT NULL REFERENCES figures(id) ON DELETE CASCADE,"
+                "position INTEGER NOT NULL,label TEXT NOT NULL DEFAULT '',"
+                "value TEXT NOT NULL DEFAULT '',PRIMARY KEY(figure_id,position))"
+            )
+            database.execute(
+                "UPDATE profiles SET extra_json=? WHERE figure_id='figure-invalid'",
+                (json.dumps({"fields": None}),),
+            )
+            database.execute("UPDATE meta SET value='9' WHERE key='schema_version'")
+
+        with self.assertRaisesRegex(ValueError, "invalid canonical profile fields"):
+            schema.initialize()
+        with sqlite_connection() as database:
+            columns = {row[1] for row in database.execute("PRAGMA table_info(profile_fields)")}
+            self.assertNotIn("field_id", columns)
+            self.assertEqual(
+                database.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0],
+                "9",
+            )
+
     def test_schema_v3_world_upgrades_and_accepts_stable_figure_saves(self):
         legacy_db = config.DATA / "legacy-v3.sqlite3"
         legacy_db.parent.mkdir(parents=True, exist_ok=True)
@@ -962,8 +1363,29 @@ class StorageTest(unittest.TestCase):
         loaded = story_world.load(db_path=legacy_db)
         self.assertTrue(loaded["nodes"][0]["legacyFlag"])
         self.assertEqual(
-            loaded["nodes"][0]["profile"]["extra"],
-            [{"k": "Erinnerung", "v": "Der erste Sturm"}],
+            loaded["nodes"][0]["profile"]["fields"],
+            [
+                {
+                    "id": "profile-field:legacy-figure:legacy:alter",
+                    "key": "Alter",
+                    "value": "62",
+                },
+                {
+                    "id": "profile-field:legacy-figure:legacy:rolle",
+                    "key": "Rolle in der Geschichte",
+                    "value": "Zeugin",
+                },
+                {
+                    "id": "profile-field:legacy-figure:legacy:herkunft",
+                    "key": "Herkunft & Vorgeschichte",
+                    "value": "Westen",
+                },
+                {
+                    "id": "profile-field:legacy-figure:extra:0",
+                    "key": "Erinnerung",
+                    "value": "Der erste Sturm",
+                },
+            ],
         )
         story_world.save(copy.deepcopy(loaded), db_path=legacy_db)
         normalized = story_world.load(db_path=legacy_db)
@@ -1417,20 +1839,36 @@ class StorageTest(unittest.TestCase):
     def test_world_deletion_removes_local_data_but_not_other_worlds(self):
         doomed = self.create_world("Delete me", "https://backup.example.com")
         survivor = self.create_world("Keep me")
-        backup = config.DATA / "backups" / doomed["id"]
-        history = config.DATA / "history" / doomed["id"]
-        backup.mkdir(parents=True)
-        history.mkdir(parents=True)
-        (backup / "snapshot.sqlite3").write_text("backup")
-        (history / "index.jsonl").write_text("{}\n")
+        roots = ("backups", "history", "manuscripts", "profiles")
+        for root in roots:
+            for world in (doomed, survivor):
+                directory = config.DATA / root / world["id"]
+                directory.mkdir(parents=True)
+                (directory / "sentinel.txt").write_text(world["title"])
+        doomed_database = config.WORLDS / f"{doomed['id']}.sqlite3"
+        survivor_database = config.WORLDS / f"{survivor['id']}.sqlite3"
+        for suffix in ("-wal", "-shm"):
+            Path(f"{doomed_database}{suffix}").write_text("doomed")
+            Path(f"{survivor_database}{suffix}").write_text("survivor")
 
         self.delete_world(doomed["id"])
 
-        self.assertFalse((config.WORLDS / f"{doomed['id']}.sqlite3").exists())
-        self.assertFalse(backup.exists())
-        self.assertFalse(history.exists())
-        self.assertTrue((config.WORLDS / f"{survivor['id']}.sqlite3").exists())
+        self.assertFalse(doomed_database.exists())
+        self.assertFalse(Path(f"{doomed_database}-wal").exists())
+        self.assertFalse(Path(f"{doomed_database}-shm").exists())
+        for root in roots:
+            self.assertFalse((config.DATA / root / doomed["id"]).exists())
+            self.assertTrue((config.DATA / root / survivor["id"] / "sentinel.txt").exists())
+        self.assertTrue(survivor_database.exists())
+        self.assertTrue(Path(f"{survivor_database}-wal").exists())
+        self.assertTrue(Path(f"{survivor_database}-shm").exists())
         self.assertEqual([world["title"] for world in self.list_worlds()], ["Keep me"])
+
+    def test_world_listing_ignores_sqlite_files_without_a_world_id(self):
+        world = self.create_world("Valid world")
+        shutil.copy2(self.world_db_path(world["id"]), config.WORLDS / "notes.sqlite3")
+
+        self.assertEqual([listed["id"] for listed in self.list_worlds()], [world["id"]])
 
     def test_list_worlds_filters_by_owner_sub(self):
         mine = self.create_world("Meine Welt", owner_sub="alice")
@@ -1460,6 +1898,22 @@ class StorageTest(unittest.TestCase):
         schema.initialize(path)
         self.assertEqual(self.world_owner(world["id"]), config.LOCAL_OWNER)
 
+    def test_current_empty_owner_is_treated_as_the_local_user(self):
+        world = self.create_world("Legacy local world", owner_sub="temporary")
+        path = self.world_db_path(world["id"])
+        with sqlite_connection(path) as database:
+            database.execute("UPDATE meta SET value='' WHERE key='owner_sub'")
+
+        self.assertEqual(self.world_owner(world["id"]), config.LOCAL_OWNER)
+        self.assertEqual(
+            [listed["id"] for listed in self.list_worlds(owner_sub=config.LOCAL_OWNER)],
+            [world["id"]],
+        )
+        self.assertEqual(self.list_worlds(owner_sub="temporary"), [])
+
+        self.delete_world(world["id"], owner_sub=config.LOCAL_OWNER)
+        self.assertFalse(path.exists())
+
     def test_create_world_stamps_owner_sub(self):
         world = self.create_world("Welt", owner_sub="alice")
         self.assertEqual(self.world_owner(world["id"]), "alice")
@@ -1476,6 +1930,8 @@ class StorageTest(unittest.TestCase):
         self.assertTrue((config.WORLDS / f"{world['id']}.sqlite3").exists())
         self.delete_world(world["id"], owner_sub="alice")
         self.assertFalse((config.WORLDS / f"{world['id']}.sqlite3").exists())
+        with self.assertRaises(FileNotFoundError):
+            self.delete_world(world["id"], owner_sub="alice")
 
     def test_explicit_db_paths_are_isolated_without_global_activation(self):
         world_a = self.create_world("A")

@@ -392,29 +392,29 @@ The current figure profile is useful but too prescriptive and the notes area is 
 
 ## Notes-first profile
 
-- [ ] Make Notes the only default long-form profile field.
-- [ ] Give Notes a much larger working area.
-- [ ] Add Focus Mode.
-- [ ] Keep Notes easy to reach from the entity inspector.
+- [x] Make Notes the only default long-form profile field.
+- [x] Give Notes a much larger working area.
+- [x] Add Focus Mode.
+- [x] Keep Notes easy to reach from the entity inspector.
 
 ## Flexible fields
 
-- [ ] Stop forcing all new entities to show:
+- [x] Stop forcing all new entities to show:
   - Age;
   - Role;
   - Appearance;
   - Background;
   - Voice.
-- [ ] Offer those fields as recommendations.
-- [ ] Use the same storage model for recommended and user-created fields.
-- [ ] Allow arbitrary named fields.
-- [ ] Allow optional fields to be removed.
-- [ ] Preserve existing 3.0.2 data during migration.
+- [x] Offer those fields as recommendations.
+- [x] Use the same storage model for recommended and user-created fields.
+- [x] Allow arbitrary named fields.
+- [x] Allow optional fields to be removed.
+- [x] Preserve existing 3.0.2 data during migration.
 
 ## Entity navigation
 
 - [ ] Add reference/backlink section.
-- [ ] Keep relationships and timeline history directly reachable.
+- [x] Keep relationships and timeline history directly reachable.
 - [ ] Consider an entity-centric view of relevant storyboard cards after Storyboard exists.
 
 ---

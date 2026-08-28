@@ -59,4 +59,21 @@ describe("StoryGraphCanvas", () => {
       /\.flow-area \.react-flow__attribution a\s*\{[^}]*min-width:\s*var\(--control-touch\);[^}]*min-height:\s*var\(--control-touch\);/s,
     );
   });
+
+  it("maps the third-party graph controls onto the active Quiltor theme", () => {
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/story-world/StoryGraph.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /\.flow-area \.react-flow\s*\{[^}]*--xy-controls-button-background-color:\s*var\(--paper\);[^}]*--xy-controls-button-background-color-hover:\s*var\(--panel\);[^}]*--xy-controls-button-color:\s*var\(--ink\);[^}]*--xy-controls-button-border-color:\s*var\(--line\);/s,
+    );
+    expect(css).toMatch(
+      /\.flow-area \.react-flow\s*\{[^}]*--xy-attribution-background-color:\s*var\(--paper\);[^}]*--xy-minimap-background-color:\s*var\(--panel\);/s,
+    );
+    expect(css).toMatch(
+      /\.flow-area \.react-flow__attribution a\s*\{[^}]*color:\s*var\(--attribution\);/s,
+    );
+  });
 });

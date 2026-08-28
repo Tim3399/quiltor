@@ -1,11 +1,10 @@
 import type { MessageKey } from "../../../i18n";
-import type { Profile } from "../model";
+import type { LegacyProfileFieldKey } from "../profile";
 
-export const PROFILE_FIELDS: Array<[keyof Profile, MessageKey, "short" | "long"]> = [
-  ["alter", "profileAge", "short"],
-  ["rolle", "profileRoleInStory", "long"],
-  ["aussehen", "profileAppearance", "long"],
-  ["herkunft", "profileBackground", "long"],
-  ["stimme", "profileVoice", "long"],
-  ["notizen", "profileNotes", "long"],
-];
+export const PROFILE_FIELD_TEMPLATES = [
+  { legacyKey: "alter", label: "profileAge" },
+  { legacyKey: "rolle", label: "profileRoleInStory" },
+  { legacyKey: "aussehen", label: "profileAppearance" },
+  { legacyKey: "herkunft", label: "profileBackground" },
+  { legacyKey: "stimme", label: "profileVoice" },
+] as const satisfies ReadonlyArray<{ legacyKey: LegacyProfileFieldKey; label: MessageKey }>;

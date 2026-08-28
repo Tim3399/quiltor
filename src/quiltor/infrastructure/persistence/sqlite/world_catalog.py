@@ -28,14 +28,18 @@ def get_world_owner(world_id: str, *, paths: config.SQLitePaths) -> str | None:
     try:
         with connection(path) as database:
             row = database.execute("SELECT value FROM meta WHERE key='owner_sub'").fetchone()
-        return row[0] if row else config.LOCAL_OWNER
+        return row[0] if row and row[0] else config.LOCAL_OWNER
     except sqlite3.Error:
         return None
 
 
 def list_worlds(owner_sub: str | None = None, *, paths: config.SQLitePaths) -> list[dict[str, str]]:
     paths.worlds.mkdir(parents=True, exist_ok=True)
-    candidates = [(path.stem, path) for path in sorted(paths.worlds.glob("*.sqlite3"))]
+    candidates = [
+        (path.stem, path)
+        for path in sorted(paths.worlds.glob("*.sqlite3"))
+        if WORLD_ID_RE.fullmatch(path.stem)
+    ]
     result = []
     for world_id, path in candidates:
         if not path.exists():
@@ -51,7 +55,8 @@ def list_worlds(owner_sub: str | None = None, *, paths: config.SQLitePaths) -> l
                 ).fetchone()
             if (
                 owner_sub is not None
-                and (owner_row[0] if owner_row else config.LOCAL_OWNER) != owner_sub
+                and (owner_row[0] if owner_row and owner_row[0] else config.LOCAL_OWNER)
+                != owner_sub
             ):
                 continue
             result.append(
@@ -146,15 +151,23 @@ def delete_world(
 
     if not WORLD_ID_RE.fullmatch(world_id):
         raise ValueError("Invalid world identifier.")
-    if owner_sub is not None and get_world_owner(world_id, paths=paths) != owner_sub:
-        raise PermissionError("This world belongs to a different account.")
     path = world_db_path(world_id, paths=paths)
     if not path.exists():
         raise FileNotFoundError("This world does not exist.")
-    for database_file in (path, Path(f"{path}-wal"), Path(f"{path}-shm")):
+    if owner_sub is not None and get_world_owner(world_id, paths=paths) != owner_sub:
+        raise PermissionError("This world belongs to a different account.")
+    for directory in (
+        paths.backups / world_id,
+        paths.data / "history" / world_id,
+        paths.data / "manuscripts" / world_id,
+        paths.data / "profiles" / world_id,
+    ):
+        try:
+            shutil.rmtree(directory)
+        except FileNotFoundError:
+            pass
+    for database_file in (Path(f"{path}-wal"), Path(f"{path}-shm"), path):
         database_file.unlink(missing_ok=True)
-    shutil.rmtree(paths.data / "backups" / world_id, ignore_errors=True)
-    shutil.rmtree(paths.data / "history" / world_id, ignore_errors=True)
 
 
 __all__ = [

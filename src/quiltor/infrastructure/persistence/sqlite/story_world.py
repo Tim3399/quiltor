@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from quiltor.domain.story_world.entity_resolution import normalize_entity_name
+from quiltor.domain.story_world.profile import LEGACY_PROFILE_FIELDS, normalize_profile
 from quiltor.infrastructure.persistence.sqlite import temporal, time_system
 from quiltor.infrastructure.persistence.sqlite.codec import decode_extra, encode_extra
 from quiltor.infrastructure.persistence.sqlite.connection import connection
@@ -60,16 +61,14 @@ def load(db_path: Path | None = None) -> dict[str, Any]:
             ).fetchone()
             if profile:
                 profile_state = decode_extra(profile["extra_json"])
-                profile_state.update(
-                    alter=profile["age"],
-                    rolle=profile["role"],
-                    aussehen=profile["appearance"],
-                    herkunft=profile["origin"],
-                    stimme=profile["voice"],
-                    notizen=profile["notes"],
-                )
-                profile_state["extra"] = [
-                    {"k": field["label"], "v": field["value"]}
+                profile_state["notizen"] = profile["notes"]
+                profile_state["fields"] = [
+                    {
+                        **decode_extra(field["extra_json"]),
+                        "id": field["field_id"],
+                        "key": field["label"],
+                        "value": field["value"],
+                    }
                     for field in database.execute(
                         """
                         SELECT * FROM profile_fields
@@ -331,58 +330,78 @@ def _sync(state: dict[str, Any], database: sqlite3.Connection) -> None:
         )
 
     for node in state.get("nodes", []):
-        profile = node.get("profile") or {}
+        profile = normalize_profile(node.get("profile"), node["id"])
         database.execute(
             """
             INSERT INTO profiles(
               figure_id, age, role, appearance, origin, voice, notes, extra_json
             ) VALUES(?,?,?,?,?,?,?,?)
             ON CONFLICT(figure_id) DO UPDATE SET
-              age=excluded.age,
-              role=excluded.role,
-              appearance=excluded.appearance,
-              origin=excluded.origin,
-              voice=excluded.voice,
               notes=excluded.notes,
               extra_json=excluded.extra_json
             """,
             (
                 node["id"],
-                profile.get("alter", ""),
-                profile.get("rolle", ""),
-                profile.get("aussehen", ""),
-                profile.get("herkunft", ""),
-                profile.get("stimme", ""),
+                "",
+                "",
+                "",
+                "",
+                "",
                 profile.get("notizen", ""),
                 encode_extra(
                     profile,
                     {
-                        "alter",
-                        "rolle",
-                        "aussehen",
-                        "herkunft",
-                        "stimme",
+                        *(key for key, _ in LEGACY_PROFILE_FIELDS),
                         "notizen",
                         "extra",
+                        "fields",
                     },
                 ),
             ),
         )
-        fields = profile.get("extra") or []
+        fields = profile.get("fields") or []
+        maximum_position = database.execute(
+            "SELECT COALESCE(MAX(position), -1) FROM profile_fields WHERE figure_id=?",
+            (node["id"],),
+        ).fetchone()[0]
+        if maximum_position >= 0:
+            database.execute(
+                "UPDATE profile_fields SET position=position+? WHERE figure_id=?",
+                (maximum_position + len(fields) + 2, node["id"]),
+            )
+        retained_field_ids: set[str] = set()
         for index, field in enumerate(fields):
+            field_id = field.get("id", "")
+            retained_field_ids.add(field_id)
             database.execute(
                 """
-                INSERT INTO profile_fields(figure_id, position, label, value)
-                VALUES(?,?,?,?)
-                ON CONFLICT(figure_id, position) DO UPDATE SET
+                INSERT INTO profile_fields(
+                  figure_id, field_id, position, label, value, extra_json
+                ) VALUES(?,?,?,?,?,?)
+                ON CONFLICT(figure_id, field_id) DO UPDATE SET
+                  position=excluded.position,
                   label=excluded.label,
-                  value=excluded.value
+                  value=excluded.value,
+                  extra_json=excluded.extra_json
                 """,
-                (node["id"], index, field.get("k", ""), field.get("v", "")),
+                (
+                    node["id"],
+                    field_id,
+                    index,
+                    field.get("key", ""),
+                    field.get("value", ""),
+                    encode_extra(field, {"id", "key", "value"}),
+                ),
             )
-        database.execute(
-            "DELETE FROM profile_fields WHERE figure_id=? AND position>=?",
-            (node["id"], len(fields)),
+        existing_field_ids = {
+            row[0]
+            for row in database.execute(
+                "SELECT field_id FROM profile_fields WHERE figure_id=?", (node["id"],)
+            )
+        }
+        database.executemany(
+            "DELETE FROM profile_fields WHERE figure_id=? AND field_id=?",
+            [(node["id"], field_id) for field_id in existing_field_ids - retained_field_ids],
         )
 
     valid_edges = [

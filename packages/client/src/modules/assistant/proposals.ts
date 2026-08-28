@@ -1,7 +1,19 @@
 import type { MessageKey } from "../../i18n";
 import { uid } from "../../shared/id";
-import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from "../story-world";
-import { insertTimelineMoment } from "../story-world";
+import type {
+  FigureEdge,
+  FigureNode,
+  FigureState,
+  Profile,
+  ProfileField,
+  TimelineMoment,
+} from "../story-world";
+import {
+  insertTimelineMoment,
+  LEGACY_PROFILE_FIELD_KEYS,
+  normalizeProfile,
+  normalizeProfileFields,
+} from "../story-world";
 import type { AssistantProposal } from "./model";
 
 const GRID_X = 288,
@@ -39,7 +51,7 @@ export function applyAssistantProposals(
         label: String(element.label || "").slice(0, 160),
         sub: String(element.sub || "").slice(0, 1000),
         accent: "ink",
-        profile: sanitizeProfile(element.profile),
+        profile: sanitizeProfile(element.profile, id),
         aliases: sanitizeAliases(element.aliases),
       };
       next.nodes.push(node);
@@ -60,7 +72,7 @@ export function applyAssistantProposals(
                 : {}),
               ...(proposal.patch.profile
                 ? {
-                    profile: applyProfilePatch(node.profile, proposal.patch.profile),
+                    profile: applyProfilePatch(node.profile, proposal.patch.profile, node.id),
                   }
                 : {}),
               ...(proposal.patch.aliases
@@ -208,28 +220,74 @@ export function scopeAssistantProposals(
   });
 }
 
-function sanitizeProfile(profile?: Record<string, unknown>) {
-  return { ...sanitizeProfilePatch(profile), extra: [] };
+function sanitizeProfile(profile: Record<string, unknown> | undefined, ownerId: string): Profile {
+  const patch = sanitizeProfilePatch(profile, ownerId);
+  return { ...patch, fields: patch.fields || [] };
 }
 
-function sanitizeProfilePatch(profile?: Record<string, unknown>) {
+function sanitizeProfilePatch(
+  profile: Record<string, unknown> | undefined,
+  ownerId: string,
+): Pick<Profile, "notizen" | "fields"> {
   if (!profile) return {};
-  const text = (key: string) =>
-    typeof profile[key] === "string" ? String(profile[key]).slice(0, 4000) : undefined;
-  return Object.fromEntries(
-    ["alter", "rolle", "aussehen", "herkunft", "stimme", "notizen"].flatMap((key) => {
-      const value = text(key);
-      return value === undefined ? [] : [[key, value]];
-    }),
-  );
+  const result: Pick<Profile, "notizen" | "fields"> = {};
+  if (typeof profile.notizen === "string") result.notizen = profile.notizen.slice(0, 4000);
+  if (Array.isArray(profile.fields)) {
+    const fields: ProfileField[] = [];
+    const seenIds = new Set<string>();
+    for (const candidate of profile.fields) {
+      if (
+        !candidate ||
+        typeof candidate !== "object" ||
+        typeof candidate.id !== "string" ||
+        typeof candidate.key !== "string" ||
+        typeof candidate.value !== "string"
+      )
+        continue;
+      const id = candidate.id.trim();
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      fields.push({
+        ...candidate,
+        id,
+        key: Array.from(candidate.key).slice(0, 160).join(""),
+        value: Array.from(candidate.value).slice(0, 4000).join(""),
+      });
+    }
+    result.fields = fields;
+    return result;
+  }
+  const legacy: Profile = {};
+  for (const key of LEGACY_PROFILE_FIELD_KEYS) {
+    if (typeof profile[key] === "string") legacy[key] = profile[key].slice(0, 4000);
+  }
+  const fields = normalizeProfileFields(legacy, ownerId);
+  if (fields.length) result.fields = fields;
+  return result;
 }
 
 function applyProfilePatch(
   current: FigureNode["profile"],
   patch: Record<string, unknown>,
+  ownerId: string,
 ): NonNullable<FigureNode["profile"]> {
-  const sanitized = sanitizeProfilePatch(patch);
-  const next = { ...(current || {}), ...sanitized };
+  const canonicalCurrent = normalizeProfile(current || {}, ownerId);
+  const sanitized = sanitizeProfilePatch(patch, ownerId);
+  const next = { ...canonicalCurrent };
+  if (sanitized.fields) {
+    const incoming = new Map(sanitized.fields.map((field) => [field.id, field]));
+    next.fields = [
+      ...(canonicalCurrent.fields || []).map((field) => {
+        const update = incoming.get(field.id);
+        return update ? { ...field, ...update } : field;
+      }),
+      ...sanitized.fields.filter(
+        (field) =>
+          !(canonicalCurrent.fields || []).some((currentField) => currentField.id === field.id),
+      ),
+    ];
+  }
+  if (typeof sanitized.notizen === "string") next.notizen = sanitized.notizen;
   if (typeof sanitized.notizen === "string" && sanitized.notizen !== current?.notizen) {
     next.noteReferences = [];
   }

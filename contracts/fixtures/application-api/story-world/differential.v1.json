@@ -66,36 +66,6 @@
       "null": "reject"
     },
     {
-      "id": "profile-age",
-      "path": "/payload/nodes/0/profile/alter",
-      "absent": "accept",
-      "null": "reject"
-    },
-    {
-      "id": "profile-role",
-      "path": "/payload/nodes/0/profile/rolle",
-      "absent": "accept",
-      "null": "reject"
-    },
-    {
-      "id": "profile-look",
-      "path": "/payload/nodes/0/profile/aussehen",
-      "absent": "accept",
-      "null": "reject"
-    },
-    {
-      "id": "profile-origin",
-      "path": "/payload/nodes/0/profile/herkunft",
-      "absent": "accept",
-      "null": "reject"
-    },
-    {
-      "id": "profile-voice",
-      "path": "/payload/nodes/0/profile/stimme",
-      "absent": "accept",
-      "null": "reject"
-    },
-    {
       "id": "profile-notes",
       "path": "/payload/nodes/0/profile/notizen",
       "alsoRemove": ["/payload/nodes/0/profile/noteReferences"],
@@ -109,8 +79,8 @@
       "null": "reject"
     },
     {
-      "id": "profile-extra",
-      "path": "/payload/nodes/0/profile/extra",
+      "id": "profile-fields",
+      "path": "/payload/nodes/0/profile/fields",
       "absent": "accept",
       "null": "reject"
     },
@@ -482,6 +452,26 @@
       "path": "/payload/nodes/0/aliases",
       "value": [{ "alias": "É" }, { "alias": "É" }],
       "expect": "accept"
+    },
+    {
+      "id": "profile-field-id-required",
+      "operation": "remove",
+      "path": "/payload/nodes/0/profile/fields/0/id",
+      "expect": "reject"
+    },
+    {
+      "id": "profile-field-key-string",
+      "operation": "set",
+      "path": "/payload/nodes/0/profile/fields/0/key",
+      "value": 32,
+      "expect": "reject"
+    },
+    {
+      "id": "profile-field-ids-unique",
+      "operation": "set",
+      "path": "/payload/nodes/0/profile/fields/1/id",
+      "value": "profile-field-age",
+      "expect": "reject"
     },
     {
       "id": "unknown-envelope-key",

@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "@playwright/test";
 import { fulfillDocumentSave, fulfillManuscript } from "./support/application-api";
+import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openChapter(page: Page) {
   await page.route("**/api/manuscript*", (route) =>
@@ -10,11 +10,8 @@ async function openChapter(page: Page) {
         })
       : fulfillDocumentSave(route, 1),
   );
-  const response = await page.request.post("/api/worlds/create", {
-    data: { title: "Kapiteltitel-Stiltest", backupUrl: "" },
-  });
-  const payload = await response.json();
-  await page.goto(`/?world=${payload.world.id}`);
+  const world = await createTestWorld(page, "Kapiteltitel-Stiltest");
+  await page.goto(`/?world=${world.id}`);
   await page.getByRole("textbox", { name: "Kapiteltitel" }).waitFor();
 }
 

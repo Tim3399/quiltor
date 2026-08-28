@@ -5,7 +5,7 @@ import {
   manuscriptStructure,
   orderedChapters,
 } from "../manuscript";
-import type { FigureKind, FigureState } from "../story-world";
+import { type FigureKind, type FigureState, normalizeProfile } from "../story-world";
 import type {
   StoryboardReferenceSource,
   WorldReferenceCandidate,
@@ -45,6 +45,7 @@ export function buildWorldReferenceCandidates({
   });
   const nodes = figures.nodes.map((node) => {
     const isPlace = node.type === "ort";
+    const profile = normalizeProfile(node.profile || {}, node.id);
     const target: WorldReferenceTarget = {
       kind: isPlace ? "place" : "entity",
       id: node.id,
@@ -58,9 +59,8 @@ export function buildWorldReferenceCandidates({
         node.sub ?? "",
         node.type ?? "person",
         ...(node.aliases ?? []).map((alias) => alias.alias),
-        ...Object.values(node.profile ?? {}).flatMap((value) =>
-          typeof value === "string" ? [value] : [],
-        ),
+        profile.notizen ?? "",
+        ...(profile.fields ?? []).flatMap((field) => [field.key, field.value]),
       ],
       isPlace ? "places" : "figures",
     );

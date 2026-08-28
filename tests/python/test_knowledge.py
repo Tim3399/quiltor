@@ -29,7 +29,15 @@ class KnowledgeTest(unittest.TestCase):
                     "y": 0,
                     "type": "person",
                     "name": "Mara",
-                    "profile": {"rolle": "Archivarin"},
+                    "profile": {
+                        "fields": [
+                            {
+                                "id": "role-mara",
+                                "key": "Rolle in der Geschichte",
+                                "value": "Archivarin",
+                            }
+                        ]
+                    },
                 },
                 {
                     "id": "iven",
@@ -37,7 +45,15 @@ class KnowledgeTest(unittest.TestCase):
                     "y": 1,
                     "type": "person",
                     "name": "Iven",
-                    "profile": {"rolle": "Regent"},
+                    "profile": {
+                        "fields": [
+                            {
+                                "id": "role-iven",
+                                "key": "Rolle in der Geschichte",
+                                "value": "Regent",
+                            }
+                        ]
+                    },
                 },
             ],
             "timeline": [{"id": "crown", "title": "Krönung", "date": "1421-03-14"}],

@@ -120,7 +120,7 @@ export function usePlaceCanvas({
         mapX: center.x,
         mapY: center.y,
         accent: "ink",
-        profile: { extra: [] },
+        profile: { fields: [] },
       };
       const next = { ...current, nodes: [...current.nodes, place] };
       latestState.current = next;

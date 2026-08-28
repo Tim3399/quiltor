@@ -14,6 +14,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 from quiltor.application.story_world.queries import StoryWorldQueries
 from quiltor.application.story_world.use_cases import StoryWorldUseCases
+from quiltor.domain.story_world.profile import normalize_profile
 
 ReadToolName = Literal[
     "resolve_entity",
@@ -352,24 +353,25 @@ def _entity_view(node: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
             alias_views.append({"alias": alias, "source": source})
             truncated = truncated or alias_cut or source_cut
     result["aliases"] = alias_views
-    profile = node.get("profile")
-    if isinstance(profile, Mapping):
+    raw_profile = node.get("profile")
+    if isinstance(raw_profile, Mapping):
+        profile = normalize_profile(raw_profile, str(node.get("id", "")))
         profile_view: dict[str, Any] = {}
-        for key in ("alter", "rolle", "aussehen", "herkunft", "stimme", "notizen"):
-            if key in profile:
-                profile_view[key], clipped = _clipped(profile[key], 1_000)
-                truncated = truncated or clipped
-        extras = profile.get("extra") or []
-        if isinstance(extras, list):
-            truncated = truncated or len(extras) > MAX_ENTITY_ALIASES
-            profile_view["extra"] = []
-            for field in extras[:MAX_ENTITY_ALIASES]:
+        if "notizen" in profile:
+            profile_view["notizen"], clipped = _clipped(profile["notizen"], 1_000)
+            truncated = truncated or clipped
+        fields = profile.get("fields") or []
+        if isinstance(fields, list):
+            truncated = truncated or len(fields) > MAX_ENTITY_ALIASES
+            profile_view["fields"] = []
+            for field in fields[:MAX_ENTITY_ALIASES]:
                 if not isinstance(field, Mapping):
                     continue
-                label, label_cut = _clipped(field.get("k"), MAX_MENTION_LENGTH)
-                content, content_cut = _clipped(field.get("v"), 1_000)
-                profile_view["extra"].append({"k": label, "v": content})
-                truncated = truncated or label_cut or content_cut
+                field_id, id_cut = _clipped(field.get("id"), MAX_IDENTIFIER_LENGTH)
+                label, label_cut = _clipped(field.get("key"), MAX_MENTION_LENGTH)
+                content, content_cut = _clipped(field.get("value"), 1_000)
+                profile_view["fields"].append({"id": field_id, "key": label, "value": content})
+                truncated = truncated or id_cut or label_cut or content_cut
         result["profile"] = profile_view
     return result, truncated
 

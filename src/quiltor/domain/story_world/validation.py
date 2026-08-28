@@ -9,6 +9,7 @@ from quiltor.domain.story_world.entity_resolution import normalize_entity_name
 
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 NOTE_REFERENCE_KINDS = {"entity", "place", "timeline", "chapter", "storyboard"}
+LEGACY_PROFILE_KEYS = ("alter", "rolle", "aussehen", "herkunft", "stimme")
 
 
 def _valid_note_references(owner: dict[str, Any], note_key: str) -> bool:
@@ -56,6 +57,44 @@ def _valid_note_references(owner: dict[str, Any], note_key: str) -> bool:
     return True
 
 
+def _valid_profile(profile: Any) -> bool:
+    if not isinstance(profile, dict) or not _valid_note_references(profile, "notizen"):
+        return False
+    if any(
+        key in profile and not isinstance(profile[key], str)
+        for key in (*LEGACY_PROFILE_KEYS, "notizen")
+    ):
+        return False
+    extras = profile.get("extra")
+    if "extra" in profile and (
+        not isinstance(extras, list)
+        or any(
+            not isinstance(field, dict)
+            or not isinstance(field.get("k"), str)
+            or not isinstance(field.get("v"), str)
+            for field in extras
+        )
+    ):
+        return False
+    fields = profile.get("fields")
+    if "fields" not in profile:
+        return True
+    if not isinstance(fields, list):
+        return False
+    field_ids: list[str] = []
+    for field in fields:
+        if (
+            not isinstance(field, dict)
+            or not isinstance(field.get("id"), str)
+            or not field["id"]
+            or not isinstance(field.get("key"), str)
+            or not isinstance(field.get("value"), str)
+        ):
+            return False
+        field_ids.append(field["id"])
+    return len(field_ids) == len(set(field_ids))
+
+
 def valid_figures(payload: Any) -> bool:
     if (
         not isinstance(payload, dict)
@@ -82,10 +121,8 @@ def valid_figures(payload: Any) -> bool:
             return False
         ids.append(node["id"])
         kinds[node["id"]] = node.get("type", "person")
-        if "profile" in node:
-            profile = node["profile"]
-            if not isinstance(profile, dict) or not _valid_note_references(profile, "notizen"):
-                return False
+        if "profile" in node and not _valid_profile(node["profile"]):
+            return False
         aliases = node.get("aliases")
         if "aliases" in node:
             if not isinstance(aliases, list):

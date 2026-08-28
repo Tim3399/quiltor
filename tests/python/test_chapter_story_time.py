@@ -290,7 +290,7 @@ class ChapterStoryTimeMigrationTests(unittest.TestCase):
                     "chapters_story_time_end",
                 },
             )
-            self.assertEqual(metadata["schema_version"], "9")
+            self.assertEqual(metadata["schema_version"], str(schema.SCHEMA_VERSION))
             self.assertEqual(metadata["manuscript_revision"], "12")
             self.assertEqual(metadata["figures_revision"], "9")
 

@@ -13,6 +13,7 @@ export type {
   PresenceEntry,
   Profile,
   ProfileExtra,
+  ProfileField,
   RelationshipVersion,
   TimelineMoment,
   TimeSystem,
@@ -21,9 +22,17 @@ export type {
   WorldInfo,
 } from "./model";
 export type { PlacesWorkspaceProps } from "./places/PlacesWorkspace";
+export {
+  LEGACY_PROFILE_FIELD_KEYS,
+  LEGACY_PROFILE_FIELD_LABELS,
+  type LegacyProfileFieldKey,
+  type LegacyProfileFieldLabel,
+  normalizeProfile,
+  normalizeProfileFields,
+} from "./profile";
 export { canonicalTimelineOrder, insertTimelineMoment } from "./timeline/order";
-export { normalizeTimeSystem } from "./timeline/timeSystem";
 export { momentBoundaryTimeLabel, momentTimeLabel } from "./timeline/timelinePresentation";
+export { normalizeTimeSystem } from "./timeline/timeSystem";
 export { WorldGate } from "./worlds/WorldGate";
 
 export const loadFigureWorkspace = () =>

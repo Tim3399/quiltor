@@ -72,6 +72,7 @@ class _LiveAuthServerTestCase(unittest.TestCase):
             client_secret="s3cret",
         )
         self.application = _build_test_application(selected_identity, self.directories)
+        self.assertEqual(self.application.data_directory, root.resolve())
         self.application.prepare()
         self.auth = self.application.identity.auth
         self.application.identity.render_tokens.clear()

@@ -1,5 +1,9 @@
 import type { FigureState } from "../../../modules/story-world";
-import { ENTITY_ALIAS_NORMALIZATION_V1, normalizeEntityAliasV1 } from "../../../shared";
+import {
+  ENTITY_ALIAS_NORMALIZATION_V1,
+  normalizeEntityAliasV1,
+  normalizeProfile,
+} from "../../../shared";
 import {
   type DecodedDocumentV1,
   type DocumentEnvelopeWireV1,
@@ -39,6 +43,7 @@ export interface ProfileWireV1 {
   notizen?: string;
   noteReferences?: NoteReferenceWireV1[];
   extra?: Array<{ k: string; v: string; [key: string]: unknown }>;
+  fields?: Array<{ id: string; key: string; value: string; [key: string]: unknown }>;
   [key: string]: unknown;
 }
 
@@ -187,6 +192,18 @@ function validateProfile(value: unknown, path: string): void {
       const extra = wireRecord(extraValue, itemPath);
       wireString(extra.k, `${itemPath}.k`);
       wireString(extra.v, `${itemPath}.v`);
+    }
+  }
+  if (profile.fields !== undefined) {
+    const fieldIds = new Set<string>();
+    for (const [index, fieldValue] of wireArray(profile.fields, `${path}.fields`).entries()) {
+      const fieldPath = `${path}.fields[${index}]`;
+      const field = wireRecord(fieldValue, fieldPath);
+      const id = wireString(field.id, `${fieldPath}.id`, { min: 1 });
+      if (fieldIds.has(id)) throw new WireContractError(`${fieldPath}.id`);
+      fieldIds.add(id);
+      wireString(field.key, `${fieldPath}.key`);
+      wireString(field.value, `${fieldPath}.value`);
     }
   }
 }
@@ -461,11 +478,9 @@ function storyWorldPayload(value: unknown, path: string): StoryWorldPayloadWireV
 function cloneNode(node: FigureNodeWireV1): FigureNodeWireV1 {
   const clone = { ...node };
   if (node.profile !== undefined) {
-    clone.profile = { ...node.profile };
+    clone.profile = normalizeProfile(node.profile, node.id);
     clone.profile.noteReferences = cloneNoteReferences(node.profile.noteReferences);
-    if (node.profile.extra !== undefined) {
-      clone.profile.extra = node.profile.extra.map((extra) => ({ ...extra }));
-    }
+    clone.profile.fields = clone.profile.fields?.map((field) => ({ ...field }));
   }
   if (node.aliases !== undefined) clone.aliases = node.aliases.map((alias) => ({ ...alias }));
   return clone;
@@ -479,13 +494,14 @@ function cloneEdge(edge: FigureEdgeWireV1): FigureEdgeWireV1 {
 }
 
 function encodeNode(node: FigureState["nodes"][number]): FigureNodeWireV1 {
+  const profile = node.profile ? normalizeProfile(node.profile, node.id) : undefined;
   return {
     ...node,
-    profile: node.profile
+    profile: profile
       ? {
-          ...node.profile,
-          noteReferences: cloneNoteReferences(node.profile.noteReferences),
-          extra: node.profile.extra?.map((extra) => ({ ...extra })),
+          ...profile,
+          noteReferences: cloneNoteReferences(profile.noteReferences),
+          fields: profile.fields?.map((field) => ({ ...field })),
         }
       : undefined,
     aliases: node.aliases?.map((alias) => ({ ...alias })),

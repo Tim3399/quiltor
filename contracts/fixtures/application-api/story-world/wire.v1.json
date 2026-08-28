@@ -21,11 +21,6 @@
         "important": true,
         "diedMomentId": "arrival",
         "profile": {
-          "alter": "32",
-          "rolle": "Kartographin",
-          "aussehen": "Reisemantel",
-          "herkunft": "Nordküste",
-          "stimme": "ruhig",
           "notizen": "Kennt das Archiv.",
           "noteReferences": [
             {
@@ -36,7 +31,26 @@
               "surface": "Archiv"
             }
           ],
-          "extra": [{ "k": "Motiv", "v": "Wahrheit" }]
+          "fields": [
+            { "id": "profile-field-age", "key": "Alter", "value": "32" },
+            {
+              "id": "profile-field-role",
+              "key": "Rolle in der Geschichte",
+              "value": "Kartographin"
+            },
+            { "id": "profile-field-look", "key": "Aussehen", "value": "Reisemantel" },
+            {
+              "id": "profile-field-origin",
+              "key": "Herkunft & Vorgeschichte",
+              "value": "Nordküste"
+            },
+            {
+              "id": "profile-field-voice",
+              "key": "Stimme & Sprechweise",
+              "value": "ruhig"
+            },
+            { "id": "profile-field-motive", "key": "Motiv", "value": "Wahrheit" }
+          ]
         }
       },
       {

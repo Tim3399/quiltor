@@ -2,7 +2,7 @@
   "contract": "quiltor.sqlite-migrations",
   "version": 1,
   "baselineSchemaVersion": 1,
-  "currentSchemaVersion": 9,
+  "currentSchemaVersion": 10,
   "direction": "forward-only",
   "steps": [
     {
@@ -49,6 +49,13 @@
       "to": 9,
       "guarantees": [
         "Adds a recursive manuscript binder and migrates every existing chapter to the root without changing chapter identity, order, prose, or document revisions."
+      ]
+    },
+    {
+      "from": 9,
+      "to": 10,
+      "guarantees": [
+        "Adds stable figure-profile field identities and migrates every non-empty legacy fixed or custom profile value without changing figure identity, notes, references, or document revisions."
       ]
     }
   ]

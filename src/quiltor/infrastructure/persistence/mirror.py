@@ -8,17 +8,9 @@ import re
 from pathlib import Path
 
 from quiltor.domain.manuscript.text_offsets import utf16_length, utf16_offsets_to_indices
+from quiltor.domain.story_world.profile import normalize_profile
 
 MIRROR_RE = re.compile(r"^\d{2,} - .*\.md$")  # writer uses f"{i:02d} - ...", unbounded above 99
-
-PROFILE_FIELDS = [
-    ("alter", "Alter"),
-    ("rolle", "Rolle in der Geschichte"),
-    ("aussehen", "Aussehen"),
-    ("herkunft", "Herkunft & Vorgeschichte"),
-    ("stimme", "Stimme & Sprechweise"),
-    ("notizen", "Notizen"),
-]
 
 
 def safe_name(title: str) -> str:
@@ -139,14 +131,13 @@ def mirror_profiles(state, profile_dir: Path) -> None:
         if n.get("sub"):
             lines += [n["sub"], ""]
 
-        prof = n.get("profile") or {}
-        for key, heading in PROFILE_FIELDS:
-            value = (prof.get(key) or "").strip()
-            if value:
-                lines += [f"## {heading}", "", value, ""]
-        for extra in prof.get("extra") or []:
-            k = (extra.get("k") or "").strip()
-            v = (extra.get("v") or "").strip()
+        prof = normalize_profile(n.get("profile"), str(n.get("id", "")))
+        notes = (prof.get("notizen") or "").strip()
+        if notes:
+            lines += ["## Notizen", "", notes, ""]
+        for field in prof.get("fields") or []:
+            k = (field.get("key") or "").strip()
+            v = (field.get("value") or "").strip()
             if k or v:
                 lines += [f"## {k or 'Ohne Titel'}", "", v, ""]
 

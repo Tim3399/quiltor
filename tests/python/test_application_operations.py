@@ -54,12 +54,13 @@ class ApplicationDeliveryParityTest(unittest.TestCase):
 class SQLiteApplicationParityTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        root = Path(self.temp.name)
+        self.root = Path(self.temp.name)
         self.services = build_application_services(
             build_feature_availability(),
             build_observability(),
-            SQLitePaths.from_data_directory(root),
+            SQLitePaths.from_data_directory(self.root),
         )
+        self.assertEqual(self.services.worlds.data_directory, self.root.resolve())
 
     def tearDown(self):
         self.temp.cleanup()

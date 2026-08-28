@@ -81,6 +81,73 @@ describe("story-world wire v1", () => {
     expect(() => decodeStoryWorldV1(duplicateMomentReference)).toThrow();
   });
 
+  it("normalizes legacy fixed and custom profile values into stable fields", () => {
+    const source = copy(fixture);
+    const profile = source.payload.nodes[0].profile as Record<string, unknown> | undefined;
+    if (!profile) throw new Error("fixture profile is missing");
+    delete profile.fields;
+    Object.assign(profile, {
+      alter: "32",
+      rolle: "Kartographin",
+      extra: [{ k: "Motiv", v: "Wahrheit", source: "legacy" }],
+    });
+
+    const decoded = decodeStoryWorldV1(source);
+    expect(decoded.document.nodes[0].profile).toMatchObject({
+      notizen: "Kennt das Archiv.",
+      fields: [
+        { id: "profile-field:mara:legacy:alter", key: "Alter", value: "32" },
+        {
+          id: "profile-field:mara:legacy:rolle",
+          key: "Rolle in der Geschichte",
+          value: "Kartographin",
+        },
+        {
+          id: "profile-field:mara:extra:0",
+          key: "Motiv",
+          value: "Wahrheit",
+          source: "legacy",
+        },
+      ],
+    });
+    const encoded = encodeStoryWorldV1(decoded.document, decoded.revision);
+    expect(encoded.payload.nodes[0].profile).not.toHaveProperty("alter");
+    expect(encoded.payload.nodes[0].profile).not.toHaveProperty("extra");
+  });
+
+  it("keeps legacy-derived field ids valid for long owner ids", () => {
+    const source = copy(fixture);
+    const ownerId = "owner".repeat(120);
+    source.payload.nodes[0].id = ownerId;
+    source.payload.edges[0].from = ownerId;
+    source.payload.edges[0].versions[0].from = ownerId;
+    source.payload.presence[0].elementId = ownerId;
+    const profile = source.payload.nodes[0].profile as Record<string, unknown> | undefined;
+    if (!profile) throw new Error("fixture profile is missing");
+    delete profile.fields;
+    profile.alter = "32";
+
+    const decoded = decodeStoryWorldV1(source);
+    const fieldId = decoded.document.nodes[0].profile?.fields?.[0].id;
+    expect(fieldId).toBe(`profile-field:${ownerId}:legacy:alter`);
+    expect(() => encodeStoryWorldV1(decoded.document, decoded.revision)).not.toThrow();
+  });
+
+  it("rejects duplicate or malformed canonical profile fields", () => {
+    const duplicate = copy(fixture);
+    const fields = duplicate.payload.nodes[0].profile?.fields;
+    if (!fields) throw new Error("fixture profile fields are missing");
+    fields[1].id = fields[0].id;
+
+    const malformed = copy(fixture);
+    const malformedFields = malformed.payload.nodes[0].profile?.fields;
+    if (!malformedFields) throw new Error("fixture profile fields are missing");
+    malformedFields[0].value = 32 as unknown as string;
+
+    expect(() => decodeStoryWorldV1(duplicate)).toThrow();
+    expect(() => decodeStoryWorldV1(malformed)).toThrow();
+  });
+
   it("accepts reference targets for every valid story-world ID", () => {
     const source = copy(fixture);
     const longTargetId = "target".repeat(100);

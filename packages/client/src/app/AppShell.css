@@ -135,6 +135,9 @@
   .app-bar .brand small {
     display: none;
   }
+  .app-bar .global-action {
+    gap: 0;
+  }
 }
 @media (max-width: 1050px) {
   .brand small,
@@ -189,6 +192,7 @@
   .app-bar .app-bar__workspace-button {
     min-width: var(--control-touch);
     justify-content: center;
+    gap: 0;
     padding: 0 var(--space-8);
   }
   .app-bar .app-bar__workspace-label {
