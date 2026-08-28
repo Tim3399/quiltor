@@ -804,9 +804,11 @@ test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn z
     "Der Test stellt die Fensterbreite selbst; er darf nur einmal laufen.",
   );
   await openBlankWorld(page);
-  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const editor = page.getByLabel("Kapiteltext");
+  await expect(editor).toBeVisible();
   const binder = page.getByRole("complementary", { name: "Kapitel" });
   const editorPage = page.locator(".editor-page");
+  const editorScroller = page.locator(".cm-scroller").filter({ has: editor });
 
   for (const width of [720, 800, 900, 1000, 1099]) {
     await page.setViewportSize({ width, height: 900 });
@@ -819,9 +821,7 @@ test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn z
       `Spalte überlappt den Text bei ${width}px`,
     ).toBeLessThanOrEqual(pageBox!.x + 0.5);
     // Und die Schreibfläche darf dabei nicht seitwärts scrollen müssen.
-    const scrollsX = await page
-      .locator(".cm-scroller")
-      .evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    const scrollsX = await editorScroller.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
     expect(scrollsX, `Editor scrollt waagerecht bei ${width}px`).toBe(false);
   }
 });
@@ -980,7 +980,7 @@ test("CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil", a
   await page.keyboard.press("Control+z");
   await expect(editor.locator(".cm-placeholder")).toBeVisible();
   await editor.fill("Der Morgen lag still über dem Hafen.");
-  await editor.locator(".cm-line").selectText();
+  await editor.selectText();
   // Markieren allein öffnet nichts mehr -- die Nachschlage-Aktionen sind eine eigene
   // Anfrage, so wie unter macOS. Sichtbar ist die Markierung trotzdem.
   const selectionMenu = page.getByRole("menu", { name: "Aktionen für die Textauswahl" });
@@ -1014,7 +1014,7 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
   await textSave;
   const selectionMenu = page.getByRole("menu", { name: "Aktionen für die Textauswahl" });
 
-  await page.locator(".cm-line").selectText();
+  await editor.selectText();
   await page.locator(".held-selection").click({ button: "right" });
   const boldSave = waitForSuccessfulManuscriptWrite(page);
   await selectionMenu.getByRole("menuitem", { name: "Fett" }).click();
@@ -1023,7 +1023,7 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
     "Der Morgen lag still über dem Hafen.",
   );
 
-  await page.locator(".cm-line").selectText();
+  await editor.selectText();
   await page.locator(".held-selection").click({ button: "right" });
   const italicSave = waitForSuccessfulManuscriptWrite(page);
   await selectionMenu.getByRole("menuitem", { name: "Kursiv" }).click();

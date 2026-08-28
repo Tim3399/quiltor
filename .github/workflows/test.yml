@@ -163,17 +163,15 @@ jobs:
           set +e
           product_status=0
           if [ -n "$PRODUCT_SHARD" ]; then
-            echo "::group::Product browser shard $PRODUCT_SHARD"
-            PLAYWRIGHT_WORKERS=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product
+            echo "Product browser shard $PRODUCT_SHARD"
+            PLAYWRIGHT_WORKERS=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
             product_status=$?
-            echo "::endgroup::"
           fi
 
-          echo "::group::Design browser shard $DESIGN_SHARD"
+          echo "Design browser shard $DESIGN_SHARD"
           PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts \
-            --shard="$DESIGN_SHARD" --output=test-results/design
+            --shard="$DESIGN_SHARD" --output=test-results/design --reporter=line
           design_status=$?
-          echo "::endgroup::"
 
           if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
             echo "::error::Browser shard failures: product=$product_status design=$design_status"
