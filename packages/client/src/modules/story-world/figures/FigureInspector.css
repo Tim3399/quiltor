@@ -155,9 +155,15 @@
 
 .figure-profile-fields-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-8);
+}
+
+.figure-profile-fields-copy {
+  min-width: min(100%, 160px);
+  flex: 1 1 160px;
 }
 
 .figure-profile-fields-heading h3,
@@ -178,6 +184,7 @@
 
 .figure-profile-field-add {
   flex: 0 0 auto;
+  margin-inline-start: auto;
 }
 
 .profile-field {

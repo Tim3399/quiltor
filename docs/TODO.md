@@ -327,10 +327,9 @@ Then extend extraction as new state dimensions become available.
 
 ## Next delivery after P0
 
-Hierarchical chapter organization is complete. The current implementation target is the
-**P1 Figure / entity workspace overhaul** below, building on the Shared Notes editor and stable
-`@` references now available to every shipped note owner. Storyboard-specific note reuse remains
-part of the later Storyboard delivery.
+Hierarchical chapter organization and the Figure / entity workspace overhaul are complete for the
+currently shipped workspaces. The current implementation target is the **P1 Storyboard** below.
+Storyboard-specific note reuse and backlink sources remain part of that delivery.
 
 ---
 
@@ -377,12 +376,12 @@ Notes should become a first-class writer workflow, not small textareas scattered
 ## Backlinks
 
 - [ ] Show where an object is referenced:
-  - notes;
-  - storyboard cards;
-  - chapters/mentions;
-  - timeline;
-  - other supported objects.
-- [ ] Do not require AI to generate backlinks.
+  - [x] notes;
+  - [ ] storyboard cards;
+  - [x] chapters/mentions;
+  - [x] timeline;
+  - [ ] other future supported objects.
+- [x] Do not require AI to generate backlinks.
 
 ---
 
@@ -413,7 +412,7 @@ The current figure profile is useful but too prescriptive and the notes area is 
 
 ## Entity navigation
 
-- [ ] Add reference/backlink section.
+- [x] Add reference/backlink section.
 - [x] Keep relationships and timeline history directly reachable.
 - [ ] Consider an entity-centric view of relevant storyboard cards after Storyboard exists.
 

@@ -13,6 +13,7 @@ import { uid } from "../../../shared/id";
 import { NoteEditor, noteFocusCopy } from "../../notes";
 import type { FigureNode, Profile } from "../model";
 import { normalizeProfile } from "../profile";
+import { FigureBacklinksSection } from "./FigureBacklinksSection";
 import { PROFILE_FIELD_TEMPLATES } from "./profileFields";
 
 export function FigureProfilePanel({
@@ -53,9 +54,10 @@ export function FigureProfilePanel({
         focus={noteFocusCopy(t, figure.name)}
         rows={9}
       />
+      <FigureBacklinksSection figure={figure} />
       <section className="figure-profile-fields" aria-labelledby={`figure-fields-${figure.id}`}>
         <div className="figure-profile-fields-heading">
-          <div>
+          <div className="figure-profile-fields-copy">
             <h3 id={`figure-fields-${figure.id}`}>{t("profileFields")}</h3>
             <p>{t("profileFieldsHint")}</p>
           </div>

@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
+import { NoteReferenceProvider } from "../../notes";
+import type { WorldReferenceBacklinkIndex } from "../../world-references";
 import type { FigureState } from "../model";
 import { FigureCardPanel } from "./FigureCardPanel";
 import { FigureProfilePanel } from "./FigureProfilePanel";
@@ -150,6 +152,66 @@ describe("FigureInspector panels", () => {
         ],
       },
     });
+  });
+
+  it("shows deterministic backlinks and opens their source from the profile", () => {
+    const onOpenReference = vi.fn();
+    const backlinks: WorldReferenceBacklinkIndex = new Map([
+      [
+        "entity:ada",
+        [
+          {
+            id: "chapter-note:c1:ada:0",
+            target: { kind: "entity", id: "ada" },
+            source: {
+              target: { kind: "chapter", id: "c1" },
+              workspace: "text",
+              label: "Die Ankunft",
+              detail: "Akt I",
+              kind: "chapter-note",
+            },
+            surface: "Ada",
+            from: 4,
+            to: 7,
+          },
+        ],
+      ],
+    ]);
+    render(
+      <I18nProvider>
+        <NoteReferenceProvider
+          candidates={[]}
+          backlinks={backlinks}
+          onOpenReference={onOpenReference}
+        >
+          <FigureProfilePanel figure={state.nodes[0]} onPatch={vi.fn()} />
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Verweise" })).toBeVisible();
+    const source = screen.getByRole("button", {
+      name: "Kapitel – Die Ankunft – Akt I – Ada",
+    });
+    expect(source).toHaveTextContent("Die Ankunft");
+    expect(source).toHaveTextContent("Kapitel");
+    expect(source).toHaveTextContent("Akt I");
+    expect(source).toHaveTextContent("„Ada“");
+
+    fireEvent.click(source);
+    expect(onOpenReference).toHaveBeenCalledWith({ kind: "chapter", id: "c1" });
+  });
+
+  it("keeps the profile backlink empty state calm and explicit", () => {
+    render(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} backlinks={new Map()} onOpenReference={vi.fn()}>
+          <FigureProfilePanel figure={state.nodes[0]} onPatch={vi.fn()} />
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Noch keine Verweise auf dieses Element.");
   });
 
   it("owns relationship edits and delete requests", () => {

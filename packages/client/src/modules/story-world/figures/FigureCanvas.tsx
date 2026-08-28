@@ -166,7 +166,9 @@ export function FigureCanvas({
         onNodesChange: controller.onNodesChange,
         onNodeDragStop: (_, node) => controller.onNodeDragStop(node),
         onConnect: controller.onConnect,
-        nodesConnectable: connecting,
+        // Direct handle drags should work without first entering the assisted
+        // connection mode. The mode still reveals every handle and its guidance.
+        nodesConnectable: true,
         snapToGrid: controller.snapToGrid && !controller.gridOverride,
         snapGrid: [GRID_SIZE, GRID_SIZE],
       }}

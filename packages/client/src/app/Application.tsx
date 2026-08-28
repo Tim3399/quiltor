@@ -6,8 +6,12 @@ import type { Manuscript } from "../modules/manuscript";
 import { NoteReferenceProvider } from "../modules/notes";
 import { type FigureState, kindLabel } from "../modules/story-world";
 import {
+  buildWorldReferenceBacklinks,
   buildWorldReferenceCandidates,
   resolveWorldReferenceCandidate,
+  type WorldReferenceBacklink,
+  type WorldReferenceBacklinkIndex,
+  workspaceTargetForBacklink,
   workspaceTargetForReference,
 } from "../modules/world-references";
 import { quiltorClient } from "../platform";
@@ -67,6 +71,16 @@ export function App() {
         : [],
     [figures, manuscript, t],
   );
+  const noteReferenceBacklinks = useMemo(
+    (): WorldReferenceBacklinkIndex =>
+      manuscript && figures
+        ? buildWorldReferenceBacklinks({
+            manuscript,
+            figures,
+          })
+        : new Map(),
+    [figures, manuscript],
+  );
   const openNoteReference = useCallback(
     (target: Parameters<typeof workspaceTargetForReference>[0]) => {
       const currentTarget =
@@ -75,6 +89,13 @@ export function App() {
       if (next) workspace.navigate(next);
     },
     [noteReferenceCandidates, workspace.navigate],
+  );
+  const openNoteBacklink = useCallback(
+    (backlink: WorldReferenceBacklink) => {
+      const next = workspaceTargetForBacklink(backlink);
+      if (next) workspace.navigate(next);
+    },
+    [workspace.navigate],
   );
 
   const saveManuscript = useCallback(
@@ -179,7 +200,9 @@ export function App() {
           >
             <NoteReferenceProvider
               candidates={noteReferenceCandidates}
+              backlinks={noteReferenceBacklinks}
               onOpenReference={openNoteReference}
+              onOpenBacklink={openNoteBacklink}
             >
               <WorkspaceSurface
                 worldId={session.world.id}

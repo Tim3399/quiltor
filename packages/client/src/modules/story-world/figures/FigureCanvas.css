@@ -7,6 +7,12 @@
   overflow: hidden;
 }
 
+/* React Flow positions connection handles across the card edge. Keep their full
+   hit area available so a natural center drag starts the connection preview. */
+.figure-workspace .story-node {
+  overflow: visible;
+}
+
 .figure-workspace
   .flow-area.is-connecting.zoom-overview
   .story-node

@@ -2063,18 +2063,14 @@ test("Beim Ziehen einer Figuren-Verbindung folgt eine sichtbare Vorschau dem Zei
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  await page.getByRole("button", { name: "Verbinden", exact: true }).click();
   await expect(page.locator(".flow-area")).toHaveClass(/zoom-overview/);
 
   const source = page.locator('.react-flow__node[data-id="n1"] .outgoing-handle');
   const sourceBox = await source.boundingBox();
-  expect(sourceBox).not.toBeNull();
-  // In overview LOD ragt der rechte Handle über den gecroppten Node-Rand. Sein geometrisches
-  // Zentrum kann dadurch exakt auf der Clip-Kante liegen und einen Node-Drag statt einer
-  // Verbindung starten. Das innere Viertel ist sichtbar und tatsächlich hit-testbar.
+  if (!sourceBox) throw new Error("Ausgangs-Handle hat keine messbare Geometrie");
   const sourcePoint = {
-    x: sourceBox!.x + sourceBox!.width * 0.25,
-    y: sourceBox!.y + sourceBox!.height / 2,
+    x: sourceBox.x + sourceBox.width / 2,
+    y: sourceBox.y + sourceBox.height / 2,
   };
   expect(
     await page.evaluate(
@@ -2083,23 +2079,94 @@ test("Beim Ziehen einer Figuren-Verbindung folgt eine sichtbare Vorschau dem Zei
     ),
   ).toBe(true);
   await page.mouse.move(sourcePoint.x, sourcePoint.y);
-  await page.mouse.down();
-  await page.mouse.move(sourcePoint.x + 180, sourcePoint.y + 90, { steps: 5 });
+  await page.mouse.down({ button: "left" });
 
-  const preview = page.locator(".react-flow__connection-path");
+  const firstPointer = { x: sourcePoint.x + 150, y: sourcePoint.y + 70 };
+  await page.mouse.move(firstPointer.x, firstPointer.y, { steps: 5 });
+
+  const preview = page.locator(".react-flow__connectionline .react-flow__connection-path");
   await expect(preview).toBeVisible();
-  const previewStyle = await preview.evaluate((path) => {
-    const style = getComputedStyle(path);
-    return {
-      stroke: style.stroke,
-      strokeWidth: style.strokeWidth,
-      vectorEffect: style.vectorEffect,
-    };
-  });
-  expect(previewStyle.stroke).not.toBe("none");
-  expect(previewStyle.strokeWidth).toBe("2px");
-  expect(previewStyle.vectorEffect).toBe("non-scaling-stroke");
-  expect(await preview.getAttribute("d")).toMatch(/^M/);
+  const previewGeometry = (pointer: { x: number; y: number }) =>
+    preview.evaluate(
+      (path, points) => {
+        if (!(path instanceof SVGPathElement)) {
+          throw new Error("Verbindungsvorschau ist kein SVG-Pfad");
+        }
+        const matrix = path.getScreenCTM();
+        if (!matrix) throw new Error("Verbindungsvorschau hat keine Screen-Transformation");
+        const totalLength = path.getTotalLength();
+        const toScreen = (point: DOMPoint) => point.matrixTransform(matrix);
+        const start = toScreen(path.getPointAtLength(0));
+        const end = toScreen(path.getPointAtLength(totalLength));
+        let screenLength = 0;
+        let previous = start;
+        for (let index = 1; index <= 24; index += 1) {
+          const current = toScreen(path.getPointAtLength((totalLength * index) / 24));
+          screenLength += Math.hypot(current.x - previous.x, current.y - previous.y);
+          previous = current;
+        }
+        const style = getComputedStyle(path);
+        const opacity = [path, path.parentElement, path.ownerSVGElement].reduce(
+          (value, element) => {
+            if (!element) return value;
+            const current = Number.parseFloat(getComputedStyle(element).opacity || "1");
+            return value * (Number.isFinite(current) ? current : 1);
+          },
+          1,
+        );
+        const strokeOpacity = Number.parseFloat(style.strokeOpacity || "1");
+        const transparentStroke =
+          style.stroke === "none" ||
+          style.stroke === "transparent" ||
+          /rgba\([^)]*,\s*0(?:\.0+)?\)$/.test(style.stroke) ||
+          /rgb\([^)]*\/\s*0(?:%|\b)/.test(style.stroke);
+        const distance = (left: DOMPoint, right: { x: number; y: number }) =>
+          Math.hypot(left.x - right.x, left.y - right.y);
+        return {
+          d: path.getAttribute("d"),
+          totalLength,
+          screenLength,
+          start: { x: start.x, y: start.y },
+          end: { x: end.x, y: end.y },
+          startDistance: distance(start, points.source),
+          pointerDistance: distance(end, points.pointer),
+          stroke: style.stroke,
+          strokeWidth: Number.parseFloat(style.strokeWidth),
+          effectiveOpacity: opacity * (Number.isFinite(strokeOpacity) ? strokeOpacity : 1),
+          transparentStroke,
+          display: style.display,
+          visibility: style.visibility,
+          vectorEffect: style.vectorEffect,
+        };
+      },
+      { pointer, source: sourcePoint },
+    );
+
+  const firstPreview = await previewGeometry(firstPointer);
+  expect(firstPreview.d).toMatch(/^M/);
+  expect(firstPreview.totalLength).toBeGreaterThan(80);
+  expect(firstPreview.screenLength).toBeGreaterThan(80);
+  expect(firstPreview.startDistance).toBeLessThanOrEqual(8);
+  expect(firstPreview.pointerDistance).toBeLessThanOrEqual(8);
+  expect(firstPreview.stroke).not.toBe("none");
+  expect(firstPreview.transparentStroke).toBe(false);
+  expect(firstPreview.strokeWidth).toBeGreaterThanOrEqual(2);
+  expect(firstPreview.effectiveOpacity).toBeGreaterThan(0.5);
+  expect(firstPreview.display).not.toBe("none");
+  expect(firstPreview.visibility).toBe("visible");
+  expect(firstPreview.vectorEffect).toBe("non-scaling-stroke");
+
+  const secondPointer = { x: sourcePoint.x + 240, y: sourcePoint.y + 130 };
+  await page.mouse.move(secondPointer.x, secondPointer.y, { steps: 5 });
+  await expect.poll(() => preview.getAttribute("d")).not.toBe(firstPreview.d);
+  const secondPreview = await previewGeometry(secondPointer);
+  expect(secondPreview.screenLength).toBeGreaterThan(firstPreview.screenLength);
+  expect(secondPreview.startDistance).toBeLessThanOrEqual(8);
+  expect(secondPreview.pointerDistance).toBeLessThanOrEqual(8);
+  expect(
+    Math.hypot(secondPreview.end.x - firstPreview.end.x, secondPreview.end.y - firstPreview.end.y),
+  ).toBeGreaterThan(80);
+
   await page.mouse.up();
   await expect(preview).toHaveCount(0);
 });

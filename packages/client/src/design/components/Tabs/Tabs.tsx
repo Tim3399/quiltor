@@ -1,12 +1,12 @@
 import {
+  type ButtonHTMLAttributes,
   createContext,
+  type HTMLAttributes,
+  type ReactNode,
   useContext,
   useEffect,
   useId,
   useState,
-  type ButtonHTMLAttributes,
-  type HTMLAttributes,
-  type ReactNode,
 } from "react";
 import "./Tabs.css";
 
@@ -78,16 +78,21 @@ export function Tabs({
 
 export function TabList({
   label,
+  distribution = "equal",
   className = "",
   children,
   onKeyDown,
   ...props
-}: HTMLAttributes<HTMLDivElement> & { label: string }) {
+}: HTMLAttributes<HTMLDivElement> & {
+  label: string;
+  distribution?: "equal" | "content";
+}) {
   const context = useTabs();
   return (
     <div
       {...props}
       className={`design-tabs__list ${className}`.trim()}
+      data-distribution={distribution}
       role="tablist"
       aria-label={label}
       aria-orientation={context.orientation}

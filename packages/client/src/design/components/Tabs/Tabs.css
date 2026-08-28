@@ -41,6 +41,10 @@
   cursor: pointer;
 }
 
+.design-tabs__list[data-distribution="content"] > .design-tabs__tab {
+  flex: 1 1 auto;
+}
+
 .design-tabs__tab:hover {
   background: var(--control-hover);
   color: var(--ink);

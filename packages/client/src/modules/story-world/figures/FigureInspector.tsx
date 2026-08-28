@@ -50,7 +50,7 @@ export function FigureInspector({
         value={tab}
         onValueChange={(value) => setTab(value as InspectorTab)}
       >
-        <TabList label={t("inspector")}>
+        <TabList label={t("inspector")} distribution="content">
           <Tab value="card">{t("card")}</Tab>
           <Tab value="profile">{t("profile")}</Tab>
           <Tab value="links">{t("relationships")}</Tab>

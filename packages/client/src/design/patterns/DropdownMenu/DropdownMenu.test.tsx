@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MenuItem } from "../../components/Menu";
@@ -66,7 +68,21 @@ describe("DropdownMenu", () => {
     );
 
     const status = screen.getByRole("status");
+    expect(status.parentElement).toHaveClass("ui-dropdown-menu__header");
     expect(status.closest('[role="menu"]')).toBeNull();
+  });
+
+  it("owns the spacing around optional header content", () => {
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/design/patterns/DropdownMenu/DropdownMenu.css"),
+      "utf8",
+    );
+    const headerRule = css.match(/\.ui-dropdown-menu__header\s*\{([^}]*)\}/s)?.[1];
+
+    expect(headerRule).toBeDefined();
+    expect(headerRule).toContain(
+      "padding: var(--spacing-compact-wide) var(--spacing-regular-tight)",
+    );
   });
 
   it("opens from ArrowDown and reports controlled changes", () => {

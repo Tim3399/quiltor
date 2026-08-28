@@ -423,6 +423,15 @@ test("Figuren verwenden für alle sichtbaren Dropdowns Quiltor-Controls", async 
 
   const inspector = page.locator(".figure-inspector.has-selection");
   await expect(inspector).toBeVisible();
+  const relationshipTab = inspector.getByRole("tab", { name: "Beziehungen" });
+  const relationshipTabGeometry = await relationshipTab.evaluate((tab) => ({
+    clientWidth: tab.clientWidth,
+    scrollWidth: tab.scrollWidth,
+  }));
+  expect
+    .soft(relationshipTabGeometry.scrollWidth)
+    .toBeLessThanOrEqual(relationshipTabGeometry.clientWidth + 1);
+
   await expect(inspector.locator("select:visible")).toHaveCount(0);
   const dropdowns = inspector.getByRole("combobox");
   await expect(dropdowns).toHaveCount(3);
@@ -436,7 +445,65 @@ test("Figuren verwenden für alle sichtbaren Dropdowns Quiltor-Controls", async 
   await expect(page.getByRole("option", { name: "Hafen der sehr langen Nordküste" })).toBeVisible();
 
   await page.keyboard.press("Escape");
-  await inspector.getByRole("tab", { name: "Beziehungen" }).click();
+  await inspector.getByRole("tab", { name: "Steckbrief" }).click();
+  const profileHeadingGeometry = await inspector
+    .locator(".figure-profile-fields-heading")
+    .evaluate((heading) => {
+      const copy = heading.firstElementChild;
+      const trigger = heading.querySelector(".figure-profile-field-add");
+      if (!(copy instanceof HTMLElement) || !(trigger instanceof HTMLElement)) {
+        throw new Error("Steckbrief-Überschrift oder Feldaktion fehlt");
+      }
+      const box = heading.getBoundingClientRect();
+      const copyBox = copy.getBoundingClientRect();
+      const triggerBox = trigger.getBoundingClientRect();
+      return {
+        noHorizontalOverflow: heading.scrollWidth <= heading.clientWidth + 1,
+        copyContained: copyBox.left >= box.left - 0.5 && copyBox.right <= box.right + 0.5,
+        triggerContained: triggerBox.left >= box.left - 0.5 && triggerBox.right <= box.right + 0.5,
+        separated: triggerBox.left - copyBox.right >= 4 || triggerBox.top - copyBox.bottom >= 4,
+      };
+    });
+  expect.soft(profileHeadingGeometry).toEqual({
+    noHorizontalOverflow: true,
+    copyContained: true,
+    triggerContained: true,
+    separated: true,
+  });
+
+  await inspector.getByRole("button", { name: "Feld hinzufügen" }).click();
+  const recommendedFieldsHeader = page
+    .locator(".ui-dropdown-menu__header")
+    .filter({ hasText: "Empfohlene Felder" });
+  await expect(recommendedFieldsHeader).toBeVisible();
+  const recommendedFieldsGeometry = await recommendedFieldsHeader.evaluate((header) => {
+    const surface = header.closest(".ui-dropdown-menu__surface");
+    if (!(surface instanceof HTMLElement)) {
+      throw new Error("Empfohlene Felder liegen nicht in der Dropdown-Oberfläche");
+    }
+    const style = getComputedStyle(header);
+    const box = header.getBoundingClientRect();
+    const surfaceBox = surface.getBoundingClientRect();
+    return {
+      paddingInlineStart: Number.parseFloat(style.paddingInlineStart),
+      paddingInlineEnd: Number.parseFloat(style.paddingInlineEnd),
+      paddingBlockStart: Number.parseFloat(style.paddingBlockStart),
+      paddingBlockEnd: Number.parseFloat(style.paddingBlockEnd),
+      contained: box.left >= surfaceBox.left - 0.5 && box.right <= surfaceBox.right + 0.5,
+      noHorizontalOverflow:
+        header.scrollWidth <= header.clientWidth + 1 &&
+        surface.scrollWidth <= surface.clientWidth + 1,
+    };
+  });
+  expect.soft(recommendedFieldsGeometry.paddingInlineStart).toBeGreaterThan(0);
+  expect.soft(recommendedFieldsGeometry.paddingInlineEnd).toBeGreaterThan(0);
+  expect.soft(recommendedFieldsGeometry.paddingBlockStart).toBeGreaterThan(0);
+  expect.soft(recommendedFieldsGeometry.paddingBlockEnd).toBeGreaterThan(0);
+  expect.soft(recommendedFieldsGeometry.contained).toBe(true);
+  expect.soft(recommendedFieldsGeometry.noHorizontalOverflow).toBe(true);
+
+  await page.keyboard.press("Escape");
+  await relationshipTab.click();
   await expect(inspector.locator("select:visible")).toHaveCount(0);
   const lineStyle = inspector.getByRole("combobox", { name: "Linienstil" });
   await expect(lineStyle).toHaveJSProperty("tagName", "BUTTON");

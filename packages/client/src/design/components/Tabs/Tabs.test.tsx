@@ -5,11 +5,17 @@ import { Tab, TabList, TabPanel, Tabs } from "./Tabs";
 
 afterEach(cleanup);
 
-function Fixture({ activationMode = "automatic" }: { activationMode?: "automatic" | "manual" }) {
+function Fixture({
+  activationMode = "automatic",
+  distribution,
+}: {
+  activationMode?: "automatic" | "manual";
+  distribution?: "equal" | "content";
+}) {
   const [value, setValue] = useState("card");
   return (
     <Tabs value={value} onValueChange={setValue} activationMode={activationMode}>
-      <TabList label="Figurbereiche">
+      <TabList label="Figurbereiche" distribution={distribution}>
         <Tab value="card">Karte</Tab>
         <Tab value="profile">Profil</Tab>
         <Tab value="disabled" disabled>
@@ -26,6 +32,10 @@ function Fixture({ activationMode = "automatic" }: { activationMode?: "automatic
 describe("Tabs", () => {
   it("links tabs and panels with a roving tab stop", () => {
     render(<Fixture />);
+    expect(screen.getByRole("tablist", { name: "Figurbereiche" })).toHaveAttribute(
+      "data-distribution",
+      "equal",
+    );
     const card = screen.getByRole("tab", { name: "Karte" });
     const profile = screen.getByRole("tab", { name: "Profil" });
     expect(card).toHaveAttribute("aria-selected", "true");
@@ -33,6 +43,15 @@ describe("Tabs", () => {
     expect(profile).toHaveAttribute("tabindex", "-1");
     expect(screen.getByRole("tabpanel")).toHaveTextContent("Karteninhalt");
     expect(card.getAttribute("aria-controls")).toBe(screen.getByRole("tabpanel").id);
+  });
+
+  it("offers content-aware sizing without changing the equal-width default", () => {
+    render(<Fixture distribution="content" />);
+
+    expect(screen.getByRole("tablist", { name: "Figurbereiche" })).toHaveAttribute(
+      "data-distribution",
+      "content",
+    );
   });
 
   it("wraps arrow navigation, skips disabled tabs and activates automatically", () => {

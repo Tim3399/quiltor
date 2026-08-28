@@ -22,6 +22,27 @@ const state: FigureState = {
 };
 
 describe("FigureInspector", () => {
+  it("sizes its tabs by content so longer labels stay visible", () => {
+    render(
+      <I18nProvider>
+        <FigureInspector
+          figure={state.nodes[0]}
+          state={state}
+          activeMomentId={null}
+          onPatch={vi.fn()}
+          onState={vi.fn()}
+          onDelete={vi.fn()}
+          onSelectMoment={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("tablist", { name: "Inspector" })).toHaveAttribute(
+      "data-distribution",
+      "content",
+    );
+  });
+
   it("renders every visible figure selector through the styled shared control", () => {
     const onPatch = vi.fn();
     const onState = vi.fn();

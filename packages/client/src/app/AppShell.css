@@ -123,7 +123,6 @@
 .menu-save-status {
   display: flex;
   align-items: center;
-  padding: var(--space-6) var(--space-12);
 }
 .menu-save-status .app-save-status {
   height: auto;

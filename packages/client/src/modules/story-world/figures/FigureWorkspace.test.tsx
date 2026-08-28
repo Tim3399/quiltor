@@ -157,6 +157,7 @@ describe("FigureWorkspace relationships", () => {
     render(<FigureHarness />);
 
     const connectMode = screen.getByRole("button", { name: "Verbinden" });
+    expect(screen.getByRole("button", { name: "Testverbindung eins" })).toBeEnabled();
     fireEvent.click(connectMode);
     fireEvent.click(screen.getByRole("button", { name: "Testverbindung eins" }));
     fireEvent.click(screen.getByRole("button", { name: "Testverbindung zwei" }));
