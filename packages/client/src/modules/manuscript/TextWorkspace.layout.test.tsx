@@ -119,16 +119,15 @@ describe("TextWorkspace layout and panels", () => {
       2,
     );
     expect(editorCss).not.toMatch(/\[data-theme=["'][^"']+["']\]/);
-    const lightTextureVeil = Number(
-      colorsCss.match(
-        /:root,\s*:root\[data-theme="light"\][\s\S]*?--material-paper-texture-veil:\s*rgb\([^/]+\/\s*([\d.]+)\);/,
-      )?.[1],
-    );
-    const darkTextureVeil = Number(
-      colorsCss.match(
-        /:root\[data-theme="dark"\][\s\S]*?--material-paper-texture-veil:\s*rgb\([^/]+\/\s*([\d.]+)\);/,
-      )?.[1],
-    );
+    const lightThemeRule = colorsCss.match(
+      /:root,\s*:root\[data-theme="light"\]\s*\{([^}]*)\}/s,
+    )?.[1];
+    const darkThemeRule = colorsCss.match(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/s)?.[1];
+    expect(lightThemeRule).toBeDefined();
+    expect(darkThemeRule).toBeDefined();
+    const veilAlphaPattern = /--material-paper-texture-veil:\s*rgb\([^/]+\/\s*([\d.]+)\);/;
+    const lightTextureVeil = Number(lightThemeRule?.match(veilAlphaPattern)?.[1]);
+    const darkTextureVeil = Number(darkThemeRule?.match(veilAlphaPattern)?.[1]);
     expect(lightTextureVeil).toBeLessThanOrEqual(0.05);
     expect(darkTextureVeil).toBeGreaterThanOrEqual(0.9);
     expect(editorCss).toMatch(

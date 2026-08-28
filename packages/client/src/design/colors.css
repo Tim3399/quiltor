@@ -72,7 +72,7 @@
   --material-toolbar: rgb(236 224 207 / 0.9);
   --material-popover: rgb(255 250 243 / 0.96);
   --material-sheet: rgb(252 246 237 / 0.98);
-  --material-paper-texture-veil: rgb(252 246 237 / 0.4);
+  --material-paper-texture-veil: rgb(252 246 237 / 0);
 
   --overlay: rgb(23 21 15 / 0.34);
   --shadow-default: rgb(23 21 15 / 0.18);
@@ -144,7 +144,7 @@
   --material-toolbar: rgb(18 16 12 / 0.93);
   --material-popover: rgb(52 40 30 / 0.97);
   --material-sheet: rgb(40 31 23 / 0.98);
-  --material-paper-texture-veil: rgb(40 31 23 / 0.8);
+  --material-paper-texture-veil: rgb(40 31 23 / 0.96);
 
   --overlay: rgb(0 0 0 / 0.68);
   --shadow-default: rgb(0 0 0 / 0.5);
