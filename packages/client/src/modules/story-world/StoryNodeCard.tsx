@@ -48,8 +48,8 @@ export function StoryNodeCard({
   const lodStyle = {
     "--semantic-scale": zoomTier === "overview" ? 1 / safeZoom : 1,
     "--node-compact-height": `${storyNodeCompactLayoutHeight(viewportZoom, 32.5)}px`,
-    "--node-compact-touch-height": `${storyNodeCompactLayoutHeight(viewportZoom, 44.5)}px`,
-    "--node-compact-width": `${storyNodeCompactLayoutWidth(viewportZoom, 96.5)}px`,
+    "--node-compact-touch-height": `${storyNodeCompactLayoutHeight(viewportZoom, 45)}px`,
+    "--node-compact-width": `${storyNodeCompactLayoutWidth(viewportZoom, 98)}px`,
     "--node-compact-font-size": `${14 / safeZoom}px`,
   } as CSSProperties;
 

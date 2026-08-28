@@ -28,10 +28,10 @@ function expectSharedCreateContract(container: HTMLElement, expectedCount: numbe
       "workspace-toolbar__create-button",
       "ui-toolbar-button",
       "ui-button--primary",
-      "ui-button--compact",
+      "ui-button--regular",
     );
     expect(button).toHaveAttribute("data-appearance", "primary");
-    expect(button).toHaveAttribute("data-size", "compact");
+    expect(button).toHaveAttribute("data-size", "regular");
     expect(button).toHaveAttribute("data-label-mode", "responsive");
     expect(button).toHaveAttribute("data-collapse-at", "compact");
     expect(button).toHaveAccessibleName();

@@ -111,8 +111,8 @@ describe("PlaceNode overview marker", () => {
   it("counter-scales compact layout height to a real 44px mobile hit target", () => {
     const viewportZoom = 0.42;
     const regularLayoutHeight = storyNodeCompactLayoutHeight(viewportZoom, 32.5);
-    const touchLayoutHeight = storyNodeCompactLayoutHeight(viewportZoom, 44.5);
-    const compactLayoutWidth = storyNodeCompactLayoutWidth(viewportZoom, 96.5);
+    const touchLayoutHeight = storyNodeCompactLayoutHeight(viewportZoom, 45);
+    const compactLayoutWidth = storyNodeCompactLayoutWidth(viewportZoom, 98);
 
     expect(regularLayoutHeight * viewportZoom).toBeGreaterThanOrEqual(32);
     expect(touchLayoutHeight * viewportZoom).toBeGreaterThanOrEqual(44);

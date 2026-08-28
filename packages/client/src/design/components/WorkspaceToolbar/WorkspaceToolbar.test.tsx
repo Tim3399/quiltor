@@ -107,7 +107,7 @@ describe("WorkspaceToolbar", () => {
     expect(button).toHaveClass(
       "ui-button",
       "ui-button--primary",
-      "ui-button--compact",
+      "ui-button--regular",
       "ui-toolbar-button",
       "workspace-toolbar__create-button",
       "product-layout-hook",

@@ -496,7 +496,9 @@ test("Orte behalten am 820px-Übergang die volle Kartenhöhe", async ({ page }, 
   await expect(page.locator(".places-inspector")).toHaveCount(0);
 });
 
-test("Orte enden im Overview-LOD als Monogramm-Kreise", async ({ page }, testInfo) => {
+test("Orte teilen im Overview-LOD Marker und Prioritätspillen mit Figuren", async ({
+  page,
+}, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Der LOD-Vertrag ist breitenunabhängig und muss nur einmal laufen.",
@@ -532,7 +534,7 @@ test("Orte enden im Overview-LOD als Monogramm-Kreise", async ({ page }, testInf
     nodes.map((node) => {
       const style = getComputedStyle(node);
       const box = node.getBoundingClientRect();
-      const monogram = node.querySelector<HTMLElement>(".place-node-monogram");
+      const monogram = node.querySelector<HTMLElement>(".node-monogram");
       const name = node.querySelector<HTMLElement>("strong");
       return {
         important: node.classList.contains("is-important"),
@@ -549,16 +551,27 @@ test("Orte enden im Overview-LOD als Monogramm-Kreise", async ({ page }, testInf
   );
 
   expect(markers).toHaveLength(2);
-  for (const marker of markers) {
-    expect(marker.width).toBe("36px");
-    expect(marker.height).toBe("36px");
-    expect(marker.visualWidth).toBe(36);
-    expect(marker.visualHeight).toBe(36);
-    expect(marker.radius).toBe("50%");
-    expect(marker.monogramDisplay).toBe("grid");
-    expect(marker.nameDisplay).toBe("none");
-  }
-  expect(markers.find((marker) => marker.important)?.boxShadow).not.toBe("none");
+  const regularMarker = markers.find((marker) => !marker.important);
+  const priorityMarker = markers.find((marker) => marker.important);
+  expect(regularMarker).toMatchObject({
+    width: "32px",
+    height: "32px",
+    visualWidth: 32,
+    visualHeight: 32,
+    radius: "50%",
+    monogramDisplay: "grid",
+    nameDisplay: "none",
+  });
+  expect(priorityMarker).toMatchObject({
+    width: "116px",
+    height: "34px",
+    visualWidth: 116,
+    visualHeight: 34,
+    radius: "5px",
+    monogramDisplay: "none",
+    nameDisplay: "flex",
+  });
+  expect(priorityMarker?.boxShadow).not.toBe("none");
 });
 
 // Die drei Playwright-Projekte fahren 1440, 900 und 390px. Dazwischen liegen die Breiten, an
@@ -1532,6 +1545,11 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
   await page.getByRole("button", { name: "Kapitel", exact: true }).click();
   const binder = page.getByRole("dialog", { name: "Kapitel" });
   await expect(binder).toBeVisible();
+  await binder.evaluate((dialog) =>
+    Promise.all(
+      dialog.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
 
   const chapterActionTrigger = binder.getByRole("button", { name: /Kapitelaktionen:/ });
   const chapterActionGeometry = await chapterActionTrigger.evaluate((trigger) => {
@@ -1556,6 +1574,10 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
       insideDialog:
         bounds.left >= dialogBounds.left - 0.5 && bounds.right <= dialogBounds.right + 0.5,
       hit: hit === trigger || (hit instanceof Node && trigger.contains(hit)),
+      hitElement:
+        hit instanceof HTMLElement
+          ? `${hit.tagName.toLowerCase()}.${[...hit.classList].join(".")}`
+          : String(hit),
     };
   });
   expect(chapterActionGeometry.dialogScrollWidth).toBeLessThanOrEqual(
@@ -1568,7 +1590,10 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
   expect(chapterActionGeometry.height).toBeCloseTo(44, 0);
   expect(chapterActionGeometry.insideRow).toBe(true);
   expect(chapterActionGeometry.insideDialog).toBe(true);
-  expect(chapterActionGeometry.hit).toBe(true);
+  expect(
+    chapterActionGeometry.hit,
+    `Kapitelaktion wird nach abgeschlossener Sheet-Animation von ${chapterActionGeometry.hitElement} überlagert`,
+  ).toBe(true);
 
   await chapterActionTrigger.click();
   const compactChapterMenu = page.getByRole("menu", { name: /Kapitelaktionen:/ });
@@ -1962,20 +1987,39 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
       height: Number(node.getAttribute("height")),
     })),
   );
-  const expectedMinimapHeight = (page.viewportSize()?.width || 0) < 720 ? 68 : 96;
-  expect(minimapNodeGeometry).toEqual(
-    Array.from({ length: 3 }, () => ({ width: 200, height: expectedMinimapHeight })),
+  const nodeGeometry = await page.locator(".story-node").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const style = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return {
+        tier: node.classList.contains("zoom-compact") ? "compact" : "detail",
+        width: Number.parseFloat(style.width),
+        height: Number.parseFloat(style.height),
+        compactWidth: Number.parseFloat(style.getPropertyValue("--node-compact-width")),
+        compactHeight: Number.parseFloat(style.getPropertyValue("--node-compact-touch-height")),
+        visualWidth: box.width,
+        visualHeight: box.height,
+      };
+    }),
   );
-  const sizes = await page.locator(".story-node").evaluateAll((nodes) =>
-    nodes.map((node) => ({
-      width: getComputedStyle(node).width,
-      height: getComputedStyle(node).height,
-    })),
-  );
-  const expectedHeight = (page.viewportSize()?.width || 0) < 720 ? "68px" : "96px";
-  expect(sizes).toEqual(
-    Array.from({ length: 3 }, () => ({ width: "200px", height: expectedHeight })),
-  );
+  const compactViewport = (page.viewportSize()?.width || 0) < 720;
+  for (const [index, node] of nodeGeometry.entries()) {
+    expect(minimapNodeGeometry[index].width).toBeCloseTo(node.width, 0);
+    expect(minimapNodeGeometry[index].height).toBeCloseTo(node.height, 0);
+    if (compactViewport) {
+      expect(node.tier).toBe("compact");
+      expect(node.width).toBeCloseTo(node.compactWidth, 1);
+      expect(node.height).toBeCloseTo(node.compactHeight, 1);
+      expect(node.width).toBeGreaterThanOrEqual(200);
+      expect(node.height).toBeGreaterThanOrEqual(68);
+      expect(node.visualWidth).toBeGreaterThanOrEqual(96);
+      expect(node.visualHeight).toBeGreaterThanOrEqual(44);
+    } else {
+      expect(node.tier).toBe("detail");
+      expect(node.width).toBe(200);
+      expect(node.height).toBe(96);
+    }
+  }
   await expect(page.locator(".react-flow__background path")).toHaveCount(1);
   await page.getByRole("button", { name: "Ansicht", exact: true }).click();
   await page.getByRole("menuitem", { name: "Anordnen", exact: true }).click();
