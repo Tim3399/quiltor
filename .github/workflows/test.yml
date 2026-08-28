@@ -103,9 +103,29 @@ jobs:
             exit 1
           fi
 
-  browser-e2e:
+  # Product and design coverage use different shard counts, but share four
+  # runners so npm/Chromium setup is paid four times instead of seven. Slots
+  # 1-3 run one product and one design shard; slot 4 completes design coverage.
+  browser-e2e-shards:
+    name: Browser E2E / slot ${{ matrix.slot }} of 4
     needs: frontend
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slot: 1
+            product_shard: "1/3"
+            design_shard: "1/4"
+          - slot: 2
+            product_shard: "2/3"
+            design_shard: "2/4"
+          - slot: 3
+            product_shard: "3/3"
+            design_shard: "3/4"
+          - slot: 4
+            product_shard: ""
+            design_shard: "4/4"
     env:
       PYTHONPATH: src
     steps:
@@ -115,14 +135,17 @@ jobs:
           node-version: "22.23.2"
           cache: npm
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: matrix.product_shard != ''
         with:
           python-version: "3.11.9"
       - run: npm ci
-      - name: Install the application and Chromium
-        run: |
-          python -m pip install --quiet -e .
-          npx playwright install --with-deps chromium
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Install the application
+        if: matrix.product_shard != ''
+        run: python -m pip install --quiet -e .
       - name: Start the application
+        if: matrix.product_shard != ''
         run: |
           python apps/web/server.py 8000 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/quiltor-server.pid"
@@ -132,14 +155,52 @@ jobs:
           done
           cat "$RUNNER_TEMP/quiltor-server.log"
           exit 1
-      - name: Browser end-to-end suite
-        run: npm run test:e2e
+      - name: Run product and design shards
+        env:
+          PRODUCT_SHARD: ${{ matrix.product_shard }}
+          DESIGN_SHARD: ${{ matrix.design_shard }}
+        run: |
+          set +e
+          product_status=0
+          if [ -n "$PRODUCT_SHARD" ]; then
+            echo "::group::Product browser shard $PRODUCT_SHARD"
+            PLAYWRIGHT_WORKERS=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product
+            product_status=$?
+            echo "::endgroup::"
+          fi
+
+          echo "::group::Design browser shard $DESIGN_SHARD"
+          PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts \
+            --shard="$DESIGN_SHARD" --output=test-results/design
+          design_status=$?
+          echo "::endgroup::"
+
+          if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
+            echo "::error::Browser shard failures: product=$product_status design=$design_status"
+            exit 1
+          fi
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: browser-e2e-diagnostics
+          name: browser-e2e-slot-${{ matrix.slot }}-of-4-diagnostics
           if-no-files-found: ignore
           path: |
             test-results/**
             ${{ runner.temp }}/quiltor-server.log
+
+  # Keep this job ID stable: branch protection requires `browser-e2e`, while
+  # the matrix above may grow or rebalance without changing the required check.
+  browser-e2e:
+    needs: browser-e2e-shards
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every browser shard
+        env:
+          SHARD_RESULT: ${{ needs.browser-e2e-shards.result }}
+        run: |
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "::error::At least one browser E2E matrix slot failed or was cancelled ($SHARD_RESULT)."
+            exit 1
+          fi

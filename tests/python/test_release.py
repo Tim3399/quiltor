@@ -1004,7 +1004,13 @@ class WorkflowBoundaryTests(unittest.TestCase):
         test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("push:\n    branches: [main]", test_workflow)
         self.assertIn("pull_request:", test_workflow)
-        for required_job in ("backend:", "portable-core:", "frontend:", "browser-e2e:"):
+        for required_job in (
+            "backend:",
+            "portable-core:",
+            "frontend:",
+            "browser-e2e-shards:",
+            "browser-e2e:",
+        ):
             self.assertIn(required_job, test_workflow)
         for required_gate in (
             "python -m unittest discover -s tests/python -t tests/python -v",
@@ -1012,12 +1018,68 @@ class WorkflowBoundaryTests(unittest.TestCase):
             "cargo --locked test --workspace --all-targets",
             "run: npx vitest run",
             "run: npm run build",
-            "run: npm run test:e2e",
+            'npx playwright test --shard="$PRODUCT_SHARD"',
+            "npx playwright test --config playwright.design.config.ts",
+            "PLAYWRIGHT_WORKERS=1 npx playwright test",
+            "PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts",
         ):
             self.assertIn(required_gate, test_workflow)
-        self.assertIn("browser-e2e:", test_workflow)
-        self.assertIn("needs: frontend", test_workflow)
+        workflow_contract.validate_browser_e2e_sharding(workflow_contract._workflow_sources())
+        self.assertEqual(
+            (REPO_ROOT / "distribution/tooling/release_preflight.py")
+            .read_text(encoding="utf-8")
+            .count('[npm, "run", "test:e2e"]'),
+            1,
+        )
         self.assertNotIn("continue-on-error", test_workflow)
+
+    def test_browser_shard_topology_and_aggregator_fail_closed(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_browser_e2e_sharding(sources)
+
+        mutations = (
+            (
+                "missing design shard",
+                'design_shard: "4/4"',
+                'design_shard: "3/4"',
+                "cover exactly product",
+            ),
+            (
+                "fail-fast matrix",
+                "fail-fast: false",
+                "fail-fast: true",
+                "missing fail-closed shard evidence",
+            ),
+            (
+                "discarded product status",
+                "product_status=$?",
+                "product_status=0",
+                "missing fail-closed shard evidence",
+            ),
+            (
+                "non-stable aggregator dependency",
+                "needs: browser-e2e-shards",
+                "needs: frontend",
+                "aggregator is missing fail-closed evidence",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = mutated[TEST_WORKFLOW].replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_browser_e2e_sharding(mutated)
+
+    def test_browser_worker_defaults_are_bounded_and_overrideable(self):
+        product = (REPO_ROOT / "playwright.config.ts").read_text(encoding="utf-8")
+        design = (REPO_ROOT / "playwright.design.config.ts").read_text(encoding="utf-8")
+        resolver = (REPO_ROOT / "tests/playwright/workers.ts").read_text(encoding="utf-8")
+
+        self.assertIn("workers: resolvePlaywrightWorkers(2)", product)
+        self.assertIn("timeout: 30_000", product)
+        self.assertIn("workers: resolvePlaywrightWorkers(4)", design)
+        self.assertIn("process.env.PLAYWRIGHT_WORKERS", resolver)
+        self.assertIn("Number.isSafeInteger(workers)", resolver)
 
     def test_no_release_job_can_start_before_exact_main_is_proven(self):
         context = self.build.index("release-context:")

@@ -412,6 +412,80 @@ def validate_image_size_guard(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("web image-size guard must run after the image digest is bound")
 
 
+def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
+    """Keep normal-CI browser sharding complete, diagnosable and fail-closed."""
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    shards = _job_body(workflow, "browser-e2e-shards")
+    aggregator = _job_body(workflow, "browser-e2e")
+
+    entries = re.findall(
+        r"^\s+- slot: ([1-9][0-9]*)\n"
+        r'^[ \t]+product_shard: "([0-9/]*)"\n'
+        r'^[ \t]+design_shard: "([0-9/]+)"$',
+        shards,
+        re.MULTILINE,
+    )
+    expected = {
+        ("1", "1/3", "1/4"),
+        ("2", "2/3", "2/4"),
+        ("3", "3/3", "3/4"),
+        ("4", "", "4/4"),
+    }
+    if len(entries) != 4 or set(entries) != expected:
+        raise WorkflowContractError(
+            "normal CI must cover exactly product 1/3..3/3 and design 1/4..4/4 "
+            "across four browser matrix slots"
+        )
+
+    required_shard_evidence = (
+        "needs: frontend",
+        "fail-fast: false",
+        "if: matrix.product_shard != ''",
+        "PRODUCT_SHARD: ${{ matrix.product_shard }}",
+        "DESIGN_SHARD: ${{ matrix.design_shard }}",
+        "set +e",
+        "product_status=0",
+        "PLAYWRIGHT_WORKERS=1 npx playwright test",
+        'npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product',
+        "PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts",
+        "npx playwright test --config playwright.design.config.ts",
+        '--shard="$DESIGN_SHARD" --output=test-results/design',
+        "product_status=$?",
+        "design_status=$?",
+        'if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then',
+        "if: failure()",
+        "name: browser-e2e-slot-${{ matrix.slot }}-of-4-diagnostics",
+        "test-results/**",
+    )
+    for evidence in required_shard_evidence:
+        if evidence not in shards:
+            raise WorkflowContractError(
+                f"browser E2E matrix is missing fail-closed shard evidence: {evidence}"
+            )
+    if "continue-on-error" in shards:
+        raise WorkflowContractError(
+            "browser E2E shards must collect both suite results in shell and fail closed"
+        )
+
+    required_aggregator_evidence = (
+        "needs: browser-e2e-shards",
+        "if: always()",
+        "SHARD_RESULT: ${{ needs.browser-e2e-shards.result }}",
+        'if [ "$SHARD_RESULT" != "success" ]; then',
+        "exit 1",
+    )
+    for evidence in required_aggregator_evidence:
+        if evidence not in aggregator:
+            raise WorkflowContractError(
+                f"stable browser-e2e aggregator is missing fail-closed evidence: {evidence}"
+            )
+    if "continue-on-error" in aggregator or "strategy:" in aggregator:
+        raise WorkflowContractError(
+            "stable browser-e2e aggregator must be a single fail-closed branch-protection check"
+        )
+
+
 def _job_body(source: str, name: str) -> str:
     try:
         jobs = source.split("\njobs:\n", 1)[1]
@@ -519,6 +593,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_cargo(sources)
         validate_publication_boundary(sources)
         validate_image_size_guard(sources)
+        validate_browser_e2e_sharding(sources)
         validate_native_release_targets(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original

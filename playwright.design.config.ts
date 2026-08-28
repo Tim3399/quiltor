@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { resolvePlaywrightWorkers } from "./tests/playwright/workers";
 
 export default defineConfig({
   testDir: "./tests/design",
@@ -6,7 +7,9 @@ export default defineConfig({
   // Accessibility/layout audits are split into deterministic, bounded story chunks. Keeping
   // concurrency bounded protects the local Vite server and Chromium while each chunk gets an
   // independent CI result instead of sharing one catalog-wide timeout.
-  workers: 2,
+  // The gallery is read-only and every story runs in an isolated browser context, so four local
+  // workers cut the dominant audit block substantially. CI shards stay conservative at two.
+  workers: resolvePlaywrightWorkers(4),
   timeout: 45_000,
   use: {
     baseURL: "http://127.0.0.1:4174",

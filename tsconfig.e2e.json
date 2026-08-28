@@ -16,6 +16,7 @@
   "include": [
     "playwright.config.ts",
     "playwright.design.config.ts",
+    "tests/playwright/**/*.ts",
     "tests/e2e/**/*.ts",
     "tests/design/**/*.ts",
     "contracts/fixtures/application-api/structured-error/revision-conflict.v1.json",
