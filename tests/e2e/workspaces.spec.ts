@@ -978,9 +978,9 @@ test("CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil", a
   const editor = page.getByLabel("Kapiteltext");
   await editor.fill("Der Morgen lag still über dem Hafen.");
   await page.keyboard.press("Control+z");
-  await expect(page.locator(".cm-placeholder")).toBeVisible();
+  await expect(editor.locator(".cm-placeholder")).toBeVisible();
   await editor.fill("Der Morgen lag still über dem Hafen.");
-  await page.locator(".cm-line").selectText();
+  await editor.locator(".cm-line").selectText();
   // Markieren allein öffnet nichts mehr -- die Nachschlage-Aktionen sind eine eigene
   // Anfrage, so wie unter macOS. Sichtbar ist die Markierung trotzdem.
   const selectionMenu = page.getByRole("menu", { name: "Aktionen für die Textauswahl" });

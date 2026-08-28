@@ -275,6 +275,8 @@ describe("NoteEditor", () => {
     const option = await screen.findByRole("option", { name: /Hafen/ });
     expect(option.id).toMatch(/-option-0$/);
     expect(option.id).not.toContain("harbour east");
+    expect(textbox).not.toHaveAttribute("aria-expanded");
+    expect(textbox).toHaveAttribute("aria-controls", option.closest('[role="listbox"]')?.id);
     expect(textbox).toHaveAttribute("aria-activedescendant", option.id);
   });
 

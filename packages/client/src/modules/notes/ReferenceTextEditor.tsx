@@ -312,7 +312,6 @@ export function ReferenceTextEditor({
   useEffect(() => {
     const content = viewRef.current?.contentDOM;
     if (!content) return;
-    content.setAttribute("aria-expanded", completion ? "true" : "false");
     if (completion) {
       content.setAttribute("aria-controls", completionId);
       const active = completion.candidates[completion.activeIndex];
