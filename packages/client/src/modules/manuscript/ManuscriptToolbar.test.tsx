@@ -43,11 +43,11 @@ it("links manuscript export actions and restores focus after selection", async (
     "workspace-toolbar__create-button",
     "ui-toolbar-button",
     "ui-button--primary",
-    "ui-button--compact",
+    "ui-button--regular",
   );
   expect(createChapter).toHaveAttribute("data-workspace-action", "create");
   expect(createChapter).toHaveAttribute("data-appearance", "primary");
-  expect(createChapter).toHaveAttribute("data-size", "compact");
+  expect(createChapter).toHaveAttribute("data-size", "regular");
   expect(createChapter).toHaveAttribute("data-label-mode", "responsive");
   expect(createChapter).toHaveAttribute("data-collapse-at", "compact");
   expect(createChapter.querySelector(".ui-button__icon svg")).not.toBeNull();
