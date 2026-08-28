@@ -13,6 +13,7 @@ vi.mock("@xyflow/react", () => ({
     nodesConnectable,
     onConnect,
     onMove,
+    onNodeClick,
   }: {
     edges: Array<{ id: string }>;
     nodes: Array<{ id: string; data: { deceased: boolean; zoomTier: string } }>;
@@ -24,12 +25,18 @@ vi.mock("@xyflow/react", () => ({
       targetHandle: string;
     }) => void;
     onMove: (event: null, viewport: { x: number; y: number; zoom: number }) => void;
+    onNodeClick: (event: null, node: { id: string }) => void;
   }) => (
     <div data-testid="figure-flow">
       {nodes.map((node) => (
-        <output aria-label={`Kontext ${node.id}`} key={node.id}>
-          {String(node.data.deceased)}:{node.data.zoomTier}
-        </output>
+        <div key={node.id}>
+          <output aria-label={`Kontext ${node.id}`}>
+            {String(node.data.deceased)}:{node.data.zoomTier}
+          </output>
+          <button type="button" onClick={() => onNodeClick(null, node)}>
+            Testauswahl {node.id}
+          </button>
+        </div>
       ))}
       {edges.map((edge) => (
         <span data-testid="rendered-relationship" data-edge-id={edge.id} key={edge.id} />
@@ -185,5 +192,24 @@ describe("FigureWorkspace relationships", () => {
     expect(screen.getByLabelText("Kontext a")).toHaveTextContent("true:detail");
     fireEvent.click(screen.getByRole("button", { name: "Testzoom" }));
     expect(screen.getByLabelText("Kontext a")).toHaveTextContent("true:overview");
+  });
+
+  it("reselects a repeated navigation target after an internal selection", () => {
+    const view = render(
+      <I18nProvider>
+        <FigureWorkspace state={initialState} onChange={vi.fn()} targetId="a" targetRequestId={1} />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Ada");
+    fireEvent.click(screen.getByRole("button", { name: "Testauswahl b" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Bela");
+
+    view.rerender(
+      <I18nProvider>
+        <FigureWorkspace state={initialState} onChange={vi.fn()} targetId="a" targetRequestId={2} />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Ada");
   });
 });

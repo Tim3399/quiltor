@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { EditorView } from "@codemirror/view";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import type { FigureState } from "../model";
@@ -21,6 +22,14 @@ const state: FigureState = {
     { id: "presence-later", elementId: "f", placeId: "q", momentId: "later" },
   ],
 };
+
+function noteView(textbox: HTMLElement) {
+  const root = textbox.closest<HTMLElement>(".cm-editor");
+  if (!root) throw new Error("CodeMirror root missing");
+  const view = EditorView.findFromDOM(root);
+  if (!view) throw new Error("CodeMirror view missing");
+  return view;
+}
 
 describe("PlaceInspector", () => {
   it("keeps history rows inside their cards with compact, wrapping layout contracts", () => {
@@ -98,6 +107,51 @@ describe("PlaceInspector", () => {
     fireEvent.click(screen.getByRole("button", { name: "Später" }));
     expect(onOpen).toHaveBeenNthCalledWith(1, { workspace: "figures", id: "f" });
     expect(onOpen).toHaveBeenNthCalledWith(2, { workspace: "timeline", id: "later" });
+  });
+
+  it("edits the shared place note without losing existing profile data", () => {
+    const onPatch = vi.fn();
+    const selected = {
+      ...state.nodes[0],
+      profile: { alter: "Alt", extra: [{ k: "Geruch", v: "Salz" }], notizen: "Nebel" },
+    };
+    render(
+      <I18nProvider>
+        <PlaceInspector
+          selected={selected}
+          state={state}
+          onPatch={onPatch}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const note = screen.getByRole("textbox", { name: "Notizen" });
+    expect(noteView(note).state.doc.toString()).toBe("Nebel");
+    expect(note.closest("[data-note-owner]")).toHaveAttribute("data-note-owner", "place:p");
+
+    act(() =>
+      noteView(note).dispatch({
+        changes: { from: 0, to: 5, insert: "Salziger Nebel" },
+        userEvent: "input",
+      }),
+    );
+    expect(onPatch).toHaveBeenCalledWith({
+      profile: {
+        alter: "Alt",
+        extra: [{ k: "Geruch", v: "Salz" }],
+        notizen: "Salziger Nebel",
+        noteReferences: [],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Notiz im Fokus öffnen" }));
+    const focus = screen.getByRole("dialog", { name: "Notiz · Hafen" });
+    expect(focus.querySelector("[data-note-owner]")).toHaveAttribute("data-note-owner", "place:p");
+    expect(
+      noteView(screen.getByRole("textbox", { name: "Notiz für Hafen" })).state.doc.toString(),
+    ).toBe("Nebel");
   });
 
   it("renders the empty inspector without editable fields", () => {

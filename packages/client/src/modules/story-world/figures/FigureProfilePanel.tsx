@@ -35,7 +35,8 @@ export function FigureProfilePanel({
             fieldClassName="figure-profile-field"
             label={t(label)}
             value={String(profile[key] || "")}
-            onChange={(value) => patchProfile({ [key]: value })}
+            references={profile.noteReferences}
+            onChange={(value, noteReferences) => patchProfile({ [key]: value, noteReferences })}
             focus={noteFocusCopy(t, figure.name)}
           />
         ) : (

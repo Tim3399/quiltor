@@ -327,9 +327,10 @@ Then extend extraction as new state dimensions become available.
 
 ## Next delivery after P0
 
-The next implementation target is **P1 — NEXT: Hierarchical chapter organization** below.
-Shared Notes and Storyboard remain important, but the manuscript binder is intentionally pulled
-forward before either of them.
+Hierarchical chapter organization is complete. The current implementation target is the
+**P1 Figure / entity workspace overhaul** below, building on the Shared Notes editor and stable
+`@` references now available to every shipped note owner. Storyboard-specific note reuse remains
+part of the later Storyboard delivery.
 
 ---
 
@@ -339,12 +340,12 @@ Notes should become a first-class writer workflow, not small textareas scattered
 
 ## One Notes primitive
 
-- [ ] Create one reusable note editor for:
+- [x] Create one reusable note editor for all currently shipped note owners:
   - figure/entity notes;
   - place notes;
   - timeline moment notes;
-  - chapter notes;
-  - storyboard note cards.
+  - chapter notes.
+- [ ] Reuse the same editor for storyboard note cards when the Storyboard workspace ships.
 - [x] Preserve plain author-owned text.
 - [x] Autosave through the owning document/workspace.
 - [x] Undo/redo consistent with the owning workspace.
@@ -361,17 +362,17 @@ Notes should become a first-class writer workflow, not small textareas scattered
 
 ## `@` references
 
-- [ ] Typing `@` opens entity/reference autocomplete.
-- [ ] Reuse the same world-search candidate index used elsewhere.
-- [ ] Support references to:
+- [x] Typing `@` opens keyboard-accessible entity/reference autocomplete.
+- [x] Reuse the same world-search candidate index used elsewhere.
+- [x] Support references to every currently shipped target:
   - figures/entities;
   - places;
   - timeline moments;
-  - chapters;
-  - later storyboards.
-- [ ] References are explicit links, not inferred canon facts.
-- [ ] Clicking a reference navigates to the original object.
-- [ ] References survive entity renames because they store IDs, not only visible names.
+  - chapters.
+- [ ] Add Storyboard targets when the Storyboard workspace ships.
+- [x] References are explicit links, not inferred canon facts.
+- [x] Clicking a reference navigates to the original object.
+- [x] References survive entity renames because they store IDs, not only visible names.
 
 ## Backlinks
 

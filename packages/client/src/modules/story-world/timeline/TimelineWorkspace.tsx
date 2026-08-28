@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
@@ -67,6 +67,7 @@ export function TimelineWorkspace({
   manuscript,
   onOpenChapter,
   targetId,
+  targetRequestId,
   onUndo,
   onRedo,
   canUndo = false,
@@ -77,6 +78,7 @@ export function TimelineWorkspace({
   manuscript: Readonly<Manuscript>;
   onOpenChapter?: (chapterId: string) => void;
   targetId?: string;
+  targetRequestId?: number;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -84,6 +86,8 @@ export function TimelineWorkspace({
 }) {
   const { locale, t } = useI18n();
   const timeline = state.timeline || [];
+  const latestTimeline = useRef(timeline);
+  latestTimeline.current = timeline;
   const [selectedId, setSelectedId] = useState<string | null>(
     () => targetId || timeline[0]?.id || null,
   );
@@ -100,8 +104,12 @@ export function TimelineWorkspace({
     : [];
 
   useEffect(() => {
-    if (targetId && timeline.some((moment) => moment.id === targetId)) setSelectedId(targetId);
-  }, [targetId, timeline]);
+    // The ID is an event identity: a newer request must replay selection even when its target is
+    // textually identical to the previous request.
+    void targetRequestId;
+    if (targetId && latestTimeline.current.some((moment) => moment.id === targetId))
+      setSelectedId(targetId);
+  }, [targetId, targetRequestId]);
   useEffect(() => {
     if (!selectedId && timeline.length) setSelectedId(timeline[0].id);
   }, [selectedId, timeline]);

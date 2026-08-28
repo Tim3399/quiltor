@@ -105,6 +105,17 @@ def _canonical_integer_field(
         value[key] = _wire_integer(value[key], minimum=minimum, maximum=maximum)
 
 
+def _canonical_note_reference_integers(owner: dict[str, Any]) -> None:
+    references = owner.get("noteReferences")
+    if not isinstance(references, list):
+        return
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        _canonical_integer_field(reference, "from", minimum=0)
+        _canonical_integer_field(reference, "to", minimum=1)
+
+
 def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
     normalized = deepcopy(payload)
     if not isinstance(normalized, dict):
@@ -115,6 +126,7 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
             for chapter in chapters:
                 if not isinstance(chapter, dict):
                     continue
+                _canonical_note_reference_integers(chapter)
                 for collection in ("mentions", "marks"):
                     entries = chapter.get(collection)
                     if not isinstance(entries, list):
@@ -126,11 +138,21 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                         _canonical_integer_field(entry, "to", minimum=1)
         return normalized
 
+    nodes = normalized.get("nodes")
+    if isinstance(nodes, list):
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            profile = node.get("profile")
+            if isinstance(profile, dict):
+                _canonical_note_reference_integers(profile)
+
     timeline = normalized.get("timeline")
     if isinstance(timeline, list):
         for moment in timeline:
             if not isinstance(moment, dict):
                 continue
+            _canonical_note_reference_integers(moment)
             for key in ("time", "position", "endTime"):
                 _canonical_integer_field(moment, key)
     system = normalized.get("timeSystem")

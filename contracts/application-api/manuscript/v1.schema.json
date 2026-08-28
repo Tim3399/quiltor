@@ -105,6 +105,11 @@
         "title": { "type": "string", "maxLength": 1000 },
         "body": { "type": "string", "maxLength": 10000000 },
         "note": { "type": "string", "maxLength": 100000 },
+        "noteReferences": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/noteReference" }
+        },
         "mentions": {
           "type": "array",
           "maxItems": 10000,
@@ -126,6 +131,37 @@
       "properties": {
         "startMomentId": { "type": "string", "minLength": 1, "maxLength": 200 },
         "endMomentId": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "noteReference": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "target", "from", "to", "surface"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "target": { "$ref": "#/$defs/worldReferenceTarget" },
+        "from": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Zero-based UTF-16 code-unit offset at a Unicode scalar boundary."
+        },
+        "to": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Exclusive UTF-16 code-unit offset at a Unicode scalar boundary."
+        },
+        "surface": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "worldReferenceTarget": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["entity", "place", "timeline", "chapter", "storyboard"] },
+        "id": { "type": "string", "minLength": 1 }
       }
     },
     "mention": {

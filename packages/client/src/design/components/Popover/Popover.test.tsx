@@ -125,6 +125,31 @@ describe("Popover", () => {
     expect(screen.queryByRole("dialog", { name: "Werkzeuge" })).toBeNull();
   });
 
+  it("can portal into the semantic owner of an enclosing modal", () => {
+    const anchor = createRef<HTMLButtonElement>();
+    const owner = createRef<HTMLDivElement>();
+    render(
+      <div ref={owner} role="dialog" aria-label="Außen" aria-modal="true">
+        <button ref={anchor} type="button">
+          Auslöser
+        </button>
+        <Popover
+          anchorRef={anchor}
+          portalContainerRef={owner}
+          open
+          label="Werkzeuge"
+          onClose={() => undefined}
+        >
+          Inhalt
+        </Popover>
+      </div>,
+    );
+
+    expect(screen.getByRole("dialog", { name: "Außen" })).toContainElement(
+      screen.getByRole("dialog", { name: "Werkzeuge" }),
+    );
+  });
+
   it("allows scrolling inside a tall popover without closing it", () => {
     const close = vi.fn();
     const anchor = createRef<HTMLButtonElement>();

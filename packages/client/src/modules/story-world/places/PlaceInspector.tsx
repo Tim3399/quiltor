@@ -9,6 +9,7 @@ import {
 } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { Workspace } from "../../../shared";
+import { NoteEditor, noteFocusCopy } from "../../notes";
 import type { FigureNode, FigureState } from "../model";
 import { NodePriorityActions } from "../NodePriorityActions";
 import { PlaceHistory } from "./PlaceHistory";
@@ -61,6 +62,16 @@ export function PlaceInspector({
               label={t("shortDescription")}
               value={selected.sub || ""}
               onChange={(event) => onPatch({ sub: event.target.value })}
+            />
+            <NoteEditor
+              owner={{ kind: "place", id: selected.id }}
+              label={t("profileNotes")}
+              value={selected.profile?.notizen || ""}
+              references={selected.profile?.noteReferences}
+              onChange={(notizen, noteReferences) =>
+                onPatch({ profile: { ...selected.profile, notizen, noteReferences } })
+              }
+              focus={noteFocusCopy(t, selected.name)}
             />
             <NodePriorityActions
               className="places-priority-actions"

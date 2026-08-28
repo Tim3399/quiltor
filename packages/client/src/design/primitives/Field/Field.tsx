@@ -4,6 +4,7 @@ import {
   cloneElement,
   forwardRef,
   type HTMLAttributes,
+  type MouseEventHandler,
   type ReactElement,
   type ReactNode,
   useId,
@@ -33,6 +34,10 @@ export interface FieldProps
   /** Keeps the accessible label while removing it from visual layout. */
   labelHidden?: boolean;
   controlId?: string;
+  /** Associates the label with a nested focus target instead of the cloned control wrapper. */
+  labelTargetId?: string;
+  /** Activates a custom nested control that cannot be targeted by native label semantics. */
+  onLabelClick?: MouseEventHandler<HTMLLabelElement>;
   children: ReactElement<FieldControlProps>;
 }
 
@@ -56,6 +61,8 @@ export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
     actions,
     labelHidden = false,
     controlId,
+    labelTargetId,
+    onLabelClick,
     description,
     descriptionId,
     hint,
@@ -85,9 +92,11 @@ export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
   );
   const invalid = showsError ? true : control.props["aria-invalid"];
   const fieldLabel = (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: a label is not a keyboard action; the custom control remains a native Tab stop and this restores label pointer activation.
     <label
       className={`ui-field__label ${labelHidden ? "sr-only" : ""}`.trim()}
-      htmlFor={resolvedControlId}
+      htmlFor={labelTargetId ?? resolvedControlId}
+      onClick={onLabelClick}
     >
       {label}
     </label>

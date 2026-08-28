@@ -44,6 +44,9 @@ export const shared = {
   noteFocusTitle: "Notiz · {context}",
   noteFocusClose: "Zurück zu {context}",
   noteFocusEditor: "Notiz für {context}",
+  noteReferencePicker: "Referenz auswählen",
+  noteReferenceNoResults: "Keine passende Referenz",
+  noteReferenceLinks: "Verknüpfte Referenzen",
   searchTerm: "Suchbegriff",
   // Zähler stehen als ganze Formulierung im Katalog, damit die Komponente Zahl und Wort nicht
   // selbst zusammensetzen muss -- im Englischen ist die Kleinschreibung sonst nicht steuerbar.

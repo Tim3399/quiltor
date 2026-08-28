@@ -1,12 +1,13 @@
 import { lazy } from "react";
 import { loadTextWorkspace, type Manuscript } from "../../modules/manuscript";
 import {
+  type FigureState,
   loadFigureWorkspace,
   loadPlacesWorkspace,
   loadTimelineWorkspace,
-  type FigureState,
 } from "../../modules/story-world";
 import type { Workspace, WorkspaceTarget } from "../../shared";
+import type { WorkspaceNavigationRequest } from "./useWorkspaceController";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
 
 const TextWorkspace = lazy(loadTextWorkspace);
@@ -48,7 +49,7 @@ export function WorkspaceSurface({
   manuscriptHistory: HistoryActions<Manuscript>;
   figureHistory: HistoryActions<FigureState>;
   onFiguresChange: (value: FigureState) => void;
-  target: WorkspaceTarget | null;
+  target: WorkspaceNavigationRequest | null;
   onNavigate: (target: WorkspaceTarget) => void;
   focus: boolean;
   onFocus: (focus: boolean) => void;
@@ -69,6 +70,7 @@ export function WorkspaceSurface({
         focus={focus}
         onFocus={onFocus}
         targetId={target?.workspace === "text" ? target.id : undefined}
+        targetRequestId={target?.workspace === "text" ? target.requestId : undefined}
         textSearch={target?.workspace === "text" ? target.textSearch : undefined}
         onUndo={manuscriptHistory.undo}
         onRedo={manuscriptHistory.redo}
@@ -92,6 +94,7 @@ export function WorkspaceSurface({
         state={figures}
         onChange={onFiguresChange}
         targetId={target?.workspace === "figures" ? target.id : undefined}
+        targetRequestId={target?.workspace === "figures" ? target.requestId : undefined}
         onUndo={figureHistory.undo}
         onRedo={figureHistory.redo}
         canUndo={figureHistory.canUndo}
@@ -106,6 +109,7 @@ export function WorkspaceSurface({
         manuscript={manuscript}
         onOpenChapter={(chapterId) => onNavigate({ workspace: "text", id: chapterId })}
         targetId={target?.workspace === "timeline" ? target.id : undefined}
+        targetRequestId={target?.workspace === "timeline" ? target.requestId : undefined}
         onUndo={figureHistory.undo}
         onRedo={figureHistory.redo}
         canUndo={figureHistory.canUndo}
@@ -117,6 +121,7 @@ export function WorkspaceSurface({
       state={figures}
       onChange={onFiguresChange}
       targetId={target?.workspace === "places" ? target.id : undefined}
+      targetRequestId={target?.workspace === "places" ? target.requestId : undefined}
       onUndo={figureHistory.undo}
       onRedo={figureHistory.redo}
       canUndo={figureHistory.canUndo}

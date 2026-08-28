@@ -1,3 +1,5 @@
+import type { NoteReference } from "../../shared";
+
 export interface ProfileExtra {
   k: string;
   v: string;
@@ -10,6 +12,7 @@ export interface Profile {
   herkunft?: string;
   stimme?: string;
   notizen?: string;
+  noteReferences?: NoteReference[];
   extra?: ProfileExtra[];
   [key: string]: unknown;
 }
@@ -76,6 +79,7 @@ export interface TimelineMoment {
   endPrecision?: "day" | "month" | "year";
   date?: string;
   note?: string;
+  noteReferences?: NoteReference[];
 }
 
 export type TimeSystemKind = "relative" | "gregorian" | "custom";

@@ -346,4 +346,35 @@ describe("PlacesWorkspace map overlays", () => {
       pinned: true,
     });
   });
+
+  it("reselects a repeated navigation target after an internal selection", () => {
+    const view = render(
+      <I18nProvider>
+        <PlacesWorkspace
+          state={state}
+          onChange={vi.fn()}
+          onOpen={vi.fn()}
+          targetId="a"
+          targetRequestId={1}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("A");
+    fireEvent.click(screen.getByTestId("place-node-b"));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("B");
+
+    view.rerender(
+      <I18nProvider>
+        <PlacesWorkspace
+          state={state}
+          onChange={vi.fn()}
+          onOpen={vi.fn()}
+          targetId="a"
+          targetRequestId={2}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("A");
+  });
 });

@@ -1,8 +1,8 @@
-import type { AssistantProposal } from "./model";
-import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from "../story-world";
-import { uid } from "../../shared/id";
 import type { MessageKey } from "../../i18n";
+import { uid } from "../../shared/id";
+import type { FigureEdge, FigureNode, FigureState, TimelineMoment } from "../story-world";
 import { insertTimelineMoment } from "../story-world";
+import type { AssistantProposal } from "./model";
 
 const GRID_X = 288,
   GRID_Y = 192;
@@ -60,10 +60,7 @@ export function applyAssistantProposals(
                 : {}),
               ...(proposal.patch.profile
                 ? {
-                    profile: {
-                      ...(node.profile || {}),
-                      ...sanitizeProfile(proposal.patch.profile),
-                    },
+                    profile: applyProfilePatch(node.profile, proposal.patch.profile),
                   }
                 : {}),
               ...(proposal.patch.aliases
@@ -212,18 +209,31 @@ export function scopeAssistantProposals(
 }
 
 function sanitizeProfile(profile?: Record<string, unknown>) {
-  if (!profile) return { extra: [] };
+  return { ...sanitizeProfilePatch(profile), extra: [] };
+}
+
+function sanitizeProfilePatch(profile?: Record<string, unknown>) {
+  if (!profile) return {};
   const text = (key: string) =>
     typeof profile[key] === "string" ? String(profile[key]).slice(0, 4000) : undefined;
-  return {
-    alter: text("alter"),
-    rolle: text("rolle"),
-    aussehen: text("aussehen"),
-    herkunft: text("herkunft"),
-    stimme: text("stimme"),
-    notizen: text("notizen"),
-    extra: [],
-  };
+  return Object.fromEntries(
+    ["alter", "rolle", "aussehen", "herkunft", "stimme", "notizen"].flatMap((key) => {
+      const value = text(key);
+      return value === undefined ? [] : [[key, value]];
+    }),
+  );
+}
+
+function applyProfilePatch(
+  current: FigureNode["profile"],
+  patch: Record<string, unknown>,
+): NonNullable<FigureNode["profile"]> {
+  const sanitized = sanitizeProfilePatch(patch);
+  const next = { ...(current || {}), ...sanitized };
+  if (typeof sanitized.notizen === "string" && sanitized.notizen !== current?.notizen) {
+    next.noteReferences = [];
+  }
+  return next;
 }
 
 function sanitizeAliases(aliases?: FigureNode["aliases"]): FigureNode["aliases"] {
@@ -256,14 +266,18 @@ function arrangeNodes(nodes: FigureNode[], edges: FigureEdge[], strategy: "thema
       ids: string[] = [];
     remaining.delete(first);
     while (queue.length) {
-      const id = queue.shift()!;
+      const id = queue.shift();
+      if (id === undefined) continue;
       ids.push(id);
       for (const neighbour of neighbours.get(id) || [])
         if (remaining.delete(neighbour)) queue.push(neighbour);
     }
     groups.push(
       ids
-        .map((id) => nodes.find((node) => node.id === id)!)
+        .flatMap((id) => {
+          const node = nodes.find((candidate) => candidate.id === id);
+          return node ? [node] : [];
+        })
         .sort(
           (a, b) =>
             (b.type === "person" ? 1 : 0) - (a.type === "person" ? 1 : 0) ||
@@ -286,16 +300,19 @@ function arrangeNodes(nodes: FigureNode[], edges: FigureEdge[], strategy: "thema
       originY += rowHeight + GRID_Y;
       rowHeight = 0;
     }
-    group.forEach((node, index) =>
+    group.forEach((node, index) => {
       positioned.set(node.id, {
         x: originX + (index % columns) * GRID_X,
         y: originY + Math.floor(index / columns) * GRID_Y,
-      }),
-    );
+      });
+    });
     originX += width + GRID_X;
     rowHeight = Math.max(rowHeight, height);
   }
-  return nodes.map((node) => ({ ...node, ...positioned.get(node.id)! }));
+  return nodes.map((node) => {
+    const position = positioned.get(node.id);
+    return position ? { ...node, ...position } : node;
+  });
 }
 
 export function proposalLabel(

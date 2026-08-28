@@ -3,6 +3,7 @@ import type { Manuscript } from "../manuscript";
 import type { FigureState } from "../story-world";
 import {
   buildWorldReferenceCandidates,
+  resolveWorldReferenceCandidate,
   searchWorldReferences,
   workspaceTargetForReference,
 } from ".";
@@ -78,6 +79,45 @@ describe("world reference index", () => {
     ]);
   });
 
+  it("gives unfinished targets selectable fallback labels", () => {
+    const candidates = buildWorldReferenceCandidates({
+      manuscript: {
+        chapters: [{ id: "draft-chapter", title: "  ", body: "", note: "" }],
+      },
+      figures: {
+        nodes: [{ id: "draft", name: "  ", type: "person", x: 0, y: 0 }],
+        edges: [],
+        timeline: [{ id: "draft-moment", title: " " }],
+      },
+      storyboards: [{ id: "draft-board", title: "" }],
+      labels,
+    });
+
+    expect(candidates.map((candidate) => candidate.label)).toEqual([
+      "Ohne Titel",
+      "person",
+      "Zeitpunkt",
+      "Ohne Titel",
+    ]);
+  });
+
+  it("keeps imported source IDs intact while bounding extreme visible labels", () => {
+    const longId = "id".repeat(300);
+    const candidates = buildWorldReferenceCandidates({
+      manuscript,
+      figures: {
+        nodes: [{ id: longId, name: "N".repeat(1001), type: "person", x: 0, y: 0 }],
+        edges: [],
+      },
+      labels,
+    });
+    const imported = candidates.find((item) => item.target.id === longId);
+
+    expect(imported?.target.id).toBe(longId);
+    expect(imported?.label).toHaveLength(1000);
+    expect(imported?.label.endsWith("…")).toBe(true);
+  });
+
   it("maps stable targets to the existing workspace navigation contract", () => {
     expect(workspaceTargetForReference({ kind: "place", id: "harbour" })).toEqual({
       workspace: "places",
@@ -87,5 +127,20 @@ describe("world reference index", () => {
       workspace: "text",
       id: "c1",
     });
+  });
+
+  it("follows a figure identity when its live kind changes to or from place", () => {
+    const candidates = buildWorldReferenceCandidates({
+      manuscript,
+      figures: {
+        nodes: [{ id: "mara", name: "Maras Haus", type: "ort", x: 0, y: 0 }],
+        edges: [],
+      },
+      labels,
+    });
+
+    expect(
+      resolveWorldReferenceCandidate(candidates, { kind: "entity", id: "mara" })?.target,
+    ).toEqual({ kind: "place", id: "mara" });
   });
 });

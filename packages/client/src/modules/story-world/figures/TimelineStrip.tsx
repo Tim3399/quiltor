@@ -137,8 +137,9 @@ export function TimelineStrip({
             className="timeline-detail-input"
             label={t("optionalNote")}
             value={active.note || ""}
+            references={active.noteReferences}
             placeholder={t("momentNotePlaceholder")}
-            onChange={(note) => onPatch(active.id, { note })}
+            onChange={(note, noteReferences) => onPatch(active.id, { note, noteReferences })}
             size="compact"
             focus={noteFocusCopy(t, active.title)}
           />

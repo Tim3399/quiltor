@@ -15,6 +15,7 @@ export type PlacesWorkspaceProps = {
   state: FigureState;
   onChange: (value: FigureState) => void;
   targetId?: string;
+  targetRequestId?: number;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -37,6 +38,7 @@ function PlacesWorkspaceInner({
   state,
   onChange,
   targetId,
+  targetRequestId,
   onUndo,
   onRedo,
   canUndo = false,
@@ -71,6 +73,9 @@ function PlacesWorkspaceInner({
   centerOnPlace.current = canvas.centerOnPlace;
 
   useEffect(() => {
+    // The ID is an event identity: a newer request must replay selection even when its target is
+    // textually identical to the previous request.
+    void targetRequestId;
     if (!targetId) return;
     const item = latestState.current.nodes.find(
       (node) => node.id === targetId && node.type === "ort",
@@ -78,7 +83,7 @@ function PlacesWorkspaceInner({
     if (!item) return;
     setSelectedId(targetId);
     centerOnPlace.current(item);
-  }, [targetId]);
+  }, [targetId, targetRequestId]);
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
     const media = matchMedia(PLACE_COMPACT_MEDIA_QUERY);

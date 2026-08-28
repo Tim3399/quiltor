@@ -27,6 +27,15 @@
           "herkunft": "Nordküste",
           "stimme": "ruhig",
           "notizen": "Kennt das Archiv.",
+          "noteReferences": [
+            {
+              "id": "profile-reference-archive",
+              "target": { "kind": "place", "id": "archive" },
+              "from": 10,
+              "to": 16,
+              "surface": "Archiv"
+            }
+          ],
           "extra": [{ "k": "Motiv", "v": "Wahrheit" }]
         }
       },
@@ -74,7 +83,16 @@
         "endTime": -2,
         "endPrecision": "day",
         "date": "1847-09-03",
-        "note": "Der erste Archivbesuch."
+        "note": "Der erste Archivbesuch.",
+        "noteReferences": [
+          {
+            "id": "moment-reference-archive",
+            "target": { "kind": "place", "id": "archive" },
+            "from": 10,
+            "to": 16,
+            "surface": "Archiv"
+          }
+        ]
       }
     ],
     "presence": [

@@ -35,6 +35,13 @@
     {
       "id": "chapter-note",
       "path": "/payload/chapters/0/note",
+      "alsoRemove": ["/payload/chapters/0/noteReferences"],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "chapter-note-references",
+      "path": "/payload/chapters/0/noteReferences",
       "absent": "accept",
       "null": "reject"
     },
@@ -130,6 +137,28 @@
       "value": 0.0,
       "expect": "accept",
       "canonical": "integer"
+    },
+    {
+      "id": "note-reference-integral-float",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteReferences/0/from",
+      "value": 4.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "note-reference-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteReferences/0/from",
+      "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "note-reference-unknown-target-kind",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteReferences/0/target/kind",
+      "value": "relationship",
+      "expect": "reject"
     },
     {
       "id": "mention-bool-is-not-integer",

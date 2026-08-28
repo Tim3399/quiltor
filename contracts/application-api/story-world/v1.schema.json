@@ -71,6 +71,11 @@
         "herkunft": { "type": "string" },
         "stimme": { "type": "string" },
         "notizen": { "type": "string" },
+        "noteReferences": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/noteReference" }
+        },
         "extra": {
           "type": "array",
           "items": {
@@ -136,7 +141,43 @@
         "endTime": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
         "endPrecision": { "enum": ["day", "month", "year"] },
         "date": { "type": "string" },
-        "note": { "type": "string" }
+        "note": { "type": "string" },
+        "noteReferences": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/noteReference" }
+        }
+      }
+    },
+    "noteReference": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "target", "from", "to", "surface"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "target": { "$ref": "#/$defs/worldReferenceTarget" },
+        "from": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Zero-based UTF-16 code-unit offset at a Unicode scalar boundary."
+        },
+        "to": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Exclusive UTF-16 code-unit offset at a Unicode scalar boundary."
+        },
+        "surface": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "worldReferenceTarget": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["entity", "place", "timeline", "chapter", "storyboard"] },
+        "id": { "type": "string", "minLength": 1 }
       }
     },
     "presence": {

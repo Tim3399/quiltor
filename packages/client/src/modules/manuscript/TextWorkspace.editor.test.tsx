@@ -12,7 +12,7 @@ import {
 
 function codeMirrorView(container: HTMLElement) {
   const root = requireValue(
-    container.querySelector<HTMLElement>(".cm-editor"),
+    container.querySelector<HTMLElement>(".prose-editor .cm-editor"),
     "CodeMirror root missing",
   );
   return requireValue(EditorView.findFromDOM(root), "CodeMirror view missing");

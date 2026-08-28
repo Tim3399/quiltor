@@ -1,17 +1,7 @@
-export type WorldReferenceTarget =
-  | { kind: "entity"; id: string }
-  | { kind: "place"; id: string }
-  | { kind: "timeline"; id: string }
-  | { kind: "chapter"; id: string }
-  | { kind: "storyboard"; id: string };
+import type { WorldReferenceTarget } from "../../shared";
 
-export interface NoteReference {
-  id: string;
-  target: WorldReferenceTarget;
-  from: number;
-  to: number;
-  surface: string;
-}
+export type { NoteReference, WorldReferenceTarget } from "../../shared";
+export { worldReferenceKey } from "../../shared";
 
 export interface WorldReferenceCandidate {
   id: string;
@@ -27,8 +17,4 @@ export interface StoryboardReferenceSource {
   title: string;
   detail?: string;
   keywords?: string[];
-}
-
-export function worldReferenceKey(target: WorldReferenceTarget) {
-  return `${target.kind}:${target.id}`;
 }

@@ -7,7 +7,8 @@ export type {
 export { worldReferenceKey } from "./model";
 export {
   buildWorldReferenceCandidates,
+  resolveWorldReferenceCandidate,
   searchWorldReferences,
-  workspaceTargetForReference,
   type WorldReferenceIndexLabels,
+  workspaceTargetForReference,
 } from "./worldReferenceIndex";

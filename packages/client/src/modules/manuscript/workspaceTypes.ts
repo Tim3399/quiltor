@@ -14,6 +14,7 @@ export interface TextWorkspaceProps {
   focus: boolean;
   onFocus: (value: boolean) => void;
   targetId?: string;
+  targetRequestId?: number;
   textSearch?: TextSearchTarget;
   onUndo?: () => void;
   onRedo?: () => void;

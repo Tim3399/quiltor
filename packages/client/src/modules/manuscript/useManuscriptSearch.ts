@@ -1,4 +1,4 @@
-import { type MutableRefObject, useEffect, useMemo, useState } from "react";
+import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { TextSearchTarget } from "../../shared";
 import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
 import type { Chapter } from "./model";
@@ -8,6 +8,7 @@ interface ManuscriptSearchOptions {
   chapters: Chapter[];
   current?: Chapter;
   targetId?: string;
+  targetRequestId?: number;
   textSearch?: TextSearchTarget;
   editor: MutableRefObject<ManuscriptEditorHandle | null>;
   onCurrentId: (id: string) => void;
@@ -17,12 +18,17 @@ export function useManuscriptSearch({
   chapters,
   current,
   targetId,
+  targetRequestId,
   textSearch,
   editor,
   onCurrentId,
 }: ManuscriptSearchOptions) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const latestChapters = useRef(chapters);
+  const onCurrentIdRef = useRef(onCurrentId);
+  latestChapters.current = chapters;
+  onCurrentIdRef.current = onCurrentId;
   const matches = useMemo(() => manuscriptSearchMatches(chapters, query), [chapters, query]);
   const activeMatch = matches[activeIndex] ?? null;
   const currentMatches = useMemo(
@@ -31,14 +37,18 @@ export function useManuscriptSearch({
   );
 
   useEffect(() => {
-    if (targetId && chapters.some((chapter) => chapter.id === targetId)) onCurrentId(targetId);
-  }, [targetId]);
+    void targetRequestId;
+    if (targetId && latestChapters.current.some((chapter) => chapter.id === targetId))
+      onCurrentIdRef.current(targetId);
+  }, [targetId, targetRequestId]);
 
   useEffect(() => {
+    void targetRequestId;
     const requestedSearch = textSearch;
     const requestedQuery = requestedSearch?.query.trim();
     if (!requestedQuery || !targetId || !requestedSearch) return;
-    const requestedMatches = manuscriptSearchMatches(chapters, requestedQuery);
+    const requestedChapters = latestChapters.current;
+    const requestedMatches = manuscriptSearchMatches(requestedChapters, requestedQuery);
     const requested = requestedMatches.findIndex(
       (match) =>
         match.chapterId === targetId &&
@@ -47,8 +57,9 @@ export function useManuscriptSearch({
     );
     setQuery(requestedQuery);
     setActiveIndex(requested >= 0 ? requested : 0);
-    if (chapters.some((chapter) => chapter.id === targetId)) onCurrentId(targetId);
-  }, [targetId, textSearch]);
+    if (requestedChapters.some((chapter) => chapter.id === targetId))
+      onCurrentIdRef.current(targetId);
+  }, [targetId, targetRequestId, textSearch]);
 
   useEffect(() => {
     if (!query) return;
@@ -61,7 +72,7 @@ export function useManuscriptSearch({
       editor.current?.reveal(activeMatch.from, activeMatch.to),
     );
     return () => cancelAnimationFrame(frame);
-  }, [activeMatch?.chapterId, activeMatch?.from, activeMatch?.to, current?.id]);
+  }, [activeMatch, current?.id, editor]);
 
   const navigate = (offset: number) => {
     if (!matches.length) return;

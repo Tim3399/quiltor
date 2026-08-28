@@ -9,6 +9,15 @@
         "title": "Die Ankunft",
         "body": "Mara öffnete die Karte.",
         "note": "Die Unruhe nur andeuten.",
+        "noteReferences": [
+          {
+            "id": "note-reference-unruhe",
+            "target": { "kind": "entity", "id": "mara" },
+            "from": 4,
+            "to": 10,
+            "surface": "Unruhe"
+          }
+        ],
         "storyTime": {
           "startMomentId": "arrival",
           "endMomentId": "departure",

@@ -1,0 +1,1 @@
+async function e(e,t,n,r){let i=await e.files.save(t,n);if(!(i.status===`saved`||i.status===`cancelled`))throw Error(i.error||r)}function t(t,n,r,i,a=`text/plain;charset=utf-8`){return e(t,n,new Blob([r],{type:a}),i)}export{t as n,e as t};

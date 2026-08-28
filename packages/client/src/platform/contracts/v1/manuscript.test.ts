@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import manifest from "../../../../../../contracts/manifest.json";
 import fixture from "../../../../../../contracts/fixtures/application-api/manuscript/wire.v1.json";
+import manifest from "../../../../../../contracts/manifest.json";
 import { decodeManuscriptV1, encodeManuscriptV1 } from "./manuscript";
 
 function copy<T>(value: T): T {
@@ -47,6 +47,52 @@ describe("manuscript wire v1", () => {
     const sameMomentRange = copy(fixture);
     sameMomentRange.payload.chapters[0].storyTime.endMomentId = "arrival";
     expect(() => decodeManuscriptV1(sameMomentRange)).toThrow();
+  });
+
+  it("round-trips stable note targets and rejects malformed UTF-16 note ranges", () => {
+    const source = copy(fixture);
+    const decoded = decodeManuscriptV1(source);
+    const reference = decoded.document.chapters[0].noteReferences?.[0];
+    expect(reference?.target).toEqual({ kind: "entity", id: "mara" });
+    if (!reference) return;
+    reference.target.id = "changed-after-decode";
+    expect(source.payload.chapters[0].noteReferences[0].target.id).toBe("mara");
+
+    const encoded = encodeManuscriptV1(decoded.document, decoded.revision);
+    reference.target.id = "changed-after-encode";
+    expect(encoded.payload.chapters[0].noteReferences?.[0].target.id).toBe("changed-after-decode");
+
+    const wrongSurface = copy(fixture);
+    wrongSurface.payload.chapters[0].noteReferences[0].surface = "Unruhig";
+    expect(() => decodeManuscriptV1(wrongSurface)).toThrow();
+
+    const unknownTarget = copy(fixture);
+    (unknownTarget.payload.chapters[0].noteReferences[0].target as Record<string, unknown>).kind =
+      "relationship";
+    expect(() => decodeManuscriptV1(unknownTarget)).toThrow();
+
+    const astralBoundary = copy(fixture);
+    astralBoundary.payload.chapters[0].note = "😀 Mara";
+    astralBoundary.payload.chapters[0].noteReferences = [
+      {
+        id: "split-astral",
+        target: { kind: "entity", id: "mara" },
+        from: 1,
+        to: 2,
+        surface: "😀",
+      },
+    ];
+    expect(() => decodeManuscriptV1(astralBoundary)).toThrow();
+
+    const overlapping = copy(fixture);
+    overlapping.payload.chapters[0].noteReferences.push({
+      id: "overlap",
+      target: { kind: "place", id: "archive" },
+      from: 8,
+      to: 15,
+      surface: "he nur ",
+    });
+    expect(() => decodeManuscriptV1(overlapping)).toThrow();
   });
 
   it("rejects malformed or unversioned envelopes instead of casting them", () => {

@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { EditorView } from "@codemirror/view";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider, useI18n } from "../../../i18n";
 import type { FigureState, TimelineMoment } from "../model";
@@ -9,6 +10,14 @@ afterEach(cleanup);
 
 const moment: TimelineMoment = { id: "m1", title: "Ankunft" };
 const state: FigureState = { nodes: [], edges: [], timeline: [moment] };
+
+function noteView(textbox: HTMLElement) {
+  const root = textbox.closest<HTMLElement>(".cm-editor");
+  if (!root) throw new Error("CodeMirror root missing");
+  const view = EditorView.findFromDOM(root);
+  if (!view) throw new Error("CodeMirror view missing");
+  return view;
+}
 
 function Fixture({ onPatch }: { onPatch: MomentEditorProps["onPatch"] }) {
   const { locale, t } = useI18n();
@@ -53,10 +62,13 @@ describe("MomentEditor", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
       target: { value: "Abreise" },
     });
-    fireEvent.change(screen.getByRole("textbox", { name: "Notiz (optional)" }), {
-      target: { value: "Nebel" },
-    });
+    act(() =>
+      noteView(screen.getByRole("textbox", { name: "Notiz (optional)" })).dispatch({
+        changes: { from: 0, insert: "Nebel" },
+        userEvent: "input",
+      }),
+    );
     expect(onPatch).toHaveBeenNthCalledWith(1, { title: "Abreise" });
-    expect(onPatch).toHaveBeenNthCalledWith(2, { note: "Nebel" });
+    expect(onPatch).toHaveBeenNthCalledWith(2, { note: "Nebel", noteReferences: [] });
   });
 });

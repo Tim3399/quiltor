@@ -6,22 +6,168 @@
   min-width: 0;
 }
 
+.note-editor__body {
+  position: relative;
+  min-width: 0;
+}
+
 .note-editor__control {
   width: 100%;
+  height: var(--space-48);
   min-height: var(--space-48);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  box-shadow: inset var(--ring-1) var(--control-hint);
   resize: vertical;
+  transition:
+    border-color var(--motion-quick) var(--ease-standard),
+    background-color var(--motion-quick) var(--ease-standard),
+    box-shadow var(--motion-quick) var(--ease-standard);
+}
+
+.note-editor__control:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: var(--ring-2) var(--focus-ring);
+}
+
+.note-editor__control .cm-editor {
+  height: 100%;
+  min-height: 100%;
+  background: var(--transparent);
+  color: var(--ink);
+}
+
+.note-editor__control .cm-editor.cm-focused {
+  outline: 0;
+}
+
+.note-editor__control .cm-scroller {
+  min-height: 0;
+  overflow: auto;
+  font-family: var(--prose);
+  font-size: var(--font-size-4);
+  line-height: 1.5;
+}
+
+.note-editor__control .cm-content {
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-transition-field-control-block)
+    var(--spacing-transition-field-control-inline);
+  caret-color: var(--ink);
+}
+
+.note-editor__control .cm-line {
+  padding: 0;
+}
+
+.note-editor__control .cm-placeholder {
+  color: var(--muted);
+}
+
+.note-editor__control .cm-selectionBackground,
+.note-editor__control .cm-content ::selection {
+  background: var(--selection-surface);
+}
+
+.note-editor__control .note-reference {
+  border-bottom: 1px solid var(--annotation-border);
+  border-radius: var(--radius-xs);
+  background: var(--annotation-bg);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+
+.note-editor__control .note-reference:hover {
+  border-bottom-color: var(--accent-primary);
 }
 
 .note-editor--comfortable .note-editor__control {
+  height: var(--space-88);
   min-height: var(--space-88);
+}
+
+.note-editor__body[style] .note-editor__control {
+  height: calc(var(--note-editor-rows) * 1.5em + var(--space-20));
+  min-height: calc(var(--note-editor-rows) * 1.5em + var(--space-20));
 }
 
 .note-editor__focus {
   flex: none;
 }
 
+.note-reference-popover {
+  /* Note focus mode is itself modal; its anchored completion must stay above that surface. */
+  z-index: calc(var(--z-modal) + var(--z-local));
+  width: min(var(--popover-max), calc(100vw - var(--space-24)));
+  padding: var(--space-5);
+}
+
+.note-reference-options {
+  display: grid;
+  gap: var(--space-2);
+  max-height: min(320px, 45vh);
+  overflow: auto;
+}
+
+.note-reference-option {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.note-reference-option[aria-selected="true"] {
+  background: var(--selection-surface);
+  color: var(--selection-text);
+}
+
+.note-reference-option__copy {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.note-reference-option__copy strong,
+.note-reference-option__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-reference-option__copy small,
+.note-reference-options__empty {
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+
+.note-reference-options__empty {
+  margin: 0;
+  padding: var(--space-8) var(--space-10);
+}
+
+.note-reference-links {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding-top: var(--space-5);
+}
+
+.note-reference-link {
+  min-height: var(--control-compact);
+  color: var(--link);
+}
+
 .note-focus-mode__body,
-.note-focus-mode__field {
+.note-focus-mode__field,
+.note-focus-mode__body .note-editor__body {
   width: 100%;
   min-height: 0;
   display: flex;
@@ -35,9 +181,16 @@
 
 .note-focus-mode__control {
   flex: 1;
+  height: 100%;
   min-height: 100%;
   resize: none;
-  padding: var(--spacing-section-tight);
+}
+
+.note-focus-mode__control .cm-scroller {
   font-size: var(--font-size-5);
   line-height: 1.55;
+}
+
+.note-focus-mode__control .cm-content {
+  padding: var(--spacing-section-tight);
 }

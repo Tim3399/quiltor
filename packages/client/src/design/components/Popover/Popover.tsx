@@ -38,6 +38,8 @@ export interface PopoverProps {
   compactMode?: "sheet" | "popover";
   desktopRole?: "dialog" | "presentation";
   placement?: "block" | "inline-end";
+  /** Optional semantic owner for overlays opened inside another modal surface. */
+  portalContainerRef?: RefObject<HTMLElement | null>;
 }
 
 /** An anchored desktop popover which can adapt to a modal compact sheet. */
@@ -51,6 +53,7 @@ export function Popover({
   compactMode = "sheet",
   desktopRole = "dialog",
   placement = "block",
+  portalContainerRef,
 }: PopoverProps) {
   const panel = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -128,6 +131,7 @@ export function Popover({
   }, [open, compact, anchorRef]);
 
   if (!open) return null;
+  const portalContainer = portalContainerRef?.current ?? document.body;
   if (compact) {
     return createPortal(
       <Sheet
@@ -139,7 +143,7 @@ export function Popover({
       >
         <div className="ui-popover-sheet">{children}</div>
       </Sheet>,
-      document.body,
+      portalContainer,
     );
   }
   const desktopAccessibilityProps =
@@ -163,6 +167,6 @@ export function Popover({
     >
       {children}
     </div>,
-    document.body,
+    portalContainer,
   );
 }

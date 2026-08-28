@@ -1,7 +1,7 @@
 import unittest
 
-from quiltor.infrastructure.persistence.mirror import markdown_body
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
+from quiltor.infrastructure.persistence.mirror import markdown_body
 
 
 class FigureTemporalValidationTests(unittest.TestCase):
@@ -109,6 +109,146 @@ class FigureTemporalValidationTests(unittest.TestCase):
         state = self.state()
         state["nodes"][0]["diedMomentId"] = "missing"
         self.assertFalse(valid_figures(state))
+
+
+class NoteReferenceValidationTests(unittest.TestCase):
+    def reference(self, **patch):
+        value = {
+            "id": "note-ref-1",
+            "target": {"kind": "entity", "id": "ada"},
+            "from": 3,
+            "to": 7,
+            "surface": "Mara",
+        }
+        value.update(patch)
+        return value
+
+    def manuscript(self, references):
+        return {
+            "chapters": [
+                {
+                    "id": "chapter",
+                    "title": "",
+                    "body": "",
+                    "note": "😀 Mara und Hafen",
+                    "noteReferences": references,
+                }
+            ]
+        }
+
+    def figures(self):
+        return {
+            "nodes": [
+                {
+                    "id": "ada",
+                    "name": "Ada",
+                    "x": 0,
+                    "y": 0,
+                    "profile": {
+                        "notizen": "😀 Mara und Hafen",
+                        "noteReferences": [self.reference()],
+                    },
+                }
+            ],
+            "edges": [],
+            "timeline": [
+                {
+                    "id": "arrival",
+                    "title": "Ankunft",
+                    "note": "😀 Mara und Hafen",
+                    "noteReferences": [self.reference(target={"kind": "chapter", "id": "chapter"})],
+                }
+            ],
+        }
+
+    def test_accepts_stable_targets_over_exact_utf16_ranges_for_all_note_owners(self):
+        self.assertTrue(valid_manuscript(self.manuscript([self.reference()])))
+        self.assertTrue(valid_figures(self.figures()))
+
+    def test_accepts_reference_targets_for_unbounded_story_world_ids(self):
+        target_id = "target" * 100
+        state = self.figures()
+        state["nodes"].append({"id": target_id, "name": "Archiv", "x": 2, "y": 3})
+        state["nodes"][0]["profile"]["noteReferences"][0]["target"]["id"] = target_id
+
+        self.assertTrue(valid_figures(state))
+
+    def test_applies_reference_limits_in_utf16_code_units(self):
+        surface = "😀" * 500
+        valid = {
+            "chapters": [
+                {
+                    "id": "chapter",
+                    "title": "",
+                    "body": "",
+                    "note": surface,
+                    "noteReferences": [
+                        self.reference(id="😀" * 250, **{"from": 0, "to": 1000}, surface=surface)
+                    ],
+                }
+            ]
+        }
+        self.assertTrue(valid_manuscript(valid))
+
+        invalid_id = self.reference(id="😀" * 251, **{"from": 0, "to": 1000}, surface=surface)
+        invalid_surface = "😀" * 501
+        self.assertFalse(
+            valid_manuscript(
+                {
+                    "chapters": [
+                        {
+                            "id": "chapter",
+                            "title": "",
+                            "body": "",
+                            "note": surface,
+                            "noteReferences": [invalid_id],
+                        }
+                    ]
+                }
+            )
+        )
+        self.assertFalse(
+            valid_manuscript(
+                {
+                    "chapters": [
+                        {
+                            "id": "chapter",
+                            "title": "",
+                            "body": "",
+                            "note": invalid_surface,
+                            "noteReferences": [
+                                self.reference(**{"from": 0, "to": 1002}, surface=invalid_surface)
+                            ],
+                        }
+                    ]
+                }
+            )
+        )
+
+    def test_rejects_unknown_targets_bad_surrogate_boundaries_and_surface_mismatches(self):
+        self.assertFalse(
+            valid_manuscript(
+                self.manuscript([self.reference(target={"kind": "relationship", "id": "edge"})])
+            )
+        )
+        self.assertFalse(
+            valid_manuscript(
+                self.manuscript([self.reference(**{"from": 1, "to": 2}, surface="😀")])
+            )
+        )
+        state = self.figures()
+        state["timeline"][0]["noteReferences"][0]["surface"] = "Bela"
+        self.assertFalse(valid_figures(state))
+
+    def test_rejects_duplicate_ids_overlaps_and_non_array_collections(self):
+        duplicate = [self.reference(), self.reference(**{"from": 12, "to": 17}, surface="Hafen")]
+        self.assertFalse(valid_manuscript(self.manuscript(duplicate)))
+        overlap = [
+            self.reference(),
+            self.reference(id="note-ref-2", **{"from": 6, "to": 11}, surface="a und"),
+        ]
+        self.assertFalse(valid_manuscript(self.manuscript(overlap)))
+        self.assertFalse(valid_manuscript(self.manuscript("entity:ada")))
 
 
 class ManuscriptMentionValidationTests(unittest.TestCase):

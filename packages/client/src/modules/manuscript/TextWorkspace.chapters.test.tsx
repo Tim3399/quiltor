@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { EditorView } from "@codemirror/view";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Manuscript } from "./model";
@@ -10,6 +11,14 @@ import {
   requireValue,
   TestProviders,
 } from "./TextWorkspace.testSupport";
+
+function codeMirrorView(textbox: HTMLElement) {
+  const root = textbox.closest<HTMLElement>(".cm-editor");
+  if (!root) throw new Error("CodeMirror root missing");
+  const view = EditorView.findFromDOM(root);
+  if (!view) throw new Error("CodeMirror view missing");
+  return view;
+}
 
 describe("TextWorkspace chapter binder", () => {
   it("speichert die Kapitelnotiz aus der linken Spalte", () => {
@@ -25,9 +34,13 @@ describe("TextWorkspace chapter binder", () => {
       inspectorOpen: true,
     });
     const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
-    fireEvent.change(binder.getByLabelText("Kapitelnotiz"), {
-      target: { value: "Die Unruhe nur andeuten." },
-    });
+    const note = codeMirrorView(binder.getByLabelText("Kapitelnotiz"));
+    act(() =>
+      note.dispatch({
+        changes: { from: 0, to: note.state.doc.length, insert: "Die Unruhe nur andeuten." },
+        userEvent: "input",
+      }),
+    );
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         chapters: [expect.objectContaining({ id: "c1", note: "Die Unruhe nur andeuten." })],
@@ -60,9 +73,13 @@ describe("TextWorkspace chapter binder", () => {
     expect(status.getByText("Wörter").nextSibling).toHaveTextContent("2");
     expect(status.getByText("Zeichen").nextSibling).toHaveTextContent("10");
     expect(status.getByText("Normseiten").nextSibling).toHaveTextContent("0,0");
-    const editor = view.container.querySelector(".cm-content") as HTMLElement;
-    editor.textContent = "Ein Satz mehr im Kapitel";
-    fireEvent.input(editor, { inputType: "insertText", data: "Ein Satz mehr im Kapitel" });
+    const editor = codeMirrorView(within(view.container).getByLabelText("Kapiteltext"));
+    act(() =>
+      editor.dispatch({
+        changes: { from: 0, to: editor.state.doc.length, insert: "Ein Satz mehr im Kapitel" },
+        userEvent: "input",
+      }),
+    );
     await waitFor(() => expect(status.getByText("Zeichen").nextSibling).toHaveTextContent("24"));
     expect(status.getByText("Wörter").nextSibling).toHaveTextContent("5");
   });

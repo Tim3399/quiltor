@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyAssistantProposals } from "./proposals";
 import { de } from "../../../../../locales/de";
 import type { MessageKey } from "../../i18n";
+import type { FigureState } from "../story-world";
+import { applyAssistantProposals } from "./proposals";
 
 const t = (key: MessageKey) => de[key];
 
@@ -71,5 +72,89 @@ describe("assistant proposals", () => {
       ]),
     );
     expect(result.presence).not.toContainEqual(expect.objectContaining({ id: "old-trial" }));
+  });
+
+  it("keeps note text and references when an element update omits notizen", () => {
+    const state: FigureState = {
+      nodes: [
+        {
+          id: "mara",
+          x: 0,
+          y: 0,
+          name: "Mara",
+          type: "person",
+          profile: {
+            rolle: "Zeugin",
+            notizen: "Mara kennt das Archiv.",
+            noteReferences: [
+              {
+                id: "ref-archive",
+                target: { kind: "place", id: "archive" },
+                from: 15,
+                to: 21,
+                surface: "Archiv",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [],
+    };
+
+    const result = applyAssistantProposals(
+      state,
+      [{ kind: "update_element", elementId: "mara", patch: { profile: { rolle: "Heldin" } } }],
+      t,
+    );
+
+    expect(result.nodes[0].profile).toMatchObject({
+      rolle: "Heldin",
+      notizen: "Mara kennt das Archiv.",
+      noteReferences: state.nodes[0].profile?.noteReferences,
+    });
+  });
+
+  it("reconciles note references atomically when an element update changes notizen", () => {
+    const state: FigureState = {
+      nodes: [
+        {
+          id: "mara",
+          x: 0,
+          y: 0,
+          name: "Mara",
+          type: "person",
+          profile: {
+            notizen: "Mara kennt das Archiv.",
+            noteReferences: [
+              {
+                id: "ref-archive",
+                target: { kind: "place", id: "archive" },
+                from: 15,
+                to: 21,
+                surface: "Archiv",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [],
+    };
+
+    const result = applyAssistantProposals(
+      state,
+      [
+        {
+          kind: "update_element",
+          elementId: "mara",
+          patch: { profile: { notizen: "Mara kennt das neue Archiv." } },
+        },
+      ],
+      t,
+    );
+
+    expect(result.nodes[0].profile).toMatchObject({
+      notizen: "Mara kennt das neue Archiv.",
+      noteReferences: [],
+    });
   });
 });

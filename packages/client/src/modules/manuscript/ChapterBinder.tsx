@@ -125,7 +125,8 @@ export function ChapterBinder({
             className="binder-note-control"
             label={t("chapterNote")}
             value={current.note}
-            onChange={(note) => onUpdateCurrent({ note })}
+            references={current.noteReferences}
+            onChange={(note, noteReferences) => onUpdateCurrent({ note, noteReferences })}
             placeholder={t("chapterNotePlaceholder")}
             size="compact"
             focus={noteFocusCopy(t, current.title || t("untitled"))}

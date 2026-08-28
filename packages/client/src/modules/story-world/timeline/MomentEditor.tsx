@@ -115,8 +115,9 @@ export function MomentEditor({
           className="timeline-note-control"
           label={t("optionalNote")}
           value={moment.note || ""}
+          references={moment.noteReferences}
           placeholder={t("timelineNotePlaceholder")}
-          onChange={(note) => onPatch({ note })}
+          onChange={(note, noteReferences) => onPatch({ note, noteReferences })}
           focus={noteFocusCopy(t, moment.title)}
         />
       </section>

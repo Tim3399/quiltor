@@ -29,6 +29,7 @@ export type FigureWorkspaceProps = {
   state: FigureState;
   onChange: (value: FigureState) => void;
   targetId?: string;
+  targetRequestId?: number;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -47,6 +48,7 @@ function FigureWorkspaceInner({
   state,
   onChange,
   targetId,
+  targetRequestId,
   onUndo,
   onRedo,
   canUndo = false,
@@ -98,6 +100,9 @@ function FigureWorkspaceInner({
     return () => document.removeEventListener("keydown", closeModes);
   }, []);
   useEffect(() => {
+    // The ID is an event identity: a newer request must replay selection even when its target is
+    // textually identical to the previous request.
+    void targetRequestId;
     if (!targetId) return;
     const current = latestState.current;
     const item = current.nodes.find((node) => node.id === targetId);
@@ -110,7 +115,7 @@ function FigureWorkspaceInner({
       setActiveMomentId(targetId);
       setTimelineOpen(true);
     }
-  }, [targetId]);
+  }, [targetId, targetRequestId]);
   useEffect(() => {
     if (!playing || !timeline.length) return;
     const index = activeMomentId

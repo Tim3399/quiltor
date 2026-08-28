@@ -1,9 +1,15 @@
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { PRODUCT_MARK } from "../config/branding";
 import { PageState } from "../design";
 import { useI18n } from "../i18n";
 import type { Manuscript } from "../modules/manuscript";
-import type { FigureState } from "../modules/story-world";
+import { NoteReferenceProvider } from "../modules/notes";
+import { type FigureState, kindLabel } from "../modules/story-world";
+import {
+  buildWorldReferenceCandidates,
+  resolveWorldReferenceCandidate,
+  workspaceTargetForReference,
+} from "../modules/world-references";
 import { quiltorClient } from "../platform";
 import { AppShell } from "./AppShell";
 import { OverlayHost, type PendingEntityRename } from "./overlays/OverlayHost";
@@ -46,6 +52,30 @@ export function App() {
   const workspace = useWorkspaceController();
   const overlays = useOverlayController();
   const shell = useShellStatus();
+  const noteReferenceCandidates = useMemo(
+    () =>
+      manuscript && figures
+        ? buildWorldReferenceCandidates({
+            manuscript,
+            figures,
+            labels: {
+              untitled: t("untitled"),
+              moment: t("moment"),
+              figureKind: (kind) => kindLabel(kind, t),
+            },
+          })
+        : [],
+    [figures, manuscript, t],
+  );
+  const openNoteReference = useCallback(
+    (target: Parameters<typeof workspaceTargetForReference>[0]) => {
+      const currentTarget =
+        resolveWorldReferenceCandidate(noteReferenceCandidates, target)?.target ?? target;
+      const next = workspaceTargetForReference(currentTarget);
+      if (next) workspace.navigate(next);
+    },
+    [noteReferenceCandidates, workspace.navigate],
+  );
 
   const saveManuscript = useCallback(
     (value: Manuscript) => quiltorClient.application.manuscript.save(value),
@@ -147,23 +177,28 @@ export function App() {
             onLogout={shell.logout}
             version={shell.version}
           >
-            <WorkspaceSurface
-              worldId={session.world.id}
-              worldTitle={session.world.title}
-              workspace={workspace.workspace}
-              manuscript={manuscript}
-              figures={figures}
-              orphanedMentions={orphanedMentions}
-              manuscriptHistory={manuscriptHistory}
-              figureHistory={figureHistory}
-              onFiguresChange={changeFigures}
-              target={workspace.target}
-              onNavigate={workspace.navigate}
-              focus={workspace.focus}
-              onFocus={workspace.setFocus}
-              onSave={flushAll}
-              onCurrentChapterId={setCurrentChapterId}
-            />
+            <NoteReferenceProvider
+              candidates={noteReferenceCandidates}
+              onOpenReference={openNoteReference}
+            >
+              <WorkspaceSurface
+                worldId={session.world.id}
+                worldTitle={session.world.title}
+                workspace={workspace.workspace}
+                manuscript={manuscript}
+                figures={figures}
+                orphanedMentions={orphanedMentions}
+                manuscriptHistory={manuscriptHistory}
+                figureHistory={figureHistory}
+                onFiguresChange={changeFigures}
+                target={workspace.target}
+                onNavigate={workspace.navigate}
+                focus={workspace.focus}
+                onFocus={workspace.setFocus}
+                onSave={flushAll}
+                onCurrentChapterId={setCurrentChapterId}
+              />
+            </NoteReferenceProvider>
           </AppShell>
           <OverlayHost
             overlay={overlays.overlay}

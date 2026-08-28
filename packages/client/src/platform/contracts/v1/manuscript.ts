@@ -1,19 +1,24 @@
 import type { Manuscript } from "../../../modules/manuscript";
 import {
-  decodeDocumentEnvelopeV1,
-  encodeDocumentEnvelopeV1,
   type DecodedDocumentV1,
   type DocumentEnvelopeWireV1,
+  decodeDocumentEnvelopeV1,
+  encodeDocumentEnvelopeV1,
 } from "./documentEnvelope";
 import {
+  cloneNoteReferences,
+  type NoteReferenceWireV1,
+  validateNoteReferences,
+} from "./noteReference";
+import {
   optional,
+  WireContractError,
   wireArray,
   wireEnum,
   wireInteger,
   wireNumber,
   wireRecord,
   wireString,
-  WireContractError,
 } from "./validation";
 
 export interface EntityMentionWireV1 {
@@ -45,6 +50,7 @@ export interface ChapterWireV1 {
   title?: string;
   body?: string;
   note?: string;
+  noteReferences?: NoteReferenceWireV1[];
   storyTime?: ChapterStoryTimeWireV1;
   mentions?: EntityMentionWireV1[];
   marks?: TextMarkWireV1[];
@@ -121,6 +127,10 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
       (item, itemPath) => wireString(item, itemPath, { max: 100_000 }),
       chapterPath,
     );
+    const note = typeof chapter.note === "string" ? chapter.note : "";
+    if (chapter.noteReferences !== undefined) {
+      validateNoteReferences(chapter.noteReferences, note, `${chapterPath}.noteReferences`);
+    }
     optional(
       chapter,
       "storyTime",
@@ -345,6 +355,7 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
 
 function cloneChapter(wire: ChapterWireV1): ChapterWireV1 {
   const chapter = { ...wire };
+  chapter.noteReferences = cloneNoteReferences(wire.noteReferences);
   if (wire.storyTime !== undefined) chapter.storyTime = { ...wire.storyTime };
   if (wire.mentions !== undefined) {
     chapter.mentions = wire.mentions.map((mention) => ({ ...mention }));
@@ -356,6 +367,7 @@ function cloneChapter(wire: ChapterWireV1): ChapterWireV1 {
 function encodeChapter(chapter: Manuscript["chapters"][number]): ChapterWireV1 {
   return {
     ...chapter,
+    noteReferences: cloneNoteReferences(chapter.noteReferences),
     storyTime: chapter.storyTime ? { ...chapter.storyTime } : undefined,
     mentions: chapter.mentions?.map((mention) => ({ ...mention })),
     marks: chapter.marks?.map((mark) => ({ ...mark })),

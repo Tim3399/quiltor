@@ -31,6 +31,16 @@ function waitForSuccessfulManuscriptWrite(page: Page) {
   );
 }
 
+function waitForSuccessfulStoryWorldWrite(page: Page, payloadMarker: string) {
+  return page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/state") &&
+      response.request().method() === "PUT" &&
+      Boolean(response.request().postData()?.includes(payloadMarker)) &&
+      response.ok(),
+  );
+}
+
 async function expectKeyboardMenuContract(page: Page, triggerName: string, menuName = triggerName) {
   const trigger = page.getByRole("button", { name: triggerName, exact: true });
   await trigger.focus();
@@ -1858,6 +1868,97 @@ test("Inhaltssuche und Befehle teilen eine Palette", async ({ page }) => {
     await expect(page.getByRole("navigation", { name: "Timeline" })).toBeVisible();
   else await expect(page.getByText("1 von 1")).toBeVisible();
   await expect(page.getByText("Nur Änderungen")).toBeVisible();
+});
+
+test("Notizreferenzen bleiben nach Umbenennung stabil und öffnen ihr Ziel", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(40_000);
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Referenzpersistenz und Zielnavigation hängen nicht an der Fensterbreite.",
+  );
+
+  const response = await page.request.post("/api/worlds/create", {
+    data: { title: `Notizreferenz ${crypto.randomUUID()}` },
+  });
+  const created = await response.json();
+  const worldId = encodeURIComponent(created.world.id);
+  const initial = await page.request.get(`/api/state?world=${worldId}`);
+  const revision = initial.headers().etag || '"0"';
+  const saved = await page.request.put(`/api/state?world=${worldId}`, {
+    headers: { "If-Match": revision },
+    data: encodeStoryWorldDocument(
+      {
+        nodes: [
+          {
+            id: "note-owner",
+            x: 120,
+            y: 120,
+            type: "person",
+            name: "Erzählerin",
+            profile: { notizen: "" },
+          },
+          { id: "harbour", x: 480, y: 260, type: "ort", name: "Hafen" },
+        ],
+        edges: [],
+      },
+      Number(revision.replaceAll('"', "")),
+    ),
+  });
+  expect(saved.ok()).toBeTruthy();
+
+  await page.goto(`/?world=${worldId}`);
+  await waitForManuscriptReady(page);
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await page.locator(".story-node").filter({ hasText: "Erzählerin" }).click();
+
+  const figureInspector = page.getByRole("complementary", { name: "Figuren-Inspector" });
+  await figureInspector.getByRole("tab", { name: "Steckbrief" }).click();
+  const ownerNote = figureInspector.locator('[data-note-owner="entity:note-owner"]');
+  const noteEditor = ownerNote.getByRole("textbox", { name: "Notizen" });
+  await noteEditor.fill("Treffen mit ");
+  await noteEditor.pressSequentially("@Haf");
+
+  const references = page.getByRole("listbox", { name: "Referenz auswählen" });
+  await expect(references).toBeVisible();
+  const referenceSave = waitForSuccessfulStoryWorldWrite(page, '"surface":"Hafen"');
+  await references.getByRole("option", { name: /Hafen/ }).click();
+  await referenceSave;
+  await expect(references).toHaveCount(0);
+  await expect(ownerNote).toContainText("Treffen mit Hafen");
+  await expect(ownerNote.getByRole("button", { name: "Hafen", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+  await page.locator(".places-workspace .story-node").filter({ hasText: "Hafen" }).click();
+  const placeInspector = page.getByRole("complementary", { name: "Orte-Inspector" });
+  const renameSave = waitForSuccessfulStoryWorldWrite(page, "Nordhafen");
+  await placeInspector.getByRole("textbox", { name: "Name" }).fill("Nordhafen");
+  const renameDialog = page.getByRole("alertdialog", { name: "Manuskript aktualisieren?" });
+  await expect(renameDialog).toBeVisible();
+  await renameDialog.getByRole("button", { name: "Abbrechen", exact: true }).click();
+  await renameSave;
+
+  await page.reload();
+  await waitForManuscriptReady(page);
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await page.locator(".story-node").filter({ hasText: "Erzählerin" }).click();
+  await figureInspector.getByRole("tab", { name: "Steckbrief" }).click();
+  await expect(ownerNote).toContainText("Treffen mit Hafen");
+
+  const persistedReference = ownerNote.getByRole("button", { name: "Nordhafen", exact: true });
+  await expect(persistedReference).toBeVisible();
+  await persistedReference.click();
+
+  await expect(page.getByRole("button", { name: "Orte", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(
+    page
+      .getByRole("complementary", { name: "Orte-Inspector" })
+      .getByRole("textbox", { name: "Name" }),
+  ).toHaveValue("Nordhafen");
 });
 
 test("Figuren folgen dem Zeiger bereits während des Ziehens", async ({ page }) => {

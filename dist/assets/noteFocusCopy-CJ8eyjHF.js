@@ -1,0 +1,1 @@
+function e(e,t){return{openLabel:e(`noteFocusOpen`),title:e(`noteFocusTitle`,{context:t}),closeLabel:e(`noteFocusClose`,{context:t}),editorLabel:e(`noteFocusEditor`,{context:t})}}export{e as t};

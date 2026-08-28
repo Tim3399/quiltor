@@ -1,13 +1,20 @@
 import type { FigureState } from "../../../modules/story-world";
 import { ENTITY_ALIAS_NORMALIZATION_V1, normalizeEntityAliasV1 } from "../../../shared";
 import {
-  decodeDocumentEnvelopeV1,
-  encodeDocumentEnvelopeV1,
   type DecodedDocumentV1,
   type DocumentEnvelopeWireV1,
+  decodeDocumentEnvelopeV1,
+  encodeDocumentEnvelopeV1,
 } from "./documentEnvelope";
 import {
+  cloneNoteReferences,
+  type NoteReferenceWireV1,
+  validateNoteReferences,
+} from "./noteReference";
+import {
   optional,
+  WireContractError,
+  type WireRecord,
   wireArray,
   wireBoolean,
   wireEnum,
@@ -15,8 +22,6 @@ import {
   wireNumber,
   wireRecord,
   wireString,
-  WireContractError,
-  type WireRecord,
 } from "./validation";
 
 export interface EntityAliasWireV1 {
@@ -32,6 +37,7 @@ export interface ProfileWireV1 {
   herkunft?: string;
   stimme?: string;
   notizen?: string;
+  noteReferences?: NoteReferenceWireV1[];
   extra?: Array<{ k: string; v: string; [key: string]: unknown }>;
   [key: string]: unknown;
 }
@@ -91,6 +97,7 @@ export interface TimelineMomentWireV1 {
   endPrecision?: "day" | "month" | "year";
   date?: string;
   note?: string;
+  noteReferences?: NoteReferenceWireV1[];
   [key: string]: unknown;
 }
 
@@ -151,6 +158,7 @@ const ACCENTS = ["ink", "gold", "rose", "moss"] as const;
 const EDGE_STYLES = ["solid", "dashed", "blood", "gold"] as const;
 
 export { ENTITY_ALIAS_NORMALIZATION_V1, normalizeEntityAliasV1 };
+
 const PRECISIONS = ["day", "month", "year"] as const;
 
 function optionalString(record: WireRecord, key: string, path: string): void {
@@ -165,6 +173,13 @@ function validateProfile(value: unknown, path: string): void {
   const profile = wireRecord(value, path);
   for (const key of ["alter", "rolle", "aussehen", "herkunft", "stimme", "notizen"]) {
     optionalString(profile, key, path);
+  }
+  if (profile.noteReferences !== undefined) {
+    validateNoteReferences(
+      profile.noteReferences,
+      typeof profile.notizen === "string" ? profile.notizen : "",
+      `${path}.noteReferences`,
+    );
   }
   if (profile.extra !== undefined) {
     for (const [index, extraValue] of wireArray(profile.extra, `${path}.extra`).entries()) {
@@ -225,6 +240,13 @@ function validateTimeline(value: unknown, path: string): TimelineMomentWireV1[] 
     optionalString(moment, "title", momentPath);
     optionalString(moment, "date", momentPath);
     optionalString(moment, "note", momentPath);
+    if (moment.noteReferences !== undefined) {
+      validateNoteReferences(
+        moment.noteReferences,
+        typeof moment.note === "string" ? moment.note : "",
+        `${momentPath}.noteReferences`,
+      );
+    }
     optional(moment, "time", wireInteger, momentPath);
     optional(moment, "position", wireInteger, momentPath);
     optional(
@@ -440,6 +462,7 @@ function cloneNode(node: FigureNodeWireV1): FigureNodeWireV1 {
   const clone = { ...node };
   if (node.profile !== undefined) {
     clone.profile = { ...node.profile };
+    clone.profile.noteReferences = cloneNoteReferences(node.profile.noteReferences);
     if (node.profile.extra !== undefined) {
       clone.profile.extra = node.profile.extra.map((extra) => ({ ...extra }));
     }
@@ -461,6 +484,7 @@ function encodeNode(node: FigureState["nodes"][number]): FigureNodeWireV1 {
     profile: node.profile
       ? {
           ...node.profile,
+          noteReferences: cloneNoteReferences(node.profile.noteReferences),
           extra: node.profile.extra?.map((extra) => ({ ...extra })),
         }
       : undefined,
@@ -506,7 +530,11 @@ export function decodeStoryWorldV1(value: unknown): DecodedDocumentV1<FigureStat
       ...payload,
       nodes: payload.nodes.map(cloneNode),
       edges: payload.edges.map(cloneEdge),
-      timeline: payload.timeline?.map((moment) => ({ ...moment, title: moment.title ?? "" })),
+      timeline: payload.timeline?.map((moment) => ({
+        ...moment,
+        title: moment.title ?? "",
+        noteReferences: cloneNoteReferences(moment.noteReferences),
+      })),
       presence: payload.presence?.map((entry) => ({ ...entry })),
       canvasSize: payload.canvasSize ? { ...payload.canvasSize } : undefined,
       mapScale: payload.mapScale ? { ...payload.mapScale } : undefined,
@@ -521,7 +549,10 @@ export function encodeStoryWorldV1(model: FigureState, revision?: number): Story
     ...model,
     nodes: model.nodes.map(encodeNode),
     edges: model.edges.map(encodeEdge),
-    timeline: model.timeline?.map((moment) => ({ ...moment })),
+    timeline: model.timeline?.map((moment) => ({
+      ...moment,
+      noteReferences: cloneNoteReferences(moment.noteReferences),
+    })),
     presence: model.presence?.map((entry) => ({ ...entry })),
     canvasSize: model.canvasSize ? { ...model.canvasSize } : undefined,
     mapScale: model.mapScale ? { ...model.mapScale } : undefined,

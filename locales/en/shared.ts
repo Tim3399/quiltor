@@ -43,6 +43,9 @@ export const shared = {
   noteFocusTitle: "Note · {context}",
   noteFocusClose: "Back to {context}",
   noteFocusEditor: "Note for {context}",
+  noteReferencePicker: "Choose reference",
+  noteReferenceNoResults: "No matching reference",
+  noteReferenceLinks: "Linked references",
   searchTerm: "Search term",
   // Counters carry the whole phrase so components never concatenate number and word themselves
   // -- otherwise English lower-casing is not controllable from the catalog.

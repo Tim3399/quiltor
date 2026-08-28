@@ -3,11 +3,57 @@ from __future__ import annotations
 from typing import Any
 
 from quiltor.domain.manuscript.story_time import valid_story_time_reference
-from quiltor.domain.manuscript.text_offsets import utf16_offsets_to_indices
+from quiltor.domain.manuscript.text_offsets import utf16_length, utf16_offsets_to_indices
 from quiltor.domain.manuscript.tree import ManuscriptTreeError, structure_or_flat
 from quiltor.domain.story_world.entity_resolution import normalize_entity_name
 
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
+NOTE_REFERENCE_KINDS = {"entity", "place", "timeline", "chapter", "storyboard"}
+
+
+def _valid_note_references(owner: dict[str, Any], note_key: str) -> bool:
+    """Validate stable targets over exact, non-overlapping UTF-16 note ranges."""
+    references = owner.get("noteReferences", [])
+    note = owner.get(note_key, "")
+    if not isinstance(note, str) or not isinstance(references, list) or len(references) > 10_000:
+        return False
+    offsets: list[int] = []
+    for reference in references:
+        if not isinstance(reference, dict):
+            return False
+        start, end = reference.get("from"), reference.get("to")
+        if type(start) is not int or type(end) is not int or start < 0 or end <= start:
+            return False
+        offsets.extend((start, end))
+    indices = utf16_offsets_to_indices(note, offsets)
+    if indices is None:
+        return False
+    ids: set[str] = set()
+    previous_to = -1
+    for reference in sorted(references, key=lambda item: item["from"]):
+        reference_id = reference.get("id")
+        target = reference.get("target")
+        surface = reference.get("surface")
+        if (
+            not isinstance(reference_id, str)
+            or not reference_id
+            or utf16_length(reference_id) > 500
+            or reference_id in ids
+            or not isinstance(target, dict)
+            or target.get("kind") not in NOTE_REFERENCE_KINDS
+            or not isinstance(target.get("id"), str)
+            or not target["id"]
+            or not isinstance(surface, str)
+            or not surface
+            or utf16_length(surface) > 1000
+        ):
+            return False
+        start, end = reference["from"], reference["to"]
+        if start < previous_to or note[indices[start] : indices[end]] != surface:
+            return False
+        ids.add(reference_id)
+        previous_to = end
+    return True
 
 
 def valid_figures(payload: Any) -> bool:
@@ -36,6 +82,10 @@ def valid_figures(payload: Any) -> bool:
             return False
         ids.append(node["id"])
         kinds[node["id"]] = node.get("type", "person")
+        if "profile" in node:
+            profile = node["profile"]
+            if not isinstance(profile, dict) or not _valid_note_references(profile, "notizen"):
+                return False
         aliases = node.get("aliases")
         if "aliases" in node:
             if not isinstance(aliases, list):
@@ -68,6 +118,7 @@ def valid_figures(payload: Any) -> bool:
             or not isinstance(moment.get("title", ""), str)
             or not isinstance(moment.get("date", ""), str)
             or not isinstance(moment.get("note", ""), str)
+            or not _valid_note_references(moment, "note")
         ):
             return False
         if "time" in moment and (
@@ -266,6 +317,8 @@ def valid_manuscript(payload: Any) -> bool:
         ):
             return False
         if "storyTime" in chapter and not valid_story_time_reference(chapter["storyTime"]):
+            return False
+        if not _valid_note_references(chapter, "note"):
             return False
         mentions = chapter.get("mentions", [])
         if not isinstance(mentions, list) or len(mentions) > 10_000:

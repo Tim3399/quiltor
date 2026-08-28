@@ -1,4 +1,4 @@
-import type { WorkspaceTarget } from "../../shared";
+import { normalizeNoteReferenceSurface, type WorkspaceTarget } from "../../shared";
 import {
   chapterBreadcrumb,
   type Manuscript,
@@ -37,7 +37,7 @@ export function buildWorldReferenceCandidates({
       .join(" / ");
     return candidate(
       { kind: "chapter", id: chapter.id },
-      chapter.title || labels.untitled,
+      chapter.title.trim() || labels.untitled,
       [breadcrumb, chapter.note || chapter.body.slice(0, 120)].filter(Boolean).join(" · "),
       [chapter.body, chapter.note, breadcrumb],
       "text",
@@ -51,7 +51,7 @@ export function buildWorldReferenceCandidates({
     };
     return candidate(
       target,
-      node.name,
+      node.name.trim() || labels.figureKind(node.type ?? "person"),
       node.sub || node.label || labels.figureKind(node.type ?? "person"),
       [
         node.label ?? "",
@@ -68,7 +68,7 @@ export function buildWorldReferenceCandidates({
   const moments = (figures.timeline ?? []).map((moment) =>
     candidate(
       { kind: "timeline", id: moment.id },
-      moment.title,
+      moment.title.trim() || labels.moment,
       moment.note || moment.date || labels.moment,
       [moment.note ?? "", moment.date ?? "", String(moment.time ?? "")],
       "timeline",
@@ -77,7 +77,7 @@ export function buildWorldReferenceCandidates({
   const boards = storyboards.map((board) =>
     candidate(
       { kind: "storyboard", id: board.id },
-      board.title,
+      board.title.trim() || labels.untitled,
       board.detail ?? "",
       board.keywords ?? [],
       "storyboard",
@@ -121,6 +121,25 @@ export function workspaceTargetForReference(
   }
 }
 
+/**
+ * Resolves a stored target against the live index. Figure and place references share a node ID,
+ * so a later type change may legitimately move that ID between their two workspaces.
+ */
+export function resolveWorldReferenceCandidate(
+  candidates: readonly WorldReferenceCandidate[],
+  target: WorldReferenceTarget,
+) {
+  const exact = candidates.find(
+    (item) => worldReferenceKey(item.target) === worldReferenceKey(target),
+  );
+  if (exact || (target.kind !== "entity" && target.kind !== "place")) return exact;
+  return candidates.find(
+    (item) =>
+      (item.target.kind === "entity" || item.target.kind === "place") &&
+      item.target.id === target.id,
+  );
+}
+
 function candidate(
   target: WorldReferenceTarget,
   label: string,
@@ -131,7 +150,7 @@ function candidate(
   return {
     id: worldReferenceKey(target),
     target,
-    label,
+    label: normalizeNoteReferenceSurface(label),
     detail,
     keywords: keywords.filter(Boolean),
     workspace,

@@ -151,6 +151,62 @@ describe("TimelineWorkspace sections", () => {
     expect(screen.getByText("Unverändert / kein Ort")).toBeVisible();
   });
 
+  it("reselects a repeated navigation target after an internal selection", () => {
+    const navigationState: FigureState = {
+      ...state,
+      timeline: [
+        { id: "m1", title: "Ankunft", time: 0, position: 0 },
+        { id: "m2", title: "Abreise", time: 1, position: 1 },
+      ],
+    };
+    const view = render(
+      <I18nProvider>
+        <TimelineWorkspace
+          state={navigationState}
+          onChange={vi.fn()}
+          manuscript={emptyManuscript}
+          targetId="m1"
+          targetRequestId={1}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Ankunft");
+    fireEvent.click(screen.getByRole("button", { name: /Abreise/ }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Abreise");
+
+    view.rerender(
+      <I18nProvider>
+        <TimelineWorkspace
+          state={{
+            ...navigationState,
+            timeline: navigationState.timeline?.map((moment) =>
+              moment.id === "m2" ? { ...moment, title: "Abreise bearbeitet" } : moment,
+            ),
+          }}
+          onChange={vi.fn()}
+          manuscript={emptyManuscript}
+          targetId="m1"
+          targetRequestId={1}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Abreise bearbeitet");
+
+    view.rerender(
+      <I18nProvider>
+        <TimelineWorkspace
+          state={navigationState}
+          onChange={vi.fn()}
+          manuscript={emptyManuscript}
+          targetId="m1"
+          targetRequestId={2}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Ankunft");
+  });
+
   it("duplicates a moment only after an explicit menu action", () => {
     const onChange = vi.fn();
     renderTimeline(onChange);

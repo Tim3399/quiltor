@@ -6,18 +6,19 @@ import unittest
 from pathlib import Path
 
 from quiltor.infrastructure.persistence import mirror
+from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
 from quiltor.infrastructure.persistence.sqlite import (
     config,
-    manuscript as manuscript_store,
     restore,
     revisions,
     schema,
     story_world,
     world_catalog,
 )
+from quiltor.infrastructure.persistence.sqlite import (
+    manuscript as manuscript_store,
+)
 from quiltor.infrastructure.persistence.sqlite.connection import connection as sqlite_connection
-from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
-
 
 LEGACY_V3_FIGURE_SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -333,6 +334,15 @@ class StorageTest(unittest.TestCase):
                     "title": "Eins",
                     "body": "Hallo Welt",
                     "note": "N",
+                    "noteReferences": [
+                        {
+                            "id": "chapter-note-reference",
+                            "target": {"kind": "entity", "id": "n1"},
+                            "from": 0,
+                            "to": 1,
+                            "surface": "N",
+                        }
+                    ],
                     "mood": "still",
                     "mentions": [
                         {
@@ -366,6 +376,16 @@ class StorageTest(unittest.TestCase):
                     "diedMomentId": "t2",
                     "profile": {
                         "rolle": "Held",
+                        "notizen": "A vertraut B.",
+                        "noteReferences": [
+                            {
+                                "id": "profile-note-reference",
+                                "target": {"kind": "place", "id": "n2"},
+                                "from": 10,
+                                "to": 11,
+                                "surface": "B",
+                            }
+                        ],
                         "extra": [{"k": "Motiv", "v": "Heimkehr"}],
                         "future": "yes",
                     },
@@ -383,7 +403,21 @@ class StorageTest(unittest.TestCase):
             ],
             "timeline": [
                 {"id": "t1", "title": "Vorher"},
-                {"id": "t2", "title": "Verrat", "date": "1420-03-12"},
+                {
+                    "id": "t2",
+                    "title": "Verrat",
+                    "date": "1420-03-12",
+                    "note": "Verrat im Hafen.",
+                    "noteReferences": [
+                        {
+                            "id": "moment-note-reference",
+                            "target": {"kind": "place", "id": "n2"},
+                            "from": 10,
+                            "to": 15,
+                            "surface": "Hafen",
+                        }
+                    ],
+                },
             ],
             "presence": [
                 {"id": "p1", "elementId": "n1", "placeId": "n2", "momentId": "t2"},
@@ -399,6 +433,10 @@ class StorageTest(unittest.TestCase):
         figures = story_world.load()
         self.assertEqual(manuscript["chapters"][0]["mood"], "still")
         self.assertEqual(manuscript["chapters"][0]["mentions"][0]["elementId"], "n1")
+        self.assertEqual(
+            manuscript["chapters"][0]["noteReferences"][0]["target"],
+            {"kind": "entity", "id": "n1"},
+        )
         mirror_dir = config.DATA / "manuskript"
         mirror.mirror_text(manuscript["chapters"], mirror_dir)
         exported = next(mirror_dir.glob("*.md")).read_text(encoding="utf-8")
@@ -415,12 +453,17 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(manuscript["language"], "de-DE")
         self.assertEqual(manuscript["grammarMode"], "manual")
         self.assertEqual(figures["nodes"][0]["profile"]["extra"][0]["k"], "Motiv")
+        self.assertEqual(
+            figures["nodes"][0]["profile"]["noteReferences"][0]["target"],
+            {"kind": "place", "id": "n2"},
+        )
         self.assertEqual(figures["nodes"][0]["future"], 7)
         self.assertEqual(figures["nodes"][0]["diedMomentId"], "t2")
         self.assertTrue(figures["nodes"][0]["important"])
         self.assertTrue(figures["nodes"][0]["pinned"])
         self.assertEqual(figures["edges"][0]["versions"][0]["label"], "Feinde")
         self.assertEqual(figures["timeline"][1]["date"], "1420-03-12")
+        self.assertEqual(figures["timeline"][1]["noteReferences"][0]["id"], "moment-note-reference")
         self.assertEqual(figures["future"], "kept")
         presence_by_id = {entry["id"]: entry for entry in figures["presence"]}
         self.assertEqual(presence_by_id["p1"]["momentId"], "t2")

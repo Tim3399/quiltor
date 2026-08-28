@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Field } from "./Field";
 
 afterEach(cleanup);
@@ -55,6 +55,28 @@ describe("Field", () => {
       "aria-describedby",
       "external-help project-name-hint project-name-description",
     );
+  });
+
+  it("can point its label at a nested focus target", () => {
+    const activate = vi.fn();
+    render(
+      <Field
+        label="Notiz"
+        controlId="note-surface"
+        labelTargetId="note-editor"
+        onLabelClick={activate}
+      >
+        <div>
+          <input id="note-editor" />
+        </div>
+      </Field>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Notiz" })).toHaveAttribute("id", "note-editor");
+    expect(document.getElementById("note-surface")).toBeInTheDocument();
+    expect(screen.getByText("Notiz", { selector: "label" })).toHaveAttribute("for", "note-editor");
+    fireEvent.click(screen.getByText("Notiz", { selector: "label" }));
+    expect(activate).toHaveBeenCalledOnce();
   });
 
   it("forwards native root props and its ref", () => {

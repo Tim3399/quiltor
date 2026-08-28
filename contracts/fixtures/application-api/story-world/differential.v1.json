@@ -98,6 +98,13 @@
     {
       "id": "profile-notes",
       "path": "/payload/nodes/0/profile/notizen",
+      "alsoRemove": ["/payload/nodes/0/profile/noteReferences"],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-note-references",
+      "path": "/payload/nodes/0/profile/noteReferences",
       "absent": "accept",
       "null": "reject"
     },
@@ -226,6 +233,13 @@
     {
       "id": "moment-note",
       "path": "/payload/timeline/0/note",
+      "alsoRemove": ["/payload/timeline/0/noteReferences"],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-note-references",
+      "path": "/payload/timeline/0/noteReferences",
       "absent": "accept",
       "null": "reject"
     },
@@ -375,6 +389,28 @@
       "value": 0.0,
       "expect": "accept",
       "canonical": "integer"
+    },
+    {
+      "id": "profile-note-reference-integral-float",
+      "operation": "set",
+      "path": "/payload/nodes/0/profile/noteReferences/0/to",
+      "value": 16.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "moment-note-reference-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/timeline/0/noteReferences/0/to",
+      "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "moment-note-reference-surface-mismatch",
+      "operation": "set",
+      "path": "/payload/timeline/0/noteReferences/0/surface",
+      "value": "Ankunft",
+      "expect": "reject"
     },
     {
       "id": "position-max-safe",
