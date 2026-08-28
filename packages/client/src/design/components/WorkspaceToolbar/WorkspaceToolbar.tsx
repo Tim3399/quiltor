@@ -1,5 +1,12 @@
-import type { FieldsetHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import { Plus } from "lucide-react";
+import {
+  type FieldsetHTMLAttributes,
+  forwardRef,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 import { ScrollArea } from "../ScrollArea";
+import { ToolbarButton, type ToolbarButtonProps } from "../ToolbarButton";
 import "./WorkspaceToolbar.css";
 
 function classes(...values: Array<string | false | undefined>) {
@@ -40,14 +47,29 @@ export function WorkspaceToolbarTitle({
   );
 }
 
-export function WorkspaceToolbarActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export interface WorkspaceToolbarActionsProps extends HTMLAttributes<HTMLDivElement> {
+  layout?: "scroll" | "wrap";
+}
+
+export function WorkspaceToolbarActions({
+  className,
+  layout = "scroll",
+  ...props
+}: WorkspaceToolbarActionsProps) {
+  const actionsClassName = classes("workspace-toolbar__actions", className);
+
+  if (layout === "wrap") {
+    return <div {...props} className={actionsClassName} data-layout="wrap" />;
+  }
+
   return (
     <ScrollArea
       {...props}
       axis="x"
       gutter="auto"
       surface="panel"
-      className={classes("workspace-toolbar__actions", className)}
+      className={actionsClassName}
+      data-layout="scroll"
     />
   );
 }
@@ -65,3 +87,35 @@ export function WorkspaceToolbarGroup({
     </fieldset>
   );
 }
+
+export type WorkspaceToolbarCreateButtonProps = Omit<
+  ToolbarButtonProps,
+  "appearance" | "collapseAt" | "icon" | "labelMode" | "size" | "tone"
+> & {
+  icon?: ReactNode;
+};
+
+/**
+ * The single create-action contract for workspace toolbars.
+ *
+ * Product workspaces provide the label, behavior and optionally a more specific icon;
+ * emphasis, sizing and responsive collapse stay identical across every workspace.
+ */
+export const WorkspaceToolbarCreateButton = forwardRef<
+  HTMLButtonElement,
+  WorkspaceToolbarCreateButtonProps
+>(function WorkspaceToolbarCreateButton({ className, icon = <Plus />, ...props }, ref) {
+  return (
+    <ToolbarButton
+      {...props}
+      ref={ref}
+      icon={icon}
+      appearance="primary"
+      size="compact"
+      labelMode="responsive"
+      collapseAt="compact"
+      className={classes("workspace-toolbar__create-button", className)}
+      data-workspace-action="create"
+    />
+  );
+});

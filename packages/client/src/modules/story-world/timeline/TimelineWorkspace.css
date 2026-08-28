@@ -15,7 +15,6 @@
 @media (max-width: 820px) {
   .timeline-workspace .timeline-toolbar-actions {
     width: 100%;
-    flex-wrap: wrap;
     row-gap: var(--space-6);
   }
 }

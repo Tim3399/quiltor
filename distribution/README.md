@@ -270,10 +270,18 @@ Native release runners install `pyinstaller==6.22.0`. The Windows job downloads
 Inno Setup 6.7.1 from its versioned upstream URL and verifies the committed
 SHA-256 before executing it. These build versions live in
 `distribution/toolchains.json`; they are not a claim about every target runtime.
-The web OCI target asserts CPython 3.12.3 in
-both build and final stages, while the backup OCI target inherits CPython
-3.12.13 from its digest-bound base image. Their roles and versions are recorded
-separately in `distribution/dependency-locks.json` and
+The web OCI target's shared digest-bound Ubuntu base asserts CPython 3.12.3;
+the build, browser-fetch and final stages inherit that validated base. Its
+Playwright runtime installs only Chromium Headless Shell and verifies the
+extracted payload against the deterministic tree SHA-256 in
+`distribution/containers/browser-payloads.json` before copying it into the
+runtime image. After binding the pushed image digest, the release enforces the
+committed 550 MiB `linux/amd64` budget in
+`distribution/containers/image-size-budgets.json` across the runtime config and
+unique compressed layers; provenance and SBOM attestations are excluded. The
+backup OCI target inherits CPython 3.12.13 from its own digest-bound base image.
+Their roles and versions are recorded separately in
+`distribution/dependency-locks.json` and
 `distribution/containers/base-images.json`.
 
 ### Regenerating Python dependency locks

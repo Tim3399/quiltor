@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "images": {
+    "web": {
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      "maxCompressedBytes": 576716800
+    }
+  }
+}

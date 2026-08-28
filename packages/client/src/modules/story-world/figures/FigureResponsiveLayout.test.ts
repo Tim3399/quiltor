@@ -10,16 +10,14 @@ function stylesheet(name: string) {
 
 describe("figure workspace responsive layout contracts", () => {
   it("keeps overview nodes recognizable at narrow viewport sizes", () => {
-    const css = stylesheet("FigureCanvas.css");
+    const css = stylesheet("../StoryGraph.css");
 
     expect(css).toMatch(
       /\.story-node\.zoom-overview:not\(\.is-important\)\s*\{[^}]*width:\s*32px;[^}]*height:\s*32px;/s,
     );
+    expect(css).toMatch(/\.story-node\.zoom-overview \.node-monogram\s*\{[^}]*display:\s*grid;/s);
     expect(css).toMatch(
-      /\.story-node\.zoom-overview:not\(\.is-important\) \.node-monogram\s*\{[^}]*display:\s*grid;/s,
-    );
-    expect(css).toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.story-node\.zoom-overview:not\(\.is-important\)\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/,
+      /@media \(max-width: 640px\), \(pointer: coarse\)[\s\S]*?\.story-node\.zoom-overview:not\(\.is-important\)\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/,
     );
   });
 

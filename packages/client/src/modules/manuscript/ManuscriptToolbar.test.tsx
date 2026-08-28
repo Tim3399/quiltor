@@ -32,12 +32,25 @@ it("links manuscript export actions and restores focus after selection", async (
   const trigger = screen.getByRole("button", { name: "Exportieren" });
   const responsiveActions = [
     ...container.querySelectorAll<HTMLButtonElement>(
-      '.manuscript-toolbar .ui-toolbar-button[data-label-mode="responsive"]',
+      '.manuscript-toolbar .ui-toolbar-button[data-label-mode="responsive"]:not([data-workspace-action="create"])',
     ),
   ];
   expect(responsiveActions.length).toBeGreaterThan(0);
   for (const action of responsiveActions)
     expect(action).toHaveAttribute("data-collapse-at", "medium");
+  const createChapter = screen.getByRole("button", { name: "Neues Kapitel" });
+  expect(createChapter).toHaveClass(
+    "workspace-toolbar__create-button",
+    "ui-toolbar-button",
+    "ui-button--primary",
+    "ui-button--compact",
+  );
+  expect(createChapter).toHaveAttribute("data-workspace-action", "create");
+  expect(createChapter).toHaveAttribute("data-appearance", "primary");
+  expect(createChapter).toHaveAttribute("data-size", "compact");
+  expect(createChapter).toHaveAttribute("data-label-mode", "responsive");
+  expect(createChapter).toHaveAttribute("data-collapse-at", "compact");
+  expect(createChapter.querySelector(".ui-button__icon svg")).not.toBeNull();
   expect(trigger).toHaveAttribute("aria-haspopup", "menu");
   expect(trigger).toHaveAttribute("aria-expanded", "false");
   trigger.focus();

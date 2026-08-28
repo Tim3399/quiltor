@@ -55,6 +55,24 @@ function expectStructuredItems(menu: HTMLElement) {
 }
 
 describe("FigureToolbar menus", () => {
+  it("keeps every visible action inside the shared scrollable toolbar contract", () => {
+    renderToolbar();
+
+    const toolbar = screen.getByRole("toolbar", { name: "Figuren & Welt" });
+    const actions = toolbar.querySelector(".workspace-toolbar__actions");
+    expect(actions).toBeInTheDocument();
+    expect(actions).toHaveAttribute("data-axis", "x");
+    expect(toolbar.querySelectorAll(":scope > .workspace-toolbar__group")).toHaveLength(0);
+
+    for (const button of within(toolbar).getAllByRole("button")) {
+      expect(button).toHaveClass("ui-toolbar-button");
+    }
+    expect(within(toolbar).getByRole("button", { name: "Element" })).toHaveAttribute(
+      "data-workspace-action",
+      "create",
+    );
+  });
+
   it("opens the element menu from the keyboard and restores its trigger after selection", async () => {
     const props = renderToolbar();
     const trigger = screen.getByRole("button", { name: "Element" });

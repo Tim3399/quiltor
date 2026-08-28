@@ -9,20 +9,22 @@ import sys
 from pathlib import Path
 
 from backup_service_artifact import load_contract as load_backup_artifact_contract
+from browser_payload_digest import load_contract as load_browser_payload_contract
 from dependency_lock_contract import records as dependency_lock_records
 from dependency_lock_contract import validate_lock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = REPO_ROOT / "distribution" / "containers" / "base-images.json"
+BROWSER_PAYLOAD_PATH = REPO_ROOT / "distribution" / "containers" / "browser-payloads.json"
 REFERENCE = re.compile(r"^[a-z0-9./_-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$")
 LEGAL_FILES = ("LICENSE", "THIRD-PARTY-NOTICES.md")
 
 
 def load_contract(path: Path = CONTRACT_PATH) -> dict[str, object]:
     document = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(document, dict) or document.get("schemaVersion") != 1:
+    if not isinstance(document, dict) or document.get("schemaVersion") != 2:
         raise ValueError("Unsupported container base-image contract.")
-    for name in ("playwright", "nodeBuild", "backupPython"):
+    for name in ("webRuntime", "nodeBuild", "backupPython"):
         entry = document.get(name)
         image = entry.get("reference") if isinstance(entry, dict) else None
         if not isinstance(image, str) or REFERENCE.fullmatch(image) is None:
@@ -45,18 +47,24 @@ def validate_sources(repo_root: Path = REPO_ROOT) -> None:
     """Reject Dockerfiles whose bases or required payload drift from the lock."""
 
     contract_path = repo_root / "distribution" / "containers" / "base-images.json"
+    browser_contract_path = repo_root / "distribution" / "containers" / "browser-payloads.json"
     app_path = repo_root / "Dockerfile"
     backup_path = repo_root / "services" / "backup-server" / "Dockerfile"
     artifact_path = repo_root / "services" / "backup-server" / "artifact-contract.json"
     app = app_path.read_text(encoding="utf-8")
     backup = backup_path.read_text(encoding="utf-8")
-    playwright = reference("playwright", contract_path)
+    web_runtime = reference("webRuntime", contract_path)
     node_build = reference("nodeBuild", contract_path)
     backup_python = reference("backupPython", contract_path)
-    if f"ARG PLAYWRIGHT_BASE_IMAGE={playwright}" not in app:
-        raise ValueError("Dockerfile Playwright base does not match the committed digest lock.")
-    if app.count(playwright) < 2:
-        raise ValueError("Dockerfile must both default and assert the locked Playwright base.")
+    if f"ARG WEB_RUNTIME_BASE_IMAGE={web_runtime}" not in app:
+        raise ValueError("Dockerfile web runtime base does not match the committed digest lock.")
+    if (
+        app.count(web_runtime) < 2
+        or "FROM ${WEB_RUNTIME_BASE_IMAGE} AS web-runtime-base" not in app
+    ):
+        raise ValueError("Dockerfile must both default and assert its locked web runtime base.")
+    if not re.fullmatch(r"ubuntu:24\.04@sha256:[0-9a-f]{64}", web_runtime):
+        raise ValueError("Web target runtime must remain on digest-bound Ubuntu 24.04.")
     if f"ARG NODE_BASE_IMAGE={node_build}" not in app:
         raise ValueError("Dockerfile Node base does not match the committed digest lock.")
     if app.count(node_build) < 2 or "FROM ${NODE_BASE_IMAGE} AS node-runtime" not in app:
@@ -74,8 +82,42 @@ def validate_sources(repo_root: Path = REPO_ROOT) -> None:
     web_playwright = (
         web_oci_runtime.get("playwright") if isinstance(web_oci_runtime, dict) else None
     )
-    if not isinstance(web_playwright, str) or f"playwright:v{web_playwright}-" not in playwright:
-        raise ValueError("Container and repository Playwright runtime locks disagree.")
+    if not isinstance(web_playwright, str):
+        raise ValueError("Container Playwright runtime lock is missing.")
+    browser_payload = load_browser_payload_contract(browser_contract_path, "linux/amd64")
+    if browser_payload.playwright_version != web_playwright:
+        raise ValueError("Browser payload and container Playwright runtime locks disagree.")
+    if "node node_modules/playwright/cli.js install-deps chromium" not in app:
+        raise ValueError("Web OCI must install Playwright's Chromium system dependencies.")
+    if "ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright" not in app:
+        raise ValueError("Web OCI must use the explicit shared Playwright browser path.")
+    if "node node_modules/playwright/cli.js install --only-shell chromium" not in app:
+        raise ValueError("Web OCI must install only the headless Chromium shell.")
+    browser_lock_evidence = (
+        "FROM web-runtime-base AS playwright-browser",
+        'test "$TARGETARCH" = "amd64"',
+        "COPY distribution/containers/browser-payloads.json /tmp/quiltor-browser-payloads.json",
+        "COPY distribution/tooling/browser_payload_digest.py /tmp/browser_payload_digest.py",
+        "python3 /tmp/browser_payload_digest.py check-contract /ms-playwright",
+        "--contract /tmp/quiltor-browser-payloads.json",
+        "--platform linux/amd64",
+        f"--playwright-version {web_playwright}",
+        "COPY --from=playwright-browser",
+    )
+    for evidence in browser_lock_evidence:
+        if evidence not in app:
+            raise ValueError(
+                "Web OCI must verify its browser payload against the committed cryptographic lock: "
+                f"{evidence}"
+            )
+    locked_browser_directory = f"/ms-playwright/{browser_payload.directory}"
+    if app.count(locked_browser_directory) != 2:
+        raise ValueError("Web OCI must copy only the checksum-verified browser directory.")
+    for unused_browser in ("ffmpeg-*", "firefox-*", "webkit-*", "chromium-[0-9]*"):
+        if unused_browser not in app:
+            raise ValueError(f"Web OCI must reject the unused browser payload {unused_browser}.")
+    if "PLAYWRIGHT_BASE_IMAGE" in app or "mcr.microsoft.com/playwright" in app:
+        raise ValueError("Web OCI must not inherit the multi-browser Playwright image.")
     if not isinstance(node_version, str) or f"node:{node_version}-" not in node_build:
         raise ValueError("Container and repository Node toolchain locks disagree.")
     if "process.versions.node !== t.node" not in app or ".releaseToolchains" not in app:
@@ -101,8 +143,10 @@ def validate_sources(repo_root: Path = REPO_ROOT) -> None:
         raise ValueError("Web dependency lock has no explicit target Python runtime.")
     web_python = python_environment.get("version")
     runtime_assertion = f"platform.python_version() == '{web_python}'"
-    if not isinstance(web_python, str) or app.count(runtime_assertion) != 2:
-        raise ValueError("Both web OCI Python stages must assert the locked target runtime.")
+    if not isinstance(web_python, str) or app.count(runtime_assertion) != 1:
+        raise ValueError("The shared web OCI base must assert the locked target runtime once.")
+    if "FROM web-runtime-base AS web-build" not in app or app.count("FROM web-runtime-base") != 3:
+        raise ValueError("All web OCI Ubuntu stages must inherit the validated runtime base.")
     if f"ARG BACKUP_BASE_IMAGE={backup_python}" not in backup:
         raise ValueError("Backup Dockerfile base does not match the committed digest lock.")
     if backup.count(backup_python) < 2 or "FROM ${BACKUP_BASE_IMAGE}" not in backup:
@@ -126,6 +170,12 @@ def validate_runtime_locks(repo_root: Path = REPO_ROOT) -> None:
         (repo_root / "distribution/toolchains.json").read_text(encoding="utf-8")
     )
     web_playwright = toolchains["artifactRuntimes"]["webOci"]["playwright"]
+    browser_payload = load_browser_payload_contract(
+        repo_root / "distribution" / "containers" / "browser-payloads.json",
+        "linux/amd64",
+    )
+    if browser_payload.playwright_version != web_playwright:
+        raise ValueError("Browser payload and container Playwright runtime locks disagree.")
     runtime_package = json.loads(
         (repo_root / "distribution/web/self-hosted/package.json").read_text(encoding="utf-8")
     )
@@ -178,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 __all__ = [
+    "BROWSER_PAYLOAD_PATH",
     "CONTRACT_PATH",
     "load_contract",
     "reference",

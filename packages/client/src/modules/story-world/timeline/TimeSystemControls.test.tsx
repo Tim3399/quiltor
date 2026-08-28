@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider, useI18n } from "../../../i18n";
 import { TimeSystemControls } from "./TimeSystemControls";
@@ -13,11 +14,14 @@ afterEach(() => {
 
 function Controls({ onKindChange = vi.fn(), onPatch = vi.fn() }) {
   const { locale, t } = useI18n();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <TimeSystemControls
       system={DEFAULT_TIME_SYSTEM}
       onKindChange={onKindChange}
       onPatch={onPatch}
+      settingsOpen={settingsOpen}
+      onSettingsOpenChange={setSettingsOpen}
       locale={locale}
       t={t}
     />
@@ -72,22 +76,6 @@ describe("TimeSystemControls", () => {
     expect(css).toMatch(/\.timeline-time-settings-panel\s*\{[^}]*contain:\s*paint;/s);
   });
 
-  it("adds a custom calendar and opens its labelled settings popover in one action", () => {
-    const onKindChange = vi.fn();
-    render(
-      <I18nProvider>
-        <Controls onKindChange={onKindChange} />
-      </I18nProvider>,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Kalender hinzufügen" }));
-    expect(onKindChange).toHaveBeenCalledWith("custom");
-    expect(screen.getByRole("button", { name: "Zeitsystem konfigurieren" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByRole("dialog", { name: "Zeitsystem konfigurieren" })).toBeVisible();
-  });
-
   it("keeps the settings trigger named when its visible label is hidden on mobile", () => {
     render(
       <I18nProvider>
@@ -100,10 +88,6 @@ describe("TimeSystemControls", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
 
     expect(trigger).toHaveAttribute("data-label-mode", "responsive");
-    expect(screen.getByRole("button", { name: "Kalender hinzufügen" })).toHaveAttribute(
-      "data-label-mode",
-      "responsive",
-    );
   });
 
   it("closes on outside input and restores focus to its trigger", async () => {

@@ -75,11 +75,11 @@ Meta Platforms, Inc. and affiliates.
   exactly-pinned `browser-pdf` dependency for installed Python packages and
   drives a separately installed system Chrome or Edge browser.
 - **Microsoft Playwright 1.61.1** — Apache License 2.0; portions copyright
-  Microsoft Corporation and Google Inc. The self-hosted OCI image is based on
-  `mcr.microsoft.com/playwright:v1.61.1-noble` at the exact digest recorded in
-  `distribution/containers/base-images.json`, and therefore also contains the
-  Ubuntu and browser components supplied by that image under their respective
-  licenses. Their component notices remain available in the base image.
+  Microsoft Corporation and Google Inc. The self-hosted OCI runtime installs
+  only Playwright's matching Chromium Headless Shell; full Chromium, Firefox
+  and WebKit are not bundled. The image starts from the exact Ubuntu digest in
+  `distribution/containers/base-images.json`; Ubuntu and Chromium components
+  remain subject to their respective licenses and bundled component notices.
 - **PyJWT 2.13.0** — MIT License. Copyright (c) 2015-2022 José Padilla. It is
   included in the self-hosted image and resolved as a core Python dependency
   for packaged hosts.

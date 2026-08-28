@@ -29,20 +29,17 @@
   color: var(--muted);
   font-size: var(--font-size-2);
 }
-.timeline-add-calendar {
-  white-space: nowrap;
-}
 @media (max-width: 640px) {
   .timeline-time-controls {
     width: 100%;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--control-touch) var(--control-touch);
+    grid-template-columns: minmax(0, 1fr) var(--control-touch);
   }
   .timeline-time-system-select {
     width: 100%;
   }
   .timeline-time-settings {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
   }
   .timeline-time-settings-trigger {
@@ -53,13 +50,6 @@
   .timeline-time-settings-panel {
     width: 100%;
     max-height: calc(100dvh - var(--space-88));
-  }
-  .timeline-add-calendar {
-    grid-column: 2;
-    grid-row: 1;
-    width: var(--control-touch);
-    min-width: var(--control-touch);
-    padding: 0;
   }
 }
 .timeline-time-settings-popover:has(> .timeline-time-settings-panel) {

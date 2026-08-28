@@ -544,6 +544,7 @@ class PreflightContractTests(unittest.TestCase):
             "Smoke installed wheel browser PDF selector",
             "Build self-hosted app container",
             "Verify self-hosted image runtime contract",
+            "Verify self-hosted Chromium-only PDF runtime",
             "Build backup-service container",
             "Verify backup-service container payload and user",
         ):
@@ -571,11 +572,18 @@ class PreflightContractTests(unittest.TestCase):
             for label in (
                 "Build self-hosted app container",
                 "Verify self-hosted image runtime contract",
+                "Verify self-hosted Chromium-only PDF runtime",
                 "Build backup-service container",
                 "Verify backup-service container payload and user",
             )
         ]
         self.assertTrue(all(command[0] == "docker" for command in container_commands))
+        chromium_smoke = commands[labels.index("Verify self-hosted Chromium-only PDF runtime")]
+        chromium_script = " ".join(chromium_smoke)
+        self.assertIn("chromium.launch({headless:true})", chromium_script)
+        self.assertIn("page.pdf()", chromium_script)
+        self.assertIn("ffmpeg", chromium_script)
+        self.assertIn("unused browser payload", chromium_script)
         backup_build = commands[labels.index("Build backup-service container")]
         self.assertEqual(backup_build[-1], ".")
         self.assertIn("services/backup-server/Dockerfile", backup_build)
@@ -1244,31 +1252,38 @@ class WorkflowBoundaryTests(unittest.TestCase):
         ):
             self.assertIn(argument, command)
 
-    def test_web_image_uses_the_committed_digest_bound_base_image(self):
+    def test_web_image_uses_digest_bound_bases_and_only_headless_chromium(self):
         contract = json.loads(
             (REPO_ROOT / "distribution/containers/base-images.json").read_text(encoding="utf-8")
         )
-        reference = contract["playwright"]["reference"]
+        reference = contract["webRuntime"]["reference"]
         node_reference = contract["nodeBuild"]["reference"]
         self.assertEqual(
             reference,
-            "mcr.microsoft.com/playwright:v1.61.1-noble@sha256:"
-            "5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48",
+            "ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517",
         )
-        self.assertIn(".playwright.reference", self.build)
+        self.assertIn(".webRuntime.reference", self.build)
         self.assertEqual(
             node_reference,
             "node:22.23.2-bookworm-slim@sha256:"
             "d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436",
         )
         self.assertIn(".nodeBuild.reference", self.build)
-        self.assertIn("PLAYWRIGHT_BASE_IMAGE=${{ steps.image.outputs.base_image }}", self.build)
+        self.assertIn(
+            "WEB_RUNTIME_BASE_IMAGE=${{ steps.image.outputs.runtime_base_image }}",
+            self.build,
+        )
         self.assertIn("NODE_BASE_IMAGE=${{ steps.image.outputs.node_base_image }}", self.build)
-        self.assertNotIn("vars.QUILTOR_PLAYWRIGHT_BASE_IMAGE", self.build)
         dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertNotIn("mcr.microsoft.com/playwright", dockerfile)
+        self.assertIn("install --only-shell chromium", dockerfile)
+        self.assertIn("browser_payload_digest.py check-contract", dockerfile)
+        self.assertIn("distribution/containers/browser-payloads.json", dockerfile)
+        self.assertIn("ffmpeg-*", dockerfile)
+        self.assertIn("chromium.launch({headless:true})", dockerfile)
         self.assertEqual(
             dockerfile.count("platform.python_version() == '3.12.3'"),
-            2,
+            1,
         )
 
     def test_publish_consumes_a_successful_build_without_rebuilding(self):

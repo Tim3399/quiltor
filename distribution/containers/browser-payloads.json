@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "playwrightVersion": "1.61.1",
+  "payloads": {
+    "linux/amd64": {
+      "kind": "chromium-headless-shell",
+      "directory": "chromium_headless_shell-1228",
+      "treeSha256": "003f1c19331bbac563b31af412e7c36f030cc1a32b31569a9e2585515cc6280b"
+    }
+  }
+}

@@ -1,8 +1,9 @@
-import { Download, Plus, Redo2, Undo2 } from "lucide-react";
+import { Download, Redo2, Undo2 } from "lucide-react";
 import { ToolbarButton } from "../ToolbarButton";
 import {
   WorkspaceToolbar,
   WorkspaceToolbarActions,
+  WorkspaceToolbarCreateButton,
   WorkspaceToolbarGroup,
   WorkspaceToolbarTitle,
 } from "./WorkspaceToolbar";
@@ -13,7 +14,7 @@ export function Default() {
       <WorkspaceToolbarTitle title="Die Ankunft" detail="1.240 Wörter" />
       <WorkspaceToolbarActions>
         <WorkspaceToolbarGroup label="Erstellen">
-          <ToolbarButton label="Neues Kapitel" icon={<Plus />} appearance="primary" />
+          <WorkspaceToolbarCreateButton label="Neues Kapitel" />
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label="Verlauf">
           <ToolbarButton label="Rückgängig" icon={<Undo2 />} />
@@ -35,7 +36,7 @@ export function LongContent() {
         detail="Eine ebenfalls sehr lange Statusbeschreibung"
       />
       <WorkspaceToolbarGroup>
-        <ToolbarButton label="Neues Kapitel" icon={<Plus />} />
+        <WorkspaceToolbarCreateButton label="Neues Kapitel" />
       </WorkspaceToolbarGroup>
     </WorkspaceToolbar>
   );

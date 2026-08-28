@@ -1,5 +1,5 @@
-import { Plus, Settings2 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { Settings2 } from "lucide-react";
+import { useEffect, useId, useRef } from "react";
 import {
   ListboxSelect,
   Popover,
@@ -19,16 +19,19 @@ export function TimeSystemControls({
   system,
   onKindChange,
   onPatch,
+  settingsOpen,
+  onSettingsOpenChange,
   locale,
   t,
 }: {
   system: TimeSystem;
   onKindChange: (value: TimeSystemKind) => void;
   onPatch: (patch: Partial<TimeSystem>) => void;
+  settingsOpen: boolean;
+  onSettingsOpenChange: (open: boolean) => void;
   locale: UiLocale;
   t: Translate;
 }) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const settingsPanel = useRef<HTMLDivElement>(null);
   const settingsPanelId = useId();
@@ -64,14 +67,14 @@ export function TimeSystemControls({
           aria-haspopup="dialog"
           aria-expanded={settingsOpen}
           aria-controls={settingsOpen ? settingsPanelId : undefined}
-          onClick={() => setSettingsOpen((current) => !current)}
+          onClick={() => onSettingsOpenChange(!settingsOpen)}
         />
         <Popover
           anchorRef={settingsButton}
           open={settingsOpen}
           label={t("timelineConfigureTime")}
           className="timeline-time-settings-popover"
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => onSettingsOpenChange(false)}
         >
           <ScrollArea
             ref={settingsPanel}
@@ -160,17 +163,6 @@ export function TimeSystemControls({
           </ScrollArea>
         </Popover>
       </div>
-      <ToolbarButton
-        label={t("timelineAddCustomCalendar")}
-        icon={<Plus />}
-        appearance="primary"
-        size="regular"
-        className="timeline-add-calendar"
-        onClick={() => {
-          if (system.kind !== "custom") onKindChange("custom");
-          setSettingsOpen(true);
-        }}
-      />
     </div>
   );
 }

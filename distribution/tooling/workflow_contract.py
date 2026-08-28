@@ -10,6 +10,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from browser_payload_digest import load_contract as load_browser_payload_contract
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_ROOT = REPO_ROOT / ".github" / "workflows"
 ACTION_LOCK = REPO_ROOT / ".github" / "actions.lock.json"
@@ -243,10 +245,38 @@ def validate_toolchains(sources: dict[Path, str], contract: dict[str, object]) -
     base_images = json.loads(
         (REPO_ROOT / "distribution/containers/base-images.json").read_text(encoding="utf-8")
     )
-    playwright_base = base_images.get("playwright", {}).get("reference", "")
-    if f"playwright:v{oci_playwright}-" not in playwright_base:
+    web_runtime_base = base_images.get("webRuntime", {}).get("reference", "")
+    if re.fullmatch(r"ubuntu:24\.04@sha256:[0-9a-f]{64}", web_runtime_base) is None:
+        raise WorkflowContractError("the OCI web runtime base must pin Ubuntu 24.04")
+    if "node node_modules/playwright/cli.js install --only-shell chromium" not in dockerfile:
         raise WorkflowContractError(
-            "the OCI Playwright base disagrees with artifactRuntimes.webOci"
+            f"the OCI Playwright {oci_playwright} runtime must install Chromium headless shell only"
+        )
+    try:
+        browser_payload = load_browser_payload_contract(
+            REPO_ROOT / "distribution" / "containers" / "browser-payloads.json",
+            "linux/amd64",
+        )
+    except ValueError as error:
+        raise WorkflowContractError(f"the OCI browser payload lock is invalid: {error}") from error
+    if browser_payload.playwright_version != oci_playwright:
+        raise WorkflowContractError(
+            "the OCI browser payload lock disagrees with artifactRuntimes.webOci"
+        )
+    for evidence in (
+        "distribution/containers/browser-payloads.json",
+        "browser_payload_digest.py check-contract /ms-playwright",
+        "--platform linux/amd64",
+        f"--playwright-version {oci_playwright}",
+        "COPY --from=playwright-browser",
+    ):
+        if evidence not in dockerfile:
+            raise WorkflowContractError(
+                f"the OCI browser payload is not cryptographically bound: {evidence}"
+            )
+    if dockerfile.count(f"/ms-playwright/{browser_payload.directory}") != 2:
+        raise WorkflowContractError(
+            "the OCI runtime must copy only its checksum-verified browser directory"
         )
     release = sources[WORKFLOW_ROOT / "release.yml"]
     for command in (
@@ -357,6 +387,31 @@ def validate_publication_boundary(sources: dict[Path, str]) -> None:
             raise WorkflowContractError(f"{path.name} may not publish OCI packages")
 
 
+def validate_image_size_guard(sources: dict[Path, str]) -> None:
+    """The pushed web runtime must pass its central compressed-size budget."""
+
+    build = sources[WORKFLOW_ROOT / "release.yml"]
+    web_image = _job_body(build, "web-image")
+    command = 'python distribution/tooling/oci_image_size.py check "$IMAGE" --budget web'
+    immutable_binding = "IMAGE: ${{ steps.immutable.outputs.value }}"
+    if build.count(command) != 1 or web_image.count(command) != 1:
+        raise WorkflowContractError("Release Build must enforce the web image-size budget once")
+    command_index = web_image.index(command)
+    step_start = web_image.rfind("\n      - ", 0, command_index)
+    step_end = web_image.find("\n      - ", command_index)
+    if step_start < 0:
+        raise WorkflowContractError("web image-size guard must be a dedicated workflow step")
+    if step_end < 0:
+        step_end = len(web_image)
+    guard_step = web_image[step_start:step_end]
+    if immutable_binding not in guard_step:
+        raise WorkflowContractError("web image-size guard must inspect the immutable pushed digest")
+    if "continue-on-error:" in guard_step:
+        raise WorkflowContractError("web image-size guard must not continue on error")
+    if command_index < web_image.index("- id: immutable"):
+        raise WorkflowContractError("web image-size guard must run after the image digest is bound")
+
+
 def _job_body(source: str, name: str) -> str:
     try:
         jobs = source.split("\njobs:\n", 1)[1]
@@ -463,6 +518,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_job_runtime_setups(sources, locked_actions)
         validate_cargo(sources)
         validate_publication_boundary(sources)
+        validate_image_size_guard(sources)
         validate_native_release_targets(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original

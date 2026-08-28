@@ -58,6 +58,10 @@
   gap: 0;
 }
 
+.workspace-toolbar__actions[data-layout="wrap"] {
+  flex-wrap: wrap;
+}
+
 .workspace-toolbar__group,
 .workspace-toolbar__actions > fieldset,
 .workspace-toolbar > fieldset {

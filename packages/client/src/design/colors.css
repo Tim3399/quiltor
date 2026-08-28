@@ -48,13 +48,13 @@
   --moss-text: #304730;
   --moss-border: #5c7159;
 
-  /* Focus, information, links and keyboard interaction. */
+  /* ink-blue, information, links and keyboard interaction. */
   --ink-blue: #21456a;
   --ink-blue-soft: #dce9f2;
   --ink-blue-text: #173d60;
   --ink-blue-border: #4b6f8d;
 
-  /* Warning only: deliberately vivid copper, never brand gold. */
+  /* WARNING: deliberately vivid copper, never brand gold. */
   --copper: #c03a00;
   --copper-soft: #fff0e8;
   --copper-text: #982000;
@@ -72,6 +72,7 @@
   --material-toolbar: rgb(236 224 207 / 0.9);
   --material-popover: rgb(255 250 243 / 0.96);
   --material-sheet: rgb(252 246 237 / 0.98);
+  --material-paper-texture-veil: rgb(252 246 237 / 0.4);
 
   --overlay: rgb(23 21 15 / 0.34);
   --shadow-default: rgb(23 21 15 / 0.18);
@@ -143,6 +144,7 @@
   --material-toolbar: rgb(18 16 12 / 0.93);
   --material-popover: rgb(52 40 30 / 0.97);
   --material-sheet: rgb(40 31 23 / 0.98);
+  --material-paper-texture-veil: rgb(40 31 23 / 0.8);
 
   --overlay: rgb(0 0 0 / 0.68);
   --shadow-default: rgb(0 0 0 / 0.5);

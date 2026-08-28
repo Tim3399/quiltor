@@ -14,6 +14,7 @@ import {
   UndoRedoControls,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
+  WorkspaceToolbarCreateButton,
   WorkspaceToolbarGroup,
   WorkspaceToolbarTitle,
 } from "../../design";
@@ -96,11 +97,9 @@ export function ManuscriptToolbar({
       </div>
       <WorkspaceToolbarActions className="manuscript-toolbar-actions">
         <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-          <ToolbarButton
+          <WorkspaceToolbarCreateButton
             label={t("newChapter")}
             icon={<FilePlus2 />}
-            collapseAt="medium"
-            appearance="primary"
             onClick={onAddChapter}
           />
         </WorkspaceToolbarGroup>

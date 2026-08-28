@@ -76,14 +76,21 @@ was verified. `workflow_contract.py` rejects mutable tags, unknown actions,
 unlocked job runtimes and publication permissions outside the two release
 workflows.
 
-The self-hosted image reads `playwright.reference` from the committed
+The self-hosted image reads `webRuntime.reference` from the committed
 `distribution/containers/base-images.json` lock. It must match
-`mcr.microsoft.com/playwright:v1.61.1-noble@sha256:<64 lowercase hex>`; a
-floating or differently versioned base image stops the build before Docker
-runs. The backup Python base is checked against the same lock before its build.
-The web build overlays the exact Node.js 22.23.2 binary and asserts the
-effective version against `releaseToolchains`; both web stages also assert their
-target CPython 3.12.3 runtime before producing an image.
+`ubuntu:24.04@sha256:<64 lowercase hex>`; a floating or differently versioned
+base image stops the build before Docker runs. The backup Python base is checked
+against the same lock before its build. The web build overlays the exact Node.js
+22.23.2 binary and asserts the effective version against `releaseToolchains`;
+its shared base asserts the target CPython 3.12.3 runtime, and the final image
+contains only Playwright's Chromium Headless Shell. The extracted browser tree
+must match the SHA-256 lock in `distribution/containers/browser-payloads.json`
+before that payload can enter the runtime image.
+After the pushed digest is bound, the release also measures the `linux/amd64`
+runtime config plus its unique compressed layers and fails closed above the
+committed 550 MiB budget in
+`distribution/containers/image-size-budgets.json`; provenance and SBOM
+attestations are not counted as runtime payload.
 
 `distribution-contracts.yml` validates every supported and scaffold profile on
 pull requests. Scaffold targets do not get empty build jobs: their adjacent README

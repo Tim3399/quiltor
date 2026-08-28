@@ -1,9 +1,10 @@
-import { Plus } from "lucide-react";
+import { CalendarPlus, ClockPlus } from "lucide-react";
+import { useState } from "react";
 import {
-  Button,
   UndoRedoControls,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
+  WorkspaceToolbarCreateButton,
   WorkspaceToolbarGroup,
   WorkspaceToolbarTitle,
 } from "../../../design";
@@ -38,6 +39,8 @@ export function TimelineToolbar({
   locale: UiLocale;
   t: Translate;
 }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   return (
     <WorkspaceToolbar className="timeline-toolbar" label={t("timeline")}>
       <WorkspaceToolbarTitle
@@ -48,20 +51,35 @@ export function TimelineToolbar({
           </>
         }
       />
-      <WorkspaceToolbarActions className="timeline-toolbar-actions">
+      <WorkspaceToolbarActions className="timeline-toolbar-actions" layout="wrap">
         <WorkspaceToolbarGroup className="timeline-time-group" label={t("timelineTimeSystem")}>
           <TimeSystemControls
             system={system}
             onKindChange={onKindChange}
             onPatch={onPatchSystem}
+            settingsOpen={settingsOpen}
+            onSettingsOpenChange={setSettingsOpen}
             locale={locale}
             t={t}
           />
         </WorkspaceToolbarGroup>
-        <WorkspaceToolbarGroup className="timeline-add-group" label={t("addMoment")}>
-          <Button appearance="primary" icon={<Plus />} onClick={onAddMoment}>
-            {t("addMoment")}
-          </Button>
+        <WorkspaceToolbarGroup
+          className="timeline-create-group"
+          label={`${t("timelineAddCustomCalendar")} / ${t("addMoment")}`}
+        >
+          <WorkspaceToolbarCreateButton
+            label={t("timelineAddCustomCalendar")}
+            icon={<CalendarPlus />}
+            onClick={() => {
+              if (system.kind !== "custom") onKindChange("custom");
+              setSettingsOpen(true);
+            }}
+          />
+          <WorkspaceToolbarCreateButton
+            label={t("addMoment")}
+            icon={<ClockPlus />}
+            onClick={onAddMoment}
+          />
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup
           className="timeline-history-group"

@@ -251,6 +251,7 @@ class EmbeddedProfileTests(unittest.TestCase):
             root = Path(directory)
             paths = (
                 "distribution/containers/base-images.json",
+                "distribution/containers/browser-payloads.json",
                 "distribution/dependency-locks.json",
                 "distribution/toolchains.json",
                 "distribution/python-build-bootstrap.in",
@@ -281,12 +282,56 @@ class EmbeddedProfileTests(unittest.TestCase):
 
             app_path = root / "Dockerfile"
             app_source = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
-            app_path.write_text(
-                app_source.replace("process.versions.node !== t.node", "false"),
-                encoding="utf-8",
+
+            def assert_app_mutation_rejected(old, new, error, expected_count=1):
+                self.assertEqual(app_source.count(old), expected_count)
+                app_path.write_text(app_source.replace(old, new), encoding="utf-8")
+                try:
+                    with self.assertRaisesRegex(ValueError, error):
+                        container_contract.validate_sources(root)
+                finally:
+                    app_path.write_text(app_source, encoding="utf-8")
+
+            assert_app_mutation_rejected(
+                "process.versions.node !== t.node",
+                "false",
+                "effective Node runtime",
             )
-            with self.assertRaisesRegex(ValueError, "effective Node runtime"):
-                container_contract.validate_sources(root)
+            assert_app_mutation_rejected(
+                "node node_modules/playwright/cli.js install --only-shell chromium",
+                "node node_modules/playwright/cli.js install chromium",
+                "install only the headless Chromium shell",
+            )
+            assert_app_mutation_rejected(
+                "ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright\n",
+                "",
+                "explicit shared Playwright browser path",
+                expected_count=2,
+            )
+            assert_app_mutation_rejected(
+                "python3 /tmp/browser_payload_digest.py check-contract /ms-playwright",
+                "python3 /tmp/browser_payload_digest.py digest /ms-playwright",
+                "committed cryptographic lock",
+            )
+            assert_app_mutation_rejected(
+                "COPY --from=playwright-browser",
+                "COPY --from=runtime-node",
+                "committed cryptographic lock",
+            )
+            unused_browsers = {
+                "ffmpeg-*": 1,
+                "firefox-*": 2,
+                "webkit-*": 2,
+                "chromium-[0-9]*": 2,
+            }
+            for unused_browser, expected_count in unused_browsers.items():
+                with self.subTest(unused_browser=unused_browser):
+                    assert_app_mutation_rejected(
+                        unused_browser,
+                        "removed-browser-payload-rejection",
+                        f"unused browser payload {re.escape(unused_browser)}",
+                        expected_count=expected_count,
+                    )
 
     @staticmethod
     def _profile(profile_id):

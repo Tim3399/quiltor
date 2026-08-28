@@ -538,7 +538,11 @@ docker run ...
 
 siehe [`Dockerfile`](Dockerfile).
 
-Das Docker-Image basiert auf Microsofts Playwright-Image, da der Buch-PDF-Export im Web-Modus einen echten Headless-Chromium benötigt.
+Das Docker-Image enthält für den Buch-PDF-Export ausschließlich den zu
+Playwright passenden Chromium Headless Shell. Firefox, WebKit, ein vollständiger
+Chromium, das separate ffmpeg-Payload und die Entwicklungswerkzeuge bleiben
+bewusst außerhalb des Runtime-Images. Der extrahierte Browser wird beim Build
+zusätzlich gegen die festgeschriebene SHA-256-Prüfsumme geprüft.
 
 Sitzungen liegen im Prozessspeicher. Ein Container-Neustart meldet Web-Nutzer daher ab.
 

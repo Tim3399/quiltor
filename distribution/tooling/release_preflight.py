@@ -362,7 +362,7 @@ def _run_portable_artifact_builds(
 
     identifier = uuid.uuid4().hex
     version = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
-    playwright_base = container_base_image("playwright")
+    web_runtime_base = container_base_image("webRuntime")
     node_base = container_base_image("nodeBuild")
     app_image = f"quiltor-release-preflight-app:{identifier}"
     backup_image = f"quiltor-release-preflight-backup:{identifier}"
@@ -375,7 +375,7 @@ def _run_portable_artifact_builds(
                 "--build-arg",
                 f"QUILTOR_VERSION={version}",
                 "--build-arg",
-                f"PLAYWRIGHT_BASE_IMAGE={playwright_base}",
+                f"WEB_RUNTIME_BASE_IMAGE={web_runtime_base}",
                 "--build-arg",
                 f"NODE_BASE_IMAGE={node_base}",
                 "--tag",
@@ -404,6 +404,34 @@ def _run_portable_artifact_builds(
                     "assert pathlib.Path('/app/THIRD-PARTY-NOTICES.md').is_file(); "
                     "assert pathlib.Path('/app/VERSION').read_text().strip(); "
                     "assert os.getuid()!=0"
+                ),
+            ],
+            repo_root,
+            environment,
+        )
+        _run(
+            "Verify self-hosted Chromium-only PDF runtime",
+            [
+                docker,
+                "run",
+                "--rm",
+                "--entrypoint",
+                "node",
+                app_image,
+                "-e",
+                (
+                    "const fs=require('fs'); const {chromium}=require('playwright'); "
+                    "const entries=fs.readdirSync('/ms-playwright'); "
+                    "if(entries.some(name=>/^(ffmpeg|firefox|webkit|chromium)-/.test(name))) "
+                    "throw new Error('unused browser payload'); "
+                    "(async()=>{const browser=await chromium.launch({headless:true}); try { "
+                    "const page=await browser.newPage(); "
+                    "await page.setContent('<main>Quiltor PDF smoke</main>'); "
+                    "const pdf=await page.pdf(); "
+                    "if(pdf.subarray(0,5).toString()!=='%PDF-') "
+                    "throw new Error('invalid PDF output'); "
+                    "} finally { await browser.close(); }})()"
+                    ".catch(error=>{console.error(error); process.exit(1)})"
                 ),
             ],
             repo_root,

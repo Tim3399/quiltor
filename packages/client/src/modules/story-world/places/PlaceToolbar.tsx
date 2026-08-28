@@ -1,4 +1,4 @@
-import { Copy, MoreHorizontal, Plus, Ruler, Trash2 } from "lucide-react";
+import { Copy, MoreHorizontal, Ruler, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   MenuItem,
@@ -7,6 +7,7 @@ import {
   UndoRedoControls,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
+  WorkspaceToolbarCreateButton,
   WorkspaceToolbarGroup,
   WorkspaceToolbarTitle,
 } from "../../../design";
@@ -47,12 +48,7 @@ export function PlaceToolbar({
       />
       <WorkspaceToolbarActions>
         <WorkspaceToolbarGroup label={t("newPlace")}>
-          <ToolbarButton
-            label={t("newPlace")}
-            icon={<Plus />}
-            appearance="primary"
-            onClick={onAdd}
-          />
+          <WorkspaceToolbarCreateButton label={t("newPlace")} onClick={onAdd} />
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={t("measureDistance")}>
           <ToolbarButton

@@ -1,5 +1,24 @@
-.editor-scroll {
+.editor-scroll[data-surface="paper"] {
   min-width: 0;
+  --editor-paper-lift: color-mix(in srgb, var(--text-secondary) 3%, var(--transparent));
+  --editor-paper-mottle: color-mix(in srgb, var(--border-subtle) 9%, var(--transparent));
+  background-color: var(--surface-paper);
+  background-image:
+    linear-gradient(var(--material-paper-texture-veil), var(--material-paper-texture-veil)),
+    url("./assets/paper-fiber-texture.webp"),
+    radial-gradient(ellipse at 14% 18%, var(--editor-paper-mottle) 0, var(--transparent) 43%),
+    radial-gradient(ellipse at 82% 74%, var(--editor-paper-lift) 0, var(--transparent) 39%);
+  background-blend-mode: normal, soft-light, normal, normal;
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    var(--space-48) var(--space-32);
+  background-size:
+    auto,
+    640px 640px,
+    73rem 61rem,
+    67rem 71rem;
 }
 .editor-page {
   width: min(100% - 64px, 760px);
@@ -379,9 +398,19 @@
 }
 
 @media (prefers-contrast: more) {
+  .editor-scroll[data-surface="paper"] {
+    background-image: none;
+  }
+
   .chapter-title-field > .chapter-title:focus-visible {
     outline: 3px solid var(--focus-ring);
     outline-offset: var(--space-3);
     box-shadow: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .editor-scroll[data-surface="paper"] {
+    background-image: none;
   }
 }

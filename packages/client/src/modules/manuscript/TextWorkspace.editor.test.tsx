@@ -1,6 +1,6 @@
 import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   figures,
@@ -21,6 +21,7 @@ function codeMirrorView(container: HTMLElement) {
 const originalClipboard = navigator.clipboard;
 
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
   Object.defineProperty(navigator, "clipboard", {
     value: originalClipboard,

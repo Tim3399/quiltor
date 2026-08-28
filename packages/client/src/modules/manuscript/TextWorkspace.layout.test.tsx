@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
@@ -72,6 +72,78 @@ describe("TextWorkspace layout and panels", () => {
     expect(editorCss).toMatch(
       /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.editor-scroll\[data-chapter-turn="top"\] \.editor-page,[\s\S]*?transform:\s*none;/s,
     );
+  });
+
+  it("owns the tactile paper material on the manuscript surface only", () => {
+    const view = renderWorkspace({
+      manuscript,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+    });
+    const editor = view.container.querySelector(".editor-scroll");
+
+    expect(editor).toHaveAttribute("data-surface", "paper");
+
+    const root = join(process.cwd(), "packages/client/src");
+    const editorCss = readFileSync(join(root, "modules/manuscript/EditorSurface.css"), "utf8");
+    const scrollAreaCss = readFileSync(
+      join(root, "design/components/ScrollArea/ScrollArea.css"),
+      "utf8",
+    );
+    const colorsCss = readFileSync(join(root, "design/colors.css"), "utf8");
+    const printCss = readFileSync(join(root, "modules/manuscript/PrintDocument.css"), "utf8");
+    const texturePath = join(root, "modules/manuscript/assets/paper-fiber-texture.webp");
+    const paperRule = editorCss.match(
+      /\.editor-scroll\[data-surface="paper"\]\s*\{([^}]*)\}/s,
+    )?.[1];
+
+    expect(paperRule, "EditorSurface.css must own the manuscript paper material").toBeDefined();
+    expect(paperRule).toMatch(/background-color:\s*var\(--surface-paper\);/);
+    expect(paperRule).not.toMatch(/var\(--(?:paper|ink|soft|line)\)/);
+    expect(paperRule).not.toMatch(/(?<!var\(--)(?<!-)\btransparent\b/);
+
+    const backgroundImage = paperRule?.match(/background-image:\s*([\s\S]*?);/)?.[1] ?? "";
+    const textureLayers =
+      backgroundImage.match(/\b(?:repeating-)?(?:linear|radial|conic)-gradient\(/g) ?? [];
+    expect(textureLayers.length).toBeGreaterThanOrEqual(2);
+    expect(backgroundImage).toMatch(/(?:var\(--|color-mix\()/);
+    expect(backgroundImage).toContain('url("./assets/paper-fiber-texture.webp")');
+    expect(backgroundImage).toContain("var(--material-paper-texture-veil)");
+    expect(statSync(texturePath).size).toBeLessThanOrEqual(128 * 1024);
+    expect(paperRule).toMatch(/background-blend-mode:\s*normal,\s*soft-light,\s*normal,\s*normal;/);
+
+    const backgroundSize = paperRule?.match(/background-size:\s*([\s\S]*?);/)?.[1] ?? "";
+    expect(backgroundSize.split(",").filter((layer) => layer.trim()).length).toBeGreaterThanOrEqual(
+      2,
+    );
+    expect(editorCss).not.toMatch(/\[data-theme=["'][^"']+["']\]/);
+    const lightTextureVeil = Number(
+      colorsCss.match(
+        /:root,\s*:root\[data-theme="light"\][\s\S]*?--material-paper-texture-veil:\s*rgb\([^/]+\/\s*([\d.]+)\);/,
+      )?.[1],
+    );
+    const darkTextureVeil = Number(
+      colorsCss.match(
+        /:root\[data-theme="dark"\][\s\S]*?--material-paper-texture-veil:\s*rgb\([^/]+\/\s*([\d.]+)\);/,
+      )?.[1],
+    );
+    expect(lightTextureVeil).toBeLessThanOrEqual(0.05);
+    expect(darkTextureVeil).toBeGreaterThanOrEqual(0.9);
+    expect(editorCss).toMatch(
+      /@media \(prefers-contrast: more\)\s*\{[\s\S]*?\.editor-scroll\[data-surface="paper"\]\s*\{[^}]*background-image:\s*none;/s,
+    );
+    expect(editorCss).toMatch(
+      /@media \(forced-colors: active\)\s*\{[\s\S]*?\.editor-scroll\[data-surface="paper"\]\s*\{[^}]*background-image:\s*none;/s,
+    );
+
+    const globalPaperRule = scrollAreaCss.match(
+      /\.scroll-area\[data-surface="paper"\]\s*\{([^}]*)\}/s,
+    )?.[1];
+    expect(globalPaperRule).toBeDefined();
+    expect(globalPaperRule).not.toMatch(/background(?:-color|-image)?\s*:/);
+    expect(printCss).not.toMatch(/\b(?:repeating-)?(?:linear|radial|conic)-gradient\(|\burl\(/i);
   });
 
   it("bindet alle Toolbar-Gruppen an den gemeinsamen symmetrischen Action-Strip", () => {

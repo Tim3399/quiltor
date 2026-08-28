@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
-  "playwright": {
-    "reference": "mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48",
-    "buildArgument": "PLAYWRIGHT_BASE_IMAGE"
+  "schemaVersion": 2,
+  "webRuntime": {
+    "reference": "ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517",
+    "buildArgument": "WEB_RUNTIME_BASE_IMAGE"
   },
   "nodeBuild": {
     "reference": "node:22.23.2-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436",

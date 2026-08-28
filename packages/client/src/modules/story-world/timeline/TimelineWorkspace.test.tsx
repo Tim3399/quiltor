@@ -80,7 +80,7 @@ describe("TimelineWorkspace sections", () => {
       /@media \(max-width: 640px\)[\s\S]*?\.timeline-workspace \.timeline-toolbar-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s,
     );
     expect(controlsCss).toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.timeline-time-controls\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-touch\) var\(--control-touch\);/s,
+      /@media \(max-width: 640px\)[\s\S]*?\.timeline-time-controls\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-touch\);/s,
     );
     expect(fieldsCss).toMatch(
       /\.calendar-coordinate-control\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
@@ -193,13 +193,17 @@ describe("TimelineWorkspace time system", () => {
   it("keeps creation simple and edits relative placement inside the selected moment", () => {
     const onChange = vi.fn();
     renderTimeline(onChange, timedState);
-    expect(screen.getByRole("button", { name: "Kalender hinzufügen" })).toHaveClass(
-      "ui-button--primary",
-    );
+    const addCalendar = screen.getByRole("button", { name: "Kalender hinzufügen" });
+    expect(addCalendar).toHaveClass("ui-toolbar-button", "ui-button--primary");
+    expect(addCalendar).toHaveAttribute("data-workspace-action", "create");
     expect(screen.queryByRole("spinbutton", { name: "Abstand in Tagen" })).toBeInTheDocument();
     expect(screen.queryByRole("spinbutton", { name: "Abstand" })).not.toBeInTheDocument();
     const addButtons = screen.getAllByRole("button", { name: "Zeitpunkt hinzufügen" });
     expect(addButtons).toHaveLength(1);
+    expect(addButtons[0]).toHaveAttribute("data-workspace-action", "create");
+    expect(addCalendar.closest(".workspace-toolbar__group")).toBe(
+      addButtons[0].closest(".workspace-toolbar__group"),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /^2Ankunft/ }));
     const placement = screen.getByRole("group", { name: "Zeitliche Einordnung" });

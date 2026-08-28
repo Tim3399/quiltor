@@ -530,7 +530,11 @@ Caddy then terminates TLS and forwards internally to `quiltor:8000`.
 
 Without Compose, use the [`Dockerfile`](Dockerfile) directly.
 
-The Docker image is based on Microsoft's Playwright image because book-PDF export in web mode uses a real headless Chromium.
+For book-PDF export, the Docker image contains only the Chromium Headless Shell
+matching its Playwright runtime. Firefox, WebKit, full Chromium, and development
+tooling, including Playwright's separate ffmpeg payload, are deliberately
+excluded from the runtime image. The extracted browser tree is also verified
+against its committed SHA-256 during the build.
 
 Sessions live in process memory. Restarting the container therefore signs web users out.
 
