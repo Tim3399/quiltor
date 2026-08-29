@@ -358,27 +358,30 @@ describe.each(["light", "dark"] as const)("%s-theme text contrast", (theme) => {
 });
 
 describe("five-family semantic palette", () => {
-  it("keeps the light warning family perceptually distinct from brand gold", () => {
-    const warningAndBrandRoles = [
-      ["--warning-icon", "--accent-primary", 10],
-      ["--warning-bg", "--accent-primary-soft", 8],
-      ["--warning-text", "--accent-primary-text", 10],
-      ["--warning-border", "--accent-primary-border", 10],
-    ] as const;
+  it.each(["light", "dark"] as const)(
+    "keeps the %s warning family perceptually distinct from brand gold",
+    (theme) => {
+      const warningAndBrandRoles = [
+        ["--warning-icon", "--accent-primary", 10],
+        ["--warning-bg", "--accent-primary-soft", 8],
+        ["--warning-text", "--accent-primary-text", 10],
+        ["--warning-border", "--accent-primary-border", 10],
+      ] as const;
 
-    for (const [warningRole, brandRole, minimum] of warningAndBrandRoles) {
-      const warning = token("light", warningRole);
-      const brand = token("light", brandRole);
+      for (const [warningRole, brandRole, minimum] of warningAndBrandRoles) {
+        const warning = token(theme, warningRole);
+        const brand = token(theme, brandRole);
+        expect(
+          deltaEOk(warning, brand),
+          `${theme} ${warningRole} ${warning} must remain distinct from ${brandRole} ${brand}`,
+        ).toBeGreaterThanOrEqual(minimum);
+      }
+
       expect(
-        deltaEOk(warning, brand),
-        `${warningRole} ${warning} must remain distinct from ${brandRole} ${brand}`,
-      ).toBeGreaterThanOrEqual(minimum);
-    }
-
-    expect(
-      hueDistance(token("light", "--warning-icon"), token("light", "--accent-primary")),
-    ).toBeGreaterThanOrEqual(25);
-  });
+        hueDistance(token(theme, "--warning-icon"), token(theme, "--accent-primary")),
+      ).toBeGreaterThanOrEqual(25);
+    },
+  );
 
   it.each(["light", "dark"] as const)(
     "keeps %s semantic aliases on their intended hue-family roles",

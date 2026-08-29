@@ -54,11 +54,11 @@
   --ink-blue-text: #173d60;
   --ink-blue-border: #4b6f8d;
 
-  /* WARNING: deliberately vivid copper, never brand gold. */
-  --copper: #c03a00;
-  --copper-soft: #fff0e8;
-  --copper-text: #982000;
-  --copper-border: #b83200;
+  /* WARNING: deliberately vivid marigold amber, never brand gold. */
+  --copper: #8c3400;
+  --copper-soft: #fffaeb;
+  --copper-text: #5a1e00;
+  --copper-border: #823400;
 
   /* Interaction overlays. */
   --state-hover-subtle: rgb(23 21 15 / 0.035);
@@ -78,7 +78,7 @@
   --shadow-default: rgb(23 21 15 / 0.18);
   --shadow-raised: rgb(23 21 15 / 0.13);
   --shadow-node: rgb(23 21 15 / 0.12);
-  --shadow-warning: rgb(152 32 0 / 0.14);
+  --shadow-warning: rgb(90 30 0 / 0.14);
 
   --minimap-mask: rgb(227 214 195 / 0.74);
 
@@ -128,10 +128,10 @@
   --ink-blue-text: #c5e5fa;
   --ink-blue-border: #79a9c8;
 
-  --copper: #f07832;
-  --copper-soft: #4b230f;
-  --copper-text: #ff9050;
-  --copper-border: #df6b28;
+  --copper: #f89254;
+  --copper-soft: #5a3200;
+  --copper-text: #fce660;
+  --copper-border: #f89254;
 
   --state-hover-subtle: rgb(234 217 192 / 0.04);
   --state-hover: rgb(234 217 192 / 0.07);
