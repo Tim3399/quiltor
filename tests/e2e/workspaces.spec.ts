@@ -2588,16 +2588,23 @@ test("Kapitelversionen erscheinen direkt neben der Schreibfläche", async ({ pag
     }),
   );
   // A single `*` does not cross the slash after `/history`; keep the nested endpoint explicit.
-  await page.route("**/api/history/chapter-text*", (route) =>
+  await page.route("**/api/history/chapter-comparison*", (route) =>
     route.fulfill({
-      json: { ok: true, isNew: false, text: "Historischer Kapiteltext" },
+      json: {
+        ok: true,
+        selected: { available: true, exists: true, text: "Historischer neuer Kapiteltext" },
+        previous: { available: true, exists: true, text: "Historischer alter Kapiteltext" },
+      },
     }),
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Fassungen" }).click();
   const history = page.getByRole("complementary", { name: "Fassungen" });
   await expect(history).toBeVisible();
-  await expect(history).toContainText("Historischer Kapiteltext");
+  await expect(history).toContainText("Historischer");
+  await expect(history).toContainText("Kapiteltext");
+  await expect(history.locator("ins")).toContainText("neuer");
+  await expect(history.locator("del")).toContainText("alter");
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("chapter-history.png"), fullPage: true });
 });
