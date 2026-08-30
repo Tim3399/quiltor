@@ -1,6 +1,9 @@
 import { act, fireEvent, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CHAPTER_OVERSCROLL_REGRIP_GRACE_MS } from "./chapterOverscroll";
+import {
+  CHAPTER_OVERSCROLL_HOLD_MS,
+  CHAPTER_OVERSCROLL_REGRIP_GRACE_MS,
+} from "./chapterOverscroll";
 import type { Manuscript } from "./model";
 import { figures, renderWorkspace } from "./TextWorkspace.testSupport";
 
@@ -123,10 +126,12 @@ describe("continuous chapter navigation", () => {
     expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog");
     expect(scroller).toHaveAttribute("data-chapter-turn", "bottom");
 
-    for (now of [150, 300, 450, 600, 750]) fireEvent.wheel(scroller, { deltaY: 24 });
+    for (now of [100, 200, 300, CHAPTER_OVERSCROLL_HOLD_MS - 1]) {
+      fireEvent.wheel(scroller, { deltaY: 24 });
+    }
     expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog");
 
-    now = 850;
+    now = CHAPTER_OVERSCROLL_HOLD_MS;
     fireEvent.wheel(scroller, { deltaY: 24 });
     expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Im Wald");
     expect(scroller.scrollTop).toBe(0);
@@ -143,12 +148,12 @@ describe("continuous chapter navigation", () => {
     fireEvent.wheel(scroller, { deltaY: 24 });
     now = 150;
     fireEvent.wheel(scroller, { deltaY: 24 });
-    now = 600;
+    now = 400;
     fireEvent.wheel(scroller, { deltaY: 24 });
     expect(scroller).toHaveAttribute("data-chapter-turn", "bottom");
     expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog");
 
-    now = 850;
+    now = CHAPTER_OVERSCROLL_HOLD_MS;
     fireEvent.wheel(scroller, { deltaY: 24 });
     expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Im Wald");
   });

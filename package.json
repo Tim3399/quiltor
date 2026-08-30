@@ -17,7 +17,7 @@
     "check:format:python": "python -m ruff format --check .",
     "check:format:docs": "prettier --check \"**/*.{md,yml,yaml,html}\"",
     "check:contracts": "node tools/quality/check_contracts.mjs",
-    "check:architecture": "node --test tools/quality/frontend_boundaries.test.mjs tools/quality/css_ownership.test.mjs tools/quality/e2e_world_lifecycle.test.mjs tools/quality/rust_safety.test.mjs && node tools/quality/check_architecture.mjs",
+    "check:architecture": "node --test tools/quality/architecture_docs.test.mjs tools/quality/frontend_boundaries.test.mjs tools/quality/css_ownership.test.mjs tools/quality/e2e_world_lifecycle.test.mjs tools/quality/rust_safety.test.mjs && node tools/quality/check_architecture.mjs",
     "check:design": "node --test tools/quality/semantic_color_roles.test.mjs && node tools/quality/check_design.mjs",
     "check:design-system": "node --test tools/quality/design_system_debt.test.mjs tools/quality/design_public_api.test.mjs tools/quality/css_design_debt.test.mjs tools/quality/menu_contracts.test.mjs && node tools/quality/check_design_system_debt.mjs && node tools/quality/check_design_public_api.mjs && node tools/quality/check_css_design_debt.mjs && node tools/quality/check_menu_contracts.mjs && biome lint packages/client/src/design apps/design-gallery tests/design --error-on-warnings",
     "check:i18n": "node --test tools/quality/locale_registry.test.mjs && node tools/quality/check_i18n.mjs",

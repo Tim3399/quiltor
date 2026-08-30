@@ -307,6 +307,12 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         self.assertEqual(status, 400)
         self.assertEqual(json.loads(raw)["error"]["code"], "history.request_invalid")
 
+        status, _, raw = self.request(
+            "GET", f"/api/history/chapter-comparison?world={world_id}&ref=WORK"
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(json.loads(raw)["error"]["code"], "history.request_invalid")
+
 
 class HostedTokenTests(BackupRouteTestCase):
     """The hosted case: the session already carries a token from the very issuer

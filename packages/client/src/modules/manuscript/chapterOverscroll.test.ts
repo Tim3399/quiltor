@@ -18,6 +18,10 @@ function advance(
 }
 
 describe("chapter overscroll navigation", () => {
+  it("uses the shortened chapter-turn threshold", () => {
+    expect(CHAPTER_OVERSCROLL_HOLD_MS).toBe(425);
+  });
+
   it.each(["top", "bottom"] as const)("starts %s input without navigating", (direction) => {
     const transition = advance(idleChapterOverscroll(), direction, 12_000);
 
@@ -33,7 +37,7 @@ describe("chapter overscroll navigation", () => {
   it("requires sustained input for the full hold duration", () => {
     let state = advance(idleChapterOverscroll(), "bottom", 1_000).state;
 
-    for (const elapsed of [150, 300, 450, 600, 750, CHAPTER_OVERSCROLL_HOLD_MS - 1]) {
+    for (const elapsed of [75, 150, 225, 300, 375, CHAPTER_OVERSCROLL_HOLD_MS - 1]) {
       const transition = advance(state, "bottom", 1_000 + elapsed);
       expect(transition.navigate).toBeNull();
       state = transition.state;
@@ -46,8 +50,8 @@ describe("chapter overscroll navigation", () => {
 
   it("reports clamped progress while tracking", () => {
     const started = advance(idleChapterOverscroll(), "top", 2_000).state;
-    const keptAlive = advance(started, "top", 2_150).state;
-    const keptAliveAgain = advance(keptAlive, "top", 2_300).state;
+    const keptAlive = advance(started, "top", 2_075).state;
+    const keptAliveAgain = advance(keptAlive, "top", 2_150).state;
     const halfway = advance(keptAliveAgain, "top", 2_000 + CHAPTER_OVERSCROLL_HOLD_MS / 2);
 
     expect(halfway.state.progress).toBe(0.5);
@@ -84,14 +88,14 @@ describe("chapter overscroll navigation", () => {
   it("preserves intent across a natural mouse-wheel re-grip pause", () => {
     const started = advance(idleChapterOverscroll(), "bottom", 0).state;
     const firstRotation = advance(started, "bottom", 150).state;
-    const afterRegrip = advance(firstRotation, "bottom", 600);
+    const afterRegrip = advance(firstRotation, "bottom", 400);
 
     expect(afterRegrip.navigate).toBeNull();
     expect(afterRegrip.state).toMatchObject({
       direction: "bottom",
       startedAt: 0,
-      lastInputAt: 600,
-      progress: 600 / CHAPTER_OVERSCROLL_HOLD_MS,
+      lastInputAt: 400,
+      progress: 400 / CHAPTER_OVERSCROLL_HOLD_MS,
     });
   });
 
@@ -106,7 +110,7 @@ describe("chapter overscroll navigation", () => {
 
   it("navigates only once per sustained gesture", () => {
     let state = advance(idleChapterOverscroll(), "top", 0).state;
-    for (const now of [150, 300, 450, 600, 750]) state = advance(state, "top", now).state;
+    for (const now of [75, 150, 225, 300, 375]) state = advance(state, "top", now).state;
 
     const completed = advance(state, "top", CHAPTER_OVERSCROLL_HOLD_MS);
     const continued = advance(completed.state, "top", CHAPTER_OVERSCROLL_HOLD_MS + 100);

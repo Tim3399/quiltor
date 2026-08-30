@@ -45,5 +45,13 @@ class HistoryUseCases:
             self._sanitize_filename(title),
         )
 
+    def chapter_comparison(
+        self,
+        context: HistoryContext,
+        ref: str,
+        chapter_id: str,
+    ) -> dict[str, Any]:
+        return self._history.chapter_comparison(context, ref, chapter_id)
+
 
 __all__ = ["HistoryUseCases"]

@@ -5,6 +5,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from quiltor.application.backups import BackupEndpointNotConfigured
@@ -32,6 +33,24 @@ class SnapshotStoreTest(unittest.TestCase):
 
     def _write(self, ctx: BackupContext, text: str, name: str = "01 - Kapitel.md") -> None:
         (ctx.manuscripts / name).write_text(text, encoding="utf-8")
+
+    def _write_chapter_row(
+        self,
+        ctx: BackupContext,
+        chapter_id: str,
+        title: str,
+        body: str,
+        position: int,
+    ) -> None:
+        with closing(sqlite3.connect(ctx.database)) as database, database:
+            database.execute(
+                "CREATE TABLE IF NOT EXISTS chapters("
+                "id TEXT PRIMARY KEY, position INTEGER, title TEXT, body TEXT)"
+            )
+            database.execute(
+                "INSERT OR REPLACE INTO chapters(id,position,title,body) VALUES(?,?,?,?)",
+                (chapter_id, position, title, body),
+            )
 
     # ------------------------------------------------------------ basic flow
 
@@ -171,6 +190,67 @@ class SnapshotStoreTest(unittest.TestCase):
         self._write(ctx, "text\n")
         self.store.commit(ctx, "eins", push=False)
         self.assertTrue(self.store.chapter_version(ctx, "HEAD", 9, "Neu")["isNew"])
+
+    def test_chapter_version_normalises_windows_line_endings_before_removing_the_header(self):
+        ctx = self._world("world-a")
+        (ctx.manuscripts / "01 - Kapitel.md").write_bytes(
+            b"# Kapitel\r\n\r\nErste Zeile.\r\nZweite Zeile.\r\n"
+        )
+        self.store.commit(ctx, "Windows", push=False)
+
+        version = self.store.chapter_version(ctx, "HEAD", 1, "Kapitel")
+
+        self.assertEqual(version["text"], "Erste Zeile.\nZweite Zeile.")
+
+    def test_chapter_comparison_tracks_a_chapter_by_id_across_rename_and_reorder(self):
+        ctx = self._world("world-a")
+        self._write_chapter_row(ctx, "chapter-stable", "Alter Titel", "Alter Text.", 1)
+        self.store.commit(ctx, "Alt", push=False)
+        self._write_chapter_row(ctx, "chapter-stable", "Neuer Titel", "Neuer Text.", 9)
+        self.store.commit(ctx, "Neu", push=False)
+
+        newest = self.store.history(ctx)[0]["hash"]
+        comparison = self.store.chapter_comparison(ctx, newest, "chapter-stable")
+
+        self.assertEqual(
+            comparison["selected"],
+            {"available": True, "exists": True, "text": "Neuer Text."},
+        )
+        self.assertEqual(
+            comparison["previous"],
+            {"available": True, "exists": True, "text": "Alter Text."},
+        )
+
+    def test_chapter_comparison_keeps_selected_text_when_parent_is_missing_locally(self):
+        ctx = self._world("world-a")
+        self._write_chapter_row(ctx, "chapter-stable", "Kapitel", "Alt.", 1)
+        self.store.commit(ctx, "Alt", push=False)
+        self._write_chapter_row(ctx, "chapter-stable", "Kapitel", "Neu.", 1)
+        self.store.commit(ctx, "Neu", push=False)
+        newest = self.store.entries(ctx)[-1]
+        (ctx.root / "index.jsonl").write_text(
+            json.dumps(newest, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+
+        comparison = self.store.chapter_comparison(ctx, newest["id"], "chapter-stable")
+
+        self.assertEqual(comparison["selected"]["text"], "Neu.")
+        self.assertEqual(
+            comparison["previous"],
+            {"available": False, "exists": False, "text": ""},
+        )
+
+    def test_chapter_comparison_marks_a_snapshot_without_chapter_schema_unavailable(self):
+        ctx = self._world("world-a")
+        self._write(ctx, "# Kapitel\n\nNur Spiegel.\n")
+        self.store.commit(ctx, "Altformat", push=False)
+
+        comparison = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")
+
+        self.assertEqual(
+            comparison["selected"],
+            {"available": False, "exists": False, "text": ""},
+        )
 
     # --------------------------------------------------------------- storage
 

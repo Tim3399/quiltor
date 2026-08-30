@@ -151,6 +151,7 @@ class ArchitectureContractTests(unittest.TestCase):
             "/api/history",
             "/api/history/diff",
             "/api/history/chapter-text",
+            "/api/history/chapter-comparison",
         ):
             self.assertIn(path, history)
             self.assertNotIn(path, backup)

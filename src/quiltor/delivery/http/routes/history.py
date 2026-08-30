@@ -51,4 +51,19 @@ def chapter_text(handler, request: Request, app) -> None:
         )
 
 
-__all__ = ["chapter_text", "diff", "entries"]
+@get("/api/history/chapter-comparison", world=True)
+def chapter_comparison(handler, request: Request, app) -> None:
+    chapter_id = request.param("chapterId")
+    if not chapter_id.strip() or len(chapter_id) > 200:
+        return handler.send_exception(HistoryRequestInvalid(params={"field": "chapterId"}))
+    with app.lock:
+        handler.send_json(
+            app.history.chapter_comparison(
+                request.world.backup,
+                request.param("ref", "HEAD"),
+                chapter_id,
+            )
+        )
+
+
+__all__ = ["chapter_comparison", "chapter_text", "diff", "entries"]

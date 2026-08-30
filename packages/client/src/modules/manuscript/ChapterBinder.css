@@ -43,6 +43,9 @@
   gap: 1px var(--space-6);
   padding-inline-start: var(--space-16);
 }
+.binder-chapter-row[data-binder-depth="0"] .binder-chapter-content {
+  padding-inline-start: var(--space-24);
+}
 .binder-chapter-row:hover {
   background: var(--control-hover-subtle);
 }
@@ -116,6 +119,9 @@
   }
   .binder-chapter-content {
     grid-template-columns: var(--space-24) minmax(0, 1fr);
+  }
+  .binder-chapter-row[data-binder-depth="0"] .binder-chapter-content {
+    padding-inline-start: var(--space-20);
   }
 }
 .chapter-binder__footer {

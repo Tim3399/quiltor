@@ -19,7 +19,7 @@ export interface ChapterOverscrollTransition {
   navigate: ChapterOverscrollDirection | null;
 }
 
-export const CHAPTER_OVERSCROLL_HOLD_MS = 850;
+export const CHAPTER_OVERSCROLL_HOLD_MS = 425;
 // A mouse wheel has to be re-gripped between quick rotations. Keep the accumulated intent long
 // enough for that natural pause without allowing a lone boundary event to navigate.
 export const CHAPTER_OVERSCROLL_REGRIP_GRACE_MS = 650;

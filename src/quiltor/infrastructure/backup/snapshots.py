@@ -43,6 +43,7 @@ from quiltor.application.backup_manifest import (
     ENCRYPTION_NONE,
     MAX_BLOB_BYTES,
     MAX_MANIFEST_BYTES,
+    MAX_TEXT_FILE_BYTES,
     MAX_TOTAL_BYTES,
     ManifestFile,
     build_manifest_files,
@@ -731,5 +732,63 @@ class SnapshotStore:
         if digest is None:
             return {"ok": True, "isNew": True, "text": ""}
         text = self._read_blob(ctx, digest).decode("utf-8", errors="replace")
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
         body = text.split("\n\n", 1)[-1].split("\n---\n\n<!-- Notiz", 1)[0]
         return {"ok": True, "isNew": False, "text": body.rstrip("\n")}
+
+    def _chapter_record(
+        self,
+        ctx: BackupContext,
+        entry: dict[str, Any] | None,
+        chapter_id: str,
+    ) -> dict[str, Any]:
+        if entry is None:
+            return {"available": False, "exists": False, "text": ""}
+        digest = _manifest_digests(entry, ctx.root.name).get(DATABASE_NAME)
+        if digest is None:
+            return {"available": False, "exists": False, "text": ""}
+        payload = self._read_blob(ctx, digest)
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                database_path = Path(folder) / DATABASE_NAME
+                database_path.write_bytes(payload)
+                database_uri = f"{database_path.resolve().as_uri()}?mode=ro&immutable=1"
+                with closing(sqlite3.connect(database_uri, uri=True)) as database:
+                    table = database.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='chapters'"
+                    ).fetchone()
+                    if table is None:
+                        return {"available": False, "exists": False, "text": ""}
+                    metadata = database.execute(
+                        "SELECT typeof(body),length(CAST(body AS BLOB)) FROM chapters WHERE id=?",
+                        (chapter_id,),
+                    ).fetchone()
+                    if metadata is None:
+                        return {"available": True, "exists": False, "text": ""}
+                    if metadata[0] != "text" or metadata[1] > MAX_TEXT_FILE_BYTES:
+                        return {"available": False, "exists": False, "text": ""}
+                    row = database.execute(
+                        "SELECT body FROM chapters WHERE id=?", (chapter_id,)
+                    ).fetchone()
+        except sqlite3.DatabaseError:
+            return {"available": False, "exists": False, "text": ""}
+        if row is None:
+            return {"available": False, "exists": False, "text": ""}
+        return {"available": True, "exists": True, "text": row[0]}
+
+    def chapter_comparison(
+        self,
+        ctx: BackupContext,
+        ref: str,
+        chapter_id: str,
+    ) -> dict[str, Any]:
+        entry = self._resolve(ctx, ref)
+        if entry is None:
+            raise HistoryRevisionNotFound(params={"operation": "chapter_comparison"})
+        selected = self._chapter_record(ctx, entry, chapter_id)
+        parent_ref = entry.get("parent", "")
+        if not parent_ref:
+            previous = {"available": True, "exists": False, "text": ""}
+        else:
+            previous = self._chapter_record(ctx, self._resolve(ctx, parent_ref), chapter_id)
+        return {"ok": True, "selected": selected, "previous": previous}

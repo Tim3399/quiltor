@@ -48,6 +48,9 @@ interface EditorSurfaceProps {
   historyCommits: SnapshotInfo[];
   historyRef: string;
   historicalText: string;
+  historicalExists: boolean;
+  previousHistoricalText: string;
+  historyComparisonAvailable: boolean;
   historyState: ChapterHistoryState;
   previousChapter?: ChapterTurnTarget;
   nextChapter?: ChapterTurnTarget;
@@ -81,6 +84,9 @@ export function EditorSurface({
   historyCommits,
   historyRef,
   historicalText,
+  historicalExists,
+  previousHistoricalText,
+  historyComparisonAvailable,
   historyState,
   previousChapter,
   nextChapter,
@@ -333,6 +339,9 @@ export function EditorSurface({
               commits={historyCommits}
               selectedRef={historyRef}
               historicalText={historicalText}
+              historicalExists={historicalExists}
+              previousHistoricalText={previousHistoricalText}
+              comparisonAvailable={historyComparisonAvailable}
               state={historyState}
               onClose={onCloseHistory}
               onRefChange={onHistoryRef}

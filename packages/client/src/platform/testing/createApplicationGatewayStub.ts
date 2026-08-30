@@ -75,6 +75,7 @@ export function createApplicationGatewayStub(
       log: () => notStubbed("history.log"),
       diff: () => notStubbed("history.diff"),
       textVersion: () => notStubbed("history.textVersion"),
+      chapterComparison: () => notStubbed("history.chapterComparison"),
       ...overrides.history,
     },
     assistant: {

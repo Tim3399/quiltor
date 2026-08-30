@@ -21,7 +21,14 @@ describe("history HTTP port", () => {
       .mockResolvedValueOnce(
         response({ ok: true, diff: "difference", newFiles: ["Kapitel 1"], mode: "line" }),
       )
-      .mockResolvedValueOnce(response({ ok: true, isNew: false, text: "Historischer Text" }));
+      .mockResolvedValueOnce(response({ ok: true, isNew: false, text: "Historischer Text" }))
+      .mockResolvedValueOnce(
+        response({
+          ok: true,
+          selected: { available: true, exists: true, text: "Neu" },
+          previous: { available: true, exists: true, text: "Alt" },
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
     const state = createHttpApplicationState();
     state.activeWorldId = WORLD_ID;
@@ -35,12 +42,14 @@ describe("history HTTP port", () => {
       mode: "line",
     });
     await history.textVersion("HEAD~1", 7, "Ankunft & Abschied");
+    await history.chapterComparison("HEAD~1", "chapter / ä");
 
     const encodedWorld = encodeURIComponent(WORLD_ID);
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       `/api/history?world=${encodedWorld}`,
       `/api/history/diff?ref=${encodeURIComponent("feature/Änderung?")}&mode=line&all=1&world=${encodedWorld}`,
       `/api/history/chapter-text?ref=${encodeURIComponent("HEAD~1")}&chapter=7&title=${encodeURIComponent("Ankunft & Abschied")}&world=${encodedWorld}`,
+      `/api/history/chapter-comparison?ref=${encodeURIComponent("HEAD~1")}&chapterId=${encodeURIComponent("chapter / ä")}&world=${encodedWorld}`,
     ]);
   });
 

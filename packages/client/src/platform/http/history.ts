@@ -1,12 +1,17 @@
 import type { HistoryGateway } from "../application";
-import { requestJson, withWorldQuery, type HttpApplicationState } from "./request";
+import { type HttpApplicationState, requestJson, withWorldQuery } from "./request";
 
 export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGateway {
   return {
     log: () =>
       requestJson<{
         ok: boolean;
-        commits: Array<{ hash: string; shortHash: string; date: string; subject: string }>;
+        commits: Array<{
+          hash: string;
+          shortHash: string;
+          date: string;
+          subject: string;
+        }>;
       }>(withWorldQuery(state, "/api/history")),
     diff: (ref = "WORK", word = true, all = false) =>
       requestJson<{ ok: boolean; diff: string; newFiles: string[]; mode: "word" | "line" }>(
@@ -20,6 +25,17 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
         withWorldQuery(
           state,
           `/api/history/chapter-text?ref=${encodeURIComponent(ref)}&chapter=${chapter}&title=${encodeURIComponent(title)}`,
+        ),
+      ),
+    chapterComparison: (ref: string, chapterId: string) =>
+      requestJson<{
+        ok: boolean;
+        selected: { available: boolean; exists: boolean; text: string };
+        previous: { available: boolean; exists: boolean; text: string };
+      }>(
+        withWorldQuery(
+          state,
+          `/api/history/chapter-comparison?ref=${encodeURIComponent(ref)}&chapterId=${encodeURIComponent(chapterId)}`,
         ),
       ),
   };

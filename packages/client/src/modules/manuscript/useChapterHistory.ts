@@ -5,11 +5,15 @@ import type { Chapter } from "./model";
 
 export type ChapterHistoryState = "idle" | "loading" | "error";
 
-export function useChapterHistory(current: Chapter | undefined, currentIndex: number) {
+export function useChapterHistory(current: Chapter | undefined) {
+  const currentId = current?.id;
   const [open, setOpen] = useState(false);
   const [commits, setCommits] = useState<SnapshotInfo[]>([]);
   const [selectedRef, setSelectedRef] = useState("");
   const [historicalText, setHistoricalText] = useState("");
+  const [historicalExists, setHistoricalExists] = useState(false);
+  const [previousHistoricalText, setPreviousHistoricalText] = useState("");
+  const [comparisonAvailable, setComparisonAvailable] = useState(true);
   const [state, setState] = useState<ChapterHistoryState>("idle");
 
   useEffect(() => {
@@ -26,19 +30,30 @@ export function useChapterHistory(current: Chapter | undefined, currentIndex: nu
   }, [open, commits.length]);
 
   useEffect(() => {
-    if (!open || !selectedRef || !current) return;
+    if (!open || !selectedRef || currentId === undefined) return;
     setState("loading");
+    let cancelled = false;
     const timeout = setTimeout(() => {
       void quiltorClient.application.history
-        .textVersion(selectedRef, currentIndex, current.title)
+        .chapterComparison(selectedRef, currentId)
         .then((result) => {
-          setHistoricalText(result.isNew ? "" : result.text);
+          if (cancelled) return;
+          if (!result.selected.available) throw new Error("Selected snapshot is unavailable");
+          setHistoricalText(result.selected.text);
+          setHistoricalExists(result.selected.exists);
+          setPreviousHistoricalText(result.previous.text);
+          setComparisonAvailable(result.previous.available);
           setState("idle");
         })
-        .catch(() => setState("error"));
+        .catch(() => {
+          if (!cancelled) setState("error");
+        });
     }, 400);
-    return () => clearTimeout(timeout);
-  }, [open, selectedRef, current?.id, current?.title, currentIndex]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [open, selectedRef, currentId]);
 
   return {
     open,
@@ -47,6 +62,9 @@ export function useChapterHistory(current: Chapter | undefined, currentIndex: nu
     selectedRef,
     setSelectedRef,
     historicalText,
+    historicalExists,
+    previousHistoricalText,
+    comparisonAvailable,
     state,
   };
 }

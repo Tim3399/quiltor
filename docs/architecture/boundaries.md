@@ -39,6 +39,15 @@ User-selected files are represented by opaque document handles. A handle may be
 a normal path on desktop, a security-scoped bookmark on Apple platforms or a
 persisted Storage Access Framework URI on Android.
 
+That handle is an ingress capability, not canonical world identity. Content
+that becomes part of a Quiltor world is copied through an asset-import use case
+into project-owned storage. The domain stores a stable `WorldAssetId`, and the
+asset participates in backup and restore.
+
+Canonical changes, aggregate revisions and required commit metadata share one
+SQLite transaction. Immediate reference/search indexes update in that
+transaction; retry queues are reserved for genuine after-commit side effects.
+
 Credentials never share ordinary settings storage. They are kept behind a
 credential-vault port.
 

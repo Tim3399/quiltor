@@ -1,7 +1,12 @@
 export interface HistoryGateway {
   log(): Promise<{
     ok: boolean;
-    commits: Array<{ hash: string; shortHash: string; date: string; subject: string }>;
+    commits: Array<{
+      hash: string;
+      shortHash: string;
+      date: string;
+      subject: string;
+    }>;
   }>;
   diff(
     ref?: string,
@@ -13,4 +18,12 @@ export interface HistoryGateway {
     chapter: number,
     title: string,
   ): Promise<{ ok: boolean; isNew: boolean; text: string }>;
+  chapterComparison(
+    ref: string,
+    chapterId: string,
+  ): Promise<{
+    ok: boolean;
+    selected: { available: boolean; exists: boolean; text: string };
+    previous: { available: boolean; exists: boolean; text: string };
+  }>;
 }

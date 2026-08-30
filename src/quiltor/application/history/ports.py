@@ -26,5 +26,12 @@ class HistoryReader(Protocol):
         filename: str,
     ) -> dict[str, Any]: ...
 
+    def chapter_comparison(
+        self,
+        context: HistoryContext,
+        ref: str,
+        chapter_id: str,
+    ) -> dict[str, Any]: ...
+
 
 __all__ = ["HistoryReader"]

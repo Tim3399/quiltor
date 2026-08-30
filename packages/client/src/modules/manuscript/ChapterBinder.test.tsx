@@ -170,6 +170,12 @@ describe("ChapterBinder folders", () => {
     expect(chapterCss).toMatch(
       /\.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-16\);/s,
     );
+    expect(chapterCss).toMatch(
+      /\.binder-chapter-row\[data-binder-depth="0"\] \.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-24\);/s,
+    );
+    expect(chapterCss).toMatch(
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-chapter-row\[data-binder-depth="0"\] \.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-20\);/s,
+    );
     expect(actionsCss).toMatch(
       /\.binder-chapter-action-trigger\s*\{[^}]*grid-area:\s*actions;[^}]*opacity:\s*0\.72;/s,
     );

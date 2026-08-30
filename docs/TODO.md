@@ -9,10 +9,13 @@
 
 Quiltor is writing software for people who want to write themselves.
 
-## P0 architecture cutover
+## P0 repository architecture cutover
 
-The architecture cutover is complete. The authoritative target and enforced
-boundary rules live under `docs/architecture/`.
+The repository/folder cutover is complete. Enforced boundaries live under
+`docs/architecture/`; further application, persistence, Assistant and portable
+core evolution follows the phased
+[`architecture implementation plan`](architecture/implementation-plan.md) and
+must not be treated as already implemented.
 
 - [x] Separate product modules, hosts, platforms, distribution targets, release
       channels and user entitlements.

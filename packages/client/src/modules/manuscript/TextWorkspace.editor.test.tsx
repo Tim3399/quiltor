@@ -45,8 +45,29 @@ describe("TextWorkspace editor, search and versions", () => {
     );
   });
 
-  it("öffnet die Fassungen des ausgewählten Kapitels direkt aus der Kontextleiste", async () => {
-    vi.spyOn(historyApi, "log").mockResolvedValue({ ok: true, commits: [] });
+  it("öffnet Fassungen und vergleicht die Auswahl mit ihrer direkten Vorgängerin", async () => {
+    vi.spyOn(historyApi, "log").mockResolvedValue({
+      ok: true,
+      commits: [
+        {
+          hash: "new",
+          shortHash: "new",
+          date: "2026-02-02",
+          subject: "Neue Fassung",
+        },
+        {
+          hash: "old",
+          shortHash: "old",
+          date: "2026-02-01",
+          subject: "Alte Fassung",
+        },
+      ],
+    });
+    const chapterComparison = vi.spyOn(historyApi, "chapterComparison").mockResolvedValue({
+      ok: true,
+      selected: { available: true, exists: true, text: "Der neue Weg." },
+      previous: { available: true, exists: true, text: "Der alte Weg." },
+    });
     const view = renderWorkspace({
       manuscript,
       figures,
@@ -61,6 +82,10 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(versions).toHaveAttribute("aria-pressed", "true");
     expect(within(view.container).getByRole("complementary", { name: "Fassungen" })).toBeVisible();
     await waitFor(() => expect(historyApi.log).toHaveBeenCalled());
+    await waitFor(() => expect(chapterComparison).toHaveBeenCalledTimes(1));
+    expect(chapterComparison).toHaveBeenCalledWith("new", "c1");
+    expect(view.container.querySelector("ins")).toHaveTextContent("neue");
+    expect(view.container.querySelector("del")).toHaveTextContent("alte");
   });
 
   it("markiert einen Suchtreffer und rotiert kapitelübergreifend weiter", async () => {

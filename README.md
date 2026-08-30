@@ -808,7 +808,7 @@ distribution/                Zielprofile, Builds, Installer, Stores und Signieru
 tools/                       Qualitäts-, Evaluations- und Dokumentationswerkzeuge
 
 packages/client/src/
-├── app/                     Composition, Shell, Layout-Hooks und versionierte App-Verträge
+├── app/                     Composition, Shell, Session, Navigation und Overlays
 ├── config/                  App-Konfiguration und Branding
 ├── design/                  Design-Tokens und Präsentationsgrundlagen
 ├── i18n/                    Locale-Runtime, Provider und Katalog-Lader
@@ -819,9 +819,11 @@ packages/client/src/
 │   ├── identity/            Anmeldung und Identität
 │   ├── backup/              Wiederherstellung lokaler Sicherungen
 │   ├── history/             Verlauf und Snapshots
-│   └── search/              Suche und Navigation
-├── platform/                Host-Gateways, HTTP-Transport und Browser-/Desktop-Adapter
-└── shared/                  gemeinsame UI-Komponenten und fachneutrale Hilfen
+│   ├── search/              Suche und Navigation
+│   ├── notes/               verknüpfte Notizen
+│   └── world-references/    Referenzprojektionen und Backlinks
+├── platform/                App-Ports, HTTP-Transport und Host-Adapter
+└── shared/                  ausschließlich fachneutrale Grundlagen
 
 locales/                      leicht beitragbare UI-Sprachpakete
 ```
@@ -833,6 +835,12 @@ Hosts/Delivery → Application-Use-Cases → Domain
 Bootstrap → Application-Ports + konkrete Infrastrukturadapter
 Domain/Application ↛ Infrastruktur/Delivery/Hosts
 ```
+
+Das normative Soll-Komponentenmodell samt Ist-Analyse steht in
+[`docs/architecture/target-component-model.md`](docs/architecture/target-component-model.md).
+Die freigegebene Umsetzungsreihenfolge, Komplexitäts-Trigger und Exit-Gates
+stehen im
+[`docs/architecture/implementation-plan.md`](docs/architecture/implementation-plan.md).
 
 Der normale Serverpfad bleibt möglichst klein und lokal; zusätzliche Fähigkeiten werden über klar getrennte Module und Distribution-Extras ergänzt.
 

@@ -91,68 +91,94 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --surface-canvas: #080806;
-  --surface-chrome: #12100c;
-  --surface-panel: #1d1711;
-  --surface-paper: #281f17;
-  --surface-raised: #34281e;
+  /*
+   * Candlelit charcoal.
+   *
+   * Die Oberflächen bleiben auf derselben warm-neutralen Achse.
+   * Höhere Ebenen werden heller, aber nicht zunehmend brauner.
+   */
+  --surface-canvas: #151411;
+  --surface-chrome: #1c1a17;
+  --surface-panel: #23211d;
+  --surface-paper: #2b2925;
+  --surface-raised: #34312c;
 
-  --text-primary: #ead9c0;
-  --text-secondary: #c5ad8f;
-  --text-muted: #baa285;
-  --text-faint: #8e7861;
-  --text-inverse: #17110b;
+  /*
+   * Aged ivory rather than sepia.
+   *
+   * Deutlich geringere Gelb-Sättigung und klarere Abstufungen
+   * zwischen Primary, Secondary, Muted und Faint.
+   */
+  --text-primary: #eee8df;
+  --text-secondary: #c8c1b7;
+  --text-muted: #b6afa5;
+  --text-faint: #7f7971;
+  --text-inverse: #191712;
 
-  --border-subtle: #3b2c21;
-  --border-default: #5b4533;
-  --border-strong: #a38465;
+  /*
+   * Warm-neutral borders.
+   *
+   * Sie definieren Tiefe, ohne als braune Linien hervorzutreten.
+   */
+  --border-subtle: #3d3933;
+  --border-default: #5a544b;
+  --border-strong: #978d7f;
 
-  --gold: #b98225;
-  --gold-soft: #302316;
-  --gold-text: #e2b56f;
-  --gold-border: #b8863f;
+  /* Brand and primary interaction: muted aged brass. */
+  --gold: #c08a33;
+  --gold-soft: #3a2d1c;
+  --gold-text: #e3ba74;
+  --gold-border: #ba8b47;
 
-  --rose: #b85c58;
-  --rose-soft: #351c1b;
-  --rose-text: #f0aaa5;
-  --rose-border: #c26f69;
+  /* Error and destructive actions: muted dusty rose. */
+  --rose: #c36a66;
+  --rose-soft: #392423;
+  --rose-text: #efb1ad;
+  --rose-border: #c57b77;
   --rose-fill: var(--rose-border);
 
-  --moss: #77825d;
-  --moss-soft: #20281d;
-  --moss-text: #c5d1ab;
-  --moss-border: #8c9a71;
+  /* Success: true moss/sage rather than yellow olive. */
+  --moss: #789078;
+  --moss-soft: #233027;
+  --moss-text: #c0d0bb;
+  --moss-border: #849981;
 
-  --ink-blue: #7eb1d5;
-  --ink-blue-soft: #132735;
-  --ink-blue-text: #c5e5fa;
-  --ink-blue-border: #79a9c8;
+  /* Focus and information: restrained slate ink blue. */
+  --ink-blue: #7891aa;
+  --ink-blue-soft: #202a36;
+  --ink-blue-text: #c2d0e0;
+  --ink-blue-border: #7d93ad;
+  --link-hover: #9ab3cc;
 
-  --copper: #f89254;
-  --copper-soft: #5a3200;
-  --copper-text: #fce660;
-  --copper-border: #f89254;
+  /* Warning: clear burnt copper, distinct from brass gold and dusty rose. */
+  --copper: #ea6836;
+  --copper-soft: #2b160c;
+  --copper-text: #ff9270;
+  --copper-border: #e86938;
 
-  --state-hover-subtle: rgb(234 217 192 / 0.04);
-  --state-hover: rgb(234 217 192 / 0.07);
-  --state-active: rgb(234 217 192 / 0.1);
-  --state-selected: rgb(181 121 30 / 0.24);
-  --state-selected-subtle: rgb(181 121 30 / 0.1);
-  --state-disabled: rgb(170 146 118 / 0.08);
-  --state-disabled-content: rgb(170 146 118 / 0.5);
+  /* Interaction overlays. */
+  --state-hover-subtle: rgb(238 232 223 / 0.035);
+  --state-hover: rgb(238 232 223 / 0.065);
+  --state-active: rgb(238 232 223 / 0.095);
+  --state-selected: rgb(192 138 51 / 0.22);
+  --state-selected-subtle: rgb(192 138 51 / 0.09);
+  --state-disabled: rgb(164 157 147 / 0.07);
+  --state-disabled-content: rgb(164 157 147 / 0.5);
 
-  --material-toolbar: rgb(18 16 12 / 0.93);
-  --material-popover: rgb(52 40 30 / 0.97);
-  --material-sheet: rgb(40 31 23 / 0.98);
-  --material-paper-texture-veil: rgb(40 31 23 / 0.96);
+  /* Translucent materials follow the same neutral surface ramp. */
+  --material-toolbar: rgb(28 26 23 / 0.94);
+  --material-popover: rgb(52 49 44 / 0.97);
+  --material-sheet: rgb(43 41 37 / 0.98);
+  --material-paper-texture-veil: rgb(43 41 37 / 0.94);
 
-  --overlay: rgb(0 0 0 / 0.68);
-  --shadow-default: rgb(0 0 0 / 0.5);
-  --shadow-raised: rgb(0 0 0 / 0.42);
-  --shadow-node: rgb(0 0 0 / 0.44);
-  --shadow-warning: rgb(0 0 0 / 0.36);
+  /* Less oppressive depth treatment. */
+  --overlay: rgb(5 5 4 / 0.58);
+  --shadow-default: rgb(0 0 0 / 0.36);
+  --shadow-raised: rgb(0 0 0 / 0.3);
+  --shadow-node: rgb(0 0 0 / 0.32);
+  --shadow-warning: rgb(10 6 3 / 0.28);
 
-  --minimap-mask: rgb(8 8 6 / 0.82);
+  --minimap-mask: rgb(21 20 17 / 0.78);
 }
 
 /* Semantic roles: components should depend on these rather than hue families. */

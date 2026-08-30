@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
+import { architectureDocViolations } from "./architecture_docs.mjs";
 import { designIndexViolations } from "./css_ownership.mjs";
 import {
   closeFrontendBoundaryParser,
@@ -39,6 +40,17 @@ const required = [
   "crates/quiltor-core",
   "distribution",
   "docs/architecture",
+  "docs/architecture/overview.md",
+  "docs/architecture/boundaries.md",
+  "docs/architecture/target-component-model.md",
+  "docs/architecture/implementation-plan.md",
+  "docs/architecture/decisions/0006-portable-core-boundary-and-migration-gates.md",
+  "docs/architecture/views/core-software.md",
+  "docs/architecture/views/client-runtime.md",
+  "docs/architecture/views/cross-feature-projections.md",
+  "docs/architecture/views/application-and-persistence.md",
+  "docs/architecture/views/assistant-and-inference.md",
+  "docs/architecture/views/hosts-and-distribution.md",
   "locales",
   "packages/client/src",
   "src/quiltor",
@@ -640,6 +652,10 @@ if (existsSync(contractTests)) {
 }
 
 closeFrontendBoundaryParser();
+
+for (const message of architectureDocViolations(resolve(root, "docs/architecture"))) {
+  violations.push(`docs/architecture: ${message}`);
+}
 
 if (violations.length) {
   console.error(`Architecture violations (${violations.length}):\n${violations.join("\n")}`);

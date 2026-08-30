@@ -55,6 +55,13 @@ allowlisted asset, never an arbitrary repository script.
 
 ## Dependency direction
 
+The normative ownership boundaries and current gap assessment are documented
+in [`target-component-model.md`](target-component-model.md). The independently
+releasable sequence, complexity triggers and phase gates live in the
+[`implementation-plan.md`](implementation-plan.md). Detailed UML classes are
+reference designs until their phase is implemented. If a proposed diagram and
+the implementation plan differ, the implementation plan is authoritative.
+
 ```text
 hosts ──────► application/use cases ──────► domain
    │                    ▲
@@ -76,10 +83,17 @@ bootstrap ─► hosts + concrete adapters + build profile
 ## Stable product aggregates
 
 - `ManuscriptDocument` owns chapters, formatting, notes and story-time anchors.
-- `StoryWorld` owns elements, relationships, places, timeline, presence and time
-  systems. Figures, Places and Timeline are projections of this aggregate.
+- `StoryWorldDocument` owns `StoryWorld` facts (elements, relationships,
+  timeline, presence and time systems) plus a separately modelled
+  `StoryWorldLayout`. Figures, Places and Timeline are projections of this
+  aggregate.
 - Storyboard content is author-owned planning material and is not canon.
 - Assistant mutations remain proposals until the author accepts them.
+- Project-owned media is imported into a `WorldAssetRepository`; canonical
+  documents store a stable asset ID rather than a platform path or document
+  handle.
+- Writing settings, user preferences and embedded runtime facts have separate
+  owners.
 
 The public wire format and supported SQLite schemas remain versioned contracts.
 Internal names may improve without silently rewriting user data.

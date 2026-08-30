@@ -798,7 +798,7 @@ distribution/                target profiles, builds, installers, stores, signin
 tools/                       quality, evaluation, and documentation tooling
 
 packages/client/src/
-├── app/                     composition, shell, layout hooks, versioned app contracts
+├── app/                     composition, shell, session, navigation, overlays
 ├── config/                  application configuration and branding
 ├── design/                  design tokens and presentation foundations
 ├── i18n/                    locale runtime, provider, and catalog loader
@@ -809,9 +809,11 @@ packages/client/src/
 │   ├── identity/            sign-in and identity
 │   ├── backup/              local backup restoration
 │   ├── history/             history and snapshots
-│   └── search/              search and navigation
-├── platform/                host gateways, HTTP transport, browser/desktop adapters
-└── shared/                  shared UI components and domain-neutral helpers
+│   ├── search/              search and navigation
+│   ├── notes/               linked notes
+│   └── world-references/    reference projections and backlinks
+├── platform/                application ports, HTTP transport, host adapters
+└── shared/                  domain-neutral foundations only
 
 locales/                      contributor-friendly UI translation packs
 ```
@@ -823,6 +825,11 @@ Hosts/Delivery → Application use cases → Domain
 Bootstrap → Application ports + concrete infrastructure adapters
 Domain/Application ↛ infrastructure/delivery/hosts
 ```
+
+The normative target component model and current-state assessment live in
+[`docs/architecture/target-component-model.md`](docs/architecture/target-component-model.md).
+The approved implementation sequence, complexity triggers and exit gates live
+in [`docs/architecture/implementation-plan.md`](docs/architecture/implementation-plan.md).
 
 The normal server path stays small and local; additional capabilities are added through clearly separated modules and distribution extras.
 

@@ -77,7 +77,6 @@ export function TextWorkspace({
   const chapters = useMemo(() => orderedChapters(manuscript), [manuscript]);
   const current = chapters.find((chapter) => chapter.id === currentId) ?? chapters[0];
   const currentPosition = current ? chapters.indexOf(current) : -1;
-  const currentIndex = currentPosition + 1;
   const previousChapter = currentPosition > 0 ? chapters[currentPosition - 1] : undefined;
   const nextChapter =
     currentPosition >= 0 && currentPosition < chapters.length - 1
@@ -115,7 +114,7 @@ export function TextWorkspace({
     onInspectorOpen: setInspectorOpen,
     onError: setExportError,
   });
-  const history = useChapterHistory(current, currentIndex);
+  const history = useChapterHistory(current);
   const search = useManuscriptSearch({
     chapters,
     current,
@@ -320,6 +319,9 @@ export function TextWorkspace({
             historyCommits={history.commits}
             historyRef={history.selectedRef}
             historicalText={history.historicalText}
+            historicalExists={history.historicalExists}
+            previousHistoricalText={history.previousHistoricalText}
+            historyComparisonAvailable={history.comparisonAvailable}
             historyState={history.state}
             previousChapter={
               previousChapter
