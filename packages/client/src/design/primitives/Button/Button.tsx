@@ -1,10 +1,11 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { type ButtonHTMLAttributes, forwardRef, type ReactNode } from "react";
 import "./Button.css";
 
 export type ActionAppearance = "primary" | "secondary" | "ghost";
 export type ActionTone = "neutral" | "danger";
 export type ActionSize = "compact" | "regular" | "touch";
 export type ActionIconPosition = "start" | "end";
+export type ActionLabelOverflow = "truncate" | "visible";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
@@ -15,6 +16,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loadingLabel?: string;
   icon?: ReactNode;
   iconPosition?: ActionIconPosition;
+  labelOverflow?: ActionLabelOverflow;
 }
 
 function classNames(...names: Array<string | false | null | undefined>) {
@@ -30,6 +32,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     loadingLabel,
     icon,
     iconPosition = "start",
+    labelOverflow = "truncate",
     className,
     disabled = false,
     type = "button",
@@ -65,6 +68,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       data-tone={tone}
       data-size={size}
       data-loading={loading || undefined}
+      data-label-overflow={labelOverflow}
       disabled={disabled || loading}
       aria-busy={loading ? true : ariaBusy}
       aria-label={loading && loadingLabel ? loadingLabel : ariaLabel}

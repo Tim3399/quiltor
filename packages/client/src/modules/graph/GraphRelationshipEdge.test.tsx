@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const xyflow = vi.hoisted(() => ({
   baseEdge: vi.fn(),
+  storeSubscription: vi.fn(),
   zoom: 1,
 }));
 
@@ -25,8 +26,10 @@ vi.mock("@xyflow/react", async (importOriginal) => {
     EdgeLabelRenderer: ({ children }: { children: ReactNode }) => (
       <div data-testid="edge-label-renderer">{children}</div>
     ),
-    useStore: (selector: (state: { transform: [number, number, number] }) => unknown) =>
-      selector({ transform: [0, 0, xyflow.zoom] }),
+    useStore: (selector: (state: { transform: [number, number, number] }) => unknown) => {
+      xyflow.storeSubscription(selector);
+      return selector({ transform: [0, 0, xyflow.zoom] });
+    },
   };
 });
 
@@ -90,6 +93,7 @@ function distanceToPolyline(
 describe("GraphRelationshipEdge", () => {
   afterEach(() => {
     xyflow.zoom = 1;
+    xyflow.storeSubscription.mockClear();
   });
 
   it("renders its label in the foreground portal and never delegates a duplicate SVG label", () => {
@@ -150,6 +154,28 @@ describe("GraphRelationshipEdge", () => {
     expect(onLabelClick).toHaveBeenCalledWith("edge");
   });
 
+  it("subscribes to viewport zoom only while rendering an interactive label", () => {
+    const { rerender } = render(<GraphRelationshipEdge {...edgeProps()} />);
+
+    expect(xyflow.storeSubscription).not.toHaveBeenCalled();
+
+    rerender(
+      <GraphRelationshipEdge
+        {...edgeProps({
+          data: {
+            labelSize: { width: 84, height: 24 },
+            onLabelClick: vi.fn(),
+          },
+        })}
+      />,
+    );
+
+    expect(xyflow.storeSubscription).toHaveBeenCalledOnce();
+
+    rerender(<GraphRelationshipEdge {...edgeProps({ label: "", data: {} })} />);
+    expect(xyflow.storeSubscription).toHaveBeenCalledOnce();
+  });
+
   it("keeps a 44px interactive hit area through graph zoom without enlarging the label card", () => {
     xyflow.zoom = 0.5;
     render(
@@ -173,6 +199,7 @@ describe("GraphRelationshipEdge", () => {
       minWidth: "88px",
       minHeight: "88px",
     });
+    expect(hitTarget).toHaveAttribute("data-label-overflow", "visible");
     expect(labelCard).toHaveStyle({ width: "44px", height: "24px" });
   });
 
@@ -198,6 +225,7 @@ describe("GraphRelationshipEdge", () => {
     expect(token).toBe("--z-graph-edge-label");
     expect(Number(tokenValue)).toBeGreaterThan(1001);
     expect(css).toMatch(/\.graph-edge-label\s*\{[^}]*position:\s*absolute/s);
+    expect(css).not.toContain(".ui-button");
   });
 
   it("projects all relationship labels through one collision pass before rendering", () => {

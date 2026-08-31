@@ -246,6 +246,63 @@ function visibleLabel(label: ReactNode): string | null {
   return normalized || null;
 }
 
+type InteractiveGraphEdgeLabelProps = {
+  id: string;
+  className: string;
+  labelTitle?: string;
+  labelSize?: GraphSize;
+  positionStyle: CSSProperties;
+  onLabelClick: (edgeId: string) => void;
+  children: ReactNode;
+};
+
+function InteractiveGraphEdgeLabel({
+  id,
+  className,
+  labelTitle,
+  labelSize,
+  positionStyle,
+  onLabelClick,
+  children,
+}: InteractiveGraphEdgeLabelProps) {
+  const viewportZoom = useStore((state) => state.transform[2]);
+  const safeViewportZoom = viewportZoom > 0 ? viewportZoom : 1;
+  const hitTargetSize = labelSize
+    ? {
+        width: Math.max(labelSize.width, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
+        height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
+      }
+    : undefined;
+  const hitTargetStyle = hitTargetSize
+    ? {
+        ...positionStyle,
+        width: `${hitTargetSize.width}px`,
+        height: `${hitTargetSize.height}px`,
+        minWidth: `${hitTargetSize.width}px`,
+        minHeight: `${hitTargetSize.height}px`,
+      }
+    : positionStyle;
+
+  return (
+    <Button
+      appearance="ghost"
+      size="compact"
+      labelOverflow="visible"
+      className={className}
+      data-edge-label-id={id}
+      aria-label={labelTitle}
+      title={labelTitle}
+      style={hitTargetStyle}
+      onClick={(event) => {
+        event.stopPropagation();
+        onLabelClick(id);
+      }}
+    >
+      {children}
+    </Button>
+  );
+}
+
 export function GraphRelationshipEdge({
   id,
   sourceX,
@@ -264,7 +321,6 @@ export function GraphRelationshipEdge({
   data,
   selected,
 }: EdgeProps<GraphRelationshipFlowEdge>) {
-  const viewportZoom = useStore((state) => state.transform[2]);
   const [fallbackPath, defaultLabelX, defaultLabelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -283,15 +339,6 @@ export function GraphRelationshipEdge({
     data?.labelSize ?? (hasLabelCard ? graphEdgeLabelSize(text ?? "", badges.length) : undefined);
   const labelX = data?.labelPlacement?.x ?? defaultLabelX;
   const labelY = data?.labelPlacement?.y ?? defaultLabelY;
-  const interactive = Boolean(data?.onLabelClick);
-  const safeViewportZoom = viewportZoom > 0 ? viewportZoom : 1;
-  const hitTargetSize =
-    interactive && labelSize
-      ? {
-          width: Math.max(labelSize.width, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
-          height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
-        }
-      : labelSize;
   const labelPositionStyle = {
     "--graph-edge-rendered-label-bg": cssToken(labelBgStyle?.fill, "var(--graph-edge-label-bg)"),
     "--graph-edge-rendered-label-border": cssToken(
@@ -299,10 +346,10 @@ export function GraphRelationshipEdge({
       "var(--graph-edge-undirected-stroke)",
     ),
     "--graph-edge-rendered-label-text": cssToken(labelStyle?.fill, "var(--graph-edge-label-text)"),
-    width: hitTargetSize ? `${hitTargetSize.width}px` : undefined,
-    height: hitTargetSize ? `${hitTargetSize.height}px` : undefined,
-    minWidth: hitTargetSize ? `${hitTargetSize.width}px` : undefined,
-    minHeight: hitTargetSize ? `${hitTargetSize.height}px` : undefined,
+    width: labelSize ? `${labelSize.width}px` : undefined,
+    height: labelSize ? `${labelSize.height}px` : undefined,
+    minWidth: labelSize ? `${labelSize.width}px` : undefined,
+    minHeight: labelSize ? `${labelSize.height}px` : undefined,
     padding: 0,
     borderColor: "var(--transparent)",
     background: "var(--transparent)",
@@ -341,21 +388,16 @@ export function GraphRelationshipEdge({
       {hasLabelCard && (
         <EdgeLabelRenderer>
           {data?.onLabelClick ? (
-            <Button
-              appearance="ghost"
-              size="compact"
+            <InteractiveGraphEdgeLabel
+              id={id}
               className={labelClassName}
-              data-edge-label-id={id}
-              aria-label={labelTitle}
-              title={labelTitle}
-              style={labelPositionStyle}
-              onClick={(event) => {
-                event.stopPropagation();
-                data.onLabelClick?.(id);
-              }}
+              labelTitle={labelTitle}
+              labelSize={labelSize}
+              positionStyle={labelPositionStyle}
+              onLabelClick={data.onLabelClick}
             >
               {labelContent}
-            </Button>
+            </InteractiveGraphEdgeLabel>
           ) : (
             <div
               className={labelClassName}

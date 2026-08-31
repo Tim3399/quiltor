@@ -1,5 +1,7 @@
-import { createRef } from "react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "./Button";
 
@@ -91,6 +93,26 @@ describe("Button", () => {
     );
     button = screen.getByRole("button", { name: "Kapitel" });
     expect(button.lastElementChild).toHaveClass("ui-button__icon");
+  });
+
+  it("can expose composed label visuals without requiring a product CSS override", () => {
+    render(
+      <Button labelOverflow="visible">
+        <span>Beziehung</span>
+      </Button>,
+    );
+
+    expect(screen.getByRole("button", { name: "Beziehung" })).toHaveAttribute(
+      "data-label-overflow",
+      "visible",
+    );
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/design/primitives/Button/Button.css"),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /\.ui-button\[data-label-overflow="visible"\]\s+\.ui-button__label\s*\{[^}]*overflow:\s*visible;/s,
+    );
   });
 
   it("is natively disabled and announced as busy while loading", () => {

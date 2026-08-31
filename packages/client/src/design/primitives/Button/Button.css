@@ -149,3 +149,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.ui-button[data-label-overflow="visible"] .ui-button__label {
+  overflow: visible;
+}

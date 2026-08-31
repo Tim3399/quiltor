@@ -169,34 +169,45 @@ async function expectCompactLabelCard(
 ) {
   const edge = surface.locator(`.react-flow__edge[data-id="${edgeId}"]`);
   const label = surface.locator(`.graph-edge-label[data-edge-label-id="${edgeId}"]`);
+  const card = label.locator(".graph-edge-label__card");
   await expect(label).toBeVisible();
+  await expect(card).toBeVisible();
   await expect(edge.locator(".graph-edge-label")).toHaveCount(0);
 
   const geometry = await label.evaluate((element) => {
-    const style = getComputedStyle(element);
-    const box = element.getBoundingClientRect();
-    const textNode = [...element.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
-    const range = document.createRange();
-    if (textNode) range.selectNodeContents(textNode);
-    const textBox = textNode ? range.getBoundingClientRect() : new DOMRect();
-    const topmost = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    const card = element.querySelector<HTMLElement>(".graph-edge-label__card");
+    if (!card) throw new Error("Sichtbare Kantenlabel-Card fehlt");
+    const cardStyle = getComputedStyle(card);
+    const cardBox = card.getBoundingClientRect();
+    const hitTargetBox = element.getBoundingClientRect();
+    const textBox = card
+      .querySelector<HTMLElement>(".graph-edge-label__text")
+      ?.getBoundingClientRect();
+    const topmost = document.elementFromPoint(
+      cardBox.left + cardBox.width / 2,
+      cardBox.top + cardBox.height / 2,
+    );
     return {
-      boxWidth: box.width,
-      boxHeight: box.height,
-      cssWidth: Number.parseFloat(style.width),
-      cssHeight: Number.parseFloat(style.height),
-      textWidth: textBox.width,
-      radius: Number.parseFloat(style.borderTopLeftRadius),
-      borderColor: style.borderTopColor,
+      cardBoxWidth: cardBox.width,
+      cardBoxHeight: cardBox.height,
+      cardCssWidth: Number.parseFloat(cardStyle.width),
+      cardCssHeight: Number.parseFloat(cardStyle.height),
+      hitTargetWidth: hitTargetBox.width,
+      hitTargetHeight: hitTargetBox.height,
+      textWidth: textBox?.width ?? 0,
+      radius: Number.parseFloat(cardStyle.borderTopLeftRadius),
+      borderColor: cardStyle.borderTopColor,
       isTopmost: topmost === element || element.contains(topmost),
     };
   });
 
-  expect(geometry.boxWidth).toBeGreaterThan(geometry.textWidth);
-  expect(geometry.boxHeight).toBeGreaterThan(0);
-  expect(geometry.cssWidth).toBeGreaterThanOrEqual(44);
-  expect(geometry.cssWidth).toBeLessThanOrEqual(220);
-  expect(geometry.cssHeight).toBe(24);
+  expect(geometry.cardBoxWidth).toBeGreaterThan(geometry.textWidth);
+  expect(geometry.cardBoxHeight).toBeGreaterThan(0);
+  expect(geometry.cardCssWidth).toBeGreaterThanOrEqual(44);
+  expect(geometry.cardCssWidth).toBeLessThanOrEqual(220);
+  expect(geometry.cardCssHeight).toBe(24);
+  expect(geometry.hitTargetWidth + 0.5).toBeGreaterThanOrEqual(44);
+  expect(geometry.hitTargetHeight + 0.5).toBeGreaterThanOrEqual(44);
   expect(geometry.radius).toBeGreaterThanOrEqual(2);
   expect(geometry.radius).toBeLessThanOrEqual(6);
   expect(geometry.borderColor).toBe(expectedBorderColor);
@@ -212,10 +223,12 @@ async function expectCollisionFreePortalLabels(surface: Locator) {
   ).toHaveCount(0);
 
   const collisions = await surface.evaluate((element) => {
-    const labels = [...element.querySelectorAll<HTMLElement>(".graph-edge-label")].map((label) => ({
-      id: label.dataset.edgeLabelId ?? "unknown",
-      box: label.getBoundingClientRect(),
-    }));
+    const labels = [...element.querySelectorAll<HTMLElement>(".graph-edge-label__card")].map(
+      (card) => ({
+        id: card.closest<HTMLElement>(".graph-edge-label")?.dataset.edgeLabelId ?? "unknown",
+        box: card.getBoundingClientRect(),
+      }),
+    );
     const nodes = [...element.querySelectorAll<HTMLElement>(".react-flow__node")].map((node) => ({
       id: node.dataset.id ?? "unknown",
       box: node.getBoundingClientRect(),
@@ -243,17 +256,17 @@ async function expectCollisionFreePortalLabels(surface: Locator) {
 async function expectLabelsOnTheirRenderedEdges(surface: Locator, edgeIds: readonly string[]) {
   for (const edgeId of edgeIds) {
     const geometry = await surface.evaluate((element, id) => {
-      const label = element.querySelector<HTMLElement>(
-        `.graph-edge-label[data-edge-label-id="${CSS.escape(id)}"]`,
+      const labelCard = element.querySelector<HTMLElement>(
+        `.graph-edge-label[data-edge-label-id="${CSS.escape(id)}"] .graph-edge-label__card`,
       );
       const path = element.querySelector<SVGPathElement>(
         `.react-flow__edge[data-id="${CSS.escape(id)}"] .react-flow__edge-path`,
       );
-      if (!label || !path) throw new Error(`Kante oder Portal-Label fehlt: ${id}`);
+      if (!labelCard || !path) throw new Error(`Kante oder Portal-Label fehlt: ${id}`);
       const matrix = path.getScreenCTM();
       if (!matrix) throw new Error(`Kante hat keine Bildschirmtransformation: ${id}`);
 
-      const labelBox = label.getBoundingClientRect();
+      const labelBox = labelCard.getBoundingClientRect();
       const labelCenter = {
         x: labelBox.left + labelBox.width / 2,
         y: labelBox.top + labelBox.height / 2,
