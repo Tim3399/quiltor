@@ -6,6 +6,7 @@ import {
   getSmoothStepPath,
   type Node,
   Position,
+  useStore,
 } from "@xyflow/react";
 import { Clock3, GitFork } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
@@ -25,6 +26,7 @@ const FALLBACK_NODE_SIZE = { width: 200, height: 96 } as const;
 const LABEL_HEIGHT = 24;
 const LABEL_MIN_WIDTH = 44;
 const LABEL_MAX_WIDTH = 220;
+const INTERACTIVE_TARGET_SIZE = 44;
 const JOURNEY_HANDLE_INLINE_RATIO = 0.26;
 
 export type GraphEdgeLabelBadge = "kinship" | "temporal";
@@ -262,6 +264,7 @@ export function GraphRelationshipEdge({
   data,
   selected,
 }: EdgeProps<GraphRelationshipFlowEdge>) {
+  const viewportZoom = useStore((state) => state.transform[2]);
   const [fallbackPath, defaultLabelX, defaultLabelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -280,32 +283,48 @@ export function GraphRelationshipEdge({
     data?.labelSize ?? (hasLabelCard ? graphEdgeLabelSize(text ?? "", badges.length) : undefined);
   const labelX = data?.labelPlacement?.x ?? defaultLabelX;
   const labelY = data?.labelPlacement?.y ?? defaultLabelY;
-  const labelCardStyle = {
+  const interactive = Boolean(data?.onLabelClick);
+  const safeViewportZoom = viewportZoom > 0 ? viewportZoom : 1;
+  const hitTargetSize =
+    interactive && labelSize
+      ? {
+          width: Math.max(labelSize.width, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
+          height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
+        }
+      : labelSize;
+  const labelPositionStyle = {
     "--graph-edge-rendered-label-bg": cssToken(labelBgStyle?.fill, "var(--graph-edge-label-bg)"),
     "--graph-edge-rendered-label-border": cssToken(
       labelBgStyle?.stroke,
       "var(--graph-edge-undirected-stroke)",
     ),
     "--graph-edge-rendered-label-text": cssToken(labelStyle?.fill, "var(--graph-edge-label-text)"),
-    width: labelSize ? `${labelSize.width}px` : undefined,
-    height: labelSize ? `${labelSize.height}px` : undefined,
-    minHeight: "24px",
-    padding: "var(--space-2) var(--space-5)",
-    borderColor: "var(--graph-edge-rendered-label-border)",
-    background: "var(--graph-edge-rendered-label-bg)",
+    width: hitTargetSize ? `${hitTargetSize.width}px` : undefined,
+    height: hitTargetSize ? `${hitTargetSize.height}px` : undefined,
+    minWidth: hitTargetSize ? `${hitTargetSize.width}px` : undefined,
+    minHeight: hitTargetSize ? `${hitTargetSize.height}px` : undefined,
+    padding: 0,
+    borderColor: "var(--transparent)",
+    background: "var(--transparent)",
     color: "var(--graph-edge-rendered-label-text)",
     transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+  } as CSSProperties;
+  const labelCardStyle = {
+    width: labelSize ? `${labelSize.width}px` : undefined,
+    height: labelSize ? `${labelSize.height}px` : undefined,
   } as CSSProperties;
   const labelClassName = `graph-edge-label nodrag nopan nowheel${data?.onLabelClick ? " is-interactive" : ""}${selected ? " is-selected" : ""}${data?.labelCollisionFallback ? " has-collision-fallback" : ""}`;
   const labelTitle = data?.labelTitle ?? text ?? undefined;
   const labelContent = (
-    <span className="graph-edge-label__content">
-      {badges.map((badge) => (
-        <span className="graph-edge-label__badge" data-edge-label-badge={badge} key={badge}>
-          {badge === "kinship" ? <GitFork /> : <Clock3 />}
-        </span>
-      ))}
-      {text && <span className="graph-edge-label__text">{text}</span>}
+    <span className="graph-edge-label__card" style={labelCardStyle}>
+      <span className="graph-edge-label__content">
+        {badges.map((badge) => (
+          <span className="graph-edge-label__badge" data-edge-label-badge={badge} key={badge}>
+            {badge === "kinship" ? <GitFork /> : <Clock3 />}
+          </span>
+        ))}
+        {text && <span className="graph-edge-label__text">{text}</span>}
+      </span>
     </span>
   );
 
@@ -329,7 +348,7 @@ export function GraphRelationshipEdge({
               data-edge-label-id={id}
               aria-label={labelTitle}
               title={labelTitle}
-              style={labelCardStyle}
+              style={labelPositionStyle}
               onClick={(event) => {
                 event.stopPropagation();
                 data.onLabelClick?.(id);
@@ -343,7 +362,7 @@ export function GraphRelationshipEdge({
               data-edge-label-id={id}
               aria-hidden="true"
               title={labelTitle}
-              style={labelCardStyle}
+              style={labelPositionStyle}
             >
               {labelContent}
             </div>

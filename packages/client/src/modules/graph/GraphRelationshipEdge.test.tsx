@@ -3,10 +3,11 @@ import { join } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { type Edge, type EdgeProps, Position } from "@xyflow/react";
 import type { ComponentProps, ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const xyflow = vi.hoisted(() => ({
   baseEdge: vi.fn(),
+  zoom: 1,
 }));
 
 vi.mock("@xyflow/react", async (importOriginal) => {
@@ -24,6 +25,8 @@ vi.mock("@xyflow/react", async (importOriginal) => {
     EdgeLabelRenderer: ({ children }: { children: ReactNode }) => (
       <div data-testid="edge-label-renderer">{children}</div>
     ),
+    useStore: (selector: (state: { transform: [number, number, number] }) => unknown) =>
+      selector({ transform: [0, 0, xyflow.zoom] }),
   };
 });
 
@@ -85,6 +88,10 @@ function distanceToPolyline(
 }
 
 describe("GraphRelationshipEdge", () => {
+  afterEach(() => {
+    xyflow.zoom = 1;
+  });
+
   it("renders its label in the foreground portal and never delegates a duplicate SVG label", () => {
     xyflow.baseEdge.mockClear();
     const { container } = render(<GraphRelationshipEdge {...edgeProps({ selected: true })} />);
@@ -141,6 +148,32 @@ describe("GraphRelationshipEdge", () => {
 
     screen.getByRole("button", { name: "Beziehung öffnen" }).click();
     expect(onLabelClick).toHaveBeenCalledWith("edge");
+  });
+
+  it("keeps a 44px interactive hit area through graph zoom without enlarging the label card", () => {
+    xyflow.zoom = 0.5;
+    render(
+      <GraphRelationshipEdge
+        {...edgeProps({
+          label: "sucht",
+          data: {
+            labelPlacement: { x: 180, y: 0 },
+            labelSize: { width: 44, height: 24 },
+            onLabelClick: vi.fn(),
+          },
+        })}
+      />,
+    );
+
+    const hitTarget = screen.getByRole("button", { name: "sucht" });
+    const labelCard = hitTarget.querySelector<HTMLElement>(".graph-edge-label__card");
+    expect(hitTarget).toHaveStyle({
+      width: "88px",
+      height: "88px",
+      minWidth: "88px",
+      minHeight: "88px",
+    });
+    expect(labelCard).toHaveStyle({ width: "44px", height: "24px" });
   });
 
   it("keeps the shared label portal above selected nodes and the connection preview", () => {

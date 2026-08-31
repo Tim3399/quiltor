@@ -9,6 +9,33 @@
   box-sizing: border-box;
   min-width: 44px;
   min-height: 24px;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: var(--transparent);
+  color: var(--graph-edge-rendered-label-text);
+  font: 500 var(--font-size-2) / 1.2 var(--ui);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.graph-edge-label > .ui-button__label {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.graph-edge-label__card {
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 24px;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -20,11 +47,7 @@
   background: var(--graph-edge-rendered-label-bg);
   box-shadow: var(--elevation-2) var(--shadow-color);
   color: var(--graph-edge-rendered-label-text);
-  font: 500 var(--font-size-2) / 1.2 var(--ui);
-  text-align: center;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: none;
 }
 
 .graph-edge-label__content {
@@ -62,7 +85,7 @@
   cursor: pointer;
 }
 
-.graph-edge-label.is-selected {
+.graph-edge-label.is-selected .graph-edge-label__card {
   border-width: 2px;
   box-shadow:
     var(--ring-1) var(--graph-edge-rendered-label-border),

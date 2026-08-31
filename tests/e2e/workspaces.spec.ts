@@ -2930,35 +2930,60 @@ test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", 
   expect(results.violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("dark-text.png"), fullPage: true });
   await page.getByRole("button", { name: "Figuren" }).click();
-  await expect(page.locator(".react-flow__controls-button")).toHaveCount(4);
-  const graphControlTheme = await page
+  const graphControls = page.getByLabel("Kartensteuerung");
+  for (const coreControl of [
+    ".react-flow__controls-zoomin",
+    ".react-flow__controls-zoomout",
+    ".react-flow__controls-fitview",
+    ".react-flow__controls-interactive",
+  ]) {
+    await expect(graphControls.locator(coreControl)).toHaveCount(1);
+  }
+  const minimapControl = graphControls.getByRole("button", {
+    name: "Übersichtskarte ausblenden",
+    exact: true,
+  });
+  await expect(minimapControl).toHaveCount(1);
+  await expect(minimapControl).toHaveClass(/graph-minimap-toggle/);
+  await expect(minimapControl).toHaveAttribute("aria-pressed", "true");
+
+  const graphControlTheme = await graphControls
     .locator(".react-flow__controls-button")
     .evaluateAll((buttons) => {
-      const probe = document.createElement("span");
-      probe.style.background = "var(--paper)";
-      probe.style.color = "var(--ink)";
-      document.body.append(probe);
-      const expected = getComputedStyle(probe);
-      const expectedBackground = expected.backgroundColor;
-      const expectedColor = expected.color;
-      probe.remove();
+      const resolveTheme = (background: string, color: string) => {
+        const probe = document.createElement("span");
+        probe.style.background = background;
+        probe.style.color = color;
+        document.body.append(probe);
+        const expected = getComputedStyle(probe);
+        const theme = {
+          background: expected.backgroundColor,
+          color: expected.color,
+        };
+        probe.remove();
+        return theme;
+      };
+
       return {
-        expectedBackground,
-        expectedColor,
+        defaultTheme: resolveTheme("var(--paper)", "var(--ink)"),
+        activeMinimapTheme: resolveTheme("var(--selection-surface)", "var(--accent-primary)"),
         buttons: buttons.map((button) => ({
           label: button.getAttribute("aria-label") ?? "Unbenannte Kartensteuerung",
+          activeMinimap: button.matches('.graph-minimap-toggle[aria-pressed="true"]'),
           background: getComputedStyle(button).backgroundColor,
           color: getComputedStyle(button).color,
         })),
       };
     });
-  expect(graphControlTheme.buttons).toHaveLength(4);
   for (const control of graphControlTheme.buttons) {
+    const expectedTheme = control.activeMinimap
+      ? graphControlTheme.activeMinimapTheme
+      : graphControlTheme.defaultTheme;
     expect(control.background, `${control.label} hat keine Darkmode-Fläche`).toBe(
-      graphControlTheme.expectedBackground,
+      expectedTheme.background,
     );
     expect(control.color, `${control.label} hat keine Darkmode-Iconfarbe`).toBe(
-      graphControlTheme.expectedColor,
+      expectedTheme.color,
     );
   }
   results = await new AxeBuilder({ page })

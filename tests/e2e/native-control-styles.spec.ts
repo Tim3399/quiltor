@@ -418,7 +418,7 @@ test("Figuren verwenden für alle sichtbaren Dropdowns Quiltor-Controls", async 
 
   await expect(inspector.locator("select:visible")).toHaveCount(0);
   const dropdowns = inspector.getByRole("combobox");
-  await expect(dropdowns).toHaveCount(3);
+  await expect(dropdowns).toHaveCount(2);
   for (const dropdown of await dropdowns.all()) {
     await expect(dropdown).toHaveJSProperty("tagName", "BUTTON");
   }

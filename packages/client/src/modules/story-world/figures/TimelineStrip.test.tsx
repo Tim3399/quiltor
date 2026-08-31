@@ -80,6 +80,12 @@ describe("TimelineStrip", () => {
     expect(css).toMatch(
       /@media \(max-width: 640px\)[\s\S]*?\.timeline-add\s*\{[^}]*grid-template-columns:[^;}]*var\(--control-compact\);/,
     );
+    expect(css).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*?\.timeline-add\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-compact\);[^}]*gap:\s*var\(--space-4\);/,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*?\.timeline-title-field\s*\{[^}]*min-width:\s*0;[^}]*grid-column:\s*1 \/ -1;/,
+    );
     expect(tokensCss).toMatch(
       /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?--control-compact:\s*var\(--control-touch\);/,
     );

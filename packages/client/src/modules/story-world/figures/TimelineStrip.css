@@ -280,9 +280,18 @@
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 480px) {
   .timeline-add {
-    grid-template-columns: minmax(0, 1fr) 104px var(--control-compact);
+    grid-template-columns: minmax(0, 1fr) var(--control-compact);
     gap: var(--space-4);
+  }
+
+  .timeline-title-field {
+    min-width: 0;
+    grid-column: 1 / -1;
+  }
+
+  .timeline-date-field {
+    min-width: 0;
   }
 }
