@@ -2363,17 +2363,31 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
 
-  await expect(page.locator(".react-flow__minimap-node")).toHaveCount(3);
-  const fills = await page
-    .locator(".react-flow__minimap-node")
-    .evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).fill));
-  expect(new Set(fills).size).toBe(3);
-  const minimapNodeGeometry = await page.locator(".react-flow__minimap-node").evaluateAll((nodes) =>
-    nodes.map((node) => ({
-      width: Number(node.getAttribute("width")),
-      height: Number(node.getAttribute("height")),
-    })),
-  );
+  const minimapNodes = page.locator(".react-flow__minimap-node");
+  await expect(minimapNodes).toHaveCount(3);
+  // React Flow may briefly omit minimap rects while its measured node bounds settle.
+  // Poll color and geometry atomically instead of sampling between those two render frames.
+  let minimapNodePresentation: Array<{ fill: string; width: number; height: number }> = [];
+  await expect
+    .poll(async () => {
+      minimapNodePresentation = await minimapNodes.evaluateAll((nodes) =>
+        nodes.map((node) => ({
+          fill: getComputedStyle(node).fill,
+          width: Number(node.getAttribute("width")),
+          height: Number(node.getAttribute("height")),
+        })),
+      );
+      return {
+        count: minimapNodePresentation.length,
+        distinctColors: new Set(minimapNodePresentation.map((node) => node.fill)).size,
+        measured: minimapNodePresentation.every((node) => node.width > 0 && node.height > 0),
+      };
+    })
+    .toEqual({ count: 3, distinctColors: 3, measured: true });
+  const minimapNodeGeometry = minimapNodePresentation.map(({ width, height }) => ({
+    width,
+    height,
+  }));
   const nodeGeometry = await page.locator(".story-node").evaluateAll((nodes) =>
     nodes.map((node) => {
       const style = getComputedStyle(node);
