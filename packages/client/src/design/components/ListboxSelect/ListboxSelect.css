@@ -1,5 +1,6 @@
 .ui-select-control {
   min-width: 130px;
+  max-width: 100%;
   min-height: var(--control-regular);
   display: inline-flex;
   align-items: center;
@@ -57,7 +58,7 @@
   overflow: hidden;
 }
 
-.ui-select-option__label {
+.ui-select-control > .ui-select-option__content > .ui-select-option__label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -99,6 +100,12 @@
 
 .ui-select-listbox [role="option"] .ui-select-option__content {
   width: 100%;
+}
+
+.ui-select-listbox [role="option"] .ui-select-option__label {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .ui-select-listbox [role="option"]:hover,

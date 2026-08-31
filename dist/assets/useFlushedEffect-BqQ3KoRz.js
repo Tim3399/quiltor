@@ -1,0 +1,1 @@
+import{xt as e,yt as t}from"./i18n-C2Yk6R4i.js";var n=e(t(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

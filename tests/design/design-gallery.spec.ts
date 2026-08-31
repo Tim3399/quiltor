@@ -79,6 +79,11 @@ const intentionalTextTruncationOwners = [
       "Button keeps its full accessible name while its label yields to icons in narrow hosts.",
   },
   {
+    selector: ".ui-select-control > .ui-select-option__content > .ui-select-option__label",
+    reason:
+      "ListboxSelect keeps the selected value in the closed trigger and shows complete option labels when opened while the trigger label yields to its fixed chevron.",
+  },
+  {
     selector: ".ui-command-palette__option-detail",
     reason: "Command names remain visible; secondary result detail is intentionally single-line.",
   },

@@ -98,11 +98,16 @@ describe("ListboxSelect", () => {
       "utf8",
     );
 
+    expect(css).toMatch(/\.ui-select-control\s*\{[^}]*max-width:\s*100%;/s);
     expect(css).toMatch(
       /\.ui-select-control > \.ui-select-option__content\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
     );
     expect(css).toMatch(
-      /\.ui-select-option__label\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
+      /\.ui-select-control > \.ui-select-option__content > \.ui-select-option__label\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
+    );
+    expect(css).not.toMatch(/(?:^|\n)\.ui-select-option__label\s*\{/);
+    expect(css).toMatch(
+      /\.ui-select-listbox \[role="option"\] \.ui-select-option__label\s*\{[^}]*min-width:\s*0;[^}]*white-space:\s*normal;[^}]*overflow-wrap:\s*anywhere;/s,
     );
     expect(css).toMatch(/\.ui-select-control svg\s*\{[^}]*flex:\s*none;/s);
   });
