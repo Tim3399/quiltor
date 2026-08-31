@@ -50,6 +50,34 @@
       ]
     },
     {
+      "name": "application.storyboards-wire",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "The envelope is strict; payload and record extensions are additive and preserved, while incompatible changes require v2."
+      },
+      "schema": "application-api/storyboards/v1.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/storyboards/default.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/application-api/storyboards/wire.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/application-api/storyboards/differential.v1.json",
+          "mediaType": "application/json",
+          "role": "differential"
+        }
+      ]
+    },
+    {
       "name": "application.manuscript-wire",
       "version": 1,
       "owner": "quiltor/application",

@@ -15,12 +15,14 @@ from typing import Any, Literal
 
 from quiltor.domain.story_world.profile import normalize_profile
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
+from quiltor.domain.storyboard.validation import valid_storyboards
 
-DocumentKind = Literal["figures", "manuscript"]
+DocumentKind = Literal["figures", "manuscript", "storyboards"]
 
 _CONTRACTS: dict[DocumentKind, str] = {
     "figures": "quiltor.story-world",
     "manuscript": "quiltor.manuscript",
+    "storyboards": "quiltor.storyboards",
 }
 _ENVELOPE_FIELDS = {"contract", "version", "revision", "payload"}
 MAX_SAFE_WIRE_INTEGER = 9_007_199_254_740_991
@@ -55,11 +57,11 @@ class DocumentWireV1:
 def _valid_payload(kind: DocumentKind, payload: Any) -> bool:
     if not _finite_json_numbers(payload):
         return False
-    return (
-        valid_manuscript(payload) and _valid_manuscript_wire_fields(payload)
-        if kind == "manuscript"
-        else valid_figures(payload) and _valid_story_world_wire_fields(payload)
-    )
+    if kind == "manuscript":
+        return valid_manuscript(payload) and _valid_manuscript_wire_fields(payload)
+    if kind == "figures":
+        return valid_figures(payload) and _valid_story_world_wire_fields(payload)
+    return valid_storyboards(payload)
 
 
 def _number(value: Any) -> bool:
@@ -139,6 +141,16 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                         _canonical_integer_field(entry, "to", minimum=1)
         return normalized
 
+    if kind == "storyboards":
+        nodes = normalized.get("nodes")
+        if isinstance(nodes, list):
+            for node in nodes:
+                if not isinstance(node, dict):
+                    continue
+                _canonical_integer_field(node, "zIndex")
+                _canonical_note_reference_integers(node)
+        return normalized
+
     nodes = normalized.get("nodes")
     if isinstance(nodes, list):
         for node in nodes:
@@ -201,6 +213,9 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
     figure_kinds = {"person", "tier", "ort", "organisation", "objekt", "konzept"}
     accents = {"ink", "gold", "rose", "moss"}
     edge_styles = {"solid", "dashed", "blood", "gold"}
+    edge_line_styles = {"solid", "dashed", "dotted"}
+    relationship_kinds = {"general", "kinship"}
+    edge_colors = {"auto", "ink", "gold", "rose", "moss", "blue"}
     for node in payload["nodes"]:
         if (
             node.get("type", "person") not in figure_kinds
@@ -258,7 +273,16 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
                     field_ids.add(field["id"])
 
     for edge in payload["edges"]:
-        if edge.get("style", "solid") not in edge_styles:
+        if (
+            not isinstance(edge.get("style", "solid"), str)
+            or edge.get("style", "solid") not in edge_styles
+            or not isinstance(edge.get("lineStyle", "solid"), str)
+            or edge.get("lineStyle", "solid") not in edge_line_styles
+            or not isinstance(edge.get("relationshipKind", "general"), str)
+            or edge.get("relationshipKind", "general") not in relationship_kinds
+            or not isinstance(edge.get("color", "auto"), str)
+            or edge.get("color", "auto") not in edge_colors
+        ):
             return False
         if any(
             key in edge and not isinstance(edge[key], str)
@@ -268,7 +292,23 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
         if any(key in edge and type(edge[key]) is not bool for key in ("gerichtet", "active")):
             return False
         if any(
-            version.get("style", "solid") not in edge_styles for version in edge.get("versions", [])
+            not isinstance(version.get("style", "solid"), str)
+            or version.get("style", "solid") not in edge_styles
+            for version in edge.get("versions", [])
+        ):
+            return False
+        if any(
+            not isinstance(version.get("lineStyle", "solid"), str)
+            or version.get("lineStyle", "solid") not in edge_line_styles
+            or not isinstance(version.get("relationshipKind", "general"), str)
+            or version.get("relationshipKind", "general") not in relationship_kinds
+            for version in edge.get("versions", [])
+        ):
+            return False
+        if any(
+            not isinstance(version.get("color", "auto"), str)
+            or version.get("color", "auto") not in edge_colors
+            for version in edge.get("versions", [])
         ):
             return False
 

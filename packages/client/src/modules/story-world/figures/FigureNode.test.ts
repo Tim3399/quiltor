@@ -3,11 +3,11 @@ import { minimapColorForKind } from "./FigureNode";
 
 describe("figure minimap colors", () => {
   it("keeps every element kind visually distinguishable", () => {
-    expect(minimapColorForKind("person")).toBe("var(--minimap-person)");
-    expect(minimapColorForKind("ort")).toBe("var(--minimap-place)");
-    expect(minimapColorForKind("konzept")).toBe("var(--minimap-concept)");
-    expect(minimapColorForKind("tier")).toBe("var(--minimap-animal)");
-    expect(minimapColorForKind("organisation")).toBe("var(--minimap-organisation)");
-    expect(minimapColorForKind("objekt")).toBe("var(--minimap-object)");
+    expect(minimapColorForKind("person")).toBe("var(--card-kind-person)");
+    expect(minimapColorForKind("ort")).toBe("var(--card-kind-ort)");
+    expect(minimapColorForKind("konzept")).toBe("var(--card-kind-konzept)");
+    expect(minimapColorForKind("tier")).toBe("var(--card-kind-tier)");
+    expect(minimapColorForKind("organisation")).toBe("var(--card-kind-organisation)");
+    expect(minimapColorForKind("objekt")).toBe("var(--card-kind-objekt)");
   });
 });

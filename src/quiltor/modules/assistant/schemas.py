@@ -5,6 +5,12 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from quiltor.modules.assistant.relationship_appearance import (
+    EDGE_COLORS,
+    LINE_STYLES,
+    RELATIONSHIP_KINDS,
+)
+
 
 def json_schema_format(schema: dict[str, Any], name: str = "quiltor_reply") -> dict[str, Any]:
     """OpenAI-compatible constrained-decoding envelope (transport neutral)."""
@@ -24,7 +30,6 @@ KINDS = (
     "arrange_elements",
     "set_presence",
 )
-STYLES = ["solid", "dashed", "blood", "gold"]
 PROFILE_PROPERTIES = {
     key: {"type": "string", "maxLength": 1000}
     for key in ("alter", "rolle", "aussehen", "herkunft", "stimme", "notizen")
@@ -108,13 +113,23 @@ PROPOSAL_SCHEMAS: dict[str, dict[str, Any]] = {
         {
             "kind": {"const": "create_relationship"},
             "relationship": _object(
-                ["from", "to", "label", "directed", "style"],
+                [
+                    "from",
+                    "to",
+                    "label",
+                    "directed",
+                    "lineStyle",
+                    "relationshipKind",
+                    "color",
+                ],
                 {
                     "from": {"type": "string"},
                     "to": {"type": "string"},
                     "label": {"type": "string", "maxLength": 160},
                     "directed": {"type": "boolean"},
-                    "style": {"enum": STYLES},
+                    "lineStyle": {"enum": list(LINE_STYLES)},
+                    "relationshipKind": {"enum": list(RELATIONSHIP_KINDS)},
+                    "color": {"enum": list(EDGE_COLORS)},
                 },
             ),
         },
@@ -131,7 +146,9 @@ PROPOSAL_SCHEMAS: dict[str, dict[str, Any]] = {
                     "label": {"type": "string", "maxLength": 160},
                     "active": {"type": "boolean"},
                     "directed": {"type": "boolean"},
-                    "style": {"enum": STYLES},
+                    "lineStyle": {"enum": list(LINE_STYLES)},
+                    "relationshipKind": {"enum": list(RELATIONSHIP_KINDS)},
+                    "color": {"enum": list(EDGE_COLORS)},
                 },
             ),
         },

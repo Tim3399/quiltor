@@ -50,7 +50,6 @@ export function applyAssistantProposals(
         name: String(element.name || t("defaultElementName")).slice(0, 160),
         label: String(element.label || "").slice(0, 160),
         sub: String(element.sub || "").slice(0, 1000),
-        accent: "ink",
         profile: sanitizeProfile(element.profile, id),
         aliases: sanitizeAliases(element.aliases),
       };
@@ -116,7 +115,7 @@ export function applyAssistantProposals(
         to,
         label: String(proposal.relationship.label || "").slice(0, 160),
         gerichtet: directed,
-        style: safeStyle(proposal.relationship.style),
+        ...relationshipAppearance(proposal.relationship),
       });
     } else if (proposal.kind === "set_relationship_at_moment") {
       const relationshipId = resolve(proposal.relationshipId),
@@ -124,13 +123,14 @@ export function applyAssistantProposals(
       if (!next.timeline.some((moment) => moment.id === momentId)) continue;
       next.edges = next.edges.map((edge) => {
         if (edge.id !== relationshipId) return edge;
-        const current = edge.versions?.find((version) => version.momentId === momentId);
+        const current = relationshipStateAtMoment(edge, next.timeline || [], momentId);
+        const appearance = applyRelationshipAppearance(current.appearance, proposal.patch);
         const version = {
           momentId,
-          label: proposal.patch.label ?? current?.label ?? edge.label,
-          active: proposal.patch.active ?? current?.active ?? true,
-          gerichtet: proposal.patch.directed ?? current?.gerichtet ?? edge.gerichtet,
-          style: safeStyle(proposal.patch.style ?? current?.style ?? edge.style),
+          label: proposal.patch.label ?? current.label,
+          active: proposal.patch.active ?? current.active,
+          gerichtet: proposal.patch.directed ?? current.directed,
+          ...appearance,
         };
         return {
           ...edge,
@@ -305,8 +305,82 @@ function sanitizeAliases(aliases?: FigureNode["aliases"]): FigureNode["aliases"]
   });
 }
 
-function safeStyle(style?: FigureEdge["style"]): FigureEdge["style"] {
-  return style === "dashed" || style === "blood" || style === "gold" ? style : "solid";
+type RelationshipAppearance = {
+  lineStyle: NonNullable<FigureEdge["lineStyle"]>;
+  relationshipKind: NonNullable<FigureEdge["relationshipKind"]>;
+  color: NonNullable<FigureEdge["color"]>;
+};
+
+type RelationshipAppearanceSource = Pick<
+  FigureEdge,
+  "lineStyle" | "relationshipKind" | "color" | "style"
+>;
+
+const DEFAULT_RELATIONSHIP_APPEARANCE: RelationshipAppearance = {
+  lineStyle: "solid",
+  relationshipKind: "general",
+  color: "auto",
+};
+
+function applyRelationshipAppearance(
+  current: RelationshipAppearance,
+  source: Partial<RelationshipAppearanceSource>,
+): RelationshipAppearance {
+  let next = { ...current };
+  if (["solid", "dashed", "blood", "gold"].includes(String(source.style))) {
+    next = {
+      lineStyle: source.style === "dashed" ? "dashed" : "solid",
+      relationshipKind: source.style === "blood" ? "kinship" : "general",
+      color: source.style === "gold" ? "gold" : "auto",
+    };
+  }
+  if (["solid", "dashed", "dotted"].includes(String(source.lineStyle)))
+    next.lineStyle = source.lineStyle as RelationshipAppearance["lineStyle"];
+  if (["general", "kinship"].includes(String(source.relationshipKind)))
+    next.relationshipKind = source.relationshipKind as RelationshipAppearance["relationshipKind"];
+  if (["auto", "ink", "gold", "rose", "moss", "blue"].includes(String(source.color)))
+    next.color = source.color as RelationshipAppearance["color"];
+  return next;
+}
+
+function relationshipAppearance(
+  source: Partial<RelationshipAppearanceSource>,
+): RelationshipAppearance {
+  return applyRelationshipAppearance(DEFAULT_RELATIONSHIP_APPEARANCE, source);
+}
+
+function relationshipStateAtMoment(
+  edge: FigureEdge,
+  timeline: TimelineMoment[],
+  momentId: string,
+): {
+  label: string | undefined;
+  active: boolean;
+  directed: boolean;
+  appearance: RelationshipAppearance;
+} {
+  const momentIndexes = new Map(timeline.map((moment, index) => [moment.id, index]));
+  const activeIndex = momentIndexes.get(momentId) ?? Number.POSITIVE_INFINITY;
+  const state = {
+    label: edge.label,
+    active: edge.active ?? true,
+    directed: !!edge.gerichtet,
+    appearance: relationshipAppearance(edge),
+  };
+  const versions = [...(edge.versions || [])]
+    .filter((version) => (momentIndexes.get(version.momentId) ?? activeIndex + 1) <= activeIndex)
+    .sort(
+      (left, right) =>
+        (momentIndexes.get(left.momentId) ?? activeIndex + 1) -
+        (momentIndexes.get(right.momentId) ?? activeIndex + 1),
+    );
+  for (const version of versions) {
+    if (typeof version.label === "string") state.label = version.label;
+    if (typeof version.active === "boolean") state.active = version.active;
+    if (typeof version.gerichtet === "boolean") state.directed = version.gerichtet;
+    state.appearance = applyRelationshipAppearance(state.appearance, version);
+  }
+  return state;
 }
 
 function arrangeNodes(nodes: FigureNode[], edges: FigureEdge[], strategy: "thematic" | "grid") {

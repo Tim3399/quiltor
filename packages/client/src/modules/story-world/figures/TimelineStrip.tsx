@@ -1,5 +1,5 @@
 import { Clock3, Pause, Play, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, IconButton, ScrollArea, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { NoteEditor, noteFocusCopy } from "../../notes";
@@ -31,6 +31,7 @@ export function TimelineStrip({
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [draftDate, setDraftDate] = useState("");
+  const trackRef = useRef<HTMLDivElement>(null);
   const add = () => {
     const title = draft.trim();
     if (!title) return;
@@ -39,6 +40,22 @@ export function TimelineStrip({
     setDraftDate("");
   };
   const active = timeline.find((moment) => moment.id === activeId);
+
+  useEffect(() => {
+    if (!playing || !activeId) return;
+    const activeMoment = Array.from(
+      trackRef.current?.querySelectorAll<HTMLElement>("[data-timeline-moment-id]") ?? [],
+    ).find((element) => element.dataset.timelineMomentId === activeId);
+    const reducedMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    activeMoment?.scrollIntoView?.({
+      behavior: reducedMotion ? "auto" : "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [activeId, playing]);
+
   return (
     <section
       className={`timeline-strip ${playing ? "is-playing" : ""}`}
@@ -63,9 +80,9 @@ export function TimelineStrip({
           {t("overview")}
         </Button>
       </div>
-      <ScrollArea axis="x" className="timeline-track" surface="panel">
+      <ScrollArea ref={trackRef} axis="x" className="timeline-track" surface="panel">
         {timeline.map((moment, index) => (
-          <div className="timeline-moment" key={moment.id}>
+          <div className="timeline-moment" data-timeline-moment-id={moment.id} key={moment.id}>
             <span aria-hidden="true">{index + 1}</span>
             <Button
               size="compact"

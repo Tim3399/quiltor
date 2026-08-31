@@ -112,10 +112,13 @@ export function Popover({
       event.preventDefault();
       closeRef.current();
     };
-    const resize = () => closeRef.current();
+    const resize = () => updatePosition();
     const scroll = (event: Event) => {
-      if (event.target instanceof Node && panel.current?.contains(event.target)) return;
-      closeRef.current();
+      const target = event.target;
+      if (target instanceof Node && panel.current?.contains(target)) return;
+      // Focus management and virtual canvases can emit a delayed scroll immediately after the
+      // surface opens. Re-anchor instead of closing a menu the user has just opened.
+      updatePosition();
     };
     document.addEventListener("pointerdown", pointer);
     trigger?.addEventListener("keydown", key);
@@ -128,7 +131,7 @@ export function Popover({
       window.removeEventListener("scroll", scroll, true);
       if (trigger?.isConnected) trigger.focus();
     };
-  }, [open, compact, anchorRef]);
+  }, [open, compact, anchorRef, updatePosition]);
 
   if (!open) return null;
   const portalContainer = portalContainerRef?.current ?? document.body;

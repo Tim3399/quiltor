@@ -1,4 +1,5 @@
-import type { WorldReferenceTarget } from "../../shared";
+import type { Workspace, WorldReferenceTarget } from "../../shared";
+import type { CardKind } from "../graph";
 
 export type { NoteReference, WorldReferenceTarget } from "../../shared";
 export { worldReferenceKey } from "../../shared";
@@ -9,7 +10,9 @@ export interface WorldReferenceCandidate {
   label: string;
   detail: string;
   keywords: string[];
-  workspace: "text" | "figures" | "timeline" | "places" | "storyboard";
+  workspace: Workspace;
+  /** Live semantic kind used by every visual card/minimap projection. */
+  cardKind: CardKind;
 }
 
 export type WorldReferenceBacklinkSourceKind =

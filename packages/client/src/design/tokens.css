@@ -174,6 +174,8 @@
   --z-toast: 80;
   --z-modal: 100;
   --z-drawer-panel-mobile: 110;
+  /* XYFlow raises selected nodes to 1000 and its live connection line to 1001. */
+  --z-graph-edge-label: 1002;
 }
 
 @media (max-width: 820px) {

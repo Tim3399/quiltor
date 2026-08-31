@@ -1,6 +1,6 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import { type CardKind, cardKindClassName } from "../graph";
 import type { SemanticZoomTier } from "./figures/relationships";
-import type { FigureNode } from "./model";
 
 const COMPACT_CARD_HEIGHT = 68;
 const COMPACT_CARD_WIDTH = 200;
@@ -22,8 +22,7 @@ function safeViewportZoom(viewportZoom: number): number {
 export interface StoryNodeCardProps extends HTMLAttributes<HTMLDivElement> {
   zoomTier: SemanticZoomTier;
   viewportZoom: number;
-  kind?: FigureNode["type"];
-  accent?: FigureNode["accent"];
+  kind?: CardKind;
   important?: boolean;
   selected?: boolean;
   dashed?: boolean;
@@ -35,7 +34,6 @@ export function StoryNodeCard({
   zoomTier,
   viewportZoom,
   kind = "person",
-  accent = "ink",
   important = false,
   selected = false,
   dashed = false,
@@ -61,7 +59,7 @@ export function StoryNodeCard({
         "story-node",
         `zoom-${zoomTier}`,
         `type-${kind}`,
-        `accent-${accent}`,
+        ...cardKindClassName(kind).split(" "),
         important && "is-important",
         dashed && "dashed",
         selected && "selected",

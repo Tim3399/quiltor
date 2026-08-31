@@ -19,6 +19,7 @@ direction LR
 
 class ManuscriptController
 class StoryWorldController
+class StoryboardController
 class WorldCatalogController
 class AssistantController
 
@@ -37,6 +38,11 @@ class StoryWorldApplicationPort {
   +loadWorld(RequestContext, WorldId) StoryWorldView
   +applyMutation(RequestContext, StoryWorldMutation) MutationResult
 }
+class StoryboardApplicationPort {
+  <<interface>>
+  +loadDocument(RequestContext, WorldId) VersionedStoryboard
+  +saveDocumentV1(RequestContext, VersionedStoryboard) SaveResult
+}
 class WorldCatalogApplicationPort {
   <<interface>>
   +listWorlds(RequestContext) WorldSummary[]
@@ -50,6 +56,7 @@ class AssistantApplicationPort {
 
 class SaveChapterUseCase
 class ApplyStoryWorldMutationUseCase
+class SaveStoryboardDocumentUseCase
 class OpenWorldUseCase
 class AcceptAssistantProposalUseCase
 class AuthorizationPolicy {
@@ -60,23 +67,28 @@ class CapabilityPolicy
 
 ManuscriptController --> RequestContext
 StoryWorldController --> RequestContext
+StoryboardController --> RequestContext
 WorldCatalogController --> RequestContext
 AssistantController --> RequestContext
 ManuscriptController --> ManuscriptApplicationPort
 StoryWorldController --> StoryWorldApplicationPort
+StoryboardController --> StoryboardApplicationPort
 WorldCatalogController --> WorldCatalogApplicationPort
 AssistantController --> AssistantApplicationPort
 ManuscriptApplicationPort <|.. SaveChapterUseCase
 StoryWorldApplicationPort <|.. ApplyStoryWorldMutationUseCase
+StoryboardApplicationPort <|.. SaveStoryboardDocumentUseCase
 WorldCatalogApplicationPort <|.. OpenWorldUseCase
 AssistantApplicationPort <|.. AcceptAssistantProposalUseCase
 SaveChapterUseCase --> AuthorizationPolicy
 ApplyStoryWorldMutationUseCase --> AuthorizationPolicy
+SaveStoryboardDocumentUseCase --> AuthorizationPolicy
 OpenWorldUseCase --> AuthorizationPolicy
 AcceptAssistantProposalUseCase --> AuthorizationPolicy
 AcceptAssistantProposalUseCase --> ProposalAcceptancePolicy
 SaveChapterUseCase --> CapabilityPolicy
 ApplyStoryWorldMutationUseCase --> CapabilityPolicy
+SaveStoryboardDocumentUseCase --> CapabilityPolicy
 ```
 
 The concrete ports are grouped into the namespaced `ApplicationGateway` already
@@ -91,6 +103,13 @@ inputs. Typed mutations are introduced where they capture real structural
 intent, such as Story World changes and Assistant proposal acceptance. Text
 editing may continue to use a coalesced chapter/document save instead of
 creating a command per keystroke.
+
+The first Storyboard persistence slice keeps that same versioned full-document
+shape: the client `StoryboardsGateway` reaches the Storyboard route through the
+shared document use case and an independent revision precondition. A dedicated
+`StoryboardApplicationPort` is the target context boundary as focused board and
+node operations become useful; neither form is allowed to route planning data
+through Story World mutation policy.
 
 ## Identity and authorisation
 
@@ -212,6 +231,7 @@ class SQLiteWorldCommitRepository
 class SQLiteTransaction
 class SQLiteManuscriptRepository
 class SQLiteStoryWorldRepository
+class SQLiteStoryboardRepository
 class TransactionalReferenceIndex
 class TransactionalSearchIndex
 class ProjectionJobStore
@@ -230,6 +250,7 @@ SQLiteWorldCommitRepository ..|> WorldCommitRepository
 SQLiteWorldCommitRepository *-- SQLiteTransaction
 SQLiteWorldCommitRepository --> SQLiteManuscriptRepository
 SQLiteWorldCommitRepository --> SQLiteStoryWorldRepository
+SQLiteWorldCommitRepository --> SQLiteStoryboardRepository
 SQLiteWorldCommitRepository --> TransactionalReferenceIndex
 SQLiteWorldCommitRepository --> TransactionalSearchIndex
 SQLiteWorldCommitRepository --> ProjectionJobStore
@@ -243,9 +264,9 @@ ThumbnailJobHandler ..|> ProjectionJobHandler
 ```
 
 `WorldCommitRepository.commit(CommitPlan)` guarantees one SQLite transaction.
-Changed documents, expected/new revisions, the idempotency receipt, immediately
-required FTS/reference-index deltas and durable after-commit jobs either all
-commit or all roll back.
+Changed canonical or non-canonical versioned documents, expected/new revisions,
+the idempotency receipt, immediately required FTS/reference-index deltas and
+durable after-commit jobs either all commit or all roll back.
 
 `projection_jobs` is not a general domain-event bus. It is reserved for real
 side effects that cannot participate in the SQLite transaction, such as file
@@ -253,7 +274,14 @@ mirrors, remote backup uploads and generated thumbnails. Handlers are
 idempotent and retryable. Search and reference indexes required by the next
 request are updated transactionally, not eventually by a runner.
 
-## Canonical mutation sequence
+`SQLiteStoryboardRepository` stores the independent, non-canonical
+`StoryboardDocument` and advances `storyboards_revision`. Sharing the SQLite
+transaction and backup mechanism does not make that document canon. Storyboard
+rows are excluded from `StoryWorldDocument`, `WorldState(t)` and canonical
+search/reference interpretation unless an explicit feature asks for planning
+context.
+
+## Versioned document mutation sequence
 
 ```mermaid
 sequenceDiagram
@@ -288,6 +316,11 @@ There is no global world lock and no requirement to hydrate a complete
 write set; cross-document invariants load both sides only when necessary.
 Unrelated worlds and unrelated revision lanes can commit concurrently.
 
+For Storyboard saves, “deterministic policy” means only Storyboard-local
+structure validation: board/node/edge IDs, node kind rules and same-board edge
+integrity. The use case must not infer facts, presence, relationships or
+timeline state from planning text or connections.
+
 ## Current code to target responsibility
 
 | Current code                                                | Target class/responsibility                                     |
@@ -298,6 +331,8 @@ Unrelated worlds and unrelated revision lanes can commit concurrently.
 | `Identity.resolve(handler)` and HTTP-aware identity service | transport middleware plus `PrincipalResolver`                   |
 | `DocumentRepository` with raw `Path`/`dict`                 | owned repository values behind focused use cases                |
 | `DocumentUseCases.save`                                     | save use case plus atomic `WorldCommitRepository`               |
+| Storyboard route + shared `DocumentUseCases`                | `StoryboardApplicationPort` and focused Storyboard use cases    |
+| normalized `sqlite/storyboards.py` mapping                  | `SQLiteStoryboardRepository` behind the document commit port    |
 | database commit followed by mirror write                    | transactional `projection_jobs` plus idempotent side-effect job |
 | rebuilt FTS/reference data after commit                     | `IndexDelta` written inside the document transaction            |
 | one global web lock                                         | optimistic revisions and operation-scoped transaction locking   |

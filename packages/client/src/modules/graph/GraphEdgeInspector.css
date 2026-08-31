@@ -1,0 +1,63 @@
+.graph-edge-inspector-panel {
+  z-index: var(--z-float-legend);
+  bottom: var(--graph-edge-inspector-safe-bottom, auto);
+  max-width: calc(100% - var(--spacing-section-base));
+  margin: var(--spacing-regular-tight);
+  pointer-events: none;
+}
+
+.graph-edge-inspector {
+  width: min(var(--sidebar-ideal), calc(100vw - var(--spacing-section-base)));
+  max-height: 100%;
+  display: grid;
+  gap: var(--spacing-regular-tight);
+  padding: var(--spacing-regular-wide);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--material-toolbar);
+  box-shadow: var(--elevation-3) var(--shadow-color);
+  color: var(--ink);
+  font-family: var(--ui);
+  pointer-events: auto;
+}
+
+.graph-edge-inspector__heading {
+  min-width: 0;
+  display: grid;
+  gap: var(--spacing-optical-tight);
+}
+
+.graph-edge-inspector__heading strong {
+  font-size: var(--font-size-3);
+}
+
+.graph-edge-inspector__endpoints {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-edge-inspector__label-field,
+.graph-edge-inspector__directed {
+  min-width: 0;
+}
+
+.graph-edge-inspector__reverse {
+  display: grid;
+  justify-items: start;
+  gap: var(--spacing-optical-tight);
+}
+
+.graph-edge-inspector__reverse small {
+  color: var(--muted);
+  font-size: var(--font-size-1);
+}
+
+@media (max-width: 719px) {
+  .graph-edge-inspector {
+    width: min(var(--sidebar-max), calc(100vw - var(--spacing-section-base)));
+    padding: var(--spacing-regular-tight);
+  }
+}

@@ -59,16 +59,17 @@ versioned contracts, a visible design system and distribution profiles. The
 remaining gaps explain why the target introduces the classes in the detailed
 views.
 
-| Area               | Current implementation                                                                                                                                            | Target correction                                                                                                                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Client composition | `Application.tsx` owns session loading, two histories, autosave, navigation, overlays and reference indexes. Feature code reads a mutable global `quiltorClient`. | Injected `RuntimeDependencies` and a keyed `WorldEditorSession` make ownership explicit. Text and Story World keep separate histories/save lanes behind one status and active-undo coordinator. |
-| Frontend modules   | Manuscript, Story World, Notes and World References form an import cycle. Gateways import feature model types back from modules.                                  | Neutral command, projection and boundary contracts form a declared module DAG. Feature UI never imports another feature's UI or aggregate internals.                                            |
-| Story World        | `FigureState`, `FigureNode` and `FigureEdge` also contain places, timeline, presence, calendars and layouts.                                                      | `StoryWorldDocument`, `WorldElement` and `WorldRelationship` become truthful names. Figures, Places and Timeline are projections of one document.                                               |
-| Backend            | Context use cases exist, but URL-selected route-service bundles use `Any`; identity still knows HTTP concepts; CLI/MCP can repeat policy.                         | Typed controllers call context-specific, transport-neutral use cases. Delivery resolves a `Principal`; all hosts reuse the same application policy without a global routing facade.             |
-| Persistence        | Cross-document validation, SQLite save and file-mirror writes are not one atomic unit.                                                                            | A scoped `CommitPlan` atomically writes canonical changes, revisions and required jobs. Immediate indexes stay transactional; retry jobs are limited to genuine side effects.                   |
-| Portable core      | Rust currently owns timeline ordering and an FFI contract-version function only. Python/SQLite remains canonical.                                                 | Pure deterministic policies move first. A complete SQLite ownership cutover is benchmark- and mobile-milestone-gated; Python and Rust never split canonical writes per operation.               |
-| Inference          | `InferenceEngine` exposes provider identity, lifecycle and raw dictionaries to product code. Selection is an OS/environment heuristic.                            | `AssistantInferencePort` speaks Quiltor-owned request/result types. A separate control plane owns provider selection, packages, hardware, preferences and consent.                              |
-| Hosts/distribution | Native application operations and device capabilities can be conflated; source profiles and runtime facts are easy to blur.                                       | Application Bridge, Platform Bridge, source `TargetProfile` and embedded `RuntimeProfile` are four separate contracts. Publishers remain build-time adapters.                                   |
+| Area               | Current implementation                                                                                                                                                                                                                                       | Target correction                                                                                                                                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Client composition | `Application.tsx` owns session loading, three independent snapshot histories/autosave lanes, navigation, overlays and reference indexes. Feature code reads a mutable global `quiltorClient`.                                                                | Injected `RuntimeDependencies` and a keyed `WorldEditorSession` make ownership explicit. Text, Story World and Storyboard keep separate histories/save lanes behind one status and active-undo coordinator.                                                        |
+| Frontend modules   | Manuscript, Story World, Notes and World References form an import cycle. Gateways import feature model types back from modules.                                                                                                                             | Neutral command, projection and boundary contracts form a declared module DAG. Feature UI never imports another feature's UI or aggregate internals.                                                                                                               |
+| Story World        | `FigureState`, `FigureNode` and `FigureEdge` also contain places, timeline, presence, calendars and layouts.                                                                                                                                                 | `StoryWorldDocument`, `WorldElement` and `WorldRelationship` become truthful names. Figures, Places and Timeline are projections of one document.                                                                                                                  |
+| Storyboard         | The fifth workspace now edits the separate v1 `StoryboardDocument` through its own history, autosave and gateway. ReactFlow renders boards, note/reference/board/group nodes and planning edges; normalized SQLite persistence owns an independent revision. | Keep that planning aggregate behind a context application port as operations become more focused. Storyboard backlinks, AI planning context and explicit overlap ordering remain later slices and must not couple the document to `StoryWorld` or `WorldState(t)`. |
+| Backend            | Context use cases exist, but URL-selected route-service bundles use `Any`; identity still knows HTTP concepts; CLI/MCP can repeat policy.                                                                                                                    | Typed controllers call context-specific, transport-neutral use cases. Delivery resolves a `Principal`; all hosts reuse the same application policy without a global routing facade.                                                                                |
+| Persistence        | Cross-document validation, SQLite save and file-mirror writes are not one atomic unit.                                                                                                                                                                       | A scoped `CommitPlan` atomically writes versioned canonical or planning changes, revisions and required jobs. Immediate indexes stay transactional; retry jobs are limited to genuine side effects.                                                                |
+| Portable core      | Rust currently owns timeline ordering and an FFI contract-version function only. Python/SQLite remains canonical.                                                                                                                                            | Pure deterministic policies move first. A complete SQLite ownership cutover is benchmark- and mobile-milestone-gated; Python and Rust never split canonical writes per operation.                                                                                  |
+| Inference          | `InferenceEngine` exposes provider identity, lifecycle and raw dictionaries to product code. Selection is an OS/environment heuristic.                                                                                                                       | `AssistantInferencePort` speaks Quiltor-owned request/result types. A separate control plane owns provider selection, packages, hardware, preferences and consent.                                                                                                 |
+| Hosts/distribution | Native application operations and device capabilities can be conflated; source profiles and runtime facts are easy to blur.                                                                                                                                  | Application Bridge, Platform Bridge, source `TargetProfile` and embedded `RuntimeProfile` are four separate contracts. Publishers remain build-time adapters.                                                                                                      |
 
 ## Non-negotiable rules
 
@@ -91,10 +92,10 @@ views.
 7. **AI never owns canon.** Inference may interpret and propose. Deterministic
    core policy verifies a proposal, and only an explicit author command applies
    it.
-8. **One atomic commit owner.** Canonical changes, revisions, idempotency
-   receipts and required jobs commit through one repository transaction.
-   Immediate indexes update transactionally; only retryable side effects run
-   after commit.
+8. **One atomic commit owner.** Canonical changes, versioned author-owned
+   planning changes, revisions, idempotency receipts and required jobs commit
+   through one repository transaction. Immediate indexes update
+   transactionally; only retryable side effects run after commit.
 9. **No dual storage authority.** Pure policies may move between runtimes behind
    fixtures. SQLite writes, migrations and transaction lifecycle move only as
    one complete boundary after the mobile and benchmark gate approves it.
@@ -109,9 +110,10 @@ views.
 | `WorldEditorSession`         | Active world ID, draft stores, coordinated histories, revisions, save status and client projections    | Domain validation, transport selection, SQLite or provider selection   |
 | `ManuscriptDocument`         | Chapters, folders, tree order, text marks, mentions, notes and story-time anchors                      | Timeline moments or world elements                                     |
 | `StoryWorldDocument`         | Story facts plus persisted author layout, with facts and layout modelled separately                    | Manuscript text or ephemeral viewport state                            |
+| `StoryboardDocument`         | Boards, planning nodes, planning edges and canvas layout under an independent revision                 | Canon, `WorldState(t)`, Story World relationships or presence          |
 | Context application use case | Authorisation, capability checks and orchestration for one operation                                   | Generic routing, HTTP, cookies, concrete databases or model processes  |
 | Domain policy/aggregate      | Deterministic invariants for the affected scope                                                        | UI drafts, identity sessions, model lifecycle or transaction selection |
-| `WorldCommitRepository`      | One SQLite transaction for canonical changes, revisions, receipts, immediate indexes and required jobs | After-commit execution or provider selection                           |
+| `WorldCommitRepository`      | One SQLite transaction for versioned document changes, revisions, receipts, immediate indexes and jobs | Canon interpretation, after-commit execution or provider selection     |
 | `WorldAssetRepository`       | Project-owned media bytes and metadata included in backup/restore                                      | Platform `DocumentHandle` values                                       |
 | Assistant product            | Conversation, repository-backed evidence, read tools, proposals and author-decision workflow           | Runtime installation, model files, credentials or canonical mutation   |
 | Inference adapter            | Provider-neutral execution through `AssistantInferencePort`                                            | Story semantics and proposal acceptance                                |
@@ -187,7 +189,7 @@ flowchart LR
     end
 
     subgraph Core["1 · Deterministic core"]
-        Domain["ManuscriptDocument · StoryWorldDocument"]
+        Domain["ManuscriptDocument · StoryWorldDocument · StoryboardDocument"]
         Policies["Pure domain and proposal-acceptance policies"]
         CommitPort(("WorldCommitRepository"))
         AssetPort(("WorldAssetRepository"))
@@ -202,7 +204,7 @@ flowchart LR
 
     subgraph Driven["Driven adapters"]
         Storage["SQLiteWorldCommitRepository"]
-        Database[("Canonical rows · revisions · immediate indexes")]
+        Database[("Versioned document rows · revisions · immediate indexes")]
         Jobs[("Retryable side-effect jobs")]
         ProjectionRunner["AfterCommitRunner"]
         Derived[("File mirrors · remote backup · thumbnails")]
@@ -255,4 +257,7 @@ flowchart LR
 The only intended cross-view paths are the labelled ports above. In particular,
 feature UI does not reach storage, deterministic policy does not reach a model
 runtime, client projections do not become canonical Assistant evidence, and
-inference does not reach canonical aggregates.
+inference does not reach canonical aggregates. `StoryboardDocument` participates
+in the versioned document path, but its planning data never enters
+`StoryWorldDocument` or `WorldState(t)` without a separate explicit,
+author-confirmed canonical command.

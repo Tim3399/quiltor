@@ -6,11 +6,13 @@ import {
   reconcileMentions,
 } from "../../modules/manuscript";
 import type { FigureState, WorldInfo } from "../../modules/story-world";
+import type { StoryboardState } from "../../modules/storyboard";
 import { ApplicationGatewayError, applicationErrorMessage, quiltorClient } from "../../platform";
 
 export type LoadedWorldDocuments = {
   manuscript: Manuscript;
   figures: FigureState;
+  storyboards: StoryboardState;
   orphanedMentions: number;
 };
 
@@ -27,9 +29,10 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
       try {
         const result = await selected;
         quiltorClient.application.worlds.select(result.world.id);
-        const [manuscript, figures] = await Promise.all([
+        const [manuscript, figures, storyboards] = await Promise.all([
           quiltorClient.application.manuscript.load(),
           quiltorClient.application.storyWorld.load(),
+          quiltorClient.application.storyboards.load(),
         ]);
         const reconciled = reconcileMentions(manuscript, figures.nodes);
         const linked: Manuscript = {
@@ -43,6 +46,7 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
         onDocumentsLoaded({
           manuscript: linked,
           figures,
+          storyboards,
           orphanedMentions: reconciled.orphanedCount,
         });
         setWorld(result.world);

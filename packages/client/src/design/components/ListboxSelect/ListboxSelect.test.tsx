@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ListboxSelect } from "./ListboxSelect";
@@ -88,5 +90,61 @@ describe("ListboxSelect", () => {
     const gamma = screen.getByRole("option", { name: "Gamma" });
     expect(gamma).toHaveAttribute("data-autofocus", "true");
     await waitFor(() => expect(gamma).toHaveFocus());
+  });
+
+  it("keeps long labels inside the trigger without displacing its chevron", () => {
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/design/components/ListboxSelect/ListboxSelect.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /\.ui-select-control > \.ui-select-option__content\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
+    );
+    expect(css).toMatch(
+      /\.ui-select-option__label\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
+    );
+    expect(css).toMatch(/\.ui-select-control svg\s*\{[^}]*flex:\s*none;/s);
+  });
+
+  it("renders caller-owned decorative leading content without changing accessible names", () => {
+    const decoratedOptions = [
+      {
+        value: "a",
+        label: "Alpha",
+        leading: <span aria-hidden="true" data-testid="alpha-swatch" />,
+      },
+      { value: "g", label: "Gamma" },
+    ] as const;
+    render(
+      <ListboxSelect
+        label="Auswahl"
+        value="a"
+        options={decoratedOptions}
+        onChange={() => undefined}
+      />,
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+    expect(trigger).toHaveAccessibleName("Auswahl");
+    expect(screen.getByTestId("alpha-swatch")).toHaveAttribute("aria-hidden", "true");
+    fireEvent.click(trigger);
+
+    const option = screen.getByRole("option", { name: "Alpha" });
+    expect(option.querySelector('[data-testid="alpha-swatch"]')).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+  });
+
+  it("promotes compact triggers and options to touch targets on narrow or coarse pointers", () => {
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/design/components/ListboxSelect/ListboxSelect.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /@media \(max-width: 719px\), \(pointer: coarse\)\s*\{[^}]*\.ui-select-control\[data-size="compact"\],[^}]*\.ui-select-listbox \[role="option"\][^{]*\{[^}]*min-height:\s*var\(--control-touch\);/s,
+    );
   });
 });

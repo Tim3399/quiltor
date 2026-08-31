@@ -613,7 +613,9 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 "to": "mara",
                 "label": "Sohn von",
                 "directed": True,
-                "style": "solid",
+                "lineStyle": "solid",
+                "relationshipKind": "kinship",
+                "color": "auto",
             },
         )
 

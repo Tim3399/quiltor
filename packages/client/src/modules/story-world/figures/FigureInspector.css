@@ -6,10 +6,20 @@
   border-bottom: 1px solid var(--line);
 }
 
-.relation-list > div > div {
+.relationship-heading {
   grid-column: 1 / -1;
   display: flex;
   gap: var(--space-8);
+}
+
+.relation-list > div > .graph-edge-line-style-select,
+.relation-list > div > .graph-edge-color-select,
+.relation-list > div > .check-field {
+  grid-column: 1 / -1;
+}
+
+.relation-list > div > .check-field {
+  color: var(--muted);
 }
 
 .relationship-label-input {
@@ -20,7 +30,7 @@
   background: var(--paper);
 }
 
-.relation-list span {
+.relation-undirected {
   color: var(--accent-primary-text);
 }
 
@@ -227,11 +237,6 @@
   grid-column: 2;
 }
 
-.relationship-style-select {
-  width: 100%;
-  min-width: 0;
-}
-
 .figure-card-select-field {
   display: block;
   margin: 0 0 var(--space-16);
@@ -251,37 +256,11 @@
   min-width: 0;
 }
 
-.relationship-style-control {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.relationship-style-select {
-  font-size: var(--font-size-2);
-}
-
-.relationship-style-control[disabled] .relationship-style-select {
-  color: var(--disabled-content);
-  cursor: default;
-  opacity: 0.62;
-}
-
-.check-field {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-5);
-  color: var(--muted);
-  font-size: var(--font-size-2);
-}
-
 .relation-list > div.outside-moment {
   opacity: 0.56;
 }
 
-.relation-list > div > div > small {
+.relationship-heading > small {
   margin-left: auto;
   color: var(--muted);
   font-size: var(--font-size-1);

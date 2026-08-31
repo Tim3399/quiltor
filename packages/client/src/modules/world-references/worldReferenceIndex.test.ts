@@ -67,6 +67,13 @@ describe("world reference index", () => {
     ]);
     expect(candidates[0].detail).toContain("Teil I");
     expect(candidates[3].target).toEqual({ kind: "place", id: "harbour" });
+    expect(candidates.map((item) => item.cardKind)).toEqual([
+      "chapter",
+      "chapter",
+      "person",
+      "ort",
+      "timeline",
+    ]);
   });
 
   it("finds labels, aliases, notes and body text without depending on accents", () => {
@@ -134,6 +141,10 @@ describe("world reference index", () => {
       workspace: "text",
       id: "c1",
     });
+    expect(workspaceTargetForReference({ kind: "storyboard", id: "ideas" })).toEqual({
+      workspace: "storyboard",
+      id: "ideas",
+    });
   });
 
   it("follows a figure identity when its live kind changes to or from place", () => {
@@ -149,5 +160,8 @@ describe("world reference index", () => {
     expect(
       resolveWorldReferenceCandidate(candidates, { kind: "entity", id: "mara" })?.target,
     ).toEqual({ kind: "place", id: "mara" });
+    expect(
+      resolveWorldReferenceCandidate(candidates, { kind: "entity", id: "mara" })?.cardKind,
+    ).toBe("ort");
   });
 });

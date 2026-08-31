@@ -1,4 +1,9 @@
-import type { NoteReference } from "../../shared";
+import type {
+  GraphEdgeColor,
+  GraphEdgeLineStyle,
+  GraphRelationshipKind,
+  NoteReference,
+} from "../../shared";
 
 export interface ProfileExtra {
   k: string;
@@ -65,8 +70,12 @@ export interface FigureEdge {
   from: string;
   to: string;
   label?: string;
+  lineStyle?: GraphEdgeLineStyle;
+  relationshipKind?: GraphRelationshipKind;
+  /** @deprecated Use lineStyle, relationshipKind and color independently. */
   style?: "solid" | "dashed" | "blood" | "gold";
   gerichtet?: boolean;
+  color?: GraphEdgeColor;
   fromHandle?: string;
   toHandle?: string;
   active?: boolean;
@@ -79,8 +88,12 @@ export interface RelationshipVersion {
   from?: string;
   to?: string;
   label?: string;
+  lineStyle?: GraphEdgeLineStyle;
+  relationshipKind?: GraphRelationshipKind;
+  /** @deprecated Use lineStyle, relationshipKind and color independently. */
   style?: "solid" | "dashed" | "blood" | "gold";
   gerichtet?: boolean;
+  color?: GraphEdgeColor;
   active: boolean;
 }
 

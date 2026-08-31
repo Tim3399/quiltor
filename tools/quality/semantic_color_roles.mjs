@@ -19,24 +19,6 @@ const paletteFamilies = ["--gold", "--rose", "--moss", "--ink-blue", "--copper"]
 export const directPaletteRoleAllowlist = Object.freeze([
   {
     path: "packages/client/src/modules/story-world/StoryGraph.css",
-    selector: ".story-node.accent-gold",
-    variables: ["--gold"],
-    rationale: "User-selected graph node color encoding",
-  },
-  {
-    path: "packages/client/src/modules/story-world/StoryGraph.css",
-    selector: ".story-node.accent-rose",
-    variables: ["--rose-border"],
-    rationale: "User-selected graph node color encoding",
-  },
-  {
-    path: "packages/client/src/modules/story-world/StoryGraph.css",
-    selector: ".story-node.accent-moss",
-    variables: ["--moss-border"],
-    rationale: "User-selected graph node color encoding",
-  },
-  {
-    path: "packages/client/src/modules/story-world/StoryGraph.css",
     selector: ".story-node strong svg",
     variables: ["--rose-text"],
     rationale: "Deceased figure domain encoding",
@@ -70,12 +52,6 @@ export const directPaletteRoleAllowlist = Object.freeze([
     selector: ".figure-workspace .story-node .neutral-handle",
     variables: ["--moss"],
     rationale: "Undirected connection handle encoding",
-  },
-  {
-    path: "packages/client/src/modules/story-world/figures/FigureCanvas.css",
-    selector: ".figure-workspace .react-flow__edge.edge-blood .react-flow__edge-path",
-    variables: ["--rose-border"],
-    rationale: "Blood-relation edge encoding",
   },
   {
     path: "packages/client/src/modules/story-world/figures/FigureCanvas.css",

@@ -10,6 +10,10 @@ from typing import Any
 
 from quiltor.domain.story_world.entity_resolution import ResolutionResult, resolve_entity
 from quiltor.modules.assistant.entity_references import entity_mentions, mentioned_entity_ids
+from quiltor.modules.assistant.relationship_appearance import (
+    normalize_relationship_appearance,
+    relationship_appearance_at,
+)
 
 # Broad, unscoped creation requests ("search all chapters and create every figure") can
 # need more than any single call's context/output budget can safely hold -- these get
@@ -234,6 +238,36 @@ def structured_context(chunks: list[Any], contract: dict[str, Any]) -> list[Any]
     return [chunk for chunk in chunks if chunk.kind in kinds]
 
 
+def _structured_relationship(edge: Any) -> dict[str, Any]:
+    if not isinstance(edge, dict):
+        return {}
+    relationship = {
+        key: edge.get(key)
+        for key in ("id", "from", "to", "label", "gerichtet", "active")
+        if edge.get(key) not in (None, "", [], {})
+    }
+    relationship.update(
+        relationship_appearance_at(edge)
+        or {"lineStyle": "solid", "relationshipKind": "general", "color": "auto"}
+    )
+    versions: list[dict[str, Any]] = []
+    for version in edge.get("versions") or []:
+        if not isinstance(version, dict):
+            continue
+        mapped = {
+            key: version.get(key)
+            for key in ("momentId", "from", "to", "label", "active", "gerichtet")
+            if version.get(key) not in (None, "", [], {})
+        }
+        appearance = normalize_relationship_appearance(version)
+        if appearance is not None:
+            mapped.update(appearance)
+        versions.append(mapped)
+    if versions:
+        relationship["versions"] = versions
+    return relationship
+
+
 def structured_world_state(figures: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
     state: dict[str, Any] = {}
     scopes = set(contract["readScopes"])
@@ -247,14 +281,7 @@ def structured_world_state(figures: dict[str, Any], contract: dict[str, Any]) ->
             for node in figures.get("nodes") or []
         ]
     if "relationships" in scopes:
-        state["relationships"] = [
-            {
-                key: edge.get(key)
-                for key in ("id", "from", "to", "label", "gerichtet", "style", "versions")
-                if edge.get(key) not in (None, "", [], {})
-            }
-            for edge in figures.get("edges") or []
-        ]
+        state["relationships"] = [_structured_relationship(edge) for edge in figures.get("edges") or []]
     if "timeline" in scopes:
         state["timeline"] = [
             {
@@ -376,7 +403,9 @@ def complete_compound_proposals(
                     "to": created_reference,
                     "label": "Besitzt",
                     "directed": True,
-                    "style": "solid",
+                    "lineStyle": "solid",
+                    "relationshipKind": "general",
+                    "color": "auto",
                 }
                 if ownership
                 else {
@@ -384,7 +413,9 @@ def complete_compound_proposals(
                     "to": matches[0]["id"],
                     "label": labels.get(key or "", "Verwandt mit"),
                     "directed": True,
-                    "style": "solid",
+                    "lineStyle": "solid",
+                    "relationshipKind": "kinship" if key else "general",
+                    "color": "auto",
                 }
             )
             proposals.append({"kind": "create_relationship", "relationship": relationship})

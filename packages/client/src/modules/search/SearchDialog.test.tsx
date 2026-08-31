@@ -10,6 +10,11 @@ const manuscript = {
   ],
 };
 const figures = { nodes: [], edges: [] };
+const storyboards = {
+  boards: [{ id: "main-storyboard", title: "Main Storyboard" }],
+  nodes: [],
+  edges: [],
+};
 
 afterEach(cleanup);
 
@@ -20,6 +25,7 @@ function renderSearch(onSelect = vi.fn()) {
       <SearchDialog
         manuscript={manuscript}
         figures={figures}
+        storyboards={storyboards}
         onClose={vi.fn()}
         onWorkspace={onWorkspace}
         onSelect={onSelect}
@@ -56,5 +62,14 @@ describe("SearchDialog manuscript results", () => {
     fireEvent.keyDown(input, { key: "ArrowUp" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "c2" }));
+  });
+
+  it("opens storyboard results in the fifth workspace", () => {
+    const { onSelect, onWorkspace } = renderSearch();
+    fireEvent.change(screen.getByLabelText("Suchbegriff"), { target: { value: "Main" } });
+
+    fireEvent.click(screen.getByRole("option", { name: /Main Storyboard/ }));
+    expect(onWorkspace).toHaveBeenCalledWith("storyboard");
+    expect(onSelect).toHaveBeenCalledWith({ workspace: "storyboard", id: "main-storyboard" });
   });
 });

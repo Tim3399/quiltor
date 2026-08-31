@@ -3,4 +3,5 @@ dist
 runtime
 models
 coverage
+.pytest_cache
 *.gguf

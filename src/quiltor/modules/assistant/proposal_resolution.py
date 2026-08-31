@@ -15,6 +15,10 @@ from quiltor.domain.story_world.resolve_before_create import (
 )
 from quiltor.modules.assistant.audit import validate_proposals
 from quiltor.modules.assistant.contract import required_proposal_kinds
+from quiltor.modules.assistant.relationship_appearance import (
+    legacy_domain_style,
+    normalize_relationship_appearance,
+)
 
 
 @dataclass(frozen=True)
@@ -107,8 +111,8 @@ def _relationship_candidate(value: Any) -> dict[str, Any] | None:
         return None
     if type(value.get("directed", False)) is not bool:
         return None
-    style = value.get("style", "solid")
-    if style not in {"solid", "dashed", "blood", "gold"}:
+    appearance = normalize_relationship_appearance(value, defaults=True)
+    if appearance is None:
         return None
     label = _clean_text(value.get("label", ""), 160)
     if label is None:
@@ -118,8 +122,16 @@ def _relationship_candidate(value: Any) -> dict[str, Any] | None:
         "to": target,
         "label": label,
         "directed": value.get("directed", False),
-        "style": style,
+        **appearance,
     }
+
+
+def _domain_relationship_candidate(value: dict[str, Any]) -> dict[str, Any]:
+    """Adapt a v2 assistant candidate to the still-v1 domain resolver boundary."""
+
+    return {
+        key: value[key] for key in ("from", "to", "label", "directed") if key in value
+    } | {"style": legacy_domain_style(value)}
 
 
 def _presence_candidate(value: dict[str, Any]) -> dict[str, Any] | None:
@@ -171,8 +183,10 @@ def _safe_non_ensure(value: dict[str, Any]) -> dict[str, Any] | None:
         for key in ("active", "directed"):
             if type(patch.get(key)) is bool:
                 clean_patch[key] = patch[key]
-        if patch.get("style") in {"solid", "dashed", "blood", "gold"}:
-            clean_patch["style"] = patch["style"]
+        appearance = normalize_relationship_appearance(patch)
+        if appearance is None:
+            return None
+        clean_patch.update(appearance)
         return {
             "kind": kind,
             "relationshipId": value.get("relationshipId"),
@@ -367,11 +381,19 @@ def resolve_proposals(
                 candidate["from"], candidate["from"]
             )
             candidate["to"] = resolved_temporary_elements.get(candidate["to"], candidate["to"])
-            decision = ensure_relationship(context, candidate)
+            decision = ensure_relationship(context, _domain_relationship_candidate(candidate))
             if decision.outcome == "create" and decision.canonical is not None:
                 proposal = {
                     "kind": kind,
-                    "relationship": _relationship_candidate(decision.canonical),
+                    "relationship": _relationship_candidate(
+                        {
+                            **decision.canonical,
+                            **{
+                                key: candidate[key]
+                                for key in ("lineStyle", "relationshipKind", "color")
+                            },
+                        }
+                    ),
                 }
         elif kind == "set_presence":
             candidate = _presence_candidate(raw)

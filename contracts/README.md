@@ -19,10 +19,11 @@ schema IDs, references, versions, and every JSON fixture against its schema.
 Document-wire differential corpora use the registered `differential` role and
 are checked against their own corpus schema plus a same-contract base fixture.
 
-Unknown domain fields are deliberately accepted and preserved by the story-world
-and manuscript v1 schemas. This matches Quiltor's round-trip storage behaviour
-and permits additive evolution. Strict transport envelopes, such as the native
-bridge, require a new major contract version for an incompatible field change.
+Unknown domain fields are deliberately accepted and preserved by the story-world,
+manuscript, and storyboards v1 schemas. This matches Quiltor's round-trip storage
+behaviour and permits additive evolution. Strict transport envelopes, such as
+the native bridge, require a new major contract version for an incompatible
+field change.
 
 Contracts must not contain translated user-facing messages. Errors use stable
 codes plus structured parameters.

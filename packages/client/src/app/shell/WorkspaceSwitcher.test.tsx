@@ -21,8 +21,12 @@ describe("WorkspaceSwitcher", () => {
     expect(navigation).toHaveAttribute("data-overscroll", "contain");
     expect(navigation).toHaveAttribute("data-scrollbar", "hidden");
     expect(screen.getByRole("button", { name: "Figuren" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getAllByRole("button")).toHaveLength(5);
     fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
     expect(onChange).toHaveBeenCalledWith("timeline");
+
+    fireEvent.click(screen.getByRole("button", { name: "Storyboard" }));
+    expect(onChange).toHaveBeenLastCalledWith("storyboard");
   });
 
   it("keeps compact layout geometry local without owning scrollbar styling", () => {

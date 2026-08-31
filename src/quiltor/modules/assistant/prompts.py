@@ -28,14 +28,14 @@ Allowed proposal kinds:
 - create_element: {kind,tempId,element:{type,name,label,sub,profile}}
 - update_element: {kind,elementId,patch:{name,label,sub,profile}}
 - create_timeline_moment: {kind,tempId,moment:{title,date,note}}
-- create_relationship: {kind,relationship:{from,to,label,directed,style}}
-- set_relationship_at_moment: {kind,relationshipId,momentId,patch:{label,active,directed,style}}
+- create_relationship: {kind,relationship:{from,to,label,directed,lineStyle,relationshipKind,color}} where lineStyle is solid, dashed, or dotted; relationshipKind is general or kinship; and color is auto, ink, gold, rose, moss, or blue
+- set_relationship_at_moment: {kind,relationshipId,momentId,patch:{label,active,directed,lineStyle,relationshipKind,color}}
 - mark_deceased: {kind,elementId,momentId}
 - arrange_elements: {kind,strategy} where strategy is thematic or grid
 - set_presence: {kind,elementId,placeId,momentId?}
 When a user asks to create, add, change, mark, or propose world data, proposals MUST contain the matching structured operation. A prose claim such as "was added" without an operation is invalid. Say "prepared as a proposal", never "added".
 Example: "Lege Frostkloster als Ort an" requires {"kind":"create_element","tempId":"new:frostkloster","element":{"type":"ort","name":"Frostkloster"}}.
-Example: "Schlage eine Beziehung von elian zu seal vor" requires {"kind":"create_relationship","relationship":{"from":"elian","to":"seal","label":"Besitzt","directed":true,"style":"solid"}}.
+Example: "Schlage eine Beziehung von elian zu seal vor" requires {"kind":"create_relationship","relationship":{"from":"elian","to":"seal","label":"Besitzt","directed":true,"lineStyle":"solid","relationshipKind":"general","color":"auto"}}.
 Example: "Lege einen Zeitpunkt nach dem Prozess an" requires {"kind":"create_timeline_moment","tempId":"new:moment:frostkloster","moment":{"title":"Fund im Frostkloster"}}.
 For compound requests, emit every operation needed to fulfil the task. "Igor is Tarek's son; create Igor" requires both create_element and create_relationship. Never encode a relationship only as descriptive profile text.
 For arranging or sorting the board, use arrange_elements. Never invent timeline changes as a substitute for an unavailable operation.

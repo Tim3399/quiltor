@@ -7,7 +7,7 @@ from pathlib import Path
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -57,6 +57,64 @@ CREATE UNIQUE INDEX IF NOT EXISTS manuscript_tree_chapter_once
   ON manuscript_tree_items(chapter_id) WHERE chapter_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS manuscript_tree_folder_once
   ON manuscript_tree_items(folder_id) WHERE folder_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS storyboards (
+  id TEXT PRIMARY KEY,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  title TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS storyboards_position
+  ON storyboards(position, id);
+CREATE TABLE IF NOT EXISTS storyboard_nodes (
+  id TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  kind TEXT NOT NULL CHECK (kind IN ('note','reference','storyboard','group')),
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  width REAL CHECK (width IS NULL OR width > 0),
+  height REAL CHECK (height IS NULL OR height > 0),
+  z_index INTEGER NOT NULL DEFAULT 0,
+  text TEXT NOT NULL DEFAULT '',
+  target_kind TEXT NOT NULL DEFAULT '',
+  target_id TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  UNIQUE (board_id, id),
+  CHECK (
+    (kind='reference' AND target_kind IN ('entity','place','timeline','chapter') AND target_id<>'')
+    OR (kind='storyboard' AND target_kind='storyboard' AND target_id<>'')
+    OR (kind IN ('note','group') AND target_kind='' AND target_id='')
+  )
+);
+CREATE INDEX IF NOT EXISTS storyboard_nodes_board
+  ON storyboard_nodes(board_id, position, id);
+CREATE INDEX IF NOT EXISTS storyboard_nodes_position
+  ON storyboard_nodes(position, id);
+CREATE INDEX IF NOT EXISTS storyboard_nodes_target
+  ON storyboard_nodes(target_kind, target_id);
+CREATE TABLE IF NOT EXISTS storyboard_edges (
+  id TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  source_node_id TEXT NOT NULL,
+  target_node_id TEXT NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  FOREIGN KEY (board_id, source_node_id)
+    REFERENCES storyboard_nodes(board_id, id) ON DELETE CASCADE
+    DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY (board_id, target_node_id)
+    REFERENCES storyboard_nodes(board_id, id) ON DELETE CASCADE
+    DEFERRABLE INITIALLY DEFERRED
+);
+CREATE INDEX IF NOT EXISTS storyboard_edges_board
+  ON storyboard_edges(board_id, position, id);
+CREATE INDEX IF NOT EXISTS storyboard_edges_position
+  ON storyboard_edges(position, id);
+CREATE INDEX IF NOT EXISTS storyboard_edges_source
+  ON storyboard_edges(board_id, source_node_id);
+CREATE INDEX IF NOT EXISTS storyboard_edges_target
+  ON storyboard_edges(board_id, target_node_id);
 CREATE TABLE IF NOT EXISTS figure_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   canvas_width INTEGER NOT NULL DEFAULT 2400,

@@ -1,6 +1,6 @@
 export const tools = {
   searchCommands: "Suchen & Befehle",
-  searchPlaceholder: "Kapitel, Text, Figuren, Orte …",
+  searchPlaceholder: "Kapitel, Text, Figuren, Orte, Storyboards …",
   command: "Befehl",
   snapshotSave: "Arbeitsstand sichern",
   target: "Ziel",
@@ -52,7 +52,12 @@ export const tools = {
   switchToFigures: "Zum Figurenboard wechseln",
   switchToTimeline: "Zur Timeline wechseln",
   switchToPlaces: "Zu Orten wechseln",
+  switchToStoryboard: "Zum Storyboard wechseln",
   toggleFocus: "Fokusmodus umschalten",
   searchMatchCount: "{count} Treffer im Text",
   noSearchResults: "Keine passenden Inhalte oder Befehle gefunden.",
+  showMinimap: "Übersichtskarte einblenden",
+  hideMinimap: "Übersichtskarte ausblenden",
+  graphControlsLabel: "Kartensteuerung",
+  minimapLabel: "Übersichtskarte",
 } as const;

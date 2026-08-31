@@ -60,6 +60,10 @@ test("every visualization exception documents its narrow purpose", () => {
     assert.ok(entry.variables.length > 0);
     assert.ok(entry.rationale.length > 0);
   }
+  assert.equal(
+    directPaletteRoleAllowlist.some((entry) => entry.selector.includes("edge-blood")),
+    false,
+  );
 });
 
 test("the current product tree has no unapproved direct palette consumers", () => {

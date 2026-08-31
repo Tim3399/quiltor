@@ -1,0 +1,33 @@
+.graph-edge-color-swatch {
+  inline-size: var(--spacing-regular-tight);
+  block-size: var(--spacing-regular-tight);
+  flex: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--graph-edge-color-ink);
+}
+
+.graph-edge-color-swatch[data-edge-color="auto"] {
+  background: linear-gradient(
+    135deg,
+    var(--graph-edge-directed-stroke) 0 48%,
+    var(--paper) 48% 52%,
+    var(--graph-edge-undirected-stroke) 52% 100%
+  );
+}
+
+.graph-edge-color-swatch[data-edge-color="gold"] {
+  background: var(--graph-edge-color-gold);
+}
+
+.graph-edge-color-swatch[data-edge-color="rose"] {
+  background: var(--graph-edge-color-rose);
+}
+
+.graph-edge-color-swatch[data-edge-color="moss"] {
+  background: var(--graph-edge-color-moss);
+}
+
+.graph-edge-color-swatch[data-edge-color="blue"] {
+  background: var(--graph-edge-color-blue);
+}

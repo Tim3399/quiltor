@@ -1,4 +1,4 @@
-import { Clock3, FileText, MapPin, Users } from "lucide-react";
+import { Clock3, FileText, MapPin, PanelsTopLeft, Users } from "lucide-react";
 import { Button, ScrollArea } from "../../design";
 import { useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
@@ -13,9 +13,10 @@ const workspaces = [
   { value: "figures", label: "figures", icon: Users },
   { value: "timeline", label: "timeline", icon: Clock3 },
   { value: "places", label: "places", icon: MapPin },
+  { value: "storyboard", label: "storyboard", icon: PanelsTopLeft },
 ] as const;
 
-/** App-level navigation between Quiltors four primary workspaces. */
+/** App-level navigation between Quiltors five primary workspaces. */
 export function WorkspaceSwitcher({ value, onChange }: WorkspaceSwitcherProps) {
   const { t } = useI18n();
 

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import manuscriptFixture from "../../../../../contracts/fixtures/application-api/manuscript/wire.v1.json";
+import storyboardsFixture from "../../../../../contracts/fixtures/application-api/storyboards/wire.v1.json";
 import revisionConflict from "../../../../../contracts/fixtures/application-api/structured-error/revision-conflict.v1.json";
 import type { ApplicationGateway } from "../application";
 import { createPlatformGateway } from "../createPlatformGateway";
@@ -65,6 +66,34 @@ describe("document HTTP v1 boundary", () => {
     );
     expect(body).toEqual(manuscriptFixture);
     expect(body.payload).not.toHaveProperty("worldId");
+  });
+
+  it("loads and saves Storyboards through their own revision channel", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(storyboardsFixture, { ETag: '"3"' }))
+      .mockResolvedValueOnce(response(manuscriptFixture, { ETag: '"7"' }))
+      .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 4 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const storyboards = await application.storyboards.load();
+    await application.manuscript.load();
+    await application.storyboards.save(storyboards);
+
+    const [url, init] = fetchMock.mock.calls[2] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(storyboards.boards[0]).toMatchObject({
+      id: "main-storyboard",
+      title: "Main Storyboard",
+    });
+    expect(url).toBe(`/api/storyboards?world=${WORLD_ID}`);
+    expect(init.headers).toEqual(
+      expect.objectContaining({
+        "Content-Type": "application/json",
+        "If-Match": '"3"',
+      }),
+    );
+    expect(body).toEqual(storyboardsFixture);
   });
 
   it("maps malformed JSON and revision disagreement to a stable application code", async () => {

@@ -1,0 +1,109 @@
+{
+  "contract": "quiltor.storyboards",
+  "version": 1,
+  "revision": 3,
+  "payload": {
+    "boards": [
+      {
+        "id": "main-storyboard",
+        "title": "Main Storyboard",
+        "extensionColor": "paper"
+      },
+      { "id": "plot-board", "title": "Plot alternatives" }
+    ],
+    "nodes": [
+      {
+        "id": "note-opening",
+        "boardId": "main-storyboard",
+        "kind": "note",
+        "x": 120.5,
+        "y": -48,
+        "width": 320,
+        "height": 220,
+        "zIndex": 2,
+        "text": "Mara reaches the archive.",
+        "noteReferences": [
+          {
+            "id": "note-ref-mara",
+            "target": { "kind": "entity", "id": "mara" },
+            "from": 0,
+            "to": 4,
+            "surface": "Mara"
+          }
+        ]
+      },
+      {
+        "id": "reference-mara",
+        "boardId": "main-storyboard",
+        "kind": "reference",
+        "x": 520,
+        "y": 40,
+        "text": "Mara protects the archive.",
+        "noteReferences": [
+          {
+            "id": "reference-note-ref-mara",
+            "target": { "kind": "entity", "id": "mara" },
+            "from": 0,
+            "to": 4,
+            "surface": "Mara"
+          }
+        ],
+        "target": { "kind": "entity", "id": "mara", "extensionLabel": "Mara" },
+        "extensionVariant": "portrait"
+      },
+      {
+        "id": "board-link-plot",
+        "boardId": "main-storyboard",
+        "kind": "storyboard",
+        "x": 520,
+        "y": 280,
+        "text": "Plot alternatives.",
+        "noteReferences": [
+          {
+            "id": "storyboard-note-ref-plot",
+            "target": { "kind": "storyboard", "id": "plot-board" },
+            "from": 0,
+            "to": 4,
+            "surface": "Plot"
+          }
+        ],
+        "target": { "kind": "storyboard", "id": "plot-board" }
+      },
+      {
+        "id": "group-opening",
+        "boardId": "main-storyboard",
+        "kind": "group",
+        "x": 60,
+        "y": -90,
+        "width": 780,
+        "height": 520,
+        "zIndex": -1,
+        "label": "Opening",
+        "text": "Opening sequence.",
+        "noteReferences": [
+          {
+            "id": "group-note-ref-opening",
+            "target": { "kind": "chapter", "id": "chapter-opening" },
+            "from": 0,
+            "to": 7,
+            "surface": "Opening"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-note-to-mara",
+        "boardId": "main-storyboard",
+        "sourceNodeId": "note-opening",
+        "targetNodeId": "reference-mara",
+        "label": "mentions",
+        "directed": true,
+        "color": "gold",
+        "lineStyle": "dotted",
+        "extensionStyle": "thread"
+      }
+    ],
+    "extension": { "source": "contract-fixture" }
+  }
+}

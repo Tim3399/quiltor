@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { cardKindClassName } from "../../graph";
 import { presenceFieldEditor } from "../figures/presence";
 import type { FigureNode, PresenceEntry, TimelineMoment } from "../model";
 import "./PresenceBoard.css";
@@ -49,7 +50,7 @@ export function PresenceBoard({
             <li key={node.id}>
               <Button
                 draggable
-                className={`presence-chip type-${node.type} ${selectedChip === node.id ? "selected" : ""}`}
+                className={`presence-chip ${cardKindClassName(node.type ?? "person")} ${selectedChip === node.id ? "selected" : ""}`}
                 aria-pressed={selectedChip === node.id}
                 onDragStart={(event) =>
                   event.dataTransfer.setData("application/x-quiltor-figure", node.id)
@@ -101,7 +102,10 @@ export function PresenceBoard({
                 <strong className="presence-lane-heading">{lane.name}</strong>
                 <span className="presence-lane-items">
                   {occupants.map((node) => (
-                    <span key={node.id} className={`presence-chip-mini type-${node.type}`}>
+                    <span
+                      key={node.id}
+                      className={`presence-chip-mini ${cardKindClassName(node.type ?? "person")}`}
+                    >
                       {node.name}
                     </span>
                   ))}

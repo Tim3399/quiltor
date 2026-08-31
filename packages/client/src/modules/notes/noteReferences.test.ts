@@ -17,6 +17,16 @@ const candidate = (
   detail: "Figur",
   keywords: [],
   workspace: target.kind === "place" ? "places" : target.kind === "chapter" ? "text" : "figures",
+  cardKind:
+    target.kind === "place"
+      ? "ort"
+      : target.kind === "chapter"
+        ? "chapter"
+        : target.kind === "timeline"
+          ? "timeline"
+          : target.kind === "storyboard"
+            ? "storyboard"
+            : "person",
 });
 
 const reference = (

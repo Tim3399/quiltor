@@ -3,10 +3,10 @@
 The application API is independent of its transport. HTTP and native hosts
 implement the same operation names and response semantics.
 
-`GET` and `PUT` on `/api/state` and `/api/manuscript` exchange the explicit
-`quiltor.story-world` or `quiltor.manuscript` v1 wire envelope. Persistence keeps
-the payload itself unchanged; the HTTP producer wraps after loading and the
-consumer unwraps before validation and storage. `contract`, `version`, and
+`GET` and `PUT` on document routes exchange the explicit `quiltor.story-world`,
+`quiltor.manuscript`, or `quiltor.storyboards` v1 wire envelope. Persistence
+keeps the payload itself unchanged; the HTTP producer wraps after loading and
+the consumer unwraps before validation and storage. `contract`, `version`, and
 `payload` are required; an absent `revision` supports read-only and
 non-concurrent transports. Explicit `null` is not absence and is rejected, as
 are explicit nulls for every other non-nullable optional property.
@@ -86,3 +86,17 @@ classify a statement as `objective_fact` before the current world proposal kinds
 may be applied. Narrator claims, character knowledge/belief/claims, and unresolved
 statements remain non-canon review outcomes until generalized epistemic state can
 represent them without information loss.
+
+The `quiltor.storyboards` document is an independent, non-canon planning
+aggregate. Its flat `boards`, `nodes`, and `edges` arrays keep one revision for
+all boards while preserving explicit board ownership on every canvas record.
+Node kinds are limited to `note`, `reference`, `storyboard`, and `group` in v1.
+Reference nodes point to existing world-object IDs, board-link nodes point to a
+board in the same document, and edges may connect only nodes on their declared
+board. Cycles between board links are valid because navigation uses a stack,
+not a persisted parent tree. The registered default fixture pins one empty
+`Main Storyboard`; this planning state never implies a Story World mutation.
+Storyboard-owned board, node, edge, and note-reference record IDs use the
+document's compact generated-ID limit. A reference target ID instead preserves
+the complete non-empty ID accepted by its source document; it is not truncated,
+trimmed, or otherwise normalized at this boundary.

@@ -6,6 +6,7 @@ import {
   createDocumentsHttpGateway,
   createManuscriptHttpGateway,
   createStoryWorldHttpGateway,
+  createStoryboardsHttpGateway,
 } from "./documents";
 import { createHistoryHttpGateway } from "./history";
 import { createIdentityHttpGateway } from "./identity";
@@ -22,6 +23,7 @@ export function createHttpApplicationGateway(platform: PlatformGateway): Applica
     worlds: createWorldsHttpGateway(state),
     identity: createIdentityHttpGateway(),
     storyWorld: createStoryWorldHttpGateway(state),
+    storyboards: createStoryboardsHttpGateway(state),
     manuscript: createManuscriptHttpGateway(state),
     backup: createBackupHttpGateway(state),
     history: createHistoryHttpGateway(state),

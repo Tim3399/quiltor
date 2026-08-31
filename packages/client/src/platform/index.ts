@@ -29,6 +29,7 @@ export type {
   ManuscriptGateway,
   MetadataGateway,
   StoryWorldGateway,
+  StoryboardsGateway,
   WorldsGateway,
   WritingAssistanceGateway,
   WritingAssistanceLookupMode,

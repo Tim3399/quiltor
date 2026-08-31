@@ -257,21 +257,6 @@ export function FigureCardPanel({
         value={figure.sub || ""}
         onChange={(event) => onPatch({ sub: event.target.value })}
       />
-      <div className="figure-card-select-field">
-        <span>{t("accent")}</span>
-        <ListboxSelect<NonNullable<FigureNode["accent"]>>
-          className="figure-card-select"
-          label={t("accent")}
-          value={figure.accent || "ink"}
-          options={[
-            { value: "ink", label: t("neutral") },
-            { value: "gold", label: t("gold") },
-            { value: "rose", label: t("rose") },
-            { value: "moss", label: t("green") },
-          ]}
-          onChange={(accent) => onPatch({ accent })}
-        />
-      </div>
       <NodePriorityActions
         important={!!figure.important}
         pinned={!!figure.pinned}

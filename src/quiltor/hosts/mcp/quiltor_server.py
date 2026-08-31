@@ -22,6 +22,12 @@ from quiltor.bootstrap import (
     build_mcp_application_services,
     build_observability,
 )
+from quiltor.modules.assistant.relationship_appearance import (
+    apply_relationship_appearance,
+    legacy_domain_style,
+    normalize_relationship_appearance,
+    relationship_appearance_at,
+)
 
 OBSERVABILITY = build_observability()
 _APPLICATION = build_mcp_application_services(OBSERVABILITY)
@@ -191,7 +197,13 @@ _TOOL_DOCUMENTATION = [
                 "to": {"type": "string"},
                 "label": {"type": "string"},
                 "directed": {"type": "boolean"},
-                "style": {"enum": ["solid", "dashed", "blood", "gold"]},
+                "lineStyle": {"enum": ["solid", "dashed", "dotted"]},
+                "relationshipKind": {"enum": ["general", "kinship"]},
+                "color": {"enum": ["auto", "ink", "gold", "rose", "moss", "blue"]},
+                "style": {
+                    "enum": ["solid", "dashed", "blood", "gold"],
+                    "deprecated": True,
+                },
             },
             "additionalProperties": False,
         },
@@ -224,7 +236,13 @@ _TOOL_DOCUMENTATION = [
                 "label": {"type": "string"},
                 "active": {"type": "boolean"},
                 "directed": {"type": "boolean"},
-                "style": {"enum": ["solid", "dashed", "blood", "gold"]},
+                "lineStyle": {"enum": ["solid", "dashed", "dotted"]},
+                "relationshipKind": {"enum": ["general", "kinship"]},
+                "color": {"enum": ["auto", "ink", "gold", "rose", "moss", "blue"]},
+                "style": {
+                    "enum": ["solid", "dashed", "blood", "gold"],
+                    "deprecated": True,
+                },
             },
             "additionalProperties": False,
         },
@@ -400,11 +418,14 @@ def _resolved_element(
 def _relationship_state_at(
     edge: dict[str, Any], timeline: list[dict[str, Any]], moment_id: str
 ) -> dict[str, Any]:
+    appearance = relationship_appearance_at(edge)
+    if appearance is None:
+        appearance = {"lineStyle": "solid", "relationshipKind": "general", "color": "auto"}
     state = {
         "label": edge.get("label", ""),
         "active": edge.get("active", True),
         "directed": edge.get("gerichtet", edge.get("directed", False)),
-        "style": edge.get("style", "solid"),
+        **appearance,
     }
     active_index = next(
         index for index, moment in enumerate(timeline) if moment.get("id") == moment_id
@@ -424,11 +445,14 @@ def _relationship_state_at(
         key=lambda version: moment_indexes.get(version.get("momentId"), active_index + 1),
     )
     for version in versions:
-        for key in ("label", "active", "style"):
+        for key in ("label", "active"):
             if key in version:
                 state[key] = version[key]
         if "gerichtet" in version or "directed" in version:
             state["directed"] = version.get("gerichtet", version.get("directed"))
+        next_appearance = apply_relationship_appearance(state, version)
+        if next_appearance is not None:
+            state.update(next_appearance)
     return state
 
 
@@ -505,11 +529,27 @@ def _proposal(
     if kind == "create_relationship":
         candidate = {
             key: arguments[key]
-            for key in ("from", "to", "label", "directed", "style")
+            for key in (
+                "from",
+                "to",
+                "label",
+                "directed",
+                "lineStyle",
+                "relationshipKind",
+                "color",
+                "style",
+            )
             if key in arguments
         }
+        appearance = normalize_relationship_appearance(candidate, defaults=True)
+        if appearance is None:
+            raise ValueError("The relationship appearance is invalid.")
+        domain_candidate = {
+            key: candidate[key] for key in ("from", "to", "label", "directed") if key in candidate
+        }
+        domain_candidate["style"] = legacy_domain_style(candidate)
         decision = _checked_decision(
-            STORY_WORLD.ensure_relationship(figures, candidate, world_revision=world_revision)
+            STORY_WORLD.ensure_relationship(figures, domain_candidate, world_revision=world_revision)
         )
         if decision["outcome"] in {"existing", "unchanged"}:
             return _mutation_result(decision)
@@ -518,9 +558,10 @@ def _proposal(
         canonical = decision["canonical"] or {}
         relationship = {
             key: canonical[key]
-            for key in ("from", "to", "label", "directed", "style")
+            for key in ("from", "to", "label", "directed")
             if key in canonical
         }
+        relationship.update(appearance)
         return _mutation_result(decision, {"kind": kind, "relationship": relationship})
 
     if kind == "create_timeline_moment":
@@ -578,9 +619,23 @@ def _proposal(
             raise ValueError("Relationship and moment must already exist by exact ID.")
         patch = {
             key: arguments[key]
-            for key in ("label", "active", "directed", "style")
+            for key in (
+                "label",
+                "active",
+                "directed",
+                "lineStyle",
+                "relationshipKind",
+                "color",
+                "style",
+            )
             if key in arguments
         }
+        appearance = normalize_relationship_appearance(patch)
+        if appearance is None:
+            raise ValueError("The relationship appearance is invalid.")
+        patch = {
+            key: patch[key] for key in ("label", "active", "directed") if key in patch
+        } | appearance
         current = _relationship_state_at(relationship, timeline, arguments["momentId"])
         satisfied = all(current.get(key) == value for key, value in patch.items())
         decision = _local_decision(

@@ -28,7 +28,7 @@ export function useAutosave<T>(
     inFlightSnapshot.current = snapshot;
     setPhase("saving");
     setError("");
-    chain.current = chain.current.then(() => save(snapshot));
+    chain.current = chain.current.catch(() => undefined).then(() => save(snapshot));
     try {
       await chain.current;
       if (latest.current === snapshot) {
@@ -42,6 +42,8 @@ export function useAutosave<T>(
       if (inFlightSnapshot.current === snapshot) inFlightSnapshot.current = null;
     }
   }, [save, t]);
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
 
   useEffect(() => {
     if (!value) return;
@@ -52,7 +54,7 @@ export function useAutosave<T>(
     dirty.current = true;
     setPhase("dirty");
     clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void flush(), delay);
+    timer.current = window.setTimeout(() => void flushRef.current(), delay);
     return () => clearTimeout(timer.current);
   }, [value, delay]);
 

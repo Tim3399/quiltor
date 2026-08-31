@@ -23,8 +23,106 @@ describe("assistant proposals", () => {
       t,
     );
     expect(result.nodes.map((node) => node.name)).toEqual(["Ada", "Bela"]);
-    expect(result.edges[0]).toMatchObject({ label: "Misstrauen", gerichtet: false });
+    expect(result.edges[0]).toMatchObject({
+      label: "Misstrauen",
+      gerichtet: false,
+      lineStyle: "solid",
+      relationshipKind: "general",
+      color: "auto",
+    });
+    expect(result.edges[0]).not.toHaveProperty("style");
     expect(result.nodes[1].diedMomentId).toBe(result.timeline?.[0].id);
+  });
+
+  it("writes modern relationship appearance and migrates legacy assistant styles", () => {
+    const base: FigureState = {
+      nodes: [
+        { id: "a", x: 0, y: 0, name: "Ada", type: "person" },
+        { id: "b", x: 0, y: 0, name: "Bela", type: "person" },
+      ],
+      edges: [],
+    };
+    const modern = applyAssistantProposals(
+      base,
+      [
+        {
+          kind: "create_relationship",
+          relationship: {
+            from: "a",
+            to: "b",
+            lineStyle: "dotted",
+            relationshipKind: "kinship",
+            color: "rose",
+          },
+        },
+      ],
+      t,
+    );
+    expect(modern.edges[0]).toMatchObject({
+      lineStyle: "dotted",
+      relationshipKind: "kinship",
+      color: "rose",
+    });
+    expect(modern.edges[0]).not.toHaveProperty("style");
+
+    const legacy = applyAssistantProposals(
+      base,
+      [{ kind: "create_relationship", relationship: { from: "a", to: "b", style: "blood" } }],
+      t,
+    );
+    expect(legacy.edges[0]).toMatchObject({
+      lineStyle: "solid",
+      relationshipKind: "kinship",
+      color: "auto",
+    });
+    expect(legacy.edges[0]).not.toHaveProperty("style");
+  });
+
+  it("preserves resolved modern appearance in temporal relationship proposals", () => {
+    const state: FigureState = {
+      nodes: [],
+      edges: [
+        {
+          id: "bond",
+          from: "a",
+          to: "b",
+          lineStyle: "solid",
+          relationshipKind: "general",
+          color: "rose",
+          versions: [
+            {
+              momentId: "early",
+              active: true,
+              lineStyle: "dashed",
+              relationshipKind: "kinship",
+              color: "blue",
+            },
+          ],
+        },
+      ],
+      timeline: [
+        { id: "early", title: "Früh" },
+        { id: "late", title: "Spät" },
+      ],
+    };
+    const result = applyAssistantProposals(
+      state,
+      [
+        {
+          kind: "set_relationship_at_moment",
+          relationshipId: "bond",
+          momentId: "late",
+          patch: { label: "Familie" },
+        },
+      ],
+      t,
+    );
+    expect(result.edges[0].versions?.find((version) => version.momentId === "late")).toMatchObject({
+      label: "Familie",
+      lineStyle: "dashed",
+      relationshipKind: "kinship",
+      color: "blue",
+    });
   });
 
   it("arranges connected thematic groups without losing elements or relationships", () => {

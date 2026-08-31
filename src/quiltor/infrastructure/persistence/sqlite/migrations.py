@@ -11,6 +11,7 @@ from quiltor.domain.story_world.profile import (
     legacy_extra_field_id,
     legacy_profile_field_id,
 )
+from quiltor.domain.storyboard import DEFAULT_STORYBOARD_ID, DEFAULT_STORYBOARD_TITLE
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.schema import SCHEMA_VERSION
 from quiltor.infrastructure.persistence.sqlite.temporal import migrate_legacy_state
@@ -22,6 +23,8 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
 
     database.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('manuscript_revision','0')")
     database.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('figures_revision','0')")
+    database.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('storyboards_revision','0')")
+    database.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('storyboards_extra_json','{}')")
     if version < 2:
         database.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('last_restore_at','')")
     if version < 3:
@@ -219,6 +222,19 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
                     )
                 database.execute("DROP TABLE profile_fields")
                 database.execute("ALTER TABLE profile_fields_v10 RENAME TO profile_fields")
+    if version < 11:
+        storyboards_exist = database.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='storyboards'"
+        ).fetchone()
+        if storyboards_exist:
+            database.execute(
+                """
+                INSERT INTO storyboards(id,position,title,extra_json)
+                SELECT ?,0,?,'{}'
+                WHERE NOT EXISTS (SELECT 1 FROM storyboards)
+                """,
+                (DEFAULT_STORYBOARD_ID, DEFAULT_STORYBOARD_TITLE),
+            )
     database.execute(
         "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",
         (str(SCHEMA_VERSION),),

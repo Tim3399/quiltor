@@ -5,6 +5,7 @@ import {
   connectionKind,
   figureIsDeceased,
   patchRelationship,
+  relationshipConflicts,
   relationshipHandles,
   relationshipKey,
   relationshipLabelEditor,
@@ -89,6 +90,125 @@ describe("relationship timeline", () => {
     expect(resolveRelationship(changed, timeline, "betrayal").label).toBe("Feinde");
   });
 
+  it("inherits and changes an edge color only from the selected moment onward", () => {
+    const edge: FigureEdge = {
+      id: "e1",
+      from: "a",
+      to: "b",
+      color: "rose",
+      versions: [{ momentId: "betrayal", color: "blue", active: true }],
+    };
+
+    const inherited = patchRelationship(edge, timeline, "after", { label: "Später" });
+    expect(resolveRelationship(inherited, timeline, "before").color).toBe("rose");
+    expect(resolveRelationship(inherited, timeline, "betrayal").color).toBe("blue");
+    expect(resolveRelationship(inherited, timeline, "after").color).toBe("blue");
+
+    const changed = patchRelationship(edge, timeline, "after", { color: "gold" });
+    expect(resolveRelationship(changed, timeline, "betrayal").color).toBe("blue");
+    expect(resolveRelationship(changed, timeline, "after").color).toBe("gold");
+  });
+
+  it("inherits line presentation and relationship meaning independently over time", () => {
+    const edge: FigureEdge = {
+      id: "e1",
+      from: "a",
+      to: "b",
+      lineStyle: "dotted",
+      relationshipKind: "kinship",
+      versions: [
+        {
+          momentId: "betrayal",
+          lineStyle: "dashed",
+          relationshipKind: "general",
+          active: true,
+        },
+      ],
+    };
+
+    const inherited = patchRelationship(edge, timeline, "after", { label: "Später" });
+    expect(resolveRelationship(inherited, timeline, "before")).toMatchObject({
+      lineStyle: "dotted",
+      relationshipKind: "kinship",
+    });
+    expect(resolveRelationship(inherited, timeline, "after")).toMatchObject({
+      lineStyle: "dashed",
+      relationshipKind: "general",
+    });
+
+    const changed = patchRelationship(edge, timeline, "after", {
+      lineStyle: "solid",
+      relationshipKind: "kinship",
+    });
+    expect(resolveRelationship(changed, timeline, "betrayal")).toMatchObject({
+      lineStyle: "dashed",
+      relationshipKind: "general",
+    });
+    expect(resolveRelationship(changed, timeline, "after")).toMatchObject({
+      lineStyle: "solid",
+      relationshipKind: "kinship",
+    });
+  });
+
+  it("migrates every legacy style dimension when a modern appearance field is edited", () => {
+    const kinship = patchRelationship(
+      { id: "blood", from: "a", to: "b", style: "blood" },
+      timeline,
+      null,
+      { lineStyle: "dotted" },
+    );
+    expect(kinship).toMatchObject({
+      lineStyle: "dotted",
+      relationshipKind: "kinship",
+      color: "auto",
+    });
+    expect(kinship).not.toHaveProperty("style");
+
+    const dashed = patchRelationship(
+      { id: "dashed", from: "a", to: "b", style: "dashed" },
+      timeline,
+      null,
+      { relationshipKind: "general" },
+    );
+    expect(dashed).toMatchObject({
+      lineStyle: "dashed",
+      relationshipKind: "general",
+      color: "auto",
+    });
+    expect(dashed).not.toHaveProperty("style");
+
+    const gold = patchRelationship(
+      { id: "gold", from: "a", to: "b", style: "gold" },
+      timeline,
+      null,
+      { lineStyle: "solid" },
+    );
+    expect(gold).toMatchObject({
+      lineStyle: "solid",
+      relationshipKind: "general",
+      color: "gold",
+    });
+    expect(gold).not.toHaveProperty("style");
+  });
+
+  it("materializes legacy gold as a modern color in new temporal states", () => {
+    const changed = patchRelationship(
+      { id: "gold", from: "a", to: "b", style: "gold" },
+      timeline,
+      "betrayal",
+      { label: "Später" },
+    );
+
+    expect(changed.versions?.find((version) => version.momentId === "betrayal")).toMatchObject({
+      lineStyle: "solid",
+      relationshipKind: "general",
+      color: "gold",
+    });
+    expect(changed.versions?.find((version) => version.momentId === "betrayal")).not.toHaveProperty(
+      "style",
+    );
+  });
+
   it("inherits the previous label when the current timeline text is deleted", () => {
     const edge: FigureEdge = {
       id: "e1",
@@ -123,6 +243,47 @@ describe("relationship timeline", () => {
     });
     expect(resolveRelationship(changed, timeline, "after")).toMatchObject({ from: "b", to: "a" });
     expect(changed.versions).toHaveLength(1);
+  });
+
+  it("detects duplicates against the resolved relationship state at the selected moment", () => {
+    const edges: FigureEdge[] = [
+      {
+        id: "edited",
+        from: "a",
+        to: "b",
+        gerichtet: true,
+        versions: [{ momentId: "betrayal", from: "b", to: "a", gerichtet: true, active: true }],
+      },
+      {
+        id: "other",
+        from: "c",
+        to: "b",
+        gerichtet: true,
+        versions: [{ momentId: "betrayal", from: "a", to: "b", gerichtet: true, active: true }],
+      },
+      {
+        id: "inactive",
+        from: "b",
+        to: "a",
+        gerichtet: true,
+        active: false,
+      },
+    ];
+
+    expect(
+      relationshipConflicts(edges, timeline, "betrayal", "edited", {
+        from: "a",
+        to: "b",
+        gerichtet: true,
+      }),
+    ).toBe(true);
+    expect(
+      relationshipConflicts(edges, timeline, "betrayal", "edited", {
+        from: "b",
+        to: "a",
+        gerichtet: true,
+      }),
+    ).toBe(false);
   });
 
   it("preserves a reversed direction through later partial versions", () => {

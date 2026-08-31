@@ -1,8 +1,9 @@
-import { ConnectionMode } from "@xyflow/react";
+import { ConnectionLineType, ConnectionMode } from "@xyflow/react";
 import { Link2, Plus, UserRound } from "lucide-react";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { Button, EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { graphRelationshipEdgeTypes, positionGraphRelationshipEdgeLabels } from "../../graph";
 import { ModeBanner } from "../ModeBanner";
 import { StoryGraphCanvas } from "../StoryGraphCanvas";
 import {
@@ -22,6 +23,7 @@ export type FigureCanvasProps = {
   playing: boolean;
   onCancelConnecting: () => void;
   onSelectNode: (id: string) => void;
+  onSelectEdge: (id: string) => void;
   onOpenNodeMenu: (
     node: FigureFlowNode,
     x: number,
@@ -29,6 +31,7 @@ export type FigureCanvasProps = {
     trigger?: HTMLElement | null,
   ) => void;
   onClearSelection: () => void;
+  edgeInspector?: ReactNode;
   children?: ReactNode;
 };
 
@@ -38,12 +41,18 @@ export function FigureCanvas({
   playing,
   onCancelConnecting,
   onSelectNode,
+  onSelectEdge,
   onOpenNodeMenu,
   onClearSelection,
+  edgeInspector,
   children,
 }: FigureCanvasProps) {
   const { t } = useI18n();
   const { nodes, edges, zoomTier } = controller;
+  const positionedEdges = useMemo(
+    () => positionGraphRelationshipEdgeLabels(nodes, edges, { onLabelClick: onSelectEdge }),
+    [edges, nodes, onSelectEdge],
+  );
   const pendingTouch = useRef<{
     timer: number;
     trigger: HTMLElement;
@@ -133,9 +142,9 @@ export function FigureCanvas({
   return (
     <StoryGraphCanvas
       nodes={nodes}
-      edges={edges}
+      edges={positionedEdges}
       zoomTier={zoomTier}
-      className={`${children ? "has-timeline" : ""} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
+      className={`graph-edge-surface ${children ? "has-timeline" : ""} ${edgeInspector ? "has-edge-inspector" : ""} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
       showGrid={controller.snapToGrid}
       gridSize={GRID_SIZE}
       overlay={
@@ -147,10 +156,17 @@ export function FigureCanvas({
       }
       flowProps={{
         nodeTypes: figureNodeTypes,
+        edgeTypes: graphRelationshipEdgeTypes,
         connectionMode: ConnectionMode.Loose,
+        connectionLineType: ConnectionLineType.SmoothStep,
+        defaultEdgeOptions: { type: "smoothstep" },
         onInit: controller.onInit,
         onMove: (_, viewport) => controller.onMove(viewport),
         onNodeClick: (_, node: FigureFlowNode) => onSelectNode(node.id),
+        onEdgeClick: (_, edge) => {
+          if ((edge.data as { kind?: string } | undefined)?.kind !== "relationship") return;
+          onSelectEdge(edge.id);
+        },
         onNodeContextMenu: (event, node) => {
           event.preventDefault();
           const trigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
@@ -176,6 +192,7 @@ export function FigureCanvas({
         nodeComponent: FigureMiniMapNode,
         nodeColor: (node) => minimapColorForKind((node.data as FigureCardData).figure.type),
       }}
+      flowChildren={edgeInspector}
     >
       {!nodes.length && (
         <EmptyState

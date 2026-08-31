@@ -1,0 +1,404 @@
+{
+  "contract": "application.storyboards-wire",
+  "version": 1,
+  "baseFixture": "fixtures/application-api/storyboards/wire.v1.json",
+  "optionalPresence": [
+    { "id": "revision", "path": "/revision", "absent": "accept", "null": "reject" },
+    {
+      "id": "node-width",
+      "path": "/payload/nodes/0/width",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "node-height",
+      "path": "/payload/nodes/0/height",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "node-z-index",
+      "path": "/payload/nodes/0/zIndex",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "note-references",
+      "path": "/payload/nodes/0/noteReferences",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "reference-node-text",
+      "path": "/payload/nodes/1/text",
+      "alsoRemove": ["/payload/nodes/1/noteReferences"],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "reference-node-note-references",
+      "path": "/payload/nodes/1/noteReferences",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "storyboard-node-text",
+      "path": "/payload/nodes/2/text",
+      "alsoRemove": ["/payload/nodes/2/noteReferences"],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "storyboard-node-note-references",
+      "path": "/payload/nodes/2/noteReferences",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "group-node-text",
+      "path": "/payload/nodes/3/text",
+      "alsoRemove": ["/payload/nodes/3/noteReferences"],
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "group-node-note-references",
+      "path": "/payload/nodes/3/noteReferences",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "node-label",
+      "path": "/payload/nodes/3/label",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "edge-label",
+      "path": "/payload/edges/0/label",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "edge-line-style",
+      "path": "/payload/edges/0/lineStyle",
+      "absent": "accept",
+      "null": "reject"
+    }
+  ],
+  "cases": [
+    {
+      "id": "revision-integral-float",
+      "operation": "set",
+      "path": "/revision",
+      "value": 3.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "revision-nonintegral",
+      "operation": "set",
+      "path": "/revision",
+      "value": 3.5,
+      "expect": "reject"
+    },
+    {
+      "id": "revision-bool-is-not-integer",
+      "operation": "set",
+      "path": "/revision",
+      "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "revision-max-safe",
+      "operation": "set",
+      "path": "/revision",
+      "value": 9007199254740991,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "revision-above-max-safe",
+      "operation": "set",
+      "path": "/revision",
+      "value": 9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "node-z-index-min-safe",
+      "operation": "set",
+      "path": "/payload/nodes/0/zIndex",
+      "value": -9007199254740991,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "node-z-index-below-min-safe",
+      "operation": "set",
+      "path": "/payload/nodes/0/zIndex",
+      "value": -9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "coordinate-max-safe",
+      "operation": "set",
+      "path": "/payload/nodes/0/x",
+      "value": 9007199254740991,
+      "expect": "accept"
+    },
+    {
+      "id": "coordinate-above-max-safe",
+      "operation": "set",
+      "path": "/payload/nodes/0/x",
+      "value": 9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "coordinate-nan",
+      "operation": "set",
+      "path": "/payload/nodes/0/y",
+      "value": { "$special": "nan" },
+      "expect": "reject"
+    },
+    {
+      "id": "coordinate-infinity",
+      "operation": "set",
+      "path": "/payload/nodes/0/y",
+      "value": { "$special": "infinity" },
+      "expect": "reject"
+    },
+    {
+      "id": "width-must-be-positive",
+      "operation": "set",
+      "path": "/payload/nodes/0/width",
+      "value": 0,
+      "expect": "reject"
+    },
+    {
+      "id": "duplicate-board-id",
+      "operation": "set",
+      "path": "/payload/boards/1/id",
+      "value": "main-storyboard",
+      "expect": "reject"
+    },
+    {
+      "id": "duplicate-node-id",
+      "operation": "set",
+      "path": "/payload/nodes/1/id",
+      "value": "note-opening",
+      "expect": "reject"
+    },
+    {
+      "id": "duplicate-edge-id",
+      "operation": "set",
+      "path": "/payload/edges",
+      "value": [
+        {
+          "id": "edge-note-to-mara",
+          "boardId": "main-storyboard",
+          "sourceNodeId": "note-opening",
+          "targetNodeId": "reference-mara"
+        },
+        {
+          "id": "edge-note-to-mara",
+          "boardId": "main-storyboard",
+          "sourceNodeId": "reference-mara",
+          "targetNodeId": "note-opening"
+        }
+      ],
+      "expect": "reject"
+    },
+    {
+      "id": "node-board-must-exist",
+      "operation": "set",
+      "path": "/payload/nodes/0/boardId",
+      "value": "missing-board",
+      "expect": "reject"
+    },
+    {
+      "id": "storyboard-target-must-exist",
+      "operation": "set",
+      "path": "/payload/nodes/2/target/id",
+      "value": "missing-board",
+      "expect": "reject"
+    },
+    {
+      "id": "reference-node-cannot-target-board",
+      "operation": "set",
+      "path": "/payload/nodes/1/target/kind",
+      "value": "storyboard",
+      "expect": "reject"
+    },
+    {
+      "id": "edge-board-must-exist",
+      "operation": "set",
+      "path": "/payload/edges/0/boardId",
+      "value": "missing-board",
+      "expect": "reject"
+    },
+    {
+      "id": "edge-endpoint-must-exist",
+      "operation": "set",
+      "path": "/payload/edges/0/targetNodeId",
+      "value": "missing-node",
+      "expect": "reject"
+    },
+    {
+      "id": "edge-endpoint-must-share-board",
+      "operation": "set",
+      "path": "/payload/nodes/1/boardId",
+      "value": "plot-board",
+      "expect": "reject"
+    },
+    {
+      "id": "note-target-is-forbidden",
+      "operation": "set",
+      "path": "/payload/nodes/0/target",
+      "value": { "kind": "entity", "id": "mara" },
+      "expect": "reject"
+    },
+    {
+      "id": "group-needs-width",
+      "operation": "remove",
+      "path": "/payload/nodes/3/width",
+      "expect": "reject"
+    },
+    {
+      "id": "id-leading-whitespace",
+      "operation": "set",
+      "path": "/payload/nodes/0/id",
+      "value": " note-opening",
+      "expect": "reject"
+    },
+    {
+      "id": "external-target-id-over-500",
+      "operation": "set",
+      "path": "/payload/nodes/1/target/id",
+      "value": { "$special": "astral", "count": 501 },
+      "expect": "accept"
+    },
+    {
+      "id": "external-target-id-preserves-whitespace",
+      "operation": "set",
+      "path": "/payload/nodes/1/target/id",
+      "value": " mara",
+      "expect": "accept"
+    },
+    {
+      "id": "owned-edge-id-above-max",
+      "operation": "set",
+      "path": "/payload/edges/0/id",
+      "value": { "$special": "astral", "count": 501 },
+      "expect": "reject"
+    },
+    {
+      "id": "note-text-empty",
+      "operation": "set",
+      "path": "/payload/nodes/0/text",
+      "value": "",
+      "expect": "reject"
+    },
+    {
+      "id": "note-text-absent",
+      "operation": "remove",
+      "path": "/payload/nodes/0/text",
+      "expect": "reject"
+    },
+    {
+      "id": "note-target-null",
+      "operation": "set",
+      "path": "/payload/nodes/0/target",
+      "value": null,
+      "expect": "reject"
+    },
+    {
+      "id": "reference-note-surface-must-match-text",
+      "operation": "set",
+      "path": "/payload/nodes/1/noteReferences/0/surface",
+      "value": "Archive",
+      "expect": "reject"
+    },
+    {
+      "id": "reference-note-text-is-required-for-ranges",
+      "operation": "remove",
+      "path": "/payload/nodes/1/text",
+      "expect": "reject"
+    },
+    {
+      "id": "storyboard-note-target-must-exist",
+      "operation": "set",
+      "path": "/payload/nodes/2/noteReferences/0/target/id",
+      "value": "missing-board",
+      "expect": "reject"
+    },
+    {
+      "id": "group-note-range-must-fit-text",
+      "operation": "set",
+      "path": "/payload/nodes/3/noteReferences/0/to",
+      "value": 9007199254740991,
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-node-kind",
+      "operation": "set",
+      "path": "/payload/nodes/0/kind",
+      "value": "image",
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-edge-line-style",
+      "operation": "set",
+      "path": "/payload/edges/0/lineStyle",
+      "value": "wavy",
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-envelope-key",
+      "operation": "set",
+      "path": "/worldId",
+      "value": "routing-leak",
+      "expect": "reject"
+    },
+    {
+      "id": "payload-extension",
+      "operation": "set",
+      "path": "/payload/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
+    },
+    {
+      "id": "board-extension",
+      "operation": "set",
+      "path": "/payload/boards/0/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
+    },
+    {
+      "id": "node-extension",
+      "operation": "set",
+      "path": "/payload/nodes/0/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
+    },
+    {
+      "id": "target-extension",
+      "operation": "set",
+      "path": "/payload/nodes/1/target/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
+    },
+    {
+      "id": "edge-extension",
+      "operation": "set",
+      "path": "/payload/edges/0/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
+    },
+    {
+      "id": "required-payload-absent",
+      "operation": "remove",
+      "path": "/payload",
+      "expect": "reject"
+    }
+  ]
+}

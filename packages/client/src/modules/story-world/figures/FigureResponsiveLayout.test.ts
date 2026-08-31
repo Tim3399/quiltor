@@ -23,20 +23,31 @@ describe("figure workspace responsive layout contracts", () => {
 
   it("separates the timeline, minimap, and mobile inspector surfaces", () => {
     const canvas = stylesheet("FigureCanvas.css");
+    const viewportChrome = stylesheet("../../graph/GraphViewportChrome.css");
     const timeline = stylesheet("TimelineStrip.css");
     const inspector = stylesheet("FigureInspector.css");
 
-    expect(canvas).toMatch(
-      /\.flow-area\.has-timeline \.react-flow__minimap\s*\{[^}]*top:\s*14px;[^}]*bottom:\s*auto;/s,
+    expect(viewportChrome).toMatch(
+      /\.graph-viewport-surface \.react-flow__panel\.react-flow__minimap\s*\{[^}]*top:\s*auto;[^}]*right:\s*var\(--graph-viewport-inset\);[^}]*bottom:\s*var\(--graph-viewport-inset\);[^}]*left:\s*auto;[^}]*margin:\s*0;/s,
     );
+    expect(canvas).not.toMatch(/\.has-timeline \.react-flow__minimap\s*\{/);
     expect(canvas).toMatch(
-      /@media \(min-width: 821px\) and \(max-width: 1050px\)[\s\S]*?\.flow-area\.has-timeline \.react-flow__minimap\s*\{[^}]*display:\s*none;/,
+      /\.flow-area\.has-timeline\.has-minimap \.timeline-strip\s*\{[^}]*right:\s*calc\([\s\S]*var\(--graph-minimap-inline-size\)/,
     );
-    expect(canvas).not.toMatch(
-      /@media \(min-width: 821px\) and \(max-width: 1050px\)[\s\S]*?\.react-flow__minimap\s*\{[^}]*(?:width|height):/,
+    expect(viewportChrome).toMatch(
+      /\.graph-viewport-surface\.has-minimap\s*\{[^}]*--graph-edge-inspector-safe-bottom:\s*calc\([\s\S]*var\(--graph-minimap-block-size\)/,
+    );
+    expect(viewportChrome).toMatch(
+      /@media \(max-width: 820px\)[\s\S]*--graph-minimap-inline-size:\s*140px;[\s\S]*--graph-minimap-block-size:\s*105px;[\s\S]*--graph-minimap-scale:\s*0\.7;/,
+    );
+    expect(stylesheet("../StoryGraph.css")).not.toMatch(
+      /@media \(max-width: 820px\)[\s\S]*?\.react-flow__minimap\s*\{[^}]*display:\s*none;/,
     );
     expect(timeline).toMatch(
-      /\.flow-area \.timeline-strip\s*\{[^}]*right:\s*14px;[^}]*left:\s*62px;/s,
+      /\.flow-area \.timeline-strip\s*\{[^}]*right:\s*var\(--graph-viewport-inset,[^}]*left:\s*var\(--graph-controls-safe-inline-end,/s,
+    );
+    expect(timeline).not.toMatch(
+      /@media \(max-width: 640px\)[\s\S]*?\.flow-area \.timeline-strip\s*\{[^}]*left:\s*var\(--space-8\);/,
     );
     expect(timeline).toMatch(
       /@media \(max-width: 640px\)[\s\S]*?\.timeline-strip\s*\{[^}]*max-height:\s*min\(52%, 360px\);[^}]*overflow-y:\s*auto;/,

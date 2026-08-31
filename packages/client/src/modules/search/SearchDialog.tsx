@@ -1,4 +1,4 @@
-import { Clock3, Command, FileText, MapPin, UserRound } from "lucide-react";
+import { Clock3, Command, FileText, MapPin, PanelsTopLeft, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CommandPalette, type CommandPaletteItem } from "../../design";
 import { useI18n } from "../../i18n";
@@ -6,6 +6,7 @@ import type { Workspace, WorkspaceTarget } from "../../shared";
 import { type Manuscript, textSearchRanges } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { kindLabel } from "../story-world";
+import type { StoryboardState } from "../storyboard";
 import {
   buildWorldReferenceCandidates,
   searchWorldReferences,
@@ -16,6 +17,7 @@ import {
 export function SearchDialog({
   manuscript,
   figures,
+  storyboards,
   onClose,
   onWorkspace,
   onSelect,
@@ -23,6 +25,7 @@ export function SearchDialog({
 }: {
   manuscript: Manuscript;
   figures: FigureState;
+  storyboards: StoryboardState;
   onClose: () => void;
   onWorkspace: (value: Workspace) => void;
   onSelect: (target: WorkspaceTarget) => void;
@@ -36,6 +39,7 @@ export function SearchDialog({
       ["figures", t("switchToFigures")],
       ["timeline", t("switchToTimeline")],
       ["places", t("switchToPlaces")],
+      ["storyboard", t("switchToStoryboard")],
       ["focus", t("toggleFocus")],
       ["history", t("openHistory")],
       ["snapshot", t("openBackupDialog")],
@@ -52,6 +56,7 @@ export function SearchDialog({
     const candidates = buildWorldReferenceCandidates({
       manuscript,
       figures,
+      storyboards: storyboards.boards,
       labels: {
         untitled: t("untitled"),
         moment: t("moment"),
@@ -80,7 +85,7 @@ export function SearchDialog({
           requiresQuery: true,
           onSelect: () => {
             const target = workspaceTargetForReference(candidate.target);
-            if (!target || candidate.workspace === "storyboard") return;
+            if (!target) return;
             onWorkspace(candidate.workspace);
             onSelect({
               ...target,
@@ -91,7 +96,7 @@ export function SearchDialog({
       },
     );
     return [...commands, ...references];
-  }, [manuscript, figures.nodes, figures.timeline, onCommand, onWorkspace, onSelect, query, t]);
+  }, [manuscript, figures, storyboards.boards, onCommand, onWorkspace, onSelect, query, t]);
   return (
     <CommandPalette
       open
@@ -118,7 +123,7 @@ function referenceIcon(target: WorldReferenceTarget) {
     case "entity":
       return <UserRound />;
     case "storyboard":
-      return <FileText />;
+      return <PanelsTopLeft />;
   }
 }
 

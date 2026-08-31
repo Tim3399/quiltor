@@ -1,11 +1,13 @@
 import { ChevronDown } from "lucide-react";
-import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Popover } from "../Popover";
 import "./ListboxSelect.css";
 
 export interface ListboxSelectOption<T extends string> {
   value: T;
   label: string;
+  /** Decorative context such as a color swatch. Callers own its accessible semantics. */
+  leading?: ReactNode;
   disabled?: boolean;
 }
 
@@ -105,7 +107,10 @@ export function ListboxSelect<T extends string>({
         onClick={() => setOpen((current) => !current)}
         onKeyDown={onButtonKeyDown}
       >
-        <span>{selected?.label ?? value}</span>
+        <span className="ui-select-option__content">
+          {selected?.leading}
+          <span className="ui-select-option__label">{selected?.label ?? value}</span>
+        </span>
         <ChevronDown aria-hidden="true" />
       </button>
       <Popover anchorRef={anchorRef} open={open} onClose={() => setOpen(false)} label={label}>
@@ -129,7 +134,10 @@ export function ListboxSelect<T extends string>({
               data-autofocus={option.value === focusOption?.value || undefined}
               onClick={() => choose(option)}
             >
-              {option.label}
+              <span className="ui-select-option__content">
+                {option.leading}
+                <span className="ui-select-option__label">{option.label}</span>
+              </span>
             </button>
           ))}
         </div>

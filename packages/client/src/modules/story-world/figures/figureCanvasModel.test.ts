@@ -15,7 +15,15 @@ const state: FigureState = {
   ],
   edges: [
     { id: "e1", from: "a", to: "b", label: "Freunde" },
-    { id: "e2", from: "a", to: "c", label: "Folgt", gerichtet: true },
+    {
+      id: "e2",
+      from: "a",
+      to: "c",
+      label: "Folgt",
+      gerichtet: true,
+      color: "blue",
+      lineStyle: "dotted",
+    },
     { id: "e3", from: "b", to: "c", label: "Familie", style: "blood" },
   ],
 };
@@ -42,18 +50,60 @@ describe("figure canvas model", () => {
   });
 
   it("projects every relationship and hides only relationship edges when requested", () => {
-    const relationships = createRelationshipFlowEdges(state, [], null);
+    const relationships = createRelationshipFlowEdges(state, [], null, "e2");
 
     expect(relationships.map((edge) => edge.id)).toEqual(["e1", "e2", "e3"]);
     expect(relationships[1]).toMatchObject({
+      data: { kind: "relationship" },
       source: "a",
       target: "c",
       sourceHandle: "out",
       targetHandle: "in",
-      className: "edge-solid edge-directed ",
+      selected: true,
+      className:
+        "graph-relationship-edge edge-line-dotted edge-dotted edge-directed edge-color-blue",
+      type: "graphRelationship",
+      ariaLabel: "Ada → Cora — Folgt",
+      labelBgStyle: { fill: "var(--graph-edge-label-bg)" },
+      labelStyle: { fill: "var(--graph-edge-label-text)" },
+      labelBgPadding: [5, 2],
+      labelBgBorderRadius: 4,
+      markerEnd: {
+        type: "arrowclosed",
+        color: "var(--graph-edge-color-blue)",
+      },
     });
-    expect(relationships[2]).toMatchObject({ animated: true });
+    expect(relationships[2]).toMatchObject({
+      data: { kind: "relationship", labelBadges: ["kinship"] },
+      className: expect.stringContaining("edge-line-solid"),
+      ariaLabel: "Bela ↔ Cora — Familie · Kinship",
+    });
+    expect(relationships[2].animated).toBeUndefined();
+    expect(relationships[0].selected).toBe(false);
     expect(combineFigureFlowEdges(relationships, [], false)).toEqual([]);
     expect(combineFigureFlowEdges(relationships, [], true)).toHaveLength(3);
+  });
+
+  it("reads legacy gold style as color only until an explicit color is stored", () => {
+    const legacy = createRelationshipFlowEdges(
+      { ...state, edges: [{ id: "legacy", from: "a", to: "b", style: "gold" }] },
+      [],
+      null,
+    )[0];
+    const explicitAuto = createRelationshipFlowEdges(
+      {
+        ...state,
+        edges: [{ id: "modern", from: "a", to: "b", style: "gold", color: "auto" }],
+      },
+      [],
+      null,
+    )[0];
+
+    expect(legacy.className).toContain("edge-color-gold");
+    expect(legacy.labelBgStyle).toMatchObject({ stroke: "var(--graph-edge-color-gold)" });
+    expect(explicitAuto.className).toContain("edge-color-auto");
+    expect(explicitAuto.labelBgStyle).toMatchObject({
+      stroke: "var(--graph-edge-undirected-stroke)",
+    });
   });
 });

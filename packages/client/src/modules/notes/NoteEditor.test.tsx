@@ -19,6 +19,7 @@ const harbour: WorldReferenceCandidate = {
   detail: "Ort",
   keywords: [],
   workspace: "places",
+  cardKind: "ort",
 };
 const castle: WorldReferenceCandidate = {
   id: "place:castle",
@@ -27,6 +28,7 @@ const castle: WorldReferenceCandidate = {
   detail: "Ort",
   keywords: [],
   workspace: "places",
+  cardKind: "ort",
 };
 const unnamed: WorldReferenceCandidate = {
   ...harbour,
@@ -107,7 +109,10 @@ describe("NoteEditor", () => {
         onFocusRequest={onFocusRequest}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Im Fokus öffnen" }));
+    const trigger = screen.getByRole("button", { name: "Im Fokus öffnen" });
+    expect(trigger.querySelector(".lucide-focus")).toBeInTheDocument();
+    expect(trigger.querySelector(".lucide-maximize-2")).not.toBeInTheDocument();
+    fireEvent.click(trigger);
     expect(onFocusRequest).toHaveBeenCalledWith({ kind: "place", id: "harbour" });
   });
 

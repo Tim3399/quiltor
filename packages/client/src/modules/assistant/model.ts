@@ -64,6 +64,10 @@ export type AssistantProposal =
         to: string;
         label?: string;
         directed?: boolean;
+        lineStyle?: FigureEdge["lineStyle"];
+        relationshipKind?: FigureEdge["relationshipKind"];
+        color?: FigureEdge["color"];
+        /** @deprecated Accepted only for v1 assistant responses. */
         style?: FigureEdge["style"];
       };
     }
@@ -71,7 +75,16 @@ export type AssistantProposal =
       kind: "set_relationship_at_moment";
       relationshipId: string;
       momentId: string;
-      patch: { label?: string; active?: boolean; directed?: boolean; style?: FigureEdge["style"] };
+      patch: {
+        label?: string;
+        active?: boolean;
+        directed?: boolean;
+        lineStyle?: FigureEdge["lineStyle"];
+        relationshipKind?: FigureEdge["relationshipKind"];
+        color?: FigureEdge["color"];
+        /** @deprecated Accepted only for v1 assistant responses. */
+        style?: FigureEdge["style"];
+      };
     }
   | { kind: "mark_deceased"; elementId: string; momentId: string }
   | { kind: "set_presence"; elementId: string; placeId: string; momentId?: string }

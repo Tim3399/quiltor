@@ -1,0 +1,1 @@
+import{xt as e,yt as t}from"./i18n-B8-cgAbB.js";var n=e(t(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

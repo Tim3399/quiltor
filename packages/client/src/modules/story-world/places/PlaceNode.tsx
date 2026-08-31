@@ -52,7 +52,6 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
         zoomTier={data.zoomTier}
         viewportZoom={data.zoom}
         kind="ort"
-        accent={item.accent || "ink"}
         important={!!item.important}
         selected={selected}
         modifiers={[

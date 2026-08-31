@@ -7,7 +7,7 @@ from typing import Any, Literal, Protocol
 
 from quiltor.application.errors import ApplicationConflict
 
-DocumentKind = Literal["manuscript", "figures"]
+DocumentKind = Literal["manuscript", "figures", "storyboards"]
 
 
 class RevisionConflict(ApplicationConflict):

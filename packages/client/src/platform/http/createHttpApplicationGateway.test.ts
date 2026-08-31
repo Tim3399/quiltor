@@ -47,6 +47,7 @@ describe("HTTP application composition", () => {
         "manuscript",
         "metadata",
         "storyWorld",
+        "storyboards",
         "worlds",
         "writingAssistance",
       ].sort(),

@@ -330,9 +330,9 @@ Then extend extraction as new state dimensions become available.
 
 ## Next delivery after P0
 
-Hierarchical chapter organization and the Figure / entity workspace overhaul are complete for the
-currently shipped workspaces. The current implementation target is the **P1 Storyboard** below.
-Storyboard-specific note reuse and backlink sources remain part of that delivery.
+Hierarchical chapter organization, the Figure / entity workspace overhaul and the first usable
+**P1 Storyboard** slice are complete. Storyboard backlink sources, explicit overlap ordering and
+the deliberately bounded AI planning features remain open below.
 
 ---
 
@@ -347,7 +347,7 @@ Notes should become a first-class writer workflow, not small textareas scattered
   - place notes;
   - timeline moment notes;
   - chapter notes.
-- [ ] Reuse the same editor for storyboard note cards when the Storyboard workspace ships.
+- [x] Reuse the same editor for storyboard note cards.
 - [x] Preserve plain author-owned text.
 - [x] Autosave through the owning document/workspace.
 - [x] Undo/redo consistent with the owning workspace.
@@ -371,7 +371,7 @@ Notes should become a first-class writer workflow, not small textareas scattered
   - places;
   - timeline moments;
   - chapters.
-- [ ] Add Storyboard targets when the Storyboard workspace ships.
+- [x] Add Storyboard targets.
 - [x] References are explicit links, not inferred canon facts.
 - [x] Clicking a reference navigates to the original object.
 - [x] References survive entity renames because they store IDs, not only visible names.
@@ -427,27 +427,41 @@ Storyboard is not a second canon system and not a generic drawing application.
 
 > **Storyboard is Quiltor's free planning layer. Nothing on it has to make sense and nothing on it is canon.**
 
+The first usable workspace slice shipped on 30 August 2026 with independent
+history/autosave, multiple boards, all four v1 node types, shared Note cards,
+search/drag references, connections and navigation breadcrumbs. Explicit
+front/back controls, dragging a newly created Note from a palette, Storyboard
+backlinks and AI planning context remain intentionally open; checked items do
+not imply those later slices.
+
+The real browser acceptance now creates an isolated world and a second board,
+edits a Note, observes the Storyboard save, reloads the app and verifies the
+persisted board/content before fixture cleanup. Browser coverage for reference
+drag/open, board-link breadcrumbs, connections and moved-node positions remains
+open alongside the unimplemented ordering and palette interactions.
+
 ## Core canvas
 
-- [ ] Add `Storyboard` to the primary workspace navigation.
-- [ ] Support multiple boards.
-- [ ] Provide one default Main Storyboard.
-- [ ] Infinite/large pannable canvas.
-- [ ] Zoom and pan.
-- [ ] Drag, resize and reorder nodes.
-- [ ] Basic connections between nodes.
-- [ ] Groups / frames.
-- [ ] Undo/redo.
-- [ ] Autosave.
+- [x] Add `Storyboard` to the primary workspace navigation.
+- [x] Support multiple boards.
+- [x] Provide one default Main Storyboard.
+- [x] Infinite/large pannable canvas.
+- [x] Zoom and pan.
+- [x] Drag and resize nodes.
+- [ ] Add explicit front/back ordering controls for overlapping nodes.
+- [x] Basic connections between nodes.
+- [x] Groups / frames.
+- [x] Undo/redo.
+- [x] Autosave.
 
 ## Node types for v1
 
 Keep the node model intentionally small:
 
-- [ ] **Note**
-- [ ] **Reference**
-- [ ] **Storyboard**
-- [ ] **Group / frame**
+- [x] **Note**
+- [x] **Reference**
+- [x] **Storyboard**
+- [x] **Group / frame**
 
 Reference targets can point to:
 
@@ -461,30 +475,30 @@ Do not build separate copies of those objects inside Storyboard.
 
 ## Note cards
 
-- [ ] Storyboard text is a normal Quiltor Note.
+- [x] Storyboard text is a normal Quiltor Note.
 - [ ] Drag a Note onto the canvas.
-- [ ] Edit directly on the canvas.
-- [ ] Resize the note.
-- [ ] Open the note in the shared Notes Focus Mode.
-- [ ] Use `@` references inside the note.
+- [x] Edit directly on the canvas.
+- [x] Resize the note.
+- [x] Open the note in the shared Notes Focus Mode.
+- [x] Use `@` references inside the note.
 
 ## Search → Drag & Drop
 
 This is a **required v1 feature**, not a later enhancement.
 
-- [ ] Provide world search inside / beside the Storyboard.
-- [ ] Search figures, places, timeline moments, chapters and boards.
-- [ ] Drag any search result onto the canvas.
-- [ ] Dropping creates a reference node.
-- [ ] Double-click/open a reference node to navigate to the source workspace.
-- [ ] Reuse the same search candidate/index layer as global search and `@` autocomplete.
+- [x] Provide world search inside / beside the Storyboard.
+- [x] Search figures, places, timeline moments, chapters and boards.
+- [x] Drag any search result onto the canvas.
+- [x] Dropping creates a reference node.
+- [x] Double-click/open a reference node to navigate to the source workspace.
+- [x] Reuse the same search candidate/index layer as global search and `@` autocomplete.
 
 ## Boards inside boards
 
-- [ ] A board reference opens another Storyboard.
-- [ ] Allow arbitrarily deep board linking.
-- [ ] Show breadcrumbs.
-- [ ] Do not encourage a rigid hierarchy; boards may be used however the author thinks:
+- [x] A board reference opens another Storyboard.
+- [x] Allow arbitrarily deep board linking.
+- [x] Show breadcrumbs.
+- [x] Do not encourage a rigid hierarchy; boards may be used however the author thinks:
   - Acts;
   - arcs;
   - scene ideas;
@@ -494,10 +508,10 @@ This is a **required v1 feature**, not a later enhancement.
 
 ## Canon boundary
 
-- [ ] Storyboard references mean **relevant to this idea**, not “this is true”.
-- [ ] Storyboard connections are visual/planning connections, not canonical relationships.
-- [ ] Storyboard mentions do not mutate presence, relationship, timeline or knowledge state.
-- [ ] Reality checks do not treat Storyboard content as canon.
+- [x] Storyboard references mean **relevant to this idea**, not “this is true”.
+- [x] Storyboard connections are visual/planning connections, not canonical relationships.
+- [x] Storyboard mentions do not mutate presence, relationship, timeline or knowledge state.
+- [x] Reality checks do not treat Storyboard content as canon.
 - [ ] AI must label Storyboard context as planning context.
 
 ## AI inside Storyboard
@@ -612,7 +626,7 @@ documents, without turning the editor into uncontrolled infinite scrolling.
 
 ## Cross-workspace integration
 
-- [ ] Storyboard can reference a chapter regardless of folder depth.
+- [x] Storyboard can reference a chapter regardless of folder depth.
 - [x] Search shows useful folder/breadcrumb context for chapters.
 - [x] Assistant evidence/source navigation opens the correct chapter even when nested.
 - [x] Chapter story-time anchors remain attached to the chapter, not the folder.

@@ -70,6 +70,9 @@
         "to": "archive",
         "label": "sucht",
         "style": "solid",
+        "lineStyle": "dotted",
+        "relationshipKind": "kinship",
+        "color": "rose",
         "gerichtet": true,
         "fromHandle": "right",
         "toHandle": "left",
@@ -82,6 +85,9 @@
             "active": true,
             "label": "findet",
             "style": "gold",
+            "lineStyle": "dashed",
+            "relationshipKind": "general",
+            "color": "blue",
             "gerichtet": false
           }
         ]

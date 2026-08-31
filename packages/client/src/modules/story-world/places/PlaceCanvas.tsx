@@ -4,6 +4,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback } from "react";
 import { EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { cardKindColor } from "../../graph";
 import { GRID_SIZE } from "../figures/relationships";
 import type { FigureState } from "../model";
 import { StoryGraphCanvas } from "../StoryGraphCanvas";
@@ -76,7 +77,7 @@ export function PlaceCanvas({
         onNodesChange: controller.onNodesChange,
         onNodeDragStop: (_, node) => controller.onNodeDragStop(node),
       }}
-      minimapProps={{ nodeColor: () => "var(--minimap-place)" }}
+      minimapProps={{ nodeColor: () => cardKindColor("ort") }}
     >
       {!placesCount && (
         <EmptyState

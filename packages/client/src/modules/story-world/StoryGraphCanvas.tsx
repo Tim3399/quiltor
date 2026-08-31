@@ -1,15 +1,14 @@
 import {
   Background,
   BackgroundVariant,
-  Controls,
   type Edge,
-  MiniMap,
   type MiniMapProps,
   type Node,
   ReactFlow,
   type ReactFlowProps,
 } from "@xyflow/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { GraphViewportChrome } from "../graph";
 import type { SemanticZoomTier } from "./figures/relationships";
 
 export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType extends Edge = Edge> {
@@ -43,8 +42,13 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   flowChildren,
   children,
 }: StoryGraphCanvasProps<NodeType, EdgeType>) {
+  const [minimapVisible, setMinimapVisible] = useState(true);
+  const hasVisibleMinimap = minimapProps !== false && minimapVisible;
+
   return (
-    <div className={`flow-area zoom-${zoomTier} ${className}`.trim()}>
+    <div
+      className={`flow-area graph-viewport-surface zoom-${zoomTier} ${hasVisibleMinimap ? "has-minimap" : ""} ${className}`.trim()}
+    >
       {overlay}
       <ReactFlow<NodeType, EdgeType>
         {...flowProps}
@@ -65,16 +69,11 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
           />
         )}
         {flowChildren}
-        <Controls position="bottom-left" />
-        {minimapProps !== false && (
-          <MiniMap<NodeType>
-            position="bottom-right"
-            pannable
-            zoomable
-            maskColor="var(--minimap-mask)"
-            {...minimapProps}
-          />
-        )}
+        <GraphViewportChrome<NodeType>
+          minimapProps={minimapProps}
+          minimapVisible={minimapVisible}
+          onMinimapVisibleChange={setMinimapVisible}
+        />
       </ReactFlow>
       {children}
     </div>

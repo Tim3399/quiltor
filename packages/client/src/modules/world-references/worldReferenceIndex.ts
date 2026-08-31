@@ -41,6 +41,7 @@ export function buildWorldReferenceCandidates({
       [breadcrumb, chapter.note || chapter.body.slice(0, 120)].filter(Boolean).join(" · "),
       [chapter.body, chapter.note, breadcrumb],
       "text",
+      "chapter",
     );
   });
   const nodes = figures.nodes.map((node) => {
@@ -63,6 +64,7 @@ export function buildWorldReferenceCandidates({
         ...(profile.fields ?? []).flatMap((field) => [field.key, field.value]),
       ],
       isPlace ? "places" : "figures",
+      node.type ?? "person",
     );
   });
   const moments = (figures.timeline ?? []).map((moment) =>
@@ -72,6 +74,7 @@ export function buildWorldReferenceCandidates({
       moment.note || moment.date || labels.moment,
       [moment.note ?? "", moment.date ?? "", String(moment.time ?? "")],
       "timeline",
+      "timeline",
     ),
   );
   const boards = storyboards.map((board) =>
@@ -80,6 +83,7 @@ export function buildWorldReferenceCandidates({
       board.title.trim() || labels.untitled,
       board.detail ?? "",
       board.keywords ?? [],
+      "storyboard",
       "storyboard",
     ),
   );
@@ -102,9 +106,7 @@ export function searchWorldReferences(
     .map((entry) => entry.item);
 }
 
-export function workspaceTargetForReference(
-  target: WorldReferenceTarget,
-): WorkspaceTarget | undefined {
+export function workspaceTargetForReference(target: WorldReferenceTarget): WorkspaceTarget {
   switch (target.kind) {
     case "chapter":
       return { workspace: "text", id: target.id };
@@ -115,9 +117,7 @@ export function workspaceTargetForReference(
     case "entity":
       return { workspace: "figures", id: target.id };
     case "storyboard":
-      // Storyboard becomes routable when TECH-012 adds the fifth workspace. Returning
-      // no false text target prevents callers from opening an unrelated chapter today.
-      return undefined;
+      return { workspace: "storyboard", id: target.id };
   }
 }
 
@@ -146,6 +146,7 @@ function candidate(
   detail: string,
   keywords: string[],
   workspace: WorldReferenceCandidate["workspace"],
+  cardKind: WorldReferenceCandidate["cardKind"],
 ): WorldReferenceCandidate {
   return {
     id: worldReferenceKey(target),
@@ -154,6 +155,7 @@ function candidate(
     detail,
     keywords: keywords.filter(Boolean),
     workspace,
+    cardKind,
   };
 }
 

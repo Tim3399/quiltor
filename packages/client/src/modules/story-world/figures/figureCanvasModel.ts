@@ -1,4 +1,11 @@
 import type { Edge } from "@xyflow/react";
+import {
+  GRAPH_RELATIONSHIP_EDGE_TYPE,
+  type GraphEdgeLabelBadge,
+  graphEdgeLineStyle,
+  graphRelationshipEdgePresentation,
+  graphRelationshipKind,
+} from "../../graph";
 import type { FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import type { FigureFlowNode } from "./FigureNode";
 import {
@@ -58,7 +65,13 @@ export function createRelationshipFlowEdges(
   state: FigureState,
   timeline: TimelineMoment[],
   activeMomentId: string | null,
+  selectedEdgeId: string | null = null,
+  semanticLabels: { kinship: string; temporal: string } = {
+    kinship: "Kinship",
+    temporal: "Temporal history",
+  },
 ): Edge[] {
+  const figureNames = new Map(state.nodes.map((node) => [node.id, node.name]));
   return state.edges
     .map((edge) =>
       activeMomentId
@@ -68,18 +81,41 @@ export function createRelationshipFlowEdges(
     .filter((edge) => edge.active)
     .map((edge) => {
       const handles = relationshipHandles(edge, state.nodes);
+      const lineStyle = graphEdgeLineStyle(edge);
+      const kinship = graphRelationshipKind(edge) === "kinship";
+      const temporal = !activeMomentId && Boolean(edge.versions?.length);
+      const labelBadges: GraphEdgeLabelBadge[] = [
+        ...(kinship ? (["kinship"] as const) : []),
+        ...(temporal ? (["temporal"] as const) : []),
+      ];
+      const annotations = [
+        ...(kinship ? [semanticLabels.kinship] : []),
+        ...(temporal ? [semanticLabels.temporal] : []),
+      ];
+      const presentation = graphRelationshipEdgePresentation({
+        directed: edge.gerichtet === true,
+        variant: lineStyle,
+        temporal,
+        sourceLabel: figureNames.get(edge.from) || edge.from,
+        targetLabel: figureNames.get(edge.to) || edge.to,
+        label: edge.label,
+        color: edge.color ?? (edge.style === "gold" ? "gold" : "auto"),
+        annotations,
+      });
       return {
+        ...presentation,
         id: edge.id,
+        data: {
+          kind: "relationship",
+          labelBadges,
+          labelTitle: [edge.label, ...annotations].filter(Boolean).join(" · "),
+        },
         source: edge.from,
         target: edge.to,
         sourceHandle: handles.from,
         targetHandle: handles.to,
         label: edge.label,
-        labelBgStyle: { fill: "var(--edge-label-bg)" },
-        labelStyle: { fill: "var(--edge-label-text)" },
-        animated: edge.style === "blood",
-        className: `edge-${edge.style || "solid"} ${edge.gerichtet ? "edge-directed" : "edge-undirected"} ${!activeMomentId && edge.versions?.length ? "edge-temporal" : ""}`,
-        markerEnd: edge.gerichtet ? { type: "arrowclosed" as const } : undefined,
+        selected: edge.id === selectedEdgeId,
       };
     });
 }
@@ -129,12 +165,19 @@ export function createJourneyFlowEdges({
             .filter(Boolean)
             .join(" · ")
         : undefined,
-      labelBgStyle: { fill: "var(--edge-label-bg)" },
+      labelBgStyle: {
+        fill: "var(--edge-label-bg)",
+        stroke: leg.walked ? "var(--graph-edge-color-gold)" : "var(--graph-edge-color-ink)",
+      },
       labelStyle: { fill: "var(--edge-label-text)" },
       markerEnd: { type: "arrowclosed" as const },
+      type: GRAPH_RELATIONSHIP_EDGE_TYPE,
       animated: leg.current,
       zIndex: 5,
       className: `journey-edge ${leg.walked ? "journey-walked" : "journey-ahead"} ${leg.current ? "journey-current" : ""}`,
+      data: { kind: "journey" },
+      selectable: false,
+      focusable: false,
     });
   });
   const currentPresence = resolvePresence(selected.id, presence, timeline, activeMomentId);
@@ -149,6 +192,9 @@ export function createJourneyFlowEdges({
       targetHandle: handles.to,
       zIndex: 5,
       className: "presence-edge",
+      data: { kind: "presence" },
+      selectable: false,
+      focusable: false,
     });
   }
   return result;

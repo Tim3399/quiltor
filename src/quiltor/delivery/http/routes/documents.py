@@ -1,8 +1,7 @@
-"""The two documents a world holds -- the manuscript and the figure board --
-plus the book PDF rendered from them.
+"""The independently revisioned documents a world holds, plus book export.
 
-Both documents are read and written through the same pair of routes, which is
-so both are coordinated by the same revisioned application operation.
+Manuscript, canonical story-world state, and non-canon Storyboards all pass
+through the same strict document boundary without sharing persistence state.
 """
 
 from __future__ import annotations
@@ -15,6 +14,7 @@ from quiltor.application import (
     decode_document_v1,
     encode_document_v1,
 )
+from quiltor.application.documents import DocumentKind
 from quiltor.delivery.http.routes import Request, get, save
 
 
@@ -28,7 +28,12 @@ def read_manuscript(handler, request: Request, app) -> None:
     _read(handler, request, app, kind="manuscript")
 
 
-def _read(handler, request: Request, app, *, kind: str) -> None:
+@get("/api/storyboards", world=True)
+def read_storyboards(handler, request: Request, app) -> None:
+    _read(handler, request, app, kind="storyboards")
+
+
+def _read(handler, request: Request, app, *, kind: DocumentKind) -> None:
     with app.lock:
         document = app.documents.load(kind, request.db_path)
     try:
@@ -52,7 +57,12 @@ def write_manuscript(handler, request: Request, app) -> None:
     _write(handler, request, app, kind="manuscript")
 
 
-def _write(handler, request: Request, app, *, kind: str) -> None:
+@save("/api/storyboards", world=True)
+def write_storyboards(handler, request: Request, app) -> None:
+    _write(handler, request, app, kind="storyboards")
+
+
+def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
     from datetime import datetime
 
     try:
@@ -91,10 +101,16 @@ def _write(handler, request: Request, app, *, kind: str) -> None:
         chapters = payload["chapters"]
         words = sum(len((c.get("body") or "").split()) for c in chapters)
         print(f"  · {now}  Text gespeichert — {len(chapters)} Kapitel, {words} Wörter")
-    else:
+    elif kind == "figures":
         print(
             f"  · {now}  Figuren gespeichert — "
             f"{len(payload['nodes'])} Figuren, {len(payload['edges'])} Verbindungen"
+        )
+    else:
+        boards = payload["boards"]
+        print(
+            f"  · {now}  Storyboards gespeichert — "
+            f"{len(boards)} Boards, {len(payload['nodes'])} Karten"
         )
     handler.send_json(
         {"ok": True, "zeit": now, "revision": updated_revision},

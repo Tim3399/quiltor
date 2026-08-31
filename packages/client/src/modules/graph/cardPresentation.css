@@ -1,0 +1,63 @@
+/*
+ * A card's hue communicates its semantic kind everywhere in the application.
+ * Features consume these variables; they must not invent their own kind palettes.
+ */
+.graph-card-kind--person {
+  --graph-card-kind-color: var(--card-kind-person);
+  --graph-card-kind-surface: var(--card-kind-person-surface);
+}
+
+.graph-card-kind--tier {
+  --graph-card-kind-color: var(--card-kind-tier);
+  --graph-card-kind-surface: var(--card-kind-tier-surface);
+}
+
+.graph-card-kind--ort {
+  --graph-card-kind-color: var(--card-kind-ort);
+  --graph-card-kind-surface: var(--card-kind-ort-surface);
+}
+
+.graph-card-kind--organisation {
+  --graph-card-kind-color: var(--card-kind-organisation);
+  --graph-card-kind-surface: var(--card-kind-organisation-surface);
+}
+
+.graph-card-kind--objekt {
+  --graph-card-kind-color: var(--card-kind-objekt);
+  --graph-card-kind-surface: var(--card-kind-objekt-surface);
+}
+
+.graph-card-kind--konzept {
+  --graph-card-kind-color: var(--card-kind-konzept);
+  --graph-card-kind-surface: var(--card-kind-konzept-surface);
+}
+
+.graph-card-kind--chapter {
+  --graph-card-kind-color: var(--card-kind-chapter);
+  --graph-card-kind-surface: var(--card-kind-chapter-surface);
+}
+
+.graph-card-kind--timeline {
+  --graph-card-kind-color: var(--card-kind-timeline);
+  --graph-card-kind-surface: var(--card-kind-timeline-surface);
+}
+
+.graph-card-kind--note {
+  --graph-card-kind-color: var(--card-kind-note);
+  --graph-card-kind-surface: var(--card-kind-note-surface);
+}
+
+.graph-card-kind--storyboard {
+  --graph-card-kind-color: var(--card-kind-storyboard);
+  --graph-card-kind-surface: var(--card-kind-storyboard-surface);
+}
+
+.graph-card-kind--group {
+  --graph-card-kind-color: var(--card-kind-group);
+  --graph-card-kind-surface: var(--card-kind-group-surface);
+}
+
+.graph-card-kind--reference {
+  --graph-card-kind-color: var(--card-kind-reference);
+  --graph-card-kind-surface: var(--card-kind-reference-surface);
+}

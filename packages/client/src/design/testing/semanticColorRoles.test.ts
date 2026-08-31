@@ -13,9 +13,7 @@ describe("semantic color roles", () => {
     expect(history).toMatch(/\.diff-segment h3\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s);
 
     const figures = source("modules/story-world/figures/FigureInspector.css");
-    expect(figures).toMatch(
-      /\.relation-list span\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s,
-    );
+    expect(figures).not.toMatch(/\.relation-list span\s*\{/s);
     expect(figures).toMatch(
       /\.relation-direction,\s*\.relation-undirected\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s,
     );
@@ -37,11 +35,18 @@ describe("semantic color roles", () => {
 
   it("keeps domain graph encodings on their intentional hue families", () => {
     const graph = source("modules/story-world/StoryGraph.css");
+    const cardKinds = source("modules/graph/cardPresentation.css");
     expect(graph).toMatch(
-      /\.story-node\.accent-rose\s*\{[^}]*border-left-color:\s*var\(--rose-border\);/s,
+      /\.story-node\s*\{[^}]*border-left:\s*3px solid var\(--graph-card-kind-color,/s,
     );
     expect(graph).toMatch(
-      /\.story-node\.accent-moss\s*\{[^}]*border-left-color:\s*var\(--moss-border\);/s,
+      /\.story-node\.zoom-overview:not\(\.is-important\)\s*\{[^}]*background:\s*var\(--graph-card-kind-color,/s,
+    );
+    expect(cardKinds).toMatch(
+      /\.graph-card-kind--ort\s*\{[^}]*--graph-card-kind-color:\s*var\(--card-kind-ort\);/s,
+    );
+    expect(cardKinds).toMatch(
+      /\.graph-card-kind--konzept\s*\{[^}]*--graph-card-kind-color:\s*var\(--card-kind-konzept\);/s,
     );
     expect(graph).toMatch(/\.story-node strong svg\s*\{[^}]*color:\s*var\(--rose-text\);/s);
 
@@ -50,10 +55,33 @@ describe("semantic color roles", () => {
       /\.timeline-life-action\.active\s*\{[^}]*border-color:\s*var\(--error-border\);[^}]*background:\s*var\(--error-bg\);[^}]*color:\s*var\(--error-text\);/s,
     );
 
-    const canvas = source("modules/story-world/figures/FigureCanvas.css");
-    expect(canvas).toMatch(
-      /\.react-flow__edge\.edge-blood \.react-flow__edge-path\s*\{[^}]*stroke:\s*var\(--rose-border\);/s,
+    const edgePresentation = source("modules/graph/edgePresentation.css");
+    expect(edgePresentation).toMatch(
+      /\.edge-directed\s*\{[^}]*--graph-relationship-edge-color:\s*var\(--graph-edge-directed-stroke\);/s,
     );
+    expect(edgePresentation).toMatch(
+      /\.edge-undirected\s*\{[^}]*--graph-relationship-edge-color:\s*var\(--graph-edge-undirected-stroke\);/s,
+    );
+    const temporalRule = edgePresentation.match(
+      /\.react-flow__edge\.graph-relationship-edge\.edge-temporal \.react-flow__edge-path\s*\{([^}]*)\}/s,
+    )?.[1];
+    expect(temporalRule).toBeDefined();
+    expect(temporalRule).not.toContain("stroke:");
+    expect(temporalRule).not.toContain("stroke-dasharray:");
+    const solidRule = edgePresentation.match(
+      /\.react-flow__edge\.graph-relationship-edge \.react-flow__edge-path\s*\{([^}]*)\}/s,
+    )?.[1];
+    expect(solidRule).toBeDefined();
+    expect(solidRule).not.toContain("stroke-dasharray:");
+    expect(edgePresentation).toMatch(
+      /\.edge-line-dashed \.react-flow__edge-path\s*\{[^}]*stroke-dasharray:/s,
+    );
+    expect(edgePresentation).toMatch(
+      /\.edge-line-dotted \.react-flow__edge-path\s*\{[^}]*stroke-dasharray:/s,
+    );
+    expect(edgePresentation).not.toContain("edge-blood");
+
+    const canvas = source("modules/story-world/figures/FigureCanvas.css");
     expect(canvas).toMatch(/\.story-node \.neutral-handle\s*\{[^}]*background:\s*var\(--moss\);/s);
   });
 

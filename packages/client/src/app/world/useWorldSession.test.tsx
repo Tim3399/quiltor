@@ -34,12 +34,24 @@ describe("useWorldSession", () => {
       nodes: [],
       edges: [],
     });
+    vi.spyOn(quiltorClient.application.storyboards, "load").mockResolvedValue({
+      boards: [{ id: "main-storyboard", title: "Main Storyboard" }],
+      nodes: [],
+      edges: [],
+    });
 
     const onDocumentsLoaded = vi.fn();
     const { result } = renderHook(() => useWorldSession(onDocumentsLoaded));
     await waitFor(() => expect(result.current.worlds).toEqual([firstWorld]));
     await act(async () => result.current.open(firstWorld.id));
     expect(result.current.world).toEqual(firstWorld);
+    expect(onDocumentsLoaded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        storyboards: expect.objectContaining({
+          boards: [{ id: "main-storyboard", title: "Main Storyboard" }],
+        }),
+      }),
+    );
 
     history.replaceState(null, "", "/?view=board&world=world-a#top");
     act(() => result.current.close());

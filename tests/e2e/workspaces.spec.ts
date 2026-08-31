@@ -2009,6 +2009,177 @@ test("Notizreferenzen und flexible Profilfelder bleiben nach Umbenennung stabil"
   ).toHaveValue("Nordhafen");
 });
 
+test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleibt erhalten", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Kantenauswahl und Persistenz müssen nur in einem stabilen Desktop-Viewport laufen.",
+  );
+
+  const world = await createTestWorld(page, `Figuren-Kanteneditor ${crypto.randomUUID()}`);
+  const relationshipId = "relationship-editor-e2e";
+  const label = `vertraut ${crypto.randomUUID()}`;
+  const initial = await page.request.get(`/api/state?world=${world.id}`);
+  const revision = initial.headers().etag || '"0"';
+  const saved = await page.request.put(`/api/state?world=${encodeURIComponent(world.id)}`, {
+    headers: { "If-Match": revision },
+    data: encodeStoryWorldDocument(
+      {
+        nodes: [
+          { id: "figure-ada", x: 120, y: 120, type: "person", name: "Ada" },
+          { id: "figure-bela", x: 520, y: 280, type: "person", name: "Bela" },
+        ],
+        edges: [
+          {
+            id: relationshipId,
+            from: "figure-ada",
+            to: "figure-bela",
+            label: "kennt",
+            active: true,
+            gerichtet: false,
+          },
+        ],
+      },
+      Number(revision.replaceAll('"', "")),
+    ),
+  });
+  expect(saved.ok()).toBeTruthy();
+
+  await page.goto(`/?world=${world.id}`);
+  await waitForManuscriptReady(page);
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await expect(page.locator(".story-node")).toHaveCount(2);
+
+  // Select only the persisted relationship. Journey and presence overlays use synthetic IDs and
+  // must never open this editor.
+  const relationship = page.locator(`.react-flow__edge[data-id="${relationshipId}"]`);
+  await expect(relationship).toHaveCount(1);
+  await relationship.locator(".react-flow__edge-path").click({ force: true });
+
+  const inspector = page.getByRole("region", { name: "Beziehung", exact: true });
+  await expect(inspector).toContainText("Ada ↔ Bela");
+  const inspectorBox = await inspector.boundingBox();
+  const minimapBox = await page.locator(".react-flow__minimap").boundingBox();
+  const surfacesOverlap = (
+    first: NonNullable<typeof inspectorBox>,
+    second: NonNullable<typeof inspectorBox>,
+  ) =>
+    first.x < second.x + second.width &&
+    first.x + first.width > second.x &&
+    first.y < second.y + second.height &&
+    first.y + first.height > second.y;
+  expect(inspectorBox && minimapBox && surfacesOverlap(inspectorBox, minimapBox)).toBeFalsy();
+
+  const labelSaved = waitForSuccessfulStoryWorldWrite(page, label);
+  await inspector.getByRole("textbox", { name: "Beziehung benennen" }).fill(label);
+  const labelResponse = await labelSaved;
+  const labelledEdge = (
+    labelResponse.request().postDataJSON() as {
+      payload: { edges: Array<{ id: string; label?: string }> };
+    }
+  ).payload.edges.find((edge) => edge.id === relationshipId);
+  expect(labelledEdge).toMatchObject({ id: relationshipId, label });
+  await expect(page.getByRole("status")).toContainText("Gespeichert");
+
+  const lineStyleSaved = waitForSuccessfulStoryWorldWrite(page, '"lineStyle":"dotted"');
+  const lineStyleControl = inspector.getByRole("combobox", { name: "Linienart" });
+  await lineStyleControl.focus();
+  await lineStyleControl.press("ArrowDown");
+  await expect(page.getByRole("listbox", { name: "Linienart" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "Durchgezogen" })).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(page.getByRole("option", { name: "Gepunktet" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await lineStyleSaved;
+
+  const kinshipSaved = waitForSuccessfulStoryWorldWrite(page, '"relationshipKind":"kinship"');
+  await inspector.getByRole("checkbox", { name: "Verwandtschaft" }).check();
+  await kinshipSaved;
+
+  const directedSaved = waitForSuccessfulStoryWorldWrite(page, '"gerichtet":true');
+  await inspector.getByRole("checkbox", { name: "Gerichtet" }).check();
+  const directedResponse = await directedSaved;
+  const directedEdge = (
+    directedResponse.request().postDataJSON() as {
+      payload: {
+        edges: Array<{
+          id: string;
+          from: string;
+          to: string;
+          label?: string;
+          gerichtet?: boolean;
+          lineStyle?: string;
+          relationshipKind?: string;
+        }>;
+      };
+    }
+  ).payload.edges.find((edge) => edge.id === relationshipId);
+  expect(directedEdge).toMatchObject({
+    from: "figure-ada",
+    to: "figure-bela",
+    label,
+    gerichtet: true,
+    lineStyle: "dotted",
+    relationshipKind: "kinship",
+  });
+  await expect(inspector).toContainText("Ada → Bela");
+
+  const reversedSaved = waitForSuccessfulStoryWorldWrite(page, label);
+  await inspector.getByRole("button", { name: "Richtung umkehren" }).click();
+  const reversedResponse = await reversedSaved;
+  const reversedEdge = (
+    reversedResponse.request().postDataJSON() as {
+      payload: {
+        edges: Array<{ id: string; from: string; to: string; label?: string; gerichtet?: boolean }>;
+      };
+    }
+  ).payload.edges.find((edge) => edge.id === relationshipId);
+  expect(reversedEdge).toMatchObject({
+    from: "figure-bela",
+    to: "figure-ada",
+    label,
+    gerichtet: true,
+  });
+  await expect(inspector).toContainText("Bela → Ada");
+  await expect(relationship.locator(".react-flow__edge-path")).toHaveAttribute(
+    "marker-end",
+    /url\(['"]?#/,
+  );
+  await expect(page.getByRole("status")).toContainText("Gespeichert");
+
+  await page.reload();
+  await waitForManuscriptReady(page);
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await expect(page.locator(".graph-edge-label")).toContainText(label);
+  await expect(page.locator(".graph-edge-label [data-edge-label-badge=kinship]")).toBeVisible();
+  await expect(page.locator(`.react-flow__edge[data-id="${relationshipId}"]`)).toHaveClass(
+    /edge-line-dotted/,
+  );
+  await expect(
+    page.locator(`.react-flow__edge[data-id="${relationshipId}"] .react-flow__edge-path`),
+  ).toHaveAttribute("marker-end", /url\(['"]?#/);
+
+  const persistedResponse = await page.request.get(`/api/state?world=${world.id}`);
+  expect(persistedResponse.ok()).toBeTruthy();
+  const persistedEdge = (
+    (await persistedResponse.json()) as {
+      payload: {
+        edges: Array<{
+          id: string;
+          from: string;
+          to: string;
+          label?: string;
+          gerichtet?: boolean;
+          lineStyle?: string;
+          relationshipKind?: string;
+        }>;
+      };
+    }
+  ).payload.edges.find((edge) => edge.id === relationshipId);
+  expect(persistedEdge).toMatchObject(reversedEdge ?? {});
+});
+
 test("Figuren folgen dem Zeiger bereits während des Ziehens", async ({ page }) => {
   await page.route("**/api/manuscript*", (route) =>
     fulfillManuscript(route, {
@@ -2246,14 +2417,60 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
   await page.getByRole("menuitem", { name: "Raster ausblenden", exact: true }).click();
   await expect(page.locator(".react-flow__background")).toHaveCount(0);
 
+  const flowArea = page.locator(".figure-workspace .flow-area");
+  const minimap = page.locator(".react-flow__minimap");
+  await expect(minimap).toBeVisible();
+  const flowBox = await flowArea.boundingBox();
+  const minimapBeforeToggle = await minimap.boundingBox();
+  expect(flowBox).not.toBeNull();
+  expect(minimapBeforeToggle).not.toBeNull();
+  expect(
+    Math.abs(
+      (flowBox?.x ?? 0) +
+        (flowBox?.width ?? 0) -
+        ((minimapBeforeToggle?.x ?? 0) + (minimapBeforeToggle?.width ?? 0)) -
+        14,
+    ),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(
+      (flowBox?.y ?? 0) +
+        (flowBox?.height ?? 0) -
+        ((minimapBeforeToggle?.y ?? 0) + (minimapBeforeToggle?.height ?? 0)) -
+        14,
+    ),
+  ).toBeLessThanOrEqual(1);
+
+  await page.getByRole("button", { name: "Übersichtskarte ausblenden" }).click();
+  await expect(minimap).toHaveCount(0);
+  await page.getByRole("button", { name: "Übersichtskarte einblenden" }).click();
+  await expect(minimap).toBeVisible();
+  const minimapAfterToggle = await minimap.boundingBox();
+  expect(
+    Math.abs((minimapAfterToggle?.x ?? 0) - (minimapBeforeToggle?.x ?? 0)),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs((minimapAfterToggle?.y ?? 0) - (minimapBeforeToggle?.y ?? 0)),
+  ).toBeLessThanOrEqual(1);
+
   await page.getByRole("button", { name: "Ansicht", exact: true }).click();
   await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
-  const viewportWidth = page.viewportSize()?.width ?? 0;
-  if (viewportWidth <= 1050) {
-    expect(await page.locator(".react-flow__minimap").boundingBox()).toBeNull();
-  } else {
-    await expect(page.locator(".react-flow__minimap")).toBeVisible();
-  }
+  const minimapWithTimeline = await minimap.boundingBox();
+  const timeline = await page.getByLabel("Beziehungen über die Zeit").boundingBox();
+  const controls = await page.getByLabel("Kartensteuerung").boundingBox();
+  const overlaps = (first: NonNullable<typeof timeline>, second: NonNullable<typeof timeline>) =>
+    first.x < second.x + second.width &&
+    first.x + first.width > second.x &&
+    first.y < second.y + second.height &&
+    first.y + first.height > second.y;
+  expect(
+    Math.abs((minimapWithTimeline?.x ?? 0) - (minimapBeforeToggle?.x ?? 0)),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs((minimapWithTimeline?.y ?? 0) - (minimapBeforeToggle?.y ?? 0)),
+  ).toBeLessThanOrEqual(1);
+  expect(timeline && minimapWithTimeline && overlaps(timeline, minimapWithTimeline)).toBeFalsy();
+  expect(timeline && controls && overlaps(timeline, controls)).toBeFalsy();
 });
 
 test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async ({ page }) => {
@@ -2385,7 +2602,12 @@ test("Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab", async ({ pa
   const geometryBeforeTimeline = await stableGeometry();
   await page.locator(".story-node").filter({ hasText: "Bela" }).click();
   await page.getByRole("tab", { name: "Beziehungen" }).click();
-  await expect(page.getByLabel("Ungerichtete Beziehung")).toBeVisible();
+  const undirectedRelationship = page
+    .getByRole("region", { name: "Beziehung", exact: true })
+    .filter({ hasText: "Ada ↔ Bela" });
+  await expect(
+    undirectedRelationship.getByRole("checkbox", { name: "Gerichtet" }),
+  ).not.toBeChecked();
   await page.getByRole("button", { name: "Richtung umkehren: Bela nach Ada" }).click();
   await expect(
     page.getByRole("button", { name: "Richtung umkehren: Ada nach Bela" }),

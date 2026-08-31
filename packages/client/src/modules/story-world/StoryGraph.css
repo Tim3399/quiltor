@@ -65,9 +65,9 @@
   overflow: hidden;
   padding: var(--space-12) var(--space-14);
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--line-strong);
+  border-left: 3px solid var(--graph-card-kind-color, var(--line-strong));
   border-radius: var(--radius);
-  background: var(--paper);
+  background: color-mix(in srgb, var(--graph-card-kind-surface, var(--paper)) 22%, var(--paper));
   box-shadow: var(--elevation-2) var(--node-shadow);
   font-family: var(--ui);
 }
@@ -78,15 +78,6 @@
 }
 .story-node.dashed {
   border-style: dashed;
-}
-.story-node.accent-gold {
-  border-left-color: var(--gold);
-}
-.story-node.accent-rose {
-  border-left-color: var(--rose-border);
-}
-.story-node.accent-moss {
-  border-left-color: var(--moss-border);
 }
 .story-node.type-ort {
   border-radius: var(--radius) var(--radius-pill) var(--radius) var(--radius-pill);
@@ -141,39 +132,6 @@
 .react-flow__edge-text {
   font-size: var(--font-size-2);
 }
-.flow-area .react-flow {
-  --xy-attribution-background-color: var(--paper);
-  --xy-minimap-background-color: var(--panel);
-  --xy-controls-button-background-color: var(--paper);
-  --xy-controls-button-background-color-hover: var(--panel);
-  --xy-controls-button-color: var(--ink);
-  --xy-controls-button-color-hover: var(--ink);
-  --xy-controls-button-border-color: var(--line);
-  --xy-controls-box-shadow: none;
-}
-.react-flow__controls {
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: none;
-}
-.react-flow__controls-button {
-  border-bottom-color: var(--line);
-}
-.react-flow__controls-button svg {
-  fill: currentColor;
-}
-.flow-area .react-flow__minimap {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
-}
-.flow-area .react-flow__attribution {
-  background: var(--paper);
-}
-.flow-area .react-flow__attribution a {
-  color: var(--attribution);
-}
 .story-node.is-important {
   width: 240px;
   height: 112px;
@@ -215,23 +173,8 @@
   padding: 0;
   border: 2px solid var(--paper);
   border-radius: 50%;
-  background: var(--minimap-person);
+  background: var(--graph-card-kind-color, var(--card-kind-person));
   box-shadow: var(--ring-1) var(--line-strong);
-}
-.story-node.zoom-overview.type-ort:not(.is-important) {
-  background: var(--minimap-place);
-}
-.story-node.zoom-overview.type-konzept:not(.is-important) {
-  background: var(--minimap-concept);
-}
-.story-node.zoom-overview.type-tier:not(.is-important) {
-  background: var(--minimap-animal);
-}
-.story-node.zoom-overview.type-organisation:not(.is-important) {
-  background: var(--minimap-organisation);
-}
-.story-node.zoom-overview.type-objekt:not(.is-important) {
-  background: var(--minimap-object);
 }
 .story-node.zoom-overview .node-monogram {
   width: 100%;
@@ -335,33 +278,5 @@
 @media (max-width: 820px) {
   .figure-layout {
     grid-template-columns: 1fr;
-  }
-  .flow-area .react-flow__minimap {
-    display: none;
-  }
-}
-
-/* React Flow ships 26px navigation controls. That is acceptable for precise
-   desktop pointers, but falls far below the application's 44px touch contract.
-   Keep the override with the shared canvas owner so figures and places cannot
-   drift apart. */
-@media (max-width: 719px), (pointer: coarse) {
-  .flow-area .react-flow__controls-button {
-    width: var(--control-touch);
-    height: var(--control-touch);
-    padding: var(--space-12);
-  }
-
-  .flow-area .react-flow__controls-button svg {
-    max-width: var(--space-16);
-    max-height: var(--space-16);
-  }
-
-  .flow-area .react-flow__attribution a {
-    min-width: var(--control-touch);
-    min-height: var(--control-touch);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
   }
 }

@@ -11,6 +11,7 @@ from quiltor.application.documents.types import DocumentLocation, VersionedDocum
 from quiltor.application.errors import InvalidApplicationInput
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.domain.manuscript import flatten_tree, story_time_anchor_issue, structure_or_flat
+from quiltor.domain.storyboard.validation import valid_storyboards
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
 
 
@@ -56,27 +57,33 @@ class DocumentUseCases:
         location: DocumentLocation,
     ) -> int:
         with self._observer.observe("persistence", f"save_{kind}"):
-            validator = valid_manuscript if kind == "manuscript" else valid_figures
+            validators = {
+                "manuscript": valid_manuscript,
+                "figures": valid_figures,
+                "storyboards": valid_storyboards,
+            }
+            validator = validators[kind]
             if not validator(state):
                 raise InvalidDocumentState("kein gültiger Zustand")
-            counterpart = self._documents.load(
-                "figures" if kind == "manuscript" else "manuscript",
-                location.database,
-            )
-            issue = story_time_anchor_issue(
-                state if kind == "manuscript" else counterpart,
-                counterpart if kind == "manuscript" else state,
-            )
-            if issue is not None:
-                params = {"document": kind, "reason": issue.reason}
-                if issue.chapter_id:
-                    params["chapterId"] = issue.chapter_id
-                if issue.moment_id:
-                    params["momentId"] = issue.moment_id
-                raise InvalidChapterStoryTime(
-                    "invalid chapter story-time reference",
-                    params=params,
+            if kind != "storyboards":
+                counterpart = self._documents.load(
+                    "figures" if kind == "manuscript" else "manuscript",
+                    location.database,
                 )
+                issue = story_time_anchor_issue(
+                    state if kind == "manuscript" else counterpart,
+                    counterpart if kind == "manuscript" else state,
+                )
+                if issue is not None:
+                    params = {"document": kind, "reason": issue.reason}
+                    if issue.chapter_id:
+                        params["chapterId"] = issue.chapter_id
+                    if issue.moment_id:
+                        params["momentId"] = issue.moment_id
+                    raise InvalidChapterStoryTime(
+                        "invalid chapter story-time reference",
+                        params=params,
+                    )
             self._local_backups.backup_if_due(location.database, location.backups)
             revision = self._documents.save(kind, state, expected_revision, location.database)
             if kind == "manuscript":
@@ -87,7 +94,7 @@ class DocumentUseCases:
                     for chapter_id in flatten_tree(chapters_by_id, structure)
                 ]
                 self._local_backups.mirror_manuscript(ordered_chapters, location.manuscript_mirrors)
-            else:
+            elif kind == "figures":
                 self._local_backups.mirror_story_world(state, location.story_world_mirrors)
             return revision
 

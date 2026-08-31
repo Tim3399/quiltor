@@ -1,7 +1,8 @@
-import { ReactFlowProvider } from "@xyflow/react";
+import { Panel, ReactFlowProvider } from "@xyflow/react";
 import { UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Checkbox,
   ConfirmDialog,
   IconButton,
   SidePanel,
@@ -11,7 +12,8 @@ import {
 } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
-import type { FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
+import { GraphEdgeInspector, graphEdgeLineStyle, graphRelationshipKind } from "../../graph";
+import type { FigureEdge, FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
 import { insertTimelineMoment, removeTimelineMoment } from "../timeline/order";
 import { FigureCanvas } from "./FigureCanvas";
@@ -19,6 +21,12 @@ import { FigureInspector } from "./FigureInspector";
 import { FigureNodeContextMenu, type FigureNodeMenuState } from "./FigureNodeContextMenu";
 import { FigureToolbar } from "./FigureToolbar";
 import { prunePresence } from "./presence";
+import {
+  patchRelationship,
+  relationshipConflicts,
+  relationshipLabelEditor,
+  resolveRelationship,
+} from "./relationships";
 import { TimelineStrip } from "./TimelineStrip";
 import { useFigureCanvas } from "./useFigureCanvas";
 
@@ -56,6 +64,7 @@ function FigureWorkspaceInner({
 }: FigureWorkspaceProps) {
   const { locale, t } = useI18n();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [relationshipsVisible, setRelationshipsVisible] = useState(true);
@@ -72,6 +81,18 @@ function FigureWorkspaceInner({
   const selected = state.nodes.find((node) => node.id === selectedId) ?? null;
   const timeline = state.timeline ?? EMPTY_TIMELINE;
   const presence = state.presence ?? EMPTY_PRESENCE;
+  const selectedEdge = state.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
+  const resolvedSelectedEdge = selectedEdge
+    ? resolveRelationship(selectedEdge, timeline, activeMomentId)
+    : null;
+  const visibleSelectedEdge = resolvedSelectedEdge?.active ? resolvedSelectedEdge : null;
+  const selectedEdgeLabel = selectedEdge
+    ? relationshipLabelEditor(selectedEdge, timeline, activeMomentId)
+    : null;
+  const selectNode = useCallback((id: string) => {
+    setSelectedId(id);
+    setSelectedEdgeId(null);
+  }, []);
   const closeNodeMenu = useCallback(() => setNodeMenu(null), []);
   const canvas = useFigureCanvas({
     state,
@@ -82,7 +103,9 @@ function FigureWorkspaceInner({
     activeMomentId,
     journeyOverlayOpen,
     relationshipsVisible,
-    onSelectNode: setSelectedId,
+    selectedEdgeId,
+    onSelectNode: selectNode,
+    onSelectEdge: setSelectedEdgeId,
     onStopConnecting: () => setConnecting(false),
     onEnsureRelationshipsVisible: () => setRelationshipsVisible(true),
     onConnectionError: setConnectionError,
@@ -95,6 +118,7 @@ function FigureWorkspaceInner({
       if (event.key !== "Escape") return;
       setConnecting(false);
       setNodeMenu(null);
+      setSelectedEdgeId(null);
     };
     document.addEventListener("keydown", closeModes);
     return () => document.removeEventListener("keydown", closeModes);
@@ -108,6 +132,7 @@ function FigureWorkspaceInner({
     const item = current.nodes.find((node) => node.id === targetId);
     if (item) {
       setSelectedId(targetId);
+      setSelectedEdgeId(null);
       centerOnNode.current(item);
       return;
     }
@@ -134,6 +159,38 @@ function FigureWorkspaceInner({
       ...state,
       nodes: state.nodes.map((node) => (node.id === id ? { ...node, ...patch } : node)),
     });
+  const patchSelectedEdge = (patch: Partial<FigureEdge>) => {
+    if (!selectedEdge) return;
+    const current = latestState.current;
+    const next = {
+      ...current,
+      edges: current.edges.map((edge) =>
+        edge.id === selectedEdge.id
+          ? patchRelationship(edge, current.timeline ?? EMPTY_TIMELINE, activeMomentId, patch)
+          : edge,
+      ),
+    };
+    latestState.current = next;
+    onChange(next);
+  };
+  const edgeConflict = (
+    edge: FigureEdge & { active: boolean },
+    patch: Pick<FigureEdge, "from" | "to" | "gerichtet">,
+  ) => relationshipConflicts(state.edges, timeline, activeMomentId, edge.id, patch);
+  const toggleEdgeConflict = visibleSelectedEdge
+    ? edgeConflict(visibleSelectedEdge, {
+        from: visibleSelectedEdge.from,
+        to: visibleSelectedEdge.to,
+        gerichtet: !visibleSelectedEdge.gerichtet,
+      })
+    : false;
+  const reverseEdgeConflict = visibleSelectedEdge?.gerichtet
+    ? edgeConflict(visibleSelectedEdge, {
+        from: visibleSelectedEdge.to,
+        to: visibleSelectedEdge.from,
+        gerichtet: true,
+      })
+    : false;
   const removeSelected = () => {
     if (!selected) return;
     const remainingNodes = state.nodes.filter((node) => node.id !== selected.id);
@@ -161,7 +218,10 @@ function FigureWorkspaceInner({
         onConnectingChange={setConnecting}
         onSnapToGridChange={canvas.setSnapToGrid}
         onAlignAllNodes={canvas.alignAllNodes}
-        onRelationshipsVisibleChange={setRelationshipsVisible}
+        onRelationshipsVisibleChange={(visible) => {
+          setRelationshipsVisible(visible);
+          if (!visible) setSelectedEdgeId(null);
+        }}
         onTimelineOpenChange={setTimelineOpen}
         onJourneyOverlayOpenChange={setJourneyOverlayOpen}
         onUndo={onUndo}
@@ -169,6 +229,7 @@ function FigureWorkspaceInner({
         onImport={(imported) => {
           onChange(imported);
           setSelectedId(null);
+          setSelectedEdgeId(null);
         }}
       />
       <div className="figure-layout">
@@ -177,15 +238,95 @@ function FigureWorkspaceInner({
           connecting={connecting}
           playing={playing}
           onCancelConnecting={() => setConnecting(false)}
-          onSelectNode={setSelectedId}
+          onSelectNode={selectNode}
+          onSelectEdge={(id) => {
+            if (state.edges.some((edge) => edge.id === id)) setSelectedEdgeId(id);
+          }}
           onOpenNodeMenu={(node, x, y, trigger) => {
-            setSelectedId(node.id);
+            selectNode(node.id);
             setNodeMenu({ id: node.id, x, y, trigger });
           }}
           onClearSelection={() => {
             setSelectedId(null);
+            setSelectedEdgeId(null);
             setNodeMenu(null);
           }}
+          edgeInspector={
+            selectedEdge && visibleSelectedEdge && selectedEdgeLabel ? (
+              <Panel position="top-right" className="graph-edge-inspector-panel">
+                <GraphEdgeInspector
+                  sourceLabel={
+                    state.nodes.find((node) => node.id === visibleSelectedEdge.from)?.name ??
+                    t("unknown")
+                  }
+                  targetLabel={
+                    state.nodes.find((node) => node.id === visibleSelectedEdge.to)?.name ??
+                    t("unknown")
+                  }
+                  value={selectedEdgeLabel.value}
+                  directed={!!visibleSelectedEdge.gerichtet}
+                  lineStyle={graphEdgeLineStyle(visibleSelectedEdge)}
+                  color={
+                    visibleSelectedEdge.color ??
+                    (visibleSelectedEdge.style === "gold" ? "gold" : "auto")
+                  }
+                  semanticControls={
+                    <Checkbox
+                      containerClassName="graph-edge-inspector__kinship"
+                      label={t("kinship")}
+                      hint={t("kinshipHint")}
+                      checked={graphRelationshipKind(visibleSelectedEdge) === "kinship"}
+                      onChange={(event) =>
+                        patchSelectedEdge({
+                          relationshipKind: event.target.checked ? "kinship" : "general",
+                        })
+                      }
+                    />
+                  }
+                  labels={{
+                    title: t("relationship"),
+                    label: t("nameRelationship"),
+                    labelPlaceholder: t("nameRelationship"),
+                    directed: t("directed"),
+                    reverse: t("reverseDirection"),
+                    conflict: t("relationConflict"),
+                    lineStyle: t("edgeLineStyle"),
+                    lineStyleOptions: {
+                      solid: t("edgeLineSolid"),
+                      dashed: t("edgeLineDashed"),
+                      dotted: t("edgeLineDotted"),
+                    },
+                    color: t("edgeColor"),
+                    colorOptions: {
+                      auto: t("edgeColorAuto"),
+                      ink: t("edgeColorInk"),
+                      gold: t("edgeColorGold"),
+                      rose: t("edgeColorRose"),
+                      moss: t("edgeColorMoss"),
+                      blue: t("edgeColorBlue"),
+                    },
+                  }}
+                  labelPlaceholder={selectedEdgeLabel.inherited || t("nameRelationship")}
+                  toggleConflict={toggleEdgeConflict}
+                  reverseConflict={reverseEdgeConflict}
+                  onLabelChange={(label) => patchSelectedEdge({ label })}
+                  onLineStyleChange={(lineStyle) => patchSelectedEdge({ lineStyle })}
+                  onColorChange={(color) => patchSelectedEdge({ color })}
+                  onDirectedChange={(directed) => {
+                    if (toggleEdgeConflict) return;
+                    patchSelectedEdge({ gerichtet: directed });
+                  }}
+                  onReverse={() => {
+                    if (reverseEdgeConflict) return;
+                    patchSelectedEdge({
+                      from: visibleSelectedEdge.to,
+                      to: visibleSelectedEdge.from,
+                    });
+                  }}
+                />
+              </Panel>
+            ) : undefined
+          }
         >
           {timelineOpen && (
             <TimelineStrip

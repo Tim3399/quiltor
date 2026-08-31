@@ -113,6 +113,9 @@
         "to": { "type": "string", "minLength": 1 },
         "label": { "type": "string" },
         "style": { "enum": ["solid", "dashed", "blood", "gold"] },
+        "lineStyle": { "enum": ["solid", "dashed", "dotted"] },
+        "relationshipKind": { "enum": ["general", "kinship"] },
+        "color": { "enum": ["auto", "ink", "gold", "rose", "moss", "blue"] },
         "gerichtet": { "type": "boolean" },
         "fromHandle": { "type": "string" },
         "toHandle": { "type": "string" },
@@ -133,6 +136,9 @@
         "to": { "type": "string", "minLength": 1 },
         "label": { "type": "string" },
         "style": { "enum": ["solid", "dashed", "blood", "gold"] },
+        "lineStyle": { "enum": ["solid", "dashed", "dotted"] },
+        "relationshipKind": { "enum": ["general", "kinship"] },
+        "color": { "enum": ["auto", "ink", "gold", "rose", "moss", "blue"] },
         "gerichtet": { "type": "boolean" },
         "active": { "type": "boolean" }
       }

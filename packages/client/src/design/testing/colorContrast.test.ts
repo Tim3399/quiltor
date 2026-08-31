@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CARD_KINDS, GRAPH_EDGE_COLORS } from "../../modules/graph";
 
 type Theme = "light" | "dark";
 
@@ -406,5 +407,77 @@ describe("danger token roles", () => {
     expect(styles.match(/background:\s*var\(--danger\);/g)).toBeNull();
     expect(styles).toMatch(/secondary[^}]*color:\s*var\(--danger\);/s);
     expect(styles).toMatch(/ghost[^}]*color:\s*var\(--danger\);/s);
+  });
+});
+
+describe.each(["light", "dark"] as const)("%s-theme graph color contrast", (theme) => {
+  it.each(CARD_KINDS)(
+    "keeps the %s card-kind marker distinguishable from its canvas and card surface",
+    (kind) => {
+      const colorRole = `--card-kind-${kind}`;
+      const surfaceRole = `--card-kind-${kind}-surface`;
+      const color = token(theme, colorRole);
+
+      expect(
+        contrastRatio(color, token(theme, "--canvas")),
+        `${theme} ${colorRole} ${color} on graph canvas`,
+      ).toBeGreaterThanOrEqual(3);
+      expect(
+        contrastRatio(color, token(theme, surfaceRole)),
+        `${theme} ${colorRole} ${color} on ${surfaceRole}`,
+      ).toBeGreaterThanOrEqual(3);
+    },
+  );
+
+  it.each(GRAPH_EDGE_COLORS.filter((color) => color !== "auto"))(
+    "keeps the explicit %s edge palette role distinguishable from the graph canvas",
+    (color) => {
+      const colorRole = `--graph-edge-color-${color}`;
+      const resolvedColor = token(theme, colorRole);
+
+      expect(
+        contrastRatio(resolvedColor, token(theme, "--canvas")),
+        `${theme} ${colorRole} ${resolvedColor} on graph canvas`,
+      ).toBeGreaterThanOrEqual(3);
+    },
+  );
+
+  it.each([
+    ["directed", "--graph-edge-directed-stroke"],
+    ["undirected", "--graph-edge-undirected-stroke"],
+  ] as const)(
+    "keeps the automatic %s edge role distinguishable from the graph canvas",
+    (_, role) => {
+      const resolvedColor = token(theme, role);
+
+      expect(
+        contrastRatio(resolvedColor, token(theme, "--canvas")),
+        `${theme} ${role} ${resolvedColor} on graph canvas`,
+      ).toBeGreaterThanOrEqual(3);
+    },
+  );
+});
+
+describe("graph semantic color token ownership", () => {
+  it("keeps every card-kind color and surface behind a semantic alias", () => {
+    for (const kind of CARD_KINDS) {
+      for (const role of [`--card-kind-${kind}`, `--card-kind-${kind}-surface`]) {
+        expect(sharedTokens[role], role).toMatch(/^var\(\s*--[\w-]+\s*\)$/);
+      }
+    }
+  });
+
+  it("keeps explicit and automatic edge colors behind semantic aliases", () => {
+    const roles = [
+      ...GRAPH_EDGE_COLORS.filter((color) => color !== "auto").map(
+        (color) => `--graph-edge-color-${color}`,
+      ),
+      "--graph-edge-directed-stroke",
+      "--graph-edge-undirected-stroke",
+    ];
+
+    for (const role of roles) {
+      expect(sharedTokens[role], role).toMatch(/^var\(\s*--[\w-]+\s*\)$/);
+    }
   });
 });

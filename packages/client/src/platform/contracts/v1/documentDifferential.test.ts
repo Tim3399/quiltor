@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import manifest from "../../../../../../contracts/manifest.json";
 import manuscriptCorpusValue from "../../../../../../contracts/fixtures/application-api/manuscript/differential.v1.json";
 import manuscriptFixture from "../../../../../../contracts/fixtures/application-api/manuscript/wire.v1.json";
 import storyWorldCorpusValue from "../../../../../../contracts/fixtures/application-api/story-world/differential.v1.json";
 import storyWorldFixture from "../../../../../../contracts/fixtures/application-api/story-world/wire.v1.json";
-import { decodeManuscriptV1, encodeManuscriptV1 } from "./manuscript";
-import { decodeStoryWorldV1, encodeStoryWorldV1 } from "./storyWorld";
+import storyboardsCorpusValue from "../../../../../../contracts/fixtures/application-api/storyboards/differential.v1.json";
+import storyboardsFixture from "../../../../../../contracts/fixtures/application-api/storyboards/wire.v1.json";
+import manifest from "../../../../../../contracts/manifest.json";
 import { ENTITY_ALIAS_NORMALIZATION_V1, normalizeEntityAliasV1 } from "../../../shared";
+import { decodeManuscriptV1, encodeManuscriptV1 } from "./manuscript";
+import { decodeStoryboardsV1, encodeStoryboardsV1 } from "./storyboards";
+import { decodeStoryWorldV1, encodeStoryWorldV1 } from "./storyWorld";
 
 type Expectation = "accept" | "reject";
 type DifferentialValue = unknown;
@@ -95,6 +98,13 @@ function storyWorldRoundTrip(value: unknown): unknown {
   return encoded;
 }
 
+function storyboardsRoundTrip(value: unknown): unknown {
+  const decoded = decodeStoryboardsV1(value);
+  const encoded = encodeStoryboardsV1(decoded.document, decoded.revision);
+  decodeStoryboardsV1(encoded);
+  return encoded;
+}
+
 const runtimes = [
   {
     corpus: manuscriptCorpusValue as DifferentialCorpus,
@@ -105,6 +115,11 @@ const runtimes = [
     corpus: storyWorldCorpusValue as DifferentialCorpus,
     base: storyWorldFixture,
     roundTrip: storyWorldRoundTrip,
+  },
+  {
+    corpus: storyboardsCorpusValue as DifferentialCorpus,
+    base: storyboardsFixture,
+    roundTrip: storyboardsRoundTrip,
   },
 ];
 

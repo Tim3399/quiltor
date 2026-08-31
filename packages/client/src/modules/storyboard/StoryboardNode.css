@@ -1,0 +1,189 @@
+.storyboard-node {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-compact-wide);
+  padding: var(--spacing-regular-tight);
+  border: 1px solid var(--line-strong);
+  border-block-start: var(--spacing-optical-base) solid
+    var(--graph-card-kind-color, var(--line-strong));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--graph-card-kind-surface, var(--paper)) 24%, var(--paper));
+  box-shadow: var(--elevation-2) var(--node-shadow);
+  color: var(--ink);
+  cursor: grab;
+  font-family: var(--ui);
+}
+
+.storyboard-node:active {
+  cursor: grabbing;
+}
+
+.storyboard-node.is-selected {
+  box-shadow:
+    var(--ring-2) var(--selection-border),
+    var(--elevation-4) var(--node-shadow);
+}
+
+.storyboard-node--note {
+  background: color-mix(
+    in srgb,
+    var(--graph-card-kind-surface, var(--material-sheet)) 28%,
+    var(--material-sheet)
+  );
+}
+
+.storyboard-node--group {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--panel) 36%, var(--transparent));
+  box-shadow: none;
+}
+
+.storyboard-node__header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-compact-wide);
+  color: var(--muted);
+}
+
+.storyboard-node__body {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--spacing-compact-wide);
+  touch-action: none;
+}
+
+.storyboard-node__kind {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-compact-tight);
+  font-size: var(--font-size-2);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.storyboard-node__kind svg {
+  width: var(--font-size-4);
+  height: var(--font-size-4);
+  flex: none;
+}
+
+.storyboard-node__title {
+  min-width: 0;
+  overflow: hidden;
+  font: 600 var(--font-size-5) / 1.3 var(--prose);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.storyboard-node__open {
+  width: fit-content;
+  margin-block-start: auto;
+}
+
+.storyboard-node__note {
+  min-height: 0;
+  flex: 1;
+}
+
+.storyboard-node__note--compact {
+  flex: none;
+}
+
+.storyboard-note-control {
+  height: 100%;
+  min-height: 100%;
+  resize: vertical;
+}
+
+.storyboard-node-note-field {
+  margin-block-end: 0;
+}
+
+.storyboard-group-title-field {
+  max-width: var(--sidebar-ideal);
+}
+
+.storyboard-node .react-flow__handle {
+  width: var(--spacing-regular-tight);
+  height: var(--spacing-regular-tight);
+  border: var(--spacing-optical-tight) solid var(--paper);
+  background: var(--accent-primary);
+  opacity: 0.38;
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.storyboard-node .directed-handle {
+  border-radius: 50%;
+  background: var(--accent-primary);
+}
+
+.storyboard-node .neutral-handle {
+  width: var(--spacing-compact-wide);
+  height: var(--spacing-compact-wide);
+  border-radius: var(--radius-xs);
+  background: var(--success-border);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.storyboard-node .neutral-handle.react-flow__handle-bottom {
+  transform: translate(-50%, 50%) rotate(45deg);
+}
+
+.storyboard-node:hover .react-flow__handle,
+.storyboard-node.is-selected .react-flow__handle {
+  opacity: 1;
+}
+
+.storyboard-node__resize-line {
+  border-color: var(--accent-primary-border);
+}
+
+.storyboard-node__resize-handle {
+  width: var(--spacing-regular-tight);
+  height: var(--spacing-regular-tight);
+  border: 1px solid var(--paper);
+  border-radius: var(--radius-xs);
+  background: var(--accent-primary);
+}
+
+.storyboard-node__resize-action {
+  position: absolute;
+  z-index: var(--z-local);
+  inset-inline-end: var(--spacing-compact-tight);
+  inset-block-end: var(--spacing-compact-tight);
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  .storyboard-node__resize-handle {
+    width: var(--control-touch);
+    height: var(--control-touch);
+    border-color: var(--transparent);
+    background: color-mix(in srgb, var(--accent-primary) 24%, var(--transparent));
+  }
+
+  .storyboard-node .react-flow__handle {
+    width: var(--control-touch);
+    height: var(--control-touch);
+    border-color: var(--transparent);
+    background: color-mix(in srgb, var(--accent-primary) 30%, var(--transparent));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storyboard-node .react-flow__handle {
+    transition: none;
+  }
+}

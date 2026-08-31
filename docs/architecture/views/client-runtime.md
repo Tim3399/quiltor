@@ -56,6 +56,12 @@ class StoryWorldApplicationGateway {
   +saveDocumentV1(VersionedStoryWorld) OperationResult
 }
 
+class StoryboardApplicationGateway {
+  <<interface>>
+  +loadDocument(WorldId) VersionedStoryboard
+  +saveDocumentV1(VersionedStoryboard) OperationResult
+}
+
 class AssistantApplicationGateway {
   <<interface>>
   +startRequest(AssistantContextRequest)
@@ -81,6 +87,7 @@ class WorldEditorSession {
 ApplicationGateway *-- WorldCatalogGateway
 ApplicationGateway *-- ManuscriptApplicationGateway
 ApplicationGateway *-- StoryWorldApplicationGateway
+ApplicationGateway *-- StoryboardApplicationGateway
 ApplicationGateway *-- AssistantApplicationGateway
 RuntimeDependencies --> ApplicationGateway
 RuntimeDependencies --> PlatformGateway
@@ -96,8 +103,9 @@ operations, not full mutable aggregates plus unrestricted callbacks.
 
 ## Separate draft and history lanes
 
-Text editing and Story World manipulation have different latency and undo
-semantics. They intentionally do not share one generic history stack.
+Text editing, Story World manipulation and free Storyboard planning have
+different latency and undo semantics. They intentionally do not share one
+generic history stack.
 
 ```mermaid
 classDiagram
@@ -129,8 +137,20 @@ class StoryWorldDraftStore {
   +acknowledge(OperationResult)
 }
 
+class StoryboardDraftStore {
+  +snapshot() StoryboardReadModel
+  +applyPlanningDelta()
+  +acknowledge(OperationResult)
+}
+
 class FeatureHistory {
   +record(FeatureDelta)
+  +undo()
+  +redo()
+}
+
+class StoryboardHistory {
+  +record(StoryboardDelta)
   +undo()
   +redo()
 }
@@ -146,22 +166,27 @@ ManuscriptSessionStore *-- ChapterDraftBuffer : active or dirty chapters
 ChapterDraftBuffer *-- TextHistory
 WorldEditorSession *-- StoryWorldDraftStore
 StoryWorldDraftStore *-- FeatureHistory
+WorldEditorSession *-- StoryboardDraftStore
+StoryboardDraftStore *-- StoryboardHistory
 WorldEditorSession *-- HistoryCoordinator
 HistoryCoordinator --> TextHistory : when editor focused
 HistoryCoordinator --> FeatureHistory : when Story World feature focused
+HistoryCoordinator --> StoryboardHistory : when Storyboard focused
 ```
 
 <code>ChapterDraftBuffer</code> keeps typing responsive and coalesces editor
 transactions before persistence. <code>TextHistory</code> preserves editor-native
 selection and composition behavior. <code>FeatureHistory</code> records
-reversible figure, place, timeline and layout deltas. The
+reversible figure, place, timeline and layout deltas.
+<code>StoryboardHistory</code> independently records board, node, edge and
+note-card planning changes. The
 <code>HistoryCoordinator</code> only routes global undo/redo to the focused
 context; it does not merge those histories into a world-wide event stack.
 
 The current snapshot histories may remain behind these interfaces until editor
-behavior tests and memory measurements justify replacing them. Text and feature
-history migrate independently; this view does not require an unmeasured
-all-at-once rewrite.
+behavior tests and memory measurements justify replacing them. Text, Story
+World and Storyboard history migrate independently; this view does not require
+an unmeasured all-at-once rewrite.
 
 Story World interaction deltas may optimistically move a node or map marker.
 They are presentation latency aids, not canonical validation. Structural
@@ -413,27 +438,36 @@ class StoryWorldSaveLane {
   +flush() OperationResult
 }
 
+class StoryboardSaveLane {
+  +enqueue(StoryboardChange)
+  +flush() OperationResult
+}
+
 class CrossDocumentSaveLane {
   +execute(AtomicWorldIntent) OperationResult
 }
 
 class ManuscriptApplicationGateway
 class StoryWorldApplicationGateway
+class StoryboardApplicationGateway
 class ApplicationGateway
 
 WorldEditorSession *-- SessionSaveCoordinator
 SessionSaveCoordinator *-- ManuscriptSaveLane
 SessionSaveCoordinator *-- StoryWorldSaveLane
+SessionSaveCoordinator *-- StoryboardSaveLane
 SessionSaveCoordinator *-- CrossDocumentSaveLane
 ManuscriptSaveLane --> ManuscriptApplicationGateway
 StoryWorldSaveLane --> StoryWorldApplicationGateway
+StoryboardSaveLane --> StoryboardApplicationGateway
 CrossDocumentSaveLane --> ApplicationGateway : context-specific atomic use case
 ```
 
-During the first migration stages, manuscript and Story World lanes continue to
-save their existing versioned full-document envelopes. This preserves the
-stable v1 contract and avoids an all-at-once command rewrite. Focused typed
-operations can replace a lane's wire operation incrementally, while the
+The current Manuscript, Story World and Storyboard lanes save independent
+versioned full-document envelopes. This preserves the stable v1 contracts and
+avoids an all-at-once command rewrite. `flushAll()` flushes all three lanes,
+while the visible status and global undo/redo follow the active lane. Focused
+typed operations can replace a lane's wire operation incrementally, while the
 session-facing draft and history model remains unchanged.
 
 The cross-document lane is not a queue that batches arbitrary adjacent edits.
@@ -444,8 +478,9 @@ that intentionally changes both documents.
 ## Feature controllers and client-only projections
 
 Figures, Places and Timeline are controllers over the same Story World draft
-store. They do not import one another. Client projections support immediate
-navigation, backlinks and search over the current drafts.
+store. Storyboard has its own controller and planning draft store. They do not
+import one another. Client projections support immediate navigation, backlinks
+and search over the current drafts.
 
 ```mermaid
 classDiagram
@@ -455,10 +490,12 @@ class ManuscriptController
 class FiguresController
 class PlacesController
 class TimelineController
+class StoryboardController
 class NotesController
 class AssistantController
 class ManuscriptSessionStore
 class StoryWorldDraftStore
+class StoryboardDraftStore
 class ClientReferenceProjection
 class ClientGlobalSearch
 class WorldEditorSession
@@ -468,12 +505,15 @@ ManuscriptController --> ManuscriptSessionStore : selectors and editor draft
 FiguresController --> StoryWorldDraftStore : figure selectors and deltas
 PlacesController --> StoryWorldDraftStore : place selectors and deltas
 TimelineController --> StoryWorldDraftStore : timeline selectors and deltas
+StoryboardController --> StoryboardDraftStore : planning selectors and deltas
 ManuscriptController --> WorldEditorSession : focused manuscript intents
 FiguresController --> WorldEditorSession : focused Story World intents
 PlacesController --> WorldEditorSession : focused Story World intents
 TimelineController --> WorldEditorSession : focused Story World intents
+StoryboardController --> WorldEditorSession : focused Storyboard intents
 ClientReferenceProjection --> ManuscriptSessionStore : current draft read model
 ClientReferenceProjection --> StoryWorldDraftStore : current draft read model
+ClientReferenceProjection --> StoryboardDraftStore : board candidates for search / @ / drag
 ClientGlobalSearch --> ClientReferenceProjection
 NotesController --> ClientReferenceProjection
 AssistantController --> WorldEditorSession : flush or bounded draft attachment
@@ -486,10 +526,16 @@ The projection ownership is intentionally split:
 | -------------------------------------- | ----------------------------------- | ------------------------------------------------ |
 | <code>ManuscriptReadModel</code>       | <code>ManuscriptSessionStore</code> | manuscript UI and client projections             |
 | <code>StoryWorldReadModel</code>       | <code>StoryWorldDraftStore</code>   | Figures, Places, Timeline and client projections |
+| <code>StoryboardReadModel</code>       | <code>StoryboardDraftStore</code>   | Storyboard UI and client reference candidates    |
 | client reference/search index          | client projection services          | navigation, notes, backlinks and search UI       |
 | canonical Assistant context/read tools | application/core-side projections   | Assistant orchestration only                     |
 
 Client search may include unsaved drafts because it is a presentation feature.
+The shipped candidate projection includes Storyboard boards and lets note cards
+and search results navigate by stable IDs. It does not yet derive backlinks
+from Storyboard cards; that remains TECH-014 rather than an implied property of
+the draft store.
+
 Canonical Assistant context is built from committed application state. Before
 an Assistant request, the session either flushes the relevant draft or attaches
 a bounded, explicitly labelled draft overlay. Client projection classes do not
@@ -555,6 +601,37 @@ sequenceDiagram
 Undo and redo use their owning history and then the same save lane as the
 forward edit. They do not rewind SQLite behind the application boundary.
 
+## Storyboard interaction sequence
+
+```mermaid
+sequenceDiagram
+    actor Author
+    participant UI as Storyboard canvas / Note card
+    participant Store as StoryboardDraftStore
+    participant History as StoryboardHistory
+    participant Session as WorldEditorSession
+    participant Lane as StoryboardSaveLane
+    participant App as StoryboardApplicationGateway
+
+    Author->>UI: create, move, connect or edit planning content
+    UI->>Store: reversible planning delta
+    Store->>History: record Storyboard delta
+    Store-->>UI: immediate canvas/read model
+    Store->>Session: pending Storyboard change
+    Session->>Lane: enqueue change
+    Lane->>App: saveDocumentV1(versioned Storyboard)
+    App-->>Lane: OperationResult and Storyboard revision
+    Lane->>Store: acknowledge independently from canon
+```
+
+The shipped slice implements this ownership with a dedicated
+`useHistoryState<StoryboardState>`, `useAutosave` lane and
+`StoryboardsGateway`. Storyboard note cards reuse the shared `NoteEditor` and
+Focus Mode while editing the same Storyboard node. Planning changes never enter
+the Story World lane. Backlink extraction from Storyboard cards and Assistant
+planning context remain TECH-014/later work rather than implicit effects of the
+save.
+
 ## Assistant acceptance sequence
 
 ```mermaid
@@ -589,8 +666,9 @@ canonical mutation path remain application responsibilities.
 | <code>useWorldSession</code>                                                                                                               | initial load and session lifecycle; no domain reconciliation policy                                                              |
 | manuscript <code>useHistoryState</code> snapshots                                                                                          | <code>ChapterDraftBuffer</code> plus <code>TextHistory</code>                                                                    |
 | Story World <code>useHistoryState</code> snapshots                                                                                         | <code>StoryWorldDraftStore</code> plus <code>FeatureHistory</code>                                                               |
+| Storyboard <code>useHistoryState</code> snapshots                                                                                          | <code>StoryboardDraftStore</code> plus <code>StoryboardHistory</code>                                                            |
 | global keyboard undo routing                                                                                                               | <code>HistoryCoordinator</code> routes to focused history                                                                        |
-| two independent <code>useAutosave</code> hooks                                                                                             | two explicit save lanes with one aggregated status coordinator                                                                   |
+| three independent <code>useAutosave</code> hooks                                                                                           | three explicit save lanes with one aggregated status coordinator                                                                 |
 | full document props and unrestricted <code>onChange</code>                                                                                 | feature selectors and focused controller operations                                                                              |
 | duplicate reference builders in app and search                                                                                             | one client reference projection consumed by client search                                                                        |
 | direct <code>applyAssistantProposals(FigureState)</code>                                                                                   | application-side proposal acceptance                                                                                             |

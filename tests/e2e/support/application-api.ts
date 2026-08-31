@@ -1,20 +1,30 @@
-import type { Route } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
 import revisionConflictFixture from "../../../contracts/fixtures/application-api/structured-error/revision-conflict.v1.json" with {
   type: "json",
 };
 import type { Manuscript } from "../../../packages/client/src/modules/manuscript";
 import type { FigureState } from "../../../packages/client/src/modules/story-world";
+import type { StoryboardState } from "../../../packages/client/src/modules/storyboard/model";
 import { DOCUMENT_MEDIA_TYPE_V1 } from "../../../packages/client/src/platform/contracts/v1/documentEnvelope";
 import {
   decodeManuscriptV1,
   encodeManuscriptV1,
 } from "../../../packages/client/src/platform/contracts/v1/manuscript";
+import { encodeStoryboardsV1 } from "../../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldV1 } from "../../../packages/client/src/platform/contracts/v1/storyWorld";
 
 function documentHeaders(revision: number) {
   return {
     "Content-Type": DOCUMENT_MEDIA_TYPE_V1,
     ETag: `"${revision}"`,
+  };
+}
+
+function emptyStoryboards(): StoryboardState {
+  return {
+    boards: [{ id: "main-storyboard", title: "Main Storyboard" }],
+    nodes: [],
+    edges: [],
   };
 }
 
@@ -38,6 +48,51 @@ export function fulfillStoryWorld(
     json: encodeStoryWorldDocument(storyWorld, revision),
     headers: documentHeaders(revision),
   });
+}
+
+export function fulfillStoryboards(
+  route: Route,
+  storyboards: StoryboardState = emptyStoryboards(),
+  revision = 0,
+): Promise<void> {
+  return route.fulfill({
+    json: encodeStoryboardsV1(storyboards, revision),
+    headers: documentHeaders(revision),
+  });
+}
+
+/**
+ * Synthetic worlds must expose every document loaded atomically by useWorldSession.
+ * Keeping the routes together prevents a newly required document from being omitted
+ * by individual browser fixtures.
+ */
+export async function mockRequiredWorldDocuments(
+  page: Page,
+  {
+    manuscript,
+    storyWorld,
+    storyboards = emptyStoryboards(),
+  }: {
+    manuscript: Manuscript;
+    storyWorld: FigureState;
+    storyboards?: StoryboardState;
+  },
+) {
+  await page.route("**/api/manuscript*", (route) =>
+    route.request().method() === "GET"
+      ? fulfillManuscript(route, manuscript)
+      : fulfillDocumentSave(route, 1),
+  );
+  await page.route("**/api/state*", (route) =>
+    route.request().method() === "GET"
+      ? fulfillStoryWorld(route, storyWorld)
+      : fulfillDocumentSave(route, 1),
+  );
+  await page.route("**/api/storyboards*", (route) =>
+    route.request().method() === "GET"
+      ? fulfillStoryboards(route, storyboards)
+      : fulfillDocumentSave(route, 1),
+  );
 }
 
 export function encodeStoryWorldDocument(storyWorld: FigureState, revision: number) {

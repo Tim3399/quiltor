@@ -1,9 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import {
-  fulfillDocumentSave,
-  fulfillManuscript,
-  fulfillStoryWorld,
-} from "./support/application-api";
+import { mockRequiredWorldDocuments } from "./support/application-api";
 import {
   expectVisibleNativeControlsToUseQuiltorTheme,
   expectVisibleScrollbarsToUseQuiltorTheme,
@@ -26,48 +22,42 @@ async function mockWorldWithLongCustomCalendar(page: Page) {
     route.fulfill({ json: { ok: true, worlds: [world] } }),
   );
   await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
-  await page.route("**/api/manuscript*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillManuscript(route, {
-          chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
-          words: [],
-          zeichenAktiv: [],
-        })
-      : fulfillDocumentSave(route, 1),
-  );
-  await page.route("**/api/state*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillStoryWorld(route, {
-          nodes: [],
-          edges: [],
-          timeline: [{ id: "m1", title: "Ankunft", time: 0, position: 0 }],
-          presence: [],
-          timeSystem: {
-            id: "primary",
-            name: "Langer eigener Kalender",
-            kind: "custom",
-            unit: "day",
-            eraName: "Neue Zeit",
-            eraAbbreviation: "NZ",
-            epochTime: 0,
-            epochYear: 1,
-            epochMonth: 1,
-            epochDay: 1,
-            epochWeekday: 0,
-            displayFormat: "",
-            weekdays: Array.from({ length: 9 }, (_, index) => ({
-              name: `Wochentag ${index + 1}`,
-              shortName: `W${index + 1}`,
-            })),
-            months: Array.from({ length: 22 }, (_, index) => ({
-              name: `Monat ${index + 1}`,
-              shortName: `M${index + 1}`,
-              dayCount: 30,
-            })),
-          },
-        })
-      : fulfillDocumentSave(route, 1),
-  );
+  await mockRequiredWorldDocuments(page, {
+    manuscript: {
+      chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
+      words: [],
+      zeichenAktiv: [],
+    },
+    storyWorld: {
+      nodes: [],
+      edges: [],
+      timeline: [{ id: "m1", title: "Ankunft", time: 0, position: 0 }],
+      presence: [],
+      timeSystem: {
+        id: "primary",
+        name: "Langer eigener Kalender",
+        kind: "custom",
+        unit: "day",
+        eraName: "Neue Zeit",
+        eraAbbreviation: "NZ",
+        epochTime: 0,
+        epochYear: 1,
+        epochMonth: 1,
+        epochDay: 1,
+        epochWeekday: 0,
+        displayFormat: "",
+        weekdays: Array.from({ length: 9 }, (_, index) => ({
+          name: `Wochentag ${index + 1}`,
+          shortName: `W${index + 1}`,
+        })),
+        months: Array.from({ length: 22 }, (_, index) => ({
+          name: `Monat ${index + 1}`,
+          shortName: `M${index + 1}`,
+          dayCount: 30,
+        })),
+      },
+    },
+  });
 }
 
 async function mockWorldWithStoryWorldUiAudit(page: Page) {
@@ -87,66 +77,60 @@ async function mockWorldWithStoryWorldUiAudit(page: Page) {
     route.fulfill({ json: { ok: true, worlds: [world] } }),
   );
   await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
-  await page.route("**/api/manuscript*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillManuscript(route, {
-          chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
-          words: [],
-          zeichenAktiv: [],
-        })
-      : fulfillDocumentSave(route, 1),
-  );
-  await page.route("**/api/state*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillStoryWorld(route, {
-          nodes: [
-            {
-              id: "figure-ada",
-              name: "Ada mit einem absichtlich langen Namen",
-              type: "person",
-              x: 120,
-              y: 120,
-            },
-            {
-              id: "place-harbour",
-              name: "Hafen der sehr langen Nordküste",
-              type: "ort",
-              x: 420,
-              y: 160,
-            },
-            {
-              id: "figure-borin",
-              name: "Borin",
-              type: "person",
-              x: 260,
-              y: 360,
-            },
-          ],
-          edges: [
-            {
-              id: "edge-ada-borin",
-              from: "figure-ada",
-              to: "figure-borin",
-              label: "Verbündet",
-              style: "solid",
-            },
-          ],
-          timeline: Array.from({ length: 14 }, (_, index) => ({
-            id: `moment-${index + 1}`,
-            title: `Zeitpunkt ${index + 1} mit langem Titel`,
-            time: index,
-            position: index,
-          })),
-          presence: [
-            {
-              id: "presence-ada-harbour",
-              elementId: "figure-ada",
-              placeId: "place-harbour",
-            },
-          ],
-        })
-      : fulfillDocumentSave(route, 1),
-  );
+  await mockRequiredWorldDocuments(page, {
+    manuscript: {
+      chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
+      words: [],
+      zeichenAktiv: [],
+    },
+    storyWorld: {
+      nodes: [
+        {
+          id: "figure-ada",
+          name: "Ada mit einem absichtlich langen Namen",
+          type: "person",
+          x: 120,
+          y: 120,
+        },
+        {
+          id: "place-harbour",
+          name: "Hafen der sehr langen Nordküste",
+          type: "ort",
+          x: 420,
+          y: 160,
+        },
+        {
+          id: "figure-borin",
+          name: "Borin",
+          type: "person",
+          x: 260,
+          y: 360,
+        },
+      ],
+      edges: [
+        {
+          id: "edge-ada-borin",
+          from: "figure-ada",
+          to: "figure-borin",
+          label: "Verbündet",
+          style: "solid",
+        },
+      ],
+      timeline: Array.from({ length: 14 }, (_, index) => ({
+        id: `moment-${index + 1}`,
+        title: `Zeitpunkt ${index + 1} mit langem Titel`,
+        time: index,
+        position: index,
+      })),
+      presence: [
+        {
+          id: "presence-ada-harbour",
+          elementId: "figure-ada",
+          placeId: "place-harbour",
+        },
+      ],
+    },
+  });
 }
 
 async function expectCalendarEditorActionsAligned(settings: Locator, minimumSize: number) {
@@ -505,10 +489,10 @@ test("Figuren verwenden für alle sichtbaren Dropdowns Quiltor-Controls", async 
   await page.keyboard.press("Escape");
   await relationshipTab.click();
   await expect(inspector.locator("select:visible")).toHaveCount(0);
-  const lineStyle = inspector.getByRole("combobox", { name: "Linienstil" });
+  const lineStyle = inspector.getByRole("combobox", { name: "Linienart" });
   await expect(lineStyle).toHaveJSProperty("tagName", "BUTTON");
   await lineStyle.click();
-  await expect(page.getByRole("listbox", { name: "Linienstil" })).toBeVisible();
+  await expect(page.getByRole("listbox", { name: "Linienart" })).toBeVisible();
   await page.keyboard.press("Escape");
 
   const figureTimeline = page.locator(".figure-workspace .timeline-track");

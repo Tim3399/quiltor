@@ -118,7 +118,9 @@ def forced_proposal(
                     "label": label.group(1) if label else edge.get("label", ""),
                     "active": "inaktiv" not in folded and "inactive" not in folded,
                     "directed": not ("ungerichtet" in folded or "undirected" in folded),
-                    "style": "solid",
+                    "lineStyle": "solid",
+                    "relationshipKind": "general",
+                    "color": "auto",
                 },
             }
     if required == {"mark_deceased"} and node and moment:
@@ -157,7 +159,9 @@ def forced_proposal(
                     "directed": bool(
                         re.search(r"\b(gerichtet|directed|besitzt|gehört|owns?)\b", folded)
                     ),
-                    "style": "solid",
+                    "lineStyle": "solid",
+                    "relationshipKind": "general",
+                    "color": "auto",
                 },
             }
         return None

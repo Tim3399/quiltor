@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import storyWorldSchema from "../../../../../../contracts/application-api/story-world/v1.schema.json";
 import fixture from "../../../../../../contracts/fixtures/application-api/story-world/wire.v1.json";
 import manifest from "../../../../../../contracts/manifest.json";
 import { decodeStoryWorldV1, encodeStoryWorldV1 } from "./storyWorld";
@@ -17,6 +18,16 @@ describe("story-world wire v1", () => {
     const decoded = decodeStoryWorldV1(fixture);
     expect(decoded.revision).toBe(4);
     expect(decoded.document.extension).toEqual({ source: "contract-fixture" });
+    expect(decoded.document.edges[0]).toMatchObject({
+      color: "rose",
+      lineStyle: "dotted",
+      relationshipKind: "kinship",
+    });
+    expect(decoded.document.edges[0].versions?.[0]).toMatchObject({
+      color: "blue",
+      lineStyle: "dashed",
+      relationshipKind: "general",
+    });
     expect(
       JSON.parse(JSON.stringify(encodeStoryWorldV1(decoded.document, decoded.revision))),
     ).toEqual(fixture);
@@ -35,6 +46,15 @@ describe("story-world wire v1", () => {
     invalidActive.payload.edges[0].versions[0].active = "yes" as unknown as boolean;
     const invalidVersionStyle = copy(fixture);
     (invalidVersionStyle.payload.edges[0].versions[0] as Record<string, unknown>).style = "wavy";
+    const invalidColor = copy(fixture);
+    (invalidColor.payload.edges[0] as Record<string, unknown>).color = "neon";
+    const invalidVersionColor = copy(fixture);
+    (invalidVersionColor.payload.edges[0].versions[0] as Record<string, unknown>).color = "neon";
+    const invalidLineStyle = copy(fixture);
+    (invalidLineStyle.payload.edges[0] as Record<string, unknown>).lineStyle = "wavy";
+    const invalidRelationshipKind = copy(fixture);
+    (invalidRelationshipKind.payload.edges[0] as Record<string, unknown>).relationshipKind =
+      "blood";
 
     expect(() => decodeStoryWorldV1(wrongContract)).toThrow();
     expect(() => decodeStoryWorldV1(invalidCoordinate)).toThrow();
@@ -42,6 +62,30 @@ describe("story-world wire v1", () => {
     expect(() => decodeStoryWorldV1(invalidDirected)).toThrow();
     expect(() => decodeStoryWorldV1(invalidActive)).toThrow();
     expect(() => decodeStoryWorldV1(invalidVersionStyle)).toThrow();
+    expect(() => decodeStoryWorldV1(invalidColor)).toThrow();
+    expect(() => decodeStoryWorldV1(invalidVersionColor)).toThrow();
+    expect(() => decodeStoryWorldV1(invalidLineStyle)).toThrow();
+    expect(() => decodeStoryWorldV1(invalidRelationshipKind)).toThrow();
+    expect(storyWorldSchema.$defs.edge.properties.color.enum).toEqual([
+      "auto",
+      "ink",
+      "gold",
+      "rose",
+      "moss",
+      "blue",
+    ]);
+    expect(storyWorldSchema.$defs.relationshipVersion.properties.color.enum).toEqual(
+      storyWorldSchema.$defs.edge.properties.color.enum,
+    );
+    expect(storyWorldSchema.$defs.edge.properties.lineStyle.enum).toEqual([
+      "solid",
+      "dashed",
+      "dotted",
+    ]);
+    expect(storyWorldSchema.$defs.edge.properties.relationshipKind.enum).toEqual([
+      "general",
+      "kinship",
+    ]);
   });
 
   it("isolates and validates profile and timeline note references", () => {

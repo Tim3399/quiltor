@@ -7,6 +7,7 @@ import { loadHistoryDialog, loadSnapshotDialog } from "../../modules/history";
 import { type Manuscript, orderedChapters, replaceEntityMentions } from "../../modules/manuscript";
 import { loadSearchDialog } from "../../modules/search";
 import type { FigureState } from "../../modules/story-world";
+import type { StoryboardState } from "../../modules/storyboard";
 import type { Workspace, WorkspaceTarget } from "../../shared";
 import type { Overlay } from "./useOverlayController";
 
@@ -32,6 +33,7 @@ export function OverlayHost({
   manuscript,
   currentChapterId,
   figures,
+  storyboards,
   onAssistantFiguresChange,
   onShowFigures,
   onNavigate,
@@ -52,6 +54,7 @@ export function OverlayHost({
   manuscript: Manuscript;
   currentChapterId: string;
   figures: FigureState;
+  storyboards: StoryboardState;
   onAssistantFiguresChange: (figures: FigureState) => void;
   onShowFigures: () => void;
   onNavigate: (target: WorkspaceTarget) => void;
@@ -85,6 +88,7 @@ export function OverlayHost({
         <SearchDialog
           manuscript={manuscript}
           figures={figures}
+          storyboards={storyboards}
           onClose={onCloseOverlay}
           onWorkspace={onWorkspace}
           onSelect={onTarget}

@@ -7,7 +7,11 @@
   "required": ["contract", "version", "baseFixture", "optionalPresence", "cases"],
   "properties": {
     "contract": {
-      "enum": ["application.manuscript-wire", "application.story-world-wire"]
+      "enum": [
+        "application.manuscript-wire",
+        "application.story-world-wire",
+        "application.storyboards-wire"
+      ]
     },
     "version": { "const": 1 },
     "baseFixture": { "type": "string", "minLength": 1 },

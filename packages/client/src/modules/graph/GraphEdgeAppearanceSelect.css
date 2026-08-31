@@ -1,0 +1,29 @@
+.graph-edge-appearance-select {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--spacing-regular-tight);
+  padding: var(--spacing-compact-tight);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--chrome);
+}
+
+.graph-edge-appearance-select__label {
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.graph-edge-appearance-select__control {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 359px) {
+  .graph-edge-appearance-select {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

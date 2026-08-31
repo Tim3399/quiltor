@@ -26,6 +26,7 @@ import {
   connectionKind,
   GRID_SIZE,
   relationshipKey,
+  resolveRelationship,
   type SemanticZoomTier,
   semanticZoomTier,
 } from "./relationships";
@@ -39,7 +40,9 @@ export type UseFigureCanvasOptions = {
   activeMomentId: string | null;
   journeyOverlayOpen: boolean;
   relationshipsVisible: boolean;
+  selectedEdgeId: string | null;
   onSelectNode: (id: string) => void;
+  onSelectEdge: (id: string) => void;
   onStopConnecting: () => void;
   onEnsureRelationshipsVisible: () => void;
   onConnectionError: (message: string) => void;
@@ -71,7 +74,9 @@ export function useFigureCanvas({
   activeMomentId,
   journeyOverlayOpen,
   relationshipsVisible,
+  selectedEdgeId,
   onSelectNode,
+  onSelectEdge,
   onStopConnecting,
   onEnsureRelationshipsVisible,
   onConnectionError,
@@ -132,8 +137,12 @@ export function useFigureCanvas({
   }, [timeline, activeMomentId, guestsByPlace]);
 
   const relationshipEdges = useMemo(
-    () => createRelationshipFlowEdges(state, timeline, activeMomentId),
-    [state, timeline, activeMomentId],
+    () =>
+      createRelationshipFlowEdges(state, timeline, activeMomentId, selectedEdgeId, {
+        kinship: t("kinship"),
+        temporal: t("temporalHistory"),
+      }),
+    [state, timeline, activeMomentId, selectedEdgeId, t],
   );
   const journeyEdges = useMemo(
     () =>
@@ -162,14 +171,18 @@ export function useFigureCanvas({
         onConnectionError(t("connectDirectedHelp"));
         return;
       }
-      const duplicate = state.edges.find(
-        (edge) =>
-          relationshipKey(edge.from, edge.to, !!edge.gerichtet) ===
-          relationshipKey(source, target, kind === "directed"),
-      );
+      const candidateKey = relationshipKey(source, target, kind === "directed");
+      const duplicate = state.edges.find((edge) => {
+        const resolved = resolveRelationship(edge, timeline, activeMomentId);
+        return (
+          resolved.active &&
+          relationshipKey(resolved.from, resolved.to, !!resolved.gerichtet) === candidateKey
+        );
+      });
       if (duplicate) {
-        onSelectNode(duplicate.from);
+        onSelectEdge(duplicate.id);
         onStopConnecting();
+        onEnsureRelationshipsVisible();
         onConnectionError(t("relationExists"));
         return;
       }
@@ -181,7 +194,9 @@ export function useFigureCanvas({
         toHandle: connection.targetHandle || undefined,
         gerichtet: kind === "directed",
         label: "",
-        style: "solid" as const,
+        lineStyle: "solid" as const,
+        relationshipKind: "general" as const,
+        color: "auto" as const,
         ...(activeMomentId
           ? {
               active: false,
@@ -189,7 +204,9 @@ export function useFigureCanvas({
                 {
                   momentId: activeMomentId,
                   label: "",
-                  style: "solid" as const,
+                  lineStyle: "solid" as const,
+                  relationshipKind: "general" as const,
+                  color: "auto" as const,
                   gerichtet: kind === "directed",
                   active: true,
                 },
@@ -206,10 +223,11 @@ export function useFigureCanvas({
       onChange,
       onConnectionError,
       onEnsureRelationshipsVisible,
-      onSelectNode,
+      onSelectEdge,
       onStopConnecting,
       state,
       t,
+      timeline,
     ],
   );
 
@@ -261,7 +279,6 @@ export function useFigureCanvas({
         label: t(definition.nodeLabel),
         name: t(definition.initialName),
         sub: "",
-        accent: "ink",
         profile: { fields: [] },
       };
       onChange({ ...state, nodes: [...state.nodes, node] });

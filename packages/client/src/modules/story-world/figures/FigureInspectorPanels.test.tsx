@@ -31,6 +31,21 @@ const state: FigureState = {
 };
 
 describe("FigureInspector panels", () => {
+  it("keeps relationship layout rules outside shared select and checkbox internals", () => {
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/story-world/figures/FigureInspector.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(/\.relationship-heading\s*\{[^}]*display:\s*flex/s);
+    expect(css).toMatch(
+      /\.relation-list > div > \.graph-edge-line-style-select,[^{]*\.check-field\s*\{[^}]*grid-column:\s*1 \/ -1/s,
+    );
+    expect(css).not.toMatch(/\.relation-list > div > div\s*\{/);
+    expect(css).not.toMatch(/\.relation-list span\s*\{/);
+    expect(css).not.toMatch(/\.check-field\s*\{[^}]*display:\s*flex/s);
+  });
+
   it("keeps alias actions touch-sized and uses the semantic focus roles", () => {
     const css = readFileSync(
       join(process.cwd(), "packages/client/src/modules/story-world/figures/FigureInspector.css"),
@@ -238,5 +253,33 @@ describe("FigureInspector panels", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Beziehung löschen" }));
     expect(onRequestDelete).toHaveBeenCalledWith(state.edges[0], "Bela");
+  });
+
+  it("prevents duplicate relationships when changing or reversing direction", () => {
+    const conflictState: FigureState = {
+      ...state,
+      edges: [
+        { ...state.edges[0], gerichtet: true },
+        { id: "reverse", from: "bela", to: "ada", label: "Rückweg", gerichtet: true },
+        { id: "undirected", from: "ada", to: "bela", label: "Bekannt", gerichtet: false },
+      ],
+    };
+    render(
+      <I18nProvider>
+        <FigureRelationshipsPanel
+          figure={conflictState.nodes[0]}
+          state={conflictState}
+          activeMomentId={null}
+          onState={vi.fn()}
+          onRequestDelete={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getAllByRole("button", { name: /Richtung umkehren/ })[0]).toBeDisabled();
+    expect(screen.getAllByRole("checkbox", { name: "Gerichtet" })[0]).toBeDisabled();
+    expect(
+      screen.getAllByText("Diese Beziehung existiert an diesem Zeitpunkt bereits."),
+    ).not.toHaveLength(0);
   });
 });

@@ -195,7 +195,7 @@ class WebApplication:
 
         if path.startswith("/api/worlds"):
             return WorldRouteServices(self.application.worlds, self.lock)
-        if path in {"/api/state", "/api/manuscript", "/api/book.pdf"}:
+        if path in {"/api/state", "/api/manuscript", "/api/storyboards", "/api/book.pdf"}:
             return DocumentRouteServices(
                 self.application.documents,
                 self.lock,

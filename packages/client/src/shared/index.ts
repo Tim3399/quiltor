@@ -3,6 +3,13 @@ export {
   normalizeEntityAliasV1,
 } from "./entityAliasNormalizationV1";
 export type { ApplicationErrorCategory } from "./errors";
+export { GRAPH_EDGE_COLORS, type GraphEdgeColor } from "./graphEdgeColor";
+export {
+  GRAPH_EDGE_LINE_STYLES,
+  type GraphEdgeLineStyle,
+  GRAPH_RELATIONSHIP_KINDS,
+  type GraphRelationshipKind,
+} from "./graphEdgeLineStyle";
 export type { SavePhase } from "./save";
 export type { Theme, ThemePreference } from "./theme";
 export type {

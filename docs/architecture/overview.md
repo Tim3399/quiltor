@@ -6,8 +6,8 @@ distributed a build.
 
 The architecture is organised around six independent axes:
 
-1. **Product modules** — manuscript, story world, writing tools, assistant,
-   import/export, history, backup, identity and commerce.
+1. **Product modules** — manuscript, story world, storyboard, writing tools,
+   assistant, import/export, history, backup, identity and commerce.
 2. **Hosts** — browser, desktop, mobile, CLI and MCP.
 3. **Platforms** — Windows, macOS, Linux, iOS, Android and browser.
 4. **Distribution targets** — direct download, stores, containers and Python
@@ -87,7 +87,11 @@ bootstrap ─► hosts + concrete adapters + build profile
   timeline, presence and time systems) plus a separately modelled
   `StoryWorldLayout`. Figures, Places and Timeline are projections of this
   aggregate.
-- Storyboard content is author-owned planning material and is not canon.
+- `StoryboardDocument` independently owns author-created boards, planning
+  nodes, visual connections and their layout. Its `storyboards_revision`
+  advances without changing Manuscript or Story World revisions. Storyboard
+  data is authoritative planning material, but it is never a source for
+  `StoryWorld` facts or `WorldState(t)` merely because it was saved.
 - Assistant mutations remain proposals until the author accepts them.
 - Project-owned media is imported into a `WorldAssetRepository`; canonical
   documents store a stable asset ID rather than a platform path or document

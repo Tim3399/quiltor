@@ -6,6 +6,12 @@ import {
   loadPlacesWorkspace,
   loadTimelineWorkspace,
 } from "../../modules/story-world";
+import { loadStoryboardWorkspace, type StoryboardState } from "../../modules/storyboard";
+import {
+  type WorldReferenceCandidate,
+  type WorldReferenceTarget,
+  workspaceTargetForReference,
+} from "../../modules/world-references";
 import type { Workspace, WorkspaceTarget } from "../../shared";
 import type { WorkspaceNavigationRequest } from "./useWorkspaceController";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
@@ -14,6 +20,7 @@ const TextWorkspace = lazy(loadTextWorkspace);
 const FigureWorkspace = lazy(loadFigureWorkspace);
 const TimelineWorkspace = lazy(loadTimelineWorkspace);
 const PlacesWorkspace = lazy(loadPlacesWorkspace);
+const StoryboardWorkspace = lazy(loadStoryboardWorkspace);
 
 type HistoryActions<T> = {
   change: (value: T) => void;
@@ -29,9 +36,12 @@ export function WorkspaceSurface({
   workspace,
   manuscript,
   figures,
+  storyboards,
   orphanedMentions,
   manuscriptHistory,
   figureHistory,
+  storyboardHistory,
+  referenceCandidates,
   onFiguresChange,
   target,
   onNavigate,
@@ -45,9 +55,12 @@ export function WorkspaceSurface({
   workspace: Workspace;
   manuscript: Manuscript;
   figures: FigureState;
+  storyboards: StoryboardState;
   orphanedMentions: number;
   manuscriptHistory: HistoryActions<Manuscript>;
   figureHistory: HistoryActions<FigureState>;
+  storyboardHistory: HistoryActions<StoryboardState>;
+  referenceCandidates: readonly WorldReferenceCandidate[];
   onFiguresChange: (value: FigureState) => void;
   target: WorkspaceNavigationRequest | null;
   onNavigate: (target: WorkspaceTarget) => void;
@@ -57,6 +70,10 @@ export function WorkspaceSurface({
   onCurrentChapterId: (chapterId: string) => void;
 }) {
   const layout = useWorkspaceLayout(worldId, workspace);
+  const openStoryboardReference = (reference: WorldReferenceTarget) => {
+    const destination = workspaceTargetForReference(reference);
+    if (destination) onNavigate(destination);
+  };
   if (workspace === "text")
     return (
       <TextWorkspace
@@ -116,17 +133,32 @@ export function WorkspaceSurface({
         canRedo={figureHistory.canRedo}
       />
     );
+  if (workspace === "places")
+    return (
+      <PlacesWorkspace
+        state={figures}
+        onChange={onFiguresChange}
+        targetId={target?.workspace === "places" ? target.id : undefined}
+        targetRequestId={target?.workspace === "places" ? target.requestId : undefined}
+        onUndo={figureHistory.undo}
+        onRedo={figureHistory.redo}
+        canUndo={figureHistory.canUndo}
+        canRedo={figureHistory.canRedo}
+        onOpen={onNavigate}
+      />
+    );
   return (
-    <PlacesWorkspace
-      state={figures}
-      onChange={onFiguresChange}
-      targetId={target?.workspace === "places" ? target.id : undefined}
-      targetRequestId={target?.workspace === "places" ? target.requestId : undefined}
-      onUndo={figureHistory.undo}
-      onRedo={figureHistory.redo}
-      canUndo={figureHistory.canUndo}
-      canRedo={figureHistory.canRedo}
-      onOpen={onNavigate}
+    <StoryboardWorkspace
+      state={storyboards}
+      onChange={storyboardHistory.change}
+      candidates={referenceCandidates}
+      onOpenReference={openStoryboardReference}
+      targetId={target?.workspace === "storyboard" ? target.id : undefined}
+      targetRequestId={target?.workspace === "storyboard" ? target.requestId : undefined}
+      onUndo={storyboardHistory.undo}
+      onRedo={storyboardHistory.redo}
+      canUndo={storyboardHistory.canUndo}
+      canRedo={storyboardHistory.canRedo}
     />
   );
 }

@@ -1,6 +1,12 @@
 import type { FigureState } from "../../../modules/story-world";
 import {
   ENTITY_ALIAS_NORMALIZATION_V1,
+  type GraphEdgeColor,
+  type GraphEdgeLineStyle,
+  GRAPH_EDGE_COLORS,
+  GRAPH_EDGE_LINE_STYLES,
+  type GraphRelationshipKind,
+  GRAPH_RELATIONSHIP_KINDS,
   normalizeEntityAliasV1,
   normalizeProfile,
 } from "../../../shared";
@@ -73,7 +79,10 @@ export interface RelationshipVersionWireV1 {
   to?: string;
   label?: string;
   style?: "solid" | "dashed" | "blood" | "gold";
+  lineStyle?: GraphEdgeLineStyle;
+  relationshipKind?: GraphRelationshipKind;
   gerichtet?: boolean;
+  color?: GraphEdgeColor;
   active: boolean;
   [key: string]: unknown;
 }
@@ -84,7 +93,10 @@ export interface FigureEdgeWireV1 {
   to: string;
   label?: string;
   style?: "solid" | "dashed" | "blood" | "gold";
+  lineStyle?: GraphEdgeLineStyle;
+  relationshipKind?: GraphRelationshipKind;
   gerichtet?: boolean;
+  color?: GraphEdgeColor;
   fromHandle?: string;
   toHandle?: string;
   active?: boolean;
@@ -397,6 +409,24 @@ function storyWorldPayload(value: unknown, path: string): StoryWorldPayloadWireV
     if (!nodeIds.has(from) || !nodeIds.has(to)) throw new WireContractError(edgePath);
     optionalString(edge, "label", edgePath);
     optional(edge, "style", (item, itemPath) => wireEnum(item, EDGE_STYLES, itemPath), edgePath);
+    optional(
+      edge,
+      "lineStyle",
+      (item, itemPath) => wireEnum(item, GRAPH_EDGE_LINE_STYLES, itemPath),
+      edgePath,
+    );
+    optional(
+      edge,
+      "relationshipKind",
+      (item, itemPath) => wireEnum(item, GRAPH_RELATIONSHIP_KINDS, itemPath),
+      edgePath,
+    );
+    optional(
+      edge,
+      "color",
+      (item, itemPath) => wireEnum(item, GRAPH_EDGE_COLORS, itemPath),
+      edgePath,
+    );
     for (const key of ["fromHandle", "toHandle"]) optionalString(edge, key, edgePath);
     for (const key of ["gerichtet", "active"]) optionalBoolean(edge, key, edgePath);
     if (edge.versions !== undefined) {
@@ -423,6 +453,24 @@ function storyWorldPayload(value: unknown, path: string): StoryWorldPayloadWireV
           version,
           "style",
           (item, itemPath) => wireEnum(item, EDGE_STYLES, itemPath),
+          versionPath,
+        );
+        optional(
+          version,
+          "lineStyle",
+          (item, itemPath) => wireEnum(item, GRAPH_EDGE_LINE_STYLES, itemPath),
+          versionPath,
+        );
+        optional(
+          version,
+          "relationshipKind",
+          (item, itemPath) => wireEnum(item, GRAPH_RELATIONSHIP_KINDS, itemPath),
+          versionPath,
+        );
+        optional(
+          version,
+          "color",
+          (item, itemPath) => wireEnum(item, GRAPH_EDGE_COLORS, itemPath),
           versionPath,
         );
         optionalBoolean(version, "gerichtet", versionPath);

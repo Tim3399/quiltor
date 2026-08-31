@@ -5,6 +5,7 @@ import { useI18n } from "../i18n";
 import type { Manuscript } from "../modules/manuscript";
 import { NoteReferenceProvider } from "../modules/notes";
 import { type FigureState, kindLabel } from "../modules/story-world";
+import type { StoryboardState } from "../modules/storyboard";
 import {
   buildWorldReferenceBacklinks,
   buildWorldReferenceCandidates,
@@ -33,8 +34,10 @@ export function App() {
   const { theme, preference, setPreference, toggleTheme } = useTheme();
   const manuscriptHistory = useHistoryState<Manuscript>();
   const figureHistory = useHistoryState<FigureState>();
+  const storyboardHistory = useHistoryState<StoryboardState>();
   const manuscript = manuscriptHistory.value;
   const figures = figureHistory.value;
+  const storyboards = storyboardHistory.value;
   const [orphanedMentions, setOrphanedMentions] = useState(0);
   const [pendingRename, setPendingRename] = useState<PendingEntityRename | null>(null);
   const [currentChapterId, setCurrentChapterId] = useState("");
@@ -43,14 +46,16 @@ export function App() {
     ({
       manuscript: loadedManuscript,
       figures: loadedFigures,
+      storyboards: loadedStoryboards,
       orphanedMentions: count,
     }: LoadedWorldDocuments) => {
       manuscriptHistory.load(loadedManuscript);
       figureHistory.load(loadedFigures);
+      storyboardHistory.load(loadedStoryboards);
       setOrphanedMentions(count);
       setCurrentChapterId(loadedManuscript.chapters[0]?.id || "");
     },
-    [figureHistory.load, manuscriptHistory.load],
+    [figureHistory.load, manuscriptHistory.load, storyboardHistory.load],
   );
   const session = useWorldSession(loadDocuments);
   const workspace = useWorkspaceController();
@@ -58,10 +63,11 @@ export function App() {
   const shell = useShellStatus();
   const noteReferenceCandidates = useMemo(
     () =>
-      manuscript && figures
+      manuscript && figures && storyboards
         ? buildWorldReferenceCandidates({
             manuscript,
             figures,
+            storyboards: storyboards.boards,
             labels: {
               untitled: t("untitled"),
               moment: t("moment"),
@@ -69,7 +75,7 @@ export function App() {
             },
           })
         : [],
-    [figures, manuscript, t],
+    [figures, manuscript, storyboards, t],
   );
   const noteReferenceBacklinks = useMemo(
     (): WorldReferenceBacklinkIndex =>
@@ -106,12 +112,22 @@ export function App() {
     (value: FigureState) => quiltorClient.application.storyWorld.save(value),
     [],
   );
+  const saveStoryboards = useCallback(
+    (value: StoryboardState) => quiltorClient.application.storyboards.save(value),
+    [],
+  );
   const manuscriptSave = useAutosave(manuscript, saveManuscript);
   const figureSave = useAutosave(figures, saveFigures);
-  const activeSave = workspace.workspace === "text" ? manuscriptSave : figureSave;
+  const storyboardSave = useAutosave(storyboards, saveStoryboards);
+  const activeSave =
+    workspace.workspace === "text"
+      ? manuscriptSave
+      : workspace.workspace === "storyboard"
+        ? storyboardSave
+        : figureSave;
   const flushAll = useCallback(async () => {
-    await Promise.all([manuscriptSave.flush(), figureSave.flush()]);
-  }, [manuscriptSave.flush, figureSave.flush]);
+    await Promise.all([manuscriptSave.flush(), figureSave.flush(), storyboardSave.flush()]);
+  }, [manuscriptSave.flush, figureSave.flush, storyboardSave.flush]);
   const returnToWorldSelection = useCallback(async () => {
     await flushAll();
     overlays.close();
@@ -155,6 +171,8 @@ export function App() {
     redoManuscript: manuscriptHistory.redo,
     undoFigures: figureHistory.undo,
     redoFigures: figureHistory.redo,
+    undoStoryboards: storyboardHistory.undo,
+    redoStoryboards: storyboardHistory.redo,
   });
 
   return (
@@ -164,14 +182,14 @@ export function App() {
       needsSignIn={session.needsSignIn}
       authError={session.authError}
       loadError={session.loadError}
-      ready={Boolean(session.world && manuscript && figures)}
+      ready={Boolean(session.world && manuscript && figures && storyboards)}
       theme={preference}
       onTheme={setPreference}
       onOpen={session.open}
       onCreate={session.create}
       onDelete={session.remove}
     >
-      {session.world && manuscript && figures && (
+      {session.world && manuscript && figures && storyboards && (
         <Suspense
           fallback={
             <PageState kind="loading" mark={PRODUCT_MARK}>
@@ -210,9 +228,12 @@ export function App() {
                 workspace={workspace.workspace}
                 manuscript={manuscript}
                 figures={figures}
+                storyboards={storyboards}
                 orphanedMentions={orphanedMentions}
                 manuscriptHistory={manuscriptHistory}
                 figureHistory={figureHistory}
+                storyboardHistory={storyboardHistory}
+                referenceCandidates={noteReferenceCandidates}
                 onFiguresChange={changeFigures}
                 target={workspace.target}
                 onNavigate={workspace.navigate}
@@ -233,6 +254,7 @@ export function App() {
             manuscript={manuscript}
             currentChapterId={currentChapterId}
             figures={figures}
+            storyboards={storyboards}
             onAssistantFiguresChange={figureHistory.change}
             onShowFigures={() => workspace.selectWorkspace("figures")}
             onNavigate={workspace.navigate}

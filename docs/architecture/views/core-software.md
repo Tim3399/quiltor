@@ -40,6 +40,12 @@ class StoryWorldApplication {
   +moveElement(RequestContext, MoveWorldElement) OperationResult
 }
 
+class StoryboardApplication {
+  <<applicationPort>>
+  +loadDocument(WorldId) VersionedStoryboard
+  +saveDocumentV1(RequestContext, VersionedStoryboard) OperationResult
+}
+
 class AssistantApplication {
   <<applicationPort>>
   +acceptProposal(RequestContext, AuthorDecision) OperationResult
@@ -58,6 +64,7 @@ class AuthorizationPolicy {
 
 class UpdateChapterTextUseCase
 class MoveWorldElementUseCase
+class SaveStoryboardDocumentUseCase
 class AcceptAssistantProposalUseCase
 
 class WorldTransaction {
@@ -80,12 +87,15 @@ class OperationResult {
 
 ManuscriptApplication --> UpdateChapterTextUseCase
 StoryWorldApplication --> MoveWorldElementUseCase
+StoryboardApplication --> SaveStoryboardDocumentUseCase
 AssistantApplication --> AcceptAssistantProposalUseCase
 UpdateChapterTextUseCase --> AuthorizationPolicy
 MoveWorldElementUseCase --> AuthorizationPolicy
+SaveStoryboardDocumentUseCase --> AuthorizationPolicy
 AcceptAssistantProposalUseCase --> AuthorizationPolicy
 UpdateChapterTextUseCase --> WorldTransaction
 MoveWorldElementUseCase --> WorldTransaction
+SaveStoryboardDocumentUseCase --> WorldTransaction
 AcceptAssistantProposalUseCase --> WorldTransaction
 WorldTransaction --> WorldCommitRepository : CommitPlan
 WorldCommitRepository --> OperationResult : CommitReceipt mapped to
@@ -97,6 +107,8 @@ set:
 
 - a chapter text update normally reads and writes only manuscript state;
 - a board placement normally reads and writes only Story World layout;
+- a Storyboard edit reads and writes only `StoryboardDocument`; it does not
+  load or mutate Story World merely because a node references a world object;
 - setting chapter story time additionally reads the referenced timeline facts;
 - accepting a proposal reads every aggregate required by the accepted actions
   and commits all affected changes atomically.
@@ -110,10 +122,11 @@ not become coupled to internal event schemas or projection jobs.
 
 The commit plan makes atomicity explicit. It contains changed aggregate state,
 revision preconditions and durable after-commit work. The persistence adapter
-must write the canonical changes, new revisions and durable jobs in one SQLite
-transaction. Durable jobs are reserved for true side effects such as file
-mirrors, remote backup transfer or thumbnails. Read models required immediately
-for search or reference validation update transactionally with canonical state.
+must write versioned canonical or author-owned planning changes, new revisions
+and durable jobs in one SQLite transaction. Durable jobs are reserved for true
+side effects such as file mirrors, remote backup transfer or thumbnails. Read
+models required immediately for search or reference validation update
+transactionally with their owning document.
 
 ```mermaid
 classDiagram
@@ -154,6 +167,11 @@ class StoryWorldDocument {
   <<aggregateRoot>>
 }
 
+class StoryboardDocument {
+  <<aggregateRoot>>
+  <<nonCanonicalPlanning>>
+}
+
 class CrossDocumentReferenceView {
   <<readOnlyFacts>>
 }
@@ -168,16 +186,18 @@ class WorldConsistencyPolicy {
 WorldTransaction o-- AggregateRef
 WorldTransaction o-- ManuscriptDocument : when required
 WorldTransaction o-- StoryWorldDocument : when required
+WorldTransaction o-- StoryboardDocument : when required
 WorldTransaction o-- CrossDocumentReferenceView : when sufficient
 WorldTransaction --> WorldConsistencyPolicy : validates affected rules
 WorldTransaction --> CommitPlan : produces
 CommitPlan --> CommitReceipt : committed atomically
 ```
 
-Manuscript and Story World revisions advance independently. An optional
-monotonic world commit sequence can order change notifications without making
-unrelated manuscript and layout changes conflict. A cross-document operation
-expects and advances every aggregate revision it actually changes.
+Manuscript, Story World and Storyboard revisions advance independently. An
+optional monotonic world commit sequence can order change notifications without
+making unrelated manuscript, layout and planning changes conflict. A
+cross-document operation expects and advances every aggregate revision it
+actually changes.
 
 Cross-document rules therefore belong to <code>WorldConsistencyPolicy</code>,
 but the policy receives only the facts required by the rule. It does not require
@@ -384,6 +404,81 @@ Desktop paths, Apple security-scoped bookmarks and Android document URIs end at
 the platform/import boundary. They are not serialized into
 <code>MapDefinition</code>.
 
+## Storyboard ownership and canon boundary
+
+`StoryboardDocument` is a versioned aggregate for author-owned planning. It is
+separate from both `ManuscriptDocument` and `StoryWorldDocument`, and it owns a
+normalized graph rather than embedding copied Figure, Place, Timeline or
+Chapter data.
+
+```mermaid
+classDiagram
+direction TB
+
+class StoryboardDocument {
+  <<aggregateRoot>>
+  <<nonCanonicalPlanning>>
+  +StoryboardBoard[] boards
+  +StoryboardNode[] nodes
+  +StoryboardEdge[] edges
+}
+class StoryboardBoard {
+  +StoryboardId id
+  +string title
+}
+class StoryboardNode {
+  +NodeId id
+  +StoryboardId boardId
+  +NodeKind kind
+  +Point position
+  +Size size
+  +int zIndex
+  +string text
+}
+class StoryboardEdge {
+  +EdgeId id
+  +StoryboardId boardId
+  +NodeId sourceNodeId
+  +NodeId targetNodeId
+  +string label
+}
+class StoryboardReferenceTarget {
+  <<stableIdReference>>
+  +ReferenceKind kind
+  +string id
+}
+class Chapter
+class WorldElement
+class TimelineMoment
+
+StoryboardDocument "1" *-- "1..*" StoryboardBoard
+StoryboardDocument "1" *-- "0..*" StoryboardNode
+StoryboardDocument "1" *-- "0..*" StoryboardEdge
+StoryboardNode --> StoryboardBoard : boardId
+StoryboardEdge --> StoryboardBoard : boardId
+StoryboardEdge --> StoryboardNode : sourceNodeId / targetNodeId
+StoryboardNode o-- StoryboardReferenceTarget : reference or board link
+StoryboardReferenceTarget ..> Chapter : optional chapter ID only
+StoryboardReferenceTarget ..> WorldElement : optional entity/place ID only
+StoryboardReferenceTarget ..> TimelineMoment : optional moment ID only
+StoryboardReferenceTarget ..> StoryboardBoard : optional board ID only
+```
+
+The v1 node kinds are `note`, `reference`, `storyboard` and `group`. External
+targets remain stable ID references; they neither copy nor own the target.
+Connections must stay inside one board. Board links form a navigable graph, so
+cycles are valid and breadcrumbs are a client navigation stack rather than a
+persisted parent hierarchy.
+
+`storyboards_revision` is independent from Manuscript and Story World
+revisions. SQLite plus normal backup/history is authoritative for this planning
+document; no lossy Markdown mirror is required. Persisting a node, target or
+edge never creates a `WorldElement`, `WorldRelationship`, `TimelineMoment`,
+`PresenceRecord` or any input to `WorldState(t)`. Promoting a plan to canon is a
+different, explicit author-confirmed use case that goes through the normal
+canonical validation and commit path. `WorldConsistencyPolicy` therefore never
+reads `StoryboardDocument` as facts when validating a canonical change.
+
 ## Cross-document links and Assistant acceptance
 
 Cross-document associations are stable IDs resolved by policies. They do not
@@ -441,6 +536,7 @@ the UI.
 | canvas/map coordinates and lock/favourite fields           | persisted <code>StoryWorldLayout</code> placement values  |
 | viewport zoom, pan, hover and selection                    | ephemeral client view state                               |
 | <code>tree.py</code> functions                             | <code>ManuscriptTreePolicy</code>                         |
+| Storyboard domain values and SQLite document mapping       | independent non-canonical <code>StoryboardDocument</code> |
 | story-time validation plus counterpart loading             | scoped use case plus <code>WorldConsistencyPolicy</code>  |
 | <code>resolve_before_create.py</code> decisions and proofs | proposal resolution and acceptance policies               |
 | direct UI proposal mutation                                | <code>AcceptAssistantProposalUseCase</code>               |
@@ -459,6 +555,8 @@ registered in one global dispatcher:
   set presence and configure a time system;
 - Story World layout: move or lock board/map placements, set favourites and
   configure the map asset and calibration;
+- Storyboard: load or save the independent planning document, edit boards,
+  nodes and local visual edges without invoking canonical mutation policies;
 - Assistant: accept an author-selected proposal and translate verified actions
   into the same mutation policies used by manual editing.
 

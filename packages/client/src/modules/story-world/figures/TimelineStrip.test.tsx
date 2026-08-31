@@ -5,7 +5,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import { TimelineStrip } from "./TimelineStrip";
 
-afterEach(cleanup);
+const originalScrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  if (originalScrollIntoView) {
+    Object.defineProperty(Element.prototype, "scrollIntoView", originalScrollIntoView);
+  } else {
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  }
+});
 
 describe("TimelineStrip", () => {
   it("delegates its horizontal rail to the public ScrollArea contract", () => {
@@ -53,6 +63,7 @@ describe("TimelineStrip", () => {
     const headingActionRule = css.match(/\.timeline-heading-action\s*\{([^}]*)\}/s)?.[1];
     const playActionRule = css.match(/\.timeline-heading \.timeline-play\s*\{([^}]*)\}/s)?.[1];
     const momentActionRule = css.match(/\.timeline-moment-button\s*\{([^}]*)\}/s)?.[1];
+    const addActionRule = css.match(/\.timeline-add-action\s*\{([^}]*)\}/s)?.[1];
 
     expect(headingActionRule).toBeDefined();
     expect(headingActionRule).not.toMatch(/\b(?:min-)?height\s*:/);
@@ -60,6 +71,15 @@ describe("TimelineStrip", () => {
     expect(playActionRule).not.toMatch(/\b(?:min-|max-)?(?:width|height)\s*:/);
     expect(momentActionRule).toBeDefined();
     expect(momentActionRule).not.toMatch(/\b(?:min-)?height\s*:/);
+    expect(addActionRule).toMatch(/flex:\s*0 0 auto;/);
+    expect(addActionRule).toMatch(/align-self:\s*center;/);
+    expect(addActionRule).toMatch(/justify-self:\s*end;/);
+    expect(css).toMatch(
+      /\.timeline-title,[\s\S]*?\.timeline-detail-input\s*\{[^}]*height:\s*var\(--control-compact\);/,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 640px\)[\s\S]*?\.timeline-add\s*\{[^}]*grid-template-columns:[^;}]*var\(--control-compact\);/,
+    );
     expect(tokensCss).toMatch(
       /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?--control-compact:\s*var\(--control-touch\);/,
     );
@@ -94,5 +114,73 @@ describe("TimelineStrip", () => {
     expect(onPlay).toHaveBeenCalledOnce();
     expect(onSelect).toHaveBeenCalledWith("arrival");
     expect(onAdd).toHaveBeenCalledWith("Verrat", undefined);
+  });
+
+  it("keeps the advancing playback moment centered without overriding reduced motion", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    let reducedMotion = false;
+    const matchMedia = vi.fn((query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)" && reducedMotion,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    vi.stubGlobal("matchMedia", matchMedia);
+    const timeline = [
+      { id: "arrival", title: "Ankunft" },
+      { id: "betrayal", title: "Verrat" },
+      { id: "aftermath", title: "Danach" },
+    ];
+    const props = {
+      timeline,
+      onPlay: vi.fn(),
+      onSelect: vi.fn(),
+      onAdd: vi.fn(),
+      onPatch: vi.fn(),
+      onDelete: vi.fn(),
+    };
+    const { rerender } = render(
+      <I18nProvider>
+        <TimelineStrip {...props} activeId="arrival" playing={false} />
+      </I18nProvider>,
+    );
+
+    rerender(
+      <I18nProvider>
+        <TimelineStrip {...props} activeId="betrayal" playing={false} />
+      </I18nProvider>,
+    );
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    rerender(
+      <I18nProvider>
+        <TimelineStrip {...props} activeId="betrayal" playing />
+      </I18nProvider>,
+    );
+
+    expect(scrollIntoView).toHaveBeenLastCalledWith({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+    reducedMotion = true;
+    rerender(
+      <I18nProvider>
+        <TimelineStrip {...props} activeId="aftermath" playing />
+      </I18nProvider>,
+    );
+    expect(scrollIntoView).toHaveBeenLastCalledWith({
+      behavior: "auto",
+      block: "nearest",
+      inline: "center",
+    });
   });
 });

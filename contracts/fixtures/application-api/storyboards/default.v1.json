@@ -1,0 +1,10 @@
+{
+  "contract": "quiltor.storyboards",
+  "version": 1,
+  "revision": 0,
+  "payload": {
+    "boards": [{ "id": "main-storyboard", "title": "Main Storyboard" }],
+    "nodes": [],
+    "edges": []
+  }
+}

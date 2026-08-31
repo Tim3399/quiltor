@@ -61,32 +61,64 @@ describe("FigureInspector", () => {
     );
 
     const kind = screen.getByRole("combobox", { name: "Art" });
-    const accent = screen.getByRole("combobox", { name: "Akzent" });
     expect(kind.tagName).toBe("BUTTON");
-    expect(accent.tagName).toBe("BUTTON");
     expect(kind).toHaveClass("ui-select-control");
-    expect(accent).toHaveClass("ui-select-control");
+    expect(screen.queryByRole("combobox", { name: "Akzent" })).not.toBeInTheDocument();
     expect(view.container.querySelector("select")).toBeNull();
 
     fireEvent.click(kind);
     fireEvent.click(screen.getByRole("option", { name: "Tier" }));
     expect(onPatch).toHaveBeenCalledWith({ type: "tier" });
 
-    fireEvent.click(accent);
-    fireEvent.click(screen.getByRole("option", { name: "Gold" }));
-    expect(onPatch).toHaveBeenCalledWith({ accent: "gold" });
-
     fireEvent.click(screen.getByRole("tab", { name: "Beziehungen" }));
-    const lineStyle = screen.getByRole("combobox", { name: "Linienstil" });
+    const lineStyle = screen.getByRole("combobox", { name: "Linienart" });
     expect(lineStyle.tagName).toBe("BUTTON");
     expect(lineStyle).toHaveClass("ui-select-control");
     expect(view.container.querySelector("select")).toBeNull();
 
     fireEvent.click(lineStyle);
+    expect(screen.queryByRole("option", { name: "Gold" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Blutlinie" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("option", { name: "Gestrichelt" }));
     expect(onState).toHaveBeenCalledWith({
       ...state,
-      edges: [{ ...state.edges[0], style: "dashed" }],
+      edges: [
+        {
+          ...state.edges[0],
+          lineStyle: "dashed",
+          relationshipKind: "general",
+          color: "auto",
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Verwandtschaft" }));
+    expect(onState).toHaveBeenCalledWith({
+      ...state,
+      edges: [
+        {
+          ...state.edges[0],
+          lineStyle: "solid",
+          relationshipKind: "kinship",
+          color: "auto",
+        },
+      ],
+    });
+
+    const edgeColor = screen.getByRole("combobox", { name: "Kantenfarbe" });
+    expect(edgeColor).toHaveClass("graph-edge-color-select__control");
+    fireEvent.click(edgeColor);
+    fireEvent.click(screen.getByRole("option", { name: "Rosa" }));
+    expect(onState).toHaveBeenCalledWith({
+      ...state,
+      edges: [
+        {
+          ...state.edges[0],
+          lineStyle: "solid",
+          relationshipKind: "general",
+          color: "rose",
+        },
+      ],
     });
   });
 
@@ -110,10 +142,47 @@ describe("FigureInspector", () => {
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "Beziehungen" }));
-    const lineStyle = screen.getByRole("combobox", { name: "Linienstil" });
+    const lineStyle = screen.getByRole("combobox", { name: "Linienart" });
+    const edgeColor = screen.getByRole("combobox", { name: "Kantenfarbe" });
     expect(lineStyle).toBeDisabled();
+    expect(edgeColor).toBeDisabled();
     fireEvent.click(lineStyle);
-    expect(screen.queryByRole("listbox", { name: "Linienstil" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("listbox", { name: "Linienart" })).not.toBeInTheDocument();
+  });
+
+  it("presents the legacy gold style through the sole edge-color control", () => {
+    const legacyState: FigureState = {
+      ...state,
+      edges: [{ ...state.edges[0], style: "gold" }],
+    };
+    const onState = vi.fn();
+    render(
+      <I18nProvider>
+        <FigureInspector
+          figure={legacyState.nodes[0]}
+          state={legacyState}
+          activeMomentId={null}
+          onPatch={vi.fn()}
+          onState={onState}
+          onDelete={vi.fn()}
+          onSelectMoment={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Beziehungen" }));
+    expect(screen.getByRole("combobox", { name: "Linienart" })).toHaveTextContent("Durchgezogen");
+    const edgeColor = screen.getByRole("combobox", { name: "Kantenfarbe" });
+    expect(edgeColor).toHaveTextContent("Gold");
+
+    fireEvent.click(edgeColor);
+    fireEvent.click(screen.getByRole("option", { name: "Automatisch (nach Richtung)" }));
+    const changed = onState.mock.lastCall?.[0] as FigureState;
+    expect(changed.edges[0]).toMatchObject({
+      id: legacyState.edges[0].id,
+      color: "auto",
+    });
+    expect(changed.edges[0]).not.toHaveProperty("style");
   });
 
   it("keeps profile and relationship editing behind their owned tabs", () => {

@@ -1,0 +1,20 @@
+.graph-edge-line-style-swatch {
+  width: 24px;
+  height: 10px;
+  flex: none;
+  background:
+    linear-gradient(var(--graph-edge-color-ink), var(--graph-edge-color-ink)) center / 100% 2px
+    no-repeat;
+}
+
+.graph-edge-line-style-swatch[data-edge-line-style="dashed"] {
+  background:
+    repeating-linear-gradient(90deg, var(--graph-edge-color-ink) 0 5px, var(--transparent) 5px 9px)
+    center / 100% 2px no-repeat;
+}
+
+.graph-edge-line-style-swatch[data-edge-line-style="dotted"] {
+  background:
+    radial-gradient(circle, var(--graph-edge-color-ink) 1.25px, var(--transparent) 1.5px) left
+    center / 6px 4px repeat-x;
+}

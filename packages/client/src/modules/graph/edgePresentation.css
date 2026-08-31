@@ -1,0 +1,78 @@
+/* One visual authority for editable relationship edges and their labels. */
+.graph-edge-surface .react-flow__connection-path {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--graph-edge-preview-stroke);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.react-flow__edge.graph-relationship-edge.edge-directed {
+  --graph-relationship-edge-color: var(--graph-edge-directed-stroke);
+}
+
+.react-flow__edge.graph-relationship-edge.edge-undirected {
+  --graph-relationship-edge-color: var(--graph-edge-undirected-stroke);
+}
+
+.react-flow__edge.graph-relationship-edge.edge-color-ink {
+  --graph-relationship-edge-color: var(--graph-edge-color-ink);
+}
+
+.react-flow__edge.graph-relationship-edge.edge-color-gold {
+  --graph-relationship-edge-color: var(--graph-edge-color-gold);
+}
+
+.react-flow__edge.graph-relationship-edge.edge-color-rose {
+  --graph-relationship-edge-color: var(--graph-edge-color-rose);
+}
+
+.react-flow__edge.graph-relationship-edge.edge-color-moss {
+  --graph-relationship-edge-color: var(--graph-edge-color-moss);
+}
+
+.react-flow__edge.graph-relationship-edge.edge-color-blue {
+  --graph-relationship-edge-color: var(--graph-edge-color-blue);
+}
+
+.react-flow__edge.graph-relationship-edge {
+  /* React Flow applies this token from a later stylesheet on focus/selection. */
+  --xy-edge-stroke-selected: var(--graph-relationship-edge-color);
+}
+
+.react-flow__edge.graph-relationship-edge .react-flow__edge-path {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--graph-relationship-edge-color);
+  stroke-width: 1.5;
+  transition:
+    stroke-width var(--motion-fast) ease,
+    filter var(--motion-fast) ease;
+}
+
+.react-flow__edge.graph-relationship-edge.edge-undirected .react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+.react-flow__edge.graph-relationship-edge.edge-line-dashed .react-flow__edge-path {
+  stroke-dasharray: 5 4;
+}
+
+.react-flow__edge.graph-relationship-edge.edge-line-dotted .react-flow__edge-path {
+  stroke-linecap: round;
+  stroke-dasharray: 1 5;
+}
+
+.react-flow__edge.graph-relationship-edge.edge-temporal .react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__edge.graph-relationship-edge:is(.selected, :focus, :focus-visible)
+  .react-flow__edge-path {
+  stroke: var(--graph-relationship-edge-color);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 2px var(--graph-relationship-edge-color));
+}
+
+.react-flow__edge.graph-relationship-edge.selectable:not(.selected):hover .react-flow__edge-path {
+  stroke: var(--graph-relationship-edge-color);
+  stroke-width: 1.85;
+}

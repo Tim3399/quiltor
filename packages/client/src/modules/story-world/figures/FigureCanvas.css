@@ -20,16 +20,6 @@
   opacity: 1;
 }
 
-/* The connection preview lives inside the zoomed React Flow viewport. Without a
-   non-scaling stroke it becomes a sub-pixel hairline in overview LOD and looks
-   as if no line was being drawn at all. */
-.figure-workspace .flow-area .react-flow__connection-path {
-  vector-effect: non-scaling-stroke;
-  stroke: var(--gold);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
 .figure-workspace .story-node.is-deceased {
   opacity: 0.48;
   filter: none;
@@ -63,32 +53,6 @@
 
 .figure-workspace .story-node .neutral-handle.react-flow__handle-bottom {
   transform: translate(-50%, 50%) rotate(45deg);
-}
-
-.figure-workspace .react-flow__edge.edge-blood .react-flow__edge-path {
-  stroke: var(--rose-border);
-  stroke-width: 2;
-}
-
-.figure-workspace .react-flow__edge.edge-dashed .react-flow__edge-path {
-  stroke-dasharray: 5 4;
-}
-
-.figure-workspace .react-flow__edge.edge-undirected .react-flow__edge-path {
-  stroke-linecap: round;
-}
-
-.figure-workspace .react-flow__edge.edge-directed .react-flow__edge-path {
-  stroke-width: 1.5;
-}
-
-.figure-workspace .react-flow__edge.edge-temporal .react-flow__edge-path {
-  stroke-width: 2;
-  stroke-dasharray: 8 3;
-}
-
-.figure-workspace .react-flow__edge.edge-temporal .react-flow__edge-text {
-  font-weight: 600;
 }
 
 .figure-workspace .story-node .journey-handle {
@@ -142,23 +106,13 @@
   pointer-events: none;
 }
 
-.figure-workspace .flow-area.has-timeline .react-flow__minimap {
-  top: 14px;
-  right: 14px;
-  bottom: auto;
-}
-
-/* At regular workspace widths the inspector leaves too little clear canvas for
-   both floating navigation surfaces. Keep the timeline, which carries editing
-   controls, and let React Flow's regular zoom/pan controls cover navigation. */
-@media (min-width: 821px) and (max-width: 1050px) {
-  .figure-workspace .flow-area.has-timeline .react-flow__minimap {
-    display: none;
-  }
-}
-
-.figure-workspace .flow-area.has-timeline.is-connecting .react-flow__minimap {
-  display: none;
+/* Keep the timeline out of the stable bottom-right minimap slot. */
+.figure-workspace .flow-area.has-timeline.has-minimap .timeline-strip {
+  right: calc(
+    var(--graph-viewport-inset) +
+    var(--graph-minimap-inline-size) +
+    var(--graph-overlay-gap)
+  );
 }
 
 .figure-empty-state {

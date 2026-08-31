@@ -87,6 +87,18 @@
     { "id": "edge-label", "path": "/payload/edges/0/label", "absent": "accept", "null": "reject" },
     { "id": "edge-style", "path": "/payload/edges/0/style", "absent": "accept", "null": "reject" },
     {
+      "id": "edge-line-style",
+      "path": "/payload/edges/0/lineStyle",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "edge-relationship-kind",
+      "path": "/payload/edges/0/relationshipKind",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
       "id": "edge-directed",
       "path": "/payload/edges/0/gerichtet",
       "absent": "accept",
@@ -137,6 +149,18 @@
     {
       "id": "version-style",
       "path": "/payload/edges/0/versions/0/style",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "version-line-style",
+      "path": "/payload/edges/0/versions/0/lineStyle",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "version-relationship-kind",
+      "path": "/payload/edges/0/versions/0/relationshipKind",
       "absent": "accept",
       "null": "reject"
     },
@@ -409,6 +433,34 @@
       "operation": "set",
       "path": "/payload/edges/0/gerichtet",
       "value": 1,
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-edge-line-style",
+      "operation": "set",
+      "path": "/payload/edges/0/lineStyle",
+      "value": "wavy",
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-edge-relationship-kind",
+      "operation": "set",
+      "path": "/payload/edges/0/relationshipKind",
+      "value": "unknown",
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-version-line-style",
+      "operation": "set",
+      "path": "/payload/edges/0/versions/0/lineStyle",
+      "value": "wavy",
+      "expect": "reject"
+    },
+    {
+      "id": "unknown-version-relationship-kind",
+      "operation": "set",
+      "path": "/payload/edges/0/versions/0/relationshipKind",
+      "value": "unknown",
       "expect": "reject"
     },
     {

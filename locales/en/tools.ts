@@ -1,6 +1,6 @@
 export const tools = {
   searchCommands: "Search & commands",
-  searchPlaceholder: "Chapters, text, characters, places …",
+  searchPlaceholder: "Chapters, text, characters, places, storyboards …",
   command: "Command",
   snapshotSave: "Save working state",
   target: "Target",
@@ -52,7 +52,12 @@ export const tools = {
   switchToFigures: "Switch to character board",
   switchToTimeline: "Switch to timeline",
   switchToPlaces: "Switch to places",
+  switchToStoryboard: "Switch to storyboard",
   toggleFocus: "Toggle focus mode",
   searchMatchCount: "{count} matches in text",
   noSearchResults: "No matching content or commands found.",
+  showMinimap: "Show overview map",
+  hideMinimap: "Hide overview map",
+  graphControlsLabel: "Map controls",
+  minimapLabel: "Overview map",
 } as const;

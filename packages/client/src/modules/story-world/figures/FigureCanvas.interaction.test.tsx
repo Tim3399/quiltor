@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { Edge } from "@xyflow/react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
@@ -9,16 +10,28 @@ import type { FigureCanvasController } from "./useFigureCanvas";
 vi.mock("../StoryGraphCanvas", () => ({
   StoryGraphCanvas: ({
     nodes,
+    edges,
     flowProps,
+    flowChildren,
     children,
   }: {
     nodes: FigureFlowNode[];
+    edges: Edge[];
     flowProps: {
       onNodeContextMenu?: (event: ReactMouseEvent<HTMLElement>, node: FigureFlowNode) => void;
+      onEdgeClick?: (event: ReactMouseEvent<HTMLElement>, edge: Edge) => void;
+      connectionLineType?: string;
+      defaultEdgeOptions?: { type?: string };
     };
+    flowChildren?: ReactNode;
     children?: ReactNode;
   }) => (
-    <div className="flow-area">
+    <div
+      className="flow-area"
+      data-testid="figure-flow-contract"
+      data-connection-line-type={flowProps.connectionLineType}
+      data-default-edge-type={flowProps.defaultEdgeOptions?.type}
+    >
       {nodes.map((node) => (
         // biome-ignore lint/a11y/useSemanticElements: React Flow exposes its focusable node wrapper as a div with button semantics.
         <div
@@ -32,6 +45,16 @@ vi.mock("../StoryGraphCanvas", () => ({
           {node.id}
         </div>
       ))}
+      {edges.map((edge) => (
+        <button
+          type="button"
+          key={edge.id}
+          onClick={(event) => flowProps.onEdgeClick?.(event, edge)}
+        >
+          Edge {edge.id}
+        </button>
+      ))}
+      {flowChildren}
       {children}
     </div>
   ),
@@ -50,10 +73,10 @@ const node: FigureFlowNode = {
   },
 };
 
-function controller(): FigureCanvasController {
+function controller(edges: Edge[] = []): FigureCanvasController {
   return {
     nodes: [node],
-    edges: [],
+    edges,
     zoomTier: "detail",
     snapToGrid: true,
     gridOverride: false,
@@ -69,16 +92,21 @@ function controller(): FigureCanvasController {
   };
 }
 
-function renderCanvas(onOpenNodeMenu = vi.fn()) {
+function renderCanvas(
+  onOpenNodeMenu = vi.fn(),
+  canvasController = controller(),
+  onSelectEdge = vi.fn(),
+) {
   render(
     <I18nProvider>
       <section className="figure-workspace">
         <FigureCanvas
-          controller={controller()}
+          controller={canvasController}
           connecting={false}
           playing={false}
           onCancelConnecting={vi.fn()}
           onSelectNode={vi.fn()}
+          onSelectEdge={onSelectEdge}
           onOpenNodeMenu={onOpenNodeMenu}
           onClearSelection={vi.fn()}
         />
@@ -97,7 +125,7 @@ function renderCanvas(onOpenNodeMenu = vi.fn()) {
     height: 96,
     toJSON: () => ({}),
   });
-  return { onOpenNodeMenu, trigger };
+  return { onOpenNodeMenu, onSelectEdge, trigger };
 }
 
 afterEach(() => {
@@ -107,6 +135,39 @@ afterEach(() => {
 });
 
 describe("FigureCanvas node menu interactions", () => {
+  it("uses orthogonal smooth-step geometry for edges and the connection preview", () => {
+    renderCanvas();
+
+    expect(screen.getByTestId("figure-flow-contract")).toHaveAttribute(
+      "data-connection-line-type",
+      "smoothstep",
+    );
+    expect(screen.getByTestId("figure-flow-contract")).toHaveAttribute(
+      "data-default-edge-type",
+      "smoothstep",
+    );
+  });
+
+  it("selects relationship edges but ignores journey and presence projections", () => {
+    const onSelectEdge = vi.fn();
+    renderCanvas(
+      vi.fn(),
+      controller([
+        { id: "bond", source: "ada", target: "bela", data: { kind: "relationship" } },
+        { id: "journey:ada:0", source: "ada", target: "place", data: { kind: "journey" } },
+        { id: "presence:ada", source: "ada", target: "place", data: { kind: "presence" } },
+      ]),
+      onSelectEdge,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edge bond" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edge journey:ada:0" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edge presence:ada" }));
+
+    expect(onSelectEdge).toHaveBeenCalledTimes(1);
+    expect(onSelectEdge).toHaveBeenCalledWith("bond");
+  });
+
   it("opens the focused node from ContextMenu and Shift+F10 at its visual center", () => {
     const { onOpenNodeMenu, trigger } = renderCanvas();
     trigger.focus();

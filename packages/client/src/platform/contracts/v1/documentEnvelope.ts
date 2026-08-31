@@ -1,8 +1,11 @@
-import { wireInteger, wireRecord, WireContractError, type WireRecord } from "./validation";
+import { WireContractError, type WireRecord, wireInteger, wireRecord } from "./validation";
 
 export const DOCUMENT_MEDIA_TYPE_V1 = "application/vnd.quiltor.document.v1+json";
 
-export type DocumentContractV1 = "quiltor.manuscript" | "quiltor.story-world";
+export type DocumentContractV1 =
+  | "quiltor.manuscript"
+  | "quiltor.story-world"
+  | "quiltor.storyboards";
 
 export interface DocumentEnvelopeWireV1<TPayload extends WireRecord> {
   contract: DocumentContractV1;

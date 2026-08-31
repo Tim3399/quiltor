@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/storyboards/v1.schema.json",
+  "title": "Quiltor storyboards wire envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "version", "payload"],
+  "properties": {
+    "contract": { "const": "quiltor.storyboards" },
+    "version": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "payload": { "$ref": "#/$defs/storyboards" }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$"
+    },
+    "sourceIdentifier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "storyboards": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["boards", "nodes", "edges"],
+      "properties": {
+        "boards": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/board" }
+        },
+        "nodes": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": { "$ref": "#/$defs/node" }
+        },
+        "edges": {
+          "type": "array",
+          "maxItems": 200000,
+          "items": { "$ref": "#/$defs/edge" }
+        }
+      }
+    },
+    "board": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "title": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "boardId", "kind", "x", "y"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "boardId": { "$ref": "#/$defs/identifier" },
+        "kind": { "enum": ["note", "reference", "storyboard", "group"] },
+        "x": {
+          "type": "number",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "y": {
+          "type": "number",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "zIndex": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "text": { "type": "string", "maxLength": 100000 },
+        "label": { "type": "string", "maxLength": 1000 },
+        "target": { "$ref": "#/$defs/worldReferenceTarget" },
+        "noteReferences": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/noteReference" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["noteReferences"],
+            "properties": { "noteReferences": { "minItems": 1 } }
+          },
+          "then": { "required": ["text"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "note" } } },
+          "then": {
+            "required": ["text"],
+            "not": { "required": ["target"] }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "reference" } } },
+          "then": {
+            "required": ["target"],
+            "properties": {
+              "target": {
+                "allOf": [
+                  { "$ref": "#/$defs/worldReferenceTarget" },
+                  {
+                    "properties": { "kind": { "enum": ["entity", "place", "timeline", "chapter"] } }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "storyboard" } } },
+          "then": {
+            "required": ["target"],
+            "properties": {
+              "target": {
+                "allOf": [
+                  { "$ref": "#/$defs/worldReferenceTarget" },
+                  { "properties": { "kind": { "const": "storyboard" } } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "group" } } },
+          "then": {
+            "required": ["width", "height"],
+            "not": { "required": ["target"] }
+          }
+        }
+      ]
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "boardId", "sourceNodeId", "targetNodeId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "boardId": { "$ref": "#/$defs/identifier" },
+        "sourceNodeId": { "$ref": "#/$defs/identifier" },
+        "targetNodeId": { "$ref": "#/$defs/identifier" },
+        "label": { "type": "string", "maxLength": 1000 },
+        "directed": { "type": "boolean" },
+        "color": { "enum": ["auto", "ink", "gold", "rose", "moss", "blue"] },
+        "lineStyle": { "enum": ["solid", "dashed", "dotted"] }
+      }
+    },
+    "noteReference": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "target", "from", "to", "surface"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "target": { "$ref": "#/$defs/worldReferenceTarget" },
+        "from": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "to": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "surface": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "worldReferenceTarget": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["entity", "place", "timeline", "chapter", "storyboard"] },
+        "id": { "$ref": "#/$defs/sourceIdentifier" }
+      }
+    }
+  }
+}

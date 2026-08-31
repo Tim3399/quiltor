@@ -1,6 +1,7 @@
 import { Handle, type MiniMapNodeProps, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Skull, Star } from "lucide-react";
 import { useI18n } from "../../../i18n";
+import { cardKindColor, GRAPH_CONNECTION_HANDLES } from "../../graph";
 import type { FigureKind, FigureNode as FigureNodeModel } from "../model";
 import { StoryNodeCard, StoryNodeIdentity } from "../StoryNodeCard";
 import { kindLabel, type SemanticZoomTier } from "./relationships";
@@ -25,19 +26,23 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
       zoomTier={data.zoomTier}
       viewportZoom={data.zoom}
       kind={item.type || "person"}
-      accent={item.accent || "ink"}
       important={!!item.important}
       dashed={!!item.dash}
       selected={selected}
       modifiers={[data.deceased ? "is-deceased" : "", data.guests.length ? "has-guests" : ""]}
     >
       <Handle
-        id="in"
+        id={GRAPH_CONNECTION_HANDLES.incoming}
         className="directed-handle incoming-handle"
         type="target"
         position={Position.Left}
       />
-      <Handle id="neutral-top" className="neutral-handle" type="source" position={Position.Top} />
+      <Handle
+        id={GRAPH_CONNECTION_HANDLES.neutralTop}
+        className="neutral-handle"
+        type="source"
+        position={Position.Top}
+      />
       <Handle
         id="journey-top"
         className="journey-handle"
@@ -74,13 +79,13 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
         )}
       </StoryNodeIdentity>
       <Handle
-        id="out"
+        id={GRAPH_CONNECTION_HANDLES.outgoing}
         className="directed-handle outgoing-handle"
         type="source"
         position={Position.Right}
       />
       <Handle
-        id="neutral-bottom"
+        id={GRAPH_CONNECTION_HANDLES.neutralBottom}
         className="neutral-handle"
         type="source"
         position={Position.Bottom}
@@ -116,10 +121,5 @@ export function FigureMiniMapNode({
 }
 
 export function minimapColorForKind(kind?: FigureKind) {
-  if (kind === "ort") return "var(--minimap-place)";
-  if (kind === "konzept") return "var(--minimap-concept)";
-  if (kind === "tier") return "var(--minimap-animal)";
-  if (kind === "organisation") return "var(--minimap-organisation)";
-  if (kind === "objekt") return "var(--minimap-object)";
-  return "var(--minimap-person)";
+  return cardKindColor(kind ?? "person");
 }

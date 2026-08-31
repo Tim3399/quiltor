@@ -14,6 +14,7 @@ from quiltor.domain.story_world.integrity import (
 )
 from quiltor.modules.assistant.contract import _normal, required_proposal_kinds
 from quiltor.modules.assistant.entity_references import resolved_entity_id
+from quiltor.modules.assistant.relationship_appearance import normalize_relationship_appearance
 
 
 def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
@@ -183,11 +184,32 @@ def validate_proposals(
             if not clean_patch:
                 continue
             proposal = {"kind": kind, "elementId": element_id, "patch": clean_patch}
-        elif kind == "set_relationship_at_moment" and (
-            proposal.get("relationshipId") not in known_relationships
-            or proposal.get("momentId") not in known_moments | temporary_moments
-        ):
-            continue
+        elif kind == "set_relationship_at_moment":
+            if (
+                proposal.get("relationshipId") not in known_relationships
+                or proposal.get("momentId") not in known_moments | temporary_moments
+                or not isinstance(proposal.get("patch"), dict)
+            ):
+                continue
+            raw_patch = proposal["patch"]
+            appearance = normalize_relationship_appearance(raw_patch)
+            if appearance is None:
+                continue
+            clean_patch: dict[str, Any] = {}
+            if isinstance(raw_patch.get("label"), str):
+                clean_patch["label"] = raw_patch["label"][:160]
+            for key in ("active", "directed"):
+                if type(raw_patch.get(key)) is bool:
+                    clean_patch[key] = raw_patch[key]
+            clean_patch.update(appearance)
+            if not clean_patch:
+                continue
+            proposal = {
+                "kind": kind,
+                "relationshipId": proposal["relationshipId"],
+                "momentId": proposal["momentId"],
+                "patch": clean_patch,
+            }
         elif kind == "mark_deceased":
             raw_element_id = proposal.get("elementId")
             element_id = (
@@ -231,13 +253,25 @@ def validate_proposals(
             }
         elif kind == "create_relationship":
             raw_relation = proposal.get("relationship") or {}
+            appearance = (
+                normalize_relationship_appearance(raw_relation, defaults=True)
+                if isinstance(raw_relation, dict)
+                else None
+            )
             if (
                 not isinstance(raw_relation, dict)
+                or not isinstance(raw_relation.get("label", ""), str)
                 or len(str(raw_relation.get("label", ""))) > 160
-                or raw_relation.get("style", "solid") not in {"solid", "dashed", "blood", "gold"}
+                or appearance is None
             ):
                 continue
-            relation = dict(raw_relation)
+            relation = {
+                "from": raw_relation.get("from"),
+                "to": raw_relation.get("to"),
+                "label": raw_relation.get("label", ""),
+                "directed": bool(raw_relation.get("directed")),
+                **appearance,
+            }
             for endpoint in ("from", "to"):
                 endpoint_value = relation.get(endpoint)
                 if endpoint_value not in temporary_elements:

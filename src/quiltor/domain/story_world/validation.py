@@ -181,6 +181,10 @@ def valid_figures(payload: Any) -> bool:
         return False
 
     known, known_moments, edge_ids = set(ids), set(moment_ids), []
+    edge_styles = {"solid", "dashed", "blood", "gold"}
+    edge_colors = {"auto", "ink", "gold", "rose", "moss", "blue"}
+    edge_line_styles = {"solid", "dashed", "dotted"}
+    relationship_kinds = {"general", "kinship"}
     death_moments = [node["diedMomentId"] for node in payload["nodes"] if "diedMomentId" in node]
     if any(
         not isinstance(moment_id, str) or not moment_id or moment_id not in known_moments
@@ -194,6 +198,14 @@ def valid_figures(payload: Any) -> bool:
             or not edge["id"]
             or edge.get("from") not in known
             or edge.get("to") not in known
+            or not isinstance(edge.get("style", "solid"), str)
+            or edge.get("style", "solid") not in edge_styles
+            or not isinstance(edge.get("color", "auto"), str)
+            or edge.get("color", "auto") not in edge_colors
+            or not isinstance(edge.get("lineStyle", "solid"), str)
+            or edge.get("lineStyle", "solid") not in edge_line_styles
+            or not isinstance(edge.get("relationshipKind", "general"), str)
+            or edge.get("relationshipKind", "general") not in relationship_kinds
         ):
             return False
         versions = edge.get("versions", [])
@@ -208,8 +220,15 @@ def valid_figures(payload: Any) -> bool:
                 or ("from" in version and version["from"] not in known)
                 or ("to" in version and version["to"] not in known)
                 or ("label" in version and not isinstance(version["label"], str))
-                or ("style" in version and not isinstance(version["style"], str))
+                or not isinstance(version.get("style", "solid"), str)
+                or version.get("style", "solid") not in edge_styles
                 or ("gerichtet" in version and type(version["gerichtet"]) is not bool)
+                or not isinstance(version.get("color", "auto"), str)
+                or version.get("color", "auto") not in edge_colors
+                or not isinstance(version.get("lineStyle", "solid"), str)
+                or version.get("lineStyle", "solid") not in edge_line_styles
+                or not isinstance(version.get("relationshipKind", "general"), str)
+                or version.get("relationshipKind", "general") not in relationship_kinds
             ):
                 return False
             version_moments.append(version["momentId"])

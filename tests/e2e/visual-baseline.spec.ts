@@ -1,8 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
-  fulfillStoryWorld,
+  mockRequiredWorldDocuments,
 } from "./support/application-api";
 
 const manuscript = {
@@ -78,16 +78,7 @@ async function mockWorkshop(page: Page) {
       },
     }),
   );
-  await page.route("**/api/manuscript*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillManuscript(route, manuscript)
-      : fulfillDocumentSave(route, 1),
-  );
-  await page.route("**/api/state*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillStoryWorld(route, figures)
-      : fulfillDocumentSave(route, 1),
-  );
+  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures });
   await page.route("**/api/assistant/status*", (route) =>
     route.fulfill({
       json: { ok: true, available: false, mode: "local", reason: "Baseline", chunks: 3 },

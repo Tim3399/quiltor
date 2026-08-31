@@ -1,4 +1,4 @@
-import { Maximize2 } from "lucide-react";
+import { Focus } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { IconButton } from "../../design";
 import type { NoteReference } from "../../shared";
@@ -20,9 +20,11 @@ export function NoteEditor({
   placeholder,
   size = "comfortable",
   rows,
+  labelHidden = false,
   fieldClassName = "",
   className = "",
   focus,
+  focusButtonClassName = "",
   onFocusRequest,
 }: {
   owner: NoteOwner;
@@ -33,9 +35,11 @@ export function NoteEditor({
   placeholder?: string;
   size?: "compact" | "comfortable";
   rows?: number;
+  labelHidden?: boolean;
   fieldClassName?: string;
   className?: string;
   focus?: NoteFocusCopy;
+  focusButtonClassName?: string;
   onFocusRequest?: (owner: NoteOwner) => void;
 }) {
   const ownerKey = noteOwnerKey(owner);
@@ -60,13 +64,14 @@ export function NoteEditor({
         className={className}
         label={label}
         ariaLabel={ariaLabel}
+        labelHidden={labelHidden}
         actions={
           focus ? (
             <IconButton
               ref={focusTrigger}
-              className="note-editor__focus"
+              className={`note-editor__focus ${focusButtonClassName}`.trim()}
               label={focus.openLabel}
-              icon={<Maximize2 />}
+              icon={<Focus />}
               onClick={openFocus}
             />
           ) : undefined

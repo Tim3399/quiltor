@@ -76,7 +76,9 @@ class AssistantPlanningTests(unittest.TestCase):
                 "to": "new:corgi",
                 "label": "Besitzt",
                 "directed": True,
-                "style": "solid",
+                "lineStyle": "solid",
+                "relationshipKind": "general",
+                "color": "auto",
             },
         )
         verification = verify_task_contract(task_contract(question, FIGURES), completed, FIGURES)

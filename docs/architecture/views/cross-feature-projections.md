@@ -2,8 +2,9 @@
 
 Status: **proposed target view**
 
-Answers: **How do Manuscript and Story World feed navigation, search,
-backlinks and Assistant context without duplicating canonical state?**
+Answers: **How do Manuscript, Story World and Storyboard feed navigation,
+search, backlinks and Assistant context without duplicating canonical or
+planning state?**
 
 Client and application projections serve different consistency needs and must
 not be conflated:
@@ -24,6 +25,7 @@ flowchart LR
     subgraph Client["Client: ephemeral draft and navigation"]
         ManuscriptDraft["ManuscriptDraftStore"]
         StoryWorldDraft["StoryWorldDraftStore"]
+        StoryboardDraft["StoryboardDraftStore"]
         DraftCoordinator["DraftNavigationProjectionCoordinator"]
         DraftReference["DraftReferenceOverlay"]
         DraftSearch["DraftSearchOverlay"]
@@ -31,6 +33,7 @@ flowchart LR
 
         ManuscriptDraft --> DraftCoordinator
         StoryWorldDraft --> DraftCoordinator
+        StoryboardDraft --> DraftCoordinator
         DraftCoordinator --> DraftReference
         DraftCoordinator --> DraftSearch
         DraftReference --> Navigation
@@ -115,10 +118,17 @@ DraftContext --> ReferenceSource
 DraftContext --> SearchEntry
 ```
 
-`ReferenceTarget` kinds may include chapter, world element/place, timeline
-moment and future storyboard item. The kind is a contract discriminator, not a
-permission to import the owning feature model. `DraftContext` is bounded,
-revision-stamped and explicit; it cannot silently replace committed state.
+`ReferenceTarget` kinds include chapter, world element/place, timeline moment
+and Storyboard board. The kind is a contract discriminator, not a permission to
+import the owning feature model. `DraftContext` is bounded, revision-stamped
+and explicit; it cannot silently replace committed state.
+
+The current client candidate index includes Storyboard boards, so global
+search, `@` completion and Storyboard drag/drop share stable targets. Backlinks
+currently cover the shipped Manuscript and Story World note sources only;
+deriving sources from Storyboard cards remains TECH-014. Likewise, Storyboard
+planning text is not part of canonical Assistant context until a later,
+explicitly labelled planning-context use case is implemented.
 
 ## Draft navigation update sequence
 
@@ -198,15 +208,15 @@ events are not exposed as a public client protocol.
 
 ## Current code to target responsibility
 
-| Current code                                                                          | Target class/responsibility                                     |
-| ------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `buildWorldReferenceCandidates` and `buildWorldReferenceBacklinks` in app composition | client `DraftReferenceOverlay` plus canonical reference reader  |
-| separate candidate building in Search                                                 | canonical index plus affected client `DraftSearchOverlay`       |
-| `NoteReferenceProvider` with aggregate-derived values                                 | Notes consuming merged canonical/draft reference views          |
-| `KnowledgeChunk` rebuilding in Assistant backend                                      | `CanonicalAssistantContextBuilder` over committed read models   |
-| any client-built Assistant context                                                    | removed; flush or pass an explicit `DraftContext`               |
-| nested rename detection in `Application.tsx`                                          | rename policy, transactional index deltas and reviewed workflow |
-| direct workspace-target conversion scattered by feature                               | one client `NavigationService` over `WorkspaceTarget`           |
+| Current code                                                                                               | Target class/responsibility                                                                                 |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `buildWorldReferenceCandidates` (including boards) and current non-Storyboard backlinks in app composition | client `DraftReferenceOverlay` plus canonical reference reader; Storyboard backlink sources remain TECH-014 |
+| separate candidate building in Search                                                                      | canonical index plus affected client `DraftSearchOverlay`                                                   |
+| `NoteReferenceProvider` with aggregate-derived values                                                      | Notes consuming merged canonical/draft reference views                                                      |
+| `KnowledgeChunk` rebuilding in Assistant backend                                                           | `CanonicalAssistantContextBuilder` over committed read models                                               |
+| any client-built Assistant context                                                                         | removed; flush or pass an explicit `DraftContext`                                                           |
+| nested rename detection in `Application.tsx`                                                               | rename policy, transactional index deltas and reviewed workflow                                             |
+| direct workspace-target conversion scattered by feature                                                    | one client `NavigationService` over `WorkspaceTarget`                                                       |
 
 Canonical changes travel through the focused application path described in
 [application/persistence](application-and-persistence.md). Assistant-specific

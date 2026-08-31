@@ -73,7 +73,8 @@ def restore_backup(
     if previous_revisions is None:
         initialize(db_path)
         previous_revisions = {
-            kind: revisions.revision(kind, db_path=db_path) for kind in ("manuscript", "figures")
+            kind: revisions.revision(kind, db_path=db_path)
+            for kind in ("manuscript", "figures", "storyboards")
         }
     backup_if_due(force=True, db_path=db_path, backups_dir=source_dir)
     source = sqlite3.connect(source_path)

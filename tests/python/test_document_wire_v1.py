@@ -7,8 +7,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from quiltor.application import (
-    InvalidDocumentWireV1,
     MAX_SAFE_REVISION,
+    InvalidDocumentWireV1,
     decode_document_v1,
     encode_document_v1,
 )
@@ -19,7 +19,6 @@ from quiltor.domain.story_world.entity_resolution import (
     ENTITY_ALIAS_SEPARATOR_RANGES_V1,
     normalize_entity_name,
 )
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = REPO_ROOT / "contracts"
@@ -32,7 +31,12 @@ def registered_fixture(contract_name: str) -> dict:
         for item in manifest["contracts"]
         if item["name"] == contract_name and item["version"] == 1
     )
-    fixture_path = CONTRACTS / contract["fixtures"][0]["path"]
+    fixture = next(
+        item
+        for item in contract["fixtures"]
+        if item["role"] == "example" and item["path"].endswith("/wire.v1.json")
+    )
+    fixture_path = CONTRACTS / fixture["path"]
     return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 
@@ -120,6 +124,7 @@ class DocumentWireV1Tests(unittest.TestCase):
         for kind, contract_name in (
             ("manuscript", "application.manuscript-wire"),
             ("figures", "application.story-world-wire"),
+            ("storyboards", "application.storyboards-wire"),
         ):
             corpus = registered_differential(contract_name)
             base = json.loads((CONTRACTS / corpus["baseFixture"]).read_text(encoding="utf-8"))
@@ -168,6 +173,7 @@ class DocumentWireV1Tests(unittest.TestCase):
             for kind, contract_name in (
                 ("manuscript", "application.manuscript-wire"),
                 ("figures", "application.story-world-wire"),
+                ("storyboards", "application.storyboards-wire"),
             ):
                 corpus = registered_differential(contract_name)
                 base = json.loads((CONTRACTS / corpus["baseFixture"]).read_text(encoding="utf-8"))
@@ -305,6 +311,7 @@ class DocumentWireV1Tests(unittest.TestCase):
         for kind, contract_name in (
             ("manuscript", "application.manuscript-wire"),
             ("figures", "application.story-world-wire"),
+            ("storyboards", "application.storyboards-wire"),
         ):
             with self.subTest(kind=kind):
                 fixture = registered_fixture(contract_name)
@@ -313,6 +320,21 @@ class DocumentWireV1Tests(unittest.TestCase):
                     encode_document_v1(kind, decoded.payload, decoded.revision), fixture
                 )
                 self.assertEqual(decoded.payload["extension"]["source"], "contract-fixture")
+                if kind == "figures":
+                    self.assertEqual(decoded.payload["edges"][0]["color"], "rose")
+                    self.assertEqual(decoded.payload["edges"][0]["lineStyle"], "dotted")
+                    self.assertEqual(decoded.payload["edges"][0]["relationshipKind"], "kinship")
+                    self.assertEqual(decoded.payload["edges"][0]["versions"][0]["color"], "blue")
+                    self.assertEqual(
+                        decoded.payload["edges"][0]["versions"][0]["lineStyle"], "dashed"
+                    )
+                    self.assertEqual(
+                        decoded.payload["edges"][0]["versions"][0]["relationshipKind"],
+                        "general",
+                    )
+                if kind == "storyboards":
+                    self.assertEqual(decoded.payload["edges"][0]["color"], "gold")
+                    self.assertEqual(decoded.payload["edges"][0]["lineStyle"], "dotted")
 
     def test_canonical_profile_fields_round_trip_with_extensions(self):
         fixture = registered_fixture("application.story-world-wire")
@@ -529,7 +551,7 @@ class DocumentWireV1Tests(unittest.TestCase):
                 with self.assertRaises(InvalidDocumentWireV1):
                     decode_document_v1("manuscript", candidate)
 
-        for contract in ("manuscript", "story-world"):
+        for contract in ("manuscript", "story-world", "storyboards"):
             schema = json.loads(
                 (CONTRACTS / "application-api" / contract / "v1.schema.json").read_text(
                     encoding="utf-8"
@@ -557,7 +579,7 @@ class DocumentWireV1Tests(unittest.TestCase):
                     for index, item in enumerate(child):
                         yield from integer_nodes(item, f"{path}/{key}/{index}")
 
-        for contract in ("manuscript", "story-world"):
+        for contract in ("manuscript", "story-world", "storyboards"):
             schema = json.loads(
                 (CONTRACTS / "application-api" / contract / "v1.schema.json").read_text(
                     encoding="utf-8"
@@ -588,14 +610,55 @@ class DocumentWireV1Tests(unittest.TestCase):
         wrong_active = registered_fixture("application.story-world-wire")
         wrong_active["payload"]["edges"][0]["active"] = "yes"
         malformed_edges.append(wrong_active)
+        wrong_style = registered_fixture("application.story-world-wire")
+        wrong_style["payload"]["edges"][0]["style"] = "wavy"
+        malformed_edges.append(wrong_style)
         wrong_version_style = registered_fixture("application.story-world-wire")
         wrong_version_style["payload"]["edges"][0]["versions"][0]["style"] = "wavy"
         malformed_edges.append(wrong_version_style)
+        wrong_color = registered_fixture("application.story-world-wire")
+        wrong_color["payload"]["edges"][0]["color"] = "neon"
+        malformed_edges.append(wrong_color)
+        wrong_version_color = registered_fixture("application.story-world-wire")
+        wrong_version_color["payload"]["edges"][0]["versions"][0]["color"] = "neon"
+        malformed_edges.append(wrong_version_color)
+        wrong_line_style = registered_fixture("application.story-world-wire")
+        wrong_line_style["payload"]["edges"][0]["lineStyle"] = "wavy"
+        malformed_edges.append(wrong_line_style)
+        wrong_relationship_kind = registered_fixture("application.story-world-wire")
+        wrong_relationship_kind["payload"]["edges"][0]["relationshipKind"] = "blood"
+        malformed_edges.append(wrong_relationship_kind)
+        wrong_version_line_style = registered_fixture("application.story-world-wire")
+        wrong_version_line_style["payload"]["edges"][0]["versions"][0]["lineStyle"] = "wavy"
+        malformed_edges.append(wrong_version_line_style)
+        wrong_version_relationship_kind = registered_fixture("application.story-world-wire")
+        wrong_version_relationship_kind["payload"]["edges"][0]["versions"][0][
+            "relationshipKind"
+        ] = "blood"
+        malformed_edges.append(wrong_version_relationship_kind)
+        non_string_line_style = registered_fixture("application.story-world-wire")
+        non_string_line_style["payload"]["edges"][0]["lineStyle"] = []
+        malformed_edges.append(non_string_line_style)
+        non_string_version_relationship_kind = registered_fixture("application.story-world-wire")
+        non_string_version_relationship_kind["payload"]["edges"][0]["versions"][0][
+            "relationshipKind"
+        ] = {}
+        malformed_edges.append(non_string_version_relationship_kind)
 
         for candidate in malformed_edges:
             with self.subTest(edge=candidate["payload"]["edges"][0]):
                 with self.assertRaises(InvalidDocumentWireV1):
                     decode_document_v1("figures", candidate)
+
+        invalid_storyboard_color = registered_fixture("application.storyboards-wire")
+        invalid_storyboard_color["payload"]["edges"][0]["color"] = "neon"
+        with self.assertRaises(InvalidDocumentWireV1):
+            decode_document_v1("storyboards", invalid_storyboard_color)
+
+        invalid_storyboard_line_style = registered_fixture("application.storyboards-wire")
+        invalid_storyboard_line_style["payload"]["edges"][0]["lineStyle"] = "wavy"
+        with self.assertRaises(InvalidDocumentWireV1):
+            decode_document_v1("storyboards", invalid_storyboard_line_style)
 
     def test_http_route_rejects_invalid_edges_and_unsafe_revision_headers_before_save(self):
         fixture = registered_fixture("application.story-world-wire")

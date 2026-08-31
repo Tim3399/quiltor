@@ -417,7 +417,11 @@ try {
       }
     }
     if (
-      ["application.manuscript-wire", "application.story-world-wire"].includes(contract.name) &&
+      [
+        "application.manuscript-wire",
+        "application.story-world-wire",
+        "application.storyboards-wire",
+      ].includes(contract.name) &&
       !(contract.fixtures ?? []).some((fixture) => fixture.role === "differential")
     ) {
       fail(label, "document wire contract must register a differential corpus");

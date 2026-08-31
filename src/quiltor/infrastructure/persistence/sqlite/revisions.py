@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from quiltor.infrastructure.persistence.sqlite import manuscript, story_world
+from quiltor.infrastructure.persistence.sqlite import manuscript, storyboards, story_world
 from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
 
 
@@ -49,6 +49,8 @@ def save_with_revision(
             manuscript.save(state, database)
         elif kind == "figures":
             story_world.save(state, database)
+        elif kind == "storyboards":
+            storyboards.save(state, database)
         else:
             raise ValueError("Unbekannter Dokumenttyp")
         updated = current + 1
@@ -72,7 +74,7 @@ def advance_restore_revisions(
             "INSERT OR REPLACE INTO meta(key,value) VALUES('last_restore_at',?)",
             (datetime.now().isoformat(),),
         )
-        for kind in ("manuscript", "figures"):
+        for kind in ("manuscript", "figures", "storyboards"):
             before = previous_revisions.get(kind, 0)
             if type(before) is not int or before < 0:
                 raise ValueError("Invalid restore revision checkpoint.")

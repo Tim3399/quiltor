@@ -17,7 +17,6 @@ describe("StoryNodeCard", () => {
         zoomTier="overview"
         viewportZoom={0.2}
         kind="ort"
-        accent="gold"
         important
         selected
         dashed
@@ -29,7 +28,8 @@ describe("StoryNodeCard", () => {
       "story-node",
       "zoom-overview",
       "type-ort",
-      "accent-gold",
+      "graph-card-kind",
+      "graph-card-kind--ort",
       "is-important",
       "selected",
       "dashed",

@@ -11,6 +11,8 @@ export function useApplicationShortcuts({
   redoManuscript,
   undoFigures,
   redoFigures,
+  undoStoryboards,
+  redoStoryboards,
 }: {
   focus: boolean;
   setFocus: (focus: boolean) => void;
@@ -21,6 +23,8 @@ export function useApplicationShortcuts({
   redoManuscript: () => void;
   undoFigures: () => void;
   redoFigures: () => void;
+  undoStoryboards: () => void;
+  redoStoryboards: () => void;
 }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -48,6 +52,7 @@ export function useApplicationShortcuts({
       if (modifier && !inField && event.key.toLowerCase() === "z") {
         event.preventDefault();
         if (workspace === "text") event.shiftKey ? redoManuscript() : undoManuscript();
+        else if (workspace === "storyboard") event.shiftKey ? redoStoryboards() : undoStoryboards();
         else event.shiftKey ? redoFigures() : undoFigures();
       }
     };
@@ -59,9 +64,11 @@ export function useApplicationShortcuts({
     openOverlay,
     redoFigures,
     redoManuscript,
+    redoStoryboards,
     setFocus,
     undoFigures,
     undoManuscript,
+    undoStoryboards,
     workspace,
   ]);
 }

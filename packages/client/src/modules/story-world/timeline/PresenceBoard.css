@@ -19,8 +19,9 @@
   gap: var(--space-2);
   padding: var(--space-7) var(--space-10);
   border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--graph-card-kind-color, var(--line-strong));
   border-radius: var(--radius-sm);
-  background: var(--paper);
+  background: color-mix(in srgb, var(--graph-card-kind-surface, var(--paper)) 22%, var(--paper));
   cursor: grab;
   color: var(--ink);
 }
@@ -29,6 +30,7 @@
 }
 .presence-chip.selected {
   border-color: var(--selection-border);
+  border-inline-start-color: var(--graph-card-kind-color, var(--selection-border));
   background: var(--selection-surface);
   color: var(--selection-text);
 }
@@ -77,9 +79,9 @@
 }
 .presence-chip-mini {
   padding: var(--space-3) var(--space-7);
-  border: 1px solid var(--line);
+  border: 1px solid var(--graph-card-kind-color, var(--line));
   border-radius: var(--radius-lg);
-  background: var(--panel);
+  background: color-mix(in srgb, var(--graph-card-kind-surface, var(--panel)) 28%, var(--panel));
   font-size: var(--font-size-2);
   color: var(--soft);
 }

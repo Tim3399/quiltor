@@ -1,7 +1,14 @@
 import type { Manuscript } from "../../modules/manuscript";
 import type { FigureState } from "../../modules/story-world";
-import type { DocumentsGateway, ManuscriptGateway, StoryWorldGateway } from "../application";
+import type { StoryboardState } from "../../modules/storyboard";
+import type {
+  DocumentsGateway,
+  ManuscriptGateway,
+  StoryboardsGateway,
+  StoryWorldGateway,
+} from "../application";
 import { decodeManuscriptV1, encodeManuscriptV1 } from "../contracts/v1/manuscript";
+import { decodeStoryboardsV1, encodeStoryboardsV1 } from "../contracts/v1/storyboards";
 import { decodeStoryWorldV1, encodeStoryWorldV1 } from "../contracts/v1/storyWorld";
 import type { PlatformGateway } from "../PlatformGateway";
 import { saveBlob } from "../fileSave";
@@ -24,6 +31,15 @@ export function createStoryWorldHttpGateway(state: HttpApplicationState): StoryW
     kind: "figures",
     decode: decodeStoryWorldV1,
     encode: encodeStoryWorldV1,
+  });
+}
+
+export function createStoryboardsHttpGateway(state: HttpApplicationState): StoryboardsGateway {
+  return createDocumentTransport<StoryboardState>(state, {
+    url: "/api/storyboards",
+    kind: "storyboards",
+    decode: decodeStoryboardsV1,
+    encode: encodeStoryboardsV1,
   });
 }
 

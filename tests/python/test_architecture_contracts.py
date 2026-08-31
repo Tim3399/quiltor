@@ -475,6 +475,13 @@ class ArchitectureContractTests(unittest.TestCase):
         self.assertIn("owner_sub", guarantee)
         self.assertIn(config.LOCAL_OWNER, guarantee)
 
+        storyboard_step = next(
+            step for step in fixture["steps"] if (step["from"], step["to"]) == (10, 11)
+        )
+        storyboard_guarantee = " ".join(storyboard_step["guarantees"])
+        self.assertIn("Storyboard", storyboard_guarantee)
+        self.assertIn("non-canon", storyboard_guarantee)
+
         # Bind that machine-readable chain step to the real migration instead of
         # merely checking that the fixture counts to the same integer.
         with closing(sqlite3.connect(":memory:")) as connection:
@@ -495,6 +502,7 @@ class ArchitectureContractTests(unittest.TestCase):
         self.assertEqual(metadata["owner_sub"], config.LOCAL_OWNER)
         self.assertEqual(metadata["manuscript_revision"], "41")
         self.assertEqual(metadata["figures_revision"], "23")
+        self.assertEqual(metadata["storyboards_revision"], "0")
 
     def test_mcp_runtime_catalog_is_generated_from_the_contract_fixture(self) -> None:
         from quiltor.hosts.mcp.quiltor_server import TOOLS

@@ -1,0 +1,74 @@
+/* Relationship labels live above XYFlow nodes; panels remain in the outer UI layer. */
+.graph-edge-surface .react-flow__edgelabel-renderer {
+  z-index: var(--z-graph-edge-label);
+}
+
+.graph-edge-label {
+  appearance: none;
+  position: absolute;
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 24px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--graph-edge-rendered-label-border);
+  border-radius: var(--radius-xs);
+  background: var(--graph-edge-rendered-label-bg);
+  box-shadow: var(--elevation-2) var(--shadow-color);
+  color: var(--graph-edge-rendered-label-text);
+  font: 500 var(--font-size-2) / 1.2 var(--ui);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.graph-edge-label__content {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+}
+
+.graph-edge-label__badge {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  display: inline-flex;
+  color: var(--graph-edge-rendered-label-text);
+}
+
+.graph-edge-label__badge svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.graph-edge-label__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.graph-edge-label.is-interactive {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.graph-edge-label.is-selected {
+  border-width: 2px;
+  box-shadow:
+    var(--ring-1) var(--graph-edge-rendered-label-border),
+    var(--elevation-3) var(--shadow-color);
+}
+
+.flow-area.zoom-overview .graph-edge-label {
+  display: none;
+}

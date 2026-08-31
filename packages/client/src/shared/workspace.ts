@@ -1,4 +1,4 @@
-export type Workspace = "text" | "figures" | "timeline" | "places";
+export type Workspace = "text" | "figures" | "timeline" | "places" | "storyboard";
 
 export type TextSearchTarget = {
   query: string;

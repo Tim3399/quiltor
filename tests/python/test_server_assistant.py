@@ -408,6 +408,7 @@ class FreshInstallRouteTests(_LiveServerTestCase):
         for route in (
             "/api/state",
             "/api/manuscript",
+            "/api/storyboards",
             "/api/assistant/status",
             "/api/assistant/logs",
         ):
@@ -449,16 +450,27 @@ class FreshInstallRouteTests(_LiveServerTestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["interactions"], [])
 
-        for route in ("/api/state", "/api/manuscript"):
+        document_contracts = {
+            "/api/state": "quiltor.story-world",
+            "/api/manuscript": "quiltor.manuscript",
+            "/api/storyboards": "quiltor.storyboards",
+        }
+        for route, contract in document_contracts.items():
             with self.subTest(route=route):
                 status, body = self._get(f"{route}?world={world_id}")
                 self.assertEqual(status, 200)
                 self.assertEqual(body["version"], 1)
                 self.assertIn("payload", body)
-                self.assertEqual(
-                    body["contract"],
-                    "quiltor.story-world" if route == "/api/state" else "quiltor.manuscript",
-                )
+                self.assertEqual(body["contract"], contract)
+                if route == "/api/storyboards":
+                    self.assertEqual(
+                        body["payload"],
+                        {
+                            "boards": [{"id": "main-storyboard", "title": "Main Storyboard"}],
+                            "nodes": [],
+                            "edges": [],
+                        },
+                    )
 
     def test_storage_reads_do_not_raise_without_an_active_world(self):
         """The explicitly composed sentinel is initialized without globals."""

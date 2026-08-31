@@ -297,7 +297,10 @@
           "to": { "type": "string" },
           "label": { "type": "string" },
           "directed": { "type": "boolean" },
-          "style": { "enum": ["solid", "dashed", "blood", "gold"] }
+          "lineStyle": { "enum": ["solid", "dashed", "dotted"] },
+          "relationshipKind": { "enum": ["general", "kinship"] },
+          "color": { "enum": ["auto", "ink", "gold", "rose", "moss", "blue"] },
+          "style": { "enum": ["solid", "dashed", "blood", "gold"], "deprecated": true }
         },
         "additionalProperties": false
       },
@@ -305,7 +308,11 @@
         "worldId": "0123456789abcdef0123456789abcdef",
         "from": "mara",
         "to": "archive",
-        "label": "sucht"
+        "label": "sucht",
+        "directed": true,
+        "lineStyle": "solid",
+        "relationshipKind": "general",
+        "color": "auto"
       }
     },
     {
@@ -337,7 +344,10 @@
           "label": { "type": "string" },
           "active": { "type": "boolean" },
           "directed": { "type": "boolean" },
-          "style": { "enum": ["solid", "dashed", "blood", "gold"] }
+          "lineStyle": { "enum": ["solid", "dashed", "dotted"] },
+          "relationshipKind": { "enum": ["general", "kinship"] },
+          "color": { "enum": ["auto", "ink", "gold", "rose", "moss", "blue"] },
+          "style": { "enum": ["solid", "dashed", "blood", "gold"], "deprecated": true }
         },
         "additionalProperties": false
       },
@@ -345,7 +355,10 @@
         "worldId": "0123456789abcdef0123456789abcdef",
         "relationshipId": "bond",
         "momentId": "arrival",
-        "active": true
+        "active": true,
+        "lineStyle": "dashed",
+        "relationshipKind": "general",
+        "color": "auto"
       }
     },
     {

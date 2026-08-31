@@ -8,6 +8,7 @@ import type {
   ManuscriptGateway,
   MetadataGateway,
   StoryWorldGateway,
+  StoryboardsGateway,
   WorldsGateway,
   WritingAssistanceGateway,
 } from "../application";
@@ -17,6 +18,7 @@ export type ApplicationGatewayOverrides = {
   worlds?: Partial<WorldsGateway>;
   identity?: Partial<IdentityGateway>;
   storyWorld?: Partial<StoryWorldGateway>;
+  storyboards?: Partial<StoryboardsGateway>;
   manuscript?: Partial<ManuscriptGateway>;
   backup?: Partial<BackupGateway>;
   history?: Partial<HistoryGateway>;
@@ -55,6 +57,11 @@ export function createApplicationGatewayStub(
       load: () => notStubbed("storyWorld.load"),
       save: () => notStubbed("storyWorld.save"),
       ...overrides.storyWorld,
+    },
+    storyboards: {
+      load: () => notStubbed("storyboards.load"),
+      save: () => notStubbed("storyboards.save"),
+      ...overrides.storyboards,
     },
     manuscript: {
       load: () => notStubbed("manuscript.load"),

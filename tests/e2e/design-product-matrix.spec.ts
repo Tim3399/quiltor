@@ -1,10 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import {
-  fulfillDocumentSave,
-  fulfillManuscript,
-  fulfillStoryWorld,
-} from "./support/application-api";
+import { mockRequiredWorldDocuments } from "./support/application-api";
 
 const auditViewports = [
   { name: "desktop", width: 1440, height: 900 },
@@ -97,16 +93,7 @@ async function mockAuditWorld(page: Page) {
       },
     }),
   );
-  await page.route("**/api/manuscript*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillManuscript(route, manuscript)
-      : fulfillDocumentSave(route, 1),
-  );
-  await page.route("**/api/state*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillStoryWorld(route, storyWorld)
-      : fulfillDocumentSave(route, 1),
-  );
+  await mockRequiredWorldDocuments(page, { manuscript, storyWorld });
   await page.route("**/api/assistant/status*", (route) =>
     route.fulfill({
       json: {

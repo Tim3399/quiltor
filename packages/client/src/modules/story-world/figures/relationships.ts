@@ -1,3 +1,11 @@
+import type { MessageKey } from "../../../i18n";
+import {
+  graphConnectionHandles,
+  graphConnectionKey,
+  graphConnectionKind,
+  graphEdgeLineStyle,
+  graphRelationshipKind,
+} from "../../graph";
 import type {
   FigureEdge,
   FigureKind,
@@ -5,11 +13,14 @@ import type {
   RelationshipVersion,
   TimelineMoment,
 } from "../model";
-import type { MessageKey } from "../../../i18n";
 
 export type SemanticZoomTier = "detail" | "compact" | "overview";
 
 export const GRID_SIZE = 48;
+
+function relationshipColor(edge: FigureEdge): NonNullable<FigureEdge["color"]> {
+  return edge.color ?? (edge.style === "gold" ? "gold" : "auto");
+}
 
 export function kindLabel(kind: FigureKind | undefined, t: (key: MessageKey) => string): string {
   if (kind === "ort") return t("place");
@@ -90,15 +101,30 @@ export function patchRelationship(
   activeId: string | null,
   patch: Partial<FigureEdge>,
 ): FigureEdge {
-  if (!activeId) return { ...edge, ...patch };
+  if (!activeId) {
+    const next = { ...edge, ...patch };
+    if (
+      patch.lineStyle !== undefined ||
+      patch.relationshipKind !== undefined ||
+      patch.color !== undefined
+    ) {
+      next.lineStyle = patch.lineStyle ?? graphEdgeLineStyle(edge);
+      next.relationshipKind = patch.relationshipKind ?? graphRelationshipKind(edge);
+      next.color = patch.color ?? relationshipColor(edge);
+      delete next.style;
+    }
+    return next;
+  }
   const current = resolveRelationship(edge, timeline, activeId);
   const version: RelationshipVersion = {
     momentId: activeId,
     from: current.from,
     to: current.to,
     label: current.label,
-    style: current.style,
+    lineStyle: graphEdgeLineStyle(current),
+    relationshipKind: graphRelationshipKind(current),
     gerichtet: current.gerichtet,
+    color: relationshipColor(current),
     active: patch.active ?? current.active,
   };
   if (patch.from !== undefined) version.from = patch.from;
@@ -108,7 +134,10 @@ export function patchRelationship(
     else delete version.label;
   }
   if (patch.style !== undefined) version.style = patch.style;
+  if (patch.lineStyle !== undefined) version.lineStyle = patch.lineStyle;
+  if (patch.relationshipKind !== undefined) version.relationshipKind = patch.relationshipKind;
   if (patch.gerichtet !== undefined) version.gerichtet = patch.gerichtet;
+  if (patch.color !== undefined) version.color = patch.color;
   return {
     ...edge,
     versions: [...(edge.versions || []).filter((item) => item.momentId !== activeId), version],
@@ -145,28 +174,40 @@ export function connectionKind(
   sourceHandle?: string | null,
   targetHandle?: string | null,
 ): "directed" | "undirected" | null {
-  if (sourceHandle === "out" && targetHandle === "in") return "directed";
-  if (sourceHandle?.startsWith("neutral-") && targetHandle?.startsWith("neutral-"))
-    return "undirected";
-  return null;
+  return graphConnectionKind(sourceHandle, targetHandle);
 }
 
 export function relationshipKey(from: string, to: string, directed: boolean) {
-  return directed ? `directed:${from}:${to}` : `undirected:${[from, to].sort().join(":")}`;
+  return graphConnectionKey(from, to, directed);
+}
+
+export function relationshipConflicts(
+  edges: FigureEdge[],
+  timeline: TimelineMoment[],
+  activeId: string | null,
+  edgeId: string,
+  candidate: Pick<FigureEdge, "from" | "to" | "gerichtet">,
+) {
+  const candidateKey = relationshipKey(candidate.from, candidate.to, !!candidate.gerichtet);
+  return edges.some((edge) => {
+    if (edge.id === edgeId) return false;
+    const resolved = resolveRelationship(edge, timeline, activeId);
+    return (
+      resolved.active &&
+      relationshipKey(resolved.from, resolved.to, !!resolved.gerichtet) === candidateKey
+    );
+  });
 }
 
 export function relationshipHandles(edge: FigureEdge, nodes: FigureNode[]) {
-  if (edge.gerichtet) return { from: "out", to: "in" };
-  const from = nodes.find((node) => node.id === edge.from),
-    to = nodes.find((node) => node.id === edge.to);
-  if (!from || !to) return { from: "neutral-bottom", to: "neutral-top" };
-  const verticalDistance = to.y - from.y;
-  if (Math.abs(verticalDistance) >= GRID_SIZE)
-    return verticalDistance > 0
-      ? { from: "neutral-bottom", to: "neutral-top" }
-      : { from: "neutral-top", to: "neutral-bottom" };
-  const graphCenterY = nodes.reduce((sum, node) => sum + node.y, 0) / Math.max(nodes.length, 1);
-  const pairCenterY = (from.y + to.y) / 2;
-  const handle = pairCenterY <= graphCenterY ? "neutral-top" : "neutral-bottom";
-  return { from: handle, to: handle };
+  const handles = graphConnectionHandles(
+    {
+      sourceId: edge.from,
+      targetId: edge.to,
+      directed: !!edge.gerichtet,
+    },
+    nodes,
+    GRID_SIZE,
+  );
+  return { from: handles.source, to: handles.target };
 }

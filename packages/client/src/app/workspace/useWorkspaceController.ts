@@ -29,7 +29,8 @@ export function useWorkspaceController() {
       command === "text" ||
       command === "figures" ||
       command === "timeline" ||
-      command === "places"
+      command === "places" ||
+      command === "storyboard"
     ) {
       setWorkspace(command);
       setFocus(false);

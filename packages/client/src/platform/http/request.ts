@@ -4,11 +4,11 @@ import { currentMessages } from "./locale";
 
 export type HttpApplicationState = {
   activeWorldId: string;
-  revisions: { manuscript: number; figures: number };
+  revisions: { manuscript: number; figures: number; storyboards: number };
 };
 
 export function createHttpApplicationState(): HttpApplicationState {
-  return { activeWorldId: "", revisions: { manuscript: 0, figures: 0 } };
+  return { activeWorldId: "", revisions: { manuscript: 0, figures: 0, storyboards: 0 } };
 }
 
 export function withWorldQuery(state: HttpApplicationState, url: string): string {

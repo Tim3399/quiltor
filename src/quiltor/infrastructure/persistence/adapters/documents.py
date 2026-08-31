@@ -10,6 +10,7 @@ from quiltor.infrastructure.persistence.sqlite import (
     assistant_history,
     manuscript,
     revisions,
+    storyboards,
     story_world,
 )
 
@@ -20,14 +21,19 @@ class SQLiteDocumentRepository:
 
     def revision_checkpoint(self, database: Path) -> dict[DocumentKind, int]:
         if not database.is_file():
-            return {"manuscript": 0, "figures": 0}
+            return {"manuscript": 0, "figures": 0, "storyboards": 0}
         return {
             "manuscript": revisions.revision("manuscript", db_path=database),
             "figures": revisions.revision("figures", db_path=database),
+            "storyboards": revisions.revision("storyboards", db_path=database),
         }
 
     def load(self, kind: DocumentKind, database: Path) -> dict[str, Any]:
-        return manuscript.load(database) if kind == "manuscript" else story_world.load(database)
+        if kind == "manuscript":
+            return manuscript.load(database)
+        if kind == "figures":
+            return story_world.load(database)
+        return storyboards.load(database)
 
     def revision(self, kind: DocumentKind, database: Path) -> int:
         return revisions.revision(kind, db_path=database)

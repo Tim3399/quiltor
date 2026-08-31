@@ -1,0 +1,114 @@
+.graph-viewport-surface {
+  --graph-viewport-inset: var(--space-14);
+  --graph-overlay-gap: var(--space-10);
+  --graph-controls-inline-size: 26px;
+  --graph-controls-safe-inline-end: calc(
+    var(--graph-viewport-inset) +
+    var(--graph-controls-inline-size) +
+    var(--graph-overlay-gap)
+  );
+  --graph-minimap-inline-size: 200px;
+  --graph-minimap-block-size: 150px;
+  --graph-minimap-scale: 1;
+}
+
+.graph-viewport-surface .react-flow {
+  --xy-attribution-background-color: var(--paper);
+  --xy-minimap-background-color: var(--panel);
+  --xy-controls-button-background-color: var(--paper);
+  --xy-controls-button-background-color-hover: var(--panel);
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-color-hover: var(--ink);
+  --xy-controls-button-border-color: var(--line);
+  --xy-controls-box-shadow: none;
+}
+
+.graph-viewport-surface .react-flow__panel.react-flow__controls {
+  bottom: var(--graph-viewport-inset);
+  left: var(--graph-viewport-inset);
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+.graph-viewport-surface .react-flow__controls-button {
+  border-bottom-color: var(--line);
+}
+
+.graph-viewport-surface .react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.graph-viewport-surface .react-flow__panel.react-flow__minimap {
+  top: auto;
+  right: var(--graph-viewport-inset);
+  bottom: var(--graph-viewport-inset);
+  left: auto;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  transform: scale(var(--graph-minimap-scale));
+  transform-origin: right bottom;
+}
+
+.graph-viewport-surface .react-flow__attribution {
+  background: var(--paper);
+}
+
+.graph-viewport-surface .react-flow__attribution a {
+  color: var(--attribution);
+}
+
+.graph-viewport-surface.has-minimap {
+  --graph-edge-inspector-safe-bottom: calc(
+    var(--graph-viewport-inset) +
+    var(--graph-minimap-block-size) +
+    var(--graph-overlay-gap)
+  );
+}
+
+.graph-viewport-surface .react-flow__controls-button.graph-minimap-toggle[aria-pressed="true"] {
+  background: var(--selection-surface);
+  color: var(--accent-primary);
+}
+
+.graph-viewport-surface .react-flow__controls-button.graph-minimap-toggle svg {
+  fill: none;
+  stroke: currentColor;
+}
+
+@media (max-width: 820px) {
+  .graph-viewport-surface {
+    --graph-minimap-inline-size: 140px;
+    --graph-minimap-block-size: 105px;
+    --graph-minimap-scale: 0.7;
+  }
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  .graph-viewport-surface {
+    --graph-controls-inline-size: var(--control-touch);
+  }
+
+  .graph-viewport-surface .react-flow__controls-button {
+    width: var(--control-touch);
+    height: var(--control-touch);
+    padding: var(--space-12);
+  }
+
+  .graph-viewport-surface .react-flow__controls-button svg {
+    max-width: var(--space-16);
+    max-height: var(--space-16);
+  }
+
+  .graph-viewport-surface .react-flow__attribution a {
+    min-width: var(--control-touch);
+    min-height: var(--control-touch);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

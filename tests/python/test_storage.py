@@ -506,6 +506,13 @@ class StorageTest(unittest.TestCase):
     def test_temporal_rows_roundtrip_defaults_unknown_fields_and_canonical_order(self):
         schema.initialize()
         state = temporal_figure_state()
+        state["edges"][0]["color"] = "rose"
+        state["edges"][0]["lineStyle"] = "dotted"
+        state["edges"][0]["relationshipKind"] = "kinship"
+        state["edges"][0]["versions"][0]["color"] = "blue"
+        state["edges"][0]["versions"][0]["lineStyle"] = "dashed"
+        state["edges"][0]["versions"][0]["relationshipKind"] = "general"
+        state["edges"][0]["versions"][1]["color"] = "gold"
         story_world.save(state)
 
         loaded = story_world.load()
@@ -518,13 +525,20 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(loaded["timeline"][0]["date"], "1408-09-03")
         self.assertEqual(loaded["timeline"][0]["futureMomentField"], {"source": "import"})
         versions = loaded["edges"][0]["versions"]
+        self.assertEqual(loaded["edges"][0]["color"], "rose")
+        self.assertEqual(loaded["edges"][0]["lineStyle"], "dotted")
+        self.assertEqual(loaded["edges"][0]["relationshipKind"], "kinship")
         self.assertEqual(
             [version["momentId"] for version in versions],
             ["moment-start", "moment-mutiny", "moment-storm"],
         )
         self.assertTrue(versions[0]["active"])
+        self.assertEqual(versions[0]["color"], "blue")
+        self.assertEqual(versions[0]["lineStyle"], "dashed")
+        self.assertEqual(versions[0]["relationshipKind"], "general")
         self.assertEqual(versions[0]["futureRelationshipField"], "confirmed")
         self.assertFalse(versions[1]["active"])
+        self.assertEqual(versions[2]["color"], "gold")
         self.assertEqual(loaded["nodes"][1]["diedMomentId"], "moment-storm")
         base_presence = next(
             entry for entry in loaded["presence"] if entry["id"] == "presence-ada-base"
@@ -532,6 +546,25 @@ class StorageTest(unittest.TestCase):
         self.assertNotIn("momentId", base_presence)
         self.assertEqual(base_presence["futurePresenceField"], ["manual"])
         with sqlite_connection() as conn:
+            edge_extra = json.loads(
+                conn.execute(
+                    "SELECT extra_json FROM connections WHERE id='edge-ada-ben'"
+                ).fetchone()[0]
+            )
+            self.assertEqual(edge_extra["color"], "rose")
+            self.assertEqual(edge_extra["lineStyle"], "dotted")
+            self.assertEqual(edge_extra["relationshipKind"], "kinship")
+            version_extra = json.loads(
+                conn.execute(
+                    """
+                    SELECT extra_json FROM relationship_states
+                    WHERE relationship_id='edge-ada-ben' AND moment_id='moment-start'
+                    """
+                ).fetchone()[0]
+            )
+            self.assertEqual(version_extra["color"], "blue")
+            self.assertEqual(version_extra["lineStyle"], "dashed")
+            self.assertEqual(version_extra["relationshipKind"], "general")
             self.assertEqual(
                 [
                     tuple(row)
@@ -1652,16 +1685,19 @@ class StorageTest(unittest.TestCase):
         with sqlite_connection() as connection:
             connection.execute("UPDATE meta SET value='2' WHERE key='manuscript_revision'")
             connection.execute("UPDATE meta SET value='3' WHERE key='figures_revision'")
+            connection.execute("UPDATE meta SET value='4' WHERE key='storyboards_revision'")
         restore.backup_if_due(force=True)
         backup_name = restore.list_backups()[0]["name"]
         with sqlite_connection() as connection:
             connection.execute("UPDATE meta SET value='20' WHERE key='manuscript_revision'")
             connection.execute("UPDATE meta SET value='30' WHERE key='figures_revision'")
+            connection.execute("UPDATE meta SET value='40' WHERE key='storyboards_revision'")
 
         restore.restore_backup(backup_name)
 
         self.assertEqual(revisions.revision("manuscript"), 21)
         self.assertEqual(revisions.revision("figures"), 31)
+        self.assertEqual(revisions.revision("storyboards"), 41)
         with self.assertRaises(revisions.ConflictError):
             revisions.save_with_revision("manuscript", manuscript_store.load(), expected=2)
 
@@ -1672,15 +1708,17 @@ class StorageTest(unittest.TestCase):
         with sqlite_connection(database) as connection:
             connection.execute("UPDATE meta SET value='4' WHERE key='manuscript_revision'")
             connection.execute("UPDATE meta SET value='7' WHERE key='figures_revision'")
+            connection.execute("UPDATE meta SET value='9' WHERE key='storyboards_revision'")
 
         SQLiteWorldRepository(self.paths).finalize_restore(
             world["id"],
             "owner",
-            {"manuscript": 50, "figures": 60},
+            {"manuscript": 50, "figures": 60, "storyboards": 70},
         )
 
         self.assertEqual(revisions.revision("manuscript", db_path=database), 51)
         self.assertEqual(revisions.revision("figures", db_path=database), 61)
+        self.assertEqual(revisions.revision("storyboards", db_path=database), 71)
         with self.assertRaises(revisions.ConflictError):
             revisions.save_with_revision(
                 "manuscript",

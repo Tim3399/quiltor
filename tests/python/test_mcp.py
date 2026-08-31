@@ -251,9 +251,50 @@ class McpTest(unittest.TestCase):
         self.assertEqual(result["proposal"]["kind"], "create_relationship")
         self.assertEqual(result["proposal"]["relationship"]["label"], "Freunde")
         self.assertEqual(result["proposal"]["relationship"]["from"], "ada")
+        self.assertEqual(
+            {
+                key: result["proposal"]["relationship"][key]
+                for key in ("lineStyle", "relationshipKind", "color")
+            },
+            {"lineStyle": "solid", "relationshipKind": "general", "color": "auto"},
+        )
+        self.assertNotIn("style", result["proposal"]["relationship"])
         self.assertTrue(result["requiresConfirmation"])
         self.assertFalse(result["applied"])
         self.assertEqual(result["resolution"]["proof"]["worldRevision"], 4)
+
+    def test_relationship_proposals_write_modern_appearance_and_read_legacy_style(self):
+        figures = story_world()
+        figures["edges"] = []
+        modern = _proposal(
+            {
+                "from": "Ada",
+                "to": "Tarek",
+                "label": "Familie",
+                "lineStyle": "dotted",
+                "relationshipKind": "kinship",
+                "color": "rose",
+            },
+            figures,
+            "create_relationship",
+            5,
+        )["proposal"]["relationship"]
+        legacy = _proposal(
+            {"from": "Ada", "to": "Tarek", "label": "Familie", "style": "blood"},
+            figures,
+            "create_relationship",
+            5,
+        )["proposal"]["relationship"]
+        self.assertEqual(
+            {key: modern[key] for key in ("lineStyle", "relationshipKind", "color")},
+            {"lineStyle": "dotted", "relationshipKind": "kinship", "color": "rose"},
+        )
+        self.assertEqual(
+            {key: legacy[key] for key in ("lineStyle", "relationshipKind", "color")},
+            {"lineStyle": "solid", "relationshipKind": "kinship", "color": "auto"},
+        )
+        self.assertNotIn("style", modern)
+        self.assertNotIn("style", legacy)
 
     def test_world_loads_the_real_figures_revision(self):
         figures = story_world()

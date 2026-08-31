@@ -150,7 +150,7 @@ describe("Popover", () => {
     );
   });
 
-  it("allows scrolling inside a tall popover without closing it", () => {
+  it("keeps an open popover anchored while its content or page scrolls", () => {
     const close = vi.fn();
     const anchor = createRef<HTMLButtonElement>();
     render(
@@ -167,7 +167,25 @@ describe("Popover", () => {
     fireEvent.scroll(screen.getByRole("dialog", { name: "Werkzeuge" }));
     expect(close).not.toHaveBeenCalled();
     fireEvent.scroll(window);
-    expect(close).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it("stays open while a scroll owner containing its trigger settles focus", () => {
+    const close = vi.fn();
+    const anchor = createRef<HTMLButtonElement>();
+    render(
+      <div data-testid="trigger-scroll-owner">
+        <button ref={anchor} type="button">
+          Auslöser
+        </button>
+        <Popover anchorRef={anchor} open label="Werkzeuge" onClose={close}>
+          Inhalt
+        </Popover>
+      </div>,
+    );
+
+    fireEvent.scroll(screen.getByTestId("trigger-scroll-owner"));
+    expect(close).not.toHaveBeenCalled();
   });
 
   it("closes itself rather than an owning modal when Escape originates inside", async () => {

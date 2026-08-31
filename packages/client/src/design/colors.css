@@ -257,17 +257,61 @@
   --diff-move-text: var(--ink-blue-text);
   --diff-word-move: var(--ink-blue-border);
 
-  /* Graph/minimap reuse the same hue families; kind is never encoded by color alone. */
-  --minimap-node: var(--border-strong);
-  --minimap-person: var(--gold);
-  --minimap-animal: var(--ink-blue-border);
-  --minimap-organisation: var(--ink-blue);
-  --minimap-object: var(--text-muted);
-  --minimap-place: var(--moss);
-  --minimap-concept: var(--rose);
+  /*
+   * Card kinds have one application-wide identity. Saturated tokens draw borders,
+   * handles and minimap marks; paired surfaces tint cards without reducing legibility.
+   * Shape, icons and labels remain the primary, color-independent kind indicators.
+   */
+  --card-kind-person: var(--gold);
+  --card-kind-person-surface: var(--gold-soft);
+  --card-kind-tier: var(--ink-blue-border);
+  --card-kind-tier-surface: var(--ink-blue-soft);
+  --card-kind-ort: var(--moss);
+  --card-kind-ort-surface: var(--moss-soft);
+  --card-kind-organisation: var(--ink-blue);
+  --card-kind-organisation-surface: var(--ink-blue-soft);
+  --card-kind-objekt: var(--text-muted);
+  --card-kind-objekt-surface: var(--surface-panel);
+  --card-kind-konzept: var(--rose);
+  --card-kind-konzept-surface: var(--rose-soft);
+  --card-kind-chapter: var(--gold-border);
+  --card-kind-chapter-surface: var(--gold-soft);
+  --card-kind-timeline: var(--copper-border);
+  --card-kind-timeline-surface: var(--copper-soft);
+  --card-kind-note: var(--gold);
+  --card-kind-note-surface: var(--gold-soft);
+  --card-kind-storyboard: var(--ink-blue);
+  --card-kind-storyboard-surface: var(--ink-blue-soft);
+  --card-kind-group: var(--border-strong);
+  --card-kind-group-surface: var(--surface-panel);
+  --card-kind-reference: var(--text-muted);
+  --card-kind-reference-surface: var(--surface-panel);
 
-  --edge-label-bg: var(--surface-paper);
-  --edge-label-text: var(--text-primary);
+  --minimap-node: var(--card-kind-group);
+
+  /* Compatibility aliases for older integrations; graph features use card-kind tokens. */
+  --minimap-person: var(--card-kind-person);
+  --minimap-animal: var(--card-kind-tier);
+  --minimap-organisation: var(--card-kind-organisation);
+  --minimap-object: var(--card-kind-objekt);
+  --minimap-place: var(--card-kind-ort);
+  --minimap-concept: var(--card-kind-konzept);
+
+  /* Direction is encoded consistently by color and shape across graph features. */
+  --graph-edge-directed-stroke: var(--gold);
+  --graph-edge-undirected-stroke: var(--moss);
+  --graph-edge-color-ink: var(--ink);
+  --graph-edge-color-gold: var(--gold);
+  --graph-edge-color-rose: var(--rose);
+  --graph-edge-color-moss: var(--moss);
+  --graph-edge-color-blue: var(--focus);
+  /* A drag preview is deliberately neutral until a valid target resolves the direction. */
+  --graph-edge-preview-stroke: var(--focus);
+  --graph-edge-label-bg: var(--material-popover);
+  --graph-edge-label-text: var(--text-primary);
+
+  --edge-label-bg: var(--graph-edge-label-bg);
+  --edge-label-text: var(--graph-edge-label-text);
 
   /* Compatibility aliases. New component CSS should use the semantic names above. */
   --canvas: var(--surface-canvas);

@@ -69,8 +69,8 @@ class RouteTableTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             routes.get("/api/version")(lambda handler, request, app: None)
 
-    def test_document_routes_exist_for_both_reading_and_writing(self):
-        for path in ("/api/state", "/api/manuscript"):
+    def test_document_routes_exist_for_reading_and_writing(self):
+        for path in ("/api/state", "/api/manuscript", "/api/storyboards"):
             with self.subTest(path=path):
                 self.assertIn(path, routes.GET)
                 self.assertIn(path, routes.SAVE)
@@ -90,6 +90,7 @@ class RouteTableTests(unittest.TestCase):
         expected = {
             "/api/state",
             "/api/manuscript",
+            "/api/storyboards",
             "/api/backup",
             "/api/history",
             "/api/backups",
