@@ -175,13 +175,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # so insisting on application/json is what makes cross-site form posts
         # impossible regardless of the Origin check -- see the guard comment at
         # the top of this file. Every in-tree client already sets it.
-        media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
-        if media_type != "application/json":
-            raise ValueError("ungültiger Content-Type")
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0 or length > MAX_BODY:
             raise ValueError("ungültige Größe")
-        return json.loads(self.rfile.read(length).decode("utf-8"))
+        body = self.rfile.read(length)
+        media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        if media_type != "application/json":
+            # Drain the already bounded request body before sending the error response.
+            # Closing a Windows socket with unread request bytes can reset the connection
+            # and discard the JSON error response before the client receives it.
+            raise ValueError("ungültiger Content-Type")
+        return json.loads(body.decode("utf-8"))
 
     def reject_foreign_request(self) -> bool:
         """True -- with a 403 already written -- when this request's Host or

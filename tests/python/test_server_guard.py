@@ -12,6 +12,7 @@ reverse-proxied deployment, which binds 0.0.0.0 and has OIDC in front.
 """
 
 import http.client
+import io
 import json
 import os
 import tempfile
@@ -175,6 +176,20 @@ class ForeignRequestTests(_LiveLocalServerTestCase):
 
 
 class BodyContentTypeTests(_LiveLocalServerTestCase):
+    def test_an_invalid_content_type_drains_the_bounded_body_before_responding(self):
+        body = b'{"title":"Testwelt"}'
+        handler = object.__new__(server.Handler)
+        handler.headers = {
+            "Content-Type": "text/plain",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body)
+
+        with self.assertRaisesRegex(ValueError, "Content-Type"):
+            handler._read_json_body()
+
+        self.assertEqual(handler.rfile.read(), b"")
+
     def test_a_form_content_type_is_refused(self):
         """An HTML form can only send text/plain, urlencoded or multipart, so
         insisting on application/json breaks the attack even without Origin."""
