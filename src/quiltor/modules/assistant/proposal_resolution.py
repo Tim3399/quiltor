@@ -129,9 +129,9 @@ def _relationship_candidate(value: Any) -> dict[str, Any] | None:
 def _domain_relationship_candidate(value: dict[str, Any]) -> dict[str, Any]:
     """Adapt a v2 assistant candidate to the still-v1 domain resolver boundary."""
 
-    return {
-        key: value[key] for key in ("from", "to", "label", "directed") if key in value
-    } | {"style": legacy_domain_style(value)}
+    return {key: value[key] for key in ("from", "to", "label", "directed") if key in value} | {
+        "style": legacy_domain_style(value)
+    }
 
 
 def _presence_candidate(value: dict[str, Any]) -> dict[str, Any] | None:

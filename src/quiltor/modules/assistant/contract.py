@@ -281,7 +281,9 @@ def structured_world_state(figures: dict[str, Any], contract: dict[str, Any]) ->
             for node in figures.get("nodes") or []
         ]
     if "relationships" in scopes:
-        state["relationships"] = [_structured_relationship(edge) for edge in figures.get("edges") or []]
+        state["relationships"] = [
+            _structured_relationship(edge) for edge in figures.get("edges") or []
+        ]
     if "timeline" in scopes:
         state["timeline"] = [
             {

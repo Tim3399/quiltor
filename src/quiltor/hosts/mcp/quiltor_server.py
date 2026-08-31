@@ -549,7 +549,9 @@ def _proposal(
         }
         domain_candidate["style"] = legacy_domain_style(candidate)
         decision = _checked_decision(
-            STORY_WORLD.ensure_relationship(figures, domain_candidate, world_revision=world_revision)
+            STORY_WORLD.ensure_relationship(
+                figures, domain_candidate, world_revision=world_revision
+            )
         )
         if decision["outcome"] in {"existing", "unchanged"}:
             return _mutation_result(decision)
@@ -557,9 +559,7 @@ def _proposal(
             raise ValueError("The relationship already exists and cannot be updated by this tool.")
         canonical = decision["canonical"] or {}
         relationship = {
-            key: canonical[key]
-            for key in ("from", "to", "label", "directed")
-            if key in canonical
+            key: canonical[key] for key in ("from", "to", "label", "directed") if key in canonical
         }
         relationship.update(appearance)
         return _mutation_result(decision, {"kind": kind, "relationship": relationship})

@@ -37,10 +37,7 @@ def normalize_relationship_appearance(
         return None
     if "lineStyle" in value and value.get("lineStyle") not in LINE_STYLES:
         return None
-    if (
-        "relationshipKind" in value
-        and value.get("relationshipKind") not in RELATIONSHIP_KINDS
-    ):
+    if "relationshipKind" in value and value.get("relationshipKind") not in RELATIONSHIP_KINDS:
         return None
     if "color" in value and value.get("color") not in EDGE_COLORS:
         return None
