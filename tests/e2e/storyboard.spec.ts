@@ -1,6 +1,7 @@
 import type { Locator, Page, Response } from "@playwright/test";
 import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldDocument } from "./support/application-api";
+import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 function waitForSuccessfulStoryboardWrite(page: Page, payloadMarker: string) {
@@ -1058,9 +1059,9 @@ test("Storyboard-Kanten lassen sich beschriften, richten, umkehren und neu laden
   const connectedEdge = writtenStoryboard(connectedResponse).payload.edges[0];
   expect(connectedEdge).toMatchObject({ directed: false });
 
-  const edgePath = page.locator(".react-flow__edge-path");
-  await expect(edgePath).toHaveCount(1);
-  await edgePath.click({ force: true });
+  const edge = page.locator(`.react-flow__edge[data-id="${connectedEdge.id}"]`);
+  await clickVisibleGraphEdge(page, edge);
+  const edgePath = edge.locator(".react-flow__edge-path");
   const inspector = page.getByRole("region", { name: "Verbindung" });
   await expect(inspector).toContainText("Ohne Titel ↔ Main Storyboard");
 

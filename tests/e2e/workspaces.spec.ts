@@ -9,6 +9,7 @@ import {
   fulfillRevisionConflict,
   fulfillStoryWorld,
 } from "./support/application-api";
+import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
@@ -2064,8 +2065,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
   // Select only the persisted relationship. Journey and presence overlays use synthetic IDs and
   // must never open this editor.
   const relationship = page.locator(`.react-flow__edge[data-id="${relationshipId}"]`);
-  await expect(relationship).toHaveCount(1);
-  await relationship.locator(".react-flow__edge-path").click({ force: true });
+  await clickVisibleGraphEdge(page, relationship);
 
   const inspector = page.getByRole("region", { name: "Beziehung", exact: true });
   await expect(inspector).toContainText("Ada ↔ Bela");
