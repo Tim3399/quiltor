@@ -12,11 +12,12 @@ import { uid } from "../../../shared/id";
 import { GRID_SIZE, type SemanticZoomTier, semanticZoomTier } from "../figures/relationships";
 import type { FigureNode, FigureState } from "../model";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
-import { createPlaceFlowNodes } from "./placeCanvasModel";
+import type { PlaceMapFlowNode } from "./PlaceMapNode";
+import { createPlaceFlowNodes, createPlaceMapNodes } from "./placeCanvasModel";
 import { createPlaceMeasurementEdges } from "./placeMeasurementGraph";
 
 export type PlaceCanvasController = {
-  nodes: PlaceFlowNode[];
+  nodes: (PlaceFlowNode | PlaceMapFlowNode)[];
   edges: Edge[];
   zoomTier: SemanticZoomTier;
   addPlace: () => FigureNode;
@@ -35,6 +36,9 @@ export function usePlaceCanvas({
   measuring,
   measureSelection,
   onOpenLevel,
+  mapImageUrl,
+  onCollapseMap: collapseMap,
+  onExpandMap: expandMap,
   onChange,
 }: {
   state: FigureState;
@@ -45,6 +49,10 @@ export function usePlaceCanvas({
   measuring: boolean;
   measureSelection: string[];
   onOpenLevel: (place: FigureNode) => void;
+  /** Where a stored picture can be shown from. */
+  mapImageUrl: (imageId: string) => string;
+  onCollapseMap: (place: FigureNode) => void;
+  onExpandMap: (place: FigureNode) => void;
   onChange: (state: FigureState) => void;
 }): PlaceCanvasController {
   const { t } = useI18n();
@@ -63,14 +71,41 @@ export function usePlaceCanvas({
         measuring,
         measureSelection,
         onOpenLevel,
+        onExpandMap: expandMap,
+        sourceUrl: mapImageUrl,
         zoomTier,
         viewportZoom,
         t,
       }),
-    [state.nodes, places, measuring, measureSelection, onOpenLevel, zoomTier, viewportZoom, t],
+    [
+      state.nodes,
+      places,
+      measuring,
+      measureSelection,
+      onOpenLevel,
+      expandMap,
+      mapImageUrl,
+      zoomTier,
+      viewportZoom,
+      t,
+    ],
   );
   const [nodes, setFlowNodes] = useState<PlaceFlowNode[]>(derivedNodes);
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
+
+  // Maps are derived rather than kept in the dragging state: rebuilding them
+  // from the level makes a freshly created map appear at once instead of waiting
+  // for the next node change.
+  const maps = useMemo(
+    () =>
+      createPlaceMapNodes({
+        places,
+        sourceUrl: mapImageUrl,
+        onCollapse: collapseMap,
+        onOpenLevel,
+      }),
+    [places, mapImageUrl, collapseMap, onOpenLevel],
+  );
 
   const edges = useMemo(
     () =>
@@ -108,7 +143,7 @@ export function usePlaceCanvas({
   );
 
   return {
-    nodes,
+    nodes: [...maps, ...nodes],
     edges,
     zoomTier,
     addPlace: () => {

@@ -2,12 +2,15 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog, Sheet, SidePanel } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { quiltorClient } from "../../../platform";
 import type { Workspace } from "../../../shared";
 import type { FigureNode, FigureState } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
 import { levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
+import { DEFAULT_MAP_WIDTH } from "./placeCanvasModel";
+import { askForMapImage, prepareMapImage } from "./placeMapUpload";
 import { PlaceToolbar } from "./PlaceToolbar";
 import { usePlaceCanvas } from "./usePlaceCanvas";
 import "./PlacesWorkspace.css";
@@ -95,6 +98,32 @@ function PlacesWorkspaceInner({
     },
     [measuring],
   );
+  const mapImageUrl = useCallback(
+    (imageId: string) => quiltorClient.application.placeMaps.sourceUrl(imageId),
+    [],
+  );
+  const patchPlace = useCallback(
+    (placeId: string, patch: Partial<FigureNode>) => {
+      const current = latestState.current;
+      const next = {
+        ...current,
+        nodes: current.nodes.map((node) => (node.id === placeId ? { ...node, ...patch } : node)),
+      };
+      latestState.current = next;
+      onChange(next);
+    },
+    [onChange],
+  );
+
+  const collapseMap = useCallback(
+    (place: FigureNode) => patchPlace(place.id, { mapExpanded: false }),
+    [patchPlace],
+  );
+  const expandMap = useCallback(
+    (place: FigureNode) => patchPlace(place.id, { mapExpanded: true }),
+    [patchPlace],
+  );
+
   const canvas = usePlaceCanvas({
     state,
     places,
@@ -102,8 +131,36 @@ function PlacesWorkspaceInner({
     measuring,
     measureSelection,
     onOpenLevel: openLevel,
+    mapImageUrl,
+    onCollapseMap: collapseMap,
+    onExpandMap: expandMap,
     onChange,
   });
+
+  /**
+   * A new map: a place that arrives opened out, with its picture already on it.
+   *
+   * It is the same kind of thing as a place -- collapsing turns it into a card
+   * you can dive into -- which is why creating one adds a node rather than
+   * hanging a picture on the level you happen to be standing on.
+   */
+  const addMap = useCallback(async () => {
+    const file = await askForMapImage();
+    if (!file) return;
+    const prepared = await prepareMapImage(file);
+    const stored = await quiltorClient.application.placeMaps.store(prepared);
+    const created = canvas.addPlace();
+    patchPlace(created.id, {
+      name: t("newMap"),
+      mapImageId: stored.id,
+      mapExpanded: true,
+      // The stored pixels set the shape; the surface is measured in flow units.
+      mapWidth: DEFAULT_MAP_WIDTH,
+      mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),
+    });
+    setSelectedId(created.id);
+  }, [canvas, patchPlace, t]);
+
   const centerOnPlace = useRef(canvas.centerOnPlace);
   centerOnPlace.current = canvas.centerOnPlace;
 
@@ -189,6 +246,7 @@ function PlacesWorkspaceInner({
         canUndo={canUndo}
         canRedo={canRedo}
         onAdd={() => setSelectedId(canvas.addPlace().id)}
+        onAddMap={addMap}
         onMeasuringToggle={() => {
           setMeasuring((value) => !value);
           setMeasureSelection([]);

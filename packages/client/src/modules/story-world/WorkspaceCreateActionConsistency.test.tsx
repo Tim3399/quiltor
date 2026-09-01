@@ -69,6 +69,7 @@ describe("workspace create-action consistency", () => {
         canUndo={false}
         canRedo={false}
         onAdd={vi.fn()}
+        onAddMap={vi.fn()}
         onMeasuringToggle={vi.fn()}
         onUndo={vi.fn()}
         onRedo={vi.fn()}

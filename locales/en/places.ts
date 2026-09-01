@@ -1,6 +1,9 @@
 export const places = {
   placesLabel: "Manage places",
   placeNodeLabel: "Place: {name}",
+  newMap: "New map",
+  placeCollapseMap: "Collapse {name}",
+  placeExpandMap: "Expand {name}",
   placeOpenLevel: "Open {name}",
   placeStartLevel: "Put something in {name}",
   placeLevelTrail: "Path through the places",

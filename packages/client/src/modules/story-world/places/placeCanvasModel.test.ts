@@ -22,6 +22,8 @@ describe("place canvas model", () => {
     const nodes = createPlaceFlowNodes({
       nodes: places,
       onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
       places,
       measuring: false,
       measureSelection: [],
@@ -48,6 +50,8 @@ describe("place canvas model", () => {
     const nodes = createPlaceFlowNodes({
       nodes: places,
       onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
       places,
       measuring: true,
       measureSelection: ["b"],

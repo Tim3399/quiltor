@@ -1,5 +1,5 @@
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
-import { CornerDownRight, Plus, Star } from "lucide-react";
+import { ChevronsUpDown, CornerDownRight, Plus, Star } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useI18n } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
@@ -14,7 +14,10 @@ export type PlaceCardData = {
   measureStart: boolean;
   /** Whether anything is inside, which decides what the card offers. */
   filled: boolean;
+  /** Where this place's map can be shown from, when it has one. */
+  mapPreview?: string;
   onOpenLevel: (place: FigureNode) => void;
+  onExpandMap: (place: FigureNode) => void;
   zoomTier: SemanticZoomTier;
   zoom: number;
 };
@@ -63,6 +66,13 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
           data.measureStart ? "is-measure-start" : "",
         ]}
       >
+        {data.mapPreview && data.zoomTier !== "overview" ? (
+          // The preview is the signal: a place with a map looks different from
+          // one without, without a badge or a label saying so.
+          <span className="place-node__preview" aria-hidden="true">
+            <img src={data.mapPreview} alt="" draggable={false} />
+          </span>
+        ) : null}
         <StoryNodeIdentity
           kindLabel={t("place")}
           name={item.name}
@@ -73,6 +83,19 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
           }
           secondary={item.sub}
         />
+        {data.zoomTier !== "overview" && !data.measuring && item.mapImageId ? (
+          <IconButton
+            className="place-node__enter nodrag nopan"
+            size="compact"
+            appearance="ghost"
+            label={t("placeExpandMap", { name: item.name })}
+            icon={<ChevronsUpDown />}
+            onClick={(event) => {
+              event.stopPropagation();
+              data.onExpandMap(item);
+            }}
+          />
+        ) : null}
         {data.zoomTier !== "overview" && !data.measuring ? (
           <IconButton
             className="place-node__enter nodrag nopan"

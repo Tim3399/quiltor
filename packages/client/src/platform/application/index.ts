@@ -1,6 +1,7 @@
 import type { AssistantGateway } from "./assistant";
 import type { BackupGateway } from "./backup";
 import type { DocumentsGateway } from "./documents";
+import type { PlaceMapsGateway } from "./placeMaps";
 import type { HistoryGateway } from "./history";
 import type { IdentityGateway } from "./identity";
 import type { ManuscriptGateway } from "./manuscript";
@@ -23,11 +24,13 @@ export interface ApplicationGateway {
   readonly assistant: AssistantGateway;
   readonly writingAssistance: WritingAssistanceGateway;
   readonly documents: DocumentsGateway;
+  readonly placeMaps: PlaceMapsGateway;
 }
 
 export type { AssistantBatchRequest, AssistantGateway } from "./assistant";
 export type { BackupGateway, BackupLoginStart, BackupLoginStatus } from "./backup";
 export type { DocumentsGateway } from "./documents";
+export type { PlaceMapsGateway, StoredMapImage } from "./placeMaps";
 export { ApplicationGatewayError, applicationErrorMessage } from "./errors";
 export type { HistoryGateway } from "./history";
 export type { IdentityGateway, IdentityLogoutResult } from "./identity";

@@ -1,4 +1,4 @@
-import { Copy, MoreHorizontal, Ruler, Trash2 } from "lucide-react";
+import { Copy, ImagePlus, MapPinPlus, MoreHorizontal, Ruler, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   MenuItem,
@@ -21,6 +21,7 @@ export function PlaceToolbar({
   canUndo,
   canRedo,
   onAdd,
+  onAddMap,
   onMeasuringToggle,
   onUndo,
   onRedo,
@@ -33,6 +34,7 @@ export function PlaceToolbar({
   canUndo: boolean;
   canRedo: boolean;
   onAdd: () => void;
+  onAddMap: () => void;
   onMeasuringToggle: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -48,7 +50,15 @@ export function PlaceToolbar({
       />
       <WorkspaceToolbarActions>
         <WorkspaceToolbarGroup label={t("newPlace")}>
-          <WorkspaceToolbarCreateButton label={t("newPlace")} onClick={onAdd} />
+          {/* Both actions create; the addon on the plus says what. */}
+          <WorkspaceToolbarCreateButton
+            label={t("newPlace")}
+            icon={<MapPinPlus />}
+            onClick={onAdd}
+          />
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup label={t("newMap")}>
+          <ToolbarButton label={t("newMap")} icon={<ImagePlus />} onClick={onAddMap} />
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={t("measureDistance")}>
           <ToolbarButton

@@ -11,6 +11,7 @@ import type {
   StoryboardsGateway,
   WorldsGateway,
   WritingAssistanceGateway,
+  PlaceMapsGateway,
 } from "../application";
 
 export type ApplicationGatewayOverrides = {
@@ -25,6 +26,7 @@ export type ApplicationGatewayOverrides = {
   assistant?: Partial<AssistantGateway>;
   writingAssistance?: Partial<WritingAssistanceGateway>;
   documents?: Partial<DocumentsGateway>;
+  placeMaps?: Partial<PlaceMapsGateway>;
 };
 
 function notStubbed(method: string): Promise<never> {
@@ -107,6 +109,11 @@ export function createApplicationGatewayStub(
     documents: {
       bookPdf: () => notStubbed("documents.bookPdf"),
       ...overrides.documents,
+    },
+    placeMaps: {
+      store: () => notStubbed("placeMaps.store"),
+      sourceUrl: (imageId: string) => `/api/place-map?id=${imageId}`,
+      ...overrides.placeMaps,
     },
   };
 }

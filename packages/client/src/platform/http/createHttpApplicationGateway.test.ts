@@ -46,6 +46,7 @@ describe("HTTP application composition", () => {
         "identity",
         "manuscript",
         "metadata",
+        "placeMaps",
         "storyWorld",
         "storyboards",
         "worlds",

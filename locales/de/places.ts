@@ -1,6 +1,9 @@
 export const places = {
   placesLabel: "Orte verwalten",
   placeNodeLabel: "Ort: {name}",
+  newMap: "Neue Karte",
+  placeCollapseMap: "{name} einklappen",
+  placeExpandMap: "{name} aufklappen",
   placeOpenLevel: "{name} öffnen",
   placeStartLevel: "In {name} etwas anlegen",
   placeLevelTrail: "Pfad durch die Orte",

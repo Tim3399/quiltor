@@ -10,7 +10,8 @@ import type { FigureNode, FigureState } from "../model";
 import { StoryGraphCanvas } from "../StoryGraphCanvas";
 import { PlaceLevelTrail } from "./PlaceLevelTrail";
 import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
-import { placeNodeTypes } from "./PlaceNode";
+import { PlaceMapNode } from "./PlaceMapNode";
+import { type PlaceFlowNode, placeNodeTypes } from "./PlaceNode";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
 import "./PlaceCanvas.css";
 
@@ -56,7 +57,7 @@ export function PlaceCanvas({
 
   return (
     <StoryGraphCanvas
-      nodes={controller.nodes}
+      nodes={controller.nodes as PlaceFlowNode[]}
       edges={controller.edges as Edge[]}
       zoomTier={controller.zoomTier}
       className={`places-flow-area ${measuring ? "is-connecting" : ""}`}
@@ -75,7 +76,7 @@ export function PlaceCanvas({
         </>
       }
       flowProps={{
-        nodeTypes: placeNodeTypes,
+        nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode },
         nodesConnectable: true,
         onKeyDown: selectPlaceFromKeyboard,
         onInit: controller.onInit,

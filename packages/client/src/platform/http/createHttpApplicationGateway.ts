@@ -14,6 +14,7 @@ import { createMetadataHttpGateway } from "./metadata";
 import { createHttpApplicationState } from "./request";
 import { createWorldsHttpGateway } from "./worlds";
 import { createWritingAssistanceHttpGateway } from "./writingAssistance";
+import { createPlaceMapsHttpGateway } from "./placeMaps";
 
 /** Executable hosts compose this adapter; every port implementation remains independently owned. */
 export function createHttpApplicationGateway(platform: PlatformGateway): ApplicationGateway {
@@ -30,5 +31,6 @@ export function createHttpApplicationGateway(platform: PlatformGateway): Applica
     assistant: createAssistantHttpGateway(state),
     writingAssistance: createWritingAssistanceHttpGateway(),
     documents: createDocumentsHttpGateway(state, platform),
+    placeMaps: createPlaceMapsHttpGateway(state),
   };
 }

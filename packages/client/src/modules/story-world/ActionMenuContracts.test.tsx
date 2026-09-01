@@ -62,6 +62,7 @@ describe("story-world action menu contracts", () => {
           canUndo={false}
           canRedo={false}
           onAdd={vi.fn()}
+          onAddMap={vi.fn()}
           onMeasuringToggle={vi.fn()}
           onDuplicate={vi.fn()}
           onDelete={vi.fn()}
