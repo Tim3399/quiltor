@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
-import { quiltorClient } from "../../platform";
 import { I18nProvider } from "../../i18n";
+import { quiltorClient } from "../../platform";
 import type { Chapter } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { AssistantDrawer } from "./AssistantDrawer";
@@ -74,7 +74,12 @@ export function job(patch: Partial<AssistantJobState> = {}): AssistantJobState {
   };
 }
 
-export function setup(worldId = "world-1", chapters: Chapter[] = CHAPTERS, open = true) {
+export function setup(
+  worldId = "world-1",
+  chapters: Chapter[] = CHAPTERS,
+  open = true,
+  onBeforeSend = vi.fn().mockResolvedValue(undefined),
+) {
   const onApply = vi.fn();
   const onNavigate = vi.fn();
   const onClose = vi.fn();
@@ -88,6 +93,7 @@ export function setup(worldId = "world-1", chapters: Chapter[] = CHAPTERS, open 
         open={open}
         onApply={onApply}
         onNavigate={onNavigate}
+        onBeforeSend={onBeforeSend}
         onClose={onClose}
       />
     </I18nProvider>,
@@ -103,11 +109,12 @@ export function setup(worldId = "world-1", chapters: Chapter[] = CHAPTERS, open 
           open={value}
           onApply={onApply}
           onNavigate={onNavigate}
+          onBeforeSend={onBeforeSend}
           onClose={onClose}
         />
       </I18nProvider>,
     );
-  return { onApply, onNavigate, onClose, unmount, setOpen };
+  return { onApply, onNavigate, onBeforeSend, onClose, unmount, setOpen };
 }
 
 export async function askQuestion(question: string) {

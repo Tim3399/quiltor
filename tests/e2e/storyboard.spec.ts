@@ -167,6 +167,112 @@ test("Storyboard-Boards und Notizen bleiben nach einem Reload erhalten", async (
   );
 });
 
+test("unkritische Storyboard-Karten lassen sich per Tastatur löschen und wiederherstellen", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Tastaturlöschung, Undo und Persistenz sind viewport-unabhängig und müssen nur einmal laufen.",
+  );
+
+  const world = await createTestWorld(page, `Storyboard Delete Keys ${crypto.randomUUID()}`);
+  const editorText = `Schutztext ${crypto.randomUUID()}`;
+  await openStoryboard(page, world.id);
+
+  const toolbar = page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" });
+  const noteCreatedWithDelete = waitForSuccessfulStoryboardWrite(page, '"kind":"note"');
+  await toolbar.getByRole("button", { name: "Notiz hinzufügen", exact: true }).click();
+  const deleteCreation = writtenStoryboard(await noteCreatedWithDelete).payload.nodes.filter(
+    (node) => node.kind === "note",
+  );
+  expect(deleteCreation).toHaveLength(1);
+  const deleteNoteId = deleteCreation[0].id;
+  const deleteNote = page.locator(`.react-flow__node[data-id="${deleteNoteId}"]`);
+  await expect(deleteNote).toBeVisible();
+
+  // Toolbar additions share the canvas center. Move the first card so both remain user-clickable.
+  const firstNoteMoved = waitForSuccessfulStoryboardWrite(page, `"id":"${deleteNoteId}"`);
+  await dragBy(page, deleteNote.locator(".storyboard-node__header"), -320, -120);
+  await firstNoteMoved;
+
+  const noteCreatedWithBackspace = waitForSuccessfulStoryboardWrite(page, '"kind":"note"');
+  await toolbar.getByRole("button", { name: "Notiz hinzufügen", exact: true }).click();
+  const backspaceCreation = writtenStoryboard(await noteCreatedWithBackspace).payload.nodes.filter(
+    (node) => node.kind === "note",
+  );
+  expect(backspaceCreation).toHaveLength(2);
+  const backspaceNoteId = backspaceCreation.find((node) => node.id !== deleteNoteId)?.id;
+  expect(backspaceNoteId).toBeTruthy();
+  if (!backspaceNoteId) throw new Error("Second Storyboard note was not created");
+
+  const backspaceNote = page.locator(`.react-flow__node[data-id="${backspaceNoteId}"]`);
+  await expect(backspaceNote).toBeVisible();
+
+  // Editing surfaces own Backspace/Delete. Neither key may bubble into card deletion.
+  const editor = deleteNote.getByRole("textbox", { name: "Storyboard-Notiz" });
+  const editorSaved = waitForSuccessfulStoryboardWrite(page, editorText);
+  await editor.fill(editorText);
+  await editorSaved;
+
+  const shortenedEditorText = editorText.slice(0, -1);
+  const editorBackspaceSaved = waitForSuccessfulStoryboardWrite(page, shortenedEditorText);
+  await editor.press("End");
+  await editor.press("Backspace");
+  await editorBackspaceSaved;
+  await expect(editor).toHaveText(shortenedEditorText);
+  await expect(page.locator('[data-storyboard-node-kind="note"]')).toHaveCount(2);
+
+  const search = page.getByRole("searchbox", { name: "Welt durchsuchen" });
+  await search.fill("Suche");
+  await search.press("Home");
+  await search.press("Delete");
+  await expect(search).toHaveValue("uche");
+  await expect(page.locator('[data-storyboard-node-kind="note"]')).toHaveCount(2);
+
+  await deleteNote.locator(".storyboard-node__header").click();
+  await expect(deleteNote.locator(".storyboard-node")).toHaveClass(/is-selected/);
+  const deletedWithDelete = waitForSuccessfulStoryboardWrite(page, `"id":"${backspaceNoteId}"`);
+  await page.keyboard.press("Delete");
+  const deleteResponse = writtenStoryboard(await deletedWithDelete);
+  expect(deleteResponse.payload.nodes.some((node) => node.id === deleteNoteId)).toBe(false);
+  expect(deleteResponse.payload.nodes.some((node) => node.id === backspaceNoteId)).toBe(true);
+  await expect(deleteNote).toHaveCount(0);
+
+  const undoSaved = waitForSuccessfulStoryboardWrite(page, `"id":"${deleteNoteId}"`);
+  await toolbar.getByRole("button", { name: "Rückgängig", exact: true }).click();
+  const undoResponse = writtenStoryboard(await undoSaved);
+  expect(undoResponse.payload.nodes.some((node) => node.id === deleteNoteId)).toBe(true);
+  await expect(deleteNote).toBeVisible();
+
+  await backspaceNote.locator(".storyboard-node__header").click();
+  await expect(backspaceNote.locator(".storyboard-node")).toHaveClass(/is-selected/);
+  const deletedWithBackspace = waitForSuccessfulStoryboardWrite(page, `"id":"${deleteNoteId}"`);
+  await page.keyboard.press("Backspace");
+  const backspaceResponse = writtenStoryboard(await deletedWithBackspace);
+  expect(backspaceResponse.payload.nodes.some((node) => node.id === deleteNoteId)).toBe(true);
+  expect(backspaceResponse.payload.nodes.some((node) => node.id === backspaceNoteId)).toBe(false);
+  await expect(backspaceNote).toHaveCount(0);
+  await expect(page.getByRole("status")).toContainText("Gespeichert");
+
+  let persisted = await loadedStoryboard(page, world.id);
+  expect(persisted.payload.nodes.filter((node) => node.kind === "note")).toEqual([
+    expect.objectContaining({ id: deleteNoteId }),
+  ]);
+
+  await page.reload();
+  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  await page.getByRole("button", { name: "Storyboard", exact: true }).click();
+  await page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" }).waitFor();
+  await expect(
+    page.locator(`.react-flow__node[data-id="${deleteNoteId}"] [data-storyboard-node-kind="note"]`),
+  ).toHaveCount(1);
+  await expect(page.locator(`.react-flow__node[data-id="${backspaceNoteId}"]`)).toHaveCount(0);
+  persisted = await loadedStoryboard(page, world.id);
+  expect(persisted.payload.nodes.filter((node) => node.kind === "note")).toEqual([
+    expect.objectContaining({ id: deleteNoteId }),
+  ]);
+});
+
 test("eine Weltreferenz lässt sich auf den leeren Storyboard-Mittelpunkt ziehen", async ({
   page,
 }, testInfo) => {

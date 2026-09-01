@@ -18,6 +18,19 @@ FIGURES = {
     "timeline": [],
 }
 
+STORYBOARDS = {
+    "boards": [{"id": "ideas", "title": "Mögliche Wege"}],
+    "nodes": [
+        {
+            "id": "note-crystal-city",
+            "boardId": "ideas",
+            "kind": "note",
+            "text": "Die Kristallstadt könnte unter dem Meer liegen.",
+        }
+    ],
+    "edges": [],
+}
+
 ASSISTANT_MODULES = Path(__file__).resolve().parents[2] / "src/quiltor/modules/assistant"
 
 
@@ -277,6 +290,70 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         self.assertEqual(result["message"], "Alles bereit.")
         self.assertEqual(result["proposals"], [])
         self.assertEqual(len(inference.calls), 1)
+
+    def test_read_only_storyboard_context_is_explicitly_planning_and_navigable(self):
+        reply = {
+            "message": "Das ist bisher als Möglichkeit geplant.",
+            "citations": ["storyboard:note-crystal-city"],
+            "proposals": [],
+        }
+        runtime, inference = self._runtime(reply)
+
+        result = runtime.complete(
+            "Wo könnte die Kristallstadt liegen?",
+            {},
+            FIGURES,
+            history=None,
+            storyboards=STORYBOARDS,
+        )
+
+        self.assertEqual(result["citations"], ["storyboard:note-crystal-city"])
+        self.assertIn("planning", result["contextClassesUsed"])
+        self.assertEqual(result["sources"][0]["contextClass"], "planning")
+        self.assertEqual(
+            result["sources"][0]["target"],
+            {"workspace": "storyboard", "id": "note-crystal-city", "boardId": "ideas"},
+        )
+        sent_content = inference.calls[0]["messages"][-1]["content"]
+        self.assertIn('"contextClass": "planning"', sent_content)
+        self.assertIn("Die Kristallstadt könnte unter dem Meer liegen.", sent_content)
+
+    def test_planning_usage_is_reported_even_when_the_model_omits_its_citation(self):
+        reply = {
+            "message": "Das ist bisher nur geplant.",
+            "citations": [],
+            "proposals": [],
+        }
+        runtime, _ = self._runtime(reply)
+
+        result = runtime.complete(
+            "Wo könnte die Kristallstadt liegen?",
+            {},
+            FIGURES,
+            history=None,
+            storyboards=STORYBOARDS,
+        )
+
+        self.assertEqual(result["sources"], [])
+        self.assertIn("planning", result["contextClassesUsed"])
+
+    def test_mutation_requests_cannot_use_storyboard_planning_as_world_evidence(self):
+        reply = {"message": "ok", "citations": [], "proposals": []}
+        runtime, inference = self._runtime(reply)
+
+        result = runtime.complete(
+            "Lege Igor als neue Figur an.",
+            {},
+            FIGURES,
+            history=None,
+            storyboards=STORYBOARDS,
+        )
+
+        sent_content = inference.calls[0]["messages"][-1]["content"]
+        self.assertNotIn("Kristallstadt könnte", sent_content)
+        self.assertFalse(
+            any(source.get("contextClass") == "planning" for source in result["sources"])
+        )
 
     def test_read_tool_step_is_injected_before_final_reply_and_traced(self):
         tool_step = {

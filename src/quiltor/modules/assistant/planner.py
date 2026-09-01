@@ -12,6 +12,14 @@ from quiltor.modules.assistant.schemas import KINDS, json_schema_format, planner
 Invoke = Callable[[dict[str, Any]], dict[str, Any]]
 
 
+def _context_class(item: Any) -> str:
+    """Keep server-owned provenance in the planner's compact context view."""
+
+    value = getattr(item, "context_class", None)
+    value = getattr(value, "value", value)
+    return value if value in {"canon", "manuscript", "planning"} else "unclassified"
+
+
 def needs_planner(question: str) -> bool:
     """Reserve the extra model call for genuinely multi-source reasoning."""
     return bool(COMPLEX_ANALYSIS_REQUEST.search(question))
@@ -20,7 +28,15 @@ def needs_planner(question: str) -> bool:
 def plan(question: str, context: list[Any], invoke: Invoke) -> dict[str, Any]:
     schema = planner_schema(KINDS)
     summary = json.dumps(
-        [{"id": item.id, "kind": item.kind, "title": item.title} for item in context[:8]],
+        [
+            {
+                "id": item.id,
+                "kind": item.kind,
+                "title": item.title,
+                "contextClass": _context_class(item),
+            }
+            for item in context[:8]
+        ],
         ensure_ascii=False,
     )
     payload = {
@@ -31,7 +47,17 @@ def plan(question: str, context: list[Any], invoke: Invoke) -> dict[str, Any]:
         "messages": [
             {
                 "role": "system",
-                "content": "Plan the user's world-management task before answering. Decompose compound tasks into every necessary operation. Decide which additional local world searches are needed. Never plan prose writing or direct mutations. Return JSON only.",
+                "content": (
+                    "Plan the user's world-management task before answering. Decompose "
+                    "compound tasks into every necessary operation. Decide which additional "
+                    "local world searches are needed. Every initial match has a server-owned "
+                    "contextClass: canon is structured Story World data, manuscript is authored "
+                    "evidence, and planning is hypothetical, non-canonical Storyboard material. "
+                    "Never treat planning context as an established world fact and never derive "
+                    "a canonical mutation or required proposal kind from it. It may only support "
+                    "read-only planning analysis or an explicit comparison with canon. Never plan "
+                    "prose writing or direct mutations. Return JSON only."
+                ),
             },
             {
                 "role": "user",

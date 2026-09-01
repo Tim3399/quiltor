@@ -2,10 +2,19 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from quiltor.domain.story_world.profile import normalize_profile
+
+
+class KnowledgeContextClass(str, Enum):
+    """Stable provenance classes for context exposed to assistant runtimes."""
+
+    CANON = "canon"
+    MANUSCRIPT = "manuscript"
+    PLANNING = "planning"
 
 
 @dataclass(frozen=True)
@@ -15,9 +24,17 @@ class KnowledgeChunk:
     title: str
     text: str
     target: dict[str, str]
+    context_class: KnowledgeContextClass = KnowledgeContextClass.CANON
 
     def public(self) -> dict[str, Any]:
-        return asdict(self)
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "title": self.title,
+            "text": self.text,
+            "target": dict(self.target),
+            "contextClass": self.context_class.value,
+        }
 
 
 def _clean(value: Any) -> str:
@@ -69,6 +86,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                     title,
                     part,
                     {"workspace": "text", "id": chapter["id"]},
+                    context_class=KnowledgeContextClass.MANUSCRIPT,
                 )
             )
         note = _clean(chapter.get("note"))
@@ -80,6 +98,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                     f"Notiz · {title}",
                     note,
                     {"workspace": "text", "id": chapter["id"]},
+                    context_class=KnowledgeContextClass.MANUSCRIPT,
                 )
             )
     for node in nodes:
@@ -102,6 +121,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                 _clean(node.get("name")) or "Ohne Namen",
                 text,
                 {"workspace": "figures", "id": node["id"]},
+                context_class=KnowledgeContextClass.CANON,
             )
         )
     timeline = figures.get("timeline") or []
@@ -119,6 +139,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                 _clean(moment.get("title")) or "Zeitpunkt",
                 text,
                 {"workspace": "figures", "id": moment["id"]},
+                context_class=KnowledgeContextClass.CANON,
             )
         )
     for edge in figures.get("edges") or []:
@@ -145,6 +166,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                     "from": str(edge.get("from", "")),
                     "to": str(edge.get("to", "")),
                 },
+                context_class=KnowledgeContextClass.CANON,
             )
         )
     by_element: dict[str, list[dict[str, Any]]] = {}
@@ -166,6 +188,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                 f"Aufenthalte · {names.get(element_id, 'Unbekannt')}",
                 "\n".join(lines),
                 {"workspace": "figures", "id": str(element_id)},
+                context_class=KnowledgeContextClass.CANON,
             )
         )
     return chunks

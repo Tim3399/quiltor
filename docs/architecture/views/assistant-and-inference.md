@@ -21,8 +21,18 @@ class AssistantController
 class AssistantOrchestrator {
   +respond(RequestContext, AssistantRequest) AssistantReply
 }
-class CanonicalAssistantContextBuilder {
+class AssistantContextAssembler {
   +build(WorldId, ContextSelection, DraftContext) AssistantContext
+}
+class CanonicalAssistantContextBuilder {
+  +build(WorldSnapshot, ContextSelection) EvidenceChunk[]
+}
+class PlanningAssistantContextBuilder {
+  +build(StoryboardSnapshot, ContextSelection) PlanningChunk[]
+}
+class ContextProvenancePolicy {
+  +classify(ContextChunk) ContextClass
+  +allow(Intent, ContextClass) bool
 }
 class AssistantReadToolExecutor {
   <<interface>>
@@ -52,7 +62,10 @@ class WorldCommitRepository {
 }
 
 AssistantController --> AssistantOrchestrator
-AssistantOrchestrator *-- CanonicalAssistantContextBuilder
+AssistantOrchestrator *-- AssistantContextAssembler
+AssistantContextAssembler *-- CanonicalAssistantContextBuilder
+AssistantContextAssembler *-- PlanningAssistantContextBuilder
+AssistantContextAssembler *-- ContextProvenancePolicy
 AssistantOrchestrator --> AssistantReadToolExecutor
 AssistantOrchestrator --> AssistantInferencePort
 AssistantOrchestrator *-- ProposalVerifier
@@ -71,11 +84,19 @@ the same process. The use case requires an explicit author decision, applies
 checks for stale proofs, entity resolution and domain invariants before committing through
 the normal atomic persistence path. Rejection creates no mutation.
 
-The canonical context builder belongs to the Assistant application/backend
-side. It reads committed canonical read models. Unsaved editor content is either
-flushed before the request or supplied as an explicit, bounded `DraftContext`;
-the Assistant never silently consumes a client-only projection as canonical
-world state.
+The context assembler belongs to the Assistant application/backend side. It
+combines two deliberately separate inputs: canonical/manuscript evidence and
+Storyboard planning. Every chunk carries the server-owned `contextClass`
+`canon`, `manuscript`, or `planning`; provenance is preserved in planner input,
+answer context, citations and the user-visible reply. Planning is hypothetical,
+non-canonical and read-only. It is excluded from extraction and mutation paths
+until an explicit promote-to-canon workflow exists.
+
+All three document streams are flushed before the request and captured with one
+revision checkpoint. If manuscript, Story World or Storyboard changes while the
+job runs, the result is invalidated instead of exposing stale evidence. A
+bounded `DraftContext` remains a possible future alternative; the Assistant
+never silently consumes a client-only projection as canonical world state.
 
 ## Product-owned inference contract
 
@@ -216,7 +237,8 @@ sequenceDiagram
     participant Controller as AssistantController
     participant Drafts as DraftSyncPolicy
     participant Assistant as AssistantOrchestrator
-    participant Context as CanonicalAssistantContextBuilder
+    participant Context as AssistantContextAssembler
+    participant Planning as PlanningAssistantContextBuilder
     participant Port as AssistantInferencePort
     participant Verify as ProposalVerifier
     participant Accept as AcceptAssistantProposalUseCase
@@ -227,8 +249,10 @@ sequenceDiagram
     Author->>Controller: question / extraction request
     Controller->>Drafts: flush or create bounded DraftContext
     Drafts-->>Assistant: committed revision + optional DraftContext
-    Assistant->>Context: build canonical bounded context
-    Context-->>Assistant: evidence set
+    Assistant->>Context: build bounded provenance-aware context
+    Context->>Planning: project read-only Storyboard notes
+    Planning-->>Context: planning chunks
+    Context-->>Assistant: classified evidence set
     Assistant->>Port: generate(provider-neutral request)
     Port-->>Assistant: provider-neutral result
     Assistant->>Verify: verify(result, evidence)
@@ -250,17 +274,17 @@ They do not create an alternate write route.
 
 ## Current code to target responsibility
 
-| Current code                                                  | Target class/responsibility                                                   |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `InferenceEngine.identity/status/reload/close/invoke(dict)`   | `AssistantInferencePort` plus host-owned provider lifecycle                   |
-| fixed product context assumptions                             | `InferenceCapabilities` and `InferenceBudget`                                 |
-| OS/environment heuristic for llama.cpp versus MLX             | composition-selected provider now; `ProviderSelector` only after a trigger    |
-| `AssistantInstallation`                                       | conditional settings control plane when user-installable packages are offered |
-| raw installation/provider state in Assistant UI               | dedicated inference settings read model, when the control plane exists        |
-| client-side aggregate cloning in `applyAssistantProposals`    | `AcceptAssistantProposalUseCase` through authorisation and acceptance policy  |
-| `ResolutionProof`, `EnsureDecision`, `WorldResolutionContext` | deterministic `ProposalAcceptancePolicy`                                      |
-| client-built Assistant knowledge projection                   | canonical backend builder plus explicit `DraftContext`                        |
-| `AssistantJobStore`, progress and interaction logging         | Assistant infrastructure independent of provider selection                    |
+| Current code                                                  | Target class/responsibility                                                      |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `InferenceEngine.identity/status/reload/close/invoke(dict)`   | `AssistantInferencePort` plus host-owned provider lifecycle                      |
+| fixed product context assumptions                             | `InferenceCapabilities` and `InferenceBudget`                                    |
+| OS/environment heuristic for llama.cpp versus MLX             | composition-selected provider now; `ProviderSelector` only after a trigger       |
+| `AssistantInstallation`                                       | conditional settings control plane when user-installable packages are offered    |
+| raw installation/provider state in Assistant UI               | dedicated inference settings read model, when the control plane exists           |
+| client-side aggregate cloning in `applyAssistantProposals`    | `AcceptAssistantProposalUseCase` through authorisation and acceptance policy     |
+| `ResolutionProof`, `EnsureDecision`, `WorldResolutionContext` | deterministic `ProposalAcceptancePolicy`                                         |
+| client-built Assistant knowledge projection                   | backend context assembler plus canonical/planning builders and provenance policy |
+| `AssistantJobStore`, progress and interaction logging         | Assistant infrastructure independent of provider selection                       |
 
 Adding a provider always requires a conforming `ProviderSession` adapter and
 contract tests. It requires a registry or package manager only after the stated

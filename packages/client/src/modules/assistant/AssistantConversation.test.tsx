@@ -1,6 +1,13 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { api, askQuestion, preferences, reply, setup } from "./AssistantDrawer.testSupport";
+import {
+  api,
+  askQuestion,
+  CHAPTERS,
+  preferences,
+  reply,
+  setup,
+} from "./AssistantDrawer.testSupport";
 
 describe("assistant conversation content", () => {
   it("applies one proposal and records its applied state", async () => {
@@ -52,6 +59,7 @@ describe("assistant conversation content", () => {
           {
             id: "element:tarek",
             kind: "element",
+            contextClass: "canon",
             title: "Tarek Venn",
             text: "...",
             target: { workspace: "figures", id: "tarek" },
@@ -64,6 +72,50 @@ describe("assistant conversation content", () => {
     await askQuestion("Wer ist Tarek?");
     fireEvent.click(await screen.findByText("Tarek Venn"));
     expect(onNavigate).toHaveBeenCalledWith({ workspace: "figures", id: "tarek" });
+  });
+
+  it("marks Storyboard sources as planning context and navigates to the exact card", async () => {
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        sources: [
+          {
+            id: "storyboard:turning-point",
+            kind: "storyboard",
+            contextClass: "planning",
+            title: "Wendepunkt",
+            text: "Mögliche Wendung",
+            target: {
+              workspace: "storyboard",
+              id: "turning-point",
+              boardId: "plot-board",
+            },
+          },
+        ],
+      }),
+    );
+    const { onNavigate } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Welche Wendung ist geplant?");
+
+    fireEvent.click(await screen.findByText("Quellen · 1"));
+    expect(await screen.findByText("Planung")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Planungsquelle öffnen: Wendepunkt" }));
+    expect(onNavigate).toHaveBeenCalledWith({
+      workspace: "storyboard",
+      id: "turning-point",
+      boardId: "plot-board",
+    });
+  });
+
+  it("labels the whole answer as non-canon when planning context contributed", async () => {
+    vi.mocked(api.chat).mockResolvedValue(reply({ contextClassesUsed: ["canon", "planning"] }));
+    setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Welche Ideen sind noch offen?");
+
+    expect(
+      await screen.findByRole("note", { name: "Storyboard-Planung · nicht Kanon" }),
+    ).toBeVisible();
   });
 
   it("sends a selected clarification candidate as an explicit follow-up", async () => {
@@ -91,6 +143,7 @@ describe("assistant conversation content", () => {
             {
               id: "element:tarek",
               kind: "element",
+              contextClass: "canon",
               title: "Tarek",
               text: "",
               target: { workspace: "figures", id: "tarek" },
@@ -107,6 +160,25 @@ describe("assistant conversation content", () => {
     expect(vi.mocked(api.chat).mock.calls[1][1]).toContainEqual(
       expect.objectContaining({ role: "assistant", references: ["element:tarek"] }),
     );
+  });
+
+  it("flushes document autosaves before the assistant job snapshots them", async () => {
+    let finishFlush: (() => void) | undefined;
+    const onBeforeSend = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFlush = resolve;
+        }),
+    );
+    vi.mocked(api.chat).mockResolvedValue(reply());
+    setup("world-1", CHAPTERS, true, onBeforeSend);
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Was ist auf dem Storyboard geplant?");
+
+    await waitFor(() => expect(onBeforeSend).toHaveBeenCalledTimes(1));
+    expect(api.chat).not.toHaveBeenCalled();
+    finishFlush?.();
+    await waitFor(() => expect(api.chat).toHaveBeenCalledTimes(1));
   });
 
   it("persists transcripts per world", async () => {
@@ -180,6 +252,7 @@ describe("assistant conversation content", () => {
               {
                 id: "chapter:c1:0",
                 kind: "chapter",
+                contextClass: "manuscript",
                 title: "Die Krönung",
                 text: "Nova kommt.",
                 target: { workspace: "text", id: "c1" },

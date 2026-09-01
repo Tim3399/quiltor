@@ -180,6 +180,10 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
             assistant.complete.call_args.kwargs["world_revision"],
             expected_revision,
         )
+        self.assertEqual(
+            assistant.complete.call_args.kwargs["storyboards"]["boards"][0]["id"],
+            "main-storyboard",
+        )
         self.assertTrue(terminal["interactionId"])
         assistant.complete.assert_called_once()
         logged = self._interactions()

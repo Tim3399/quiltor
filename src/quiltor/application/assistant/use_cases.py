@@ -27,6 +27,12 @@ class AssistantAuditUseCases:
         opened = self._worlds.open(world_id, owner_sub)
         return self._documents.revision("figures", opened.paths.documents.database)
 
+    def world_revisions(self, owner_sub: str, world_id: str) -> dict[str, int]:
+        """Return one atomic checkpoint for every Assistant-readable document."""
+
+        opened = self._worlds.open(world_id, owner_sub)
+        return dict(self._documents.revision_checkpoint(opened.paths.documents.database))
+
     def record(
         self,
         owner_sub: str,

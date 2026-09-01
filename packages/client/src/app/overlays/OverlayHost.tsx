@@ -82,6 +82,7 @@ export function OverlayHost({
             onShowFigures();
           }}
           onNavigate={onNavigate}
+          onBeforeSend={flushAll}
         />
       )}
       {overlay === "palette" && (

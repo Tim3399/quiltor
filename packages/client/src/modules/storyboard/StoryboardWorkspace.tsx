@@ -20,6 +20,7 @@ import {
   GraphViewportChrome,
   graphConnectionKey,
   graphRelationshipEdgeTypes,
+  isGraphDeleteShortcut,
   positionGraphRelationshipEdgeLabels,
 } from "../graph";
 import { type WorldReferenceCandidate, worldReferenceKey } from "../world-references";
@@ -520,19 +521,42 @@ function StoryboardWorkspaceInner({
 
   const deleteSelected = useCallback(() => {
     if (!selectedId && !selectedEdgeId) return;
-    changeFromLatest((current) => ({
-      ...current,
-      nodes: current.nodes.filter((node) => node.id !== selectedId),
-      edges: current.edges.filter(
-        (edge) =>
-          edge.id !== selectedEdgeId &&
-          edge.sourceNodeId !== selectedId &&
-          edge.targetNodeId !== selectedId,
-      ),
-    }));
+    changeFromLatest(
+      (current) => {
+        const hasSelectedNode = Boolean(
+          selectedId && current.nodes.some((node) => node.id === selectedId),
+        );
+        const hasSelectedEdge = Boolean(
+          selectedEdgeId && current.edges.some((edge) => edge.id === selectedEdgeId),
+        );
+        if (!hasSelectedNode && !hasSelectedEdge) return current;
+        return {
+          ...current,
+          nodes: current.nodes.filter((node) => node.id !== selectedId),
+          edges: current.edges.filter(
+            (edge) =>
+              edge.id !== selectedEdgeId &&
+              edge.sourceNodeId !== selectedId &&
+              edge.targetNodeId !== selectedId,
+          ),
+        };
+      },
+      { separateHistoryStep: true },
+    );
     setSelectedId(null);
     setSelectedEdgeId(null);
   }, [changeFromLatest, selectedEdgeId, selectedId]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!selectedId && !selectedEdgeId) return;
+      if (!isGraphDeleteShortcut(event)) return;
+      event.preventDefault();
+      deleteSelected();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [deleteSelected, selectedEdgeId, selectedId]);
 
   const moveSelectedInLayer = useCallback(
     (direction: StoryboardLayerMoveDirection) => {

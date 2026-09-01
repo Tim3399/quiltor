@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Translate } from "../../i18n";
-import type { AssistantReply } from "./model";
 import { replyReferences, resolveAssistantMessage } from "./formatting";
+import type { AssistantReply } from "./model";
 
 const baseReply = (patch: Partial<AssistantReply> = {}): AssistantReply => ({
   ok: true,
@@ -40,6 +40,7 @@ describe("assistant reply formatting", () => {
             {
               id: "element:tarek",
               kind: "element",
+              contextClass: "canon",
               title: "Tarek",
               text: "",
               target: { workspace: "figures", id: "tarek" },

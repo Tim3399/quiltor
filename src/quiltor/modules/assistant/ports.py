@@ -112,6 +112,8 @@ class AssistantWorldAccess(Protocol):
 
     def revision(self, owner_sub: str, world_id: str) -> int: ...
 
+    def revisions(self, owner_sub: str, world_id: str) -> dict[str, int]: ...
+
 
 @runtime_checkable
 class AssistantReadToolExecutor(Protocol):

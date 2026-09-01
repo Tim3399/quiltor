@@ -213,6 +213,39 @@ function dragTransfer() {
   } as unknown as DataTransfer;
 }
 
+function connectedStoryboardState(): StoryboardState {
+  return {
+    ...createDefaultStoryboardState(),
+    nodes: [
+      {
+        id: "note",
+        boardId: "main-storyboard",
+        kind: "note",
+        x: 40,
+        y: 80,
+        text: "Bleibt editierbar",
+      },
+      {
+        id: "reference-ada",
+        boardId: "main-storyboard",
+        kind: "reference",
+        target: { kind: "entity", id: "ada" },
+        x: 420,
+        y: 240,
+        label: "Ada",
+      },
+    ],
+    edges: [
+      {
+        id: "note-to-ada",
+        boardId: "main-storyboard",
+        sourceNodeId: "note",
+        targetNodeId: "reference-ada",
+      },
+    ],
+  };
+}
+
 function Harness({
   initialState = createDefaultStoryboardState(),
   candidates = [],
@@ -265,6 +298,98 @@ describe("StoryboardWorkspace interactions", () => {
       "aria-pressed",
       "false",
     );
+  });
+
+  it("deletes a selected card and its connections as one toolbar history step", () => {
+    const onChange = vi.fn();
+    render(
+      <Harness initialState={connectedStoryboardState()} candidates={[ada]} onChange={onChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Test-reference-ada-auswählen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Element löschen" }));
+
+    const latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
+    expect(latest.nodes.map(({ id }) => id)).toEqual(["note"]);
+    expect(latest.edges).toEqual([]);
+    expect(onChange).toHaveBeenLastCalledWith(latest, { separateHistoryStep: true });
+    expect(screen.getByLabelText("Flow-Auswahl")).toHaveTextContent("[]");
+  });
+
+  it.each(["Delete", "Backspace"])(
+    "deletes a selected card with %s and prevents browser navigation",
+    (key) => {
+      const onChange = vi.fn();
+      render(
+        <Harness
+          initialState={connectedStoryboardState()}
+          candidates={[ada]}
+          onChange={onChange}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Test-reference-ada-auswählen" }));
+      const browserMayHandleKey = fireEvent.keyDown(document.body, { key });
+
+      expect(browserMayHandleKey).toBe(false);
+      const latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
+      expect(latest.nodes.map(({ id }) => id)).toEqual(["note"]);
+      expect(latest.edges).toEqual([]);
+      expect(onChange).toHaveBeenLastCalledWith(latest, { separateHistoryStep: true });
+    },
+  );
+
+  it("deletes a selected edge with the keyboard without deleting its cards", () => {
+    const onChange = vi.fn();
+    render(
+      <Harness initialState={connectedStoryboardState()} candidates={[ada]} onChange={onChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Test-Verbindung auswählen" }));
+    fireEvent.keyDown(document.body, { key: "Delete" });
+
+    const latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
+    expect(latest.nodes).toHaveLength(2);
+    expect(latest.edges).toEqual([]);
+    expect(onChange).toHaveBeenLastCalledWith(latest, { separateHistoryStep: true });
+  });
+
+  it("keeps the selected card while Backspace edits its contenteditable note field", () => {
+    const onChange = vi.fn();
+    render(
+      <Harness initialState={connectedStoryboardState()} candidates={[ada]} onChange={onChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Test-note-auswählen" }));
+    const editor = screen.getByRole("textbox", { name: "Storyboard-Notiz" });
+    const browserMayHandleKey = fireEvent.keyDown(editor, { key: "Backspace" });
+
+    expect(browserMayHandleKey).toBe(true);
+    expect(screen.getByLabelText("Storyboard-Zustand")).toHaveTextContent('"id":"note"');
+    expect(screen.getByLabelText("Flow-Auswahl")).toHaveTextContent('["note"]');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("does not delete the selected card while a modal action has focus", () => {
+    const onChange = vi.fn();
+    render(
+      <Harness initialState={connectedStoryboardState()} candidates={[ada]} onChange={onChange} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Test-note-auswählen" }));
+    const dialog = document.createElement("div");
+    const action = document.createElement("button");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.append(action);
+    document.body.append(dialog);
+    action.focus();
+
+    fireEvent.keyDown(action, { key: "Delete" });
+
+    expect(screen.getByLabelText("Storyboard-Zustand")).toHaveTextContent('"id":"note"');
+    expect(screen.getByLabelText("Flow-Auswahl")).toHaveTextContent('["note"]');
+    expect(onChange).not.toHaveBeenCalled();
+    dialog.remove();
   });
 
   it("adds, selects and renames another board, then places a group on it", () => {

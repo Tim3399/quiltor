@@ -1,6 +1,14 @@
 import unittest
+from typing import ClassVar
 
-from quiltor.domain.story_world.knowledge import build_knowledge, moment_order, retrieve, _parts
+from quiltor.domain.story_world.knowledge import (
+    KnowledgeChunk,
+    KnowledgeContextClass,
+    _parts,
+    build_knowledge,
+    moment_order,
+    retrieve,
+)
 
 
 class KnowledgeTest(unittest.TestCase):
@@ -71,6 +79,22 @@ class KnowledgeTest(unittest.TestCase):
     def test_indexes_every_knowledge_kind(self):
         kinds = {chunk.kind for chunk in build_knowledge(self.manuscript, self.figures)}
         self.assertEqual(kinds, {"chapter", "chapter-note", "element", "relationship", "timeline"})
+
+    def test_existing_knowledge_has_explicit_public_context_class_metadata(self):
+        chunks = build_knowledge(self.manuscript, self.figures)
+        chapter = next(chunk for chunk in chunks if chunk.kind == "chapter")
+        element = next(chunk for chunk in chunks if chunk.kind == "element")
+
+        self.assertEqual(chapter.context_class, KnowledgeContextClass.MANUSCRIPT)
+        self.assertEqual(chapter.public()["contextClass"], "manuscript")
+        self.assertEqual(element.context_class, KnowledgeContextClass.CANON)
+        self.assertEqual(element.public()["contextClass"], "canon")
+
+    def test_legacy_chunk_construction_defaults_to_canon(self):
+        chunk = KnowledgeChunk("legacy", "element", "Mara", "Archivarin", {"id": "mara"})
+
+        self.assertEqual(chunk.context_class, KnowledgeContextClass.CANON)
+        self.assertEqual(chunk.public()["contextClass"], "canon")
 
     def test_retrieves_chapter_evidence_and_graph_context(self):
         results = retrieve(
@@ -151,7 +175,7 @@ class KnowledgeTest(unittest.TestCase):
 
 
 class MomentOrderTest(unittest.TestCase):
-    timeline = [{"id": "a"}, {"id": "b"}]
+    timeline: ClassVar[list[dict[str, str]]] = [{"id": "a"}, {"id": "b"}]
 
     def test_no_moment_id_is_the_base_state_and_sorts_first(self):
         self.assertEqual(moment_order(self.timeline, None), -1)
@@ -173,7 +197,7 @@ class PartsChunkingTest(unittest.TestCase):
         self.assertEqual("".join(parts), paragraph)
 
     def test_short_paragraphs_are_merged_up_to_the_limit(self):
-        text = "\n\n".join(["kurz eins", "kurz zwei", "kurz drei"])
+        text = "kurz eins\n\nkurz zwei\n\nkurz drei"
         parts = _parts(text, limit=1400)
         self.assertEqual(parts, ["kurz eins\n\nkurz zwei\n\nkurz drei"])
 

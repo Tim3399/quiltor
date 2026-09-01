@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api, askQuestion, job, preferences, reply, setup } from "./AssistantDrawer.testSupport";
 import type { AssistantReply } from "./model";
@@ -47,7 +47,7 @@ describe("assistant job lifecycle", () => {
         resolveChat = resolve;
       }),
     );
-    setup();
+    const { onBeforeSend } = setup();
     await screen.findByText("Was soll ich in der Welt nachtragen?");
     const input = screen.getByPlaceholderText("Figur anlegen, Beziehung ändern, Timeline prüfen …");
     fireEvent.change(input, { target: { value: "Wer ist Tarek?" } });
@@ -55,7 +55,8 @@ describe("assistant job lifecycle", () => {
     fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
     fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
-    expect(api.chat).toHaveBeenCalledTimes(1);
+    expect(onBeforeSend).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(api.chat).toHaveBeenCalledTimes(1));
     await act(async () => resolveChat(reply()));
   });
 

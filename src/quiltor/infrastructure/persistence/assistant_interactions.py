@@ -36,5 +36,8 @@ class ApplicationAssistantWorldAccess:
     def revision(self, owner_sub: str, world_id: str) -> int:
         return self._assistant.world_revision(owner_sub, world_id)
 
+    def revisions(self, owner_sub: str, world_id: str) -> dict[str, int]:
+        return self._assistant.world_revisions(owner_sub, world_id)
+
 
 __all__ = ["ApplicationAssistantWorldAccess", "LockedAssistantInteractionLogger"]

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Translate } from "../../i18n";
 import { applicationErrorMessage, quiltorClient } from "../../platform";
+import type { AssistantEntry, AssistantSendOptions } from "./conversationTypes";
+import { replyReferences, resolveAssistantMessage } from "./formatting";
 import type { AssistantClaimStatus, AssistantProposal, AssistantReply } from "./model";
 import { scopeAssistantProposals } from "./proposals";
-import { replyReferences, resolveAssistantMessage } from "./formatting";
-import type { AssistantEntry, AssistantSendOptions } from "./conversationTypes";
 import { useBatchProgress } from "./useBatchProgress";
 
 function readEntries(storageKey: string): AssistantEntry[] {
@@ -20,11 +20,13 @@ export function useAssistantConversation({
   worldId,
   forcedChapterIds,
   onApply,
+  onBeforeSend,
   t,
 }: {
   worldId: string;
   forcedChapterIds: string[];
   onApply: (proposals: AssistantProposal[]) => void;
+  onBeforeSend: () => Promise<void>;
   t: Translate;
 }) {
   const storageKey = `quiltor-assistant:${worldId}`;
@@ -219,6 +221,9 @@ export function useAssistantConversation({
       abortRef.current = controller;
       let progressInterval: number | undefined;
       try {
+        // The server snapshots documents when it creates the durable job. Flush all
+        // document streams first so fresh Storyboard planning is part of that snapshot.
+        await onBeforeSend();
         const response = await quiltorClient.application.assistant.chat(
           question,
           history,
@@ -271,6 +276,7 @@ export function useAssistantConversation({
       entries,
       finishBatchProgress,
       forcedChapterIds,
+      onBeforeSend,
       persistEntries,
       sending,
       storeReply,

@@ -183,6 +183,15 @@ function AssistantExchange({
       )}
       {reply && (
         <div className="assistant-answer">
+          {reply.contextClassesUsed?.includes("planning") && (
+            <div
+              className="assistant-context-notice"
+              role="note"
+              aria-label={t("planningContextNotice")}
+            >
+              {t("planningContextNotice")}
+            </div>
+          )}
           <p>{resolveAssistantMessage(reply, t)}</p>
           {!!reply.clarification?.candidates.length && (
             <div className="assistant-broadscope">
@@ -272,12 +281,36 @@ function SourceList({
     <Disclosure className="assistant-sources" summary={`${t("sources")} · ${sources.length}`}>
       <ChipList className="assistant-source-list" label={t("sources")}>
         {sources.map((source) => (
-          <ChipAction key={source.id} title={source.text} onClick={() => onNavigate(source.target)}>
-            {source.title}
-          </ChipAction>
+          <AssistantSourceChip key={source.id} source={source} onNavigate={onNavigate} />
         ))}
       </ChipList>
     </Disclosure>
+  );
+}
+
+function AssistantSourceChip({
+  source,
+  onNavigate,
+}: {
+  source: AssistantSource;
+  onNavigate: (target: { workspace: Workspace; id: string }) => void;
+}) {
+  const { t } = useI18n();
+  const planning = source.contextClass === "planning";
+  return (
+    <ChipAction
+      className={planning ? "assistant-source-chip is-planning" : "assistant-source-chip"}
+      title={source.text}
+      aria-label={planning ? t("openPlanningSource", { title: source.title }) : source.title}
+      onClick={() => onNavigate(source.target)}
+    >
+      <span className="assistant-source-chip__title">{source.title}</span>
+      {planning && (
+        <span className="assistant-source-chip__context" aria-hidden="true">
+          {t("planningContext")}
+        </span>
+      )}
+    </ChipAction>
   );
 }
 
@@ -391,13 +424,11 @@ function ProposalList({
                       >
                         <ChipList className="assistant-evidence-list" label={t("proposalEvidence")}>
                           {envelope.evidence.map((source) => (
-                            <ChipAction
+                            <AssistantSourceChip
                               key={source.id}
-                              title={source.text}
-                              onClick={() => onNavigate(source.target)}
-                            >
-                              {source.title}
-                            </ChipAction>
+                              source={source}
+                              onNavigate={onNavigate}
+                            />
                           ))}
                         </ChipList>
                       </Disclosure>

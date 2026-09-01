@@ -85,12 +85,16 @@ class FakeWorldAccess:
     def __init__(self, data: Path) -> None:
         self.data = data
         self.current_revision = 0
+        self.current_revisions = {"manuscript": 0, "figures": 0, "storyboards": 0}
 
     def exists(self, owner_sub: str, world_id: str) -> bool:
         return (self.data / "worlds" / f"{world_id}.sqlite3").exists()
 
     def revision(self, owner_sub: str, world_id: str) -> int:
         return self.current_revision
+
+    def revisions(self, owner_sub: str, world_id: str) -> dict[str, int]:
+        return dict(self.current_revisions)
 
 
 class SilentLogger:
@@ -368,6 +372,59 @@ class AssistantJobRunnerTests(unittest.TestCase):
                 self.assertTrue(proof["stale"])
                 self.assertFalse(proof["applicable"])
                 self.assertEqual(result["agentTrace"][-1]["step"], "stale_world")
+            finally:
+                runner.close()
+
+    def test_storyboard_changed_during_inference_invalidates_planning_sources(self):
+        class PlanningAssistant(FakeAssistant):
+            def complete(self, *args, **kwargs):
+                super().complete(*args, **kwargs)
+                return {
+                    "message": "Eine mögliche Szene.",
+                    "proposals": [],
+                    "citations": ["storyboard:idea"],
+                    "sources": [
+                        {
+                            "id": "storyboard:idea",
+                            "kind": "storyboard-note",
+                            "contextClass": "planning",
+                            "title": "Ideen",
+                            "text": "Vielleicht.",
+                            "target": {"workspace": "storyboard", "id": "idea"},
+                        }
+                    ],
+                    "agentTrace": [],
+                }
+
+        with tempfile.TemporaryDirectory() as tmp_name:
+            data = Path(tmp_name)
+            create_world_file(data)
+            access = FakeWorldAccess(data)
+            access.current_revisions["storyboards"] = 5
+            runner = create_runner(PlanningAssistant(), data, world_access=access)
+            try:
+                request = execution("Was ist für die Szene geplant?")
+                request["documentRevisions"] = {
+                    "manuscript": 0,
+                    "figures": 0,
+                    "storyboards": 4,
+                }
+                job, _ = runner.submit(
+                    owner_sub="user",
+                    world_id=WORLD_ID,
+                    idempotency_key="stale-storyboard",
+                    intent=intent("Was ist für die Szene geplant?"),
+                    execution=request,
+                )
+
+                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=3)
+
+                result = terminal["result"]
+                self.assertEqual(result["sources"], [])
+                self.assertEqual(result["citations"], [])
+                self.assertEqual(result["proposals"], [])
+                self.assertEqual(result["staleContext"]["changedDocuments"], ["storyboards"])
+                self.assertEqual(result["agentTrace"][-1]["step"], "stale_context")
             finally:
                 runner.close()
 

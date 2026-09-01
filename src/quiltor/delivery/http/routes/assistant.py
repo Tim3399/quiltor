@@ -10,12 +10,14 @@ from quiltor.modules.assistant import (
     DEFAULT_ASSISTANT_LANGUAGE,
 )
 from quiltor.modules.assistant.jobs import IdempotencyConflict
+from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 
 
 @get("/api/assistant/status", world=True)
 def status(handler, request: Request, app) -> None:
     with app.lock:
         manuscript, figures = app.documents.load_pair(request.db_path)
+        storyboards = app.documents.load("storyboards", request.db_path).state
 
     # Cheap no-op when already running -- picks up a runtime that finished
     # installing since the process started (or since the last poll) without
@@ -27,7 +29,8 @@ def status(handler, request: Request, app) -> None:
             "ok": True,
             **app.assistant.status(),
             "installed": app.assistant_installation.is_configured(),
-            "chunks": app.story_world.knowledge_chunk_count(manuscript, figures),
+            "chunks": app.story_world.knowledge_chunk_count(manuscript, figures)
+            + len(build_storyboard_knowledge(storyboards)),
         }
     )
 
@@ -128,8 +131,10 @@ def _prepare_request(
     with app.lock:
         manuscript_document = app.documents.load("manuscript", world.db_path)
         figures_document = app.documents.load("figures", world.db_path)
+        storyboards_document = app.documents.load("storyboards", world.db_path)
         manuscript = manuscript_document.state
         figures = figures_document.state
+        storyboards = storyboards_document.state
 
     if mode == "world_extraction" and chapter_ids:
         available_ids = {
@@ -158,7 +163,13 @@ def _prepare_request(
         # happens to be in SQLite minutes later when the worker reaches it.
         "manuscript": manuscript,
         "figures": figures,
+        "storyboards": storyboards,
         "worldRevision": figures_document.revision,
+        "documentRevisions": {
+            "manuscript": manuscript_document.revision,
+            "figures": figures_document.revision,
+            "storyboards": storyboards_document.revision,
+        },
     }
     return world, intent, execution
 

@@ -61,6 +61,58 @@ def _stale_world_result(
     }
 
 
+def _stale_context_result(
+    result: dict[str, Any],
+    *,
+    expected_revisions: dict[str, int],
+    current_revisions: dict[str, int],
+    language: str,
+) -> dict[str, Any]:
+    """Invalidate an answer when any document used by its snapshot changed."""
+
+    changed = sorted(
+        key
+        for key, expected in expected_revisions.items()
+        if current_revisions.get(key) != expected
+    )
+    trace = []
+    for raw_step in result.get("agentTrace") or []:
+        if not isinstance(raw_step, dict):
+            continue
+        step = dict(raw_step)
+        if isinstance(step.get("proof"), dict):
+            step["proof"] = {**step["proof"], "stale": True, "applicable": False}
+        trace.append(step)
+    trace.append(
+        {
+            "step": "stale_context",
+            "changedDocuments": changed,
+            "expectedRevisions": expected_revisions,
+            "currentRevisions": current_revisions,
+            "applicable": False,
+        }
+    )
+    message = (
+        "The manuscript, Story World, or Storyboard changed while the assistant was "
+        "working. The answer is outdated; please run the request again."
+        if language == "en"
+        else "Manuskript, Welt oder Storyboard wurden geändert, während die Schreibhilfe "
+        "gearbeitet hat. Die Antwort ist veraltet; bitte starte die Anfrage erneut."
+    )
+    return {
+        "message": message,
+        "citations": [],
+        "sources": [],
+        "proposals": [],
+        "agentTrace": trace,
+        "staleContext": {
+            "changedDocuments": changed,
+            "expectedRevisions": expected_revisions,
+            "currentRevisions": current_revisions,
+        },
+    }
+
+
 def classify_assistant_error(exc: Exception) -> str:
     if isinstance(exc, InferenceTimeoutError):
         return "timeout"
@@ -226,6 +278,7 @@ class AssistantJobRunner:
                 payload.get("progressId") or None,
                 str(payload.get("language") or "de"),
                 mode=str(payload.get("mode") or "chat"),
+                storyboards=payload.get("storyboards") or {},
                 owner_sub=owner_sub,
                 world_id=world_id,
                 world_revision=int(payload.get("worldRevision") or 0),
@@ -235,15 +288,34 @@ class AssistantJobRunner:
                 return
             if not self.world_access.exists(owner_sub, world_id):
                 raise FileNotFoundError("Die Welt für diesen Assistant-Job existiert nicht mehr.")
-            expected_revision = int(payload.get("worldRevision") or 0)
-            current_revision = self.world_access.revision(owner_sub, world_id)
-            if current_revision != expected_revision:
-                result = _stale_world_result(
-                    result,
-                    expected_revision=expected_revision,
-                    current_revision=current_revision,
-                    language=str(payload.get("language") or "de"),
-                )
+            expected_checkpoint = payload.get("documentRevisions")
+            if isinstance(expected_checkpoint, dict):
+                expected_revisions = {
+                    str(key): int(value)
+                    for key, value in expected_checkpoint.items()
+                    if isinstance(value, int)
+                }
+                current_revisions = self.world_access.revisions(owner_sub, world_id)
+                if any(
+                    current_revisions.get(key) != value for key, value in expected_revisions.items()
+                ):
+                    result = _stale_context_result(
+                        result,
+                        expected_revisions=expected_revisions,
+                        current_revisions=current_revisions,
+                        language=str(payload.get("language") or "de"),
+                    )
+            else:
+                # Compatibility for jobs queued before document checkpoints shipped.
+                expected_revision = int(payload.get("worldRevision") or 0)
+                current_revision = self.world_access.revision(owner_sub, world_id)
+                if current_revision != expected_revision:
+                    result = _stale_world_result(
+                        result,
+                        expected_revision=expected_revision,
+                        current_revision=current_revision,
+                        language=str(payload.get("language") or "de"),
+                    )
             interaction_id = self.interaction_logger.record(
                 question,
                 result,

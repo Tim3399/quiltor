@@ -2,12 +2,15 @@ import type { MessageKey } from "../../i18n";
 import type { ApplicationErrorCategory, Workspace } from "../../shared";
 import type { FigureEdge, FigureKind, FigureNode, Profile, TimelineMoment } from "../story-world";
 
+export type AssistantContextClass = "canon" | "manuscript" | "planning";
+
 export interface AssistantSource {
   id: string;
   kind: string;
+  contextClass?: AssistantContextClass;
   title: string;
   text: string;
-  target: { workspace: Workspace; id: string };
+  target: { workspace: Workspace; id: string; boardId?: string };
 }
 
 export type AssistantMode = "chat" | "world_extraction";
@@ -106,6 +109,7 @@ export interface AssistantReply {
   message: string;
   proposals: AssistantProposal[];
   sources: AssistantSource[];
+  contextClassesUsed?: AssistantContextClass[];
   messageKey?: MessageKey;
   messageParams?: Record<string, string | number>;
   messageItems?: AssistantMessageItem[];
@@ -123,6 +127,11 @@ export interface AssistantReply {
   broadScope?: { chapterCount: number; estimateSeconds: number };
   clarification?: { candidates: Array<{ id: string; name: string; kind: string }> };
   staleWorld?: { expectedRevision: number; currentRevision: number };
+  staleContext?: {
+    changedDocuments: string[];
+    expectedRevisions: Record<string, number>;
+    currentRevisions: Record<string, number>;
+  };
 }
 
 export type AssistantJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";

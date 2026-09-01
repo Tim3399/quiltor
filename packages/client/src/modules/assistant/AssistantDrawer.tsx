@@ -21,6 +21,7 @@ export function AssistantDrawer({
   open,
   onApply,
   onNavigate,
+  onBeforeSend,
   onClose,
 }: {
   worldId: string;
@@ -30,6 +31,7 @@ export function AssistantDrawer({
   open: boolean;
   onApply: (proposals: AssistantProposal[]) => void;
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
+  onBeforeSend: () => Promise<void>;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -61,6 +63,7 @@ export function AssistantDrawer({
     worldId,
     forcedChapterIds,
     onApply,
+    onBeforeSend,
     t,
   });
 

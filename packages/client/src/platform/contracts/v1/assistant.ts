@@ -1,5 +1,6 @@
 import type { MessageKey } from "../../../i18n";
 import type {
+  AssistantContextClass,
   AssistantJobState,
   AssistantJobStatus,
   AssistantMessageItem,
@@ -16,6 +17,7 @@ export interface AssistantReplyWireV1 {
   message: string;
   proposals: AssistantProposal[];
   sources: AssistantSource[];
+  contextClassesUsed?: AssistantContextClass[];
   messageKey?: MessageKey;
   messageParams?: Record<string, string | number>;
   messageItems?: AssistantMessageItem[];
@@ -33,6 +35,11 @@ export interface AssistantReplyWireV1 {
   broadScope?: { chapterCount: number; estimateSeconds: number };
   clarification?: { candidates: Array<{ id: string; name: string; kind: string }> };
   staleWorld?: { expectedRevision: number; currentRevision: number };
+  staleContext?: {
+    changedDocuments: string[];
+    expectedRevisions: Record<string, number>;
+    currentRevisions: Record<string, number>;
+  };
 }
 
 export interface AssistantJobWireV1 {
@@ -55,6 +62,14 @@ export function decodeAssistantReplyV1(wire: AssistantReplyWireV1): AssistantRep
     ...wire,
     proposals: wire.proposals.map((proposal) => structuredClone(proposal)),
     sources: wire.sources.map((source) => ({ ...source, target: { ...source.target } })),
+    contextClassesUsed: wire.contextClassesUsed ? [...wire.contextClassesUsed] : undefined,
+    staleContext: wire.staleContext
+      ? {
+          changedDocuments: [...wire.staleContext.changedDocuments],
+          expectedRevisions: { ...wire.staleContext.expectedRevisions },
+          currentRevisions: { ...wire.staleContext.currentRevisions },
+        }
+      : undefined,
     proposalEnvelopes: wire.proposalEnvelopes?.map((envelope) => ({
       ...envelope,
       proposal: structuredClone(envelope.proposal),

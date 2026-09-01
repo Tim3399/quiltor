@@ -437,8 +437,8 @@ The first usable workspace slice shipped on 30 August 2026 with independent
 history/autosave, multiple boards, all four v1 node types, shared Note cards,
 search/drag references, connections and navigation breadcrumbs. Explicit
 front/back controls and dragging a newly created Note from the element library
-shipped on 1 September 2026. AI planning context remains intentionally open;
-checked items do not imply that later slice.
+shipped on 1 September 2026. Provenance-safe, read-only Assistant context for
+Storyboard planning shipped the same day.
 
 Real browser acceptance creates isolated worlds for board/Note persistence,
 reference drag/open, connections and moved-node positions. Backlink coverage
@@ -519,7 +519,7 @@ This is a **required v1 feature**, not a later enhancement.
 - [x] Storyboard connections are visual/planning connections, not canonical relationships.
 - [x] Storyboard mentions do not mutate presence, relationship, timeline or knowledge state.
 - [x] Reality checks do not treat Storyboard content as canon.
-- [ ] AI must label Storyboard context as planning context.
+- [x] AI must label Storyboard context as planning context.
 
 ## AI inside Storyboard
 

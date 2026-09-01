@@ -30,11 +30,41 @@
   font: 400 var(--font-size-4) / 1.55 var(--prose);
   white-space: pre-wrap;
 }
+.assistant-context-notice {
+  width: fit-content;
+  margin-bottom: var(--space-7);
+  padding: var(--space-3) var(--space-6);
+  border: 1px solid var(--card-kind-storyboard);
+  border-radius: var(--radius-pill);
+  background: var(--card-kind-storyboard-surface);
+  color: var(--info-text);
+  font-size: var(--font-size-1);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
 .assistant-sources {
   margin-top: var(--space-9);
 }
 .assistant-source-list {
   margin-top: var(--space-7);
+}
+.assistant-source-chip__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.assistant-source-chip.is-planning {
+  border-color: var(--card-kind-storyboard);
+  background: var(--card-kind-storyboard-surface);
+}
+.assistant-source-chip__context {
+  flex: none;
+  padding-inline-start: var(--space-5);
+  border-inline-start: 1px solid var(--card-kind-storyboard);
+  color: var(--info-text);
+  font-size: var(--font-size-1);
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 .assistant-proposals {
   margin-top: var(--space-12);

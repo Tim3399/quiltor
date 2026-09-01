@@ -25,6 +25,7 @@ from quiltor.modules.assistant.contract import (
 from quiltor.modules.assistant.conversation import conversation_messages, fit_to_budget
 from quiltor.modules.assistant.entity_references import clarification_candidates
 from quiltor.modules.assistant.planner import needs_planner
+from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 from quiltor.modules.assistant.ports import (
     AssistantReadToolExecutor,
     InferenceEngine,
@@ -83,6 +84,17 @@ class CompletionRuntime(Protocol):
         chapter_ids: list[str] | None = None,
         mode: str = "chat",
     ) -> dict[str, Any]: ...
+
+
+def _context_classes(chunks: list[Any]) -> list[str]:
+    """Expose stable provenance labels for context actually shown to a model."""
+
+    ordered: list[str] = []
+    for chunk in chunks:
+        value = chunk.public().get("contextClass")
+        if isinstance(value, str) and value not in ordered:
+            ordered.append(value)
+    return ordered
 
 
 def _model_reply(value: Any) -> dict[str, Any]:
@@ -265,6 +277,7 @@ def complete_request(
     language: str = DEFAULT_ASSISTANT_LANGUAGE,
     mode: str = "chat",
     *,
+    storyboards: dict[str, Any] | None = None,
     owner_sub: str = "",
     world_id: str = "",
     world_revision: int = 0,
@@ -272,8 +285,15 @@ def complete_request(
     started_at = time.monotonic()
     runtime._invocation_metrics = []
     prompt = system_prompt(language)
-    chunks = build_knowledge(manuscript, figures)
     extraction_mode = mode == WORLD_EXTRACTION_MODE
+    mutation_requested = extraction_mode or bool(MUTATION_REQUEST.search(question))
+    chunks = build_knowledge(manuscript, figures)
+    # Storyboards are author planning space, never world truth. Keep them out of every
+    # mutation/extraction path until the product has an explicit promote-to-canon flow.
+    # Read-only questions may retrieve them, with contextClass=planning preserved all
+    # the way into the prompt and source response.
+    if storyboards and not mutation_requested:
+        chunks.extend(build_storyboard_knowledge(storyboards))
     contract = (
         _world_extraction_contract(question, figures)
         if extraction_mode
@@ -436,6 +456,10 @@ def complete_request(
             chapter_ids=chapter_ids,
             mode=mode,
         )
+    planner_uses_context = (
+        not extraction_mode and not contract["requiredKinds"] and needs_planner(question)
+    )
+    planner_context_classes = _context_classes(context) if planner_uses_context else []
     plan = (
         {
             "goal": question,
@@ -488,7 +512,6 @@ def complete_request(
             "sources": [],
             "proposals": [],
         }
-    mutation_requested = extraction_mode or bool(MUTATION_REQUEST.search(question))
     allowed_proposal_kinds = (
         EXTRACTION_PROPOSAL_KINDS
         if extraction_mode
@@ -612,6 +635,9 @@ def complete_request(
             "citations": [],
             "sources": [],
             "proposals": [],
+            "contextClassesUsed": list(
+                dict.fromkeys([*planner_context_classes, *_context_classes(context)])
+            ),
             "agentTrace": trace,
         }
 
@@ -887,4 +913,7 @@ def complete_request(
         }
     )
     parsed["agentTrace"] = trace
+    parsed["contextClassesUsed"] = list(
+        dict.fromkeys([*planner_context_classes, *_context_classes(context)])
+    )
     return parsed

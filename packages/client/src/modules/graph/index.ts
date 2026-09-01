@@ -9,3 +9,4 @@ export * from "./GraphEdgeInspector";
 export * from "./GraphEdgeLineStyleSelect";
 export * from "./GraphRelationshipEdge";
 export * from "./GraphViewportChrome";
+export * from "./keyboard";
