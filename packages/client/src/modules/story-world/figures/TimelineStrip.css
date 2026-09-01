@@ -143,10 +143,15 @@
   color: var(--selection-text);
 }
 
-.timeline-title,
-.timeline-date,
-.timeline-detail-input {
+/* Scoped to the strip on purpose: Field floors every input at --control-regular
+   through `.ui-field > input`, which outranks a lone `.timeline-title` and left
+   these inputs 6px taller than every button beside them. Naming the strip as well
+   carries the weight without product CSS reaching into a design-owned selector. */
+.timeline-strip .timeline-title,
+.timeline-strip .timeline-date,
+.timeline-strip .timeline-detail-input {
   height: var(--control-compact);
+  min-height: var(--control-compact);
   padding: 0 var(--space-8);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -161,6 +166,16 @@
 
 .timeline-add .timeline-date {
   width: 114px;
+}
+
+/* Field carries a bottom margin for stacked forms. The strip lays its controls out
+   in a row, where that margin only shifts a field up off the shared baseline --
+   the date field sat 8px above the title, which happens to be spared by a rule of
+   the same class name over in MomentHeader.css. */
+.timeline-title-field,
+.timeline-date-field,
+.timeline-detail-field {
+  margin-bottom: 0;
 }
 
 .timeline-add-action {

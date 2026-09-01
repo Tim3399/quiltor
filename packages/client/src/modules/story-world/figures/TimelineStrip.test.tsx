@@ -75,7 +75,7 @@ describe("TimelineStrip", () => {
     expect(addActionRule).toMatch(/align-self:\s*center;/);
     expect(addActionRule).toMatch(/justify-self:\s*end;/);
     expect(css).toMatch(
-      /\.timeline-title,[\s\S]*?\.timeline-detail-input\s*\{[^}]*height:\s*var\(--control-compact\);/,
+      /\.timeline-title,[\s\S]*?\.timeline-detail-input\s*\{[^}]*height:\s*var\(--control-compact\);[^}]*min-height:\s*var\(--control-compact\);/,
     );
     expect(css).toMatch(
       /@media \(max-width: 640px\)[\s\S]*?\.timeline-add\s*\{[^}]*grid-template-columns:[^;}]*var\(--control-compact\);/,
