@@ -20,6 +20,8 @@ const places: FigureNode[] = [
 describe("place canvas model", () => {
   it("projects persisted map coordinates, lock/favorite data and semantic LOD", () => {
     const nodes = createPlaceFlowNodes({
+      nodes: places,
+      onOpenLevel: () => {},
       places,
       measuring: false,
       measureSelection: [],
@@ -44,6 +46,8 @@ describe("place canvas model", () => {
 
   it("marks exactly the first measurement selection", () => {
     const nodes = createPlaceFlowNodes({
+      nodes: places,
+      onOpenLevel: () => {},
       places,
       measuring: true,
       measureSelection: ["b"],

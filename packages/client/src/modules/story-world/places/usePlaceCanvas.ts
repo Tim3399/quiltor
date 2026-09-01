@@ -31,14 +31,20 @@ export type PlaceCanvasController = {
 export function usePlaceCanvas({
   state,
   places,
+  levelId,
   measuring,
   measureSelection,
+  onOpenLevel,
   onChange,
 }: {
   state: FigureState;
+  /** The places drawn on the open level, not every place in the world. */
   places: FigureNode[];
+  /** Which level is open; a new place is created on it. */
+  levelId: string | undefined;
   measuring: boolean;
   measureSelection: string[];
+  onOpenLevel: (place: FigureNode) => void;
   onChange: (state: FigureState) => void;
 }): PlaceCanvasController {
   const { t } = useI18n();
@@ -52,14 +58,16 @@ export function usePlaceCanvas({
   const derivedNodes = useMemo(
     () =>
       createPlaceFlowNodes({
+        nodes: state.nodes,
         places,
         measuring,
         measureSelection,
+        onOpenLevel,
         zoomTier,
         viewportZoom,
         t,
       }),
-    [places, measuring, measureSelection, zoomTier, viewportZoom, t],
+    [state.nodes, places, measuring, measureSelection, onOpenLevel, zoomTier, viewportZoom, t],
   );
   const [nodes, setFlowNodes] = useState<PlaceFlowNode[]>(derivedNodes);
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
@@ -119,6 +127,8 @@ export function usePlaceCanvas({
         y: center.y,
         mapX: center.x,
         mapY: center.y,
+        // A new place belongs to the level it was created on, not to the world.
+        ...(levelId ? { parentPlaceId: levelId } : {}),
         profile: { fields: [] },
       };
       const next = { ...current, nodes: [...current.nodes, place] };
@@ -136,6 +146,8 @@ export function usePlaceCanvas({
         y: place.y + GRID_SIZE,
         mapX: placePosition(place).x + GRID_SIZE,
         mapY: placePosition(place).y + GRID_SIZE,
+        // A copy is a sibling, and it does not inherit what the original holds.
+        ...(levelId ? { parentPlaceId: levelId } : { parentPlaceId: undefined }),
       };
       const next = { ...current, nodes: [...current.nodes, copy] };
       latestState.current = next;

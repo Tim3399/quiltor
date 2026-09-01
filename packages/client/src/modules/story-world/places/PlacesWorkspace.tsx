@@ -7,6 +7,7 @@ import type { FigureNode, FigureState } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
+import { levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
 import { PlaceToolbar } from "./PlaceToolbar";
 import { usePlaceCanvas } from "./usePlaceCanvas";
 import "./PlacesWorkspace.css";
@@ -47,6 +48,10 @@ function PlacesWorkspaceInner({
 }: PlacesWorkspaceProps) {
   const { locale, t } = useI18n();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Which level is open. The trail below is derived from the parent pointers
+  // rather than remembered while descending, so arriving from a search result or
+  // a backlink still shows where a place really sits.
+  const [levelId, setLevelId] = useState<string | undefined>(undefined);
   const [measuring, setMeasuring] = useState(false);
   const [measureSelection, setMeasureSelection] = useState<string[]>([]);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
@@ -56,7 +61,29 @@ function PlacesWorkspaceInner({
   const latestState = useRef(state);
   latestState.current = state;
 
-  const places = useMemo(() => state.nodes.filter((node) => node.type === "ort"), [state.nodes]);
+  const places = useMemo(() => placesOnLevel(state.nodes, levelId), [state.nodes, levelId]);
+  const trail = useMemo(() => levelTrail(state.nodes, levelId), [state.nodes, levelId]);
+  const levelScale = useMemo(
+    () => scaleForLevel(state.nodes, levelId, state.mapScale),
+    [state.nodes, levelId, state.mapScale],
+  );
+  const openLevel = useCallback((place: FigureNode) => {
+    setLevelId(place.id);
+    setSelectedId(null);
+    setMeasureSelection([]);
+  }, []);
+  const goToLevel = useCallback((nextLevelId: string | undefined) => {
+    setLevelId(nextLevelId);
+    setSelectedId(null);
+    setMeasureSelection([]);
+  }, []);
+  // A level that vanished -- undone, or deleted with its contents -- would leave
+  // the surface showing nothing and no way back. Fall out to the root instead.
+  useEffect(() => {
+    if (!levelId) return;
+    if (!state.nodes.some((node) => node.id === levelId && node.type === "ort"))
+      setLevelId(undefined);
+  }, [state.nodes, levelId]);
   const selected = places.find((place) => place.id === selectedId) ?? null;
   const selectPlace = useCallback(
     (id: string) => {
@@ -68,7 +95,15 @@ function PlacesWorkspaceInner({
     },
     [measuring],
   );
-  const canvas = usePlaceCanvas({ state, places, measuring, measureSelection, onChange });
+  const canvas = usePlaceCanvas({
+    state,
+    places,
+    levelId,
+    measuring,
+    measureSelection,
+    onOpenLevel: openLevel,
+    onChange,
+  });
   const centerOnPlace = useRef(canvas.centerOnPlace);
   centerOnPlace.current = canvas.centerOnPlace;
 
@@ -81,6 +116,8 @@ function PlacesWorkspaceInner({
       (node) => node.id === targetId && node.type === "ort",
     );
     if (!item) return;
+    // The target may sit on another level; showing it means going there first.
+    setLevelId(item.parentPlaceId);
     setSelectedId(targetId);
     centerOnPlace.current(item);
   }, [targetId, targetRequestId]);
@@ -169,7 +206,9 @@ function PlacesWorkspaceInner({
           placesCount={places.length}
           measuring={measuring}
           measureSelection={measureSelection}
-          scale={state.mapScale}
+          scale={levelScale}
+          trail={trail}
+          onGoToLevel={goToLevel}
           onSelectPlace={selectPlace}
           onClearSelection={() => setSelectedId(null)}
           onStopMeasuring={stopMeasuring}

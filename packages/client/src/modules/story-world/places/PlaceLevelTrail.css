@@ -1,0 +1,53 @@
+.place-level-trail {
+  position: absolute;
+  z-index: var(--z-float-legend);
+  top: var(--space-14);
+  left: var(--graph-controls-safe-inline-end, 62px);
+  max-width: calc(100% - var(--space-28));
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.place-level-trail__step {
+  min-height: var(--control-compact);
+  flex: none;
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--transparent);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.place-level-trail__step:hover:not(:disabled) {
+  background: var(--control-hint);
+  color: var(--ink);
+}
+
+/* The level you are on is the end of the road, not a place to go. */
+.place-level-trail__step:disabled {
+  color: var(--ink);
+  font-weight: 650;
+  cursor: default;
+}
+
+.place-level-trail__step + .place-level-trail__step::before {
+  content: "/";
+  margin-right: var(--space-6);
+  color: var(--line-strong);
+}
+
+@media (max-width: 640px) {
+  .place-level-trail {
+    left: var(--space-14);
+    max-width: calc(100% - var(--space-28));
+  }
+}

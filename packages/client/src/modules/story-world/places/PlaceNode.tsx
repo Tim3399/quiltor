@@ -1,16 +1,20 @@
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
-import { Star } from "lucide-react";
+import { CornerDownRight, Plus, Star } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useI18n } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
 import { StoryNodeCard, StoryNodeIdentity } from "../StoryNodeCard";
+import { IconButton } from "../../../design";
 import "./PlaceNode.css";
 
 export type PlaceCardData = {
   place: FigureNode;
   measuring: boolean;
   measureStart: boolean;
+  /** Whether anything is inside, which decides what the card offers. */
+  filled: boolean;
+  onOpenLevel: (place: FigureNode) => void;
   zoomTier: SemanticZoomTier;
   zoom: number;
 };
@@ -69,6 +73,23 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
           }
           secondary={item.sub}
         />
+        {data.zoomTier !== "overview" && !data.measuring ? (
+          <IconButton
+            className="place-node__enter nodrag nopan"
+            size="compact"
+            appearance="ghost"
+            label={
+              data.filled
+                ? t("placeOpenLevel", { name: item.name })
+                : t("placeStartLevel", { name: item.name })
+            }
+            icon={data.filled ? <CornerDownRight /> : <Plus />}
+            onClick={(event) => {
+              event.stopPropagation();
+              data.onOpenLevel(item);
+            }}
+          />
+        ) : null}
       </StoryNodeCard>
     </div>
   );

@@ -6,8 +6,9 @@ import { EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { cardKindColor } from "../../graph";
 import { GRID_SIZE } from "../figures/relationships";
-import type { FigureState } from "../model";
+import type { FigureNode, FigureState } from "../model";
 import { StoryGraphCanvas } from "../StoryGraphCanvas";
+import { PlaceLevelTrail } from "./PlaceLevelTrail";
 import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
 import { placeNodeTypes } from "./PlaceNode";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
@@ -19,6 +20,8 @@ export function PlaceCanvas({
   measuring,
   measureSelection,
   scale,
+  trail,
+  onGoToLevel,
   onSelectPlace,
   onClearSelection,
   onStopMeasuring,
@@ -29,6 +32,8 @@ export function PlaceCanvas({
   measuring: boolean;
   measureSelection: string[];
   scale?: FigureState["mapScale"];
+  trail: FigureNode[];
+  onGoToLevel: (levelId: string | undefined) => void;
   onSelectPlace: (id: string) => void;
   onClearSelection: () => void;
   onStopMeasuring: () => void;
@@ -57,14 +62,17 @@ export function PlaceCanvas({
       className={`places-flow-area ${measuring ? "is-connecting" : ""}`}
       gridSize={GRID_SIZE}
       overlay={
-        measuring ? (
-          <PlaceMeasurementOverlay
-            measureSelection={measureSelection}
-            scale={scale}
-            onScale={onScale}
-            onStop={onStopMeasuring}
-          />
-        ) : null
+        <>
+          <PlaceLevelTrail trail={trail} onGoToLevel={onGoToLevel} />
+          {measuring ? (
+            <PlaceMeasurementOverlay
+              measureSelection={measureSelection}
+              scale={scale}
+              onScale={onScale}
+              onStop={onStopMeasuring}
+            />
+          ) : null}
+        </>
       }
       flowProps={{
         nodeTypes: placeNodeTypes,

@@ -1,6 +1,10 @@
 export const places = {
   placesLabel: "Manage places",
   placeNodeLabel: "Place: {name}",
+  placeOpenLevel: "Open {name}",
+  placeStartLevel: "Put something in {name}",
+  placeLevelTrail: "Path through the places",
+  placeRootLevel: "World",
   measureDistance: "Measure distance",
   undoPlaces: "Undo places change",
   redoPlaces: "Redo places change",
