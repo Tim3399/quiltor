@@ -62,8 +62,11 @@ from pathlib import Path
 # The protocol validator is the same source file used by the product reader and
 # producer. Source checkouts find it here; the container copies the same package
 # beneath /app (see Dockerfile), so there is no second server-only interpretation.
-_SOURCE_ROOT = Path(__file__).resolve().parents[2] / "src"
-if _SOURCE_ROOT.is_dir():
+# In the container the file sits flat at /app/server.py and has no third
+# ancestor, so only a checkout deep enough to have one looks for a sibling src/.
+_HERE = Path(__file__).resolve()
+_SOURCE_ROOT = _HERE.parents[2] / "src" if len(_HERE.parents) > 2 else None
+if _SOURCE_ROOT is not None and _SOURCE_ROOT.is_dir():
     sys.path.insert(0, str(_SOURCE_ROOT))
 
 from quiltor.application.backup_manifest import (  # noqa: E402

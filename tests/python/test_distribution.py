@@ -4,6 +4,8 @@ import json
 import os
 import plistlib
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -237,6 +239,51 @@ class EmbeddedProfileTests(unittest.TestCase):
         backup_section = compose.split("  backup:", 1)[1].split("  caddy:", 1)[0]
         self.assertIn("context: .", backup_section)
         self.assertIn("dockerfile: services/backup-server/Dockerfile", backup_section)
+
+    def test_backup_server_imports_from_the_flat_container_layout(self):
+        """The image copies server.py to /app/server.py, two levels shallower than the
+        checkout every other test imports it from -- so a path assumption that only
+        breaks inside the container would otherwise ship green. A real temporary
+        directory cannot be that shallow, hence compiling under the container filename:
+        __file__ is what the ancestor walk reads, and /app/server.py has two parents on
+        both platforms. The package next to it stands in for the Dockerfile's COPY.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / "app"
+            (app / "quiltor" / "application").mkdir(parents=True)
+            shutil.copy(
+                REPO_ROOT / "src/quiltor/application/backup_manifest.py",
+                app / "quiltor/application/backup_manifest.py",
+            )
+            probe = (
+                "import pathlib, sys; "
+                "source = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'); "
+                "namespace = {'__file__': '/app/server.py', '__name__': 'probe'}; "
+                "exec(compile(source, '/app/server.py', 'exec'), namespace); "
+                "print(namespace['validate_manifest'].__module__)"
+            )
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if not key.startswith("QUILTOR_") and key != "PYTHONPATH"
+            }
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    probe,
+                    str(REPO_ROOT / "services/backup-server/server.py"),
+                ],
+                cwd=app,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # The validator came from the copied package, not from a source tree the
+        # container does not have.
+        self.assertEqual(result.stdout.strip(), "quiltor.application.backup_manifest")
 
     def test_oci_base_and_legal_payload_contracts_are_fail_closed(self):
         container_contract.validate_sources()
