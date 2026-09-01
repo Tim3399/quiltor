@@ -4,8 +4,11 @@ import type { StoryboardGroupNode, StoryboardNode, StoryboardReferenceNode } fro
 import {
   candidateForDragValue,
   candidateNode,
+  canMoveStoryboardNodeInLayer,
   connectedStoryboardEdge,
   groupNode,
+  insertStoryboardNodeAtLayerFront,
+  moveStoryboardNodeInLayer,
   moveStoryboardNodeWithGroupMembers,
   noteNode,
   referenceDragValue,
@@ -498,5 +501,139 @@ describe("storyboard canvas model", () => {
     expect(position("nested-group")).toEqual({ x: 180, y: 160 });
     expect(position("nested-child")).toEqual({ x: 200, y: 180 });
     expect(position("inside")).toEqual({ x: 120, y: 130 });
+  });
+
+  it("moves tied cards one step forward deterministically and compacts their board", () => {
+    const nodes: StoryboardNode[] = [
+      { ...group, id: "backdrop", zIndex: 40 },
+      { ...noteNode("main", { x: 0, y: 0 }, []), id: "first", zIndex: 8 },
+      { ...noteNode("main", { x: 20, y: 0 }, []), id: "target", zIndex: 8 },
+      { ...noteNode("main", { x: 40, y: 0 }, []), id: "third", zIndex: 8 },
+      { ...noteNode("other", { x: 0, y: 0 }, []), id: "other", zIndex: 71 },
+    ];
+
+    const moved = moveStoryboardNodeInLayer(nodes, "target", "forward");
+
+    expect(moved.map(({ id, zIndex }) => ({ id, zIndex }))).toEqual([
+      { id: "backdrop", zIndex: 0 },
+      { id: "first", zIndex: 1 },
+      { id: "target", zIndex: 3 },
+      { id: "third", zIndex: 2 },
+      { id: "other", zIndex: 71 },
+    ]);
+    expect(moved[4]).toBe(nodes[4]);
+  });
+
+  it("orders groups separately behind cards when moving a group backward", () => {
+    const nodes: StoryboardNode[] = [
+      { ...group, id: "rear-group", zIndex: 12 },
+      { ...group, id: "target-group", zIndex: 20 },
+      { ...noteNode("main", { x: 0, y: 0 }, []), id: "card", zIndex: -4 },
+      { ...noteNode("main", { x: 20, y: 0 }, []), id: "front-card", zIndex: 99 },
+    ];
+
+    const moved = moveStoryboardNodeInLayer(nodes, "target-group", "backward");
+
+    expect(moved.map(({ id, zIndex }) => ({ id, zIndex }))).toEqual([
+      { id: "rear-group", zIndex: 1 },
+      { id: "target-group", zIndex: 0 },
+      { id: "card", zIndex: 2 },
+      { id: "front-card", zIndex: 3 },
+    ]);
+  });
+
+  it("returns the identical state at layer boundaries and for unknown nodes", () => {
+    const nodes: StoryboardNode[] = [
+      { ...group, id: "only-group", zIndex: 30 },
+      { ...noteNode("main", { x: 0, y: 0 }, []), id: "back-card", zIndex: 4 },
+      { ...noteNode("main", { x: 20, y: 0 }, []), id: "front-card", zIndex: 10 },
+    ];
+
+    expect(moveStoryboardNodeInLayer(nodes, "only-group", "forward")).toBe(nodes);
+    expect(moveStoryboardNodeInLayer(nodes, "only-group", "backward")).toBe(nodes);
+    expect(moveStoryboardNodeInLayer(nodes, "back-card", "backward")).toBe(nodes);
+    expect(moveStoryboardNodeInLayer(nodes, "front-card", "forward")).toBe(nodes);
+    expect(moveStoryboardNodeInLayer(nodes, "missing", "forward")).toBe(nodes);
+  });
+
+  it("reports available card layer moves in both directions without crossing layers or boards", () => {
+    const nodes: StoryboardNode[] = [
+      { ...group, id: "group", zIndex: 50 },
+      { ...noteNode("main", { x: 0, y: 0 }, []), id: "back-card", zIndex: 5 },
+      { ...noteNode("main", { x: 20, y: 0 }, []), id: "front-card", zIndex: 5 },
+      { ...noteNode("other", { x: 0, y: 0 }, []), id: "other-card", zIndex: 100 },
+    ];
+
+    expect(canMoveStoryboardNodeInLayer(nodes, "back-card", "forward")).toBe(true);
+    expect(canMoveStoryboardNodeInLayer(nodes, "back-card", "backward")).toBe(false);
+    expect(canMoveStoryboardNodeInLayer(nodes, "front-card", "forward")).toBe(false);
+    expect(canMoveStoryboardNodeInLayer(nodes, "front-card", "backward")).toBe(true);
+  });
+
+  it("reports available group layer moves in both directions and rejects missing nodes", () => {
+    const nodes: StoryboardNode[] = [
+      { ...group, id: "back-group", zIndex: 2 },
+      { ...group, id: "front-group", zIndex: 7 },
+      { ...noteNode("main", { x: 0, y: 0 }, []), id: "card", zIndex: 1 },
+    ];
+
+    expect(canMoveStoryboardNodeInLayer(nodes, "back-group", "forward")).toBe(true);
+    expect(canMoveStoryboardNodeInLayer(nodes, "back-group", "backward")).toBe(false);
+    expect(canMoveStoryboardNodeInLayer(nodes, "front-group", "forward")).toBe(false);
+    expect(canMoveStoryboardNodeInLayer(nodes, "front-group", "backward")).toBe(true);
+    expect(canMoveStoryboardNodeInLayer(nodes, "missing", "forward")).toBe(false);
+    expect(canMoveStoryboardNodeInLayer(nodes, "missing", "backward")).toBe(false);
+  });
+
+  it("keeps a reordered card stack and inserts new notes and references at its front", () => {
+    const otherBoardNode = {
+      ...noteNode("other", { x: 0, y: 0 }, []),
+      id: "other-board-card",
+      zIndex: 91,
+    };
+    const nodes: StoryboardNode[] = [
+      { ...group, id: "group", zIndex: 0 },
+      { ...noteNode("main", { x: 0, y: 0 }, []), id: "note", zIndex: 2 },
+      { ...candidateNode("main", { x: 20, y: 0 }, [], entity), id: "reference", zIndex: 1 },
+      otherBoardNode,
+    ];
+    const reordered = moveStoryboardNodeInLayer(nodes, "reference", "forward");
+    const newNote = { ...noteNode("main", { x: 40, y: 0 }, []), id: "new-note" };
+    const withNote = insertStoryboardNodeAtLayerFront(reordered, newNote);
+    const newReference = {
+      ...candidateNode("main", { x: 60, y: 0 }, [], entity),
+      id: "new-reference",
+    };
+    const withReference = insertStoryboardNodeAtLayerFront(withNote, newReference);
+
+    expect(withReference.map(({ id, zIndex }) => ({ id, zIndex }))).toEqual([
+      { id: "group", zIndex: 0 },
+      { id: "note", zIndex: 1 },
+      { id: "reference", zIndex: 2 },
+      { id: "other-board-card", zIndex: 91 },
+      { id: "new-note", zIndex: 3 },
+      { id: "new-reference", zIndex: 4 },
+    ]);
+    expect(withReference[3]).toBe(otherBoardNode);
+  });
+
+  it("inserts a new group at the front of its group layer while keeping every card above it", () => {
+    const nodes: StoryboardNode[] = [
+      { ...group, id: "rear-group", zIndex: 10 },
+      { ...group, id: "front-group", zIndex: 20 },
+      { ...noteNode("main", { x: 0, y: 0 }, []), id: "card", zIndex: -5 },
+      { ...noteNode("main", { x: 20, y: 0 }, []), id: "front-card", zIndex: 99 },
+    ];
+    const newGroup = { ...group, id: "new-group", zIndex: -100 };
+
+    const inserted = insertStoryboardNodeAtLayerFront(nodes, newGroup);
+
+    expect(inserted.map(({ id, zIndex }) => ({ id, zIndex }))).toEqual([
+      { id: "rear-group", zIndex: 0 },
+      { id: "front-group", zIndex: 1 },
+      { id: "card", zIndex: 3 },
+      { id: "front-card", zIndex: 4 },
+      { id: "new-group", zIndex: 2 },
+    ]);
   });
 });

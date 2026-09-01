@@ -97,6 +97,8 @@ describe("Storyboard workspace review guards", () => {
     expect(screen.queryByLabelText("Platz für deine Ideen")).not.toBeInTheDocument();
     const noteCard = document.querySelector('[data-storyboard-node-kind="note"]');
     expect(noteCard).toBeInTheDocument();
+    expect(noteCard?.closest(".nowheel")).toBeNull();
+    expect(noteCard?.querySelector(".nowheel")).toBeNull();
     expect(noteCard).not.toHaveTextContent(/Freie Planung|nicht Teil des Kanons/i);
     const textbox = screen.getByRole("textbox", { name: "Storyboard-Notiz" });
     expect(document.querySelector(`label[for="${textbox.id}"]`)).toHaveClass("sr-only");
@@ -107,7 +109,6 @@ describe("Storyboard workspace review guards", () => {
     expect(screen.getByRole("button", { name: "Notiz im Fokus öffnen" })).toHaveClass(
       "nodrag",
       "nopan",
-      "nowheel",
     );
 
     act(() => {

@@ -39,13 +39,17 @@ import { StoryboardToolbar } from "./StoryboardToolbar";
 import {
   candidateForDragValue,
   candidateNode,
+  canMoveStoryboardNodeInLayer,
   connectedStoryboardEdge,
   groupNode,
+  insertStoryboardNodeAtLayerFront,
+  moveStoryboardNodeInLayer,
   moveStoryboardNodeWithGroupMembers,
   noteNode,
   STORYBOARD_GRID_SIZE,
   STORYBOARD_REFERENCE_DRAG_MIME,
   type StoryboardFlowNode,
+  type StoryboardLayerMoveDirection,
   type StoryboardNodePatch,
   storyboardCardKind,
   storyboardFlowEdge,
@@ -57,7 +61,7 @@ import "./StoryboardWorkspace.css";
 
 export type StoryboardWorkspaceProps = {
   state: StoryboardState;
-  onChange: (value: StoryboardState) => void;
+  onChange: (value: StoryboardState, options?: { separateHistoryStep?: boolean }) => void;
   candidates: readonly WorldReferenceCandidate[];
   onOpenReference: (target: WorldReferenceTarget) => void;
   targetId?: string;
@@ -138,6 +142,16 @@ function StoryboardWorkspaceInner({
     [activeEdges, activeNodes, flowNodes, selectEdgeFromLabel, selectedEdgeId],
   );
   const selectedEdge = activeEdges.find((edge) => edge.id === selectedEdgeId) ?? null;
+  const selectedNode = selectedId
+    ? state.nodes.find((candidate) => candidate.id === selectedId)
+    : undefined;
+  const selectionLayer = selectedNode ? (selectedNode.kind === "group" ? "group" : "card") : null;
+  const canMoveSelectedForward = Boolean(
+    selectedId && canMoveStoryboardNodeInLayer(state.nodes, selectedId, "forward"),
+  );
+  const canMoveSelectedBackward = Boolean(
+    selectedId && canMoveStoryboardNodeInLayer(state.nodes, selectedId, "backward"),
+  );
   const noteBoardContext =
     boardTrail
       .map((id) => boards.find((board) => board.id === id)?.title)
@@ -173,13 +187,16 @@ function StoryboardWorkspaceInner({
   latestCandidates.current = allCandidates;
 
   const changeFromLatest = useCallback(
-    (update: (current: StoryboardState) => StoryboardState) => {
+    (
+      update: (current: StoryboardState) => StoryboardState,
+      options?: { separateHistoryStep?: boolean },
+    ) => {
       const current = latestState.current;
       const initialized = current.boards.length ? current : { ...current, boards: [fallbackBoard] };
       const next = update(initialized);
       if (next === current) return;
       latestState.current = next;
-      onChange(next);
+      onChange(next, options);
     },
     [fallbackBoard, onChange],
   );
@@ -340,7 +357,10 @@ function StoryboardWorkspaceInner({
           position,
           current.nodes.map((node) => node.id),
         );
-        return { ...current, nodes: [...current.nodes, created] };
+        return {
+          ...current,
+          nodes: insertStoryboardNodeAtLayerFront(current.nodes, created),
+        };
       });
       if (created) setSelectedId((created as StoryboardNoteNode).id);
       setSelectedEdgeId(null);
@@ -359,7 +379,10 @@ function StoryboardWorkspaceInner({
           label,
         );
         createdId = created.id;
-        return { ...current, nodes: [created, ...current.nodes] };
+        return {
+          ...current,
+          nodes: insertStoryboardNodeAtLayerFront(current.nodes, created),
+        };
       });
       setSelectedId(createdId);
       setSelectedEdgeId(null);
@@ -378,7 +401,10 @@ function StoryboardWorkspaceInner({
           candidate,
         );
         createdId = created.id;
-        return { ...current, nodes: [...current.nodes, created] };
+        return {
+          ...current,
+          nodes: insertStoryboardNodeAtLayerFront(current.nodes, created),
+        };
       });
       setSelectedId(createdId);
       setSelectedEdgeId(null);
@@ -469,6 +495,20 @@ function StoryboardWorkspaceInner({
     setSelectedId(null);
     setSelectedEdgeId(null);
   }, [changeFromLatest, selectedEdgeId, selectedId]);
+
+  const moveSelectedInLayer = useCallback(
+    (direction: StoryboardLayerMoveDirection) => {
+      if (!selectedId) return;
+      changeFromLatest(
+        (current) => {
+          const nodes = moveStoryboardNodeInLayer(current.nodes, selectedId, direction);
+          return nodes === current.nodes ? current : { ...current, nodes };
+        },
+        { separateHistoryStep: true },
+      );
+    },
+    [changeFromLatest, selectedId],
+  );
 
   const patchEdge = useCallback(
     (edgeId: string, patch: Partial<StoryboardEdge>) =>
@@ -565,6 +605,9 @@ function StoryboardWorkspaceInner({
         nodeCount={activeNodes.length}
         libraryOpen={libraryOpen}
         hasSelection={Boolean(selectedId || selectedEdgeId)}
+        selectionLayer={selectionLayer}
+        canMoveForward={canMoveSelectedForward}
+        canMoveBackward={canMoveSelectedBackward}
         canUndo={canUndo}
         canRedo={canRedo}
         onSelectBoard={(id) => {
@@ -580,6 +623,8 @@ function StoryboardWorkspaceInner({
         onLibraryOpenChange={setLibraryOpen}
         onUndo={onUndo}
         onRedo={onRedo}
+        onMoveForward={() => moveSelectedInLayer("forward")}
+        onMoveBackward={() => moveSelectedInLayer("backward")}
         onDeleteSelection={deleteSelected}
       />
       <div className={`storyboard-layout ${libraryOpen ? "has-library" : ""}`.trim()}>
@@ -649,6 +694,7 @@ function StoryboardWorkspaceInner({
               fitView
               minZoom={0.08}
               maxZoom={2.2}
+              elevateNodesOnSelect={false}
               deleteKeyCode={null}
             >
               <Background

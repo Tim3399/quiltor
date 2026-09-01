@@ -97,10 +97,13 @@ describe("Storyboard node notes", () => {
     const card = document.querySelector<HTMLElement>(`[data-storyboard-node-kind="${kind}"]`);
     expect(card).toBeInTheDocument();
     if (!card) throw new Error(`${kind} card missing`);
+    expect(card.closest(".nowheel")).toBeNull();
+    expect(card.querySelector(".nowheel")).toBeNull();
     const textbox = within(card).getByRole("textbox", { name: `Notiz zu ${label}` });
     const body = textbox.closest(".storyboard-node__body");
     expect(body).toBeInTheDocument();
-    expect(body).toHaveClass("scroll-area", "nowheel");
+    expect(body).toHaveClass("scroll-area");
+    expect(body).not.toHaveClass("nowheel");
     expect(body).not.toHaveClass("nodrag");
     expect(body).not.toHaveClass("nopan");
     expect(body).toHaveAttribute("data-axis", "y");
@@ -110,7 +113,8 @@ describe("Storyboard node notes", () => {
     expect(card.querySelector(".cm-placeholder")).toHaveTextContent("Notiz");
     expect(textbox.closest(".storyboard-node-note-field")).toBeInTheDocument();
     const note = textbox.closest(".storyboard-node__note");
-    expect(note).toHaveClass("storyboard-node__note--compact", "nowheel");
+    expect(note).toHaveClass("storyboard-node__note--compact");
+    expect(note).not.toHaveClass("nowheel");
     expect(note).not.toHaveClass("nodrag");
     expect(note).not.toHaveClass("nopan");
     expect(textbox.closest(".nodrag")).toBeNull();
@@ -120,18 +124,21 @@ describe("Storyboard node notes", () => {
     expect(header?.closest(".nodrag")).toBeNull();
 
     const focusButton = within(card).getByRole("button", { name: "Notiz im Fokus öffnen" });
-    expect(focusButton).toHaveClass("nodrag", "nopan", "nowheel");
+    expect(focusButton).toHaveClass("nodrag", "nopan");
+    expect(focusButton.closest(".nowheel")).toBeNull();
 
     const openButton = card.querySelector(".storyboard-node__open");
     if (kind === "reference" || kind === "storyboard") {
-      expect(openButton).toHaveClass("nodrag", "nopan", "nowheel");
+      expect(openButton).toHaveClass("nodrag", "nopan");
+      expect(openButton).not.toHaveClass("nowheel");
       const title = card.querySelector(".storyboard-node__title");
       expect(title).toBeInTheDocument();
       expect(title?.closest(".nodrag")).toBeNull();
     } else {
       expect(openButton).not.toBeInTheDocument();
       const groupTitle = card.querySelector(".storyboard-group-title-control");
-      expect(groupTitle).toHaveClass("nodrag", "nopan", "nowheel");
+      expect(groupTitle).toHaveClass("nodrag", "nopan");
+      expect(groupTitle).not.toHaveClass("nowheel");
     }
 
     act(() => {

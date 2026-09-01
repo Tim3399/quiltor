@@ -331,8 +331,8 @@ Then extend extraction as new state dimensions become available.
 ## Next delivery after P0
 
 Hierarchical chapter organization, the Figure / entity workspace overhaul and the first usable
-**P1 Storyboard** slice are complete. Explicit overlap ordering and the deliberately bounded AI
-planning features remain open below.
+**P1 Storyboard** slice are complete. Explicit overlap ordering is now shipped; the deliberately
+bounded AI planning features remain open below.
 
 ---
 
@@ -436,14 +436,15 @@ Storyboard is not a second canon system and not a generic drawing application.
 The first usable workspace slice shipped on 30 August 2026 with independent
 history/autosave, multiple boards, all four v1 node types, shared Note cards,
 search/drag references, connections and navigation breadcrumbs. Explicit
-front/back controls, dragging a newly created Note from a palette and AI
-planning context remain intentionally open; checked items do not imply those
-later slices.
+front/back controls shipped on 1 September 2026. Dragging a newly created Note
+from a palette and AI planning context remain intentionally open; checked items
+do not imply those later slices.
 
 Real browser acceptance creates isolated worlds for board/Note persistence,
 reference drag/open, connections and moved-node positions. Backlink coverage
 also opens an entity profile, follows a Storyboard source and verifies the exact
-board and selected card. Explicit ordering and palette interactions remain open.
+board and selected card. Ordering acceptance now covers overlapping cards,
+persisted z-indices and wheel zoom over card content; palette interaction remains open.
 
 ## Core canvas
 
@@ -453,7 +454,7 @@ board and selected card. Explicit ordering and palette interactions remain open.
 - [x] Infinite/large pannable canvas.
 - [x] Zoom and pan.
 - [x] Drag and resize nodes.
-- [ ] Add explicit front/back ordering controls for overlapping nodes.
+- [x] Add explicit front/back ordering controls for overlapping nodes.
 - [x] Basic connections between nodes.
 - [x] Groups / frames.
 - [x] Undo/redo.

@@ -18,7 +18,7 @@ export const storyboardNodeTypes = { storyboard: StoryboardCanvasNode };
 function StoryboardNodeBody({ children }: { children: ReactNode }) {
   return (
     <ScrollArea
-      className="storyboard-node__body nowheel"
+      className="storyboard-node__body"
       axis="y"
       gutter="auto"
       overscroll="contain"
@@ -114,7 +114,7 @@ function ResizeControls({ data, selected }: { data: StoryboardFlowNodeData; sele
       />
       {selected && (
         <IconButton
-          className="storyboard-node__resize-action nodrag nopan nowheel"
+          className="storyboard-node__resize-action nodrag nopan"
           label={t("storyboardResizeNode")}
           icon={<Scaling />}
           onClick={() =>
@@ -149,7 +149,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
 
   return (
     <div
-      className={`storyboard-node__note ${isNoteCard ? "" : "storyboard-node__note--compact"} nowheel`.trim()}
+      className={`storyboard-node__note ${isNoteCard ? "" : "storyboard-node__note--compact"}`.trim()}
     >
       <NoteEditor
         owner={{ kind: "storyboard", id: item.id }}
@@ -164,7 +164,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
         rows={isNoteCard ? undefined : 1}
         labelHidden
         fieldClassName="storyboard-node-note-field"
-        formatActionClassName="nodrag nopan nowheel"
+        formatActionClassName="nodrag nopan"
         className="storyboard-note-control"
         focus={{
           openLabel: t("storyboardNoteFocusOpen"),
@@ -174,7 +174,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
           closeLabel: t("storyboardNoteFocusClose"),
           editorLabel,
         }}
-        focusButtonClassName="nodrag nopan nowheel"
+        focusButtonClassName="nodrag nopan"
         onChange={(text, references, marks) => data.onNoteChange(item.id, text, references, marks)}
       />
     </div>
@@ -226,7 +226,7 @@ function StoryboardCanvasNode({ data, selected }: NodeProps<StoryboardFlowNode>)
           <strong className="storyboard-node__title">{item.label}</strong>
           <StoryboardNodeNoteEditor data={data} />
           <Button
-            className="storyboard-node__open nodrag nopan nowheel"
+            className="storyboard-node__open nodrag nopan"
             size="compact"
             appearance="ghost"
             icon={<ExternalLink />}
@@ -254,7 +254,7 @@ function StoryboardCanvasNode({ data, selected }: NodeProps<StoryboardFlowNode>)
           <strong className="storyboard-node__title">{data.boardTitle ?? item.label}</strong>
           <StoryboardNodeNoteEditor data={data} />
           <Button
-            className="storyboard-node__open nodrag nopan nowheel"
+            className="storyboard-node__open nodrag nopan"
             size="compact"
             appearance="ghost"
             icon={<LayoutDashboard />}
@@ -279,8 +279,8 @@ function StoryboardCanvasNode({ data, selected }: NodeProps<StoryboardFlowNode>)
       </header>
       <StoryboardNodeBody>
         <TextField
-          fieldClassName="storyboard-group-title-field nodrag nopan nowheel"
-          className="storyboard-group-title-control nodrag nopan nowheel"
+          fieldClassName="storyboard-group-title-field nodrag nopan"
+          className="storyboard-group-title-control nodrag nopan"
           label={t("storyboardGroupTitle")}
           labelHidden
           value={item.label ?? ""}

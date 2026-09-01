@@ -35,6 +35,8 @@ export type StoryboardNodePatch = Partial<
   Pick<StoryboardNode, "x" | "y" | "width" | "height" | "zIndex" | "label">
 >;
 
+export type StoryboardLayerMoveDirection = "forward" | "backward";
+
 export type StoryboardFlowNodeContext = {
   boardTitle?: string;
   boardContext?: string;
@@ -217,6 +219,150 @@ export function moveStoryboardNodeWithGroupMembers(
     if (node.id === nodeId) return { ...node, ...position };
     if (!memberIds.has(node.id)) return node;
     return { ...node, x: node.x + delta.x, y: node.y + delta.y };
+  });
+}
+
+type IndexedStoryboardNode = {
+  index: number;
+  node: StoryboardNode;
+};
+
+function storyboardLayer(node: StoryboardNode) {
+  return node.kind === "group" ? "group" : "card";
+}
+
+function storyboardLayerZIndex(node: StoryboardNode) {
+  return node.zIndex ?? (node.kind === "group" ? 0 : 1);
+}
+
+export function canMoveStoryboardNodeInLayer(
+  nodes: readonly StoryboardNode[],
+  nodeId: string,
+  direction: StoryboardLayerMoveDirection,
+): boolean {
+  const targetIndex = nodes.findIndex((node) => node.id === nodeId);
+  if (targetIndex < 0) return false;
+  const target = nodes[targetIndex];
+  const targetLayer = storyboardLayer(target);
+  const targetZIndex = storyboardLayerZIndex(target);
+
+  for (let index = 0; index < nodes.length; index += 1) {
+    if (index === targetIndex) continue;
+    const candidate = nodes[index];
+    if (candidate.boardId !== target.boardId || storyboardLayer(candidate) !== targetLayer) {
+      continue;
+    }
+    const candidateZIndex = storyboardLayerZIndex(candidate);
+    if (direction === "forward") {
+      if (
+        candidateZIndex > targetZIndex ||
+        (candidateZIndex === targetZIndex && index > targetIndex)
+      ) {
+        return true;
+      }
+    } else if (
+      candidateZIndex < targetZIndex ||
+      (candidateZIndex === targetZIndex && index < targetIndex)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function orderedStoryboardLayer(
+  nodes: readonly StoryboardNode[],
+  boardId: string,
+  layer: ReturnType<typeof storyboardLayer>,
+): IndexedStoryboardNode[] {
+  return nodes
+    .map((node, index) => ({ index, node }))
+    .filter(({ node }) => node.boardId === boardId && storyboardLayer(node) === layer)
+    .sort(
+      (left, right) =>
+        storyboardLayerZIndex(left.node) - storyboardLayerZIndex(right.node) ||
+        left.index - right.index,
+    );
+}
+
+/** Inserts a node at the front of its board-local layer and compacts that board's z-indices. */
+export function insertStoryboardNodeAtLayerFront(
+  existingNodes: StoryboardNode[],
+  newNode: StoryboardNode,
+): StoryboardNode[] {
+  const groups = orderedStoryboardLayer(existingNodes, newNode.boardId, "group");
+  const cards = orderedStoryboardLayer(existingNodes, newNode.boardId, "card");
+  const indexedNewNode = { index: existingNodes.length, node: newNode };
+  if (storyboardLayer(newNode) === "group") groups.push(indexedNewNode);
+  else cards.push(indexedNewNode);
+
+  const compactZIndex = new Map<string, number>();
+  groups.forEach(({ node }, index) => {
+    compactZIndex.set(node.id, index);
+  });
+  cards.forEach(({ node }, index) => {
+    compactZIndex.set(node.id, groups.length + index);
+  });
+
+  const normalized = existingNodes.map((node) => {
+    if (node.boardId !== newNode.boardId) return node;
+    const zIndex = compactZIndex.get(node.id);
+    if (zIndex === undefined || node.zIndex === zIndex) return node;
+    return { ...node, zIndex };
+  });
+  const zIndex = compactZIndex.get(newNode.id);
+  return [
+    ...normalized,
+    zIndex === undefined || newNode.zIndex === zIndex ? newNode : { ...newNode, zIndex },
+  ];
+}
+
+/**
+ * Moves a node by one step inside its board-local layer and compacts that board's z-indices.
+ * Groups and cards have independent ordering; the compacted group range always stays behind cards.
+ */
+export function moveStoryboardNodeInLayer(
+  nodes: StoryboardNode[],
+  nodeId: string,
+  direction: StoryboardLayerMoveDirection,
+): StoryboardNode[] {
+  if (!canMoveStoryboardNodeInLayer(nodes, nodeId, direction)) return nodes;
+  const target = nodes.find((node) => node.id === nodeId);
+  if (!target) return nodes;
+
+  const targetLayer = storyboardLayer(target);
+  const targetOrder = orderedStoryboardLayer(nodes, target.boardId, targetLayer);
+  const targetIndex = targetOrder.findIndex(({ node }) => node.id === nodeId);
+  const nextIndex = targetIndex + (direction === "forward" ? 1 : -1);
+  if (targetIndex < 0 || nextIndex < 0 || nextIndex >= targetOrder.length) return nodes;
+
+  const reorderedTargetLayer = [...targetOrder];
+  [reorderedTargetLayer[targetIndex], reorderedTargetLayer[nextIndex]] = [
+    reorderedTargetLayer[nextIndex],
+    reorderedTargetLayer[targetIndex],
+  ];
+
+  const groups =
+    targetLayer === "group"
+      ? reorderedTargetLayer
+      : orderedStoryboardLayer(nodes, target.boardId, "group");
+  const cards =
+    targetLayer === "card"
+      ? reorderedTargetLayer
+      : orderedStoryboardLayer(nodes, target.boardId, "card");
+  const compactZIndex = new Map<string, number>();
+  groups.forEach(({ node }, index) => {
+    compactZIndex.set(node.id, index);
+  });
+  cards.forEach(({ node }, index) => {
+    compactZIndex.set(node.id, groups.length + index);
+  });
+
+  return nodes.map((node) => {
+    if (node.boardId !== target.boardId) return node;
+    const zIndex = compactZIndex.get(node.id);
+    if (zIndex === undefined || node.zIndex === zIndex) return node;
+    return { ...node, zIndex };
   });
 }
 

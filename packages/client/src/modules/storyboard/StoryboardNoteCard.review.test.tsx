@@ -73,28 +73,31 @@ describe("Storyboard note-card UX contract", () => {
     const card = document.querySelector('[data-storyboard-node-kind="note"]');
     expect(card).toBeInTheDocument();
     expect(card).not.toHaveClass("nodrag");
+    expect(card?.closest(".nowheel")).toBeNull();
+    expect(card?.querySelector(".nowheel")).toBeNull();
     expect(card).not.toHaveTextContent(/Freie Planung|nicht Teil des Kanons/i);
     const header = card?.querySelector(".storyboard-node__header");
     expect(header?.closest(".nodrag")).toBeNull();
     const body = card?.querySelector(".storyboard-node__body");
-    expect(body).toHaveClass("scroll-area", "nowheel");
+    expect(body).toHaveClass("scroll-area");
+    expect(body).not.toHaveClass("nowheel");
     expect(body).not.toHaveClass("nodrag");
     expect(body).not.toHaveClass("nopan");
     const textbox = screen.getByRole("textbox", { name: "Storyboard-Notiz" });
     expect(document.querySelector(`label[for="${textbox.id}"]`)).toHaveClass("sr-only");
     const interactionSurface = textbox.closest(".storyboard-node__note");
-    expect(interactionSurface).toHaveClass("nowheel");
+    expect(interactionSurface).not.toHaveClass("nowheel");
     expect(interactionSurface).not.toHaveClass("nodrag");
     expect(interactionSurface).not.toHaveClass("nopan");
     expect(textbox.closest(".nodrag")).toBeNull();
     expect(screen.getByRole("button", { name: "Notiz im Fokus öffnen" })).toHaveClass(
       "nodrag",
       "nopan",
-      "nowheel",
     );
     const toolbar = screen.getByRole("toolbar", { name: "Notiz formatieren" });
     expect(screen.getByTestId("narrow-storyboard-card-host")).toHaveStyle({ width: "280px" });
-    expect(toolbar).toHaveClass("nodrag", "nopan", "nowheel");
+    expect(toolbar).toHaveClass("nodrag", "nopan");
+    expect(toolbar).not.toHaveClass("nowheel");
     expect(within(toolbar).getAllByRole("button")).toHaveLength(4);
 
     act(() => {
@@ -115,7 +118,8 @@ describe("Storyboard note-card UX contract", () => {
 
     expect(screen.getByTestId("pointer-resizer")).toBeInTheDocument();
     const resizeButton = screen.getByRole("button", { name: "Element skalieren" });
-    expect(resizeButton).toHaveClass("nodrag", "nopan", "nowheel");
+    expect(resizeButton).toHaveClass("nodrag", "nopan");
+    expect(resizeButton.closest(".nowheel")).toBeNull();
     fireEvent.click(resizeButton);
     expect(onPatch).toHaveBeenCalledWith("note-review", { width: 320, height: 240 });
 

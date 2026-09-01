@@ -55,6 +55,7 @@ type StoryboardWireNode = {
   kind: string;
   x: number;
   y: number;
+  zIndex?: number;
   target?: { kind?: string; id?: string };
 };
 
@@ -81,6 +82,13 @@ async function loadedStoryboard(page: Page, worldId: string) {
   const response = await page.request.get(`/api/storyboards?world=${worldId}`);
   expect(response.ok()).toBe(true);
   return (await response.json()) as StoryboardWireEnvelope;
+}
+
+async function storyboardViewportZoom(page: Page) {
+  return page.locator(".storyboard-flow .react-flow__viewport").evaluate((viewport) => {
+    const transform = new DOMMatrixReadOnly(getComputedStyle(viewport).transform);
+    return Math.hypot(transform.a, transform.b);
+  });
 }
 
 test("Storyboard-Boards und Notizen bleiben nach einem Reload erhalten", async ({
@@ -337,6 +345,192 @@ test("Storyboard-Karten lassen sich direkt aus dem Notizinhalt ziehen", async ({
     x: movedNode.x,
     y: movedNode.y,
   });
+});
+
+test("das Mausrad zoomt auch über dem Inhalt einer Storyboard-Karte", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der Mausradpfad muss nur einmal in einem stabilen Desktop-Viewport laufen.",
+  );
+
+  const world = await createTestWorld(page, `Storyboard Wheel Zoom E2E ${crypto.randomUUID()}`);
+  await openStoryboard(page, world.id);
+
+  const saved = waitForSuccessfulStoryboardWrite(page, '"kind":"note"');
+  await page
+    .getByRole("toolbar", { name: "Storyboard-Werkzeuge" })
+    .getByRole("button", { name: "Notiz hinzufügen", exact: true })
+    .click();
+  expect((await saved).ok()).toBe(true);
+
+  const cardBody = page.locator('[data-storyboard-node-kind="note"] .storyboard-node__body');
+  await expect(cardBody).toBeVisible();
+
+  const initialZoom = await storyboardViewportZoom(page);
+  await page.locator(".storyboard-flow .react-flow__controls-zoomout").click();
+  await expect.poll(() => storyboardViewportZoom(page)).toBeLessThan(initialZoom - 0.01);
+
+  const zoomBefore = await storyboardViewportZoom(page);
+  await cardBody.hover();
+  await page.mouse.wheel(0, -480);
+
+  await expect
+    .poll(() => storyboardViewportZoom(page), {
+      message: "Mausrad-Zoom soll den ReactFlow-Viewport auch über dem Karteninhalt erreichen.",
+    })
+    .toBeGreaterThan(zoomBefore + 0.01);
+});
+
+test("überlappende Storyboard-Karten behalten ihre Vorder- und Hintergrundreihenfolge", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Die Ebenenreihenfolge ist viewport-unabhängig und muss nur einmal laufen.",
+  );
+
+  const world = await createTestWorld(page, `Storyboard Layers E2E ${crypto.randomUUID()}`);
+  const worldId = encodeURIComponent(world.id);
+  const storyboardResponse = await page.request.get(`/api/storyboards?world=${worldId}`);
+  const storyboardRevision = Number(
+    (storyboardResponse.headers().etag || '"0"').replaceAll('"', ""),
+  );
+  const storyboardSaved = await page.request.put(`/api/storyboards?world=${worldId}`, {
+    headers: { "If-Match": `"${storyboardRevision}"` },
+    data: encodeStoryboardsV1(
+      {
+        boards: [{ id: "main-storyboard", title: "Main Storyboard" }],
+        nodes: [
+          {
+            id: "layer-back",
+            boardId: "main-storyboard",
+            kind: "note",
+            x: 180,
+            y: 160,
+            width: 280,
+            height: 210,
+            zIndex: 1,
+            text: "Hintere Karte",
+          },
+          {
+            id: "layer-front",
+            boardId: "main-storyboard",
+            kind: "note",
+            x: 260,
+            y: 220,
+            width: 280,
+            height: 210,
+            zIndex: 2,
+            text: "Vordere Karte",
+          },
+        ],
+        edges: [],
+      },
+      storyboardRevision,
+    ),
+  });
+  expect(storyboardSaved.ok()).toBe(true);
+
+  await openStoryboard(page, world.id);
+
+  const backCard = page.locator('.react-flow__node[data-id="layer-back"]');
+  const frontCard = page.locator('.react-flow__node[data-id="layer-front"]');
+  await expect(backCard).toBeVisible();
+  await expect(frontCard).toBeVisible();
+
+  const renderedZIndex = (card: Locator) =>
+    card.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex, 10));
+  const renderedLayerDelta = async (back: Locator, front: Locator) => {
+    const [backZIndex, frontZIndex] = await Promise.all([
+      renderedZIndex(back),
+      renderedZIndex(front),
+    ]);
+    return backZIndex - frontZIndex;
+  };
+  await expect.poll(() => renderedLayerDelta(backCard, frontCard)).toBeLessThan(0);
+
+  // Both cards overlap, but this corner of the rear card remains exposed and clickable.
+  await backCard.click({ position: { x: 24, y: 24 } });
+  await expect(backCard.locator(".storyboard-node")).toHaveClass(/is-selected/);
+
+  const toolbar = page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" });
+  const moveForward = toolbar.getByRole("button", { name: "Element nach vorne" });
+  const moveBackward = toolbar.getByRole("button", { name: "Element nach hinten" });
+  await expect(moveForward).toBeEnabled();
+
+  const movedForward = waitForSuccessfulStoryboardWrite(page, '"id":"layer-back"');
+  await moveForward.click();
+  expect((await movedForward).ok()).toBe(true);
+  await expect.poll(() => renderedLayerDelta(backCard, frontCard)).toBeGreaterThan(0);
+
+  let persisted = await loadedStoryboard(page, world.id);
+  expect(persisted.payload.nodes.find(({ id }) => id === "layer-back")?.zIndex).toBe(1);
+  expect(persisted.payload.nodes.find(({ id }) => id === "layer-front")?.zIndex).toBe(0);
+
+  const movedBackward = waitForSuccessfulStoryboardWrite(page, '"id":"layer-back"');
+  await moveBackward.click();
+  expect((await movedBackward).ok()).toBe(true);
+  await expect.poll(() => renderedLayerDelta(backCard, frontCard)).toBeLessThan(0);
+
+  persisted = await loadedStoryboard(page, world.id);
+  expect(persisted.payload.nodes.find(({ id }) => id === "layer-back")?.zIndex).toBe(0);
+  expect(persisted.payload.nodes.find(({ id }) => id === "layer-front")?.zIndex).toBe(1);
+
+  const movedForwardForReload = waitForSuccessfulStoryboardWrite(page, '"id":"layer-back"');
+  await moveForward.click();
+  expect((await movedForwardForReload).ok()).toBe(true);
+  await expect.poll(() => renderedLayerDelta(backCard, frontCard)).toBeGreaterThan(0);
+
+  await page.reload();
+  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  await page.getByRole("button", { name: "Storyboard", exact: true }).click();
+  await page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" }).waitFor();
+
+  const reloadedBackCard = page.locator('.react-flow__node[data-id="layer-back"]');
+  const reloadedFrontCard = page.locator('.react-flow__node[data-id="layer-front"]');
+  await expect(reloadedBackCard).toBeVisible();
+  await expect(reloadedFrontCard).toBeVisible();
+  await expect
+    .poll(() => renderedLayerDelta(reloadedBackCard, reloadedFrontCard))
+    .toBeGreaterThan(0);
+
+  persisted = await loadedStoryboard(page, world.id);
+  expect(persisted.payload.nodes.find(({ id }) => id === "layer-back")?.zIndex).toBe(1);
+  expect(persisted.payload.nodes.find(({ id }) => id === "layer-front")?.zIndex).toBe(0);
+});
+
+test("die Ebenensteuerung bleibt im kompakten Storyboard erreichbar", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "compact",
+    "Dieser Vertrag prüft gezielt den kompakten 390-Pixel-Viewport.",
+  );
+
+  const world = await createTestWorld(page, `Storyboard Layers Compact ${crypto.randomUUID()}`);
+  await openStoryboard(page, world.id);
+
+  const toolbar = page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" });
+  const addNote = toolbar.getByRole("button", { name: "Notiz hinzufügen", exact: true });
+  for (let index = 0; index < 2; index += 1) {
+    const saved = waitForSuccessfulStoryboardWrite(page, '"kind":"note"');
+    await addNote.click();
+    expect((await saved).ok()).toBe(true);
+  }
+
+  const moveForward = toolbar.getByRole("button", { name: "Element nach vorne" });
+  const moveBackward = toolbar.getByRole("button", { name: "Element nach hinten" });
+  await expect(moveForward).toBeVisible();
+  await expect(moveForward).toBeDisabled();
+  await expect(moveBackward).toBeVisible();
+  await expect(moveBackward).toBeEnabled();
+  const dimensions = await toolbar.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 });
 
 test("Storyboard-Kanten lassen sich beschriften, richten, umkehren und neu laden", async ({

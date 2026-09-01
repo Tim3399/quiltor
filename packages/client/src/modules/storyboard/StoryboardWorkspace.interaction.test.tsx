@@ -31,11 +31,13 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
     connectionLineType,
     defaultEdgeOptions,
     edges,
+    elevateNodesOnSelect,
     nodes,
     nodeTypes,
     onInit,
     onConnect,
     onEdgeClick,
+    onNodeClick,
     onNodeDoubleClick,
     onNodeDrag,
     onNodeDragStop,
@@ -52,6 +54,7 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
       label?: unknown;
       markerEnd?: unknown;
     }>;
+    elevateNodesOnSelect?: boolean;
     nodes: Array<{
       id: string;
       type?: string;
@@ -73,6 +76,7 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
       targetHandle: string;
     }) => void;
     onEdgeClick?: (event: unknown, edge: (typeof edges)[number]) => void;
+    onNodeClick?: (event: unknown, node: (typeof nodes)[number]) => void;
     onNodeDoubleClick?: (event: unknown, node: (typeof nodes)[number]) => void;
     onNodeDrag?: (event: unknown, node: (typeof nodes)[number]) => void;
     onNodeDragStop?: (event: unknown, node: (typeof nodes)[number]) => void;
@@ -93,6 +97,7 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
         data-testid="storyboard-flow"
         data-connection-line-type={connectionLineType}
         data-default-edge-type={defaultEdgeOptions?.type}
+        data-elevate-nodes-on-select={String(elevateNodesOnSelect)}
         data-node-click-distance={nodeClickDistance}
         data-node-drag-threshold={nodeDragThreshold}
       >
@@ -107,7 +112,16 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
         <output aria-label="Flow-Kanten">{JSON.stringify(edges)}</output>
         {nodes.map((node) => {
           const Node = nodeTypes?.[node.type ?? ""];
-          return Node ? <Node key={node.id} id={node.id} data={node.data} selected /> : null;
+          return (
+            <div key={node.id}>
+              {Node ? (
+                <Node id={node.id} data={node.data} selected={node.selected ?? false} />
+              ) : null}
+              <button type="button" onClick={() => onNodeClick?.(null, node)}>
+                Test-{node.id}-auswählen
+              </button>
+            </div>
+          );
         })}
         {nodes[0] && (
           <button type="button" onClick={() => onNodeDoubleClick?.(null, nodes[0])}>
@@ -209,7 +223,7 @@ function Harness({
 }: {
   initialState?: StoryboardState;
   candidates?: readonly WorldReferenceCandidate[];
-  onChange?: (value: StoryboardState) => void;
+  onChange?: (value: StoryboardState, options?: { separateHistoryStep?: boolean }) => void;
   onOpenReference?: (target: WorldReferenceTarget) => void;
   targetId?: string;
   targetRequestId?: number;
@@ -224,9 +238,10 @@ function Harness({
         onOpenReference={onOpenReference}
         targetId={targetId}
         targetRequestId={targetRequestId}
-        onChange={(next) => {
+        onChange={(next, options) => {
           setState(next);
-          onChange(next);
+          if (options) onChange(next, options);
+          else onChange(next);
         }}
       />
     </I18nProvider>
@@ -507,6 +522,116 @@ describe("StoryboardWorkspace interactions", () => {
     expect(position("nested-group")).toEqual({ x: 260, y: 140 });
     expect(position("nested-child")).toEqual({ x: 280, y: 160 });
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves the selected card one layer forward and backward", () => {
+    const initialState: StoryboardState = {
+      ...createDefaultStoryboardState(),
+      nodes: [
+        {
+          id: "back",
+          boardId: "main-storyboard",
+          kind: "note",
+          x: 40,
+          y: 80,
+          zIndex: 1,
+          text: "Hinten",
+        },
+        {
+          id: "middle",
+          boardId: "main-storyboard",
+          kind: "note",
+          x: 80,
+          y: 100,
+          zIndex: 2,
+          text: "Mitte",
+        },
+        {
+          id: "front",
+          boardId: "main-storyboard",
+          kind: "reference",
+          target: { kind: "entity", id: "ada" },
+          x: 120,
+          y: 120,
+          zIndex: 3,
+        },
+      ],
+    };
+    const onChange = vi.fn();
+    render(<Harness initialState={initialState} candidates={[ada]} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Test-middle-auswählen" }));
+    const moveForward = screen.getByRole("button", { name: "Element nach vorne" });
+    const moveBackward = screen.getByRole("button", { name: "Element nach hinten" });
+    expect(moveForward).toBeEnabled();
+    expect(moveBackward).toBeEnabled();
+    expect(screen.getByTestId("storyboard-flow")).toHaveAttribute(
+      "data-elevate-nodes-on-select",
+      "false",
+    );
+
+    fireEvent.click(moveForward);
+    let latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
+    expect(latest.nodes.find(({ id }) => id === "middle")?.zIndex).toBe(2);
+    expect(latest.nodes.find(({ id }) => id === "front")?.zIndex).toBe(1);
+    expect(onChange).toHaveBeenLastCalledWith(latest, { separateHistoryStep: true });
+    expect(screen.getByRole("button", { name: "Element nach vorne" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Element nach hinten" }));
+    latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
+    expect(latest.nodes.find(({ id }) => id === "middle")?.zIndex).toBe(1);
+    expect(latest.nodes.find(({ id }) => id === "front")?.zIndex).toBe(2);
+  });
+
+  it("keeps newly created cards in front while new group frames stay behind them", () => {
+    const initialState: StoryboardState = {
+      ...createDefaultStoryboardState(),
+      nodes: [
+        {
+          id: "existing-back",
+          boardId: "main-storyboard",
+          kind: "note",
+          x: 40,
+          y: 80,
+          zIndex: 20,
+          text: "Hinten",
+        },
+        {
+          id: "existing-front",
+          boardId: "main-storyboard",
+          kind: "note",
+          x: 80,
+          y: 100,
+          zIndex: 40,
+          text: "Vorne",
+        },
+      ],
+    };
+    const onChange = vi.fn();
+    render(<Harness initialState={initialState} candidates={[ada]} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Notiz hinzufügen$/ }));
+    let latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
+    const createdNote = latest.nodes.find(
+      ({ id }) => id !== "existing-back" && id !== "existing-front",
+    );
+    expect(createdNote).toMatchObject({ kind: "note", zIndex: 2 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ada auf dem Storyboard platzieren" }));
+    latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
+    const createdReference = latest.nodes.find(
+      (node) => node.kind === "reference" && node.target.id === "ada",
+    );
+    expect(createdReference).toMatchObject({ zIndex: 3 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Gruppe hinzufügen" }));
+    latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
+    const createdGroup = latest.nodes.find(({ kind }) => kind === "group");
+    expect(createdGroup).toMatchObject({ zIndex: 0 });
+    const cardZIndices = latest.nodes
+      .filter(({ kind }) => kind !== "group")
+      .map(({ zIndex }) => zIndex ?? -1);
+    expect(Math.min(...cardZIndices)).toBeGreaterThan(createdGroup?.zIndex ?? -1);
   });
 
   it("previews every grouped position without persisting or accumulating drift", () => {

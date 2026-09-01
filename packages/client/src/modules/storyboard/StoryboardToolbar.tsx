@@ -1,4 +1,14 @@
-import { Check, Frame, Library, Pencil, Plus, StickyNote, Trash2 } from "lucide-react";
+import {
+  BringToFront,
+  Check,
+  Frame,
+  Library,
+  Pencil,
+  Plus,
+  SendToBack,
+  StickyNote,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   ListboxSelect,
@@ -22,6 +32,9 @@ export type StoryboardToolbarProps = {
   nodeCount: number;
   libraryOpen: boolean;
   hasSelection: boolean;
+  selectionLayer: "card" | "group" | null;
+  canMoveForward: boolean;
+  canMoveBackward: boolean;
   canUndo: boolean;
   canRedo: boolean;
   onSelectBoard: (id: string) => void;
@@ -30,6 +43,8 @@ export type StoryboardToolbarProps = {
   onAddNote: () => void;
   onAddGroup: (label: string) => void;
   onLibraryOpenChange: (open: boolean) => void;
+  onMoveForward: () => void;
+  onMoveBackward: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
   onDeleteSelection: () => void;
@@ -42,6 +57,9 @@ export function StoryboardToolbar({
   nodeCount,
   libraryOpen,
   hasSelection,
+  selectionLayer,
+  canMoveForward,
+  canMoveBackward,
   canUndo,
   canRedo,
   onSelectBoard,
@@ -50,6 +68,8 @@ export function StoryboardToolbar({
   onAddNote,
   onAddGroup,
   onLibraryOpenChange,
+  onMoveForward,
+  onMoveBackward,
   onUndo,
   onRedo,
   onDeleteSelection,
@@ -57,6 +77,12 @@ export function StoryboardToolbar({
   const { t } = useI18n();
   const [boardTitleDraft, setBoardTitleDraft] = useState(currentBoardTitle);
   const [renamingBoard, setRenamingBoard] = useState(false);
+  const moveForwardLabel = t(
+    selectionLayer === "group" ? "storyboardMoveFrameForward" : "storyboardMoveForward",
+  );
+  const moveBackwardLabel = t(
+    selectionLayer === "group" ? "storyboardMoveFrameBackward" : "storyboardMoveBackward",
+  );
 
   useEffect(() => {
     setBoardTitleDraft(currentBoardTitle);
@@ -148,6 +174,22 @@ export function StoryboardToolbar({
             icon={<Library />}
             aria-pressed={libraryOpen}
             onClick={() => onLibraryOpenChange(!libraryOpen)}
+          />
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup label={t("storyboardLayerOrderLabel")}>
+          <ToolbarButton
+            label={moveForwardLabel}
+            collapseAt="medium"
+            icon={<BringToFront />}
+            disabled={!hasSelection || selectionLayer === null || !canMoveForward}
+            onClick={onMoveForward}
+          />
+          <ToolbarButton
+            label={moveBackwardLabel}
+            collapseAt="medium"
+            icon={<SendToBack />}
+            disabled={!hasSelection || selectionLayer === null || !canMoveBackward}
+            onClick={onMoveBackward}
           />
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={t("storyboardHistoryLabel")}>
