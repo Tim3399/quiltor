@@ -47,6 +47,11 @@ export interface EntityAlias {
   [key: string]: unknown;
 }
 
+export interface MapScale {
+  unitsPer100px: number;
+  unitLabel: string;
+}
+
 export interface FigureNode {
   id: string;
   x: number;
@@ -64,6 +69,24 @@ export interface FigureNode {
   aliases?: EntityAlias[];
   mapX?: number;
   mapY?: number;
+  /**
+   * Every place is also a level: opening one shows the surface inside it. These
+   * describe where a place sits on its parent level and how it is drawn there.
+   * All of them are optional, and a world that uses none behaves exactly as it
+   * did before: one root level, nothing expanded, no picture anywhere.
+   */
+  parentPlaceId?: string;
+  /** Position on the parent level, normalised so a resize carries it along. */
+  mapU?: number;
+  mapV?: number;
+  /** Drawn as an area on the parent level rather than as a card. */
+  mapExpanded?: boolean;
+  mapWidth?: number;
+  mapHeight?: number;
+  /** Optional backdrop for this place's own level. */
+  mapImageId?: string;
+  /** What a distance measured inside this place means. */
+  mapScale?: MapScale;
   [key: string]: unknown;
 }
 
@@ -160,7 +183,7 @@ export interface FigureState {
   timeline?: TimelineMoment[];
   presence?: PresenceEntry[];
   canvasSize?: { w: number; h: number };
-  mapScale?: { unitsPer100px: number; unitLabel: string };
+  mapScale?: MapScale;
   timeSystem?: TimeSystem;
   [key: string]: unknown;
 }
