@@ -1,13 +1,14 @@
 import type { NoteReference, WorkspaceTarget } from "../../shared";
 import {
-  chapterBreadcrumb,
   type Chapter,
+  chapterBreadcrumb,
   type EntityMention,
   type Manuscript,
   manuscriptStructure,
   orderedChapters,
 } from "../manuscript";
 import type { FigureNode, FigureState, TimelineMoment } from "../story-world";
+import type { StoryboardNode, StoryboardState } from "../storyboard";
 import type {
   WorldReferenceBacklink,
   WorldReferenceBacklinkIndex,
@@ -23,9 +24,11 @@ const EMPTY_BACKLINKS: readonly WorldReferenceBacklink[] = [];
 export function buildWorldReferenceBacklinks({
   manuscript,
   figures,
+  storyboards,
 }: {
   manuscript: Manuscript;
   figures: FigureState;
+  storyboards?: StoryboardState;
 }): WorldReferenceBacklinkIndex {
   const backlinks = new Map<string, WorldReferenceBacklink[]>();
   const nodesById = new Map(figures.nodes.map((node) => [node.id, node]));
@@ -39,6 +42,7 @@ export function buildWorldReferenceBacklinks({
     const canonicalTarget = canonicalEntityTarget(target, nodesById);
     const backlink: WorldReferenceBacklink = {
       id: JSON.stringify([source.kind, worldReferenceKey(source.target), item.id]),
+      origin: "text",
       target: canonicalTarget,
       source,
       surface: item.surface,
@@ -88,6 +92,29 @@ export function buildWorldReferenceBacklinks({
     }
   }
 
+  if (storyboards) {
+    for (const board of storyboards.boards) {
+      for (const node of storyboards.nodes) {
+        if (node.boardId !== board.id) continue;
+        const source = storyboardSource(node, board.title, "storyboard-note");
+        for (const reference of inTextOrder(node.noteReferences ?? [])) {
+          append(reference.target, source, reference);
+        }
+        if (node.kind !== "reference" && node.kind !== "storyboard") continue;
+        const canonicalTarget = canonicalEntityTarget(node.target, nodesById);
+        const cardSource = storyboardSource(node, board.title, "storyboard-reference");
+        const backlink: WorldReferenceBacklink = {
+          id: JSON.stringify([cardSource.kind, worldReferenceKey(cardSource.target)]),
+          origin: "card",
+          target: canonicalTarget,
+          source: cardSource,
+        };
+        const key = worldReferenceKey(canonicalTarget);
+        backlinks.set(key, [...(backlinks.get(key) ?? []), backlink]);
+      }
+    }
+  }
+
   return backlinks;
 }
 
@@ -96,7 +123,9 @@ export function workspaceTargetForBacklink(
   backlink: WorldReferenceBacklink,
 ): WorkspaceTarget | undefined {
   const target = workspaceTargetForReference(backlink.source.target);
-  if (!target || backlink.source.kind !== "chapter-mention") return target;
+  if (!target || backlink.source.kind !== "chapter-mention" || backlink.origin !== "text") {
+    return target;
+  }
   return {
     ...target,
     textSearch: {
@@ -144,6 +173,22 @@ function timelineSource(moment: TimelineMoment): WorldReferenceBacklinkSource {
     label: moment.title.trim() || moment.id,
     detail: moment.date || moment.note || "",
     kind: "timeline-note",
+  };
+}
+
+function storyboardSource(
+  node: StoryboardNode,
+  boardTitle: string,
+  kind: "storyboard-note" | "storyboard-reference",
+): WorldReferenceBacklinkSource {
+  return {
+    target: { kind: "storyboard", id: node.id },
+    workspace: "storyboard",
+    label: (node.label?.trim() || node.text?.trim() || node.id).replace(/\s+/g, " ").slice(0, 80),
+    detail: boardTitle.trim(),
+    kind,
+    boardId: node.boardId,
+    nodeId: node.id,
   };
 }
 

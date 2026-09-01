@@ -532,9 +532,9 @@ The projection ownership is intentionally split:
 
 Client search may include unsaved drafts because it is a presentation feature.
 The shipped candidate projection includes Storyboard boards and lets note cards
-and search results navigate by stable IDs. It does not yet derive backlinks
-from Storyboard cards; that remains TECH-014 rather than an implied property of
-the draft store.
+and search results navigate by stable IDs. The backlink projection also derives
+Storyboard note references and direct reference cards from the current draft;
+each source keeps its board/node identity so navigation selects the exact card.
 
 Canonical Assistant context is built from committed application state. Before
 an Assistant request, the session either flushes the relevant draft or attaches
@@ -628,9 +628,9 @@ The shipped slice implements this ownership with a dedicated
 `useHistoryState<StoryboardState>`, `useAutosave` lane and
 `StoryboardsGateway`. Storyboard note cards reuse the shared `NoteEditor` and
 Focus Mode while editing the same Storyboard node. Planning changes never enter
-the Story World lane. Backlink extraction from Storyboard cards and Assistant
-planning context remain TECH-014/later work rather than implicit effects of the
-save.
+the Story World lane. Backlink extraction is an explicit, rebuildable client
+projection; Assistant planning context remains later work rather than an
+implicit effect of the save.
 
 ## Assistant acceptance sequence
 

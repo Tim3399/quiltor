@@ -1,4 +1,4 @@
-import { BookOpenText, Clock3, MapPin, UserRound } from "lucide-react";
+import { BookOpenText, Clock3, MapPin, PanelsTopLeft, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { SelectableRow } from "../../../design";
 import { type Translate, useI18n } from "../../../i18n";
@@ -21,6 +21,9 @@ function backlinkKindCopy(
       return { label: t("referenceBacklinkPlace"), icon: <MapPin /> };
     case "timeline-note":
       return { label: t("referenceBacklinkTimeline"), icon: <Clock3 /> };
+    case "storyboard-note":
+    case "storyboard-reference":
+      return { label: t("referenceBacklinkStoryboard"), icon: <PanelsTopLeft /> };
   }
 }
 
@@ -46,15 +49,16 @@ export function FigureBacklinksSection({ figure }: { figure: FigureNode }) {
           {backlinks.map((backlink) => {
             const source = backlinkKindCopy(backlink.source.kind, t);
             const detail = backlink.source.detail.trim();
+            const surface = backlink.origin === "text" ? backlink.surface : "";
             return (
               <li key={backlink.id}>
                 <SelectableRow
                   className="figure-profile-backlink"
-                  label={[source.label, backlink.source.label, detail, backlink.surface]
+                  label={[source.label, backlink.source.label, detail, surface]
                     .filter(Boolean)
                     .join(" – ")}
                   title={backlink.source.label}
-                  description={[detail, `„${backlink.surface}“`].filter(Boolean).join(" · ")}
+                  description={[detail, surface ? `„${surface}“` : ""].filter(Boolean).join(" · ")}
                   metadata={source.label}
                   leading={source.icon}
                   onSelect={() => referenceContext.onOpenBacklink(backlink)}

@@ -1,12 +1,14 @@
 export type {
   NoteReference,
+  StoryboardReferenceSource,
   WorldReferenceBacklink,
   WorldReferenceBacklinkIndex,
   WorldReferenceBacklinkSource,
   WorldReferenceBacklinkSourceKind,
-  StoryboardReferenceSource,
   WorldReferenceCandidate,
+  WorldReferenceCardBacklink,
   WorldReferenceTarget,
+  WorldReferenceTextBacklink,
 } from "./model";
 export { worldReferenceKey } from "./model";
 export {

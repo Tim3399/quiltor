@@ -57,6 +57,7 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
       type?: string;
       data: Record<string, unknown>;
       position: { x: number; y: number };
+      selected?: boolean;
     }>;
     nodeTypes?: Record<string, ComponentType<Record<string, unknown>>>;
     onInit?: (instance: {
@@ -99,6 +100,9 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
           {JSON.stringify(
             nodes.map((node) => ({ id: node.id, x: node.position.x, y: node.position.y })),
           )}
+        </output>
+        <output aria-label="Flow-Auswahl">
+          {JSON.stringify(nodes.filter((node) => node.selected).map((node) => node.id))}
         </output>
         <output aria-label="Flow-Kanten">{JSON.stringify(edges)}</output>
         {nodes.map((node) => {
@@ -200,11 +204,15 @@ function Harness({
   candidates = [],
   onChange = vi.fn(),
   onOpenReference = vi.fn(),
+  targetId,
+  targetRequestId,
 }: {
   initialState?: StoryboardState;
   candidates?: readonly WorldReferenceCandidate[];
   onChange?: (value: StoryboardState) => void;
   onOpenReference?: (target: WorldReferenceTarget) => void;
+  targetId?: string;
+  targetRequestId?: number;
 }) {
   const [state, setState] = useState(initialState);
   return (
@@ -214,6 +222,8 @@ function Harness({
         state={state}
         candidates={candidates}
         onOpenReference={onOpenReference}
+        targetId={targetId}
+        targetRequestId={targetRequestId}
         onChange={(next) => {
           setState(next);
           onChange(next);
@@ -265,6 +275,40 @@ describe("StoryboardWorkspace interactions", () => {
     expect(latest.nodes).toEqual([
       expect.objectContaining({ boardId: latest.boards[1].id, kind: "group" }),
     ]);
+  });
+
+  it("opens the owning board and selects a card targeted by a backlink", () => {
+    const initialState: StoryboardState = {
+      boards: [
+        { id: "main-storyboard", title: "Hauptboard" },
+        { id: "second-board", title: "Zweiter Akt" },
+      ],
+      nodes: [
+        {
+          id: "reference-ada",
+          boardId: "second-board",
+          kind: "reference",
+          target: { kind: "entity", id: "ada" },
+          x: 420,
+          y: 240,
+        },
+      ],
+      edges: [],
+    };
+
+    render(
+      <Harness
+        initialState={initialState}
+        candidates={[ada]}
+        targetId="reference-ada"
+        targetRequestId={1}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Storyboard auswählen" })).toHaveTextContent(
+      "Zweiter Akt",
+    );
+    expect(screen.getByLabelText("Flow-Auswahl")).toHaveTextContent('["reference-ada"]');
   });
 
   it("places a world reference from search and opens its original on double click", () => {

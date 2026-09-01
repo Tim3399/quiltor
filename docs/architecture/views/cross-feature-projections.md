@@ -124,11 +124,12 @@ import the owning feature model. `DraftContext` is bounded, revision-stamped
 and explicit; it cannot silently replace committed state.
 
 The current client candidate index includes Storyboard boards, so global
-search, `@` completion and Storyboard drag/drop share stable targets. Backlinks
-currently cover the shipped Manuscript and Story World note sources only;
-deriving sources from Storyboard cards remains TECH-014. Likewise, Storyboard
-planning text is not part of canonical Assistant context until a later,
-explicitly labelled planning-context use case is implemented.
+search, `@` completion and Storyboard drag/drop share stable targets. The
+derived backlink index now also reads Storyboard note references and direct
+reference cards, retaining board and node IDs so navigation can select the
+exact source card. Storyboard planning text is still not part of canonical
+Assistant context until a later, explicitly labelled planning-context use case
+is implemented.
 
 ## Draft navigation update sequence
 
@@ -208,15 +209,15 @@ events are not exposed as a public client protocol.
 
 ## Current code to target responsibility
 
-| Current code                                                                                               | Target class/responsibility                                                                                 |
-| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `buildWorldReferenceCandidates` (including boards) and current non-Storyboard backlinks in app composition | client `DraftReferenceOverlay` plus canonical reference reader; Storyboard backlink sources remain TECH-014 |
-| separate candidate building in Search                                                                      | canonical index plus affected client `DraftSearchOverlay`                                                   |
-| `NoteReferenceProvider` with aggregate-derived values                                                      | Notes consuming merged canonical/draft reference views                                                      |
-| `KnowledgeChunk` rebuilding in Assistant backend                                                           | `CanonicalAssistantContextBuilder` over committed read models                                               |
-| any client-built Assistant context                                                                         | removed; flush or pass an explicit `DraftContext`                                                           |
-| nested rename detection in `Application.tsx`                                                               | rename policy, transactional index deltas and reviewed workflow                                             |
-| direct workspace-target conversion scattered by feature                                                    | one client `NavigationService` over `WorkspaceTarget`                                                       |
+| Current code                                                                                    | Target class/responsibility                                     |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `buildWorldReferenceCandidates` and `buildWorldReferenceBacklinks` over all three loaded drafts | client `DraftReferenceOverlay` plus canonical reference reader  |
+| separate candidate building in Search                                                           | canonical index plus affected client `DraftSearchOverlay`       |
+| `NoteReferenceProvider` with aggregate-derived values                                           | Notes consuming merged canonical/draft reference views          |
+| `KnowledgeChunk` rebuilding in Assistant backend                                                | `CanonicalAssistantContextBuilder` over committed read models   |
+| any client-built Assistant context                                                              | removed; flush or pass an explicit `DraftContext`               |
+| nested rename detection in `Application.tsx`                                                    | rename policy, transactional index deltas and reviewed workflow |
+| direct workspace-target conversion scattered by feature                                         | one client `NavigationService` over `WorkspaceTarget`           |
 
 Canonical changes travel through the focused application path described in
 [application/persistence](application-and-persistence.md). Assistant-specific

@@ -1,4 +1,6 @@
 import type { Locator, Page, Response } from "@playwright/test";
+import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
+import { encodeStoryWorldDocument } from "./support/application-api";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 function waitForSuccessfulStoryboardWrite(page: Page, payloadMarker: string) {
@@ -182,6 +184,86 @@ test("eine Weltreferenz lässt sich auf den leeren Storyboard-Mittelpunkt ziehen
   await expect(persistedReference.getByRole("textbox", { name: "Notiz zu Ohne Titel" })).toHaveText(
     referenceNote,
   );
+});
+
+test("ein Figuren-Backlink öffnet die exakte Storyboard-Karte", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Die Zielnavigation ist viewport-unabhängig und muss nur einmal laufen.",
+  );
+
+  const world = await createTestWorld(page, `Storyboard Backlink E2E ${crypto.randomUUID()}`);
+  const worldId = encodeURIComponent(world.id);
+  const storyWorldResponse = await page.request.get(`/api/state?world=${worldId}`);
+  const storyWorldRevision = Number(
+    (storyWorldResponse.headers().etag || '"0"').replaceAll('"', ""),
+  );
+  const storyWorldSaved = await page.request.put(`/api/state?world=${worldId}`, {
+    headers: { "If-Match": `"${storyWorldRevision}"` },
+    data: encodeStoryWorldDocument(
+      {
+        nodes: [{ id: "ada", name: "Ada", type: "person", x: 160, y: 180 }],
+        edges: [],
+      },
+      storyWorldRevision,
+    ),
+  });
+  expect(storyWorldSaved.ok()).toBe(true);
+
+  const storyboardResponse = await page.request.get(`/api/storyboards?world=${worldId}`);
+  const storyboardRevision = Number(
+    (storyboardResponse.headers().etag || '"0"').replaceAll('"', ""),
+  );
+  const storyboardSaved = await page.request.put(`/api/storyboards?world=${worldId}`, {
+    headers: { "If-Match": `"${storyboardRevision}"` },
+    data: encodeStoryboardsV1(
+      {
+        boards: [
+          { id: "main-storyboard", title: "Main Storyboard" },
+          { id: "second-board", title: "Zweiter Akt" },
+        ],
+        nodes: [
+          {
+            id: "reference-ada",
+            boardId: "second-board",
+            kind: "reference",
+            target: { kind: "entity", id: "ada" },
+            label: "Ada im Garten",
+            x: 420,
+            y: 240,
+          },
+        ],
+        edges: [],
+      },
+      storyboardRevision,
+    ),
+  });
+  expect(storyboardSaved.ok()).toBe(true);
+
+  await page.goto(`/?world=${worldId}`);
+  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await page.locator(".story-node").filter({ hasText: "Ada" }).click();
+
+  const inspector = page.getByRole("complementary", { name: "Figuren-Inspector" });
+  await inspector.getByRole("tab", { name: "Steckbrief" }).click();
+  const backlink = inspector.getByRole("button", {
+    name: "Storyboard – Ada im Garten – Zweiter Akt",
+    exact: true,
+  });
+  await expect(backlink).toBeVisible();
+  await backlink.click();
+
+  await expect(page.getByRole("button", { name: "Storyboard", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page.getByRole("combobox", { name: "Storyboard auswählen" })).toContainText(
+    "Zweiter Akt",
+  );
+  const selectedCard = page.locator('[data-storyboard-node-kind="reference"].is-selected');
+  await expect(selectedCard).toHaveCount(1);
+  await expect(selectedCard).toContainText("Ada im Garten");
 });
 
 test("Storyboard-Karten lassen sich direkt aus dem Notizinhalt ziehen", async ({

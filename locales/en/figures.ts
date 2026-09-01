@@ -117,6 +117,7 @@ export const figures = {
   referenceBacklinkEntity: "Character or element",
   referenceBacklinkPlace: "Place",
   referenceBacklinkTimeline: "Moment",
+  referenceBacklinkStoryboard: "Storyboard",
   deleteKind: "Delete {kind}",
   placeSinceMoment: "Place since “{title}”",
   placeInitial: "Place (initial state)",

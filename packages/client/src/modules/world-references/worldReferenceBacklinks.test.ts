@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Manuscript } from "../manuscript";
 import type { FigureState } from "../story-world";
+import type { StoryboardState } from "../storyboard";
 import {
   backlinksForWorldReference,
   buildWorldReferenceBacklinks,
@@ -9,6 +10,63 @@ import {
 } from ".";
 
 const entityTarget = { kind: "entity", id: "mara" } as const;
+
+function storyboardFixture(): StoryboardState {
+  return {
+    boards: [
+      { id: "later-board", title: "Spätere Ideen" },
+      { id: "first-board", title: "Erste Ideen" },
+    ],
+    nodes: [
+      {
+        id: "first-board-note",
+        boardId: "first-board",
+        kind: "note",
+        x: 0,
+        y: 0,
+        text: "Mara",
+        noteReferences: [
+          { id: "first-board-ref", target: entityTarget, from: 0, to: 4, surface: "Mara" },
+        ],
+      },
+      {
+        id: "direct-card",
+        boardId: "later-board",
+        kind: "reference",
+        x: 0,
+        y: 0,
+        label: "Mara-Karte",
+        target: entityTarget,
+        text: "später Mara zuerst Mara",
+        noteReferences: [
+          { id: "late-ref", target: entityTarget, from: 19, to: 23, surface: "Mara" },
+          { id: "early-ref", target: entityTarget, from: 7, to: 11, surface: "Mara" },
+        ],
+      },
+      {
+        id: "later-board-note",
+        boardId: "later-board",
+        kind: "note",
+        x: 0,
+        y: 0,
+        text: "Mara im Nebel",
+        noteReferences: [
+          { id: "later-note-ref", target: entityTarget, from: 0, to: 4, surface: "Mara" },
+        ],
+      },
+      {
+        id: "board-card",
+        boardId: "later-board",
+        kind: "storyboard",
+        x: 0,
+        y: 0,
+        label: "Zu den ersten Ideen",
+        target: { kind: "storyboard", id: "first-board" },
+      },
+    ],
+    edges: [],
+  };
+}
 
 function fixture(): { manuscript: Manuscript; figures: FigureState } {
   return {
@@ -219,6 +277,97 @@ describe("world reference backlinks", () => {
       workspace: "text",
       id: "later-in-array",
       textSearch: { query: "Mara", from: 0, to: 4 },
+    });
+  });
+
+  it("indexes Storyboard notes and direct cards in board, node and text order", () => {
+    const data = fixture();
+    data.manuscript = { chapters: [] };
+    data.figures.nodes = data.figures.nodes.filter((node) => node.id === "mara");
+    data.figures.timeline = [];
+
+    const backlinks = backlinksForWorldReference(
+      buildWorldReferenceBacklinks({ ...data, storyboards: storyboardFixture() }),
+      entityTarget,
+    );
+
+    expect(
+      backlinks.map((item) => [item.source.nodeId, item.source.kind, item.origin, item.surface]),
+    ).toEqual([
+      ["direct-card", "storyboard-note", "text", "Mara"],
+      ["direct-card", "storyboard-note", "text", "Mara"],
+      ["direct-card", "storyboard-reference", "card", undefined],
+      ["later-board-note", "storyboard-note", "text", "Mara"],
+      ["first-board-note", "storyboard-note", "text", "Mara"],
+    ]);
+    expect(backlinks.map((item) => item.id)).toEqual([
+      '["storyboard-note","storyboard:direct-card","early-ref"]',
+      '["storyboard-note","storyboard:direct-card","late-ref"]',
+      '["storyboard-reference","storyboard:direct-card"]',
+      '["storyboard-note","storyboard:later-board-note","later-note-ref"]',
+      '["storyboard-note","storyboard:first-board-note","first-board-ref"]',
+    ]);
+    expect(backlinks[0].source).toMatchObject({
+      target: { kind: "storyboard", id: "direct-card" },
+      workspace: "storyboard",
+      label: "Mara-Karte",
+      detail: "Spätere Ideen",
+      boardId: "later-board",
+      nodeId: "direct-card",
+    });
+  });
+
+  it("represents a direct Storyboard card without inventing a text range", () => {
+    const data = fixture();
+    const index = buildWorldReferenceBacklinks({ ...data, storyboards: storyboardFixture() });
+    const card = backlinksForWorldReference(index, entityTarget).find(
+      (item) => item.source.kind === "storyboard-reference",
+    );
+
+    expect(card).toMatchObject({
+      origin: "card",
+      target: entityTarget,
+      source: {
+        target: { kind: "storyboard", id: "direct-card" },
+        boardId: "later-board",
+        nodeId: "direct-card",
+      },
+    });
+    expect(card).not.toHaveProperty("surface");
+    expect(card).not.toHaveProperty("from");
+    expect(card).not.toHaveProperty("to");
+    expect(card && workspaceTargetForBacklink(card)).toEqual({
+      workspace: "storyboard",
+      id: "direct-card",
+    });
+  });
+
+  it("indexes direct board cards and keeps occurrence IDs stable across display renames", () => {
+    const data = fixture();
+    const storyboards = storyboardFixture();
+    const before = buildWorldReferenceBacklinks({ ...data, storyboards }).get(
+      "storyboard:first-board",
+    );
+
+    storyboards.boards[0].title = "Umbenannte Ideen";
+    const boardCard = storyboards.nodes.find((node) => node.id === "board-card");
+    expect(boardCard).toBeDefined();
+    if (boardCard) boardCard.label = "Neues Kartenlabel";
+    const after = buildWorldReferenceBacklinks({ ...data, storyboards }).get(
+      "storyboard:first-board",
+    );
+
+    expect(before).toHaveLength(1);
+    expect(after).toHaveLength(1);
+    expect(after?.[0].id).toBe(before?.[0].id);
+    expect(after?.[0]).toMatchObject({
+      origin: "card",
+      source: {
+        kind: "storyboard-reference",
+        nodeId: "board-card",
+        label: "Neues Kartenlabel",
+        detail: "Umbenannte Ideen",
+      },
     });
   });
 });

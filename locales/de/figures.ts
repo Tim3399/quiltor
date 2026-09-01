@@ -117,6 +117,7 @@ export const figures = {
   referenceBacklinkEntity: "Figur oder Element",
   referenceBacklinkPlace: "Ort",
   referenceBacklinkTimeline: "Zeitpunkt",
+  referenceBacklinkStoryboard: "Storyboard",
   deleteKind: "{kind} löschen",
   placeSinceMoment: "Ort ab „{title}“",
   placeInitial: "Ort (Ausgangslage)",

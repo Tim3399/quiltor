@@ -177,6 +177,7 @@ describe("FigureInspector panels", () => {
         [
           {
             id: "chapter-note:c1:ada:0",
+            origin: "text",
             target: { kind: "entity", id: "ada" },
             source: {
               target: { kind: "chapter", id: "c1" },
@@ -188,6 +189,20 @@ describe("FigureInspector panels", () => {
             surface: "Ada",
             from: 4,
             to: 7,
+          },
+          {
+            id: "storyboard-reference:reference-ada",
+            origin: "card",
+            target: { kind: "entity", id: "ada" },
+            source: {
+              target: { kind: "storyboard", id: "reference-ada" },
+              workspace: "storyboard",
+              label: "Begegnung im Garten",
+              detail: "Akt I",
+              kind: "storyboard-reference",
+              boardId: "board-act-one",
+              nodeId: "reference-ada",
+            },
           },
         ],
       ],
@@ -215,6 +230,19 @@ describe("FigureInspector panels", () => {
 
     fireEvent.click(source);
     expect(onOpenReference).toHaveBeenCalledWith({ kind: "chapter", id: "c1" });
+
+    const storyboardSource = screen.getByRole("button", {
+      name: "Storyboard – Begegnung im Garten – Akt I",
+    });
+    expect(storyboardSource).toHaveTextContent("Begegnung im Garten");
+    expect(storyboardSource).toHaveTextContent("Storyboard");
+    expect(storyboardSource).not.toHaveTextContent("„“");
+
+    fireEvent.click(storyboardSource);
+    expect(onOpenReference).toHaveBeenLastCalledWith({
+      kind: "storyboard",
+      id: "reference-ada",
+    });
   });
 
   it("keeps the profile backlink empty state calm and explicit", () => {

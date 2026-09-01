@@ -331,8 +331,8 @@ Then extend extraction as new state dimensions become available.
 ## Next delivery after P0
 
 Hierarchical chapter organization, the Figure / entity workspace overhaul and the first usable
-**P1 Storyboard** slice are complete. Storyboard backlink sources, explicit overlap ordering and
-the deliberately bounded AI planning features remain open below.
+**P1 Storyboard** slice are complete. Explicit overlap ordering and the deliberately bounded AI
+planning features remain open below.
 
 ---
 
@@ -378,12 +378,12 @@ Notes should become a first-class writer workflow, not small textareas scattered
 
 ## Backlinks
 
-- [ ] Show where an object is referenced:
+- [x] Show where an object is referenced across every currently shipped source:
   - [x] notes;
-  - [ ] storyboard cards;
+  - [x] storyboard cards;
   - [x] chapters/mentions;
   - [x] timeline;
-  - [ ] other future supported objects.
+- [x] Require future reference-capable objects to join the same derived backlink index.
 - [x] Do not require AI to generate backlinks.
 
 ---
@@ -417,7 +417,7 @@ The current figure profile is useful but too prescriptive and the notes area is 
 
 - [x] Add reference/backlink section.
 - [x] Keep relationships and timeline history directly reachable.
-- [ ] Consider an entity-centric view of relevant storyboard cards after Storyboard exists.
+- [x] Add an entity-centric view of relevant storyboard cards through backlinks.
 
 ---
 
@@ -430,15 +430,14 @@ Storyboard is not a second canon system and not a generic drawing application.
 The first usable workspace slice shipped on 30 August 2026 with independent
 history/autosave, multiple boards, all four v1 node types, shared Note cards,
 search/drag references, connections and navigation breadcrumbs. Explicit
-front/back controls, dragging a newly created Note from a palette, Storyboard
-backlinks and AI planning context remain intentionally open; checked items do
-not imply those later slices.
+front/back controls, dragging a newly created Note from a palette and AI
+planning context remain intentionally open; checked items do not imply those
+later slices.
 
-The real browser acceptance now creates an isolated world and a second board,
-edits a Note, observes the Storyboard save, reloads the app and verifies the
-persisted board/content before fixture cleanup. Browser coverage for reference
-drag/open, board-link breadcrumbs, connections and moved-node positions remains
-open alongside the unimplemented ordering and palette interactions.
+Real browser acceptance creates isolated worlds for board/Note persistence,
+reference drag/open, connections and moved-node positions. Backlink coverage
+also opens an entity profile, follows a Storyboard source and verifies the exact
+board and selected card. Explicit ordering and palette interactions remain open.
 
 ## Core canvas
 

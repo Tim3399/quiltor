@@ -19,23 +19,49 @@ const changedStoryboard: StoryboardState = {
   ],
 };
 
-vi.mock("./WorkspaceSurface", () => ({
-  WorkspaceSurface: ({
-    workspace,
-    storyboardHistory,
-  }: {
-    workspace: string;
-    storyboardHistory: { change: (value: StoryboardState) => void };
-  }) => (
-    <section aria-label={`Test-Arbeitsbereich ${workspace}`}>
-      {workspace === "storyboard" && (
-        <button type="button" onClick={() => storyboardHistory.change(changedStoryboard)}>
-          Storyboard-Teständerung
-        </button>
-      )}
-    </section>
-  ),
-}));
+const storyboardWithBacklink: StoryboardState = {
+  ...createDefaultStoryboardState(),
+  nodes: [
+    {
+      id: "reference-ada",
+      boardId: "main-storyboard",
+      kind: "reference",
+      target: { kind: "entity", id: "ada" },
+      x: 40,
+      y: 60,
+    },
+  ],
+};
+
+vi.mock("./WorkspaceSurface", async () => {
+  const { useNoteReferenceContext } = await import("../../modules/notes");
+  const { backlinksForWorldReference } = await import("../../modules/world-references");
+  return {
+    WorkspaceSurface: ({
+      workspace,
+      storyboardHistory,
+    }: {
+      workspace: string;
+      storyboardHistory: { change: (value: StoryboardState) => void };
+    }) => {
+      const references = useNoteReferenceContext();
+      const adaBacklinks = backlinksForWorldReference(references.backlinks, {
+        kind: "entity",
+        id: "ada",
+      });
+      return (
+        <section aria-label={`Test-Arbeitsbereich ${workspace}`}>
+          <span data-testid="ada-backlinks">{adaBacklinks.length}</span>
+          {workspace === "storyboard" && (
+            <button type="button" onClick={() => storyboardHistory.change(changedStoryboard)}>
+              Storyboard-Teständerung
+            </button>
+          )}
+        </section>
+      );
+    },
+  };
+});
 
 vi.mock("../overlays/OverlayHost", () => ({ OverlayHost: () => null }));
 
@@ -68,11 +94,11 @@ describe("Application Storyboard integration", () => {
     vi.spyOn(quiltorClient.application.worlds, "open").mockResolvedValue({ ok: true, world });
     vi.spyOn(quiltorClient.application.manuscript, "load").mockResolvedValue({ chapters: [] });
     vi.spyOn(quiltorClient.application.storyWorld, "load").mockResolvedValue({
-      nodes: [],
+      nodes: [{ id: "ada", name: "Ada", type: "person", x: 0, y: 0 }],
       edges: [],
     });
     vi.spyOn(quiltorClient.application.storyboards, "load").mockResolvedValue(
-      createDefaultStoryboardState(),
+      storyboardWithBacklink,
     );
     const saveStoryboards = vi
       .spyOn(quiltorClient.application.storyboards, "save")
@@ -99,6 +125,7 @@ describe("Application Storyboard integration", () => {
     );
 
     const storyboardTab = await screen.findByRole("button", { name: "Storyboard" });
+    expect(screen.getByTestId("ada-backlinks")).toHaveTextContent("1");
     fireEvent.click(storyboardTab);
     expect(storyboardTab).toHaveAttribute("aria-current", "page");
     fireEvent.click(screen.getByRole("button", { name: "Storyboard-Teständerung" }));

@@ -79,13 +79,14 @@ export function App() {
   );
   const noteReferenceBacklinks = useMemo(
     (): WorldReferenceBacklinkIndex =>
-      manuscript && figures
+      manuscript && figures && storyboards
         ? buildWorldReferenceBacklinks({
             manuscript,
             figures,
+            storyboards,
           })
         : new Map(),
-    [figures, manuscript],
+    [figures, manuscript, storyboards],
   );
   const openNoteReference = useCallback(
     (target: Parameters<typeof workspaceTargetForReference>[0]) => {
