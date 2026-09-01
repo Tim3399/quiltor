@@ -119,8 +119,8 @@ describe("Storyboard node notes", () => {
     expect(note).not.toHaveClass("nowheel");
     expect(note).not.toHaveClass("nodrag");
     expect(note).not.toHaveClass("nopan");
-    // The editor control carries the resize grip. A pointer press on it must not
-    // reach the canvas, or the card is dragged away under the resize gesture.
+    // A drag inside the editor selects text. Reaching the canvas, the same press
+    // would pull the card out from under the selection instead.
     expect(textbox.closest(".nodrag")).toHaveClass("storyboard-note-control", "nopan");
 
     const header = card.querySelector(".storyboard-node__header");

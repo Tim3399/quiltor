@@ -161,6 +161,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
           isNoteCard ? t("storyboardNotePlaceholder") : t("storyboardNodeNotePlaceholder")
         }
         size="compact"
+        fill={isNoteCard}
         rows={isNoteCard ? undefined : 1}
         labelHidden
         fieldClassName="storyboard-node-note-field nodrag nopan"

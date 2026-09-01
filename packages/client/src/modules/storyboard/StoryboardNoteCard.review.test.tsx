@@ -91,8 +91,12 @@ describe("Storyboard note-card UX contract", () => {
     expect(interactionSurface).not.toHaveClass("nowheel");
     expect(interactionSurface).not.toHaveClass("nodrag");
     expect(interactionSurface).not.toHaveClass("nopan");
-    // The resize grip lives on this control. Left reachable by the canvas, a drag
-    // on it moves the card and resizes the field at the same time.
+    // The card owns the note's height, so the editor takes all of it -- sizing to
+    // its own content would leave a tall card mostly empty and give the reader
+    // nowhere to aim. There is no second grip on the note for the same reason.
+    expect(textbox.closest(".note-editor")).toHaveClass("note-editor--fill");
+    // Selecting note text is a drag. Left reachable by the canvas, it moves the
+    // card instead of marking a word.
     expect(textbox.closest(".nodrag")).toHaveClass("storyboard-note-control", "nopan");
     expect(screen.getByRole("button", { name: "Notiz im Fokus öffnen" })).toHaveClass(
       "nodrag",

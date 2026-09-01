@@ -11,6 +11,28 @@
   min-width: 0;
 }
 
+/* A host that gives the editor a definite height -- a storyboard card, say -- wants
+   the control to take all of it. The height has to be carried down by hand: each
+   wrapper between the section and the control sizes to its content otherwise, and
+   a percentage height on the control alone resolves against nothing. */
+.note-editor--fill,
+.note-editor--fill .note-editor__field,
+.note-editor--fill .note-editor__body {
+  height: 100%;
+  min-height: 0;
+}
+
+/* Column flex rather than the field's grid, so the body takes whatever the label
+   and any messages leave, however many of them a host asks for. */
+.note-editor--fill .note-editor__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.note-editor--fill .note-editor__body {
+  flex: 1;
+}
+
 .note-editor__control {
   width: 100%;
   height: var(--space-48);

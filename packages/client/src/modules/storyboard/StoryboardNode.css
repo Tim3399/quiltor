@@ -100,13 +100,15 @@
   flex: none;
 }
 
+/* The card owns this note's space, so the card resizes it -- the note fills it and
+   NodeResizer is the one gesture that sizes both. The editor's own grip is dropped
+   here rather than left as a second one: it writes an inline height that outranks
+   the 100% below, so one pull would stop the note following the card for the rest
+   of the session, and it would be forgotten on reload while the card's size is
+   kept. The 48px floor comes from .note-editor__control. */
 .storyboard-note-control {
   height: 100%;
-  /* Fills the card by default, but the floor stays the editor's own minimum: a
-     min-height of 100% would pin the field to the card and leave the resize grip
-     able to grow it and never shrink it back. */
-  min-height: var(--space-48);
-  resize: vertical;
+  resize: none;
 }
 
 .storyboard-node-note-field {

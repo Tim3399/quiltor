@@ -20,6 +20,7 @@ export function NoteEditor({
   onChange,
   placeholder,
   size = "comfortable",
+  fill = false,
   rows,
   labelHidden = false,
   fieldClassName = "",
@@ -37,6 +38,8 @@ export function NoteEditor({
   onChange: (value: string, references: NoteReference[], marks: NoteMark[]) => void;
   placeholder?: string;
   size?: "compact" | "comfortable";
+  /** Take the full height the host gives the editor, instead of sizing to content. */
+  fill?: boolean;
   rows?: number;
   labelHidden?: boolean;
   fieldClassName?: string;
@@ -62,7 +65,10 @@ export function NoteEditor({
   const ariaLabel = typeof label === "string" ? label : focus?.editorLabel || ownerKey;
 
   return (
-    <section className={`note-editor note-editor--${size}`} data-note-owner={ownerKey}>
+    <section
+      className={`note-editor note-editor--${size} ${fill ? "note-editor--fill" : ""}`.trim()}
+      data-note-owner={ownerKey}
+    >
       <ReferenceTextEditor
         fieldClassName={fieldClassName}
         formatActionClassName={formatActionClassName}

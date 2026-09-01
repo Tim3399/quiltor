@@ -181,7 +181,7 @@ describe("Storyboard workspace review guards", () => {
       /\.storyboard-node__body\s*\{[^}]*min-height:\s*0;[^}]*display:\s*flex;[^}]*flex:\s*1;[^}]*touch-action:\s*none;/s,
     );
     expect(nodeCss).toMatch(
-      /\.storyboard-note-control\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*var\(--space-48\);[^}]*resize:\s*vertical;/s,
+      /\.storyboard-note-control\s*\{[^}]*height:\s*100%;[^}]*resize:\s*none;/s,
     );
 
     for (const file of [
