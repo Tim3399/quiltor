@@ -13,7 +13,7 @@ This is **self-attested**. We don't audit revenue or headcount. If you're unsure
 
 ## Getting a commercial license
 
-Write to [licensing@quiltor.app](mailto:licensing@quiltor.app) with a short description of your organization and intended use. We'll work out terms individually — there's no fixed price list, and licensing is at our discretion.
+Write to [tim.ratermann@outlook.de](tim.ratermann@outlook.de) with a short description of your organization and intended use. We'll work out terms individually — there's no fixed price list, and licensing is at our discretion.
 
 ## Not legal advice
 
