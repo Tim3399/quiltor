@@ -102,7 +102,10 @@
 
 .storyboard-note-control {
   height: 100%;
-  min-height: 100%;
+  /* Fills the card by default, but the floor stays the editor's own minimum: a
+     min-height of 100% would pin the field to the card and leave the resize grip
+     able to grow it and never shrink it back. */
+  min-height: var(--space-48);
   resize: vertical;
 }
 

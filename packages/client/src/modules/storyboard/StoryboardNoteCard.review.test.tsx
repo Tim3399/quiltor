@@ -74,13 +74,15 @@ describe("Storyboard note-card UX contract", () => {
     expect(card).toBeInTheDocument();
     expect(card).not.toHaveClass("nodrag");
     expect(card?.closest(".nowheel")).toBeNull();
-    expect(card?.querySelector(".nowheel")).toBeNull();
     expect(card).not.toHaveTextContent(/Freie Planung|nicht Teil des Kanons/i);
     const header = card?.querySelector(".storyboard-node__header");
     expect(header?.closest(".nodrag")).toBeNull();
     const body = card?.querySelector(".storyboard-node__body");
     expect(body).toHaveClass("scroll-area");
-    expect(body).not.toHaveClass("nowheel");
+    // The card scrolls its own body under the wheel; the canvas zoom would
+    // otherwise swallow the event and the note could never be scrolled.
+    expect(body).toHaveClass("nowheel");
+    // Still draggable by its padding, so the card does not lose its grip.
     expect(body).not.toHaveClass("nodrag");
     expect(body).not.toHaveClass("nopan");
     const textbox = screen.getByRole("textbox", { name: "Storyboard-Notiz" });
@@ -89,7 +91,9 @@ describe("Storyboard note-card UX contract", () => {
     expect(interactionSurface).not.toHaveClass("nowheel");
     expect(interactionSurface).not.toHaveClass("nodrag");
     expect(interactionSurface).not.toHaveClass("nopan");
-    expect(textbox.closest(".nodrag")).toBeNull();
+    // The resize grip lives on this control. Left reachable by the canvas, a drag
+    // on it moves the card and resizes the field at the same time.
+    expect(textbox.closest(".nodrag")).toHaveClass("storyboard-note-control", "nopan");
     expect(screen.getByRole("button", { name: "Notiz im Fokus öffnen" })).toHaveClass(
       "nodrag",
       "nopan",

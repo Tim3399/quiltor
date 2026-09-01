@@ -9,6 +9,15 @@
     radial-gradient(ellipse at 14% 18%, var(--editor-paper-mottle) 0, var(--transparent) 43%),
     radial-gradient(ellipse at 82% 74%, var(--editor-paper-lift) 0, var(--transparent) 39%);
   background-blend-mode: normal, soft-light, normal, normal;
+  /* The fibre texture is a tile and repeats. The two mottle ellipses are single
+     washes over the whole sheet, and both declarations below matter: each ellipse
+     is wider than a 73rem/67rem box, so repeating restarts it at the box edge and
+     a box smaller than the surface clips it there even when it does not repeat.
+     Either one leaves a hard vertical seam mid-page, at 73rem and at 48px + 67rem,
+     where the wash drops from most of its opacity to nothing. Only the light theme
+     shows it: --material-paper-texture-veil is near-opaque in the dark theme and
+     covers the layers under it, and carries zero alpha in the light one. */
+  background-repeat: repeat, repeat, no-repeat, no-repeat;
   background-position:
     0 0,
     0 0,
@@ -17,8 +26,8 @@
   background-size:
     auto,
     640px 640px,
-    73rem 61rem,
-    67rem 71rem;
+    100% 100%,
+    100% 100%;
 }
 .editor-page {
   width: min(100% - 64px, 760px);

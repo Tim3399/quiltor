@@ -750,7 +750,7 @@ test("ein Figuren-Backlink öffnet die exakte Storyboard-Karte", async ({ page }
   await expect(selectedCard).toContainText("Ada im Garten");
 });
 
-test("Storyboard-Karten lassen sich direkt aus dem Notizinhalt ziehen", async ({
+test("Storyboard-Karten werden am Kopf gezogen, der Notizinhalt bleibt Bedienfläche", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -793,8 +793,15 @@ test("Storyboard-Karten lassen sich direkt aus dem Notizinhalt ziehen", async ({
     ),
   ).toBe(true);
 
-  const moved = waitForSuccessfulStoryboardWrite(page, `"id":"${placedNode.id}"`);
+  // The note owns its own pointer: the editor is scrollable and carries the
+  // resize grip, so a drag that starts inside it must not take the card along.
   await dragBy(page, noteContent, 120, 80);
+  await expect
+    .poll(async () => (await referenceCard.boundingBox())?.x ?? -1)
+    .toBeCloseTo(cardBeforeDrag.x, 0);
+
+  const moved = waitForSuccessfulStoryboardWrite(page, `"id":"${placedNode.id}"`);
+  await dragBy(page, referenceCard.locator(".storyboard-node__header"), 120, 80);
   const moveResponse = await moved;
   const movedNode = writtenStoryboard(moveResponse).payload.nodes.find(
     (node) => node.id === placedNode.id,
@@ -823,7 +830,7 @@ test("Storyboard-Karten lassen sich direkt aus dem Notizinhalt ziehen", async ({
   });
 });
 
-test("das Mausrad zoomt auch über dem Inhalt einer Storyboard-Karte", async ({
+test("das Mausrad scrollt den Inhalt einer Storyboard-Karte, statt zu zoomen", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -831,7 +838,7 @@ test("das Mausrad zoomt auch über dem Inhalt einer Storyboard-Karte", async ({
     "Der Mausradpfad muss nur einmal in einem stabilen Desktop-Viewport laufen.",
   );
 
-  const world = await createTestWorld(page, `Storyboard Wheel Zoom E2E ${crypto.randomUUID()}`);
+  const world = await createTestWorld(page, `Storyboard Wheel Scroll E2E ${crypto.randomUUID()}`);
   await openStoryboard(page, world.id);
 
   const saved = waitForSuccessfulStoryboardWrite(page, '"kind":"note"');
@@ -841,22 +848,78 @@ test("das Mausrad zoomt auch über dem Inhalt einer Storyboard-Karte", async ({
     .click();
   expect((await saved).ok()).toBe(true);
 
-  const cardBody = page.locator('[data-storyboard-node-kind="note"] .storyboard-node__body');
+  const card = page.locator('[data-storyboard-node-kind="note"]');
+  const cardBody = card.locator(".storyboard-node__body");
   await expect(cardBody).toBeVisible();
 
-  const initialZoom = await storyboardViewportZoom(page);
-  await page.locator(".storyboard-flow .react-flow__controls-zoomout").click();
-  await expect.poll(() => storyboardViewportZoom(page)).toBeLessThan(initialZoom - 0.01);
+  // A note taller than its card, so that there is something to scroll at all.
+  await card
+    .getByRole("textbox", { name: "Storyboard-Notiz" })
+    .fill(Array.from({ length: 40 }, (_, index) => `Zeile ${index + 1}`).join("\n"));
+  await expect
+    .poll(() =>
+      card.evaluate((node) =>
+        Math.max(
+          ...[...node.querySelectorAll(".storyboard-node__body, .cm-scroller")].map(
+            (element) => element.scrollHeight - element.clientHeight,
+          ),
+          0,
+        ),
+      ),
+    )
+    .toBeGreaterThan(0);
 
   const zoomBefore = await storyboardViewportZoom(page);
   await cardBody.hover();
-  await page.mouse.wheel(0, -480);
+  await page.mouse.wheel(0, 240);
 
+  // The card reads the wheel itself. Zooming here would leave the note
+  // permanently unreadable past its own bottom edge.
+  await expect
+    .poll(
+      () =>
+        card.evaluate((node) =>
+          Math.max(
+            ...[...node.querySelectorAll(".storyboard-node__body, .cm-scroller")].map(
+              (element) => element.scrollTop,
+            ),
+            0,
+          ),
+        ),
+      {
+        message: "Das Mausrad über dem Karteninhalt soll die Karte scrollen.",
+      },
+    )
+    .toBeGreaterThan(0);
+  expect(await storyboardViewportZoom(page)).toBeCloseTo(zoomBefore, 2);
+
+  // Everywhere else the canvas keeps its wheel zoom. Outwards, because the board
+  // opens at its maximum zoom and has no room left to come closer.
+  const pane = page.locator(".storyboard-flow .react-flow__pane");
+  const paneBounds = await pane.boundingBox();
+  if (!paneBounds) throw new Error("Storyboard pane has no browser bounds");
+  const freePoint = {
+    x: paneBounds.x + Math.round(paneBounds.width * 0.68),
+    y: paneBounds.y + Math.round(paneBounds.height * 0.26),
+  };
+  expect(
+    await page.evaluate(({ x, y }) => {
+      const target = document.elementFromPoint(x, y);
+      return Boolean(
+        target?.closest(".react-flow__pane") &&
+          !target.closest(
+            ".storyboard-empty-state, .storyboard-breadcrumb-panel, .react-flow__controls, .react-flow__minimap",
+          ),
+      );
+    }, freePoint),
+  ).toBe(true);
+  await page.mouse.move(freePoint.x, freePoint.y);
+  await page.mouse.wheel(0, 480);
   await expect
     .poll(() => storyboardViewportZoom(page), {
-      message: "Mausrad-Zoom soll den ReactFlow-Viewport auch über dem Karteninhalt erreichen.",
+      message: "Über der freien Fläche muss das Rad weiterhin den Canvas zoomen.",
     })
-    .toBeGreaterThan(zoomBefore + 0.01);
+    .toBeLessThan(zoomBefore - 0.01);
 });
 
 test("überlappende Storyboard-Karten behalten ihre Vorder- und Hintergrundreihenfolge", async ({

@@ -98,12 +98,14 @@ describe("Storyboard node notes", () => {
     expect(card).toBeInTheDocument();
     if (!card) throw new Error(`${kind} card missing`);
     expect(card.closest(".nowheel")).toBeNull();
-    expect(card.querySelector(".nowheel")).toBeNull();
     const textbox = within(card).getByRole("textbox", { name: `Notiz zu ${label}` });
     const body = textbox.closest(".storyboard-node__body");
     expect(body).toBeInTheDocument();
     expect(body).toHaveClass("scroll-area");
-    expect(body).not.toHaveClass("nowheel");
+    // The wheel belongs to the card's own scroller here. Without nowheel the
+    // canvas zooms instead and the body can never be scrolled at all.
+    expect(body).toHaveClass("nowheel");
+    // Dragging stays on: the card is still moved by grabbing its padding.
     expect(body).not.toHaveClass("nodrag");
     expect(body).not.toHaveClass("nopan");
     expect(body).toHaveAttribute("data-axis", "y");
@@ -117,7 +119,9 @@ describe("Storyboard node notes", () => {
     expect(note).not.toHaveClass("nowheel");
     expect(note).not.toHaveClass("nodrag");
     expect(note).not.toHaveClass("nopan");
-    expect(textbox.closest(".nodrag")).toBeNull();
+    // The editor control carries the resize grip. A pointer press on it must not
+    // reach the canvas, or the card is dragged away under the resize gesture.
+    expect(textbox.closest(".nodrag")).toHaveClass("storyboard-note-control", "nopan");
 
     const header = card.querySelector(".storyboard-node__header");
     expect(header).toBeInTheDocument();
@@ -125,7 +129,7 @@ describe("Storyboard node notes", () => {
 
     const focusButton = within(card).getByRole("button", { name: "Notiz im Fokus öffnen" });
     expect(focusButton).toHaveClass("nodrag", "nopan");
-    expect(focusButton.closest(".nowheel")).toBeNull();
+    expect(focusButton).not.toHaveClass("nowheel");
 
     const openButton = card.querySelector(".storyboard-node__open");
     if (kind === "reference" || kind === "storyboard") {

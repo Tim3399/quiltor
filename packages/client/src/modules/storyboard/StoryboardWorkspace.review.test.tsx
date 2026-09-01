@@ -98,14 +98,17 @@ describe("Storyboard workspace review guards", () => {
     const noteCard = document.querySelector('[data-storyboard-node-kind="note"]');
     expect(noteCard).toBeInTheDocument();
     expect(noteCard?.closest(".nowheel")).toBeNull();
-    expect(noteCard?.querySelector(".nowheel")).toBeNull();
+    // The card body claims the wheel so it can scroll; the canvas zoom would
+    // otherwise consume it and leave the note unscrollable.
+    expect(noteCard?.querySelector(".storyboard-node__body")).toHaveClass("nowheel");
     expect(noteCard).not.toHaveTextContent(/Freie Planung|nicht Teil des Kanons/i);
     const textbox = screen.getByRole("textbox", { name: "Storyboard-Notiz" });
     expect(document.querySelector(`label[for="${textbox.id}"]`)).toHaveClass("sr-only");
     const note = textbox.closest(".storyboard-node__note");
     expect(note).not.toHaveClass("nodrag");
     expect(note).not.toHaveClass("nopan");
-    expect(textbox.closest(".nodrag")).toBeNull();
+    // The control carries the resize grip and must keep the pointer to itself.
+    expect(textbox.closest(".nodrag")).toHaveClass("storyboard-note-control", "nopan");
     expect(screen.getByRole("button", { name: "Notiz im Fokus öffnen" })).toHaveClass(
       "nodrag",
       "nopan",
@@ -178,7 +181,7 @@ describe("Storyboard workspace review guards", () => {
       /\.storyboard-node__body\s*\{[^}]*min-height:\s*0;[^}]*display:\s*flex;[^}]*flex:\s*1;[^}]*touch-action:\s*none;/s,
     );
     expect(nodeCss).toMatch(
-      /\.storyboard-note-control\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*100%;[^}]*resize:\s*vertical;/s,
+      /\.storyboard-note-control\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*var\(--space-48\);[^}]*resize:\s*vertical;/s,
     );
 
     for (const file of [

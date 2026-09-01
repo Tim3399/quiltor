@@ -18,7 +18,7 @@ export const storyboardNodeTypes = { storyboard: StoryboardCanvasNode };
 function StoryboardNodeBody({ children }: { children: ReactNode }) {
   return (
     <ScrollArea
-      className="storyboard-node__body"
+      className="storyboard-node__body nowheel"
       axis="y"
       gutter="auto"
       overscroll="contain"
@@ -163,9 +163,9 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
         size="compact"
         rows={isNoteCard ? undefined : 1}
         labelHidden
-        fieldClassName="storyboard-node-note-field"
+        fieldClassName="storyboard-node-note-field nodrag nopan"
         formatActionClassName="nodrag nopan"
-        className="storyboard-note-control"
+        className="storyboard-note-control nodrag nopan"
         focus={{
           openLabel: t("storyboardNoteFocusOpen"),
           title: isNoteCard
