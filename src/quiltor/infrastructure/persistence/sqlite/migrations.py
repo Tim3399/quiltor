@@ -235,6 +235,29 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
                 """,
                 (DEFAULT_STORYBOARD_ID, DEFAULT_STORYBOARD_TITLE),
             )
+    if version < 12:
+        # The bootstrap script already creates the table for every database it
+        # opens; repeating it here keeps the step readable on its own and costs
+        # nothing, and the index is what makes the unreferenced-image sweep at
+        # save time a scan of dates rather than of image bytes.
+        database.execute(
+            """
+            CREATE TABLE IF NOT EXISTS place_map_images (
+              -- The id is the lowercase SHA-256 of `data`: one row per
+              -- distinct map, and a served image that may be cached forever.
+              id TEXT PRIMARY KEY,
+              mime TEXT NOT NULL CHECK (mime IN ('image/png','image/jpeg','image/webp')),
+              width INTEGER NOT NULL CHECK (width > 0),
+              height INTEGER NOT NULL CHECK (height > 0),
+              byte_size INTEGER NOT NULL CHECK (byte_size > 0),
+              created_at TEXT NOT NULL,
+              data BLOB NOT NULL
+            )
+            """
+        )
+        database.execute(
+            "CREATE INDEX IF NOT EXISTS place_map_images_created ON place_map_images(created_at)"
+        )
     database.execute(
         "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",
         (str(SCHEMA_VERSION),),

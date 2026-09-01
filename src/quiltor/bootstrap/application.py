@@ -13,6 +13,7 @@ from quiltor.application.assistant import AssistantAuditUseCases
 from quiltor.application.backups import BackupUseCases
 from quiltor.application.capabilities import FeatureAvailability
 from quiltor.application.documents import DocumentUseCases
+from quiltor.application.place_maps import PlaceMapUseCases
 from quiltor.application.history import HistoryUseCases
 from quiltor.application.story_world import StoryWorldReadTools, StoryWorldUseCases
 from quiltor.application.telemetry import UseCaseObserver
@@ -46,6 +47,7 @@ from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.infrastructure.persistence.assistant_progress import SQLiteAssistantProgressStore
 from quiltor.infrastructure.persistence.adapters.backups import SQLiteBackupRepository
 from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocumentRepository
+from quiltor.infrastructure.persistence.adapters.place_maps import SQLitePlaceMapRepository
 from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
 from quiltor.infrastructure.platform.feature_availability import (
@@ -91,6 +93,7 @@ class ApplicationServices:
 
     worlds: WorldUseCases
     documents: DocumentUseCases
+    place_maps: PlaceMapUseCases
     backups: BackupUseCases
     history: HistoryUseCases
     assistant: AssistantAuditUseCases
@@ -147,6 +150,7 @@ def build_application_services(
     return ApplicationServices(
         worlds=WorldUseCases(worlds, observer),
         documents=DocumentUseCases(documents, local_backups, observer),
+        place_maps=PlaceMapUseCases(SQLitePlaceMapRepository()),
         backups=BackupUseCases(
             worlds,
             documents,

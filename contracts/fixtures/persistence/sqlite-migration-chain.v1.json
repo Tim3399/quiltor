@@ -2,7 +2,7 @@
   "contract": "quiltor.sqlite-migrations",
   "version": 1,
   "baselineSchemaVersion": 1,
-  "currentSchemaVersion": 11,
+  "currentSchemaVersion": 12,
   "direction": "forward-only",
   "steps": [
     {
@@ -63,6 +63,13 @@
       "to": 11,
       "guarantees": [
         "Adds an independently revisioned non-canon Storyboard document and one stable default Main Storyboard without changing manuscript, story-world, or existing world data."
+      ]
+    },
+    {
+      "from": 11,
+      "to": 12,
+      "guarantees": [
+        "Adds content-addressed storage for place map images inside the world database, so that backup, history, and restore carry them without a manifest change, and without touching document revisions or existing world data."
       ]
     }
   ]

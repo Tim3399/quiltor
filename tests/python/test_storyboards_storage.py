@@ -200,7 +200,8 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
 
         schema.initialize(self.database)
 
-        self.assertEqual(schema.SCHEMA_VERSION, 11)
+        # A v10 database is brought all the way to the current tip, not to 11.
+        self.assertGreaterEqual(schema.SCHEMA_VERSION, 11)
         with sqlite_connection(self.database) as upgraded:
             tables = {
                 row[0]
@@ -208,7 +209,7 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
             }
             self.assertTrue({"storyboards", "storyboard_nodes", "storyboard_edges"} <= tables)
             metadata = dict(upgraded.execute("SELECT key,value FROM meta"))
-            self.assertEqual(metadata["schema_version"], "11")
+            self.assertEqual(metadata["schema_version"], str(schema.SCHEMA_VERSION))
             self.assertEqual(metadata["manuscript_revision"], "17")
             self.assertEqual(metadata["figures_revision"], "41")
             self.assertEqual(metadata["storyboards_revision"], "0")
@@ -236,12 +237,13 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
                 / "sqlite-migration-chain.v1.json"
             ).read_text(encoding="utf-8")
         )
-        self.assertEqual(contract["currentSchemaVersion"], 11)
-        self.assertEqual(
-            (contract["steps"][-1]["from"], contract["steps"][-1]["to"]),
-            (10, 11),
+        self.assertEqual(contract["currentSchemaVersion"], schema.SCHEMA_VERSION)
+        # This test owns one step of the chain, which stops being the last one
+        # the moment a later release appends to it.
+        step = next(
+            entry for entry in contract["steps"] if (entry["from"], entry["to"]) == (10, 11)
         )
-        self.assertIn("storyboard", " ".join(contract["steps"][-1]["guarantees"]).lower())
+        self.assertIn("storyboard", " ".join(step["guarantees"]).lower())
 
     def test_new_world_has_one_stable_empty_main_storyboard(self) -> None:
         schema.initialize(self.database)

@@ -201,6 +201,7 @@ class ArchitectureContractTests(unittest.TestCase):
             "connection.py",
             "manuscript.py",
             "migrations.py",
+            "place_map_images.py",
             "restore.py",
             "revisions.py",
             "schema.py",
@@ -216,7 +217,7 @@ class ArchitectureContractTests(unittest.TestCase):
         self.assertFalse((persistence_root / "repositories.py").exists())
         self.assertTrue(expected <= present, expected - present)
         self.assertEqual(
-            {"backups.py", "documents.py", "worlds.py"},
+            {"backups.py", "documents.py", "place_maps.py", "worlds.py"},
             {path.name for path in adapter_root.glob("*.py") if path.name != "__init__.py"},
         )
         self.assertGreaterEqual(len(parsed), len(expected))

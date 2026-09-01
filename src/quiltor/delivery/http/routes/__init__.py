@@ -93,6 +93,7 @@ def load() -> None:
         documents,
         history,
         identity,
+        place_maps,
         writing_assistance,
         worlds,
     )

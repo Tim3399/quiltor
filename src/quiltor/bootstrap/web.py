@@ -99,6 +99,12 @@ class BackupRouteServices:
 
 
 @dataclass(frozen=True, slots=True)
+class PlaceMapRouteServices:
+    place_maps: Any
+    lock: threading.Lock
+
+
+@dataclass(frozen=True, slots=True)
 class HistoryRouteServices:
     history: Any
     lock: threading.Lock
@@ -222,6 +228,8 @@ class WebApplication:
                 self.backup_authorization,
                 self.session_backup_token,
             )
+        if path.startswith("/api/place-map"):
+            return PlaceMapRouteServices(self.application.place_maps, self.lock)
         if path.startswith("/api/history"):
             return HistoryRouteServices(self.application.history, self.lock)
         if path.startswith("/api/writing-assistance"):

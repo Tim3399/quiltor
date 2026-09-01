@@ -166,6 +166,33 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_image(self, media_type: str, body: bytes, digest: str) -> None:
+        """Serve a stored map image, the one user-supplied binary this app returns.
+
+        `media_type` comes from the leading bytes at upload time, never from
+        what the uploader claimed, and the headers below stop a browser from
+        looking for a second opinion: without `nosniff` a file that begins as
+        one thing and continues as markup can still be treated as a document on
+        this origin, and the app sends no Content-Security-Policy of its own.
+        The sandbox directive makes a direct navigation to the image an opaque
+        origin, so even then it would have nothing to reach for.
+
+        The id is the content digest, so a given URL can only ever answer with
+        the same bytes and the response may be cached indefinitely. `private`
+        keeps that copy in the one browser that was allowed to ask.
+        """
+
+        self.send_response(200)
+        self.send_header("Content-Type", media_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", "inline")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'none'; sandbox")
+        self.send_header("Cache-Control", "private, max-age=31536000, immutable")
+        self.send_header("ETag", f'"{digest}"')
+        self.end_headers()
+        self.wfile.write(body)
+
     def _read_json_body(self) -> Any:
         """Read and parse the request's JSON body, capped at MAX_BODY so a
         client-controlled Content-Length can't force an unbounded read. Raises

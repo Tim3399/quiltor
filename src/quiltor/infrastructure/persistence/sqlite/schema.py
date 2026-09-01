@@ -7,7 +7,7 @@ from pathlib import Path
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -245,6 +245,18 @@ CREATE INDEX IF NOT EXISTS presence_by_element
   ON presence_states(element_id, moment_id);
 CREATE INDEX IF NOT EXISTS presence_by_place
   ON presence_states(place_id, moment_id);
+CREATE TABLE IF NOT EXISTS place_map_images (
+  -- The id is the lowercase SHA-256 of `data`. Content addressing means the
+  -- same map dropped twice occupies one row, and a served image can be cached
+  -- forever because a different image can never answer to the same id.
+  id TEXT PRIMARY KEY,
+  mime TEXT NOT NULL CHECK (mime IN ('image/png','image/jpeg','image/webp')),
+  width INTEGER NOT NULL CHECK (width > 0),
+  height INTEGER NOT NULL CHECK (height > 0),
+  byte_size INTEGER NOT NULL CHECK (byte_size > 0),
+  created_at TEXT NOT NULL,
+  data BLOB NOT NULL
+);
 CREATE TABLE IF NOT EXISTS assistant_interactions (
   id TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
