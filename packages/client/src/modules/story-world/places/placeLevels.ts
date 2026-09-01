@@ -35,6 +35,21 @@ export function placesOnLevel(nodes: readonly FigureNode[], levelId?: string): F
   return nodes.filter((node) => isPlace(node) && (node.parentPlaceId ?? undefined) === levelId);
 }
 
+/**
+ * Whether opening `placeId` would show anything at all.
+ *
+ * A card only offers to be entered when there is something behind it; an empty
+ * place offers to have something put there instead. The distinction is entirely
+ * in what the card shows -- both actions land on the same level -- but it keeps
+ * a surface full of pins from sprouting a door on every one of them, and it
+ * lets the author see at a glance which places carry something inside.
+ */
+export function hasLevelContents(nodes: readonly FigureNode[], placeId: string): boolean {
+  const here = nodes.find((node) => node.id === placeId);
+  if (here?.mapImageId) return true;
+  return nodes.some((node) => isPlace(node) && node.parentPlaceId === placeId);
+}
+
 /** Every ancestor of `placeId`, nearest first. Stops on a broken chain. */
 export function ancestorsOf(nodes: readonly FigureNode[], placeId: string): FigureNode[] {
   const byId = new Map(nodes.map((node) => [node.id, node]));

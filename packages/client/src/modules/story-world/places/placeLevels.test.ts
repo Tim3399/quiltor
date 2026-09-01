@@ -5,6 +5,7 @@ import {
   anchoredPoint,
   ancestorsOf,
   expandedRect,
+  hasLevelContents,
   levelTrail,
   placesOnLevel,
   reparent,
@@ -38,6 +39,30 @@ describe("place levels", () => {
 
   it("lists what is inside a level", () => {
     expect(placesOnLevel(world, "rom").map((node) => node.id)).toEqual(["subura"]);
+  });
+
+  describe("whether a card offers a door or an invitation", () => {
+    it("has contents when something sits inside it", () => {
+      expect(hasLevelContents(world, "rom")).toBe(true);
+    });
+
+    it("has contents when it carries a backdrop, even with nothing on it", () => {
+      const wald = [place("wald", { mapImageId: "abc" })];
+      expect(hasLevelContents(wald, "wald")).toBe(true);
+    });
+
+    it("is empty when nothing is inside and no backdrop is set", () => {
+      expect(hasLevelContents(world, "gasthaus")).toBe(false);
+      expect(hasLevelContents(world, "subura")).toBe(false);
+    });
+
+    it("does not count a figure that happens to point at it", () => {
+      const mixed = [
+        place("gasthaus"),
+        { id: "wirt", name: "Wirt", x: 0, y: 0, parentPlaceId: "gasthaus" } as FigureNode,
+      ];
+      expect(hasLevelContents(mixed, "gasthaus")).toBe(false);
+    });
   });
 
   it("reads the trail from the parent pointers, not from how the user got there", () => {
