@@ -64,6 +64,63 @@ def _valid_payload(kind: DocumentKind, payload: Any) -> bool:
     return valid_storyboards(payload)
 
 
+def _valid_place_level(node: dict) -> bool:
+    """A place is also a level; these say where it sits and how it is drawn."""
+
+    for key in ("parentPlaceId", "mapImageId"):
+        if key in node and (not isinstance(node[key], str) or not node[key]):
+            return False
+    # Normalised, so a place keeps its spot when the level around it is resized.
+    for key in ("mapU", "mapV"):
+        if key in node and (not _number(node[key]) or not 0 <= node[key] <= 1):
+            return False
+    if "mapExpanded" in node and type(node["mapExpanded"]) is not bool:
+        return False
+    for key in ("mapWidth", "mapHeight"):
+        if key in node and (not _number(node[key]) or node[key] <= 0):
+            return False
+    if "mapScale" in node and not _valid_map_scale(node["mapScale"]):
+        return False
+    return True
+
+
+def _valid_map_scale(scale: object) -> bool:
+    return (
+        isinstance(scale, dict)
+        and _number(scale.get("unitsPer100px"))
+        and scale["unitsPer100px"] > 0
+        and isinstance(scale.get("unitLabel"), str)
+    )
+
+
+def _acyclic_place_levels(nodes: list) -> bool:
+    """Containment must reach a root, or a breadcrumb would never terminate.
+
+    Checked over the whole document because a single node cannot see the loop it
+    is part of. JSON Schema cannot express this either, which is why both
+    runtimes carry the same walk.
+    """
+
+    kinds = {node.get("id"): node.get("type", "person") for node in nodes}
+    parents: dict[str, str] = {}
+    for node in nodes:
+        parent = node.get("parentPlaceId")
+        if parent is None:
+            continue
+        if kinds.get(node.get("id")) != "ort" or kinds.get(parent) != "ort":
+            return False
+        parents[node["id"]] = parent
+    for start in parents:
+        seen = {start}
+        current = parents.get(start)
+        while current is not None:
+            if current in seen:
+                return False
+            seen.add(current)
+            current = parents.get(current)
+    return True
+
+
 def _number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(value)
 
@@ -241,6 +298,8 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
     edge_line_styles = {"solid", "dashed", "dotted"}
     relationship_kinds = {"general", "kinship"}
     edge_colors = {"auto", "ink", "gold", "rose", "moss", "blue"}
+    if not _acyclic_place_levels(payload["nodes"]):
+        return False
     for node in payload["nodes"]:
         if (
             node.get("type", "person") not in figure_kinds
@@ -254,6 +313,8 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
         ):
             return False
         if any(key in node and not _number(node[key]) for key in ("x", "y", "mapX", "mapY")):
+            return False
+        if not _valid_place_level(node):
             return False
         if "profile" in node:
             profile = node["profile"]

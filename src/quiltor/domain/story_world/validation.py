@@ -100,6 +100,69 @@ def _valid_profile(profile: Any) -> bool:
     return len(field_ids) == len(set(field_ids))
 
 
+def _valid_place_level(node: dict) -> bool:
+    """Where a place sits on the level above it, and how it is drawn there."""
+
+    for key in ("parentPlaceId", "mapImageId"):
+        value = node.get(key)
+        if value is not None and (not isinstance(value, str) or not value):
+            return False
+    for key in ("mapU", "mapV"):
+        value = node.get(key)
+        if value is not None and (
+            not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 <= value <= 1
+        ):
+            return False
+    expanded = node.get("mapExpanded")
+    if expanded is not None and type(expanded) is not bool:
+        return False
+    for key in ("mapWidth", "mapHeight"):
+        value = node.get(key)
+        if value is not None and (
+            not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0
+        ):
+            return False
+    scale = node.get("mapScale")
+    if scale is not None and not _valid_map_scale(scale):
+        return False
+    return True
+
+
+def _valid_map_scale(scale: object) -> bool:
+    if not isinstance(scale, dict):
+        return False
+    units = scale.get("unitsPer100px")
+    return (
+        isinstance(units, (int, float))
+        and not isinstance(units, bool)
+        and units > 0
+        and isinstance(scale.get("unitLabel"), str)
+    )
+
+
+def _acyclic_place_levels(nodes: list) -> bool:
+    """Containment has to reach a root; a loop would make a trail run forever."""
+
+    kinds = {node.get("id"): node.get("type", "person") for node in nodes}
+    parents: dict[str, str] = {}
+    for node in nodes:
+        parent = node.get("parentPlaceId")
+        if parent is None:
+            continue
+        if kinds.get(node.get("id")) != "ort" or kinds.get(parent) != "ort":
+            return False
+        parents[node["id"]] = parent
+    for start in parents:
+        seen = {start}
+        current = parents.get(start)
+        while current is not None:
+            if current in seen:
+                return False
+            seen.add(current)
+            current = parents.get(current)
+    return True
+
+
 def valid_figures(payload: Any) -> bool:
     if (
         not isinstance(payload, dict)
@@ -108,6 +171,8 @@ def valid_figures(payload: Any) -> bool:
     ):
         return False
     if "timeSystem" in payload and not _valid_time_system(payload["timeSystem"]):
+        return False
+    if not _acyclic_place_levels(payload["nodes"]):
         return False
     ids: list[str] = []
     kinds: dict[str, str] = {}
@@ -123,6 +188,8 @@ def valid_figures(payload: Any) -> bool:
         if node.get("mapX") is not None and not isinstance(node.get("mapX"), (int, float)):
             return False
         if node.get("mapY") is not None and not isinstance(node.get("mapY"), (int, float)):
+            return False
+        if not _valid_place_level(node):
             return False
         ids.append(node["id"])
         kinds[node["id"]] = node.get("type", "person")

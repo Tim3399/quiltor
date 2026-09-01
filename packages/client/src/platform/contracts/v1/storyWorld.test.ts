@@ -241,4 +241,117 @@ describe("story-world wire v1", () => {
       decodeStoryWorldV1(source).document.nodes[0].profile?.noteReferences?.[0].target.id,
     ).toBe(longTargetId);
   });
+
+  describe("places nesting inside places", () => {
+    function withPlaces(...places: Record<string, unknown>[]) {
+      const source = copy(fixture) as Record<string, any>;
+      source.payload.nodes = places.map((place) => ({
+        x: 0,
+        y: 0,
+        type: "ort",
+        ...place,
+      }));
+      source.payload.edges = [];
+      delete source.payload.presence;
+      return source;
+    }
+
+    it("carries a level's containment, anchor, extent and scale", () => {
+      const decoded = decodeStoryWorldV1(
+        withPlaces(
+          { id: "welt", name: "Welt", mapExpanded: true, mapWidth: 1000, mapHeight: 800 },
+          {
+            id: "rom",
+            name: "Rom",
+            parentPlaceId: "welt",
+            mapU: 0.5,
+            mapV: 0.25,
+            mapImageId: "abc123",
+            mapScale: { unitsPer100px: 20, unitLabel: "m" },
+          },
+        ),
+      );
+      expect(decoded.document.nodes[1]).toMatchObject({
+        parentPlaceId: "welt",
+        mapU: 0.5,
+        mapV: 0.25,
+        mapImageId: "abc123",
+        mapScale: { unitsPer100px: 20, unitLabel: "m" },
+      });
+    });
+
+    it("refuses a level that contains itself", () => {
+      expect(() =>
+        decodeStoryWorldV1(withPlaces({ id: "rom", name: "Rom", parentPlaceId: "rom" })),
+      ).toThrow();
+    });
+
+    it("refuses a loop of any length", () => {
+      expect(() =>
+        decodeStoryWorldV1(
+          withPlaces(
+            { id: "a", name: "A", parentPlaceId: "c" },
+            { id: "b", name: "B", parentPlaceId: "a" },
+            { id: "c", name: "C", parentPlaceId: "b" },
+          ),
+        ),
+      ).toThrow();
+    });
+
+    it("refuses a parent that does not exist", () => {
+      expect(() =>
+        decodeStoryWorldV1(withPlaces({ id: "rom", name: "Rom", parentPlaceId: "atlantis" })),
+      ).toThrow();
+    });
+
+    it("refuses a parent that is not a place", () => {
+      expect(() =>
+        decodeStoryWorldV1(
+          withPlaces(
+            { id: "livia", name: "Livia", type: "person" },
+            { id: "rom", name: "Rom", parentPlaceId: "livia" },
+          ),
+        ),
+      ).toThrow();
+    });
+
+    it("refuses an anchor outside the surface it belongs to", () => {
+      for (const anchor of [{ mapU: -0.1 }, { mapU: 1.5 }, { mapV: 2 }]) {
+        expect(() =>
+          decodeStoryWorldV1(withPlaces({ id: "rom", name: "Rom", ...anchor })),
+        ).toThrow();
+      }
+    });
+
+    it("refuses an extent with no area", () => {
+      expect(() =>
+        decodeStoryWorldV1(withPlaces({ id: "rom", name: "Rom", mapWidth: 0 })),
+      ).toThrow();
+    });
+
+    it("refuses a scale that would divide by nothing", () => {
+      expect(() =>
+        decodeStoryWorldV1(
+          withPlaces({
+            id: "rom",
+            name: "Rom",
+            mapScale: { unitsPer100px: 0, unitLabel: "km" },
+          }),
+        ),
+      ).toThrow();
+    });
+
+    it("still refuses the cycle on the way out, so it cannot be autosaved", () => {
+      const decoded = decodeStoryWorldV1(
+        withPlaces({ id: "welt", name: "Welt" }, { id: "rom", name: "Rom", parentPlaceId: "welt" }),
+      );
+      const looped = {
+        ...decoded.document,
+        nodes: decoded.document.nodes.map((node) =>
+          node.id === "welt" ? { ...node, parentPlaceId: "rom" } : node,
+        ),
+      };
+      expect(() => encodeStoryWorldV1(looped, 1)).toThrow();
+    });
+  });
 });

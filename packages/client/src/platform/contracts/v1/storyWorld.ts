@@ -70,6 +70,14 @@ export interface FigureNodeWireV1 {
   diedMomentId?: string;
   mapX?: number;
   mapY?: number;
+  parentPlaceId?: string;
+  mapU?: number;
+  mapV?: number;
+  mapExpanded?: boolean;
+  mapWidth?: number;
+  mapHeight?: number;
+  mapImageId?: string;
+  mapScale?: { unitsPer100px: number; unitLabel: string };
   profile?: ProfileWireV1;
   aliases?: EntityAliasWireV1[];
   [key: string]: unknown;
@@ -248,6 +256,22 @@ function validateNode(value: unknown, path: string): FigureNodeWireV1 {
   for (const key of ["dash", "pinned", "important"]) optionalBoolean(node, key, path);
   optional(node, "mapX", wireNumber, path);
   optional(node, "mapY", wireNumber, path);
+  optional(node, "parentPlaceId", (item, itemPath) => wireString(item, itemPath, { min: 1 }), path);
+  // Normalised, so a place keeps its spot when the level around it is resized.
+  // Anything outside the unit square would put it off the surface it belongs to.
+  for (const key of ["mapU", "mapV"]) {
+    optional(node, key, (item, itemPath) => wireNumber(item, itemPath, { min: 0, max: 1 }), path);
+  }
+  optionalBoolean(node, "mapExpanded", path);
+  for (const key of ["mapWidth", "mapHeight"]) {
+    optional(node, key, (item, itemPath) => wireNumber(item, itemPath, { exclusiveMin: 0 }), path);
+  }
+  optional(node, "mapImageId", (item, itemPath) => wireString(item, itemPath, { min: 1 }), path);
+  if (node.mapScale !== undefined) {
+    const scale = wireRecord(node.mapScale, `${path}.mapScale`);
+    wireNumber(scale.unitsPer100px, `${path}.mapScale.unitsPer100px`, { exclusiveMin: 0 });
+    wireString(scale.unitLabel, `${path}.mapScale.unitLabel`);
+  }
   const profile =
     node.profile === undefined ? undefined : validateProfile(node.profile, `${path}.profile`);
   if (node.aliases !== undefined) {
@@ -536,6 +560,31 @@ function storyWorldPayload(value: unknown, path: string): StoryWorldPayloadWireV
   for (const [index, node] of nodes.entries()) {
     if (node.diedMomentId !== undefined && !momentIds.has(node.diedMomentId)) {
       throw new WireContractError(`${path}.nodes[${index}].diedMomentId`);
+    }
+  }
+  // Containment is checked here rather than per node because it is a property of
+  // the whole document. Encoding re-validates what it builds, so a level that
+  // contains itself cannot be autosaved: the write fails instead of persisting a
+  // world whose breadcrumb never reaches a root. The storyboard nests through a
+  // target link and permits exactly that.
+  const parents = new Map<string, string>();
+  for (const [index, node] of nodes.entries()) {
+    const parentId = node.parentPlaceId;
+    if (parentId === undefined) continue;
+    if (nodeKinds.get(node.id) !== "ort" || nodeKinds.get(parentId) !== "ort") {
+      throw new WireContractError(`${path}.nodes[${index}].parentPlaceId`);
+    }
+    parents.set(node.id, parentId);
+  }
+  for (const [index, node] of nodes.entries()) {
+    const seen = new Set<string>([node.id]);
+    let current = parents.get(node.id);
+    while (current !== undefined) {
+      if (seen.has(current)) {
+        throw new WireContractError(`${path}.nodes[${index}].parentPlaceId`);
+      }
+      seen.add(current);
+      current = parents.get(current);
     }
   }
   if (payload.canvasSize !== undefined) {
