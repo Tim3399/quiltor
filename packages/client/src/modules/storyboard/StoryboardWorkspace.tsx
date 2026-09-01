@@ -47,6 +47,8 @@ import {
   moveStoryboardNodeWithGroupMembers,
   noteNode,
   STORYBOARD_GRID_SIZE,
+  STORYBOARD_NODE_DRAG_MIME,
+  STORYBOARD_NODE_SIZES,
   STORYBOARD_REFERENCE_DRAG_MIME,
   type StoryboardFlowNode,
   type StoryboardLayerMoveDirection,
@@ -54,6 +56,7 @@ import {
   storyboardCardKind,
   storyboardFlowEdge,
   storyboardFlowNode,
+  storyboardNodeKindForDragValue,
   uniqueStoryboardId,
   updateStoryboardNodeNote,
 } from "./storyboardCanvasModel";
@@ -349,24 +352,39 @@ function StoryboardWorkspaceInner({
   }, [activeNodes.length]);
 
   const addNote = useCallback(
-    (position = positionAtCanvasCenter()) => {
+    (position?: { x: number; y: number }) => {
+      const center = position ?? positionAtCanvasCenter();
+      const notePosition = position
+        ? position
+        : {
+            x: center.x - STORYBOARD_NODE_SIZES.note.width / 2,
+            y: center.y - STORYBOARD_NODE_SIZES.note.height / 2,
+          };
       let created: StoryboardNoteNode | null = null;
-      changeFromLatest((current) => {
-        created = noteNode(
-          currentBoardId,
-          position,
-          current.nodes.map((node) => node.id),
-        );
-        return {
-          ...current,
-          nodes: insertStoryboardNodeAtLayerFront(current.nodes, created),
-        };
-      });
+      changeFromLatest(
+        (current) => {
+          created = noteNode(
+            currentBoardId,
+            notePosition,
+            current.nodes.map((node) => node.id),
+          );
+          return {
+            ...current,
+            nodes: insertStoryboardNodeAtLayerFront(current.nodes, created),
+          };
+        },
+        { separateHistoryStep: true },
+      );
       if (created) setSelectedId((created as StoryboardNoteNode).id);
       setSelectedEdgeId(null);
     },
     [changeFromLatest, currentBoardId, positionAtCanvasCenter],
   );
+
+  const addNoteFromLibrary = useCallback(() => {
+    addNote();
+    if (window.innerWidth <= 820) setLibraryOpen(false);
+  }, [addNote]);
 
   const addGroup = useCallback(
     (label: string) => {
@@ -391,25 +409,45 @@ function StoryboardWorkspaceInner({
   );
 
   const placeCandidate = useCallback(
-    (candidate: WorldReferenceCandidate, position = positionAtCanvasCenter()) => {
+    (candidate: WorldReferenceCandidate, position?: { x: number; y: number }) => {
+      const center = position ?? positionAtCanvasCenter();
+      const size =
+        STORYBOARD_NODE_SIZES[candidate.target.kind === "storyboard" ? "storyboard" : "reference"];
+      const candidatePosition = position
+        ? position
+        : {
+            x: center.x - size.width / 2,
+            y: center.y - size.height / 2,
+          };
       let createdId = "";
-      changeFromLatest((current) => {
-        const created = candidateNode(
-          currentBoardId,
-          position,
-          current.nodes.map((node) => node.id),
-          candidate,
-        );
-        createdId = created.id;
-        return {
-          ...current,
-          nodes: insertStoryboardNodeAtLayerFront(current.nodes, created),
-        };
-      });
+      changeFromLatest(
+        (current) => {
+          const created = candidateNode(
+            currentBoardId,
+            candidatePosition,
+            current.nodes.map((node) => node.id),
+            candidate,
+          );
+          createdId = created.id;
+          return {
+            ...current,
+            nodes: insertStoryboardNodeAtLayerFront(current.nodes, created),
+          };
+        },
+        { separateHistoryStep: true },
+      );
       setSelectedId(createdId);
       setSelectedEdgeId(null);
     },
     [changeFromLatest, currentBoardId, positionAtCanvasCenter],
+  );
+
+  const placeCandidateFromLibrary = useCallback(
+    (candidate: WorldReferenceCandidate) => {
+      placeCandidate(candidate);
+      if (window.innerWidth <= 820) setLibraryOpen(false);
+    },
+    [placeCandidate],
   );
 
   const previewGroupMove = useCallback((id: string, position: { x: number; y: number }) => {
@@ -567,18 +605,32 @@ function StoryboardWorkspaceInner({
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
+      const position = flow.current?.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const nodeKind = storyboardNodeKindForDragValue(
+        event.dataTransfer.getData(STORYBOARD_NODE_DRAG_MIME),
+      );
+      if (nodeKind === "note") {
+        event.preventDefault();
+        addNote(position);
+        return;
+      }
       const value = event.dataTransfer.getData(STORYBOARD_REFERENCE_DRAG_MIME);
       const candidate = candidateForDragValue(latestCandidates.current, value);
       if (!candidate) return;
       event.preventDefault();
-      const position = flow.current?.screenToFlowPosition({ x: event.clientX, y: event.clientY });
       placeCandidate(candidate, position);
     },
-    [placeCandidate],
+    [addNote, placeCandidate],
   );
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
-    if (!Array.from(event.dataTransfer.types).includes(STORYBOARD_REFERENCE_DRAG_MIME)) return;
+    const dragTypes = Array.from(event.dataTransfer.types);
+    if (
+      !dragTypes.includes(STORYBOARD_NODE_DRAG_MIME) &&
+      !dragTypes.includes(STORYBOARD_REFERENCE_DRAG_MIME)
+    ) {
+      return;
+    }
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   }, []);
@@ -633,7 +685,8 @@ function StoryboardWorkspaceInner({
             candidates={allCandidates}
             query={query}
             onQueryChange={setQuery}
-            onPlace={placeCandidate}
+            onAddNote={addNoteFromLibrary}
+            onPlace={placeCandidateFromLibrary}
           />
         )}
         <div ref={canvas} className="storyboard-canvas-shell">

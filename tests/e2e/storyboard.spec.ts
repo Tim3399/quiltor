@@ -20,6 +20,30 @@ async function openStoryboard(page: Page, worldId: string) {
   await page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" }).waitFor();
 }
 
+async function openStoryboardLibrary(page: Page) {
+  const library = page.locator("aside.storyboard-library");
+  if (!(await library.isVisible())) {
+    await page
+      .getByRole("toolbar", { name: "Storyboard-Werkzeuge" })
+      .getByRole("button", { name: "Elementbibliothek ein-/ausblenden" })
+      .click();
+  }
+  await expect(library).toBeVisible();
+  return library;
+}
+
+async function expectInsideViewport(locator: Locator, page: Page) {
+  const [bounds, viewport] = await Promise.all([
+    locator.boundingBox(),
+    page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })),
+  ]);
+  if (!bounds) throw new Error("Expected element has no browser bounds");
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height + 1);
+}
+
 async function dragBy(page: Page, target: ReturnType<Page["locator"]>, x: number, y: number) {
   const bounds = await target.boundingBox();
   if (!bounds) throw new Error("Drag target has no browser bounds");
@@ -191,6 +215,351 @@ test("eine Weltreferenz lässt sich auf den leeren Storyboard-Mittelpunkt ziehen
   await expect(persistedReference).toContainText("Ohne Titel");
   await expect(persistedReference.getByRole("textbox", { name: "Notiz zu Ohne Titel" })).toHaveText(
     referenceNote,
+  );
+});
+
+test("eine leere Notiz lässt sich aus der Bibliothek frei auf dem Storyboard platzieren", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Der native Palette-Drag muss nur einmal in einem stabilen Desktop-Viewport laufen.",
+  );
+
+  const world = await createTestWorld(page, `Storyboard Note Drag E2E ${crypto.randomUUID()}`);
+  await openStoryboard(page, world.id);
+
+  const noteSource = page.getByRole("button", {
+    name: "Leere Notiz auf dem Storyboard platzieren",
+    exact: true,
+  });
+  const pane = page.locator(".storyboard-flow .react-flow__pane");
+  const viewport = page.locator(".storyboard-flow .react-flow__viewport");
+  await expect(noteSource).toBeVisible();
+  await expect(noteSource).toHaveAttribute("draggable", "true");
+  await expect(pane).toBeVisible();
+  await expect(page.locator('[data-storyboard-node-kind="note"]')).toHaveCount(0);
+
+  await expect
+    .poll(async () =>
+      viewport.evaluate((element) => {
+        const transform = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+        return {
+          x: Number(transform.e.toFixed(3)),
+          y: Number(transform.f.toFixed(3)),
+          zoom: Number(Math.hypot(transform.a, transform.b).toFixed(3)),
+        };
+      }),
+    )
+    .toEqual({ x: 0, y: 0, zoom: 1 });
+
+  const paneBounds = await pane.boundingBox();
+  if (!paneBounds) throw new Error("Storyboard pane has no browser bounds");
+  const targetPosition = {
+    x: Math.round(paneBounds.width * 0.68),
+    y: Math.round(paneBounds.height * 0.26),
+  };
+  const freePaneHit = await page.evaluate(
+    ({ x, y }) => {
+      const target = document.elementFromPoint(x, y);
+      return Boolean(
+        target?.closest(".react-flow__pane") &&
+          !target.closest(
+            ".storyboard-empty-state, .storyboard-breadcrumb-panel, .react-flow__controls, .react-flow__minimap",
+          ),
+      );
+    },
+    {
+      x: paneBounds.x + targetPosition.x,
+      y: paneBounds.y + targetPosition.y,
+    },
+  );
+  expect(freePaneHit).toBe(true);
+
+  const saved = waitForSuccessfulStoryboardWrite(page, '"kind":"note"');
+  await noteSource.dragTo(pane, { targetPosition });
+  const saveResponse = await saved;
+  expect(saveResponse.status()).toBe(200);
+
+  const createdNotes = writtenStoryboard(saveResponse).payload.nodes.filter(
+    (node) => node.kind === "note",
+  );
+  expect(createdNotes).toHaveLength(1);
+  const createdNote = createdNotes[0];
+  expect(createdNote.x).toBeGreaterThan(targetPosition.x - 30);
+  expect(createdNote.x).toBeLessThan(targetPosition.x + 30);
+  expect(createdNote.y).toBeGreaterThan(targetPosition.y - 30);
+  expect(createdNote.y).toBeLessThan(targetPosition.y + 30);
+
+  const selectedNote = page.locator(
+    `.react-flow__node[data-id="${createdNote.id}"] .storyboard-node`,
+  );
+  await expect(selectedNote).toHaveClass(/is-selected/);
+  await expect(page.locator('[data-storyboard-node-kind="note"]')).toHaveCount(1);
+  await expect(page.getByRole("status")).toContainText("Gespeichert");
+
+  let persisted = await loadedStoryboard(page, world.id);
+  expect(persisted.payload.nodes.filter((node) => node.kind === "note")).toEqual([
+    expect.objectContaining({
+      id: createdNote.id,
+      x: createdNote.x,
+      y: createdNote.y,
+    }),
+  ]);
+
+  await page.reload();
+  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  await page.getByRole("button", { name: "Storyboard", exact: true }).click();
+  await page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" }).waitFor();
+
+  await expect(
+    page.locator(
+      `.react-flow__node[data-id="${createdNote.id}"] [data-storyboard-node-kind="note"]`,
+    ),
+  ).toHaveCount(1);
+  persisted = await loadedStoryboard(page, world.id);
+  expect(persisted.payload.nodes.find((node) => node.id === createdNote.id)).toMatchObject({
+    kind: "note",
+    x: createdNote.x,
+    y: createdNote.y,
+  });
+});
+
+test("die kompakte Elementbibliothek platziert eine Notiz per Tastatur", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "compact",
+    "Der Tastatur-Fallback wird gezielt im kompakten 390-Pixel-Viewport geprüft.",
+  );
+
+  const world = await createTestWorld(page, `Storyboard Note Keyboard ${crypto.randomUUID()}`);
+  await openStoryboard(page, world.id);
+  const library = await openStoryboardLibrary(page);
+  const noteSource = library.getByRole("button", {
+    name: "Leere Notiz auf dem Storyboard platzieren",
+    exact: true,
+  });
+  await expect(noteSource).toBeVisible();
+  const canvasBounds = await page.locator(".storyboard-canvas-shell").boundingBox();
+  if (!canvasBounds) throw new Error("Storyboard canvas has no browser bounds");
+  await expect
+    .poll(async () =>
+      page.locator(".storyboard-flow .react-flow__viewport").evaluate((element) => {
+        const transform = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+        return {
+          x: Number(transform.e.toFixed(3)),
+          y: Number(transform.f.toFixed(3)),
+          zoom: Number(Math.hypot(transform.a, transform.b).toFixed(3)),
+        };
+      }),
+    )
+    .toEqual({ x: 0, y: 0, zoom: 1 });
+
+  const saved = waitForSuccessfulStoryboardWrite(page, '"kind":"note"');
+  await noteSource.focus();
+  await expect(noteSource).toBeFocused();
+  await noteSource.press("Enter");
+  const saveResponse = await saved;
+  expect(saveResponse.status()).toBe(200);
+
+  const createdNotes = writtenStoryboard(saveResponse).payload.nodes.filter(
+    (node) => node.kind === "note",
+  );
+  expect(createdNotes).toHaveLength(1);
+  const createdNote = createdNotes[0];
+  expect(Number.isFinite(createdNote.x)).toBe(true);
+  expect(Number.isFinite(createdNote.y)).toBe(true);
+  expect(createdNote.x).toBeGreaterThanOrEqual(0);
+  expect(createdNote.y).toBeGreaterThanOrEqual(0);
+  expect(createdNote.x).toBeGreaterThan(canvasBounds.width / 2 - 140 - 30);
+  expect(createdNote.x).toBeLessThan(canvasBounds.width / 2 - 140 + 30);
+  expect(createdNote.y).toBeGreaterThan(canvasBounds.height / 2 - 105 - 30);
+  expect(createdNote.y).toBeLessThan(canvasBounds.height / 2 - 105 + 30);
+  await expect(library).toHaveCount(0);
+  await expect(
+    page.locator(`.react-flow__node[data-id="${createdNote.id}"] .storyboard-node`),
+  ).toHaveClass(/is-selected/);
+
+  const persisted = await loadedStoryboard(page, world.id);
+  expect(persisted.payload.nodes.filter((node) => node.kind === "note")).toEqual([
+    expect.objectContaining({
+      id: createdNote.id,
+      x: createdNote.x,
+      y: createdNote.y,
+    }),
+  ]);
+});
+
+test("die Elementbibliothek bleibt im kompakten Landscape-Viewport vollständig bedienbar", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Die Landscape-Abnahme setzt ihren 740-mal-390-Pixel-Viewport selbst.",
+  );
+  await page.setViewportSize({ width: 740, height: 390 });
+
+  const world = await createTestWorld(page, `Storyboard Library Landscape ${crypto.randomUUID()}`);
+  const worldId = encodeURIComponent(world.id);
+  const storyWorldResponse = await page.request.get(`/api/state?world=${worldId}`);
+  const storyWorldRevision = Number(
+    (storyWorldResponse.headers().etag || '"0"').replaceAll('"', ""),
+  );
+  const storyWorldSaved = await page.request.put(`/api/state?world=${worldId}`, {
+    headers: { "If-Match": `"${storyWorldRevision}"` },
+    data: encodeStoryWorldDocument(
+      {
+        nodes: Array.from({ length: 12 }, (_, index) => ({
+          id: `landscape-figure-${index}`,
+          name: `Landscape-Figur ${index + 1}`,
+          type: "person" as const,
+          x: 80 + index * 20,
+          y: 100 + index * 20,
+        })),
+        edges: [],
+      },
+      storyWorldRevision,
+    ),
+  });
+  expect(storyWorldSaved.ok()).toBe(true);
+
+  await openStoryboard(page, world.id);
+  const library = await openStoryboardLibrary(page);
+  const noteSource = library.getByRole("button", {
+    name: "Leere Notiz auf dem Storyboard platzieren",
+    exact: true,
+  });
+  const search = library.getByRole("searchbox", { name: "Welt durchsuchen" });
+  const results = library.locator(".storyboard-search-results");
+  await expect(noteSource).toBeVisible();
+  await expect(search).toBeVisible();
+  await expect(results).toBeVisible();
+  await expectInsideViewport(library, page);
+  await expectInsideViewport(noteSource, page);
+  await expectInsideViewport(search, page);
+  await expectInsideViewport(results, page);
+
+  const panelMetrics = await library.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(panelMetrics.scrollWidth).toBeLessThanOrEqual(panelMetrics.clientWidth + 1);
+  expect(panelMetrics.scrollHeight).toBeLessThanOrEqual(panelMetrics.clientHeight + 1);
+
+  const resultMetrics = await results.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    overflowY: getComputedStyle(element).overflowY,
+  }));
+  expect(["auto", "scroll"]).toContain(resultMetrics.overflowY);
+  expect(resultMetrics.scrollHeight).toBeGreaterThan(resultMetrics.clientHeight);
+  await results.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+});
+
+test("die fokussierte Weltsuche bleibt bei eingeblendeter Bildschirmtastatur bedienbar", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "compact",
+    "Der Bildschirmtastatur-Fall wird gezielt im 390-mal-390-Pixel-Viewport geprüft.",
+  );
+  await page.setViewportSize({ width: 390, height: 390 });
+
+  const world = await createTestWorld(page, `Storyboard Search Keyboard ${crypto.randomUUID()}`);
+  const worldId = encodeURIComponent(world.id);
+  const storyWorldResponse = await page.request.get(`/api/state?world=${worldId}`);
+  const storyWorldRevision = Number(
+    (storyWorldResponse.headers().etag || '"0"').replaceAll('"', ""),
+  );
+  const storyWorldSaved = await page.request.put(`/api/state?world=${worldId}`, {
+    headers: { "If-Match": `"${storyWorldRevision}"` },
+    data: encodeStoryWorldDocument(
+      {
+        nodes: Array.from({ length: 12 }, (_, index) => ({
+          id: `keyboard-figure-${index}`,
+          name: `Tastatur-Figur ${index + 1}`,
+          type: "person" as const,
+          x: 80 + index * 20,
+          y: 100 + index * 20,
+        })),
+        edges: [],
+      },
+      storyWorldRevision,
+    ),
+  });
+  expect(storyWorldSaved.ok()).toBe(true);
+
+  await openStoryboard(page, world.id);
+  const library = await openStoryboardLibrary(page);
+  const noteSource = library.getByRole("button", {
+    name: "Leere Notiz auf dem Storyboard platzieren",
+    exact: true,
+  });
+  const search = library.getByRole("searchbox", { name: "Welt durchsuchen" });
+  const results = library.locator(".storyboard-search-results");
+  await search.focus();
+  await expect(search).toBeFocused();
+  await expect(noteSource).toBeHidden();
+  await expect(results).toBeVisible();
+  await expectInsideViewport(search, page);
+  await expectInsideViewport(results, page);
+
+  const resultMetrics = await results.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    overflowY: getComputedStyle(element).overflowY,
+  }));
+  expect(["auto", "scroll"]).toContain(resultMetrics.overflowY);
+  expect(resultMetrics.clientHeight).toBeGreaterThanOrEqual(44);
+  expect(resultMetrics.scrollHeight).toBeGreaterThan(resultMetrics.clientHeight);
+  await results.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await results.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+
+  const firstResult = library.getByRole("button", {
+    name: "Tastatur-Figur 1 auf dem Storyboard platzieren",
+    exact: true,
+  });
+  await firstResult.scrollIntoViewIfNeeded();
+  await expect(firstResult).toBeVisible();
+  await expectInsideViewport(firstResult, page);
+  const visibleResultIntersection = await firstResult.evaluate((element) => {
+    const result = element.getBoundingClientRect();
+    const scrollContainer = element.closest(".storyboard-search-results")?.getBoundingClientRect();
+    if (!scrollContainer) return null;
+    return {
+      width: Math.max(
+        0,
+        Math.min(result.right, scrollContainer.right) - Math.max(result.left, scrollContainer.left),
+      ),
+      height: Math.max(
+        0,
+        Math.min(result.bottom, scrollContainer.bottom) - Math.max(result.top, scrollContainer.top),
+      ),
+      resultWidth: result.width,
+    };
+  });
+  expect(visibleResultIntersection).not.toBeNull();
+  expect(visibleResultIntersection?.width).toBeGreaterThanOrEqual(
+    (visibleResultIntersection?.resultWidth ?? 0) - 1,
+  );
+  expect(visibleResultIntersection?.height).toBeGreaterThanOrEqual(44);
+  const placed = waitForSuccessfulStoryboardWrite(page, '"id":"keyboard-figure-0"');
+  await firstResult.click();
+  expect((await placed).ok()).toBe(true);
+  await expect(page.locator('[data-storyboard-node-kind="reference"]')).toHaveCount(1);
+  await expect(page.locator('[data-storyboard-node-kind="reference"]')).toContainText(
+    "Tastatur-Figur 1",
   );
 });
 

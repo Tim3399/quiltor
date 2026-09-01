@@ -328,15 +328,28 @@ describe("StoryboardWorkspace interactions", () => {
 
   it("places a world reference from search and opens its original on double click", () => {
     const onOpenReference = vi.fn();
-    render(<Harness candidates={[ada]} onOpenReference={onOpenReference} />);
+    const onChange = vi.fn();
+    const innerWidth = vi.spyOn(window, "innerWidth", "get").mockReturnValue(390);
+    try {
+      render(<Harness candidates={[ada]} onChange={onChange} onOpenReference={onOpenReference} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ada auf dem Storyboard platzieren" }));
-    expect(document.querySelector('[data-storyboard-node-kind="reference"]')).toHaveTextContent(
-      "Ada",
-    );
+      fireEvent.click(screen.getByRole("button", { name: "Ada auf dem Storyboard platzieren" }));
+      expect(document.querySelector('[data-storyboard-node-kind="reference"]')).toHaveTextContent(
+        "Ada",
+      );
+      expect(onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          nodes: [expect.objectContaining({ kind: "reference", x: 200, y: 75 })],
+        }),
+        { separateHistoryStep: true },
+      );
+      expect(screen.queryByRole("complementary", { name: "Elementbibliothek" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Test-Doppelklick" }));
-    expect(onOpenReference).toHaveBeenCalledWith({ kind: "entity", id: "ada" });
+      fireEvent.click(screen.getByRole("button", { name: "Test-Doppelklick" }));
+      expect(onOpenReference).toHaveBeenCalledWith({ kind: "entity", id: "ada" });
+    } finally {
+      innerWidth.mockRestore();
+    }
   });
 
   it("drops a world reference through the empty-state overlay onto the full canvas", () => {
@@ -365,7 +378,68 @@ describe("StoryboardWorkspace interactions", () => {
           }),
         ],
       }),
+      { separateHistoryStep: true },
     );
+  });
+
+  it("drops a new blank Note from the element library at the canvas position", () => {
+    const onChange = vi.fn();
+    const dataTransfer = dragTransfer();
+    render(<Harness onChange={onChange} />);
+
+    fireEvent.dragStart(
+      screen.getByRole("button", { name: "Leere Notiz auf dem Storyboard platzieren" }),
+      { dataTransfer },
+    );
+    const emptyState = screen.getByLabelText("Platz für deine Ideen");
+    fireEvent.dragOver(emptyState, { dataTransfer, clientX: 960, clientY: 640 });
+    expect(dataTransfer.dropEffect).toBe("copy");
+    fireEvent.drop(emptyState, { dataTransfer, clientX: 960, clientY: 640 });
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const latest = onChange.mock.calls[0]?.[0] as StoryboardState;
+    expect(latest.nodes).toEqual([
+      expect.objectContaining({
+        boardId: "main-storyboard",
+        kind: "note",
+        text: "",
+        x: 320,
+        y: 180,
+        zIndex: 0,
+      }),
+    ]);
+    expect(onChange).toHaveBeenLastCalledWith(latest, { separateHistoryStep: true });
+    expect(screen.getByLabelText("Flow-Auswahl")).toHaveTextContent(latest.nodes[0].id);
+  });
+
+  it("places a compact clicked blank Note at the visible canvas center and closes the library", () => {
+    const onChange = vi.fn();
+    const innerWidth = vi.spyOn(window, "innerWidth", "get").mockReturnValue(390);
+    try {
+      render(<Harness onChange={onChange} />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Leere Notiz auf dem Storyboard platzieren" }),
+      );
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          nodes: [
+            expect.objectContaining({
+              boardId: "main-storyboard",
+              kind: "note",
+              x: 180,
+              y: 75,
+            }),
+          ],
+        }),
+        { separateHistoryStep: true },
+      );
+      expect(screen.queryByRole("complementary", { name: "Elementbibliothek" })).toBeNull();
+    } finally {
+      innerWidth.mockRestore();
+    }
   });
 
   it("connects cards, edits the selected edge, directs it, and reverses its endpoints", () => {

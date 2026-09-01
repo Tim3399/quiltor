@@ -436,15 +436,16 @@ Storyboard is not a second canon system and not a generic drawing application.
 The first usable workspace slice shipped on 30 August 2026 with independent
 history/autosave, multiple boards, all four v1 node types, shared Note cards,
 search/drag references, connections and navigation breadcrumbs. Explicit
-front/back controls shipped on 1 September 2026. Dragging a newly created Note
-from a palette and AI planning context remain intentionally open; checked items
-do not imply those later slices.
+front/back controls and dragging a newly created Note from the element library
+shipped on 1 September 2026. AI planning context remains intentionally open;
+checked items do not imply that later slice.
 
 Real browser acceptance creates isolated worlds for board/Note persistence,
 reference drag/open, connections and moved-node positions. Backlink coverage
 also opens an entity profile, follows a Storyboard source and verifies the exact
 board and selected card. Ordering acceptance now covers overlapping cards,
-persisted z-indices and wheel zoom over card content; palette interaction remains open.
+persisted z-indices and wheel zoom over card content. Palette acceptance drags a
+blank Note to a deliberate canvas position and verifies reload persistence.
 
 ## Core canvas
 
@@ -482,7 +483,7 @@ Do not build separate copies of those objects inside Storyboard.
 ## Note cards
 
 - [x] Storyboard text is a normal Quiltor Note.
-- [ ] Drag a Note onto the canvas.
+- [x] Drag a Note onto the canvas.
 - [x] Edit directly on the canvas.
 - [x] Resize the note.
 - [x] Open the note in the shared Notes Focus Mode.

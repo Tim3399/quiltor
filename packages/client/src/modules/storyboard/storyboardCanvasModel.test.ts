@@ -12,10 +12,14 @@ import {
   moveStoryboardNodeWithGroupMembers,
   noteNode,
   referenceDragValue,
+  STORYBOARD_NODE_DRAG_MIME,
+  STORYBOARD_REFERENCE_DRAG_MIME,
   storyboardCardKind,
   storyboardFlowEdge,
   storyboardFlowNode,
   storyboardGroupMemberIds,
+  storyboardNodeDragValue,
+  storyboardNodeKindForDragValue,
   updateStoryboardNodeNote,
 } from "./storyboardCanvasModel";
 
@@ -358,6 +362,32 @@ describe("storyboard canvas model", () => {
     expect(value).toBe("entity:ada");
     expect(candidateForDragValue([board, entity], value)).toBe(entity);
     expect(candidateForDragValue([entity], "entity:missing")).toBeUndefined();
+  });
+
+  it("round-trips the stable Storyboard note drag contract independently of references", () => {
+    const value = storyboardNodeDragValue("note");
+
+    expect(STORYBOARD_NODE_DRAG_MIME).toBe("application/x-quiltor-storyboard-node");
+    expect(STORYBOARD_NODE_DRAG_MIME).not.toBe(STORYBOARD_REFERENCE_DRAG_MIME);
+    expect(value).toBe('{"kind":"note"}');
+    expect(storyboardNodeKindForDragValue(value)).toBe("note");
+    expect(storyboardNodeKindForDragValue('{"kind":"note","future":true}')).toBe("note");
+  });
+
+  it.each([
+    "",
+    "note",
+    '"note"',
+    "42",
+    "true",
+    "null",
+    "[]",
+    "{}",
+    '{"kind":null}',
+    '{"kind":"reference"}',
+    '{"kind":"note"',
+  ])("safely ignores an unknown or invalid Storyboard node drag payload: %s", (value) => {
+    expect(storyboardNodeKindForDragValue(value)).toBeNull();
   });
 
   it("lets React Flow drag a card from every non-interactive surface", () => {

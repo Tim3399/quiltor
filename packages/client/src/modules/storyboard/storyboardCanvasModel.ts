@@ -22,6 +22,7 @@ import type {
 } from "./model";
 
 export const STORYBOARD_REFERENCE_DRAG_MIME = "application/x-quiltor-world-reference";
+export const STORYBOARD_NODE_DRAG_MIME = "application/x-quiltor-storyboard-node";
 export const STORYBOARD_GRID_SIZE = 20;
 
 export const STORYBOARD_NODE_SIZES = {
@@ -469,4 +470,18 @@ export function candidateForDragValue(
   value: string,
 ) {
   return candidates.find((candidate) => worldReferenceKey(candidate.target) === value);
+}
+
+export function storyboardNodeDragValue(kind: "note") {
+  return JSON.stringify({ kind });
+}
+
+export function storyboardNodeKindForDragValue(value: string): "note" | null {
+  try {
+    const payload: unknown = JSON.parse(value);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+    return (payload as { kind?: unknown }).kind === "note" ? "note" : null;
+  } catch {
+    return null;
+  }
 }
