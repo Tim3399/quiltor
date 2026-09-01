@@ -1,5 +1,6 @@
 import type { Translate } from "../../../i18n";
-import { quiltorClient, saveTextFile } from "../../../platform";
+import { quiltorClient, saveTextFile, validateNoteMarks } from "../../../platform";
+import { noteMarkdown } from "../../notes";
 import type { FigureState } from "../model";
 import { normalizeProfile, normalizeProfileFields } from "../profile";
 import { PROFILE_FIELD_TEMPLATES } from "./profileFields";
@@ -8,10 +9,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function canonicalizeImportedNoteMarks(
+  owner: Record<string, unknown>,
+  textKey: "notizen" | "note",
+  path: string,
+) {
+  if (!("noteMarks" in owner)) return;
+  try {
+    owner.noteMarks = validateNoteMarks(
+      owner.noteMarks,
+      typeof owner[textKey] === "string" ? owner[textKey] : "",
+      `${path}.noteMarks`,
+    );
+  } catch {
+    throw new Error("Invalid figure note formatting");
+  }
+}
+
 function assertImportProfile(
   profile: unknown,
 ): asserts profile is FigureState["nodes"][number]["profile"] {
   if (!isRecord(profile)) throw new Error("Invalid figure profile");
+  canonicalizeImportedNoteMarks(profile, "notizen", "profile");
   if (
     "extra" in profile &&
     (!Array.isArray(profile.extra) ||
@@ -51,6 +70,13 @@ export function parseFigureState(text: string): FigureState {
     if (!isRecord(node) || typeof node.id !== "string") throw new Error("Invalid figure node");
     if ("profile" in node && node.profile !== undefined) assertImportProfile(node.profile);
   }
+  if ("timeline" in value) {
+    if (!Array.isArray(value.timeline)) throw new Error("Invalid figure timeline");
+    value.timeline.forEach((moment, index) => {
+      if (!isRecord(moment)) throw new Error("Invalid figure timeline moment");
+      canonicalizeImportedNoteMarks(moment, "note", `timeline[${index}]`);
+    });
+  }
   const state = value as unknown as FigureState;
   return {
     ...state,
@@ -80,7 +106,7 @@ export function serializeFigureProfiles(state: FigureState, t: Translate): strin
     .map((node) => {
       const profile = node.profile || {};
       const lines = [`# ${node.name}`, "", node.label ? `*${node.label}*` : "", node.sub || "", ""];
-      const notes = String(profile.notizen || "").trim();
+      const notes = noteMarkdown(String(profile.notizen || ""), profile.noteMarks, 2).trim();
       if (notes) lines.push(`## ${t("profileNotes")}`, "", notes, "");
       const fields = normalizeProfileFields(profile, node.id, (legacyKey) => {
         const template = PROFILE_FIELD_TEMPLATES.find((item) => item.legacyKey === legacyKey);

@@ -37,3 +37,4 @@ export type {
   WritingAssistanceStatus,
 } from "./application";
 export { ApplicationGatewayError, applicationErrorMessage } from "./application";
+export { validateNoteMarks } from "./contracts/v1/noteMark";

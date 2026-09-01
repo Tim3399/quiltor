@@ -69,6 +69,10 @@ describe("MomentEditor", () => {
       }),
     );
     expect(onPatch).toHaveBeenNthCalledWith(1, { title: "Abreise" });
-    expect(onPatch).toHaveBeenNthCalledWith(2, { note: "Nebel", noteReferences: [] });
+    expect(onPatch).toHaveBeenNthCalledWith(2, {
+      note: "Nebel",
+      noteReferences: [],
+      noteMarks: [],
+    });
   });
 });

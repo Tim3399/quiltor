@@ -35,13 +35,19 @@
     {
       "id": "chapter-note",
       "path": "/payload/chapters/0/note",
-      "alsoRemove": ["/payload/chapters/0/noteReferences"],
+      "alsoRemove": ["/payload/chapters/0/noteReferences", "/payload/chapters/0/noteMarks"],
       "absent": "accept",
       "null": "reject"
     },
     {
       "id": "chapter-note-references",
       "path": "/payload/chapters/0/noteReferences",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "chapter-note-marks",
+      "path": "/payload/chapters/0/noteMarks",
       "absent": "accept",
       "null": "reject"
     },
@@ -145,6 +151,27 @@
       "value": 4.0,
       "expect": "accept",
       "canonical": "integer"
+    },
+    {
+      "id": "note-mark-integral-float",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteMarks/0/from",
+      "value": 0.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "note-mark-invalid-heading-level",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteMarks/0/level",
+      "value": 4,
+      "expect": "reject"
+    },
+    {
+      "id": "note-text-required-for-note-ranges",
+      "operation": "remove",
+      "path": "/payload/chapters/0/note",
+      "expect": "reject"
     },
     {
       "id": "note-reference-bool-is-not-integer",
@@ -268,6 +295,38 @@
         "note": "",
         "mentions": [],
         "marks": [{ "from": 1, "to": 2, "kind": "bold" }]
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "utf16-note-mark-after-astral",
+      "operation": "set",
+      "path": "/payload/chapters/0",
+      "value": {
+        "id": "chapter-arrival",
+        "title": "",
+        "body": "Text",
+        "note": "😀 Mara",
+        "noteReferences": [],
+        "noteMarks": [{ "from": 3, "to": 7, "kind": "bold" }],
+        "mentions": [],
+        "marks": []
+      },
+      "expect": "accept"
+    },
+    {
+      "id": "utf16-note-mark-splits-surrogate",
+      "operation": "set",
+      "path": "/payload/chapters/0",
+      "value": {
+        "id": "chapter-arrival",
+        "title": "",
+        "body": "Text",
+        "note": "😀 Mara",
+        "noteReferences": [],
+        "noteMarks": [{ "from": 1, "to": 2, "kind": "bold" }],
+        "mentions": [],
+        "marks": []
       },
       "expect": "reject"
     },

@@ -1,5 +1,5 @@
 import { EditorView } from "@codemirror/view";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
@@ -49,7 +49,9 @@ function renderNoteNode({
   };
   render(
     <I18nProvider>
-      <NoteNode id="note-review" data={data} selected />
+      <div data-testid="narrow-storyboard-card-host" style={{ width: 280 }}>
+        <NoteNode id="note-review" data={data} selected />
+      </div>
     </I18nProvider>,
   );
   return { onNoteChange, onPatch };
@@ -90,6 +92,10 @@ describe("Storyboard note-card UX contract", () => {
       "nopan",
       "nowheel",
     );
+    const toolbar = screen.getByRole("toolbar", { name: "Notiz formatieren" });
+    expect(screen.getByTestId("narrow-storyboard-card-host")).toHaveStyle({ width: "280px" });
+    expect(toolbar).toHaveClass("nodrag", "nopan", "nowheel");
+    expect(within(toolbar).getAllByRole("button")).toHaveLength(4);
 
     act(() => {
       const view = editorView(textbox);
@@ -100,7 +106,7 @@ describe("Storyboard note-card UX contract", () => {
       });
     });
 
-    expect(onNoteChange).toHaveBeenLastCalledWith("note-review", "Neue lose Idee", []);
+    expect(onNoteChange).toHaveBeenLastCalledWith("note-review", "Neue lose Idee", [], []);
   });
 
   it("offers keyboard resizing and edits the same stable note in Focus Mode", () => {
@@ -122,5 +128,21 @@ describe("Storyboard note-card UX contract", () => {
       "storyboard:note-review",
     );
     expect(dialog).not.toHaveTextContent("{context}");
+  });
+
+  it("persists a format-only edit through the storyboard owner callback", () => {
+    const onNoteChange = vi.fn();
+    renderNoteNode({ onNoteChange });
+    const textbox = screen.getByRole("textbox", { name: "Storyboard-Notiz" });
+    act(() => editorView(textbox).dispatch({ selection: { anchor: 0, head: 4 } }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Fett" }));
+
+    expect(onNoteChange).toHaveBeenLastCalledWith(
+      "note-review",
+      "Lose Idee",
+      [],
+      [{ from: 0, to: 4, kind: "bold" }],
+    );
   });
 });

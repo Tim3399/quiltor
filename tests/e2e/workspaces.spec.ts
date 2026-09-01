@@ -1975,10 +1975,20 @@ test("Notizreferenzen und flexible Profilfelder bleiben nach Umbenennung stabil"
   await page.getByRole("button", { name: "Orte", exact: true }).click();
   await page.locator(".places-workspace .story-node").filter({ hasText: "Hafen" }).click();
   const placeInspector = page.getByRole("complementary", { name: "Orte-Inspector" });
-  const renameSave = waitForSuccessfulStoryWorldWrite(page, "Nordhafen");
-  await placeInspector.getByRole("textbox", { name: "Name" }).fill("Nordhafen");
+  const placeName = placeInspector.getByRole("textbox", { name: "Name" });
   const renameDialog = page.getByRole("alertdialog", { name: "Manuskript aktualisieren?" });
+  const renameSave = waitForSuccessfulStoryWorldWrite(page, "Nordhafen");
+  await placeName.click();
+  await placeName.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+  await placeName.pressSequentially("Nordhafen");
+  await expect(placeName).toHaveValue("Nordhafen");
+  await expect(renameDialog).toHaveCount(0);
+  await placeName.press("Tab");
   await expect(renameDialog).toBeVisible();
+  await expect(renameDialog).toHaveCount(1);
+  await expect(renameDialog).toContainText(
+    "„Hafen“ wurde in „Nordhafen“ umbenannt. Sollen alle verknüpften Vorkommen im Manuskript ersetzt werden?",
+  );
   await renameDialog.getByRole("button", { name: "Abbrechen", exact: true }).click();
   await renameSave;
 

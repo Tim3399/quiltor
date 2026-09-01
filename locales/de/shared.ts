@@ -58,6 +58,13 @@ export const shared = {
   noteReferencePicker: "Referenz auswählen",
   noteReferenceNoResults: "Keine passende Referenz",
   noteReferenceLinks: "Verknüpfte Referenzen",
+  noteFormatting: "Notiz formatieren",
+  noteBold: "Fett",
+  noteItalic: "Kursiv",
+  noteHeading: "Überschrift",
+  noteHeading1: "Überschrift 1",
+  noteHeading2: "Überschrift 2",
+  noteHeading3: "Überschrift 3",
   searchTerm: "Suchbegriff",
   // Zähler stehen als ganze Formulierung im Katalog, damit die Komponente Zahl und Wort nicht
   // selbst zusammensetzen muss -- im Englischen ist die Kleinschreibung sonst nicht steuerbar.

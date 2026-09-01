@@ -3,8 +3,8 @@ import { useMemo } from "react";
 import { IconButton, SidePanelHeader } from "../../design";
 import { useI18n } from "../../i18n";
 import type { ViewportMode } from "../../shared";
-import type { TimelineMoment, TimeSystem } from "../story-world";
 import { NoteEditor, noteFocusCopy } from "../notes";
+import type { TimelineMoment, TimeSystem } from "../story-world";
 import {
   childrenOf,
   flattenChapterIds,
@@ -126,7 +126,10 @@ export function ChapterBinder({
             label={t("chapterNote")}
             value={current.note}
             references={current.noteReferences}
-            onChange={(note, noteReferences) => onUpdateCurrent({ note, noteReferences })}
+            marks={current.noteMarks}
+            onChange={(note, noteReferences, noteMarks) =>
+              onUpdateCurrent({ note, noteReferences, noteMarks })
+            }
             placeholder={t("chapterNotePlaceholder")}
             size="compact"
             focus={noteFocusCopy(t, current.title || t("untitled"))}

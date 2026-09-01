@@ -1,3 +1,4 @@
+import type { NoteMark } from "./noteMark";
 import type { NoteReference } from "./worldReference";
 
 export const LEGACY_PROFILE_FIELD_KEYS = [
@@ -36,6 +37,7 @@ export interface NormalizableProfile {
   stimme?: string;
   notizen?: string;
   noteReferences?: NoteReference[];
+  noteMarks?: NoteMark[];
   extra?: Array<{ k: string; v: string; [key: string]: unknown }>;
   [key: string]: unknown;
 }

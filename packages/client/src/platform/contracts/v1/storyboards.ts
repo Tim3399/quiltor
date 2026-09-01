@@ -16,6 +16,7 @@ import {
   decodeDocumentEnvelopeV1,
   encodeDocumentEnvelopeV1,
 } from "./documentEnvelope";
+import { cloneNoteMarks, type NoteMarkWireV1, validateNoteMarks } from "./noteMark";
 import {
   cloneNoteReferences,
   type NoteReferenceWireV1,
@@ -63,6 +64,7 @@ export interface StoryboardNodeWireV1 {
   label?: string;
   target?: StoryboardTargetWireV1;
   noteReferences?: NoteReferenceWireV1[];
+  noteMarks?: NoteMarkWireV1[];
   [key: string]: unknown;
 }
 
@@ -194,6 +196,7 @@ function storyboardsPayload(value: unknown, path: string): StoryboardsPayloadWir
 
     let decodedTarget: StoryboardTargetWireV1 | undefined;
     let noteReferences: NoteReferenceWireV1[] | undefined;
+    let noteMarks: NoteMarkWireV1[] | undefined;
     if (kind === "note") {
       if (node.target !== undefined) throw new WireContractError(`${nodePath}.target`);
       if (decodedText === undefined) throw new WireContractError(`${nodePath}.text`);
@@ -219,6 +222,9 @@ function storyboardsPayload(value: unknown, path: string): StoryboardsPayloadWir
         boardIds,
       );
     }
+    if (node.noteMarks !== undefined) {
+      noteMarks = validateNoteMarks(node.noteMarks, decodedText ?? "", `${nodePath}.noteMarks`);
+    }
 
     return {
       ...node,
@@ -229,6 +235,7 @@ function storyboardsPayload(value: unknown, path: string): StoryboardsPayloadWir
       y,
       ...(decodedTarget === undefined ? {} : { target: decodedTarget }),
       ...(noteReferences === undefined ? {} : { noteReferences }),
+      ...(noteMarks === undefined ? {} : { noteMarks }),
     } as StoryboardNodeWireV1;
   });
 
@@ -288,6 +295,7 @@ function cloneNode(node: StoryboardNodeWireV1 | StoryboardNode): StoryboardNodeW
     ...node,
     target: node.target ? ({ ...node.target } as StoryboardTargetWireV1) : undefined,
     noteReferences: cloneNoteReferences(node.noteReferences),
+    noteMarks: cloneNoteMarks(node.noteMarks),
   };
 }
 

@@ -199,6 +199,7 @@ describe("assistant proposals", () => {
                 surface: "Archiv",
               },
             ],
+            noteMarks: [{ from: 0, to: 4, kind: "bold" }],
           },
         },
       ],
@@ -221,6 +222,7 @@ describe("assistant proposals", () => {
       ],
       notizen: "Mara kennt das Archiv.",
       noteReferences: state.nodes[0].profile?.noteReferences,
+      noteMarks: state.nodes[0].profile?.noteMarks,
     });
   });
 
@@ -244,6 +246,7 @@ describe("assistant proposals", () => {
                 surface: "Archiv",
               },
             ],
+            noteMarks: [{ from: 0, to: 4, kind: "bold" }],
           },
         },
       ],
@@ -265,6 +268,7 @@ describe("assistant proposals", () => {
     expect(result.nodes[0].profile).toMatchObject({
       notizen: "Mara kennt das neue Archiv.",
       noteReferences: [],
+      noteMarks: [],
     });
   });
 

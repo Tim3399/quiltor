@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from quiltor.domain.manuscript.story_time import valid_story_time_reference
-from quiltor.domain.manuscript.text_offsets import utf16_length, utf16_offsets_to_indices
 from quiltor.domain.manuscript.tree import ManuscriptTreeError, structure_or_flat
+from quiltor.domain.notes import valid_note_marks
 from quiltor.domain.story_world.entity_resolution import normalize_entity_name
+from quiltor.domain.text_offsets import utf16_length, utf16_offsets_to_indices
 
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 NOTE_REFERENCE_KINDS = {"entity", "place", "timeline", "chapter", "storyboard"}
@@ -58,7 +59,11 @@ def _valid_note_references(owner: dict[str, Any], note_key: str) -> bool:
 
 
 def _valid_profile(profile: Any) -> bool:
-    if not isinstance(profile, dict) or not _valid_note_references(profile, "notizen"):
+    if (
+        not isinstance(profile, dict)
+        or not _valid_note_references(profile, "notizen")
+        or not valid_note_marks(profile, "notizen")
+    ):
         return False
     if any(
         key in profile and not isinstance(profile[key], str)
@@ -156,6 +161,7 @@ def valid_figures(payload: Any) -> bool:
             or not isinstance(moment.get("date", ""), str)
             or not isinstance(moment.get("note", ""), str)
             or not _valid_note_references(moment, "note")
+            or not valid_note_marks(moment, "note")
         ):
             return False
         if "time" in moment and (
@@ -375,6 +381,8 @@ def valid_manuscript(payload: Any) -> bool:
         if "storyTime" in chapter and not valid_story_time_reference(chapter["storyTime"]):
             return False
         if not _valid_note_references(chapter, "note"):
+            return False
+        if not valid_note_marks(chapter, "note"):
             return False
         mentions = chapter.get("mentions", [])
         if not isinstance(mentions, list) or len(mentions) > 10_000:

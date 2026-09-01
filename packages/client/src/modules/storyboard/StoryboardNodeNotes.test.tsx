@@ -143,7 +143,7 @@ describe("Storyboard node notes", () => {
       });
     });
 
-    expect(onNoteChange).toHaveBeenLastCalledWith(item.id, "Eigene Randnotiz", []);
+    expect(onNoteChange).toHaveBeenLastCalledWith(item.id, "Eigene Randnotiz", [], []);
   });
 
   it("distinguishes a linked storyboard title from the current board in focus mode", () => {

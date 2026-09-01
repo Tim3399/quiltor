@@ -2,6 +2,7 @@ import type {
   GraphEdgeColor,
   GraphEdgeLineStyle,
   GraphRelationshipKind,
+  NoteMark,
   NoteReference,
 } from "../../shared";
 
@@ -32,6 +33,7 @@ export interface Profile {
   stimme?: string;
   notizen?: string;
   noteReferences?: NoteReference[];
+  noteMarks?: NoteMark[];
   /** @deprecated Legacy custom fields remain readable until every persisted world is migrated. */
   extra?: ProfileExtra[];
   [key: string]: unknown;
@@ -108,6 +110,7 @@ export interface TimelineMoment {
   date?: string;
   note?: string;
   noteReferences?: NoteReference[];
+  noteMarks?: NoteMark[];
 }
 
 export type TimeSystemKind = "relative" | "gregorian" | "custom";

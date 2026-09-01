@@ -156,6 +156,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
         label={editorLabel}
         value={item.text ?? ""}
         references={item.noteReferences ?? []}
+        marks={item.noteMarks ?? []}
         placeholder={
           isNoteCard ? t("storyboardNotePlaceholder") : t("storyboardNodeNotePlaceholder")
         }
@@ -163,6 +164,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
         rows={isNoteCard ? undefined : 1}
         labelHidden
         fieldClassName="storyboard-node-note-field"
+        formatActionClassName="nodrag nopan nowheel"
         className="storyboard-note-control"
         focus={{
           openLabel: t("storyboardNoteFocusOpen"),
@@ -173,7 +175,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
           editorLabel,
         }}
         focusButtonClassName="nodrag nopan nowheel"
-        onChange={(text, references) => data.onNoteChange(item.id, text, references)}
+        onChange={(text, references, marks) => data.onNoteChange(item.id, text, references, marks)}
       />
     </div>
   );

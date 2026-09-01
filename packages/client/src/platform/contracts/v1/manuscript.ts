@@ -5,6 +5,7 @@ import {
   decodeDocumentEnvelopeV1,
   encodeDocumentEnvelopeV1,
 } from "./documentEnvelope";
+import { cloneNoteMarks, type NoteMarkWireV1, validateNoteMarks } from "./noteMark";
 import {
   cloneNoteReferences,
   type NoteReferenceWireV1,
@@ -51,6 +52,7 @@ export interface ChapterWireV1 {
   body?: string;
   note?: string;
   noteReferences?: NoteReferenceWireV1[];
+  noteMarks?: NoteMarkWireV1[];
   storyTime?: ChapterStoryTimeWireV1;
   mentions?: EntityMentionWireV1[];
   marks?: TextMarkWireV1[];
@@ -103,6 +105,7 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
   const payload = wireRecord(value, path);
   const chapters = wireArray(payload.chapters, `${path}.chapters`);
   const chapterIds = new Set<string>();
+  const canonicalNoteMarks: Array<NoteMarkWireV1[] | undefined> = [];
   for (const [index, chapterValue] of chapters.entries()) {
     const chapterPath = `${path}.chapters[${index}]`;
     const chapter = wireRecord(chapterValue, chapterPath);
@@ -131,6 +134,11 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
     if (chapter.noteReferences !== undefined) {
       validateNoteReferences(chapter.noteReferences, note, `${chapterPath}.noteReferences`);
     }
+    canonicalNoteMarks.push(
+      chapter.noteMarks === undefined
+        ? undefined
+        : validateNoteMarks(chapter.noteMarks, note, `${chapterPath}.noteMarks`),
+    );
     optional(
       chapter,
       "storyTime",
@@ -350,12 +358,19 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
       wireString(character, `${path}.zeichenAktiv[${index}]`);
     }
   }
-  return payload as unknown as ManuscriptPayloadWireV1;
+  return {
+    ...payload,
+    chapters: chapters.map((chapter, index) => ({
+      ...wireRecord(chapter, `${path}.chapters[${index}]`),
+      ...(canonicalNoteMarks[index] === undefined ? {} : { noteMarks: canonicalNoteMarks[index] }),
+    })),
+  } as unknown as ManuscriptPayloadWireV1;
 }
 
 function cloneChapter(wire: ChapterWireV1): ChapterWireV1 {
   const chapter = { ...wire };
   chapter.noteReferences = cloneNoteReferences(wire.noteReferences);
+  chapter.noteMarks = cloneNoteMarks(wire.noteMarks);
   if (wire.storyTime !== undefined) chapter.storyTime = { ...wire.storyTime };
   if (wire.mentions !== undefined) {
     chapter.mentions = wire.mentions.map((mention) => ({ ...mention }));
@@ -368,6 +383,7 @@ function encodeChapter(chapter: Manuscript["chapters"][number]): ChapterWireV1 {
   return {
     ...chapter,
     noteReferences: cloneNoteReferences(chapter.noteReferences),
+    noteMarks: cloneNoteMarks(chapter.noteMarks),
     storyTime: chapter.storyTime ? { ...chapter.storyTime } : undefined,
     mentions: chapter.mentions?.map((mention) => ({ ...mention })),
     marks: chapter.marks?.map((mark) => ({ ...mark })),

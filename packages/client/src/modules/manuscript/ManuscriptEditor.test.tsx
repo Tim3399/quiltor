@@ -170,6 +170,50 @@ describe("ManuscriptEditor selection", () => {
     );
   });
 
+  it.each(["Serafine", "Seraphine", "Serapgi"])(
+    "übernimmt die tolerante Schreibweise %s als kanonische Figuren-Erwähnung",
+    async (typed) => {
+      const seraphine = {
+        ...tarek,
+        id: "figure-seraphine",
+        name: "Séraphine",
+        sub: "Heilerin",
+      };
+      const before = `🙂 ${typed}`;
+      const { container, editor, onChange } = renderEditor({ value: "", entities: [seraphine] });
+
+      editor.dispatch({
+        changes: { from: 0, insert: before },
+        selection: { anchor: before.length },
+      });
+
+      await waitFor(() =>
+        expect(container.querySelector(".word-completion")).toHaveTextContent(
+          "TabSéraphineHeilerin",
+        ),
+      );
+      fireEvent.keyDown(editor.contentDOM, { key: "Tab" });
+
+      expect(editor.state.doc.toString()).toBe("🙂 Séraphine");
+      await waitFor(() =>
+        expect(onChange).toHaveBeenLastCalledWith(
+          "🙂 Séraphine",
+          [
+            expect.objectContaining({
+              elementId: "figure-seraphine",
+              surface: "Séraphine",
+              source: "completion",
+              // CodeMirror and the persisted contract count UTF-16 code units: the emoji uses two.
+              from: 3,
+              to: 12,
+            }),
+          ],
+          [],
+        ),
+      );
+    },
+  );
+
   it("lässt ein richtig geschriebenes Wort in Ruhe", async () => {
     const { container, editor } = renderEditor({ value: "", entities: [tarek] });
     editor.dispatch({ changes: { from: 0, insert: "Fenster" }, selection: { anchor: 7 } });

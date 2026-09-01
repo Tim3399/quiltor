@@ -125,6 +125,43 @@ describe("story-world wire v1", () => {
     expect(() => decodeStoryWorldV1(duplicateMomentReference)).toThrow();
   });
 
+  it("isolates and validates note formatting for profiles and moments", () => {
+    const source = copy(fixture);
+    const decoded = decodeStoryWorldV1(source);
+    expect(decoded.document.nodes[0].profile?.noteMarks).toEqual([
+      { from: 10, to: 16, kind: "bold" },
+    ]);
+    expect(decoded.document.timeline?.[0].noteMarks).toEqual([
+      { from: 0, to: 23, kind: "heading", level: 3 },
+    ]);
+    const profileMark = decoded.document.nodes[0].profile?.noteMarks?.[0];
+    if (!profileMark) throw new Error("profile mark fixture missing");
+    profileMark.to = 15;
+    expect(source.payload.nodes[0].profile?.noteMarks[0].to).toBe(16);
+
+    const invalidMoment = copy(fixture);
+    invalidMoment.payload.timeline[0].noteMarks[0].to = 999;
+    expect(() => decodeStoryWorldV1(invalidMoment)).toThrow();
+
+    const astralProfile = copy(fixture);
+    const astralProfileValue = astralProfile.payload.nodes[0].profile;
+    if (!astralProfileValue) throw new Error("profile fixture missing");
+    astralProfileValue.notizen = "😀 Mara";
+    astralProfileValue.noteReferences = [];
+    astralProfileValue.noteMarks = [{ from: 1, to: 2, kind: "bold" }];
+    expect(() => decodeStoryWorldV1(astralProfile)).toThrow();
+
+    const astralMoment = copy(fixture);
+    astralMoment.payload.timeline[0].note = "😀 Mara";
+    astralMoment.payload.timeline[0].noteReferences = [];
+    (
+      astralMoment.payload.timeline[0] as unknown as {
+        noteMarks: Array<Record<string, unknown>>;
+      }
+    ).noteMarks = [{ from: 1, to: 2, kind: "italic" }];
+    expect(() => decodeStoryWorldV1(astralMoment)).toThrow();
+  });
+
   it("normalizes legacy fixed and custom profile values into stable fields", () => {
     const source = copy(fixture);
     const profile = source.payload.nodes[0].profile as Record<string, unknown> | undefined;

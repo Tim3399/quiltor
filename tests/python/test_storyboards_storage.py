@@ -56,6 +56,7 @@ def realistic_storyboards() -> dict:
                         "surface": "@Mara",
                     }
                 ],
+                "noteMarks": [{"from": 0, "to": 28, "kind": "heading", "level": 1}],
                 "extension": {"colour": "moss"},
             },
             {
@@ -77,6 +78,7 @@ def realistic_storyboards() -> dict:
                         "surface": "@Anna",
                     }
                 ],
+                "noteMarks": [{"from": 0, "to": 5, "kind": "bold"}],
                 "target": {"kind": "entity", "id": "figure-anna"},
                 "extension": {"caption": "Protagonistin"},
             },
@@ -99,6 +101,7 @@ def realistic_storyboards() -> dict:
                         "surface": "@Archiv",
                     }
                 ],
+                "noteMarks": [{"from": 0, "to": 7, "kind": "italic"}],
                 "target": {"kind": "storyboard", "id": "act-two"},
                 "extension": {"openInPlace": True},
             },
@@ -122,6 +125,7 @@ def realistic_storyboards() -> dict:
                         "surface": "@Akt II",
                     }
                 ],
+                "noteMarks": [{"from": 0, "to": 20, "kind": "heading", "level": 2}],
                 "extension": {"frameStyle": "quiet"},
             },
             {
@@ -306,6 +310,7 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
             node["id"]: {
                 "text": node["text"],
                 "noteReferences": node["noteReferences"],
+                "noteMarks": node["noteMarks"],
             }
             for node in state["nodes"][:4]
         }
@@ -317,6 +322,7 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
             node["id"]: {
                 "text": node["text"],
                 "noteReferences": node["noteReferences"],
+                "noteMarks": node["noteMarks"],
             }
             for node in loaded["nodes"][:4]
         }
@@ -331,6 +337,7 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
         legacy = realistic_storyboards()
         for node in legacy["nodes"]:
             node.pop("noteReferences", None)
+            node.pop("noteMarks", None)
             if node["kind"] != "note":
                 node.pop("text", None)
 
@@ -453,6 +460,7 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
         empty_note = copy.deepcopy(valid)
         empty_note["nodes"][0]["text"] = ""
         empty_note["nodes"][0].pop("noteReferences", None)
+        empty_note["nodes"][0].pop("noteMarks", None)
         self.assertTrue(
             valid_storyboard_document(empty_note),
             "new or cleared note cards must remain persistable",
@@ -464,6 +472,7 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
                 continue
             node.pop("text", None)
             node["noteReferences"] = []
+            node["noteMarks"] = []
         self.assertTrue(
             valid_storyboard_document(optional_empty_notes),
             "non-note nodes treat an absent optional text as an empty note",

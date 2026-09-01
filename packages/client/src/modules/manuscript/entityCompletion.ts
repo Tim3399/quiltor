@@ -3,23 +3,53 @@ import type { FigureNode } from "../story-world";
 
 export type EntityCompletion = { entity: FigureNode; word: string; start: number; end: number };
 
-const wordBefore = /[\p{L}\p{N}'’-]+$/u;
+const wordBefore = /[\p{L}\p{M}\p{N}'’-]+$/u;
 
-/** Uses the same frozen alias identity as Python; fuzzy distance handles spelling variants. */
+/** Frozen cross-runtime identity fold shared with Python entity resolution. */
 export function foldName(value: string): string {
   return normalizeEntityAliasV1(value);
 }
 
 /**
- * One edit per five typed characters -- the writer's "roughly 80% confidence" turned into a
- * countable rule -- and never more than two, because past that a word is not mistyped, it is a
- * different word. The rule doubles as the length threshold: below five characters the budget is
- * zero and nothing is guessed at all. That matters, because at two or three letters almost every
- * name is one edit from almost every other beginning, and a wrong suggestion accepted with a
- * single Tab silently replaces a correctly typed word.
+ * Search-only spelling fold for figure completion.
+ *
+ * Persisted aliases deliberately keep their frozen cross-runtime identity. Completion may be more
+ * forgiving: diacritics are optional while typing and the common `ph`/`f` spelling pair is one
+ * sound, not two mistakes (`Seraphine`, `Serafine`, `Séraphine`).
+ */
+export function foldCompletionName(value: string): string {
+  return foldCompletionSpelling(value).replaceAll("ph", "f");
+}
+
+/**
+ * Accent-insensitive spelling used alongside the phonetic completion fold.
+ *
+ * Keeping this representation matters for typos *inside* a digraph. `Serapgi`, for example, is
+ * one substitution away from the still-being-typed prefix `Seraphi`. If both sides were reduced
+ * to the `ph`/`f` form first, the mistyped `g` would break the digraph and make that same typo look
+ * like three unrelated edits.
+ */
+function foldCompletionSpelling(value: string): string {
+  return normalizeEntityAliasV1(value)
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .toLocaleLowerCase("de-DE");
+}
+
+function completionSpellings(value: string): readonly [string, string] {
+  const spelling = foldCompletionSpelling(value);
+  return [spelling, spelling.replaceAll("ph", "f")];
+}
+
+/**
+ * One edit per five folded characters turns the writer's 80% similarity requirement into a
+ * countable rule at every name length. The rule doubles as the length threshold: below five
+ * characters the budget is zero and nothing is guessed at all. That matters, because at two or
+ * three letters almost every name is one edit from almost every other beginning, and a wrong
+ * suggestion accepted with a single Tab silently replaces a correctly typed word.
  */
 function editBudget(length: number): number {
-  return Math.min(2, Math.floor(length / 5));
+  return Math.floor(length / 5);
 }
 
 /**
@@ -70,11 +100,12 @@ export function nameDistance(typed: string, name: string, budget: number): numbe
 }
 
 /**
- * The two tiers of a name suggestion.
+ * The three tiers of a name suggestion.
  *
  * 1. A literal prefix -- unchanged from before, and it always wins. A fuzzy candidate never gets
  *    to make a deterministic match ambiguous.
- * 2. Only when nothing starts with what was typed: the closest name within the edit budget. Here
+ * 2. An unambiguous accent or `ph`/`f` prefix variant. Multiple folded prefixes mean silence.
+ * 3. Only when neither prefix tier answers: the closest name within the edit budget. Here
  *    a tie means silence. Two names equally close are two guesses, and no suggestion is cheaper
  *    than the wrong one, which Tab would accept over a correctly typed word.
  *
@@ -99,9 +130,34 @@ export function entityCompletion(
     .filter(([, nodes]) => nodes.length === 1)
     .sort(([a], [b]) => a.localeCompare(b, "de-DE"));
   const lower = prefix.toLocaleLowerCase("de-DE");
-  const exact = named.find(([name]) => name.length > lower.length && name.startsWith(lower));
-  const entity = exact ? exact[1][0] : closestName(prefix, lower, named, vocabulary);
+  const literalPrefix = named.find(
+    ([name]) => name.length > lower.length && name.startsWith(lower),
+  );
+  const typed = foldCompletionName(prefix);
+  const knownVocabularyWord = vocabulary.some((word) => foldCompletionName(word) === typed);
+  const spellingPrefixes =
+    literalPrefix || knownVocabularyWord ? [] : foldedPrefixes(typed, lower, named);
+  let entity: FigureNode | null;
+  if (literalPrefix) entity = literalPrefix[1][0];
+  else if (knownVocabularyWord || spellingPrefixes.length > 1) entity = null;
+  else entity = spellingPrefixes[0] || closestName(prefix, lower, named, vocabulary);
   return entity ? { entity, word: entity.name, start: caret - prefix.length, end: caret } : null;
+}
+
+/**
+ * Collects accent and `ph`/`f` prefix variants. They work from two folded characters on and
+ * outrank fuzzy edits, but the caller refuses to choose when this returns more than one figure.
+ */
+function foldedPrefixes(
+  typed: string,
+  lower: string,
+  named: [string, FigureNode[]][],
+): FigureNode[] {
+  if (typed.length < 2) return [];
+  return named.flatMap(([name, nodes]) => {
+    if (name === lower || !foldCompletionName(name).startsWith(typed)) return [];
+    return nodes[0];
+  });
 }
 
 function closestName(
@@ -110,22 +166,27 @@ function closestName(
   named: [string, FigureNode[]][],
   vocabulary: string[],
 ): FigureNode | null {
-  const budget = editBudget(prefix.length);
-  if (!budget) return null;
-  const typed = foldName(prefix);
+  const typedSpellings = completionSpellings(prefix);
+  const typed = typedSpellings[1];
   if (!typed) return null;
-  if (vocabulary.some((word) => foldName(word) === typed)) return null;
+  // The 80% threshold belongs to what the writer actually entered. A valid `ph` pair may collapse
+  // for phonetic comparison, but must not make the input look shorter and therefore stricter.
+  const budget = editBudget(typedSpellings[0].length);
+  if (!budget) return null;
+  if (vocabulary.some((word) => foldCompletionName(word) === typed)) return null;
   let best: FigureNode | null = null,
     closest = budget + 1,
     ambiguous = false;
   for (const [name, nodes] of named) {
     // Already written, only differently cased -- there is nothing to complete.
     if (name === lower) continue;
-    const folded = foldName(name);
-    // The first letter is the one the writer is sure of; an edit there is a different word, not a
-    // typo. It also rejects nearly every candidate before any matrix is touched.
-    if (folded[0] !== typed[0]) continue;
-    const distance = nameDistance(typed, folded, budget);
+    const nameSpellings = completionSpellings(name);
+    // Compare like with like: ordinary spelling preserves a broken `ph` digraph, while the
+    // phonetic spelling deliberately equates a correctly typed `ph` with `f`.
+    const distance = Math.min(
+      nameDistance(typedSpellings[0], nameSpellings[0], budget),
+      nameDistance(typedSpellings[1], nameSpellings[1], budget),
+    );
     if (distance > budget) continue;
     if (distance < closest) {
       best = nodes[0];

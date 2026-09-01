@@ -92,6 +92,12 @@ describe("storyboards wire v1", () => {
       noteReference.target.id = `changed-after-decode-${index}`;
       expect(source.payload.nodes[index].noteReferences?.[0].target.id).toBe(originalTargetId);
       noteReference.target.id = originalTargetId;
+      const noteMark = node.noteMarks?.[0];
+      if (!noteMark) throw new Error(`fixture mark missing for node ${index}`);
+      const originalTo = noteMark.to;
+      noteMark.to -= 1;
+      expect(source.payload.nodes[index].noteMarks?.[0].to).toBe(originalTo);
+      noteMark.to = originalTo;
     }
 
     const encoded = encodeStoryboardsV1(decoded.document, decoded.revision);
@@ -105,6 +111,13 @@ describe("storyboards wire v1", () => {
       }
       noteReference.target.id = `changed-after-encode-${index}`;
       expect(encoded.payload.nodes[index].noteReferences?.[0].target.id).toBe(encodedTargetId);
+      const noteMark = node.noteMarks?.[0];
+      const encodedMarkTo = encoded.payload.nodes[index].noteMarks?.[0].to;
+      if (!noteMark || encodedMarkTo === undefined) {
+        throw new Error(`encoded fixture mark missing for node ${index}`);
+      }
+      noteMark.to -= 1;
+      expect(encoded.payload.nodes[index].noteMarks?.[0].to).toBe(encodedMarkTo);
     }
   });
 
@@ -113,9 +126,11 @@ describe("storyboards wire v1", () => {
     for (const node of legacy.payload.nodes.slice(1) as Array<{
       text?: string;
       noteReferences?: unknown[];
+      noteMarks?: unknown[];
     }>) {
       delete node.text;
       delete node.noteReferences;
+      delete node.noteMarks;
     }
     expect(() => decodeStoryboardsV1(legacy)).not.toThrow();
 
@@ -123,9 +138,11 @@ describe("storyboards wire v1", () => {
     const referenceNode = emptyReferencesWithoutText.payload.nodes[1] as {
       text?: string;
       noteReferences?: unknown[];
+      noteMarks?: unknown[];
     };
     delete referenceNode.text;
     referenceNode.noteReferences = [];
+    referenceNode.noteMarks = [];
     expect(() => decodeStoryboardsV1(emptyReferencesWithoutText)).not.toThrow();
 
     const referencesWithoutText = copy(fixture);
@@ -139,6 +156,15 @@ describe("storyboards wire v1", () => {
       noteReference.surface = "not the selected text";
       expect(() => decodeStoryboardsV1(invalid), `node ${index}`).toThrow();
     }
+  });
+
+  it("rejects note formatting boundaries inside an astral character", () => {
+    const invalid = copy(fixture);
+    invalid.payload.nodes[0].text = "😀 Mara";
+    invalid.payload.nodes[0].noteReferences = [];
+    invalid.payload.nodes[0].noteMarks = [{ from: 1, to: 2, kind: "bold" }];
+
+    expect(() => decodeStoryboardsV1(invalid)).toThrow();
   });
 
   it("keeps the JSON Schema aligned with the note-reference text dependency", () => {
@@ -217,6 +243,7 @@ describe("storyboards wire v1", () => {
     const emptyNote = copy(fixture);
     emptyNote.payload.nodes[0].text = "";
     emptyNote.payload.nodes[0].noteReferences = [];
+    emptyNote.payload.nodes[0].noteMarks = [];
     const longExternalTargetId = copy(fixture);
     if (!longExternalTargetId.payload.nodes[1].target) {
       throw new Error("reference fixture target missing");

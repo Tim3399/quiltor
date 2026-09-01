@@ -102,6 +102,14 @@ bootstrap ─► hosts + concrete adapters + build profile
 The public wire format and supported SQLite schemas remain versioned contracts.
 Internal names may improve without silently rewriting user data.
 
+Every shipped Note keeps its author text as a plain string. Stable `noteReferences`
+and presentation-only `noteMarks` are parallel UTF-16 ranges over that same string;
+the latter currently supports bold, italic and single-line heading levels 1–3.
+Chapter, Story World and Storyboard documents validate and persist this shared
+shape through their own aggregate ports. Search, backlinks and Assistant context
+continue to consume the plain text so presentation metadata cannot change meaning
+or invalidate reference surfaces.
+
 ## Platform boundaries
 
 Platform integration is expressed through focused capabilities rather than one

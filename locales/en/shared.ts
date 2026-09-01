@@ -57,6 +57,13 @@ export const shared = {
   noteReferencePicker: "Choose reference",
   noteReferenceNoResults: "No matching reference",
   noteReferenceLinks: "Linked references",
+  noteFormatting: "Format note",
+  noteBold: "Bold",
+  noteItalic: "Italic",
+  noteHeading: "Heading",
+  noteHeading1: "Heading 1",
+  noteHeading2: "Heading 2",
+  noteHeading3: "Heading 3",
   searchTerm: "Search term",
   // Counters carry the whole phrase so components never concatenate number and word themselves
   // -- otherwise English lower-casing is not controllable from the catalog.

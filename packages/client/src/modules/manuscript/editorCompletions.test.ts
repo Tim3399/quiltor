@@ -33,4 +33,38 @@ describe("editor completion preview", () => {
       end: 3,
     });
   });
+
+  it("surfaces a canonical figure name for accent and ph/f spelling variants", () => {
+    const seraphine = { ...figure, id: "seraphine", name: "Séraphine", sub: "Heilerin" };
+
+    for (const typed of ["Seraphine", "Serafine", "Sérafine"]) {
+      expect(
+        suggestEditorCompletion(typed, typed.length, [seraphine], [], (entity) =>
+          String(entity.sub),
+        ),
+      ).toMatchObject({
+        word: "Séraphine",
+        start: 0,
+        end: typed.length,
+        entity: seraphine,
+        detail: "Heilerin",
+      });
+    }
+  });
+
+  it("surfaces the canonical figure for a typo in an unfinished name", () => {
+    const seraphine = { ...figure, id: "seraphine", name: "Seraphine", sub: "Heilerin" };
+
+    expect(
+      suggestEditorCompletion("Sie sah Serapgi", 15, [seraphine], [], (entity) =>
+        String(entity.sub),
+      ),
+    ).toMatchObject({
+      word: "Seraphine",
+      start: 8,
+      end: 15,
+      entity: seraphine,
+      detail: "Heilerin",
+    });
+  });
 });

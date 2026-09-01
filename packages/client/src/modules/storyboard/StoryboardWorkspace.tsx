@@ -14,7 +14,7 @@ import { Plus, StickyNote } from "lucide-react";
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, EmptyState, ScrollArea } from "../../design";
 import { useI18n } from "../../i18n";
-import type { NoteReference, WorldReferenceTarget } from "../../shared";
+import type { NoteMark, NoteReference, WorldReferenceTarget } from "../../shared";
 import {
   cardKindColor,
   GraphViewportChrome,
@@ -194,10 +194,15 @@ function StoryboardWorkspaceInner({
   );
 
   const changeNote = useCallback(
-    (id: string, text: string, references: NoteReference[] | undefined) =>
+    (
+      id: string,
+      text: string,
+      references: NoteReference[] | undefined,
+      marks: NoteMark[] | undefined,
+    ) =>
       changeFromLatest((current) => ({
         ...current,
-        nodes: updateStoryboardNodeNote(current.nodes, id, text, references),
+        nodes: updateStoryboardNodeNote(current.nodes, id, text, references, marks),
       })),
     [changeFromLatest],
   );

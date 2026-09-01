@@ -68,13 +68,22 @@
     {
       "id": "profile-notes",
       "path": "/payload/nodes/0/profile/notizen",
-      "alsoRemove": ["/payload/nodes/0/profile/noteReferences"],
+      "alsoRemove": [
+        "/payload/nodes/0/profile/noteReferences",
+        "/payload/nodes/0/profile/noteMarks"
+      ],
       "absent": "accept",
       "null": "reject"
     },
     {
       "id": "profile-note-references",
       "path": "/payload/nodes/0/profile/noteReferences",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "profile-note-marks",
+      "path": "/payload/nodes/0/profile/noteMarks",
       "absent": "accept",
       "null": "reject"
     },
@@ -227,13 +236,19 @@
     {
       "id": "moment-note",
       "path": "/payload/timeline/0/note",
-      "alsoRemove": ["/payload/timeline/0/noteReferences"],
+      "alsoRemove": ["/payload/timeline/0/noteReferences", "/payload/timeline/0/noteMarks"],
       "absent": "accept",
       "null": "reject"
     },
     {
       "id": "moment-note-references",
       "path": "/payload/timeline/0/noteReferences",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
+      "id": "moment-note-marks",
+      "path": "/payload/timeline/0/noteMarks",
       "absent": "accept",
       "null": "reject"
     },
@@ -400,10 +415,84 @@
       "expect": "reject"
     },
     {
+      "id": "moment-note-heading-level-integral-float",
+      "operation": "set",
+      "path": "/payload/timeline/0/noteMarks/0/level",
+      "value": 3.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
       "id": "moment-note-reference-surface-mismatch",
       "operation": "set",
       "path": "/payload/timeline/0/noteReferences/0/surface",
       "value": "Ankunft",
+      "expect": "reject"
+    },
+    {
+      "id": "utf16-profile-note-mark-after-astral",
+      "operation": "set",
+      "path": "/payload/nodes/0/profile",
+      "value": {
+        "notizen": "😀 Mara",
+        "noteReferences": [],
+        "noteMarks": [{ "from": 3, "to": 7, "kind": "bold" }],
+        "fields": []
+      },
+      "expect": "accept"
+    },
+    {
+      "id": "utf16-profile-note-mark-splits-surrogate",
+      "operation": "set",
+      "path": "/payload/nodes/0/profile",
+      "value": {
+        "notizen": "😀 Mara",
+        "noteReferences": [],
+        "noteMarks": [{ "from": 1, "to": 2, "kind": "bold" }],
+        "fields": []
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "utf16-moment-note-mark-after-astral",
+      "operation": "set",
+      "path": "/payload/timeline/0",
+      "value": {
+        "id": "arrival",
+        "title": "Ankunft",
+        "time": -3,
+        "position": 0,
+        "note": "😀 Mara",
+        "noteReferences": [],
+        "noteMarks": [{ "from": 3, "to": 7, "kind": "italic" }]
+      },
+      "expect": "accept"
+    },
+    {
+      "id": "utf16-moment-note-mark-splits-surrogate",
+      "operation": "set",
+      "path": "/payload/timeline/0",
+      "value": {
+        "id": "arrival",
+        "title": "Ankunft",
+        "time": -3,
+        "position": 0,
+        "note": "😀 Mara",
+        "noteReferences": [],
+        "noteMarks": [{ "from": 1, "to": 2, "kind": "italic" }]
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "profile-note-text-required-for-note-ranges",
+      "operation": "remove",
+      "path": "/payload/nodes/0/profile/notizen",
+      "expect": "reject"
+    },
+    {
+      "id": "moment-note-text-required-for-note-ranges",
+      "operation": "remove",
+      "path": "/payload/timeline/0/note",
       "expect": "reject"
     },
     {

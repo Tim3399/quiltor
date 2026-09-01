@@ -41,6 +41,44 @@ describe("figure transfer", () => {
     });
   });
 
+  it("round-trips note formatting and rejects malformed imported ranges", () => {
+    const formatted: FigureState = {
+      nodes: [
+        {
+          id: "mara",
+          x: 0,
+          y: 0,
+          name: "Mara",
+          profile: {
+            notizen: "Titel\nMara",
+            noteMarks: [
+              { from: 0, to: 5, kind: "heading", level: 2 },
+              { from: 6, to: 10, kind: "bold" },
+            ],
+            fields: [],
+          },
+        },
+      ],
+      edges: [],
+    };
+    expect(parseFigureState(serializeFigureState(formatted))).toEqual(formatted);
+
+    const invalid = JSON.parse(serializeFigureState(formatted));
+    invalid.nodes[0].profile.noteMarks[0].to = 10;
+    expect(() => parseFigureState(JSON.stringify(invalid))).toThrow(
+      "Invalid figure note formatting",
+    );
+
+    const invalidTimeline = {
+      nodes: [],
+      edges: [],
+      timeline: [{ id: "storm", note: "Kurz", noteMarks: [{ from: 0, to: 99, kind: "italic" }] }],
+    };
+    expect(() => parseFigureState(JSON.stringify(invalidTimeline))).toThrow(
+      "Invalid figure note formatting",
+    );
+  });
+
   it("rejects JSON that is not a figure diagram", () => {
     expect(() => parseFigureState('{"nodes":[]}')).toThrow();
     expect(() => parseFigureState("not json")).toThrow();
@@ -87,5 +125,33 @@ describe("figure transfer", () => {
 
     expect(markdown).toContain("## profileNotes\n\nVertraut dem Archiv.");
     expect(markdown.indexOf("## profileNotes")).toBeLessThan(markdown.indexOf("## Aufgabe"));
+  });
+
+  it("exports note emphasis and headings as nested Markdown", () => {
+    const markdown = serializeFigureProfiles(
+      {
+        nodes: [
+          {
+            id: "mara",
+            x: 0,
+            y: 0,
+            name: "Mara",
+            profile: {
+              notizen: "Plan\nArchivarin",
+              noteMarks: [
+                { from: 0, to: 4, kind: "heading", level: 1 },
+                { from: 5, to: 15, kind: "bold" },
+                { from: 5, to: 15, kind: "italic" },
+              ],
+              fields: [],
+            },
+          },
+        ],
+        edges: [],
+      },
+      t,
+    );
+
+    expect(markdown).toContain("## profileNotes\n\n### Plan\n***Archivarin***");
   });
 });

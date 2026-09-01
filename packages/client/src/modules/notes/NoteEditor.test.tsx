@@ -91,10 +91,143 @@ describe("NoteEditor", () => {
     const view = viewFor(editor);
     expect(view.state.doc.toString()).toBe("Bestehender Gedanke");
     replaceText(view, "Weitergedacht");
-    expect(onChange).toHaveBeenCalledWith("Weitergedacht", []);
+    expect(onChange).toHaveBeenCalledWith("Weitergedacht", [], []);
     expect(editor.closest("[data-note-owner]")).toHaveAttribute("data-note-owner", "chapter:c1");
     fireEvent.click(screen.getByText("Notiz", { selector: "label" }));
     expect(editor).toHaveFocus();
+  });
+
+  it("stores bold, italic and headings as ranges beside unchanged plain text", () => {
+    const onChange = vi.fn();
+    renderNote(
+      <NoteEditor
+        owner={{ kind: "chapter", id: "c1" }}
+        label="Notiz"
+        value={"Titel\nMara"}
+        onChange={onChange}
+      />,
+    );
+    const editor = screen.getByRole("textbox", { name: "Notiz" });
+    const view = viewFor(editor);
+    act(() => view.dispatch({ selection: { anchor: 6, head: 10 } }));
+    const boldButton = screen.getByRole("button", { name: "Fett" });
+    expect(boldButton).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(boldButton);
+    expect(boldButton).toHaveAttribute("aria-pressed", "true");
+    expect(onChange).toHaveBeenLastCalledWith(
+      "Titel\nMara",
+      [],
+      [{ from: 6, to: 10, kind: "bold" }],
+    );
+
+    act(() => view.dispatch({ selection: { anchor: 2 } }));
+    fireEvent.click(screen.getByRole("button", { name: "Überschrift" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Überschrift 2" }));
+    expect(screen.getByRole("button", { name: "Überschrift" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Überschrift" }));
+    expect(screen.getByRole("menuitem", { name: "Überschrift 2" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Überschrift 2" }), {
+      key: "Escape",
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      "Titel\nMara",
+      [],
+      [
+        { from: 0, to: 5, kind: "heading", level: 2 },
+        { from: 6, to: 10, kind: "bold" },
+      ],
+    );
+
+    act(() => view.dispatch({ selection: { anchor: 6, head: 10 } }));
+    fireEvent.click(screen.getByRole("button", { name: "Kursiv" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      "Titel\nMara",
+      [],
+      [
+        { from: 0, to: 5, kind: "heading", level: 2 },
+        { from: 6, to: 10, kind: "bold" },
+        { from: 6, to: 10, kind: "italic" },
+      ],
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Titel" })).toBeInTheDocument();
+    expect(view.state.doc.toString()).toBe("Titel\nMara");
+  });
+
+  it("maps formatting and references through the same text edit", () => {
+    const onChange = vi.fn();
+    renderNote(
+      <NoteEditor
+        owner={{ kind: "chapter", id: "c1" }}
+        label="Notiz"
+        value="Mara"
+        references={[{ id: "ref-1", target: harbour.target, from: 0, to: 4, surface: "Mara" }]}
+        marks={[{ from: 0, to: 4, kind: "bold" }]}
+        onChange={onChange}
+      />,
+      [harbour],
+    );
+    const view = viewFor(screen.getByRole("textbox", { name: "Notiz" }));
+    act(() =>
+      view.dispatch({
+        changes: { from: 0, insert: "X" },
+        selection: { anchor: 1 },
+        userEvent: "input",
+      }),
+    );
+    expect(onChange).toHaveBeenLastCalledWith(
+      "XMara",
+      [expect.objectContaining({ id: "ref-1", from: 1, to: 5, surface: "Mara" })],
+      [{ from: 1, to: 5, kind: "bold" }],
+    );
+  });
+
+  it("does not publish a heading no-op for an empty note", () => {
+    const onChange = vi.fn();
+    renderNote(
+      <NoteEditor
+        owner={{ kind: "chapter", id: "c1" }}
+        label="Notiz"
+        value=""
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Überschrift" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Überschrift 1" }));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("renders persisted formatting in both inline and focus editors", async () => {
+    renderNote(
+      <NoteEditor
+        owner={{ kind: "place", id: "harbour" }}
+        label="Notiz"
+        value={"Titel\nMara"}
+        marks={[
+          { from: 0, to: 5, kind: "heading", level: 1 },
+          { from: 6, to: 10, kind: "italic" },
+        ]}
+        onChange={vi.fn()}
+        focus={focus}
+      />,
+    );
+    const inline = screen.getByRole("textbox", { name: "Notiz" }).closest(".cm-editor");
+    expect(inline?.querySelector(".note-mark--heading-1")).toHaveTextContent("Titel");
+    expect(inline?.querySelector(".note-mark--italic")).toHaveTextContent("Mara");
+
+    fireEvent.click(screen.getByRole("button", { name: "Im Fokus öffnen" }));
+    const focused = screen.getByRole("textbox", { name: "Notiz für Hafen" }).closest(".cm-editor");
+    await waitFor(() =>
+      expect(focused?.querySelector(".note-mark--heading-1")).toHaveTextContent("Titel"),
+    );
+    expect(focused?.querySelector(".note-mark--italic")).toHaveTextContent("Mara");
   });
 
   it("requests focus for the same stable owner", () => {
@@ -225,15 +358,19 @@ describe("NoteEditor", () => {
     fireEvent.keyDown(textbox, { key: "Enter" });
 
     expect(view.state.doc.toString()).toBe("Burg");
-    expect(onChange).toHaveBeenLastCalledWith("Burg", [
-      expect.objectContaining({
-        id: expect.any(String),
-        target: { kind: "place", id: "castle" },
-        from: 0,
-        to: 4,
-        surface: "Burg",
-      }),
-    ]);
+    expect(onChange).toHaveBeenLastCalledWith(
+      "Burg",
+      [
+        expect.objectContaining({
+          id: expect.any(String),
+          target: { kind: "place", id: "castle" },
+          from: 0,
+          to: 4,
+          surface: "Burg",
+        }),
+      ],
+      [],
+    );
     expect(screen.queryByRole("listbox", { name: "Referenz auswählen" })).not.toBeInTheDocument();
   });
 
@@ -312,7 +449,7 @@ describe("NoteEditor", () => {
         userEvent: "input",
       }),
     );
-    expect(onChange).toHaveBeenLastCalledWith("Haxfen", []);
+    expect(onChange).toHaveBeenLastCalledWith("Haxfen", [], []);
   });
 
   it("keeps the author text but resolves a renamed target by its stable ID", () => {
@@ -367,8 +504,8 @@ describe("NoteEditor", () => {
             label="Notiz"
             value={value}
             references={references}
-            onChange={(nextValue, nextReferences) => {
-              onChange(nextValue, nextReferences);
+            onChange={(nextValue, nextReferences, nextMarks) => {
+              onChange(nextValue, nextReferences, nextMarks);
               setValue(nextValue);
               setReferences(nextReferences);
             }}
@@ -386,9 +523,11 @@ describe("NoteEditor", () => {
         userEvent: "input",
       }),
     );
-    expect(onChange).toHaveBeenLastCalledWith("Hafen!", [
-      expect.objectContaining({ id: "ref-1", source: "new" }),
-    ]);
+    expect(onChange).toHaveBeenLastCalledWith(
+      "Hafen!",
+      [expect.objectContaining({ id: "ref-1", source: "new" })],
+      [],
+    );
   });
 
   it("keeps reference completion above the modal focus surface", () => {

@@ -1,4 +1,4 @@
-import type { NoteReference } from "../../shared";
+import type { NoteMark, NoteReference } from "../../shared";
 
 export type WritingLocale = "de-DE";
 
@@ -32,6 +32,7 @@ export interface Chapter {
   body: string;
   note: string;
   noteReferences?: NoteReference[];
+  noteMarks?: NoteMark[];
   storyTime?: ChapterStoryTime;
   mentions?: EntityMention[];
   marks?: TextMark[];

@@ -39,7 +39,12 @@ export type StoryboardFlowNodeContext = {
   boardTitle?: string;
   boardContext?: string;
   onPatch: (id: string, patch: StoryboardNodePatch) => void;
-  onNoteChange: (id: string, text: string, references: StoryboardNode["noteReferences"]) => void;
+  onNoteChange: (
+    id: string,
+    text: string,
+    references: StoryboardNode["noteReferences"],
+    marks: StoryboardNode["noteMarks"],
+  ) => void;
   onOpenReference: (node: StoryboardReferenceNode) => void;
   onOpenBoard: (node: StoryboardBoardNode) => void;
 };
@@ -73,6 +78,7 @@ export function noteNode(
     ...size,
     text: "",
     noteReferences: [],
+    noteMarks: [],
   };
 }
 
@@ -92,6 +98,7 @@ export function groupNode(
     zIndex: 0,
     text: "",
     noteReferences: [],
+    noteMarks: [],
   };
 }
 
@@ -110,6 +117,7 @@ export function candidateNode(
     zIndex: 1,
     text: "",
     noteReferences: [],
+    noteMarks: [],
   };
   if (candidate.target.kind === "storyboard") {
     return { ...base, kind: "storyboard", target: candidate.target };
@@ -217,11 +225,17 @@ export function updateStoryboardNodeNote(
   nodeId: string,
   text: string,
   noteReferences: StoryboardNode["noteReferences"],
+  noteMarks: StoryboardNode["noteMarks"],
 ): StoryboardNode[] {
   const index = nodes.findIndex((node) => node.id === nodeId);
   if (index < 0) return nodes;
   const next = [...nodes];
-  next[index] = { ...nodes[index], text, noteReferences: noteReferences ?? [] };
+  next[index] = {
+    ...nodes[index],
+    text,
+    noteReferences: noteReferences ?? [],
+    noteMarks: noteMarks ?? [],
+  };
   return next;
 }
 

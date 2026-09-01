@@ -81,6 +81,88 @@ describe("FigureInspector panels", () => {
     expect(onPatch).toHaveBeenCalledWith({ important: true });
   });
 
+  it("commits a completed figure rename once instead of patching every typed character", () => {
+    const onPatch = vi.fn();
+    render(
+      <I18nProvider>
+        <FigureCardPanel
+          figure={state.nodes[0]}
+          state={state}
+          activeMomentId={null}
+          onPatch={onPatch}
+          onState={vi.fn()}
+          onSelectMoment={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+    expect(name).toHaveValue("Ada");
+
+    fireEvent.change(name, { target: { value: "A" } });
+    fireEvent.change(name, { target: { value: "Ad" } });
+    fireEvent.change(name, { target: { value: "Ada L" } });
+    fireEvent.change(name, { target: { value: "Ada Lovelace" } });
+
+    expect(onPatch).not.toHaveBeenCalled();
+    fireEvent.blur(name);
+    expect(onPatch).toHaveBeenCalledTimes(1);
+    expect(onPatch).toHaveBeenCalledWith({ name: "Ada Lovelace" });
+  });
+
+  it("does not commit unchanged or cancelled figure names", () => {
+    const onPatch = vi.fn();
+    render(
+      <I18nProvider>
+        <FigureCardPanel
+          figure={state.nodes[0]}
+          state={state}
+          activeMomentId={null}
+          onPatch={onPatch}
+          onState={vi.fn()}
+          onSelectMoment={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+
+    name.focus();
+    fireEvent.blur(name);
+    expect(onPatch).not.toHaveBeenCalled();
+
+    name.focus();
+    fireEvent.change(name, { target: { value: "Ada Byron" } });
+    fireEvent.keyDown(name, { key: "Escape" });
+    expect(name).toHaveValue("Ada");
+    expect(onPatch).not.toHaveBeenCalled();
+  });
+
+  it("commits a figure rename through Enter exactly once", () => {
+    const onPatch = vi.fn();
+    render(
+      <I18nProvider>
+        <FigureCardPanel
+          figure={state.nodes[0]}
+          state={state}
+          activeMomentId={null}
+          onPatch={onPatch}
+          onState={vi.fn()}
+          onSelectMoment={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+
+    name.focus();
+    fireEvent.change(name, { target: { value: "Ada Lovelace" } });
+    fireEvent.keyDown(name, { key: "Enter" });
+    name.blur();
+    expect(onPatch).toHaveBeenCalledTimes(1);
+    expect(onPatch).toHaveBeenCalledWith({ name: "Ada Lovelace" });
+  });
+
   it("puts the large notes surface first and owns canonical profile field patches", () => {
     const onPatch = vi.fn();
     const view = render(

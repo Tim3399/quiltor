@@ -336,6 +336,36 @@ class DocumentWireV1Tests(unittest.TestCase):
                     self.assertEqual(decoded.payload["edges"][0]["color"], "gold")
                     self.assertEqual(decoded.payload["edges"][0]["lineStyle"], "dotted")
 
+    def test_note_marks_are_canonicalized_into_stable_range_order(self):
+        fixture = registered_fixture("application.manuscript-wire")
+        marks = fixture["payload"]["chapters"][0]["noteMarks"]
+        marks[1]["extensionRenderer"] = "future-emphasis"
+        fixture["payload"]["chapters"][0]["noteMarks"] = list(reversed(marks))
+
+        decoded = decode_document_v1("manuscript", fixture)
+
+        self.assertEqual(
+            decoded.payload["chapters"][0]["noteMarks"],
+            [
+                {"from": 0, "to": 24, "kind": "heading", "level": 2},
+                {
+                    "from": 4,
+                    "to": 10,
+                    "kind": "bold",
+                    "extensionRenderer": "future-emphasis",
+                },
+            ],
+        )
+        self.assertEqual(
+            fixture["payload"]["chapters"][0]["noteMarks"][0],
+            {
+                "from": 4,
+                "to": 10,
+                "kind": "bold",
+                "extensionRenderer": "future-emphasis",
+            },
+        )
+
     def test_canonical_profile_fields_round_trip_with_extensions(self):
         fixture = registered_fixture("application.story-world-wire")
         profile = {

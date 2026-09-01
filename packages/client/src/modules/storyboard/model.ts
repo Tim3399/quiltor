@@ -1,6 +1,7 @@
 import type {
   GraphEdgeColor,
   GraphEdgeLineStyle,
+  NoteMark,
   NoteReference,
   WorldReferenceTarget,
 } from "../../shared";
@@ -30,6 +31,7 @@ interface StoryboardNodeBase {
   label?: string;
   text?: string;
   noteReferences?: NoteReference[];
+  noteMarks?: NoteMark[];
   [key: string]: unknown;
 }
 

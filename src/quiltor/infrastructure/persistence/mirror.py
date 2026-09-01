@@ -7,8 +7,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from quiltor.domain.manuscript.text_offsets import utf16_length, utf16_offsets_to_indices
 from quiltor.domain.story_world.profile import normalize_profile
+from quiltor.domain.text_offsets import utf16_length, utf16_offsets_to_indices
 
 MIRROR_RE = re.compile(r"^\d{2,} - .*\.md$")  # writer uses f"{i:02d} - ...", unbounded above 99
 
@@ -89,6 +89,65 @@ def _emphasize(text: str, bold: int, italic: int) -> str:
     return "".join(wrapped)
 
 
+def note_markdown(note: str, marks, heading_offset: int = 0) -> str:
+    """Render note marks as Markdown while keeping the persisted note plain.
+
+    Note offsets are JavaScript/CodeMirror UTF-16 offsets. Heading marks cover
+    exactly one non-empty source line; ``heading_offset`` nests them below a
+    surrounding mirror section such as ``## Notizen``.
+    """
+    if not isinstance(note, str) or not note:
+        return note
+    if not isinstance(marks, list):
+        return note
+
+    safe_heading_offset = heading_offset if type(heading_offset) is int else 0
+    output: list[str] = []
+    line_start = 0
+    for line in note.split("\n"):
+        line_length = utf16_length(line)
+        line_end = line_start + line_length
+        inline_marks = []
+        heading_level = None
+
+        for mark in marks:
+            if not isinstance(mark, dict):
+                continue
+            kind = mark.get("kind")
+            start, end = mark.get("from"), mark.get("to")
+            if type(start) is not int or type(end) is not int:
+                continue
+            if kind in {"bold", "italic"}:
+                clipped_start = max(start, line_start)
+                clipped_end = min(end, line_end)
+                if clipped_end > clipped_start:
+                    inline_marks.append(
+                        {
+                            "from": clipped_start - line_start,
+                            "to": clipped_end - line_start,
+                            "kind": kind,
+                        }
+                    )
+            elif (
+                kind == "heading"
+                and start == line_start
+                and end == line_end
+                and line
+                and type(mark.get("level")) is int
+                and mark["level"] in {1, 2, 3}
+            ):
+                heading_level = mark["level"]
+
+        prefix = ""
+        if heading_level is not None:
+            level = max(1, min(6, heading_level + safe_heading_offset))
+            prefix = f"{'#' * level} "
+        output.append(prefix + markdown_body(line, inline_marks))
+        line_start = line_end + 1
+
+    return "\n".join(output)
+
+
 def mirror_text(chapters, manuscript_dir: Path) -> None:
     """Write every chapter to Markdown for reading, backups, and versioning."""
     manuscript_dir.mkdir(parents=True, exist_ok=True)
@@ -98,7 +157,7 @@ def mirror_text(chapters, manuscript_dir: Path) -> None:
         fname = f"{i:02d} - {safe_name(title)}.md"
         expected_files.add(fname)
         body = markdown_body(ch.get("body") or "", ch.get("marks") or [])
-        note = (ch.get("note") or "").strip()
+        note = note_markdown(ch.get("note") or "", ch.get("noteMarks") or []).strip()
         text = f"# {title}\n\n{body.rstrip()}\n"
         if note:
             text += "\n---\n\n<!-- Notiz\n" + note.rstrip() + "\n-->\n"
@@ -132,7 +191,9 @@ def mirror_profiles(state, profile_dir: Path) -> None:
             lines += [n["sub"], ""]
 
         prof = normalize_profile(n.get("profile"), str(n.get("id", "")))
-        notes = (prof.get("notizen") or "").strip()
+        notes = note_markdown(
+            prof.get("notizen") or "", prof.get("noteMarks") or [], heading_offset=2
+        ).strip()
         if notes:
             lines += ["## Notizen", "", notes, ""]
         for field in prof.get("fields") or []:

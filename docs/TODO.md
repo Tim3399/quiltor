@@ -349,6 +349,12 @@ Notes should become a first-class writer workflow, not small textareas scattered
   - chapter notes.
 - [x] Reuse the same editor for storyboard note cards.
 - [x] Preserve plain author-owned text.
+- [x] Preserve note presentation separately from that text:
+  - bold;
+  - italic;
+  - heading levels 1–3.
+- [x] Use the same formatting contract for chapter, figure/place, timeline and Storyboard notes.
+- [x] Keep references and formatting mapped to the same UTF-16 text revision.
 - [x] Autosave through the owning document/workspace.
 - [x] Undo/redo consistent with the owning workspace.
 - [x] Large comfortable editing surface.

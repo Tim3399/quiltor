@@ -30,6 +30,10 @@
             "to": 4,
             "surface": "Mara"
           }
+        ],
+        "noteMarks": [
+          { "from": 0, "to": 4, "kind": "bold" },
+          { "from": 0, "to": 25, "kind": "heading", "level": 1 }
         ]
       },
       {
@@ -48,6 +52,7 @@
             "surface": "Mara"
           }
         ],
+        "noteMarks": [{ "from": 0, "to": 4, "kind": "italic" }],
         "target": { "kind": "entity", "id": "mara", "extensionLabel": "Mara" },
         "extensionVariant": "portrait"
       },
@@ -67,6 +72,7 @@
             "surface": "Plot"
           }
         ],
+        "noteMarks": [{ "from": 0, "to": 18, "kind": "heading", "level": 2 }],
         "target": { "kind": "storyboard", "id": "plot-board" }
       },
       {
@@ -88,7 +94,8 @@
             "to": 7,
             "surface": "Opening"
           }
-        ]
+        ],
+        "noteMarks": [{ "from": 0, "to": 7, "kind": "bold" }]
       }
     ],
     "edges": [

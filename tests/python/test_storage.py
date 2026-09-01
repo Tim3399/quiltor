@@ -344,6 +344,7 @@ class StorageTest(unittest.TestCase):
                             "surface": "N",
                         }
                     ],
+                    "noteMarks": [{"from": 0, "to": 1, "kind": "bold"}],
                     "mood": "still",
                     "mentions": [
                         {
@@ -387,6 +388,7 @@ class StorageTest(unittest.TestCase):
                                 "surface": "B",
                             }
                         ],
+                        "noteMarks": [{"from": 0, "to": 1, "kind": "heading", "level": 2}],
                         "extra": [{"k": "Motiv", "v": "Heimkehr"}],
                         "future": "yes",
                     },
@@ -418,6 +420,7 @@ class StorageTest(unittest.TestCase):
                             "surface": "Hafen",
                         }
                     ],
+                    "noteMarks": [{"from": 10, "to": 15, "kind": "italic"}],
                 },
             ],
             "presence": [
@@ -438,6 +441,10 @@ class StorageTest(unittest.TestCase):
             manuscript["chapters"][0]["noteReferences"][0]["target"],
             {"kind": "entity", "id": "n1"},
         )
+        self.assertEqual(
+            manuscript["chapters"][0]["noteMarks"],
+            [{"from": 0, "to": 1, "kind": "bold"}],
+        )
         mirror_dir = config.DATA / "manuskript"
         mirror.mirror_text(manuscript["chapters"], mirror_dir)
         exported = next(mirror_dir.glob("*.md")).read_text(encoding="utf-8")
@@ -448,6 +455,7 @@ class StorageTest(unittest.TestCase):
             manuscript["chapters"][0]["marks"], [{"from": 6, "to": 10, "kind": "italic"}]
         )
         self.assertIn("Hallo *Welt*", exported)
+        self.assertIn("<!-- Notiz\n**N**\n-->", exported)
         self.assertNotIn("elementId", exported)
         self.assertNotIn('"m1"', exported)
         self.assertTrue(manuscript["future"])
@@ -461,6 +469,10 @@ class StorageTest(unittest.TestCase):
             figures["nodes"][0]["profile"]["noteReferences"][0]["target"],
             {"kind": "place", "id": "n2"},
         )
+        self.assertEqual(
+            figures["nodes"][0]["profile"]["noteMarks"],
+            [{"from": 0, "to": 1, "kind": "heading", "level": 2}],
+        )
         self.assertEqual(figures["nodes"][0]["future"], 7)
         self.assertEqual(figures["nodes"][0]["diedMomentId"], "t2")
         self.assertTrue(figures["nodes"][0]["important"])
@@ -468,6 +480,10 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(figures["edges"][0]["versions"][0]["label"], "Feinde")
         self.assertEqual(figures["timeline"][1]["date"], "1420-03-12")
         self.assertEqual(figures["timeline"][1]["noteReferences"][0]["id"], "moment-note-reference")
+        self.assertEqual(
+            figures["timeline"][1]["noteMarks"],
+            [{"from": 10, "to": 15, "kind": "italic"}],
+        )
         self.assertEqual(figures["future"], "kept")
         presence_by_id = {entry["id"]: entry for entry in figures["presence"]}
         self.assertEqual(presence_by_id["p1"]["momentId"], "t2")

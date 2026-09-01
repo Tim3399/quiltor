@@ -76,6 +76,11 @@
           "maxItems": 10000,
           "items": { "$ref": "#/$defs/noteReference" }
         },
+        "noteMarks": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/noteMark" }
+        },
         "extra": {
           "type": "array",
           "items": {
@@ -101,7 +106,23 @@
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["noteReferences"],
+            "properties": { "noteReferences": { "minItems": 1 } }
+          },
+          "then": { "required": ["notizen"] }
+        },
+        {
+          "if": {
+            "required": ["noteMarks"],
+            "properties": { "noteMarks": { "minItems": 1 } }
+          },
+          "then": { "required": ["notizen"] }
+        }
+      ]
     },
     "edge": {
       "type": "object",
@@ -165,8 +186,29 @@
           "type": "array",
           "maxItems": 10000,
           "items": { "$ref": "#/$defs/noteReference" }
+        },
+        "noteMarks": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/noteMark" }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["noteReferences"],
+            "properties": { "noteReferences": { "minItems": 1 } }
+          },
+          "then": { "required": ["note"] }
+        },
+        {
+          "if": {
+            "required": ["noteMarks"],
+            "properties": { "noteMarks": { "minItems": 1 } }
+          },
+          "then": { "required": ["note"] }
+        }
+      ]
     },
     "noteReference": {
       "type": "object",
@@ -189,6 +231,27 @@
         },
         "surface": { "type": "string", "minLength": 1, "maxLength": 1000 }
       }
+    },
+    "noteMark": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["from", "to", "kind"],
+      "properties": {
+        "from": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "to": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "kind": { "enum": ["bold", "italic", "heading"] },
+        "level": { "type": "integer", "minimum": 1, "maximum": 3 }
+      },
+      "oneOf": [
+        {
+          "properties": { "kind": { "enum": ["bold", "italic"] } },
+          "not": { "required": ["level"] }
+        },
+        {
+          "properties": { "kind": { "const": "heading" } },
+          "required": ["level"]
+        }
+      ]
     },
     "worldReferenceTarget": {
       "type": "object",

@@ -29,9 +29,15 @@
       "null": "reject"
     },
     {
+      "id": "note-marks",
+      "path": "/payload/nodes/0/noteMarks",
+      "absent": "accept",
+      "null": "reject"
+    },
+    {
       "id": "reference-node-text",
       "path": "/payload/nodes/1/text",
-      "alsoRemove": ["/payload/nodes/1/noteReferences"],
+      "alsoRemove": ["/payload/nodes/1/noteReferences", "/payload/nodes/1/noteMarks"],
       "absent": "accept",
       "null": "reject"
     },
@@ -44,7 +50,7 @@
     {
       "id": "storyboard-node-text",
       "path": "/payload/nodes/2/text",
-      "alsoRemove": ["/payload/nodes/2/noteReferences"],
+      "alsoRemove": ["/payload/nodes/2/noteReferences", "/payload/nodes/2/noteMarks"],
       "absent": "accept",
       "null": "reject"
     },
@@ -57,7 +63,7 @@
     {
       "id": "group-node-text",
       "path": "/payload/nodes/3/text",
-      "alsoRemove": ["/payload/nodes/3/noteReferences"],
+      "alsoRemove": ["/payload/nodes/3/noteReferences", "/payload/nodes/3/noteMarks"],
       "absent": "accept",
       "null": "reject"
     },
@@ -131,6 +137,46 @@
       "value": -9007199254740991,
       "expect": "accept",
       "canonical": "integer"
+    },
+    {
+      "id": "note-mark-integral-float",
+      "operation": "set",
+      "path": "/payload/nodes/0/noteMarks/0/to",
+      "value": 4.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "utf16-note-mark-after-astral",
+      "operation": "set",
+      "path": "/payload/nodes/0",
+      "value": {
+        "id": "note-opening",
+        "boardId": "main-storyboard",
+        "kind": "note",
+        "x": 120.5,
+        "y": -48,
+        "text": "😀 Mara",
+        "noteReferences": [],
+        "noteMarks": [{ "from": 3, "to": 7, "kind": "bold" }]
+      },
+      "expect": "accept"
+    },
+    {
+      "id": "utf16-note-mark-splits-surrogate",
+      "operation": "set",
+      "path": "/payload/nodes/0",
+      "value": {
+        "id": "note-opening",
+        "boardId": "main-storyboard",
+        "kind": "note",
+        "x": 120.5,
+        "y": -48,
+        "text": "😀 Mara",
+        "noteReferences": [],
+        "noteMarks": [{ "from": 1, "to": 2, "kind": "bold" }]
+      },
+      "expect": "reject"
     },
     {
       "id": "node-z-index-below-min-safe",

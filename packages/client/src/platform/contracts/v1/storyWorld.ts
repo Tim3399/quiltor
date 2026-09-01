@@ -1,12 +1,12 @@
 import type { FigureState } from "../../../modules/story-world";
 import {
   ENTITY_ALIAS_NORMALIZATION_V1,
-  type GraphEdgeColor,
-  type GraphEdgeLineStyle,
   GRAPH_EDGE_COLORS,
   GRAPH_EDGE_LINE_STYLES,
-  type GraphRelationshipKind,
   GRAPH_RELATIONSHIP_KINDS,
+  type GraphEdgeColor,
+  type GraphEdgeLineStyle,
+  type GraphRelationshipKind,
   normalizeEntityAliasV1,
   normalizeProfile,
 } from "../../../shared";
@@ -16,6 +16,7 @@ import {
   decodeDocumentEnvelopeV1,
   encodeDocumentEnvelopeV1,
 } from "./documentEnvelope";
+import { cloneNoteMarks, type NoteMarkWireV1, validateNoteMarks } from "./noteMark";
 import {
   cloneNoteReferences,
   type NoteReferenceWireV1,
@@ -48,6 +49,7 @@ export interface ProfileWireV1 {
   stimme?: string;
   notizen?: string;
   noteReferences?: NoteReferenceWireV1[];
+  noteMarks?: NoteMarkWireV1[];
   extra?: Array<{ k: string; v: string; [key: string]: unknown }>;
   fields?: Array<{ id: string; key: string; value: string; [key: string]: unknown }>;
   [key: string]: unknown;
@@ -115,6 +117,7 @@ export interface TimelineMomentWireV1 {
   date?: string;
   note?: string;
   noteReferences?: NoteReferenceWireV1[];
+  noteMarks?: NoteMarkWireV1[];
   [key: string]: unknown;
 }
 
@@ -186,7 +189,7 @@ function optionalBoolean(record: WireRecord, key: string, path: string): void {
   optional(record, key, wireBoolean, path);
 }
 
-function validateProfile(value: unknown, path: string): void {
+function validateProfile(value: unknown, path: string): ProfileWireV1 {
   const profile = wireRecord(value, path);
   for (const key of ["alter", "rolle", "aussehen", "herkunft", "stimme", "notizen"]) {
     optionalString(profile, key, path);
@@ -198,6 +201,14 @@ function validateProfile(value: unknown, path: string): void {
       `${path}.noteReferences`,
     );
   }
+  const noteMarks =
+    profile.noteMarks === undefined
+      ? undefined
+      : validateNoteMarks(
+          profile.noteMarks,
+          typeof profile.notizen === "string" ? profile.notizen : "",
+          `${path}.noteMarks`,
+        );
   if (profile.extra !== undefined) {
     for (const [index, extraValue] of wireArray(profile.extra, `${path}.extra`).entries()) {
       const itemPath = `${path}.extra[${index}]`;
@@ -218,6 +229,10 @@ function validateProfile(value: unknown, path: string): void {
       wireString(field.value, `${fieldPath}.value`);
     }
   }
+  return {
+    ...profile,
+    ...(noteMarks === undefined ? {} : { noteMarks }),
+  } as ProfileWireV1;
 }
 
 function validateNode(value: unknown, path: string): FigureNodeWireV1 {
@@ -233,7 +248,8 @@ function validateNode(value: unknown, path: string): FigureNodeWireV1 {
   for (const key of ["dash", "pinned", "important"]) optionalBoolean(node, key, path);
   optional(node, "mapX", wireNumber, path);
   optional(node, "mapY", wireNumber, path);
-  optional(node, "profile", validateProfile, path);
+  const profile =
+    node.profile === undefined ? undefined : validateProfile(node.profile, `${path}.profile`);
   if (node.aliases !== undefined) {
     const aliases = new Set<string>();
     for (const [index, aliasValue] of wireArray(node.aliases, `${path}.aliases`).entries()) {
@@ -254,7 +270,10 @@ function validateNode(value: unknown, path: string): FigureNodeWireV1 {
       );
     }
   }
-  return node as unknown as FigureNodeWireV1;
+  return {
+    ...node,
+    ...(profile === undefined ? {} : { profile }),
+  } as unknown as FigureNodeWireV1;
 }
 
 function validateTimeline(value: unknown, path: string): TimelineMomentWireV1[] {
@@ -276,6 +295,14 @@ function validateTimeline(value: unknown, path: string): TimelineMomentWireV1[] 
         `${momentPath}.noteReferences`,
       );
     }
+    const noteMarks =
+      moment.noteMarks === undefined
+        ? undefined
+        : validateNoteMarks(
+            moment.noteMarks,
+            typeof moment.note === "string" ? moment.note : "",
+            `${momentPath}.noteMarks`,
+          );
     optional(moment, "time", wireInteger, momentPath);
     optional(moment, "position", wireInteger, momentPath);
     optional(
@@ -301,7 +328,10 @@ function validateTimeline(value: unknown, path: string): TimelineMomentWireV1[] 
     if (moment.endPrecision !== undefined && moment.endTime === undefined) {
       throw new WireContractError(`${momentPath}.endPrecision`);
     }
-    return moment as unknown as TimelineMomentWireV1;
+    return {
+      ...moment,
+      ...(noteMarks === undefined ? {} : { noteMarks }),
+    } as unknown as TimelineMomentWireV1;
   });
 }
 
@@ -519,8 +549,12 @@ function storyWorldPayload(value: unknown, path: string): StoryWorldPayloadWireV
     wireString(scale.unitLabel, `${path}.mapScale.unitLabel`);
   }
   optional(payload, "timeSystem", validateTimeSystem, path);
-  void edges;
-  return payload as unknown as StoryWorldPayloadWireV1;
+  return {
+    ...payload,
+    nodes,
+    edges,
+    ...(payload.timeline === undefined ? {} : { timeline }),
+  } as unknown as StoryWorldPayloadWireV1;
 }
 
 function cloneNode(node: FigureNodeWireV1): FigureNodeWireV1 {
@@ -528,6 +562,7 @@ function cloneNode(node: FigureNodeWireV1): FigureNodeWireV1 {
   if (node.profile !== undefined) {
     clone.profile = normalizeProfile(node.profile, node.id);
     clone.profile.noteReferences = cloneNoteReferences(node.profile.noteReferences);
+    clone.profile.noteMarks = cloneNoteMarks(node.profile.noteMarks);
     clone.profile.fields = clone.profile.fields?.map((field) => ({ ...field }));
   }
   if (node.aliases !== undefined) clone.aliases = node.aliases.map((alias) => ({ ...alias }));
@@ -549,6 +584,7 @@ function encodeNode(node: FigureState["nodes"][number]): FigureNodeWireV1 {
       ? {
           ...profile,
           noteReferences: cloneNoteReferences(profile.noteReferences),
+          noteMarks: cloneNoteMarks(profile.noteMarks),
           fields: profile.fields?.map((field) => ({ ...field })),
         }
       : undefined,
@@ -598,6 +634,7 @@ export function decodeStoryWorldV1(value: unknown): DecodedDocumentV1<FigureStat
         ...moment,
         title: moment.title ?? "",
         noteReferences: cloneNoteReferences(moment.noteReferences),
+        noteMarks: cloneNoteMarks(moment.noteMarks),
       })),
       presence: payload.presence?.map((entry) => ({ ...entry })),
       canvasSize: payload.canvasSize ? { ...payload.canvasSize } : undefined,
@@ -616,6 +653,7 @@ export function encodeStoryWorldV1(model: FigureState, revision?: number): Story
     timeline: model.timeline?.map((moment) => ({
       ...moment,
       noteReferences: cloneNoteReferences(moment.noteReferences),
+      noteMarks: cloneNoteMarks(moment.noteMarks),
     })),
     presence: model.presence?.map((entry) => ({ ...entry })),
     canvasSize: model.canvasSize ? { ...model.canvasSize } : undefined,

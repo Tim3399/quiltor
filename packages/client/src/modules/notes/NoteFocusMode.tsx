@@ -1,7 +1,7 @@
 import { type RefObject, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Dialog } from "../../design";
-import type { NoteReference } from "../../shared";
+import type { NoteMark, NoteReference } from "../../shared";
 import type { WorldReferenceCandidate, WorldReferenceTarget } from "../world-references";
 import type { NoteFocusCopy, NoteOwner } from "./model";
 import { noteOwnerKey } from "./model";
@@ -11,6 +11,7 @@ export function NoteFocusMode({
   owner,
   value,
   references,
+  marks,
   onChange,
   candidates,
   onOpenReference,
@@ -22,7 +23,8 @@ export function NoteFocusMode({
   owner: NoteOwner;
   value: string;
   references: readonly NoteReference[];
-  onChange: (value: string, references: NoteReference[]) => void;
+  marks: readonly NoteMark[];
+  onChange: (value: string, references: NoteReference[], marks: NoteMark[]) => void;
   candidates: readonly WorldReferenceCandidate[];
   onOpenReference: (target: WorldReferenceTarget) => void;
   copy: NoteFocusCopy;
@@ -53,6 +55,7 @@ export function NoteFocusMode({
           labelHidden
           value={value}
           references={references}
+          marks={marks}
           candidates={candidates}
           onOpenReference={onOpenReference}
           placeholder={placeholder}

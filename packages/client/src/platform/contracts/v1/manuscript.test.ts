@@ -95,6 +95,82 @@ describe("manuscript wire v1", () => {
     expect(() => decodeManuscriptV1(overlapping)).toThrow();
   });
 
+  it("round-trips detached note formatting and rejects malformed heading ranges", () => {
+    const source = copy(fixture);
+    const decoded = decodeManuscriptV1(source);
+    expect(decoded.document.chapters[0].noteMarks).toEqual([
+      { from: 0, to: 24, kind: "heading", level: 2 },
+      { from: 4, to: 10, kind: "bold" },
+    ]);
+    const first = decoded.document.chapters[0].noteMarks?.[0];
+    if (first?.kind !== "heading") throw new Error("heading fixture missing");
+    first.level = 3;
+    expect(source.payload.chapters[0].noteMarks[0].level).toBe(2);
+    const encoded = encodeManuscriptV1(decoded.document, decoded.revision);
+    first.level = 1;
+    expect(encoded.payload.chapters[0].noteMarks?.[0]).toMatchObject({ level: 3 });
+
+    const invalidLevel = copy(fixture);
+    invalidLevel.payload.chapters[0].noteMarks[0].level = 4;
+    expect(() => decodeManuscriptV1(invalidLevel)).toThrow();
+
+    const multiLine = copy(fixture);
+    multiLine.payload.chapters[0].note = "Erste\nZweite";
+    multiLine.payload.chapters[0].noteReferences = [];
+    multiLine.payload.chapters[0].noteMarks = [{ from: 0, to: 12, kind: "heading", level: 1 }];
+    expect(() => decodeManuscriptV1(multiLine)).toThrow();
+
+    const astralBoundary = copy(fixture);
+    astralBoundary.payload.chapters[0].note = "😀 Mara";
+    astralBoundary.payload.chapters[0].noteReferences = [];
+    astralBoundary.payload.chapters[0].noteMarks = [{ from: 1, to: 2, kind: "bold" }];
+    expect(() => decodeManuscriptV1(astralBoundary)).toThrow();
+
+    const overlapping = copy(fixture);
+    overlapping.payload.chapters[0].noteMarks = [
+      { from: 0, to: 8, kind: "italic" },
+      { from: 4, to: 12, kind: "italic" },
+    ];
+    expect(() => decodeManuscriptV1(overlapping)).toThrow();
+  });
+
+  it("canonicalizes unsorted note formatting without mutating the source", () => {
+    const source = copy(fixture);
+    source.payload.chapters[0].noteMarks.reverse();
+
+    const decoded = decodeManuscriptV1(source);
+
+    expect(decoded.document.chapters[0].noteMarks).toEqual([
+      { from: 0, to: 24, kind: "heading", level: 2 },
+      { from: 4, to: 10, kind: "bold" },
+    ]);
+    expect(source.payload.chapters[0].noteMarks[0]).toEqual({
+      from: 4,
+      to: 10,
+      kind: "bold",
+    });
+    expect(encodeManuscriptV1(decoded.document).payload.chapters[0].noteMarks).toEqual(
+      decoded.document.chapters[0].noteMarks,
+    );
+  });
+
+  it("preserves forward-compatible note-mark extensions through the wire round trip", () => {
+    const source = copy(fixture);
+    Object.assign(source.payload.chapters[0].noteMarks[1], {
+      extensionRenderer: "future-emphasis",
+    });
+
+    const decoded = decodeManuscriptV1(source);
+    expect(decoded.document.chapters[0].noteMarks?.[1]).toMatchObject({
+      kind: "bold",
+      extensionRenderer: "future-emphasis",
+    });
+    expect(encodeManuscriptV1(decoded.document).payload.chapters[0].noteMarks?.[1]).toMatchObject({
+      kind: "bold",
+      extensionRenderer: "future-emphasis",
+    });
+  });
+
   it("rejects malformed or unversioned envelopes instead of casting them", () => {
     const wrongVersion = copy(fixture) as Record<string, unknown>;
     wrongVersion.version = 2;

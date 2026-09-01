@@ -1,7 +1,14 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
-from quiltor.infrastructure.persistence.mirror import markdown_body
+from quiltor.infrastructure.persistence.mirror import (
+    markdown_body,
+    mirror_profiles,
+    mirror_text,
+    note_markdown,
+)
 
 
 class FigureTemporalValidationTests(unittest.TestCase):
@@ -251,6 +258,71 @@ class NoteReferenceValidationTests(unittest.TestCase):
         self.assertFalse(valid_manuscript(self.manuscript("entity:ada")))
 
 
+class NoteMarkValidationTests(unittest.TestCase):
+    def manuscript(self, text="Titel\nMara", marks=None):
+        chapter = {"id": "chapter", "title": "", "body": "", "note": text}
+        if marks is not None:
+            chapter["noteMarks"] = marks
+        return {"chapters": [chapter]}
+
+    def test_accepts_optional_inline_and_heading_marks_over_plain_note_text(self):
+        marks = [
+            {"from": 0, "to": 5, "kind": "heading", "level": 2},
+            {"from": 6, "to": 10, "kind": "bold"},
+            {"from": 6, "to": 10, "kind": "italic"},
+        ]
+        self.assertTrue(valid_manuscript(self.manuscript(marks=marks)))
+        self.assertTrue(valid_manuscript(self.manuscript(marks=None)))
+
+    def test_rejects_surrogate_splits_overlaps_and_noncanonical_headings(self):
+        self.assertFalse(
+            valid_manuscript(self.manuscript("😀 Mara", [{"from": 1, "to": 2, "kind": "bold"}]))
+        )
+        self.assertFalse(
+            valid_manuscript(
+                self.manuscript(
+                    marks=[
+                        {"from": 6, "to": 10, "kind": "bold"},
+                        {"from": 8, "to": 10, "kind": "bold"},
+                    ]
+                )
+            )
+        )
+        self.assertFalse(
+            valid_manuscript(
+                self.manuscript(marks=[{"from": 0, "to": 10, "kind": "heading", "level": 1}])
+            )
+        )
+
+    def test_applies_the_same_contract_to_profiles_and_timeline_notes(self):
+        figures = {
+            "nodes": [
+                {
+                    "id": "ada",
+                    "name": "Ada",
+                    "x": 0,
+                    "y": 0,
+                    "profile": {
+                        "notizen": "Titel",
+                        "noteMarks": [{"from": 0, "to": 5, "kind": "heading", "level": 1}],
+                    },
+                }
+            ],
+            "edges": [],
+            "timeline": [
+                {
+                    "id": "arrival",
+                    "title": "Ankunft",
+                    "note": "Mara",
+                    "noteMarks": [{"from": 0, "to": 4, "kind": "italic"}],
+                }
+            ],
+        }
+        self.assertTrue(valid_figures(figures))
+        figures["timeline"][0]["noteMarks"][0]["to"] = 99
+        self.assertFalse(valid_figures(figures))
+
+
 class ManuscriptMentionValidationTests(unittest.TestCase):
     def manuscript(self, mentions):
         return {
@@ -418,8 +490,46 @@ class MarkdownMirrorTests(unittest.TestCase):
             "Mara *und Bela*",
         )
         self.assertEqual(
+            note_markdown(" Mara ", [{"from": 0, "to": 6, "kind": "bold"}]),
+            " **Mara** ",
+        )
+        self.assertEqual(
             markdown_body("Eins\n\nZwei", [{"from": 0, "to": 10, "kind": "bold"}]),
             "**Eins**\n\n**Zwei**",
+        )
+
+    def test_note_markdown_matches_the_client_for_mixed_emphasis_around_astral_text(self):
+        self.assertEqual(
+            note_markdown(
+                " 😀 Mara ",
+                [
+                    {"from": 0, "to": 9, "kind": "bold"},
+                    {"from": 1, "to": 8, "kind": "italic"},
+                ],
+            ),
+            " ***😀 Mara*** ",
+        )
+
+    def test_note_markdown_matches_the_client_for_adjacent_extension_ranges(self):
+        self.assertEqual(
+            note_markdown(
+                "Mara",
+                [
+                    {
+                        "from": 0,
+                        "to": 2,
+                        "kind": "bold",
+                        "extensionSource": "first",
+                    },
+                    {
+                        "from": 2,
+                        "to": 4,
+                        "kind": "bold",
+                        "extensionSource": "second",
+                    },
+                ],
+            ),
+            "**Mara**",
         )
 
     def test_survives_ranges_that_no_longer_fit_the_text(self):
@@ -435,6 +545,55 @@ class MarkdownMirrorTests(unittest.TestCase):
             markdown_body("😀 Mara", [{"from": 1, "to": 2, "kind": "bold"}]),
             "😀 Mara",
         )
+
+    def test_renders_note_headings_and_inline_marks_from_utf16_ranges(self):
+        note = "Plan\n😀 Mara"
+        marks = [
+            {"from": 0, "to": 4, "kind": "heading", "level": 2},
+            {"from": 8, "to": 12, "kind": "bold"},
+        ]
+        self.assertEqual(note_markdown(note, marks), "## Plan\n😀 **Mara**")
+        self.assertEqual(note_markdown(note, marks, heading_offset=2), "#### Plan\n😀 **Mara**")
+
+    def test_note_markdown_ignores_boundaries_inside_an_astral_character(self):
+        self.assertEqual(
+            note_markdown("😀 Mara", [{"from": 1, "to": 2, "kind": "italic"}]),
+            "😀 Mara",
+        )
+
+    def test_chapter_and_profile_mirrors_render_their_note_marks(self):
+        note = "Plan\n😀 Mara"
+        marks = [
+            {"from": 0, "to": 4, "kind": "heading", "level": 1},
+            {"from": 8, "to": 12, "kind": "italic"},
+        ]
+        with TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manuscript_dir = root / "manuscript"
+            profile_dir = root / "profiles"
+
+            mirror_text(
+                [{"id": "c1", "title": "Eins", "body": "Text", "note": note, "noteMarks": marks}],
+                manuscript_dir,
+            )
+            chapter_markdown = next(manuscript_dir.glob("*.md")).read_text(encoding="utf-8")
+            self.assertIn("<!-- Notiz\n# Plan\n😀 *Mara*\n-->", chapter_markdown)
+
+            mirror_profiles(
+                {
+                    "nodes": [
+                        {
+                            "id": "mara",
+                            "name": "Mara",
+                            "profile": {"notizen": note, "noteMarks": marks},
+                        }
+                    ],
+                    "edges": [],
+                },
+                profile_dir,
+            )
+            profile_markdown = next(profile_dir.glob("*.md")).read_text(encoding="utf-8")
+            self.assertIn("## Notizen\n\n### Plan\n😀 *Mara*", profile_markdown)
 
 
 if __name__ == "__main__":

@@ -1,12 +1,13 @@
 """Runtime-independent manuscript semantics shared across application boundaries."""
 
+from quiltor.domain.text_offsets import utf16_length, utf16_offsets_to_indices, utf16_span
+
 from .story_time import (
     MAX_STORY_TIME_ID_LENGTH,
     StoryTimeAnchorIssue,
     story_time_anchor_issue,
     valid_story_time_reference,
 )
-from .text_offsets import utf16_length, utf16_offsets_to_indices, utf16_span
 from .tree import (
     ManuscriptTreeError,
     breadcrumb_for_chapter,

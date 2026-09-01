@@ -1,4 +1,5 @@
 import { MapPin, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   IconButton,
   SidePanelBody,
@@ -29,6 +30,27 @@ export function PlaceInspector({
   onOpen: (target: { workspace: Workspace; id: string }) => void;
 }) {
   const { t } = useI18n();
+  const [nameDraft, setNameDraft] = useState(selected?.name ?? "");
+  const nameDraftOwnerId = useRef(selected?.id ?? null);
+  const skipNameCommit = useRef(false);
+
+  useEffect(() => {
+    const ownerChanged = nameDraftOwnerId.current !== (selected?.id ?? null);
+    nameDraftOwnerId.current = selected?.id ?? null;
+    skipNameCommit.current = false;
+    const nextName = selected?.name ?? "";
+    setNameDraft((current) => (ownerChanged || current !== nextName ? nextName : current));
+  }, [selected?.id, selected?.name]);
+
+  const commitName = () => {
+    if (skipNameCommit.current) {
+      skipNameCommit.current = false;
+      return;
+    }
+    if (!selected || nameDraft === selected.name) return;
+    onPatch({ name: nameDraft });
+  };
+
   return (
     <>
       <SidePanelHeader
@@ -54,8 +76,20 @@ export function PlaceInspector({
             <TextField
               id="place-name"
               label={t("name")}
-              value={selected.name}
-              onChange={(event) => onPatch({ name: event.target.value })}
+              value={nameDraft}
+              onChange={(event) => setNameDraft(event.target.value)}
+              onBlur={commitName}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+                if (event.key === "Escape") {
+                  skipNameCommit.current = true;
+                  setNameDraft(selected.name);
+                  event.currentTarget.blur();
+                }
+              }}
             />
             <TextArea
               id="place-short-description"
@@ -68,8 +102,9 @@ export function PlaceInspector({
               label={t("profileNotes")}
               value={selected.profile?.notizen || ""}
               references={selected.profile?.noteReferences}
-              onChange={(notizen, noteReferences) =>
-                onPatch({ profile: { ...selected.profile, notizen, noteReferences } })
+              marks={selected.profile?.noteMarks}
+              onChange={(notizen, noteReferences, noteMarks) =>
+                onPatch({ profile: { ...selected.profile, notizen, noteReferences, noteMarks } })
               }
               focus={noteFocusCopy(t, selected.name)}
             />

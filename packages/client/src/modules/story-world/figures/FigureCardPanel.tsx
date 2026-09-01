@@ -1,5 +1,5 @@
 import { Plus, Skull, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, IconButton, ListboxSelect, TextArea, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { normalizeEntityAliasV1 } from "../../../shared";
@@ -219,6 +219,26 @@ export function FigureCardPanel({
   onSelectMoment,
 }: FigureCardPanelProps) {
   const { t } = useI18n();
+  const [nameDraft, setNameDraft] = useState(figure.name);
+  const nameDraftOwnerId = useRef(figure.id);
+  const skipNameCommit = useRef(false);
+
+  useEffect(() => {
+    const ownerChanged = nameDraftOwnerId.current !== figure.id;
+    nameDraftOwnerId.current = figure.id;
+    skipNameCommit.current = false;
+    setNameDraft((current) => (ownerChanged || current !== figure.name ? figure.name : current));
+  }, [figure.id, figure.name]);
+
+  const commitName = () => {
+    if (skipNameCommit.current) {
+      skipNameCommit.current = false;
+      return;
+    }
+    if (nameDraft === figure.name) return;
+    onPatch({ name: nameDraft });
+  };
+
   return (
     <>
       <div className="figure-card-select-field">
@@ -241,8 +261,20 @@ export function FigureCardPanel({
       <TextField
         fieldClassName="figure-card-field"
         label={t("name")}
-        value={figure.name}
-        onChange={(event) => onPatch({ name: event.target.value })}
+        value={nameDraft}
+        onChange={(event) => setNameDraft(event.target.value)}
+        onBlur={commitName}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+          if (event.key === "Escape") {
+            skipNameCommit.current = true;
+            setNameDraft(figure.name);
+            event.currentTarget.blur();
+          }
+        }}
       />
       <AliasEditor figure={figure} onPatch={onPatch} />
       <TextField

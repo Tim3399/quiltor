@@ -119,6 +119,27 @@ def _canonical_note_reference_integers(owner: dict[str, Any]) -> None:
         _canonical_integer_field(reference, "to", minimum=1)
 
 
+def _canonical_note_mark_integers(owner: dict[str, Any]) -> None:
+    marks = owner.get("noteMarks")
+    if not isinstance(marks, list):
+        return
+    for mark in marks:
+        if not isinstance(mark, dict):
+            continue
+        _canonical_integer_field(mark, "from", minimum=0)
+        _canonical_integer_field(mark, "to", minimum=1)
+        if "level" in mark:
+            _canonical_integer_field(mark, "level", minimum=1, maximum=3)
+    if all(
+        isinstance(mark, dict)
+        and type(mark.get("from")) is int
+        and type(mark.get("to")) is int
+        and isinstance(mark.get("kind"), str)
+        for mark in marks
+    ):
+        marks.sort(key=lambda mark: (mark["from"], mark["to"], mark["kind"]))
+
+
 def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
     normalized = deepcopy(payload)
     if not isinstance(normalized, dict):
@@ -130,6 +151,7 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                 if not isinstance(chapter, dict):
                     continue
                 _canonical_note_reference_integers(chapter)
+                _canonical_note_mark_integers(chapter)
                 for collection in ("mentions", "marks"):
                     entries = chapter.get(collection)
                     if not isinstance(entries, list):
@@ -149,6 +171,7 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                     continue
                 _canonical_integer_field(node, "zIndex")
                 _canonical_note_reference_integers(node)
+                _canonical_note_mark_integers(node)
         return normalized
 
     nodes = normalized.get("nodes")
@@ -160,6 +183,7 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
             if isinstance(profile, dict):
                 normalized_profile = normalize_profile(profile, str(node.get("id", "")))
                 _canonical_note_reference_integers(normalized_profile)
+                _canonical_note_mark_integers(normalized_profile)
                 node["profile"] = normalized_profile
 
     timeline = normalized.get("timeline")
@@ -168,6 +192,7 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
             if not isinstance(moment, dict):
                 continue
             _canonical_note_reference_integers(moment)
+            _canonical_note_mark_integers(moment)
             for key in ("time", "position", "endTime"):
                 _canonical_integer_field(moment, key)
     system = normalized.get("timeSystem")

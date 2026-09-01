@@ -109,6 +109,84 @@ describe("PlaceInspector", () => {
     expect(onOpen).toHaveBeenNthCalledWith(2, { workspace: "timeline", id: "later" });
   });
 
+  it("commits a completed place rename once instead of patching every typed character", () => {
+    const onPatch = vi.fn();
+    render(
+      <I18nProvider>
+        <PlaceInspector
+          selected={state.nodes[0]}
+          state={state}
+          onPatch={onPatch}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+    expect(name).toHaveValue("Hafen");
+
+    fireEvent.change(name, { target: { value: "N" } });
+    fireEvent.change(name, { target: { value: "Nord" } });
+    fireEvent.change(name, { target: { value: "Nordhafen" } });
+
+    expect(onPatch).not.toHaveBeenCalled();
+    fireEvent.blur(name);
+    expect(onPatch).toHaveBeenCalledTimes(1);
+    expect(onPatch).toHaveBeenCalledWith({ name: "Nordhafen" });
+  });
+
+  it("does not commit unchanged or cancelled place names", () => {
+    const onPatch = vi.fn();
+    render(
+      <I18nProvider>
+        <PlaceInspector
+          selected={state.nodes[0]}
+          state={state}
+          onPatch={onPatch}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+
+    name.focus();
+    fireEvent.blur(name);
+    expect(onPatch).not.toHaveBeenCalled();
+
+    name.focus();
+    fireEvent.change(name, { target: { value: "Südhafen" } });
+    fireEvent.keyDown(name, { key: "Escape" });
+    expect(name).toHaveValue("Hafen");
+    expect(onPatch).not.toHaveBeenCalled();
+  });
+
+  it("commits a place rename through Enter exactly once", () => {
+    const onPatch = vi.fn();
+    render(
+      <I18nProvider>
+        <PlaceInspector
+          selected={state.nodes[0]}
+          state={state}
+          onPatch={onPatch}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+    name.focus();
+    fireEvent.change(name, { target: { value: "Nordhafen" } });
+    fireEvent.keyDown(name, { key: "Enter" });
+    name.blur();
+
+    expect(onPatch).toHaveBeenCalledTimes(1);
+    expect(onPatch).toHaveBeenCalledWith({ name: "Nordhafen" });
+  });
+
   it("edits the shared place note without losing existing profile data", () => {
     const onPatch = vi.fn();
     const selected = {
@@ -143,6 +221,7 @@ describe("PlaceInspector", () => {
         extra: [{ k: "Geruch", v: "Salz" }],
         notizen: "Salziger Nebel",
         noteReferences: [],
+        noteMarks: [],
       },
     });
 

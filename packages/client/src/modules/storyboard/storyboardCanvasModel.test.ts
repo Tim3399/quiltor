@@ -384,19 +384,26 @@ describe("storyboard canvas model", () => {
     ];
 
     for (const node of nodes) {
-      const updated = updateStoryboardNodeNote(nodes, node.id, "Ada", [noteReference]);
+      const updated = updateStoryboardNodeNote(
+        nodes,
+        node.id,
+        "Ada",
+        [noteReference],
+        [{ from: 0, to: 3, kind: "bold" }],
+      );
       expect(updated.find((candidate) => candidate.id === node.id)).toMatchObject({
         id: node.id,
         kind: node.kind,
         text: "Ada",
         noteReferences: [noteReference],
+        noteMarks: [{ from: 0, to: 3, kind: "bold" }],
       });
       expect(updated.filter((candidate) => candidate.id !== node.id)).toEqual(
         nodes.filter((candidate) => candidate.id !== node.id),
       );
     }
 
-    expect(updateStoryboardNodeNote(nodes, "missing", "Ada", [])).toBe(nodes);
+    expect(updateStoryboardNodeNote(nodes, "missing", "Ada", [], [])).toBe(nodes);
   });
 
   it("treats every same-board node fully inside a group as a member", () => {

@@ -290,6 +290,7 @@ function applyProfilePatch(
   if (typeof sanitized.notizen === "string") next.notizen = sanitized.notizen;
   if (typeof sanitized.notizen === "string" && sanitized.notizen !== current?.notizen) {
     next.noteReferences = [];
+    next.noteMarks = [];
   }
   return next;
 }

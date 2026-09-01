@@ -50,7 +50,10 @@ export function FigureProfilePanel({
         label={t("profileNotes")}
         value={profile.notizen || ""}
         references={profile.noteReferences}
-        onChange={(notizen, noteReferences) => patchProfile({ notizen, noteReferences })}
+        marks={profile.noteMarks}
+        onChange={(notizen, noteReferences, noteMarks) =>
+          patchProfile({ notizen, noteReferences, noteMarks })
+        }
         focus={noteFocusCopy(t, figure.name)}
         rows={9}
       />

@@ -1,7 +1,7 @@
 import { Focus } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { IconButton } from "../../design";
-import type { NoteReference } from "../../shared";
+import type { NoteMark, NoteReference } from "../../shared";
 import type { NoteFocusCopy, NoteOwner } from "./model";
 import { noteOwnerKey } from "./model";
 import { NoteFocusMode } from "./NoteFocusMode";
@@ -16,12 +16,14 @@ export function NoteEditor({
   label,
   value,
   references = noReferences,
+  marks = [],
   onChange,
   placeholder,
   size = "comfortable",
   rows,
   labelHidden = false,
   fieldClassName = "",
+  formatActionClassName = "",
   className = "",
   focus,
   focusButtonClassName = "",
@@ -31,12 +33,14 @@ export function NoteEditor({
   label: ReactNode;
   value: string;
   references?: readonly NoteReference[];
-  onChange: (value: string, references: NoteReference[]) => void;
+  marks?: readonly NoteMark[];
+  onChange: (value: string, references: NoteReference[], marks: NoteMark[]) => void;
   placeholder?: string;
   size?: "compact" | "comfortable";
   rows?: number;
   labelHidden?: boolean;
   fieldClassName?: string;
+  formatActionClassName?: string;
   className?: string;
   focus?: NoteFocusCopy;
   focusButtonClassName?: string;
@@ -61,6 +65,7 @@ export function NoteEditor({
     <section className={`note-editor note-editor--${size}`} data-note-owner={ownerKey}>
       <ReferenceTextEditor
         fieldClassName={fieldClassName}
+        formatActionClassName={formatActionClassName}
         className={className}
         label={label}
         ariaLabel={ariaLabel}
@@ -78,6 +83,7 @@ export function NoteEditor({
         }
         value={value}
         references={references}
+        marks={marks}
         candidates={referenceContext.candidates}
         onOpenReference={referenceContext.onOpenReference}
         rows={rows}
@@ -89,6 +95,7 @@ export function NoteEditor({
           owner={owner}
           value={value}
           references={references}
+          marks={marks}
           onChange={onChange}
           candidates={referenceContext.candidates}
           onOpenReference={referenceContext.onOpenReference}

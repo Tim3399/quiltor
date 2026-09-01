@@ -146,6 +146,9 @@
   --font-size-display-sm: clamp(30px, 3vw, 40px); /* .chapter-title */
   --font-size-display-lg: clamp(30px, 5vw, 48px); /* .world-gate h1 */
   --font-size-display-xl: 44px; /* .empty-glyph */
+  --font-size-prose-heading-1: 1.35em;
+  --font-size-prose-heading-2: 1.2em;
+  --font-size-prose-heading-3: 1.08em;
 
   /* elevation — shape-only tokens; compose with the *-shadow color tokens from colors.css */
   --ring-1: 0 0 0 1px;

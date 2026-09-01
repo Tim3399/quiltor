@@ -10,6 +10,8 @@ from __future__ import annotations
 from math import isfinite
 from typing import Any, Literal, NotRequired, Required, TypedDict
 
+from quiltor.domain.notes import valid_note_marks
+
 DEFAULT_STORYBOARD_ID = "main-storyboard"
 DEFAULT_STORYBOARD_TITLE = "Main Storyboard"
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
@@ -54,6 +56,7 @@ class StoryboardNode(TypedDict, total=False):
     text: NotRequired[str]
     target: NotRequired[StoryboardReferenceTarget]
     noteReferences: NotRequired[list[dict[str, Any]]]
+    noteMarks: NotRequired[list[dict[str, Any]]]
 
 
 class StoryboardEdge(TypedDict, total=False):
@@ -179,7 +182,9 @@ def _valid_node(value: Any, board_ids: set[str]) -> bool:
     elif has_target:
         return False
 
-    return "noteReferences" not in value or _valid_note_references(value, board_ids)
+    return ("noteReferences" not in value or _valid_note_references(value, board_ids)) and (
+        "noteMarks" not in value or valid_note_marks(value, "text")
+    )
 
 
 def _valid_target(value: Any, allowed: set[str]) -> bool:
