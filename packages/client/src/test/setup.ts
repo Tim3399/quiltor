@@ -1,4 +1,16 @@
 import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
+
+// Testing Library unmounts after each test on its own only when a global
+// `afterEach` exists. This suite runs without Vitest's globals -- every test
+// imports `describe` and `it` explicitly -- so that registration never happens
+// and component trees stay mounted for the rest of the file. A React update
+// scheduled by one of them can then run after jsdom has been torn down, which
+// surfaces as `window is not defined` from the scheduler and fails the whole
+// run as an unhandled error while every test still reports as passing. It needs
+// a slow enough machine to lose the race, which is why it shows up in CI.
+afterEach(cleanup);
 
 // Node exposes an experimental `localStorage` global when it is started with
 // --localstorage-file. In some test runners that flag is present without a usable
