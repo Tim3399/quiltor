@@ -3,6 +3,7 @@ import {
   type MouseEventHandler,
   type ReactNode,
   type Ref,
+  type RefObject,
   useCallback,
   useId,
   useRef,
@@ -31,6 +32,8 @@ export interface DropdownMenuProps {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   compactMode?: "sheet" | "popover";
+  /** Semantic owner when the menu opens from inside another modal surface. */
+  portalContainerRef?: RefObject<HTMLElement | null>;
 }
 
 /** Owns trigger semantics, open state, close behavior and focus restoration for an action menu. */
@@ -43,6 +46,7 @@ export function DropdownMenu({
   defaultOpen = false,
   onOpenChange,
   compactMode = "sheet",
+  portalContainerRef,
 }: DropdownMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -93,6 +97,7 @@ export function DropdownMenu({
         label={label}
         compactMode={compactMode}
         desktopRole="presentation"
+        portalContainerRef={portalContainerRef}
       >
         <div className="ui-dropdown-menu__surface">
           {header && <div className="ui-dropdown-menu__header">{header}</div>}

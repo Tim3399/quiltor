@@ -585,6 +585,7 @@ export function ReferenceTextEditor({
           <DropdownMenu
             label={t("noteHeading")}
             compactMode="popover"
+            portalContainerRef={popoverPortalRef}
             renderTrigger={({ ref, ...triggerProps }) => (
               <IconButton
                 {...triggerProps}
