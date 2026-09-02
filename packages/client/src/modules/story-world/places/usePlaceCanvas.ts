@@ -19,6 +19,7 @@ import {
   createGroundNode,
   createPinNodes,
   createPlaceFlowNodes,
+  createMeasurementPoints,
   createPlaceMapNodes,
   groundRect,
   isExpandedMap,
@@ -275,22 +276,24 @@ export function usePlaceCanvas({
     ],
   );
 
+  const measurablePoints = useMemo(
+    () => createMeasurementPoints([...nodes, ...pins], laidOutMaps),
+    [nodes, pins, laidOutMaps],
+  );
+
   const edges = useMemo(
     () =>
       measuring
         ? createPlaceMeasurementEdges({
-            points: nodes.map((node) => ({
-              id: node.id,
-              name: node.data.place.name,
-              mapX: node.position.x,
-              mapY: node.position.y,
-            })),
+            points: measurablePoints,
             selection: measureSelection,
-            scale: state.mapScale,
+            // The level's own scale, not the world's: a distance read inside a
+            // city is a distance in that city's units.
+            scale: levelScale,
             t,
           })
         : [],
-    [measuring, measureSelection, nodes, state.mapScale, t],
+    [measuring, measureSelection, measurablePoints, levelScale, t],
   );
 
   /**

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { de } from "../../../../../../locales/de";
 import type { Translate } from "../../../i18n";
 import type { FigureNode } from "../model";
-import { createPlaceFlowNodes, createPlaceMapNodes } from "./placeCanvasModel";
+import {
+  createMeasurementPoints,
+  createPlaceFlowNodes,
+  createPlaceMapNodes,
+} from "./placeCanvasModel";
 
 const t = ((key: keyof typeof de, variables?: Record<string, string | number>) => {
   let value: string = de[key];
@@ -119,5 +123,51 @@ describe("a map laid out on the level", () => {
   it("follows a resize handle the same way", () => {
     const nodes = build({ liveSize: { id: "m", width: 1200, height: 900 } });
     expect(nodes[0]).toMatchObject({ width: 1200, height: 900 });
+  });
+});
+
+describe("what a distance can be taken to", () => {
+  const card = (id: string, name: string, x: number, y: number) =>
+    ({ id, position: { x, y }, data: { place: { id, name } } }) as Parameters<
+      typeof createMeasurementPoints
+    >[0][number];
+
+  const map: FigureNode = {
+    id: "welt",
+    x: 0,
+    y: 0,
+    mapX: 100,
+    mapY: 200,
+    name: "Weltkarte",
+    type: "ort",
+    mapImageId: "sha",
+    mapExpanded: true,
+    mapWidth: 800,
+    mapHeight: 400,
+  };
+
+  it("counts the places standing on a map, not only the ones beside it", () => {
+    // A place on a laid-out map belongs to that map's own level while being
+    // drawn here. Leaving those out made the things most obviously on the
+    // surface the only ones that could not be measured.
+    const points = createMeasurementPoints(
+      [card("a", "Hafen", 10, 20), card("b", "Turm", 40, 60)],
+      [],
+    );
+    expect(points).toEqual([
+      { id: "a", name: "Hafen", mapX: 10, mapY: 20 },
+      { id: "b", name: "Turm", mapX: 40, mapY: 60 },
+    ]);
+  });
+
+  it("takes a map at its middle", () => {
+    expect(createMeasurementPoints([], [map])).toEqual([
+      { id: "welt", name: "Weltkarte", mapX: 500, mapY: 400 },
+    ]);
+  });
+
+  it("puts cards and maps in one list, so any pair can be measured", () => {
+    const points = createMeasurementPoints([card("a", "Hafen", 10, 20)], [map]);
+    expect(points.map((point) => point.id)).toEqual(["a", "welt"]);
   });
 });

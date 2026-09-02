@@ -2,6 +2,7 @@ import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode, MapScale } from "../model";
 import { cropOf, type ImageCrop } from "./placeImageCrop";
+import type { PlaceMeasurementPoint } from "./placeMeasurementGraph";
 import { formatDistance } from "./placeMap";
 import type { PlaceGroundNode } from "./PlaceGround";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
@@ -179,6 +180,42 @@ export function createPlaceMapNodes({
       },
     };
   });
+}
+
+/**
+ * Everything on the level that a distance can be taken to.
+ *
+ * Not only the cards sitting on the level itself. A place standing on a
+ * laid-out map is drawn here, on the map, though it belongs to that map's own
+ * level -- so leaving those out made the things most obviously on the surface
+ * the only ones that could not be measured. A map counts too: it is a piece of
+ * ground with a position, and how far a place lies from it is an ordinary
+ * question to ask.
+ *
+ * A card is taken at its corner, where its anchor sits. A map is taken at its
+ * middle, because a sheet has no corner that stands for the whole of it.
+ */
+export function createMeasurementPoints(
+  cards: readonly PlaceFlowNode[],
+  maps: readonly FigureNode[],
+): PlaceMeasurementPoint[] {
+  return [
+    ...cards.map((card) => ({
+      id: card.id,
+      name: card.data.place.name,
+      mapX: card.position.x,
+      mapY: card.position.y,
+    })),
+    ...maps.map((map) => {
+      const rect = mapRect(map);
+      return {
+        id: map.id,
+        name: map.name,
+        mapX: rect.x + rect.width / 2,
+        mapY: rect.y + rect.height / 2,
+      };
+    }),
+  ];
 }
 
 /**

@@ -1,4 +1,4 @@
-import { type Node, type NodeProps, NodeResizer } from "@xyflow/react";
+import { Handle, type Node, type NodeProps, NodeResizer, Position } from "@xyflow/react";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useRef } from "react";
 import type { FigureNode } from "../model";
 import { type ImageCrop, movedCrop, zoomedCrop } from "./placeImageCrop";
@@ -122,6 +122,25 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
         onResize={(_, size) => data.onResizeLive(place, { width: size.width, height: size.height })}
         onResizeEnd={(_, size) => data.onResize(place, { width: size.width, height: size.height })}
       />
+      {/* A distance to a map is taken from its middle: a sheet has no corner
+          that stands for the whole of it. Not connectable by hand -- these carry
+          measurement lines, which the surface draws itself. */}
+      <Handle
+        id="place-anchor"
+        type="target"
+        position={Position.Top}
+        isConnectable={false}
+        className="place-coordinate-handle"
+        style={placeMapAnchorStyle}
+      />
+      <Handle
+        id="place-anchor"
+        type="source"
+        position={Position.Bottom}
+        isConnectable={false}
+        className="place-coordinate-handle"
+        style={placeMapAnchorStyle}
+      />
       <span className="place-plate__rule" aria-hidden="true">
         <span className="place-plate__stud" />
         <span className="place-plate__stud" />
@@ -161,6 +180,14 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
     </figure>
   );
 }
+
+const placeMapAnchorStyle = {
+  top: "50%",
+  right: "auto",
+  bottom: "auto",
+  left: "50%",
+  transform: "translate(-50%, -50%)",
+} satisfies CSSProperties;
 
 /** How wide a grip should be on screen, whatever the canvas is magnified by. */
 const GRIP_SCREEN_PX = 18;
