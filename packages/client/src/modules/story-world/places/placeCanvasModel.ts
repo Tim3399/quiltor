@@ -109,6 +109,7 @@ export function createPlaceMapNodes({
   cropOverride,
   adjustingId,
   liveSize,
+  livePosition,
   gridSize,
 }: {
   places: FigureNode[];
@@ -128,14 +129,24 @@ export function createPlaceMapNodes({
    * would only jump to its new size on release.
    */
   liveSize: { id: string; width: number; height: number } | null;
+  /**
+   * Where a handle is dragging this map right now.
+   *
+   * Same reason as the size above: React Flow reports the position it is
+   * dragging a node to as a change, and a derived node is not in the list those
+   * changes are applied to, so the map would sit still and then appear at its
+   * new place the moment the pointer is released.
+   */
+  livePosition: { id: string; x: number; y: number } | null;
   gridSize: number;
 }): PlaceMapFlowNode[] {
   return places.filter(isExpandedMap).map((place) => {
     const live = liveSize?.id === place.id ? liveSize : undefined;
+    const moved = livePosition?.id === place.id ? livePosition : undefined;
     return {
       id: place.id,
       type: "placeMap",
-      position: placePosition(place),
+      position: moved ? { x: moved.x, y: moved.y } : placePosition(place),
       width: live?.width ?? place.mapWidth ?? DEFAULT_MAP_WIDTH,
       height: live?.height ?? place.mapHeight ?? DEFAULT_MAP_WIDTH,
       draggable: !place.pinned,

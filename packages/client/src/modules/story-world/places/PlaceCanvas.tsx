@@ -83,6 +83,7 @@ export function PlaceCanvas({
       flowProps={{
         nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode, placeGround: PlaceGround },
         nodesConnectable: true,
+        fitViewOptions: controller.fitViewOptions,
         onKeyDown: selectPlaceFromKeyboard,
         onInit: controller.onInit,
         onMove: (_, viewport) => controller.onMove(viewport),

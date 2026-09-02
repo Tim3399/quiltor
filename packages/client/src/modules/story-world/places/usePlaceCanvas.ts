@@ -1,6 +1,7 @@
 import {
   applyNodeChanges,
   type Edge,
+  type FitViewOptions,
   type NodeChange,
   type ReactFlowInstance,
   useUpdateNodeInternals,
@@ -41,6 +42,8 @@ export type PlaceCanvasController = {
   addPlace: (overrides?: Partial<FigureNode>) => FigureNode;
   duplicatePlace: (place: FigureNode) => FigureNode;
   centerOnPlace: (place: FigureNode) => void;
+  /** What the level should be framed on, which is never the paper itself. */
+  fitViewOptions: FitViewOptions;
   onInit: (instance: ReactFlowInstance<PlaceFlowNode, Edge>) => void;
   onMove: (viewport: Viewport) => void;
   onNodesChange: (changes: NodeChange<PlaceFlowNode>[]) => void;
@@ -92,6 +95,9 @@ export function usePlaceCanvas({
   // The crop being dragged, held here until the gesture ends so a run of tiny
   // movements is one edit rather than a hundred.
   const [cropDraft, setCropDraft] = useState<{ id: string; crop: ImageCrop } | null>(null);
+  const [livePosition, setLivePosition] = useState<{ id: string; x: number; y: number } | null>(
+    null,
+  );
   const flow = useRef<ReactFlowInstance<PlaceFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
@@ -171,7 +177,7 @@ export function usePlaceCanvas({
     if (!pendingFit.current || nodes.length === 0) return;
     const settle = window.setTimeout(() => {
       pendingFit.current = false;
-      flow.current?.fitView({ padding: 0.12 });
+      flow.current?.fitView(latestFitOptions.current);
     }, 60);
     return () => window.clearTimeout(settle);
   }, [nodes]);
@@ -230,9 +236,10 @@ export function usePlaceCanvas({
         cropOverride: cropDraft,
         adjustingId,
         liveSize,
+        livePosition,
         gridSize: GRID_SIZE,
       }),
-    [places, mapImageUrl, resizeMap, cropMap, cropDraft, adjustingId, liveSize],
+    [places, mapImageUrl, resizeMap, cropMap, cropDraft, adjustingId, liveSize, livePosition],
   );
 
   const edges = useMemo(
@@ -252,6 +259,28 @@ export function usePlaceCanvas({
         : [],
     [measuring, measureSelection, nodes, state.mapScale, t],
   );
+
+  /**
+   * What framing the level is supposed to show.
+   *
+   * A laid-out map is the ground, drawn at the size of the country it stands
+   * for. Fitting to it frames a sheet of paper and pushes everything an author
+   * put on it down to specks -- so the fit targets the places and the collapsed
+   * maps, and lets the paper fall where it may. With nothing standing on the
+   * level yet there is nothing to aim at, and framing everything is right again.
+   */
+  const fitTargets = useMemo(
+    () => [...nodes, ...pins].map((node) => ({ id: node.id })),
+    [nodes, pins],
+  );
+  const fitViewOptions = useMemo(
+    // Capped at life size: fitting to a single card would otherwise magnify it
+    // until the level around it is gone, which is the opposite of framing.
+    () => ({ padding: 0.12, maxZoom: 1, ...(fitTargets.length ? { nodes: fitTargets } : {}) }),
+    [fitTargets],
+  );
+  const latestFitOptions = useRef(fitViewOptions);
+  latestFitOptions.current = fitViewOptions;
 
   /**
    * Where a drag came to rest decides what the place now belongs to.
@@ -297,6 +326,7 @@ export function usePlaceCanvas({
   return {
     nodes: [...(ground ? [ground] : []), ...maps, ...nodes, ...pins],
     edges,
+    fitViewOptions,
     zoomTier,
     addPlace: (overrides) => {
       const current = latestState.current;
@@ -363,7 +393,22 @@ export function usePlaceCanvas({
         return current === next ? current : next;
       });
     },
-    onNodesChange: (changes) => setFlowNodes((current) => applyNodeChanges(changes, current)),
-    onNodeDragStop: (node) => commitDrag(node),
+    onNodesChange: (changes) => {
+      // A map is derived from the level rather than held in the flow's own list,
+      // so applyNodeChanges has nothing to apply its movement to. Catching the
+      // position here is what lets a map follow the pointer instead of standing
+      // still and reappearing somewhere else when the pointer is let go.
+      for (const change of changes) {
+        if (change.type !== "position" || !change.position) continue;
+        if (!latestMaps.current.some((map) => map.id === change.id)) continue;
+        const { x, y } = change.position;
+        setLivePosition(change.dragging ? { id: change.id, x, y } : null);
+      }
+      setFlowNodes((current) => applyNodeChanges(changes, current));
+    },
+    onNodeDragStop: (node) => {
+      setLivePosition(null);
+      commitDrag(node);
+    },
   };
 }
