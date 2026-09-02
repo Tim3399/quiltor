@@ -141,12 +141,7 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
         className="place-coordinate-handle"
         style={placeMapAnchorStyle}
       />
-      <span className="place-plate__rule" aria-hidden="true">
-        <span className="place-plate__stud" />
-        <span className="place-plate__stud" />
-        <span className="place-plate__stud" />
-        <span className="place-plate__stud" />
-      </span>
+      <span className="place-plate__rule" aria-hidden="true" />
       {/* biome-ignore lint/a11y/noStaticElementInteractions: this is a surface
           being dragged, not a control; every adjustment it makes is also
           reachable from the buttons beside the canvas. */}

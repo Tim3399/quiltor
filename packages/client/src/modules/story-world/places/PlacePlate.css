@@ -1,19 +1,15 @@
-/* The edge of a map, and the grid that runs across it.
+/* Where a map ends.
  *
- * The border a map gets is the one a map has always had: a neatline. Two rules
- * a hair apart, a margin between them, and the graticule crossing that margin
- * as ticks -- the frame every printed sheet in every atlas wears, and the
- * reason one is recognisable as a map from across a room. It is drawn, not
- * decorated: nothing here is added for prettiness, every line is the border of
- * something or the continuation of the ruling underneath.
+ * Not a border. Four attempts at one all asked the same question -- which
+ * ornament goes on the edge -- and the question was wrong every time. A sheet
+ * of paper lying on a table needs nothing printed round it to show where it
+ * stops: you see the edge because the thing beside it is made of something
+ * else. Drawing a frame is what turned it back into a card, every time.
  *
- * Quiltor's one flourish sits where the rules meet: the corner block of a
- * quilt, set on its point. It replaces the surveyor's plain corner and is the
- * only mark on the sheet that is the house rather than the map.
- *
- * The sheet lies on the surface rather than resting above it, so there is no
- * shadow cast outward -- only the faint inward darkening a sheet of paper has
- * along its own edge.
+ * So the edge is carried by two things that are not drawings. The sheet darkens
+ * very slightly along its own rim, the way paper does where it lifts off what
+ * it rests on. And the surface around it is a different material -- deeper, and
+ * without the ruling, because the ruling belongs to the sheet.
  *
  * Shared by the map laid out on a surface and by the same map entered as the
  * ground under one, so both read as the same object seen from different
@@ -22,161 +18,56 @@
 /* The same lines the canvas draws beyond the picture's edges, laid over it in
    the same flow units and ruled from the same origin, so the two read as one
    surface rather than as a picture covering a grid. Drawn here rather than left
-   to the canvas behind, because React Flow's background sits under every node.
-   It stops at the neatline, the way a graticule does, and crosses the margin
-   as ticks instead. */
+   to the canvas behind, because React Flow's background sits under every node. */
 .place-plate__grid {
   position: absolute;
-  inset: var(--place-plate-band, var(--space-6));
+  inset: 0;
   background-image:
-    linear-gradient(to right, var(--line) var(--place-plate-hair, 1px), transparent 0),
-    linear-gradient(to bottom, var(--line) var(--place-plate-hair, 1px), transparent 0);
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
   background-size: var(--place-plate-grid) var(--place-plate-grid);
   background-position: var(--place-plate-grid-x, 0) var(--place-plate-grid-y, 0);
   opacity: 0.32;
   pointer-events: none;
 }
 
-/* The outer rule, along the sheet's own edge. */
+/* The rim. An inward shading rather than an outline: paper is thicker at its
+   edge and sits a hair out of the light there. It reads as an edge without
+   being a line, which is the whole difference between a sheet and a card. */
 .place-plate__rule {
   position: absolute;
   z-index: var(--z-local);
   inset: 0;
-  border: calc(var(--place-plate-hair, 1px) * 2) solid
-    color-mix(in srgb, var(--ink) 62%, var(--transparent));
   border-radius: inherit;
-  box-shadow: inset 0 0 calc(var(--place-plate-band, var(--space-6)) * 2)
-    color-mix(in srgb, var(--ink) 10%, var(--transparent));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ink) 16%, var(--transparent)),
+    inset 0 0 var(--space-14) color-mix(in srgb, var(--ink) 14%, var(--transparent));
   pointer-events: none;
 }
 
-/* The margin between the rules, chequered.
-
-   This is the border an early modern sheet wears: the margin divided into
-   alternating dark and light blocks, so that the border is itself a scale you
-   can count along. It is not decoration borrowed from an old map -- it is what
-   the old maps were doing, which is measuring, and it lands here on the ruling
-   the surface already has: one block per grid square, ruled from the level's
-   origin, so counting the blocks along an edge counts the squares across the
-   ground. */
-.place-plate__rule::before {
-  position: absolute;
-  z-index: var(--z-behind);
-  inset: 0;
-  background-color: color-mix(in srgb, var(--paper) 62%, var(--transparent));
-  background-image:
-    repeating-linear-gradient(
-      to right,
-      color-mix(in srgb, var(--ink) 72%, var(--transparent)) 0 var(--place-plate-grid),
-      transparent var(--place-plate-grid) calc(var(--place-plate-grid) * 2)
-    ),
-    repeating-linear-gradient(
-      to right,
-      color-mix(in srgb, var(--ink) 72%, var(--transparent)) 0 var(--place-plate-grid),
-      transparent var(--place-plate-grid) calc(var(--place-plate-grid) * 2)
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--ink) 72%, var(--transparent)) 0 var(--place-plate-grid),
-      transparent var(--place-plate-grid) calc(var(--place-plate-grid) * 2)
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--ink) 72%, var(--transparent)) 0 var(--place-plate-grid),
-      transparent var(--place-plate-grid) calc(var(--place-plate-grid) * 2)
-    );
-  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
-  background-size:
-    100% var(--place-plate-band, var(--space-6)),
-    100% var(--place-plate-band, var(--space-6)),
-    var(--place-plate-band, var(--space-6)) 100%,
-    var(--place-plate-band, var(--space-6)) 100%;
-  /* The two horizontal runs start half a block apart, and so do the vertical
-     ones, so opposite edges alternate against each other the way a chequy
-     border does rather than marching in step. */
-  background-position:
-    var(--place-plate-grid-x, 0) top,
-    calc(var(--place-plate-grid-x, 0px) + var(--place-plate-grid)) bottom,
-    left var(--place-plate-grid-y, 0),
-    right calc(var(--place-plate-grid-y, 0px) + var(--place-plate-grid));
-  content: "";
-  /* The margin is the band; the middle is picture and must stay uncovered. */
-  mask-image: linear-gradient(var(--ink) 0 0), linear-gradient(var(--ink) 0 0);
-  mask-position:
-    0 0,
-    var(--place-plate-band, var(--space-6)) var(--place-plate-band, var(--space-6));
-  mask-size:
-    100% 100%,
-    calc(100% - var(--place-plate-band, var(--space-6)) * 2)
-    calc(100% - var(--place-plate-band, var(--space-6)) * 2);
-  mask-repeat: no-repeat;
-  mask-composite: exclude;
-}
-
-/* The inner rule, closing the margin. */
-.place-plate__rule::after {
-  position: absolute;
-  z-index: var(--z-behind);
-  inset: var(--place-plate-band, var(--space-6));
-  border: var(--place-plate-hair, 1px) solid color-mix(in srgb, var(--ink) 52%, var(--transparent));
-  content: "";
-}
-
-.place-plate__stud {
-  width: var(--place-plate-band, var(--space-6));
-  height: var(--place-plate-band, var(--space-6));
-  position: absolute;
-  border: var(--place-plate-hair, 1px) solid
-    color-mix(in srgb, var(--accent-primary) 62%, var(--transparent));
-  background: var(--panel);
-  /* Set on its point: a quilt block, not a bullet. */
-  transform: rotate(45deg);
-}
-
-.place-plate__stud:nth-child(1) {
-  top: calc(var(--place-plate-band, var(--space-6)) / -2);
-  left: calc(var(--place-plate-band, var(--space-6)) / -2);
-}
-
-.place-plate__stud:nth-child(2) {
-  top: calc(var(--place-plate-band, var(--space-6)) / -2);
-  right: calc(var(--place-plate-band, var(--space-6)) / -2);
-}
-
-.place-plate__stud:nth-child(3) {
-  bottom: calc(var(--place-plate-band, var(--space-6)) / -2);
-  left: calc(var(--place-plate-band, var(--space-6)) / -2);
-}
-
-.place-plate__stud:nth-child(4) {
-  bottom: calc(var(--place-plate-band, var(--space-6)) / -2);
-  right: calc(var(--place-plate-band, var(--space-6)) / -2);
-}
-
-/* Selected, the outer rule is what brightens -- the drawing stays where it is,
-   so selection reads as attention rather than as decoration piled on it. */
+/* Selected, the rim takes the accent. Nothing else moves, because there is
+   nothing else -- selection is the one state the edge still has to carry. */
 .is-selected > .place-plate__rule {
-  border-color: color-mix(in srgb, var(--accent-primary) 85%, var(--transparent));
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--accent-primary) 78%, var(--transparent)),
+    inset 0 0 var(--space-14) color-mix(in srgb, var(--ink) 14%, var(--transparent));
 }
 
-/* A drawn border is information, so it stays; what goes is the wash behind the
-   ticks and the block that is only the house signing its own work. */
+/* A shading is exactly what a contrast preference cannot rely on, so there the
+   edge becomes the line it refused to be everywhere else. */
 @media (prefers-contrast: more) {
   .place-plate__grid {
     opacity: 0.8;
   }
 
   .place-plate__rule {
-    border-color: var(--ink);
+    border: 1px solid var(--ink);
     box-shadow: none;
   }
 
-  .place-plate__rule::before {
-    background-color: var(--transparent);
-  }
-
-  .place-plate__stud {
-    display: none;
+  .is-selected > .place-plate__rule {
+    border-color: var(--accent-primary);
+    box-shadow: none;
   }
 }
 
@@ -186,19 +77,7 @@
   }
 
   .place-plate__rule {
-    border-color: CanvasText;
+    border: 1px solid CanvasText;
     box-shadow: none;
-  }
-
-  .place-plate__rule::before {
-    display: none;
-  }
-
-  .place-plate__rule::after {
-    border-color: CanvasText;
-  }
-
-  .place-plate__stud {
-    display: none;
   }
 }

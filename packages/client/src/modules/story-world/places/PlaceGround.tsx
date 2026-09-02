@@ -40,12 +40,7 @@ export function PlaceGround({ data }: NodeProps<PlaceGroundNode>) {
     >
       {data.source ? <img src={data.source} alt={data.title} draggable={false} /> : null}
       {data.gridVisible ? <span className="place-plate__grid" aria-hidden="true" /> : null}
-      <span className="place-plate__rule" aria-hidden="true">
-        <span className="place-plate__stud" />
-        <span className="place-plate__stud" />
-        <span className="place-plate__stud" />
-        <span className="place-plate__stud" />
-      </span>
+      <span className="place-plate__rule" aria-hidden="true" />
     </div>
   );
 }
