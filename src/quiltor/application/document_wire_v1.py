@@ -71,9 +71,13 @@ def _valid_place_level(node: dict) -> bool:
         if key in node and (not isinstance(node[key], str) or not node[key]):
             return False
     # Normalised, so a place keeps its spot when the level around it is resized.
-    for key in ("mapU", "mapV"):
+    for key in ("mapU", "mapV", "mapImageU", "mapImageV"):
         if key in node and (not _number(node[key]) or not 0 <= node[key] <= 1):
             return False
+    if "mapImageZoom" in node and (
+        not _number(node["mapImageZoom"]) or not 1 <= node["mapImageZoom"] <= 8
+    ):
+        return False
     if "mapExpanded" in node and type(node["mapExpanded"]) is not bool:
         return False
     for key in ("mapWidth", "mapHeight"):

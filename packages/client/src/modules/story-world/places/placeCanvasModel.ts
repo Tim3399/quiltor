@@ -1,6 +1,7 @@
 import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode, MapScale } from "../model";
+import { cropOf, type ImageCrop } from "./placeImageCrop";
 import { formatDistance } from "./placeMap";
 import type { PlaceGroundNode } from "./PlaceGround";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
@@ -97,21 +98,24 @@ export function isExpandedMap(place: FigureNode): boolean {
 export function createPlaceMapNodes({
   places,
   sourceUrl,
-  onCollapse,
   onResize,
   onResizeLive,
-  onToggleLock,
+  onCropDraft,
+  onCropCommit,
+  cropOverride,
+  adjustingId,
   liveSize,
   gridSize,
-  levelScale,
-  t,
 }: {
   places: FigureNode[];
   sourceUrl: (imageId: string) => string;
-  onCollapse: (place: FigureNode) => void;
   onResize: (place: FigureNode, size: { width: number; height: number }) => void;
   onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
-  onToggleLock: (place: FigureNode) => void;
+  onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
+  onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
+  /** The crop being dragged right now, which has not been written down yet. */
+  cropOverride: { id: string; crop: ImageCrop } | null;
+  adjustingId: string | undefined;
   /**
    * The size a handle is being dragged to right now.
    *
@@ -121,33 +125,28 @@ export function createPlaceMapNodes({
    */
   liveSize: { id: string; width: number; height: number } | null;
   gridSize: number;
-  /** Falls back to the level's scale for a map that declares none of its own. */
-  levelScale: MapScale | undefined;
-  t: Translate;
 }): PlaceMapFlowNode[] {
   return places.filter(isExpandedMap).map((place) => {
     const live = liveSize?.id === place.id ? liveSize : undefined;
-    const width = live?.width ?? place.mapWidth ?? DEFAULT_MAP_WIDTH;
-    const height = live?.height ?? place.mapHeight ?? DEFAULT_MAP_WIDTH;
     return {
       id: place.id,
       type: "placeMap",
       position: placePosition(place),
-      width,
-      height,
+      width: live?.width ?? place.mapWidth ?? DEFAULT_MAP_WIDTH,
+      height: live?.height ?? place.mapHeight ?? DEFAULT_MAP_WIDTH,
       draggable: !place.pinned,
       // Behind the cards that stand on it.
       zIndex: -1,
       data: {
         place,
         source: sourceUrl(place.mapImageId as string),
-        onCollapse,
+        crop: cropOverride?.id === place.id ? cropOverride.crop : cropOf(place),
+        adjusting: adjustingId === place.id,
         onResize,
         onResizeLive,
-        onToggleLock,
-        locked: Boolean(place.pinned),
+        onCropDraft,
+        onCropCommit,
         gridSize,
-        measured: formatDistance(width, t, place.mapScale ?? levelScale),
       },
     };
   });

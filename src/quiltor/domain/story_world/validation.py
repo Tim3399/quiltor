@@ -107,12 +107,17 @@ def _valid_place_level(node: dict) -> bool:
         value = node.get(key)
         if value is not None and (not isinstance(value, str) or not value):
             return False
-    for key in ("mapU", "mapV"):
+    for key in ("mapU", "mapV", "mapImageU", "mapImageV"):
         value = node.get(key)
         if value is not None and (
             not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 <= value <= 1
         ):
             return False
+    zoom = node.get("mapImageZoom")
+    if zoom is not None and (
+        not isinstance(zoom, (int, float)) or isinstance(zoom, bool) or not 1 <= zoom <= 8
+    ):
+        return False
     expanded = node.get("mapExpanded")
     if expanded is not None and type(expanded) is not bool:
         return False

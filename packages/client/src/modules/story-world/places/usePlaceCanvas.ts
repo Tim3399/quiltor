@@ -22,6 +22,7 @@ import {
   groundRect,
   isExpandedMap,
 } from "./placeCanvasModel";
+import type { ImageCrop } from "./placeImageCrop";
 import { createPlaceMeasurementEdges } from "./placeMeasurementGraph";
 import { placementForDrop } from "./placeLevels";
 
@@ -54,10 +55,10 @@ export function usePlaceCanvas({
   measureSelection,
   onOpenLevel,
   mapImageUrl,
-  onCollapseMap: collapseMap,
   onExpandMap: expandMap,
   onResizeMap: resizeMap,
-  onToggleMapLock: toggleMapLock,
+  onCropMap: cropMap,
+  adjustingId,
   levelScale,
   onChange,
 }: {
@@ -71,10 +72,11 @@ export function usePlaceCanvas({
   onOpenLevel: (place: FigureNode) => void;
   /** Where a stored picture can be shown from. */
   mapImageUrl: (imageId: string) => string;
-  onCollapseMap: (place: FigureNode) => void;
   onExpandMap: (place: FigureNode) => void;
   onResizeMap: (place: FigureNode, size: { width: number; height: number }) => void;
-  onToggleMapLock: (place: FigureNode) => void;
+  onCropMap: (place: FigureNode, crop: ImageCrop) => void;
+  /** Which map's picture is being adjusted, if any. */
+  adjustingId: string | undefined;
   /** What a distance on the open level means, for the map's width readout. */
   levelScale: MapScale | undefined;
   onChange: (state: FigureState) => void;
@@ -87,6 +89,9 @@ export function usePlaceCanvas({
   const [liveSize, setLiveSize] = useState<{ id: string; width: number; height: number } | null>(
     null,
   );
+  // The crop being dragged, held here until the gesture ends so a run of tiny
+  // movements is one edit rather than a hundred.
+  const [cropDraft, setCropDraft] = useState<{ id: string; crop: ImageCrop } | null>(null);
   const flow = useRef<ReactFlowInstance<PlaceFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
@@ -210,19 +215,24 @@ export function usePlaceCanvas({
       createPlaceMapNodes({
         places,
         sourceUrl: mapImageUrl,
-        onCollapse: collapseMap,
         onResize: (place, size) => {
           setLiveSize(null);
           resizeMap(place, size);
         },
         onResizeLive: (place, size) => setLiveSize({ id: place.id, ...size }),
-        onToggleLock: toggleMapLock,
+        onCropDraft: (place, crop) => setCropDraft({ id: place.id, crop }),
+        onCropCommit: (place, crop) => {
+          // The draft goes as the write lands, in the same batch, or the buttons
+          // beside the canvas would be arguing with a draft nobody is dragging.
+          setCropDraft(null);
+          cropMap(place, crop);
+        },
+        cropOverride: cropDraft,
+        adjustingId,
         liveSize,
         gridSize: GRID_SIZE,
-        levelScale,
-        t,
       }),
-    [places, mapImageUrl, collapseMap, resizeMap, toggleMapLock, liveSize, levelScale, t],
+    [places, mapImageUrl, resizeMap, cropMap, cropDraft, adjustingId, liveSize],
   );
 
   const edges = useMemo(

@@ -85,6 +85,16 @@ export interface FigureNode {
   mapHeight?: number;
   /** Optional backdrop for this place's own level. */
   mapImageId?: string;
+  /**
+   * How the picture sits inside its frame: enlarged by `mapImageZoom` around the
+   * point `mapImageU`/`mapImageV`. One and centred shows the whole sheet.
+   *
+   * The same point decides which part of the map a collapsed card wears, so
+   * choosing the telling detail once serves both views.
+   */
+  mapImageZoom?: number;
+  mapImageU?: number;
+  mapImageV?: number;
   /** What a distance measured inside this place means. */
   mapScale?: MapScale;
   [key: string]: unknown;

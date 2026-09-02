@@ -1,0 +1,49 @@
+/* Beside the canvas, not on the map: a map is as large as the ground it stands
+   for, so anything pinned to its own edge leaves the screen exactly when the map
+   becomes worth using. */
+.place-map-toolbar {
+  min-width: 0;
+  max-width: calc(100% - var(--space-28));
+  position: absolute;
+  z-index: var(--z-float-strip);
+  top: var(--space-14);
+  right: var(--space-14);
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-8);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.place-map-toolbar__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font: 600 var(--font-size-2) var(--prose);
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.place-map-toolbar__measure {
+  flex: none;
+  padding-right: var(--space-4);
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .place-map-toolbar {
+    top: auto;
+    right: var(--space-14);
+    bottom: calc(var(--space-48) * 2);
+    left: var(--space-14);
+    max-width: none;
+  }
+}

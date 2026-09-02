@@ -1,6 +1,6 @@
 import type { Edge } from "@xyflow/react";
 import { MapPin } from "lucide-react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useCallback } from "react";
 import { EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
@@ -12,7 +12,7 @@ import { PlaceLevelTrail } from "./PlaceLevelTrail";
 import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
 import { PlaceGround } from "./PlaceGround";
 import { PlaceMapNode } from "./PlaceMapNode";
-import { type PlaceFlowNode, placeNodeTypes } from "./PlaceNode";
+import { type PlaceCardData, type PlaceFlowNode, placeNodeTypes } from "./PlaceNode";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
 import "./PlaceCanvas.css";
 
@@ -28,6 +28,7 @@ export function PlaceCanvas({
   onClearSelection,
   onStopMeasuring,
   onScale,
+  mapTools,
 }: {
   controller: PlaceCanvasController;
   placesCount: number;
@@ -40,6 +41,8 @@ export function PlaceCanvas({
   onClearSelection: () => void;
   onStopMeasuring: () => void;
   onScale: (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => void;
+  /** What the selected map offers, shown over the canvas rather than on the map. */
+  mapTools?: ReactNode;
 }) {
   const { t } = useI18n();
   const selectPlaceFromKeyboard = useCallback(
@@ -66,6 +69,7 @@ export function PlaceCanvas({
       overlay={
         <>
           <PlaceLevelTrail trail={trail} onGoToLevel={onGoToLevel} />
+          {mapTools}
           {measuring ? (
             <PlaceMeasurementOverlay
               measureSelection={measureSelection}
@@ -91,10 +95,13 @@ export function PlaceCanvas({
         // A laid-out map is the ground, and everything worth finding in the
         // minimap is standing on it. Drawn at full strength it would swallow
         // the very pins the minimap exists to show, so it recedes to a wash.
-        nodeColor: (node) =>
-          node.type === "placeMap"
-            ? `color-mix(in srgb, ${cardKindColor("ort")} 18%, transparent)`
-            : cardKindColor("ort"),
+        nodeColor: (node) => {
+          if (node.type === "placeMap")
+            return `color-mix(in srgb, ${cardKindColor("storyboard")} 18%, transparent)`;
+          // Collapsed maps keep their own hue down here as well, so the minimap
+          // reads as the surface does rather than as one undifferentiated green.
+          return isMapCard(node) ? cardKindColor("storyboard") : cardKindColor("ort");
+        },
         nodeStrokeWidth: 0,
       }}
     >
@@ -109,4 +116,9 @@ export function PlaceCanvas({
       )}
     </StoryGraphCanvas>
   );
+}
+
+/** Whether a minimap node stands for a place that carries a map of its own. */
+function isMapCard(node: { data?: unknown }): boolean {
+  return Boolean((node.data as Partial<PlaceCardData> | undefined)?.place?.mapImageId);
 }

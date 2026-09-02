@@ -1,22 +1,21 @@
-import { type Node, NodeResizer, type NodeProps } from "@xyflow/react";
-import { ChevronsDownUp, Lock, LockOpen } from "lucide-react";
-import { IconButton } from "../../../design";
-import { useI18n } from "../../../i18n";
-import type { CSSProperties } from "react";
+import { type Node, type NodeProps, NodeResizer } from "@xyflow/react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useRef } from "react";
 import type { FigureNode } from "../model";
+import { type ImageCrop, movedCrop, zoomedCrop } from "./placeImageCrop";
 import "./PlacePlate.css";
 import "./PlaceMapNode.css";
 
 export type PlaceMapNodeData = {
   place: FigureNode;
   source: string;
-  onCollapse: (place: FigureNode) => void;
+  /** How the picture sits in the frame right now, draft included. */
+  crop: ImageCrop;
+  /** Whether this map's picture is the one being adjusted. */
+  adjusting: boolean;
   onResize: (place: FigureNode, size: { width: number; height: number }) => void;
   onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
-  onToggleLock: (place: FigureNode) => void;
-  locked: boolean;
-  /** What this map's width comes to in the author's own units. */
-  measured: string;
+  onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
+  onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
   /** The grid drawn over the picture, in flow units. */
   gridSize: number;
 };
@@ -33,20 +32,58 @@ export type PlaceMapFlowNode = Node<PlaceMapNodeData>;
  * There is no way in from here, deliberately: laid out, the map already shows
  * what is inside it. Going in is what a collapsed card offers, and offering both
  * would be two doors into the same room.
+ *
+ * It carries no buttons either. A map is drawn at the size of the ground it
+ * stands for, so anything pinned to its edge is off the screen exactly when the
+ * map is big enough to be worth using. The controls live beside the canvas
+ * instead; what stays here is the one gesture that has to happen on the picture,
+ * which is dragging it around inside its frame.
  */
 export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
-  const { t } = useI18n();
   const place = data.place;
+  const crop = data.crop;
+  const dragFrom = useRef<{ x: number; y: number; crop: ImageCrop } | null>(null);
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!data.adjusting) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragFrom.current = { x: event.clientX, y: event.clientY, crop };
+  };
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const from = dragFrom.current;
+    if (!from) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    data.onCropDraft(
+      place,
+      movedCrop(from.crop, {
+        x: (event.clientX - from.x) / Math.max(1, box.width),
+        y: (event.clientY - from.y) / Math.max(1, box.height),
+      }),
+    );
+  };
+
+  const onPointerUp = () => {
+    if (!dragFrom.current) return;
+    dragFrom.current = null;
+    data.onCropCommit(place, crop);
+  };
+
   return (
     <figure
-      className={`place-map-node ${selected ? "is-selected" : ""}`}
+      className={`place-map-node ${selected ? "is-selected" : ""} ${
+        data.adjusting ? "is-adjusting" : ""
+      }`}
       style={{ "--place-plate-grid": `${data.gridSize}px` } as CSSProperties}
     >
       {/* Resizing a map is how its scale is declared: making it wider says the
-          same picture covers more ground. The places standing on it are held as
-          fractions of it, so they travel with the change instead of drifting. */}
+          same picture covers more ground. Kept to the picture's own proportions,
+          so the frame can never show paper the picture does not cover. The places
+          standing on it are held as fractions, so they travel with the change. */}
       <NodeResizer
-        isVisible={selected}
+        isVisible={selected && !data.adjusting}
+        keepAspectRatio
         minWidth={120}
         minHeight={80}
         handleClassName="place-map-node__handle"
@@ -60,44 +97,32 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
         <span className="place-plate__stud" />
         <span className="place-plate__stud" />
       </span>
-      <img src={data.source} alt={place.name} draggable={false} />
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: this is a surface
+          being dragged, not a control; every adjustment it makes is also
+          reachable from the buttons beside the canvas. */}
+      <div
+        className={`place-map-node__frame ${data.adjusting ? "nodrag nopan nowheel" : ""}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onWheel={(event) => {
+          if (!data.adjusting) return;
+          event.stopPropagation();
+          data.onCropCommit(place, zoomedCrop(crop, event.deltaY < 0 ? 1 : -1));
+        }}
+      >
+        <img
+          src={data.source}
+          alt={place.name}
+          draggable={false}
+          style={{
+            transform: `scale(${crop.zoom})`,
+            transformOrigin: `${crop.u * 100}% ${crop.v * 100}%`,
+          }}
+        />
+      </div>
       <span className="place-plate__grid" aria-hidden="true" />
-      <figcaption className="place-map-node__bar">
-        <span className="place-map-node__name">{place.name}</span>
-        {/* Resizing a map is how far it reaches across the world; saying so
-            while the handle is held is what makes that a measurement rather
-            than a guess. */}
-        <span className="place-map-node__measure">{data.measured}</span>
-        {/* A map large enough to fill the view cannot be dragged in any way the
-            eye can follow -- it just looks like the canvas moving. Locked, the
-            gesture goes to the canvas where it belongs, and the map stays put. */}
-        <IconButton
-          className="place-map-node__action nodrag nopan"
-          size="compact"
-          appearance="ghost"
-          label={
-            data.locked
-              ? t("placeUnlockMap", { name: place.name })
-              : t("placeLockMap", { name: place.name })
-          }
-          icon={data.locked ? <Lock /> : <LockOpen />}
-          onClick={(event) => {
-            event.stopPropagation();
-            data.onToggleLock(place);
-          }}
-        />
-        <IconButton
-          className="place-map-node__action nodrag nopan"
-          size="compact"
-          appearance="ghost"
-          label={t("placeCollapseMap", { name: place.name })}
-          icon={<ChevronsDownUp />}
-          onClick={(event) => {
-            event.stopPropagation();
-            data.onCollapse(place);
-          }}
-        />
-      </figcaption>
     </figure>
   );
 }

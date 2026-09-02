@@ -77,6 +77,9 @@ export interface FigureNodeWireV1 {
   mapWidth?: number;
   mapHeight?: number;
   mapImageId?: string;
+  mapImageZoom?: number;
+  mapImageU?: number;
+  mapImageV?: number;
   mapScale?: { unitsPer100px: number; unitLabel: string };
   profile?: ProfileWireV1;
   aliases?: EntityAliasWireV1[];
@@ -267,6 +270,17 @@ function validateNode(value: unknown, path: string): FigureNodeWireV1 {
     optional(node, key, (item, itemPath) => wireNumber(item, itemPath, { exclusiveMin: 0 }), path);
   }
   optional(node, "mapImageId", (item, itemPath) => wireString(item, itemPath, { min: 1 }), path);
+  // Enlarging is the only direction that means anything: below one the frame
+  // would show paper the picture does not cover.
+  optional(
+    node,
+    "mapImageZoom",
+    (item, itemPath) => wireNumber(item, itemPath, { min: 1, max: 8 }),
+    path,
+  );
+  for (const key of ["mapImageU", "mapImageV"]) {
+    optional(node, key, (item, itemPath) => wireNumber(item, itemPath, { min: 0, max: 1 }), path);
+  }
   if (node.mapScale !== undefined) {
     const scale = wireRecord(node.mapScale, `${path}.mapScale`);
     wireNumber(scale.unitsPer100px, `${path}.mapScale.unitsPer100px`, { exclusiveMin: 0 });

@@ -29,9 +29,11 @@
    and it sits under the text at an opacity that reads as material rather than as
    an image somebody stuck on. Its presence is the only marker that a place has a
    map at all, so it never hides -- and it never competes with the name either. */
+/* No negative depth here: the card paints its surface on its own box, and a
+   child sent behind that would be behind the paint as well as the text. Order
+   in the markup is enough -- the band comes first, the writing after it. */
 .place-node__preview {
   position: absolute;
-  z-index: var(--z-behind);
   inset: 0;
   overflow: hidden;
   border-radius: inherit;
@@ -78,4 +80,13 @@
   .place-node__preview {
     display: none;
   }
+}
+
+/* A place is a point on the ground; a map is a piece of ground you can walk
+   into, which is what a storyboard is too. It borrows that hue rather than
+   inventing one, so a glance at the surface separates the two without a badge.
+   Only the colour changes -- the shape stays a place's, because it is one. */
+.place-node-shell .story-node.is-map {
+  --graph-card-kind-color: var(--card-kind-storyboard);
+  --graph-card-kind-surface: var(--card-kind-storyboard-surface);
 }

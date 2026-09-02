@@ -9,7 +9,10 @@ import { storyShortcutLabel } from "../shortcutLabels";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
 import { levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
-import { DEFAULT_MAP_WIDTH } from "./placeCanvasModel";
+import { DEFAULT_MAP_WIDTH, isExpandedMap } from "./placeCanvasModel";
+import { formatDistance } from "./placeMap";
+import { PlaceMapToolbar } from "./PlaceMapToolbar";
+import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
 import { askForMapImage, prepareMapImage } from "./placeMapUpload";
 import { PlaceToolbar } from "./PlaceToolbar";
 import { usePlaceCanvas } from "./usePlaceCanvas";
@@ -56,6 +59,9 @@ function PlacesWorkspaceInner({
   // a backlink still shows where a place really sits.
   const [levelId, setLevelId] = useState<string | undefined>(undefined);
   const [mapError, setMapError] = useState("");
+  // Which map is having its picture adjusted. A mode rather than a gesture
+  // the canvas has to guess at: inside it a drag moves the picture.
+  const [adjustingId, setAdjustingId] = useState<string | undefined>(undefined);
   const [measuring, setMeasuring] = useState(false);
   const [measureSelection, setMeasureSelection] = useState<string[]>([]);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
@@ -89,6 +95,11 @@ function PlacesWorkspaceInner({
       setLevelId(undefined);
   }, [state.nodes, levelId]);
   const selected = places.find((place) => place.id === selectedId) ?? null;
+  const selectedMap = selected && isExpandedMap(selected) ? selected : null;
+  // Adjusting is a mode on one map; picking another map leaves it behind.
+  useEffect(() => {
+    if (adjustingId && adjustingId !== selectedMap?.id) setAdjustingId(undefined);
+  }, [adjustingId, selectedMap]);
   const selectPlace = useCallback(
     (id: string) => {
       setSelectedId(id);
@@ -128,6 +139,10 @@ function PlacesWorkspaceInner({
     (place: FigureNode) => patchPlace(place.id, { pinned: !place.pinned }),
     [patchPlace],
   );
+  const cropMap = useCallback(
+    (place: FigureNode, crop: ImageCrop) => patchPlace(place.id, cropPatch(crop)),
+    [patchPlace],
+  );
   const resizeMap = useCallback(
     (place: FigureNode, size: { width: number; height: number }) =>
       patchPlace(place.id, { mapWidth: size.width, mapHeight: size.height }),
@@ -142,10 +157,10 @@ function PlacesWorkspaceInner({
     measureSelection,
     onOpenLevel: openLevel,
     mapImageUrl,
-    onCollapseMap: collapseMap,
     onExpandMap: expandMap,
     onResizeMap: resizeMap,
-    onToggleMapLock: toggleMapLock,
+    onCropMap: cropMap,
+    adjustingId,
     levelScale,
     onChange,
   });
@@ -296,6 +311,28 @@ function PlacesWorkspaceInner({
         )}
         <PlaceCanvas
           controller={canvas}
+          mapTools={
+            selectedMap ? (
+              <PlaceMapToolbar
+                map={selectedMap}
+                crop={cropOf(selectedMap)}
+                adjusting={adjustingId === selectedMap.id}
+                measured={formatDistance(
+                  selectedMap.mapWidth ?? DEFAULT_MAP_WIDTH,
+                  t,
+                  selectedMap.mapScale ?? levelScale,
+                )}
+                onToggleAdjusting={() =>
+                  setAdjustingId((current) =>
+                    current === selectedMap.id ? undefined : selectedMap.id,
+                  )
+                }
+                onCrop={(next) => cropMap(selectedMap, next)}
+                onToggleLock={() => toggleMapLock(selectedMap)}
+                onCollapse={() => collapseMap(selectedMap)}
+              />
+            ) : null
+          }
           placesCount={places.length}
           measuring={measuring}
           measureSelection={measureSelection}

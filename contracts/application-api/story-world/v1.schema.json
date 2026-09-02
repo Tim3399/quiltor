@@ -53,6 +53,9 @@
         "mapWidth": { "type": "number", "exclusiveMinimum": 0 },
         "mapHeight": { "type": "number", "exclusiveMinimum": 0 },
         "mapImageId": { "type": "string", "minLength": 1 },
+        "mapImageZoom": { "type": "number", "minimum": 1, "maximum": 8 },
+        "mapImageU": { "type": "number", "minimum": 0, "maximum": 1 },
+        "mapImageV": { "type": "number", "minimum": 0, "maximum": 1 },
         "mapScale": { "$ref": "#/$defs/mapScale" },
         "profile": { "$ref": "#/$defs/profile" },
         "aliases": {
