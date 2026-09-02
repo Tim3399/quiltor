@@ -35,7 +35,7 @@ describe("place canvas model", () => {
     expect(nodes[0]).toMatchObject({
       position: { x: 10, y: 20 },
       ariaLabel: "Ort: A",
-      ariaRole: "button",
+      ariaRole: "group",
       draggable: true,
       data: { zoomTier: "overview", zoom: 0.2 },
     });

@@ -60,7 +60,11 @@ export function createPlaceFlowNodes({
     position: host ? anchoredPoint(place, host, guesses.get(place.id)) : placePosition(place),
     draggable: !place.pinned,
     ariaLabel: t("placeNodeLabel", { name: place.name }),
-    ariaRole: "button",
+    // A group, not a button: the card carries its own controls now, and a
+    // button holding buttons is a control nested in a control -- announced
+    // wrongly by screen readers and a focus trap for anything assistive.
+    // Focus still lands here, and Enter still picks the place up.
+    ariaRole: "group",
     data: {
       place,
       measuring,
