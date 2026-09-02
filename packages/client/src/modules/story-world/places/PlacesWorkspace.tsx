@@ -124,6 +124,10 @@ function PlacesWorkspaceInner({
     (place: FigureNode) => patchPlace(place.id, { mapExpanded: true }),
     [patchPlace],
   );
+  const toggleMapLock = useCallback(
+    (place: FigureNode) => patchPlace(place.id, { pinned: !place.pinned }),
+    [patchPlace],
+  );
   const resizeMap = useCallback(
     (place: FigureNode, size: { width: number; height: number }) =>
       patchPlace(place.id, { mapWidth: size.width, mapHeight: size.height }),
@@ -141,6 +145,7 @@ function PlacesWorkspaceInner({
     onCollapseMap: collapseMap,
     onExpandMap: expandMap,
     onResizeMap: resizeMap,
+    onToggleMapLock: toggleMapLock,
     levelScale,
     onChange,
   });
@@ -172,6 +177,9 @@ function PlacesWorkspaceInner({
       name: t("newMap"),
       mapImageId: stored.id,
       mapExpanded: true,
+      // Locked on arrival: a map is the ground, and a drag across something
+      // that fills the view reads as panning rather than as moving it.
+      pinned: true,
       // The stored pixels set the shape; the surface is measured in flow units.
       mapWidth: DEFAULT_MAP_WIDTH,
       mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),

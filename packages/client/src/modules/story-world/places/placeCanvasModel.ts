@@ -74,8 +74,14 @@ export function createPlaceFlowNodes({
   }));
 }
 
-/** How wide a new map is drawn before anybody resizes it, in flow units. */
-export const DEFAULT_MAP_WIDTH = 1200;
+/**
+ * How wide a new map is drawn before anybody resizes it, in flow units.
+ *
+ * Wide enough to be the ground rather than another card on it: a place card
+ * is about two hundred across, so this is a surface a dozen of them can stand
+ * on without crowding.
+ */
+export const DEFAULT_MAP_WIDTH = 2400;
 
 /** Whether this place is drawn as an opened-out map rather than as a card. */
 export function isExpandedMap(place: FigureNode): boolean {
@@ -93,6 +99,10 @@ export function createPlaceMapNodes({
   sourceUrl,
   onCollapse,
   onResize,
+  onResizeLive,
+  onToggleLock,
+  liveSize,
+  gridSize,
   levelScale,
   t,
 }: {
@@ -100,31 +110,47 @@ export function createPlaceMapNodes({
   sourceUrl: (imageId: string) => string;
   onCollapse: (place: FigureNode) => void;
   onResize: (place: FigureNode, size: { width: number; height: number }) => void;
+  onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
+  onToggleLock: (place: FigureNode) => void;
+  /**
+   * The size a handle is being dragged to right now.
+   *
+   * Map nodes are derived rather than kept in the flow's own list, so React Flow
+   * drops the dimension changes it reports while a handle is held and the map
+   * would only jump to its new size on release.
+   */
+  liveSize: { id: string; width: number; height: number } | null;
+  gridSize: number;
   /** Falls back to the level's scale for a map that declares none of its own. */
   levelScale: MapScale | undefined;
   t: Translate;
 }): PlaceMapFlowNode[] {
-  return places.filter(isExpandedMap).map((place) => ({
-    id: place.id,
-    type: "placeMap",
-    position: placePosition(place),
-    width: place.mapWidth ?? DEFAULT_MAP_WIDTH,
-    height: place.mapHeight ?? DEFAULT_MAP_WIDTH,
-    draggable: !place.pinned,
-    // Behind the cards that stand on it.
-    zIndex: -1,
-    data: {
-      place,
-      source: sourceUrl(place.mapImageId as string),
-      onCollapse,
-      onResize,
-      measured: formatDistance(
-        place.mapWidth ?? DEFAULT_MAP_WIDTH,
-        t,
-        place.mapScale ?? levelScale,
-      ),
-    },
-  }));
+  return places.filter(isExpandedMap).map((place) => {
+    const live = liveSize?.id === place.id ? liveSize : undefined;
+    const width = live?.width ?? place.mapWidth ?? DEFAULT_MAP_WIDTH;
+    const height = live?.height ?? place.mapHeight ?? DEFAULT_MAP_WIDTH;
+    return {
+      id: place.id,
+      type: "placeMap",
+      position: placePosition(place),
+      width,
+      height,
+      draggable: !place.pinned,
+      // Behind the cards that stand on it.
+      zIndex: -1,
+      data: {
+        place,
+        source: sourceUrl(place.mapImageId as string),
+        onCollapse,
+        onResize,
+        onResizeLive,
+        onToggleLock,
+        locked: Boolean(place.pinned),
+        gridSize,
+        measured: formatDistance(width, t, place.mapScale ?? levelScale),
+      },
+    };
+  });
 }
 
 /**

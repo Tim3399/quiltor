@@ -57,6 +57,7 @@ export function usePlaceCanvas({
   onCollapseMap: collapseMap,
   onExpandMap: expandMap,
   onResizeMap: resizeMap,
+  onToggleMapLock: toggleMapLock,
   levelScale,
   onChange,
 }: {
@@ -73,6 +74,7 @@ export function usePlaceCanvas({
   onCollapseMap: (place: FigureNode) => void;
   onExpandMap: (place: FigureNode) => void;
   onResizeMap: (place: FigureNode, size: { width: number; height: number }) => void;
+  onToggleMapLock: (place: FigureNode) => void;
   /** What a distance on the open level means, for the map's width readout. */
   levelScale: MapScale | undefined;
   onChange: (state: FigureState) => void;
@@ -80,6 +82,11 @@ export function usePlaceCanvas({
   const { t } = useI18n();
   const [zoomTier, setZoomTier] = useState<SemanticZoomTier>("detail");
   const [viewportZoom, setViewportZoom] = useState(1);
+  // What a handle is being dragged to right now, so the map follows the
+  // gesture instead of jumping to its new size when the handle is let go.
+  const [liveSize, setLiveSize] = useState<{ id: string; width: number; height: number } | null>(
+    null,
+  );
   const flow = useRef<ReactFlowInstance<PlaceFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
@@ -204,11 +211,18 @@ export function usePlaceCanvas({
         places,
         sourceUrl: mapImageUrl,
         onCollapse: collapseMap,
-        onResize: resizeMap,
+        onResize: (place, size) => {
+          setLiveSize(null);
+          resizeMap(place, size);
+        },
+        onResizeLive: (place, size) => setLiveSize({ id: place.id, ...size }),
+        onToggleLock: toggleMapLock,
+        liveSize,
+        gridSize: GRID_SIZE,
         levelScale,
         t,
       }),
-    [places, mapImageUrl, collapseMap, resizeMap, levelScale, t],
+    [places, mapImageUrl, collapseMap, resizeMap, toggleMapLock, liveSize, levelScale, t],
   );
 
   const edges = useMemo(

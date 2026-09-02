@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import type { FigureState } from "../model";
 import { quiltorClient } from "../../../platform";
+import { DEFAULT_MAP_WIDTH } from "./placeCanvasModel";
 import * as placeMapUpload from "./placeMapUpload";
 import { PLACE_COMPACT_MEDIA_QUERY, PlacesWorkspace } from "./PlacesWorkspace";
 
@@ -415,9 +416,9 @@ describe("adding a map", () => {
     const latest = changes[changes.length - 1];
     const map = latest.nodes.find((node) => node.mapImageId === "sha-of-the-map");
     expect(map).toBeDefined();
-    expect(map).toMatchObject({ type: "ort", mapExpanded: true, mapWidth: 1200 });
-    // 800 x 400 laid out 1200 wide keeps its shape.
-    expect(map?.mapHeight).toBe(600);
+    expect(map).toMatchObject({ type: "ort", mapExpanded: true, mapWidth: DEFAULT_MAP_WIDTH });
+    // Whatever the default width is, the picture keeps the shape it arrived in.
+    expect(map?.mapHeight).toBe(DEFAULT_MAP_WIDTH / 2);
   });
 
   it("says so when the upload is refused instead of doing nothing", async () => {

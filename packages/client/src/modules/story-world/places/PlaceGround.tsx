@@ -26,10 +26,10 @@ export function PlaceGround({ data }: NodeProps<PlaceGroundNode>) {
   return (
     <div
       className="place-ground"
-      style={{ "--place-ground-grid": `${data.gridSize}px` } as React.CSSProperties}
+      style={{ "--place-plate-grid": `${data.gridSize}px` } as React.CSSProperties}
     >
       <img src={data.source} alt={data.title} draggable={false} />
-      <span className="place-ground__grid" aria-hidden="true" />
+      <span className="place-plate__grid" aria-hidden="true" />
       <span className="place-plate__rule" aria-hidden="true">
         <span className="place-plate__stud" />
         <span className="place-plate__stud" />

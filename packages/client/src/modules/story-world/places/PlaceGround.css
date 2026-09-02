@@ -22,30 +22,8 @@
   user-select: none;
 }
 
-/* The same lines the canvas draws beyond the picture's edges, laid over it in
-   the same flow units so the two read as one surface. */
-.place-ground__grid {
-  position: absolute;
-  inset: var(--space-8);
-  background-image:
-    linear-gradient(to right, var(--line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
-  background-size: var(--place-ground-grid) var(--place-ground-grid);
-  opacity: 0.45;
-}
-
-@media (prefers-contrast: more) {
-  .place-ground__grid {
-    opacity: 0.8;
-  }
-}
-
 @media (forced-colors: active) {
   .place-ground {
     border-color: CanvasText;
-  }
-
-  .place-ground__grid {
-    display: none;
   }
 }

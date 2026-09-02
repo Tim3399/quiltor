@@ -4,6 +4,8 @@ export const places = {
   newMap: "Neue Karte",
   placeCollapseMap: "{name} einklappen",
   placeExpandMap: "{name} aufklappen",
+  placeLockMap: "{name} feststellen",
+  placeUnlockMap: "{name} lösen",
   placeOpenLevel: "{name} öffnen",
   placeStartLevel: "In {name} etwas anlegen",
   placeLevelTrail: "Pfad durch die Orte",

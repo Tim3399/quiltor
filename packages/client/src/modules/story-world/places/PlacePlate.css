@@ -9,6 +9,21 @@
  * ground under one, so both read as the same object seen from different
  * distances. */
 
+/* The same lines the canvas draws beyond the picture's edges, laid over it in
+   the same flow units so the two read as one surface rather than as a picture
+   covering a grid. Drawn here rather than left to the canvas behind, because
+   React Flow's background sits under every node. */
+.place-plate__grid {
+  position: absolute;
+  inset: var(--space-8);
+  background-image:
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: var(--place-plate-grid) var(--place-plate-grid);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .place-plate__rule {
   position: absolute;
   z-index: var(--z-local);
@@ -58,6 +73,10 @@
 /* Ornament is the first thing a contrast preference should be spared, and
    forced colours would render the studs as opaque blocks over the picture. */
 @media (prefers-contrast: more) {
+  .place-plate__grid {
+    opacity: 0.8;
+  }
+
   .place-plate__rule {
     border-color: var(--ink);
   }
@@ -68,6 +87,10 @@
 }
 
 @media (forced-colors: active) {
+  .place-plate__grid {
+    display: none;
+  }
+
   .place-plate__rule {
     border-color: CanvasText;
   }
