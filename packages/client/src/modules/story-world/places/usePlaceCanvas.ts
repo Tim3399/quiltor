@@ -339,10 +339,14 @@ export function usePlaceCanvas({
    * maps, and lets the paper fall where it may. With nothing standing on the
    * level yet there is nothing to aim at, and framing everything is right again.
    */
-  const fitTargets = useMemo(
-    () => [...nodes, ...pins].map((node) => ({ id: node.id })),
-    [nodes, pins],
-  );
+  const fitTargets = useMemo(() => {
+    // Held to the ground, the sheet is the world and framing it is framing
+    // everything -- which is also what puts it in the middle of the view with
+    // the surround evenly round it, so that it reads as the whole of the place
+    // rather than as one more thing lying on a surface that carries on past it.
+    if (ground && boundToGround) return [{ id: ground.id }];
+    return [...nodes, ...pins].map((node) => ({ id: node.id }));
+  }, [ground, boundToGround, nodes, pins]);
   const fitViewOptions = useMemo(
     // Capped at life size: fitting to a single card would otherwise magnify it
     // until the level around it is gone, which is the opposite of framing.
@@ -380,7 +384,12 @@ export function usePlaceCanvas({
         levelGround: latestGround.current,
         position: { x, y },
         size: node.measured,
-        grid: GRID_SIZE,
+        // Only a map is held to the ruling, and only while the ruling is drawn.
+        // A place is anchored as a fraction of whatever it stands on, so
+        // rounding it would fight the thing that keeps it in place -- and
+        // snapping to a grid nobody can see moves an author's work without
+        // telling them.
+        grid: snapToGrid ? GRID_SIZE : 0,
       });
 
       const next = {
@@ -391,7 +400,7 @@ export function usePlaceCanvas({
       onChange(next);
       window.requestAnimationFrame(() => updateNodeInternals([node.id]));
     },
-    [levelId, onChange, updateNodeInternals],
+    [levelId, onChange, snapToGrid, updateNodeInternals],
   );
 
   return {

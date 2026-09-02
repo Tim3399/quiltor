@@ -2,6 +2,25 @@
   position: relative;
 }
 
+/* Held to the ground, what lies outside the sheet is not somewhere to go -- it
+   is the edge of the world down here. The surround deepens a shade to say so:
+   not a border drawn round the map, which the map already has, but a change in
+   the surface itself, so the eye reads the sheet as the whole of the place
+   rather than as one more thing lying on a canvas that carries on past it. */
+.places-flow-area.is-bound-to-ground {
+  background: color-mix(in srgb, var(--ink) 7%, var(--canvas));
+}
+
+.places-flow-area.is-bound-to-ground .react-flow__background {
+  opacity: 0.35;
+}
+
+@media (prefers-contrast: more) {
+  .places-flow-area.is-bound-to-ground {
+    background: var(--canvas);
+  }
+}
+
 .places-manager-empty {
   position: absolute;
   inset: 0;
