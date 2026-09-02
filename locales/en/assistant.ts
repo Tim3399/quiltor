@@ -10,6 +10,10 @@ export const assistant = {
   retry: "Try again",
   installAssistant: "Set up now",
   installingAssistant: "Setting up … {percent}%",
+  installingAssistantStep: "{phase} … {percent}%",
+  installPhaseRuntime: "Downloading the runtime",
+  installPhaseModel: "Downloading the language model",
+  installPhaseVerifying: "Verifying",
   installAssistantError: "Setup failed: {error}",
   assistantGreeting: "What should I record in your world?",
   assistantGreetingBody:

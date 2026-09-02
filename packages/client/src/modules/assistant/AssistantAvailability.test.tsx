@@ -39,7 +39,7 @@ describe("assistant availability and installation", () => {
       .mockResolvedValue({ ok: true, running: true, phase: "Runtime", percent: 42, error: "" });
     setup();
     fireEvent.click(await screen.findByText("Jetzt einrichten"));
-    const progress = await screen.findByRole("progressbar", { name: "Wird eingerichtet … 42%" });
+    const progress = await screen.findByRole("progressbar", { name: "Laufzeit wird geladen … 42%" });
     expect(progress).toHaveAttribute("aria-valuenow", "42");
     expect(api.install).toHaveBeenCalledTimes(1);
   });
@@ -85,11 +85,11 @@ describe("assistant availability and installation", () => {
       error: "",
     });
     const { unmount } = setup();
-    await screen.findByText("Wird eingerichtet … 77%");
+    await screen.findByText("Laufzeit wird geladen … 77%");
     unmount();
 
     setup();
-    expect(await screen.findByText("Wird eingerichtet … 77%")).toBeInTheDocument();
+    expect(await screen.findByText("Laufzeit wird geladen … 77%")).toBeInTheDocument();
     expect(screen.queryByText("Jetzt einrichten")).not.toBeInTheDocument();
   });
 });

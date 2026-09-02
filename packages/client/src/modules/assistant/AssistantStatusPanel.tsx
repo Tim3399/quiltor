@@ -1,6 +1,7 @@
 import { Bot, Database, Download, RotateCw } from "lucide-react";
 import { Alert, Button, ProgressBar } from "../../design";
 import { useI18n } from "../../i18n";
+import { installStepLabel } from "./installPhase";
 import type { AssistantAvailability, AssistantInstallState } from "./useAssistantAvailability";
 import "./AssistantStatusPanel.css";
 
@@ -38,7 +39,7 @@ export function AssistantStatusPanel({
           {installState?.running ? (
             <ProgressBar
               id={installProgressId}
-              label={t("installingAssistant").replace("{percent}", String(installState.percent))}
+              label={installStepLabel(installState, t)}
               value={installState.percent}
               valueLabel={`${installState.percent}%`}
               showValue
