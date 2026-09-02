@@ -4,6 +4,7 @@ import type { Translate } from "../../../i18n";
 import type { FigureNode } from "../model";
 import {
   createMeasurementPoints,
+  createPinNodes,
   createPlaceFlowNodes,
   createPlaceMapNodes,
 } from "./placeCanvasModel";
@@ -171,5 +172,61 @@ describe("what a distance can be taken to", () => {
   it("puts cards and maps in one list, so any pair can be measured", () => {
     const points = createMeasurementPoints([card("a", "Hafen", 10, 20)], [map]);
     expect(points.map((point) => point.id)).toEqual(["a", "welt"]);
+  });
+});
+
+describe("a card standing on a map", () => {
+  const map: FigureNode = {
+    id: "welt",
+    x: 0,
+    y: 0,
+    mapX: 0,
+    mapY: 0,
+    name: "Weltkarte",
+    type: "ort",
+    mapImageId: "sha",
+    mapExpanded: true,
+    mapWidth: 1000,
+    mapHeight: 500,
+  };
+  const pin: FigureNode = {
+    id: "rom",
+    x: 0,
+    y: 0,
+    name: "Rom",
+    type: "ort",
+    parentPlaceId: "welt",
+    mapU: 0.5,
+    mapV: 0.5,
+  };
+
+  const build = (livePosition?: { id: string; x: number; y: number } | null) =>
+    createPinNodes({
+      nodes: [map, pin],
+      maps: [map],
+      measuring: false,
+      measureSelection: [],
+      onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
+      livePosition,
+      zoomTier: "detail",
+      viewportZoom: 1,
+      t,
+    });
+
+  it("stands where its anchor puts it on the map", () => {
+    expect(build()[0].position).toEqual({ x: 500, y: 250 });
+  });
+
+  it("follows the pointer while it is being dragged", () => {
+    // It is derived from the map's anchor rather than held in the flow's own
+    // list, so the movement React Flow reports has nothing to be applied to --
+    // without this the card sits still and appears elsewhere on release.
+    expect(build({ id: "rom", x: 120, y: 40 })[0].position).toEqual({ x: 120, y: 40 });
+  });
+
+  it("ignores a drag that belongs to something else", () => {
+    expect(build({ id: "welt", x: 120, y: 40 })[0].position).toEqual({ x: 500, y: 250 });
   });
 });

@@ -25,6 +25,7 @@ export function createPlaceFlowNodes({
   onExpandMap,
   sourceUrl,
   host,
+  livePosition,
   zoomTier,
   viewportZoom,
   t,
@@ -40,6 +41,16 @@ export function createPlaceFlowNodes({
    * grid with no picture under it -- they are placed outright.
    */
   host?: LevelRect;
+  /**
+   * Where a card is being dragged to right now.
+   *
+   * A card standing on a laid-out map is derived from that map's anchor rather
+   * than held in the flow's own node list, so the movement React Flow reports
+   * has nothing to be applied to and the card would sit still through the whole
+   * gesture and appear somewhere else on release. The same reason the map and
+   * its frame needed it; the same cure.
+   */
+  livePosition?: { id: string; x: number; y: number } | null;
   measuring: boolean;
   measureSelection: string[];
   onOpenLevel: (place: FigureNode) => void;
@@ -58,7 +69,12 @@ export function createPlaceFlowNodes({
   return standing.map((place) => ({
     id: place.id,
     type: "place",
-    position: host ? anchoredPoint(place, host, guesses.get(place.id)) : placePosition(place),
+    position:
+      livePosition?.id === place.id
+        ? { x: livePosition.x, y: livePosition.y }
+        : host
+          ? anchoredPoint(place, host, guesses.get(place.id))
+          : placePosition(place),
     // Only ever spelled out when it is false. A node saying it is
     // draggable overrides the surface's own interactivity switch, which
     // is why the dock's lock left everything as movable as before.
@@ -237,6 +253,7 @@ export function createPinNodes({
   onOpenLevel,
   onExpandMap,
   sourceUrl,
+  livePosition,
   zoomTier,
   viewportZoom,
   t,
@@ -248,6 +265,7 @@ export function createPinNodes({
   onOpenLevel: (place: FigureNode) => void;
   onExpandMap: (place: FigureNode) => void;
   sourceUrl: (imageId: string) => string;
+  livePosition?: { id: string; x: number; y: number } | null;
   zoomTier: SemanticZoomTier;
   viewportZoom: number;
   t: Translate;
@@ -262,6 +280,7 @@ export function createPinNodes({
       onExpandMap,
       sourceUrl,
       host: mapRect(map),
+      livePosition,
       zoomTier,
       viewportZoom,
       t,

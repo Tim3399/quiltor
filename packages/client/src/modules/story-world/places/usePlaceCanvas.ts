@@ -227,6 +227,10 @@ export function usePlaceCanvas({
     ],
   );
   const [nodes, setFlowNodes] = useState<PlaceFlowNode[]>(derivedNodes);
+  // Read inside a change handler, where the render's own `nodes` would be the
+  // list from before the gesture started.
+  const latestFlowNodes = useRef(nodes);
+  latestFlowNodes.current = nodes;
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
   // Keyed on what the flow actually renders rather than on what was derived for
   // it: the derived list changes a commit earlier, and fitting then would frame
@@ -266,6 +270,7 @@ export function usePlaceCanvas({
         onOpenLevel,
         onExpandMap: expandMap,
         sourceUrl: mapImageUrl,
+        livePosition,
         zoomTier,
         viewportZoom,
         t,
@@ -278,6 +283,7 @@ export function usePlaceCanvas({
       onOpenLevel,
       expandMap,
       mapImageUrl,
+      livePosition,
       zoomTier,
       viewportZoom,
       t,
@@ -504,13 +510,17 @@ export function usePlaceCanvas({
     minZoom,
     onSurfaceResize: setSurface,
     onNodesChange: (changes) => {
+      const current = latestFlowNodes.current;
       // A map is derived from the level rather than held in the flow's own list,
       // so applyNodeChanges has nothing to apply its movement to. Catching the
       // position here is what lets a map follow the pointer instead of standing
       // still and reappearing somewhere else when the pointer is let go.
       for (const change of changes) {
         if (change.type !== "position" || !change.position) continue;
-        if (!latestMaps.current.some((map) => map.id === change.id)) continue;
+        // Anything the flow does not hold in its own list: a laid-out map, and a
+        // card standing on one. Both are derived from the level, so this is the
+        // only place their movement can be kept while the pointer is down.
+        if (current.some((node) => node.id === change.id)) continue;
         const { x, y } = change.position;
         setLivePosition(change.dragging ? { id: change.id, x, y } : null);
       }
