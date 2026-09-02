@@ -13,7 +13,6 @@ import type { Workspace } from "../../../shared";
 import { NoteEditor, noteFocusCopy } from "../../notes";
 import type { FigureNode, FigureState } from "../model";
 import { NodePriorityActions } from "../NodePriorityActions";
-import { isExpandedMap } from "./placeCanvasModel";
 import { PlaceHistory } from "./PlaceHistory";
 import { PlaceMapSection } from "./PlaceMapSection";
 import "./PlaceInspector.css";
@@ -51,7 +50,17 @@ export function PlaceInspector({
     setNameDraft((current) => (ownerChanged || current !== nextName ? nextName : current));
   }, [selected?.id, selected?.name]);
 
-  const laidOut = selected ? isExpandedMap(selected) : false;
+  /**
+   * Whether this element is a map rather than a place.
+   *
+   * A map is a picture to lay places onto, not somewhere anybody stood -- and
+   * that is true of it whether it is opened out as ground or sitting collapsed
+   * as a card waiting to be. So what a place records, a map is not asked: no
+   * short description, no presence, no chronicle. Nothing is deleted by it;
+   * take the picture away and the element is a place again, with whatever it
+   * had still on it.
+   */
+  const isMap = Boolean(selected?.mapImageId);
 
   const commitName = () => {
     if (skipNameCommit.current) {
@@ -102,11 +111,7 @@ export function PlaceInspector({
                 }
               }}
             />
-            {/* The short description is what a card wears under its name. A map
-                laid out as ground has no card and no room for one, so the field
-                only appears where it shows -- and nothing written in it is lost
-                by collapsing the map again. */}
-            {laidOut ? null : (
+            {isMap ? null : (
               <TextArea
                 id="place-short-description"
                 label={t("shortDescription")}
@@ -142,11 +147,7 @@ export function PlaceInspector({
               onPinnedChange={(pinned) => onPatch({ pinned })}
             />
           </SidePanelBody>
-          {/* Who stood here and when things moved is what a place records. A
-              map opened out is the ground being stood on, not somewhere to
-              stand, so it keeps its own panel free of them until it is a card
-              again. Nothing is deleted -- it is simply not asked about here. */}
-          {laidOut ? null : <PlaceHistory place={selected} state={state} onOpen={onOpen} />}
+          {isMap ? null : <PlaceHistory place={selected} state={state} onOpen={onOpen} />}
         </>
       )}
     </>

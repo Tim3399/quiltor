@@ -311,31 +311,35 @@ describe("the picture a place carries", () => {
   });
 
   it("asks a place who stood there and what it looks like", () => {
-    inspect({ id: "rom", x: 0, y: 0, name: "Rom", type: "ort", mapImageId: "sha" });
+    inspect({ id: "wald", x: 0, y: 0, name: "Wald", type: "ort" });
 
     expect(screen.getByLabelText("Kurzbeschreibung")).toBeInTheDocument();
     expect(screen.getByText("Wer war hier")).toBeInTheDocument();
     expect(screen.getByText("Chronik")).toBeInTheDocument();
   });
 
-  it("asks a laid-out map none of that", () => {
-    // Opened out, it is the ground being stood on rather than somewhere to
-    // stand, and it wears no card for a short description to sit under.
-    inspect({
-      id: "welt",
-      x: 0,
-      y: 0,
-      name: "Weltkarte",
-      type: "ort",
-      mapImageId: "sha",
-      mapExpanded: true,
-    });
-
-    expect(screen.queryByLabelText("Kurzbeschreibung")).toBeNull();
-    expect(screen.queryByText("Wer war hier")).toBeNull();
-    expect(screen.queryByText("Chronik")).toBeNull();
-    // What it is still gets asked, and so does its picture.
-    expect(screen.getByLabelText("Name")).toHaveValue("Weltkarte");
-    expect(screen.getByRole("button", { name: "Bild austauschen" })).toBeInTheDocument();
+  it("asks a map none of that, opened out or not", () => {
+    // A map is a picture to lay places onto, never somewhere anybody stood.
+    for (const map of [
+      { id: "welt", x: 0, y: 0, name: "Weltkarte", type: "ort" as const, mapImageId: "sha" },
+      {
+        id: "welt",
+        x: 0,
+        y: 0,
+        name: "Weltkarte",
+        type: "ort" as const,
+        mapImageId: "sha",
+        mapExpanded: true,
+      },
+    ]) {
+      const view = inspect(map);
+      expect(screen.queryByLabelText("Kurzbeschreibung")).toBeNull();
+      expect(screen.queryByText("Wer war hier")).toBeNull();
+      expect(screen.queryByText("Chronik")).toBeNull();
+      // What it is still gets asked, and so does its picture.
+      expect(screen.getByLabelText("Name")).toHaveValue("Weltkarte");
+      expect(screen.getByRole("button", { name: "Bild austauschen" })).toBeInTheDocument();
+      view.unmount();
+    }
   });
 });

@@ -82,7 +82,10 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
               <Star className="importance-mark" aria-label={t("favoritePlaceMarker")} />
             ) : undefined
           }
-          secondary={item.sub}
+          // A map card carries its picture, not a description of a place: the
+          // field that would edit this is not offered for a map, so showing it
+          // would put text on the card that nothing can reach.
+          secondary={item.mapImageId ? undefined : item.sub}
         />
         {data.zoomTier !== "overview" && !data.measuring && item.mapImageId ? (
           <IconButton
