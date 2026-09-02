@@ -169,6 +169,16 @@ function EmptyFigureHarness() {
   );
 }
 
+function NewElementHarness() {
+  const [state, setState] = useState<FigureState>({ nodes: [], edges: [] });
+  return (
+    <I18nProvider>
+      <output aria-label="Rollen">{JSON.stringify(state.nodes.map((node) => node.label))}</output>
+      <FigureWorkspace state={state} onChange={setState} />
+    </I18nProvider>
+  );
+}
+
 describe("FigureWorkspace relationships", () => {
   it("offers a useful first action instead of an empty grid", () => {
     render(<EmptyFigureHarness />);
@@ -180,6 +190,17 @@ describe("FigureWorkspace relationships", () => {
 
     expect(screen.getByLabelText("Gespeicherte Elemente")).toHaveTextContent("1");
     expect(screen.queryByLabelText("Element erstellen")).not.toBeInTheDocument();
+  });
+
+  it("gives a new element no role of its own, only its kind", () => {
+    render(<NewElementHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neue Figur" }));
+
+    // The field caption used to be written into the world as the element's
+    // role, which made a fresh animal read as "Art / Rolle" on its own card.
+    expect(screen.getByLabelText("Rollen")).toHaveTextContent('[""]');
+    expect(screen.getByLabelText("Rollen")).not.toHaveTextContent("Rolle");
   });
 
   it("marks the canvas when the timeline needs its own overlay zone", () => {

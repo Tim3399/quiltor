@@ -5,7 +5,12 @@ import {
   manuscriptStructure,
   orderedChapters,
 } from "../manuscript";
-import { type FigureKind, type FigureState, normalizeProfile } from "../story-world";
+import {
+  authoredFigureLabel,
+  type FigureKind,
+  type FigureState,
+  normalizeProfile,
+} from "../story-world";
 import type {
   StoryboardReferenceSource,
   WorldReferenceCandidate,
@@ -54,7 +59,7 @@ export function buildWorldReferenceCandidates({
     return candidate(
       target,
       node.name.trim() || labels.figureKind(node.type ?? "person"),
-      node.sub || node.label || labels.figureKind(node.type ?? "person"),
+      node.sub || authoredFigureLabel(node) || labels.figureKind(node.type ?? "person"),
       [
         node.label ?? "",
         node.sub ?? "",

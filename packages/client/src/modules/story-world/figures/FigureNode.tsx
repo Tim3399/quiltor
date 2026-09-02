@@ -4,7 +4,8 @@ import { useI18n } from "../../../i18n";
 import { cardKindColor, GRAPH_CONNECTION_HANDLES } from "../../graph";
 import type { FigureKind, FigureNode as FigureNodeModel } from "../model";
 import { StoryNodeCard, StoryNodeIdentity } from "../StoryNodeCard";
-import { kindLabel, type SemanticZoomTier } from "./relationships";
+import { figureDisplayLabel } from "./figureLabel";
+import type { SemanticZoomTier } from "./relationships";
 
 export type FigureCardData = {
   figure: FigureNodeModel;
@@ -58,7 +59,7 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
         isConnectable={false}
       />
       <StoryNodeIdentity
-        kindLabel={item.type !== "person" ? kindLabel(item.type, t) : item.label || t("figure")}
+        kindLabel={figureDisplayLabel(item, t)}
         name={item.name}
         leading={
           item.important ? (

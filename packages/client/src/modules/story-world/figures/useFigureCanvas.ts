@@ -276,7 +276,9 @@ export function useFigureCanvas({
         x: position.x,
         y: position.y,
         type: kind,
-        label: t(definition.nodeLabel),
+        // Empty, not the caption of the field it belongs to: a role is the
+        // author's to write, and until they do the card says what kind it is.
+        label: "",
         name: t(definition.initialName),
         sub: "",
         profile: { fields: [] },

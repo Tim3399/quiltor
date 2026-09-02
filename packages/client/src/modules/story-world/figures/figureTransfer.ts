@@ -3,6 +3,7 @@ import { quiltorClient, saveTextFile, validateNoteMarks } from "../../../platfor
 import { noteMarkdown } from "../../notes";
 import type { FigureState } from "../model";
 import { normalizeProfile, normalizeProfileFields } from "../profile";
+import { authoredFigureLabel } from "./figureLabel";
 import { PROFILE_FIELD_TEMPLATES } from "./profileFields";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,7 +106,8 @@ export function serializeFigureProfiles(state: FigureState, t: Translate): strin
   return state.nodes
     .map((node) => {
       const profile = node.profile || {};
-      const lines = [`# ${node.name}`, "", node.label ? `*${node.label}*` : "", node.sub || "", ""];
+      const role = authoredFigureLabel(node);
+      const lines = [`# ${node.name}`, "", role ? `*${role}*` : "", node.sub || "", ""];
       const notes = noteMarkdown(String(profile.notizen || ""), profile.noteMarks, 2).trim();
       if (notes) lines.push(`## ${t("profileNotes")}`, "", notes, "");
       const fields = normalizeProfileFields(profile, node.id, (legacyKey) => {

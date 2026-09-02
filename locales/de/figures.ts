@@ -37,10 +37,6 @@ export const figures = {
   newAnimalName: "Neues Tier",
   newOrganisationName: "Neue Organisation",
   newObjectName: "Neues Objekt",
-  nodeRoleLabel: "Rolle",
-  animalRoleLabel: "Art / Rolle",
-  organisationRoleLabel: "Art / Funktion",
-  objectRoleLabel: "Art / Bedeutung",
   important: "Wichtig",
   deceased: "Verstorben",
   connectDirectedHelp:

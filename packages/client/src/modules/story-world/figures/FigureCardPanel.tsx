@@ -5,6 +5,7 @@ import { useI18n } from "../../../i18n";
 import { normalizeEntityAliasV1 } from "../../../shared";
 import type { EntityAlias, FigureKind, FigureNode, FigureState } from "../model";
 import { NodePriorityActions } from "../NodePriorityActions";
+import { authoredFigureLabel } from "./figureLabel";
 import { PresenceField } from "./PresenceField";
 
 type AliasError = "aliasRequired" | "aliasMatchesName" | "aliasDuplicate";
@@ -280,7 +281,7 @@ export function FigureCardPanel({
       <TextField
         fieldClassName="figure-card-field"
         label={t("category")}
-        value={figure.label || ""}
+        value={authoredFigureLabel(figure)}
         onChange={(event) => onPatch({ label: event.target.value })}
       />
       <TextArea

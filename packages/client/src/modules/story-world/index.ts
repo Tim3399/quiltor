@@ -1,6 +1,7 @@
 import "./StoryGraph.css";
 
 export type { FigureWorkspaceProps } from "./figures/FigureWorkspace";
+export { authoredFigureLabel, figureDisplayLabel } from "./figures/figureLabel";
 export { kindLabel } from "./figures/relationships";
 export type {
   CalendarMonth,

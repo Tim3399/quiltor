@@ -37,10 +37,6 @@ export const figures = {
   newAnimalName: "New animal",
   newOrganisationName: "New organization",
   newObjectName: "New object",
-  nodeRoleLabel: "Role",
-  animalRoleLabel: "Kind / role",
-  organisationRoleLabel: "Kind / function",
-  objectRoleLabel: "Kind / meaning",
   important: "Important",
   deceased: "Deceased",
   connectDirectedHelp:
