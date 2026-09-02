@@ -1,86 +1,156 @@
 /* The edge of a map, and the grid that runs across it.
  *
- * A map is the one thing in a world that was drawn rather than written, so it
- * gets an edge worth looking at: a hairline ruled along the sheet with a block
- * set on its point where the rules meet -- the corner block of a quilt, which
- * is the house it lives in.
+ * The border a map gets is the one a map has always had: a neatline. Two rules
+ * a hair apart, a margin between them, and the graticule crossing that margin
+ * as ticks -- the frame every printed sheet in every atlas wears, and the
+ * reason one is recognisable as a map from across a room. It is drawn, not
+ * decorated: nothing here is added for prettiness, every line is the border of
+ * something or the continuation of the ruling underneath.
  *
- * The ornament sits *on* the sheet's own edge, not around it on a mat. A mat
- * with a shadow behind it is a picture hung on a wall, and this is not hung on
- * anything: it is the ground the level is standing on, and the places on it are
- * standing on the picture rather than on a card that happens to show one.
+ * Quiltor's one flourish sits where the rules meet: the corner block of a
+ * quilt, set on its point. It replaces the surveyor's plain corner and is the
+ * only mark on the sheet that is the house rather than the map.
+ *
+ * The sheet lies on the surface rather than resting above it, so there is no
+ * shadow cast outward -- only the faint inward darkening a sheet of paper has
+ * along its own edge.
  *
  * Shared by the map laid out on a surface and by the same map entered as the
  * ground under one, so both read as the same object seen from different
  * distances. */
 
 /* The same lines the canvas draws beyond the picture's edges, laid over it in
-   the same flow units so the two read as one surface rather than as a picture
-   covering a grid. Drawn here rather than left to the canvas behind, because
-   React Flow's background sits under every node. */
+   the same flow units and ruled from the same origin, so the two read as one
+   surface rather than as a picture covering a grid. Drawn here rather than left
+   to the canvas behind, because React Flow's background sits under every node.
+   It stops at the neatline, the way a graticule does, and crosses the margin
+   as ticks instead. */
 .place-plate__grid {
   position: absolute;
-  inset: 0;
+  inset: var(--place-plate-band, var(--space-6));
   background-image:
-    linear-gradient(to right, var(--line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+    linear-gradient(to right, var(--line) var(--place-plate-hair, 1px), transparent 0),
+    linear-gradient(to bottom, var(--line) var(--place-plate-hair, 1px), transparent 0);
   background-size: var(--place-plate-grid) var(--place-plate-grid);
   background-position: var(--place-plate-grid-x, 0) var(--place-plate-grid-y, 0);
   opacity: 0.32;
   pointer-events: none;
 }
 
-/* Along the sheet's own edge. The inner shadow is what keeps it from floating:
-   the picture darkens very slightly where it meets the canvas, the way a sheet
-   lying on a table does, instead of casting one out onto it. */
+/* The outer rule, along the sheet's own edge. */
 .place-plate__rule {
   position: absolute;
   z-index: var(--z-local);
   inset: 0;
-  border: 1px solid color-mix(in srgb, var(--ink) 28%, var(--transparent));
+  border: var(--place-plate-hair, 1px) solid color-mix(in srgb, var(--ink) 42%, var(--transparent));
   border-radius: inherit;
-  box-shadow: inset 0 0 var(--space-14) color-mix(in srgb, var(--ink) 12%, var(--transparent));
+  box-shadow: inset 0 0 calc(var(--place-plate-band, var(--space-6)) * 2)
+    color-mix(in srgb, var(--ink) 10%, var(--transparent));
   pointer-events: none;
 }
 
-.place-plate__stud {
-  width: var(--space-6);
-  height: var(--space-6);
+/* The margin between the rules, and the ticks crossing it. Ruled at the grid's
+   own spacing and shifted by the same origin, so every tick is the end of a
+   line running under the picture rather than an ornament placed near one. */
+.place-plate__rule::before {
   position: absolute;
-  border: 1px solid color-mix(in srgb, var(--accent-primary) 55%, var(--transparent));
+  z-index: var(--z-behind);
+  inset: 0;
+  background-color: color-mix(in srgb, var(--paper) 34%, var(--transparent));
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      color-mix(in srgb, var(--ink) 38%, var(--transparent)) 0 var(--place-plate-hair, 1px),
+      transparent var(--place-plate-hair, 1px) var(--place-plate-grid)
+    ),
+    repeating-linear-gradient(
+      to right,
+      color-mix(in srgb, var(--ink) 38%, var(--transparent)) 0 var(--place-plate-hair, 1px),
+      transparent var(--place-plate-hair, 1px) var(--place-plate-grid)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--ink) 38%, var(--transparent)) 0 var(--place-plate-hair, 1px),
+      transparent var(--place-plate-hair, 1px) var(--place-plate-grid)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--ink) 38%, var(--transparent)) 0 var(--place-plate-hair, 1px),
+      transparent var(--place-plate-hair, 1px) var(--place-plate-grid)
+    );
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size:
+    100% var(--place-plate-band, var(--space-6)),
+    100% var(--place-plate-band, var(--space-6)),
+    var(--place-plate-band, var(--space-6)) 100%,
+    var(--place-plate-band, var(--space-6)) 100%;
+  background-position:
+    var(--place-plate-grid-x, 0) top,
+    var(--place-plate-grid-x, 0) bottom,
+    left var(--place-plate-grid-y, 0),
+    right var(--place-plate-grid-y, 0);
+  content: "";
+  /* The margin is the band; the middle is picture and must stay uncovered. */
+  mask-image: linear-gradient(var(--ink) 0 0), linear-gradient(var(--ink) 0 0);
+  mask-position:
+    0 0,
+    var(--place-plate-band, var(--space-6)) var(--place-plate-band, var(--space-6));
+  mask-size:
+    100% 100%,
+    calc(100% - var(--place-plate-band, var(--space-6)) * 2)
+    calc(100% - var(--place-plate-band, var(--space-6)) * 2);
+  mask-repeat: no-repeat;
+  mask-composite: exclude;
+}
+
+/* The inner rule, closing the margin. */
+.place-plate__rule::after {
+  position: absolute;
+  z-index: var(--z-behind);
+  inset: var(--place-plate-band, var(--space-6));
+  border: var(--place-plate-hair, 1px) solid color-mix(in srgb, var(--ink) 26%, var(--transparent));
+  content: "";
+}
+
+.place-plate__stud {
+  width: var(--place-plate-band, var(--space-6));
+  height: var(--place-plate-band, var(--space-6));
+  position: absolute;
+  border: var(--place-plate-hair, 1px) solid
+    color-mix(in srgb, var(--accent-primary) 62%, var(--transparent));
   background: var(--panel);
   /* Set on its point: a quilt block, not a bullet. */
   transform: rotate(45deg);
 }
 
 .place-plate__stud:nth-child(1) {
-  top: calc(var(--space-6) / -2);
-  left: calc(var(--space-6) / -2);
+  top: calc(var(--place-plate-band, var(--space-6)) / -2);
+  left: calc(var(--place-plate-band, var(--space-6)) / -2);
 }
 
 .place-plate__stud:nth-child(2) {
-  top: calc(var(--space-6) / -2);
-  right: calc(var(--space-6) / -2);
+  top: calc(var(--place-plate-band, var(--space-6)) / -2);
+  right: calc(var(--place-plate-band, var(--space-6)) / -2);
 }
 
 .place-plate__stud:nth-child(3) {
-  bottom: calc(var(--space-6) / -2);
-  left: calc(var(--space-6) / -2);
+  bottom: calc(var(--place-plate-band, var(--space-6)) / -2);
+  left: calc(var(--place-plate-band, var(--space-6)) / -2);
 }
 
 .place-plate__stud:nth-child(4) {
-  bottom: calc(var(--space-6) / -2);
-  right: calc(var(--space-6) / -2);
+  bottom: calc(var(--place-plate-band, var(--space-6)) / -2);
+  right: calc(var(--place-plate-band, var(--space-6)) / -2);
 }
 
-/* Selected, the rule is what brightens -- the ornament stays where it is, so
-   selection reads as attention rather than as decoration piled on decoration. */
+/* Selected, the outer rule is what brightens -- the drawing stays where it is,
+   so selection reads as attention rather than as decoration piled on it. */
 .is-selected > .place-plate__rule {
   border-color: color-mix(in srgb, var(--accent-primary) 85%, var(--transparent));
 }
 
-/* Ornament is the first thing a contrast preference should be spared, and
-   forced colours would render the studs as opaque blocks over the picture. */
+/* A drawn border is information, so it stays; what goes is the wash behind the
+   ticks and the block that is only the house signing its own work. */
 @media (prefers-contrast: more) {
   .place-plate__grid {
     opacity: 0.8;
@@ -89,6 +159,10 @@
   .place-plate__rule {
     border-color: var(--ink);
     box-shadow: none;
+  }
+
+  .place-plate__rule::before {
+    background-color: var(--transparent);
   }
 
   .place-plate__stud {
@@ -104,6 +178,14 @@
   .place-plate__rule {
     border-color: CanvasText;
     box-shadow: none;
+  }
+
+  .place-plate__rule::before {
+    display: none;
+  }
+
+  .place-plate__rule::after {
+    border-color: CanvasText;
   }
 
   .place-plate__stud {
