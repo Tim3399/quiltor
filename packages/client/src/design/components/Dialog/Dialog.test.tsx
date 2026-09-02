@@ -88,6 +88,38 @@ describe("Dialog", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("takes focus at once, not a frame after the keystroke that opened it", () => {
+    // No waitFor and no timers on purpose. A frame's delay is a window in which
+    // the next keystrokes still land wherever focus was, which for an overlay
+    // opened by a shortcut means the field behind it eats its own first letters.
+    const outside = document.createElement("input");
+    document.body.append(outside);
+    outside.focus();
+    expect(outside).toHaveFocus();
+
+    render(
+      <Dialog title="Titel" closeLabel="Schließen" onClose={() => undefined}>
+        <input data-autofocus aria-label="Suche" />
+      </Dialog>,
+    );
+
+    expect(screen.getByLabelText("Suche")).toHaveFocus();
+    outside.remove();
+  });
+
+  it("leaves a focus move made inside the overlay alone", async () => {
+    render(
+      <Dialog title="Titel" closeLabel="Schließen" onClose={() => undefined}>
+        <input data-autofocus aria-label="Suche" />
+        <button type="button">Weiter</button>
+      </Dialog>,
+    );
+
+    const onwards = screen.getByRole("button", { name: "Weiter" });
+    onwards.focus();
+    await waitFor(() => expect(onwards).toHaveFocus());
+  });
+
   it("preselects the explicitly marked safe action", async () => {
     render(
       <Dialog

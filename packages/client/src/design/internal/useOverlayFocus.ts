@@ -34,11 +34,24 @@ export function useOverlayFocus(
       element.setAttribute("aria-hidden", "true");
       element.setAttribute("inert", "");
     }
+    // Straight away, in the same task as the event that opened the overlay.
+    // A frame's delay is a window in which typing still lands wherever focus
+    // was -- and an overlay opened by a keyboard shortcut is opened by someone
+    // whose hands are already moving. A search field that swallowed its own
+    // first letters into the manuscript behind it is what that looked like.
+    const claimFocus = () => {
+      const target =
+        container.current?.querySelector<HTMLElement>("[data-autofocus],[autofocus]") ??
+        container.current;
+      target?.focus();
+    };
+    claimFocus();
+    // Once more next frame, but only if it did not land: some overlays fill
+    // themselves in a beat later, and their autofocus target does not exist yet
+    // above. Re-focusing unconditionally would undo a deliberate move inside.
     const frame = requestAnimationFrame(() => {
-      const autofocus = container.current?.querySelector<HTMLElement>(
-        "[data-autofocus],[autofocus]",
-      );
-      (autofocus ?? container.current)?.focus();
+      if (container.current?.contains(document.activeElement)) return;
+      claimFocus();
     });
     const key = (event: KeyboardEvent) => {
       const visibleModals = [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')];
