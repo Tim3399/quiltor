@@ -133,9 +133,48 @@ export function expandedRect(place: FigureNode, host: LevelRect): LevelRect {
   };
 }
 
+/**
+ * The rectangle a laid-out map occupies on the surface.
+ *
+ * A map is positioned directly rather than by an anchor -- it is the ground the
+ * anchors are measured against, so it cannot itself be anchored to something.
+ */
+export function mapRect(place: FigureNode): LevelRect {
+  return {
+    x: typeof place.mapX === "number" ? place.mapX : place.x,
+    y: typeof place.mapY === "number" ? place.mapY : place.y,
+    width: positive(place.mapWidth) ?? DEFAULT_EXPANDED_SIZE.width,
+    height: positive(place.mapHeight) ?? DEFAULT_EXPANDED_SIZE.height,
+  };
+}
+
+/** The laid-out map a point falls on, if it falls on one. */
+export function mapUnder(
+  point: { x: number; y: number },
+  maps: readonly FigureNode[],
+): FigureNode | undefined {
+  // Last first: a map drawn later sits on top, so it wins an overlap.
+  for (let index = maps.length - 1; index >= 0; index -= 1) {
+    const rect = mapRect(maps[index]);
+    if (
+      point.x >= rect.x &&
+      point.x <= rect.x + rect.width &&
+      point.y >= rect.y &&
+      point.y <= rect.y + rect.height
+    ) {
+      return maps[index];
+    }
+  }
+  return undefined;
+}
+
 /** Where a place sits inside `host`, in flow units. */
-export function anchoredPoint(place: FigureNode, host: LevelRect): { x: number; y: number } {
-  const anchor = anchorOf(place);
+export function anchoredPoint(
+  place: FigureNode,
+  host: LevelRect,
+  fallback?: { u: number; v: number },
+): { x: number; y: number } {
+  const anchor = anchorOf(place, fallback);
   return { x: host.x + anchor.u * host.width, y: host.y + anchor.v * host.height };
 }
 
@@ -154,10 +193,30 @@ export function anchorForPoint(
   };
 }
 
-export function anchorOf(place: FigureNode): { u: number; v: number } {
+/**
+ * Somewhere to put the `index`-th of `total` places that carry no anchor yet.
+ *
+ * Without this they would all take the default anchor and pile up in the middle
+ * of the map, which is what happens the first time a level with places in it is
+ * opened out into one. Spread on a grid they are at least all visible, and the
+ * first drag replaces the guess with a real position.
+ */
+export function spreadAnchor(index: number, total: number): { u: number; v: number } {
+  if (total <= 1) return { ...DEFAULT_ANCHOR };
+  const columns = Math.ceil(Math.sqrt(total));
+  const rows = Math.ceil(total / columns);
+  const column = index % columns;
+  const row = Math.floor(index / columns);
+  return { u: (column + 0.5) / columns, v: (row + 0.5) / rows };
+}
+
+export function anchorOf(
+  place: FigureNode,
+  fallback: { u: number; v: number } = DEFAULT_ANCHOR,
+): { u: number; v: number } {
   const u = typeof place.mapU === "number" ? place.mapU : undefined;
   const v = typeof place.mapV === "number" ? place.mapV : undefined;
-  if (u === undefined || v === undefined) return { ...DEFAULT_ANCHOR };
+  if (u === undefined || v === undefined) return { ...fallback };
   return { u: clampUnit(u), v: clampUnit(v) };
 }
 
@@ -218,4 +277,53 @@ export function subtreeOf(nodes: readonly FigureNode[], placeId: string): Set<st
 
 function positive(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/** What a drag leaves behind on the place that was dragged. */
+export type DropPlacement = Partial<
+  Pick<FigureNode, "parentPlaceId" | "mapU" | "mapV" | "mapX" | "mapY">
+>;
+
+/**
+ * Where a place belongs after being let go.
+ *
+ * Landing on a laid-out map makes it something standing on that map, remembered
+ * as a fraction of it, which is what carries it along when the map is later
+ * moved or resized. Landing anywhere else returns it to the level itself, placed
+ * outright and carried by nothing.
+ *
+ * A map is the ground the fractions are measured against, so it is only ever
+ * placed outright and can never come to rest on something else.
+ */
+export function placementForDrop({
+  dragged,
+  nodes,
+  maps,
+  levelId,
+  position,
+  size,
+}: {
+  dragged: FigureNode;
+  nodes: readonly FigureNode[];
+  /** The maps laid out on the open level. */
+  maps: readonly FigureNode[];
+  levelId: string | undefined;
+  /** The dragged card's top-left corner, in flow units. */
+  position: { x: number; y: number };
+  size?: { width?: number; height?: number };
+}): DropPlacement {
+  const { x, y } = position;
+  if (dragged.mapExpanded && dragged.mapImageId) return { mapX: x, mapY: y };
+
+  // What the pointer aimed at is the middle of the card, not its corner.
+  const centre = { x: x + (size?.width ?? 0) / 2, y: y + (size?.height ?? 0) / 2 };
+  const host = mapUnder(
+    centre,
+    maps.filter((map) => map.id !== dragged.id),
+  );
+  if (host && !wouldCycle(nodes, dragged.id, host.id)) {
+    const anchor = anchorForPoint(centre, mapRect(host));
+    return { parentPlaceId: host.id, mapU: anchor.u, mapV: anchor.v };
+  }
+  return { parentPlaceId: levelId, mapX: x, mapY: y, mapU: undefined, mapV: undefined };
 }

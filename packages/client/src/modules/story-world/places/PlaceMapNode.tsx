@@ -1,4 +1,4 @@
-import type { Node, NodeProps } from "@xyflow/react";
+import { type Node, NodeResizer, type NodeProps } from "@xyflow/react";
 import { ChevronsDownUp, CornerDownRight } from "lucide-react";
 import { IconButton } from "../../../design";
 import { useI18n } from "../../../i18n";
@@ -10,6 +10,7 @@ export type PlaceMapNodeData = {
   source: string;
   onCollapse: (place: FigureNode) => void;
   onOpenLevel: (place: FigureNode) => void;
+  onResize: (place: FigureNode, size: { width: number; height: number }) => void;
 };
 
 export type PlaceMapFlowNode = Node<PlaceMapNodeData>;
@@ -26,6 +27,17 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
   const place = data.place;
   return (
     <figure className={`place-map-node ${selected ? "is-selected" : ""}`}>
+      {/* Resizing a map is how its scale is declared: making it wider says the
+          same picture covers more ground. The places standing on it are held as
+          fractions of it, so they travel with the change instead of drifting. */}
+      <NodeResizer
+        isVisible={selected}
+        minWidth={120}
+        minHeight={80}
+        handleClassName="place-map-node__handle"
+        lineClassName="place-map-node__line"
+        onResizeEnd={(_, size) => data.onResize(place, { width: size.width, height: size.height })}
+      />
       <img src={data.source} alt={place.name} draggable={false} />
       <figcaption className="place-map-node__bar">
         <span className="place-map-node__name">{place.name}</span>

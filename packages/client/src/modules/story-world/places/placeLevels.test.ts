@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import type { FigureNode } from "../model";
 import {
   anchorForPoint,
+  anchorOf,
   anchoredPoint,
   ancestorsOf,
   expandedRect,
   hasLevelContents,
   levelTrail,
+  mapRect,
+  mapUnder,
+  placementForDrop,
   placesOnLevel,
   reparent,
+  spreadAnchor,
   scaleForLevel,
   scaleForPair,
   subtreeOf,
@@ -195,5 +200,168 @@ describe("place levels", () => {
   it("does not loop forever collecting a broken subtree", () => {
     const broken = [place("a", { parentPlaceId: "b" }), place("b", { parentPlaceId: "a" })];
     expect(subtreeOf(broken, "a")).toEqual(new Set(["a", "b"]));
+  });
+});
+
+describe("maps as ground for pins", () => {
+  const karte = place("karte", {
+    mapExpanded: true,
+    mapImageId: "abc",
+    mapX: 100,
+    mapY: 200,
+    mapWidth: 400,
+    mapHeight: 300,
+  });
+
+  it("reads a map's rectangle from where it was put and how large it was made", () => {
+    expect(mapRect(karte)).toEqual({ x: 100, y: 200, width: 400, height: 300 });
+  });
+
+  it("falls back to a default extent so a map is never a point", () => {
+    const rect = mapRect(place("blank", { mapExpanded: true, mapX: 0, mapY: 0 }));
+    expect([rect.width, rect.height]).toEqual([640, 420]);
+  });
+
+  it("finds the map a point lands on, and none when it lands beside it", () => {
+    expect(mapUnder({ x: 150, y: 250 }, [karte])?.id).toBe("karte");
+    expect(mapUnder({ x: 100, y: 200 }, [karte])?.id).toBe("karte");
+    expect(mapUnder({ x: 500, y: 500 }, [karte])?.id).toBe("karte");
+    expect(mapUnder({ x: 99, y: 250 }, [karte])).toBeUndefined();
+    expect(mapUnder({ x: 501, y: 250 }, [karte])).toBeUndefined();
+  });
+
+  it("gives an overlap to the map drawn on top", () => {
+    const oben = place("oben", {
+      mapExpanded: true,
+      mapImageId: "def",
+      mapX: 100,
+      mapY: 200,
+      mapWidth: 400,
+      mapHeight: 300,
+    });
+    expect(mapUnder({ x: 150, y: 250 }, [karte, oben])?.id).toBe("oben");
+  });
+});
+
+describe("places that carry no anchor yet", () => {
+  it("centres a lone one", () => {
+    expect(spreadAnchor(0, 1)).toEqual({ u: 0.5, v: 0.5 });
+  });
+
+  it("spreads a handful so none hides behind another", () => {
+    const four = [0, 1, 2, 3].map((index) => spreadAnchor(index, 4));
+    expect(new Set(four.map((a) => `${a.u},${a.v}`)).size).toBe(4);
+    expect(four[0]).toEqual({ u: 0.25, v: 0.25 });
+    expect(four[3]).toEqual({ u: 0.75, v: 0.75 });
+  });
+
+  it("keeps every guess on the map it belongs to", () => {
+    for (let total = 1; total <= 12; total += 1) {
+      for (let index = 0; index < total; index += 1) {
+        const { u, v } = spreadAnchor(index, total);
+        expect(u).toBeGreaterThan(0);
+        expect(u).toBeLessThan(1);
+        expect(v).toBeGreaterThan(0);
+        expect(v).toBeLessThan(1);
+      }
+    }
+  });
+
+  it("gives way to a real anchor as soon as there is one", () => {
+    const guess = { u: 0.1, v: 0.9 };
+    expect(anchorOf(place("frei"), guess)).toEqual(guess);
+    expect(anchorOf(place("gesetzt", { mapU: 0.4, mapV: 0.6 }), guess)).toEqual({ u: 0.4, v: 0.6 });
+  });
+});
+
+describe("where a drag leaves a place", () => {
+  const karte = place("karte", {
+    mapExpanded: true,
+    mapImageId: "abc",
+    mapX: 0,
+    mapY: 0,
+    mapWidth: 400,
+    mapHeight: 200,
+  });
+  const frei = place("frei");
+  const nodes = [karte, frei];
+  const size = { width: 40, height: 20 };
+
+  it("adopts a place that came to rest on a map", () => {
+    const placement = placementForDrop({
+      dragged: frei,
+      nodes,
+      maps: [karte],
+      levelId: undefined,
+      position: { x: 180, y: 90 },
+      size,
+    });
+    expect(placement).toEqual({ parentPlaceId: "karte", mapU: 0.5, mapV: 0.5 });
+  });
+
+  it("aims by the middle of the card, not its corner", () => {
+    // The corner is off the map, the middle is on it.
+    const placement = placementForDrop({
+      dragged: frei,
+      nodes,
+      maps: [karte],
+      levelId: undefined,
+      position: { x: -10, y: 90 },
+      size,
+    });
+    expect(placement.parentPlaceId).toBe("karte");
+  });
+
+  it("returns a place to the level when it lands beside every map", () => {
+    const placement = placementForDrop({
+      dragged: { ...frei, parentPlaceId: "karte", mapU: 0.2, mapV: 0.2 },
+      nodes,
+      maps: [karte],
+      levelId: "welt",
+      position: { x: 900, y: 900 },
+      size,
+    });
+    expect(placement).toEqual({
+      parentPlaceId: "welt",
+      mapX: 900,
+      mapY: 900,
+      mapU: undefined,
+      mapV: undefined,
+    });
+  });
+
+  it("places a map outright, because it is the ground the fractions measure against", () => {
+    expect(
+      placementForDrop({
+        dragged: karte,
+        nodes,
+        maps: [karte],
+        levelId: undefined,
+        position: { x: 40, y: 60 },
+        size,
+      }),
+    ).toEqual({ mapX: 40, mapY: 60 });
+  });
+
+  it("refuses a drop that would put a place inside something it contains", () => {
+    const eltern = place("eltern");
+    const kind = place("kind", {
+      parentPlaceId: "eltern",
+      mapExpanded: true,
+      mapImageId: "x",
+      mapX: 0,
+      mapY: 0,
+      mapWidth: 400,
+      mapHeight: 200,
+    });
+    const placement = placementForDrop({
+      dragged: eltern,
+      nodes: [eltern, kind],
+      maps: [kind],
+      levelId: "welt",
+      position: { x: 180, y: 90 },
+      size,
+    });
+    expect(placement.parentPlaceId).toBe("welt");
   });
 });

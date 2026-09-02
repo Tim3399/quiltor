@@ -59,3 +59,26 @@
     border-color: CanvasText;
   }
 }
+
+/* Matches the storyboard's resizer so the same gesture looks the same
+   everywhere a thing on a canvas can be made larger. */
+.place-map-node__line {
+  border-color: var(--accent-primary-border);
+}
+
+.place-map-node__handle {
+  width: var(--spacing-regular-tight);
+  height: var(--spacing-regular-tight);
+  border: 1px solid var(--paper);
+  border-radius: var(--radius-xs);
+  background: var(--accent-primary);
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  .place-map-node__handle {
+    width: var(--control-touch);
+    height: var(--control-touch);
+    border-color: var(--transparent);
+    background: color-mix(in srgb, var(--accent-primary) 30%, var(--transparent));
+  }
+}

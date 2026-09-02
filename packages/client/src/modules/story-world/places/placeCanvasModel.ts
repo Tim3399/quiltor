@@ -2,7 +2,7 @@ import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
-import { hasLevelContents } from "./placeLevels";
+import { anchoredPoint, hasLevelContents, isPlace, mapRect, spreadAnchor } from "./placeLevels";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
 
 export function createPlaceFlowNodes({
@@ -72,11 +72,13 @@ export function createPlaceMapNodes({
   sourceUrl,
   onCollapse,
   onOpenLevel,
+  onResize,
 }: {
   places: FigureNode[];
   sourceUrl: (imageId: string) => string;
   onCollapse: (place: FigureNode) => void;
   onOpenLevel: (place: FigureNode) => void;
+  onResize: (place: FigureNode, size: { width: number; height: number }) => void;
 }): PlaceMapFlowNode[] {
   return places.filter(isExpandedMap).map((place) => ({
     id: place.id,
@@ -92,6 +94,69 @@ export function createPlaceMapNodes({
       source: sourceUrl(place.mapImageId as string),
       onCollapse,
       onOpenLevel,
+      onResize,
     },
   }));
+}
+
+/**
+ * The places standing on the maps laid out on this level.
+ *
+ * They belong to the map, not to the level, so they are found by looking one
+ * step further in than `placesOnLevel` goes. Their position is derived from the
+ * map's rectangle and their own normalised anchor, which is what carries them
+ * along when the map underneath is moved or resized.
+ */
+export function createPinNodes({
+  nodes,
+  maps,
+  measuring,
+  measureSelection,
+  onOpenLevel,
+  onExpandMap,
+  sourceUrl,
+  zoomTier,
+  viewportZoom,
+  t,
+}: {
+  nodes: FigureNode[];
+  maps: FigureNode[];
+  measuring: boolean;
+  measureSelection: string[];
+  onOpenLevel: (place: FigureNode) => void;
+  onExpandMap: (place: FigureNode) => void;
+  sourceUrl: (imageId: string) => string;
+  zoomTier: SemanticZoomTier;
+  viewportZoom: number;
+  t: Translate;
+}): PlaceFlowNode[] {
+  return maps.flatMap((map) => {
+    const rect = mapRect(map);
+    const standing = nodes.filter((node) => isPlace(node) && node.parentPlaceId === map.id);
+    // A level opened out into a map for the first time has places on it that
+    // never needed an anchor. Without a guess they would all take the default
+    // one and pile up in the middle.
+    const guesses = new Map(
+      standing.map((place, index) => [place.id, spreadAnchor(index, standing.length)]),
+    );
+    return createPlaceFlowNodes({
+      nodes,
+      places: standing,
+      measuring,
+      measureSelection,
+      onOpenLevel,
+      onExpandMap,
+      sourceUrl,
+      zoomTier,
+      viewportZoom,
+      t,
+    }).map((pin) => ({
+      ...pin,
+      position: anchoredPoint(
+        nodes.find((node) => node.id === pin.id) as FigureNode,
+        rect,
+        guesses.get(pin.id),
+      ),
+    }));
+  });
 }

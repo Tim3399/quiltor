@@ -123,6 +123,11 @@ function PlacesWorkspaceInner({
     (place: FigureNode) => patchPlace(place.id, { mapExpanded: true }),
     [patchPlace],
   );
+  const resizeMap = useCallback(
+    (place: FigureNode, size: { width: number; height: number }) =>
+      patchPlace(place.id, { mapWidth: size.width, mapHeight: size.height }),
+    [patchPlace],
+  );
 
   const canvas = usePlaceCanvas({
     state,
@@ -134,6 +139,7 @@ function PlacesWorkspaceInner({
     mapImageUrl,
     onCollapseMap: collapseMap,
     onExpandMap: expandMap,
+    onResizeMap: resizeMap,
     onChange,
   });
 

@@ -13,8 +13,14 @@ import { GRID_SIZE, type SemanticZoomTier, semanticZoomTier } from "../figures/r
 import type { FigureNode, FigureState } from "../model";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
-import { createPlaceFlowNodes, createPlaceMapNodes } from "./placeCanvasModel";
+import {
+  createPinNodes,
+  createPlaceFlowNodes,
+  createPlaceMapNodes,
+  isExpandedMap,
+} from "./placeCanvasModel";
 import { createPlaceMeasurementEdges } from "./placeMeasurementGraph";
+import { placementForDrop } from "./placeLevels";
 
 export type PlaceCanvasController = {
   nodes: (PlaceFlowNode | PlaceMapFlowNode)[];
@@ -39,6 +45,7 @@ export function usePlaceCanvas({
   mapImageUrl,
   onCollapseMap: collapseMap,
   onExpandMap: expandMap,
+  onResizeMap: resizeMap,
   onChange,
 }: {
   state: FigureState;
@@ -53,6 +60,7 @@ export function usePlaceCanvas({
   mapImageUrl: (imageId: string) => string;
   onCollapseMap: (place: FigureNode) => void;
   onExpandMap: (place: FigureNode) => void;
+  onResizeMap: (place: FigureNode, size: { width: number; height: number }) => void;
   onChange: (state: FigureState) => void;
 }): PlaceCanvasController {
   const { t } = useI18n();
@@ -96,6 +104,37 @@ export function usePlaceCanvas({
   // Maps are derived rather than kept in the dragging state: rebuilding them
   // from the level makes a freshly created map appear at once instead of waiting
   // for the next node change.
+  const laidOutMaps = useMemo(() => places.filter(isExpandedMap), [places]);
+  const latestMaps = useRef(laidOutMaps);
+  latestMaps.current = laidOutMaps;
+  const pins = useMemo(
+    () =>
+      createPinNodes({
+        nodes: state.nodes,
+        maps: laidOutMaps,
+        measuring,
+        measureSelection,
+        onOpenLevel,
+        onExpandMap: expandMap,
+        sourceUrl: mapImageUrl,
+        zoomTier,
+        viewportZoom,
+        t,
+      }),
+    [
+      state.nodes,
+      laidOutMaps,
+      measuring,
+      measureSelection,
+      onOpenLevel,
+      expandMap,
+      mapImageUrl,
+      zoomTier,
+      viewportZoom,
+      t,
+    ],
+  );
+
   const maps = useMemo(
     () =>
       createPlaceMapNodes({
@@ -103,8 +142,9 @@ export function usePlaceCanvas({
         sourceUrl: mapImageUrl,
         onCollapse: collapseMap,
         onOpenLevel,
+        onResize: resizeMap,
       }),
-    [places, mapImageUrl, collapseMap, onOpenLevel],
+    [places, mapImageUrl, collapseMap, onOpenLevel, resizeMap],
   );
 
   const edges = useMemo(
@@ -125,25 +165,48 @@ export function usePlaceCanvas({
     [measuring, measureSelection, nodes, state.mapScale, t],
   );
 
-  const commitPlacePosition = useCallback(
-    (id: string, position: { x: number; y: number }) => {
-      if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
+  /**
+   * Where a drag came to rest decides what the place now belongs to.
+   *
+   * Dropped on a laid-out map, it becomes something standing on that map and is
+   * remembered as a fraction of it -- which is what carries it along when the
+   * map is later moved or resized. Dropped anywhere else, it goes back to being
+   * a place on the level itself, positioned outright.
+   */
+  const commitDrag = useCallback(
+    (node: {
+      id: string;
+      position: { x: number; y: number };
+      measured?: { width?: number; height?: number };
+    }) => {
+      const { x, y } = node.position;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
       const current = latestState.current;
+      const dragged = current.nodes.find((item) => item.id === node.id);
+      if (!dragged) return;
+
+      const patch = placementForDrop({
+        dragged,
+        nodes: current.nodes,
+        maps: latestMaps.current,
+        levelId,
+        position: { x, y },
+        size: node.measured,
+      });
+
       const next = {
         ...current,
-        nodes: current.nodes.map((node) =>
-          node.id === id ? { ...node, mapX: position.x, mapY: position.y } : node,
-        ),
+        nodes: current.nodes.map((item) => (item.id === node.id ? { ...item, ...patch } : item)),
       };
       latestState.current = next;
       onChange(next);
-      window.requestAnimationFrame(() => updateNodeInternals([id]));
+      window.requestAnimationFrame(() => updateNodeInternals([node.id]));
     },
-    [onChange, updateNodeInternals],
+    [levelId, onChange, updateNodeInternals],
   );
 
   return {
-    nodes: [...maps, ...nodes],
+    nodes: [...maps, ...nodes, ...pins],
     edges,
     zoomTier,
     addPlace: () => {
@@ -211,6 +274,6 @@ export function usePlaceCanvas({
       });
     },
     onNodesChange: (changes) => setFlowNodes((current) => applyNodeChanges(changes, current)),
-    onNodeDragStop: (node) => commitPlacePosition(node.id, node.position),
+    onNodeDragStop: (node) => commitDrag(node),
   };
 }
