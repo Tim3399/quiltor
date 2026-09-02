@@ -1,68 +1,48 @@
+/* A map laid out on a level.
+ *
+ * Not a card showing a picture -- the picture itself, lying on the surface with
+ * the places standing on it. So: no mat, no panel behind it, no elevation. What
+ * marks its extent is the sheet's own edge, ruled in PlacePlate.css, and the
+ * grid running across it in the canvas's own units. */
 .place-map-node {
   width: 100%;
   height: 100%;
   position: relative;
-  display: flex;
-  flex-direction: column;
   margin: 0;
   overflow: hidden;
-  /* A mat of paper around the picture: the sheet is mounted, not cropped. */
-  padding: var(--space-8) var(--space-8) 0;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--panel);
-  box-shadow: var(--shadow);
+  /* Barely rounded: enough that the corner is not a razor, not enough to read
+     as a card. */
+  border-radius: var(--radius-xs);
+  background: var(--canvas);
 }
 
-.place-map-node.is-selected {
-  border-color: var(--selection-border);
-  box-shadow:
-    var(--ring-2) var(--selection-border),
-    var(--shadow);
-}
-
+/* The picture fills its whole extent. The frame keeps the picture's own
+   proportions, so this can never crop anything away -- what it does prevent is
+   a strip of empty surface appearing along an edge mid-resize, which is exactly
+   the moment a sheet would stop looking like a sheet. */
 .place-map-node img {
-  min-height: 0;
-  flex: 1;
+  width: 100%;
+  height: 100%;
   display: block;
-  object-fit: contain;
+  object-fit: cover;
   -webkit-user-drag: none;
   user-select: none;
 }
 
-/* The plate's label: what an engraver would have cut along the bottom edge. */
-.place-map-node__bar {
-  min-width: 0;
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-6);
-  margin: var(--space-6) calc(var(--space-8) * -1) 0;
-  padding: var(--space-5) var(--space-10);
-  border-top: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.place-map-node__name {
-  min-width: 0;
-  flex: 1;
+.place-map-node__frame {
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-  color: var(--ink);
-  font: 600 var(--font-size-2) var(--prose);
-  letter-spacing: 0.06em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 
-.place-map-node__action {
-  flex: none;
+/* Adjusting the picture inside its frame is a drag, and saying so with the
+   cursor is the only hint the surface itself gives. */
+.place-map-node.is-adjusting .place-map-node__frame {
+  cursor: grab;
 }
 
-@media (forced-colors: active) {
-  .place-map-node {
-    border-color: CanvasText;
-  }
+.place-map-node.is-adjusting .place-map-node__frame:active {
+  cursor: grabbing;
 }
 
 /* Matches the storyboard's resizer so the same gesture looks the same
@@ -88,14 +68,8 @@
   }
 }
 
-/* What the map's width comes to in the author's units. It sits beside the name
-   rather than over the picture, so reading the map is never the thing that has
-   to give way to reading its size. */
-.place-map-node__measure {
-  flex: none;
-  padding: 0 var(--space-6);
-  color: var(--muted);
-  font-size: var(--font-size-1);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+@media (forced-colors: active) {
+  .place-map-node {
+    border: 1px solid CanvasText;
+  }
 }

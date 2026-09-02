@@ -3,13 +3,11 @@
   height: 100%;
   position: relative;
   overflow: hidden;
-  /* The same mat as a laid-out map, so entering one shows the same object from
-     closer rather than a different thing. No shadow: down here it is the ground
-     rather than something resting on it. */
-  padding: var(--space-8);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--panel);
+  /* Treated exactly like a laid-out map, so entering one shows the same object
+     from closer rather than a different thing: the picture itself, edge to
+     edge, with nothing behind it pretending to be a card it is mounted on. */
+  border-radius: var(--radius-xs);
+  background: var(--canvas);
   pointer-events: none;
 }
 
@@ -17,13 +15,13 @@
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: contain;
+  object-fit: cover;
   -webkit-user-drag: none;
   user-select: none;
 }
 
 @media (forced-colors: active) {
   .place-ground {
-    border-color: CanvasText;
+    border: 1px solid CanvasText;
   }
 }

@@ -1,9 +1,14 @@
-/* The plate a map is mounted on.
+/* The edge of a map, and the grid that runs across it.
  *
  * A map is the one thing in a world that was drawn rather than written, so it
- * gets the treatment an engraved plate would have: a mat of paper around the
- * picture, a neat line ruled just inside it, and a block set on its point where
- * the rules meet -- the corner block of a quilt, which is the house it lives in.
+ * gets an edge worth looking at: a hairline ruled along the sheet with a block
+ * set on its point where the rules meet -- the corner block of a quilt, which
+ * is the house it lives in.
+ *
+ * The ornament sits *on* the sheet's own edge, not around it on a mat. A mat
+ * with a shadow behind it is a picture hung on a wall, and this is not hung on
+ * anything: it is the ground the level is standing on, and the places on it are
+ * standing on the picture rather than on a card that happens to show one.
  *
  * Shared by the map laid out on a surface and by the same map entered as the
  * ground under one, so both read as the same object seen from different
@@ -15,22 +20,26 @@
    React Flow's background sits under every node. */
 .place-plate__grid {
   position: absolute;
-  inset: var(--space-8);
+  inset: 0;
   background-image:
     linear-gradient(to right, var(--line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--line) 1px, transparent 1px);
   background-size: var(--place-plate-grid) var(--place-plate-grid);
-  opacity: 0.45;
+  background-position: var(--place-plate-grid-x, 0) var(--place-plate-grid-y, 0);
+  opacity: 0.32;
   pointer-events: none;
 }
 
+/* Along the sheet's own edge. The inner shadow is what keeps it from floating:
+   the picture darkens very slightly where it meets the canvas, the way a sheet
+   lying on a table does, instead of casting one out onto it. */
 .place-plate__rule {
   position: absolute;
   z-index: var(--z-local);
-  /* Inside the mat, so paper shows between the picture and the outer edge. */
-  inset: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--accent-primary) 42%, var(--transparent));
-  border-radius: var(--radius-xs);
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--ink) 28%, var(--transparent));
+  border-radius: inherit;
+  box-shadow: inset 0 0 var(--space-14) color-mix(in srgb, var(--ink) 12%, var(--transparent));
   pointer-events: none;
 }
 
@@ -79,6 +88,7 @@
 
   .place-plate__rule {
     border-color: var(--ink);
+    box-shadow: none;
   }
 
   .place-plate__stud {
@@ -93,6 +103,7 @@
 
   .place-plate__rule {
     border-color: CanvasText;
+    box-shadow: none;
   }
 
   .place-plate__stud {
