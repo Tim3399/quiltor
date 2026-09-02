@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Button } from "../../design";
 import { useI18n } from "../../i18n";
+import "./ChapterTurnAffordance.css";
 
 export interface ChapterTurnTarget {
   id: string;

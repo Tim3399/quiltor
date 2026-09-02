@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CHAPTER_OVERSCROLL_HOLD_MS,
   CHAPTER_OVERSCROLL_REGRIP_GRACE_MS,
+  CHAPTER_WHEEL_STREAM_GAP_MS,
 } from "./chapterOverscroll";
+import { CHAPTER_TOUCH_THRESHOLD_PX } from "./chapterTouchTurn";
 import type { Manuscript } from "./model";
 import { figures, renderWorkspace } from "./TextWorkspace.testSupport";
 
@@ -59,6 +61,15 @@ function editorScroller(container: HTMLElement) {
     scrollTop: { configurable: true, value: 800, writable: true },
   });
   return scroller;
+}
+
+function swipe(scroller: HTMLElement, points: Array<{ x?: number; y: number }>) {
+  const [start, ...moves] = points;
+  fireEvent.touchStart(scroller, { touches: [{ clientX: start.x ?? 100, clientY: start.y }] });
+  for (const point of moves) {
+    fireEvent.touchMove(scroller, { touches: [{ clientX: point.x ?? 100, clientY: point.y }] });
+  }
+  fireEvent.touchEnd(scroller, { touches: [] });
 }
 
 function immediateAnimationFrames() {
@@ -158,6 +169,74 @@ describe("continuous chapter navigation", () => {
     expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Im Wald");
   });
 
+  it("requires a fresh wheel gesture after scrolling the current chapter to its edge", () => {
+    const view = renderNavigation();
+    immediateAnimationFrames();
+    const scroller = editorScroller(view.container);
+    const rendered = within(view.container);
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+
+    scroller.scrollTop = 760;
+    fireEvent.wheel(scroller, { deltaY: 24 });
+    scroller.scrollTop = 800;
+
+    // A trackpad keeps sending events while its momentum decays. That stream outlasts
+    // the hold, but it belongs to the swipe that scrolled the text, not to a new one.
+    for (now of [16, 80, 160, 240, 320, 425, 520]) {
+      fireEvent.wheel(scroller, { deltaY: 24 });
+    }
+
+    expect(scroller).toHaveAttribute("data-chapter-turn", "idle");
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog");
+
+    now += CHAPTER_WHEEL_STREAM_GAP_MS + 1;
+    const freshGestureStartedAt = now;
+    fireEvent.wheel(scroller, { deltaY: 24 });
+    expect(scroller).toHaveAttribute("data-chapter-turn", "bottom");
+
+    for (const elapsed of [100, 200, 300, CHAPTER_OVERSCROLL_HOLD_MS - 1]) {
+      now = freshGestureStartedAt + elapsed;
+      fireEvent.wheel(scroller, { deltaY: 24 });
+    }
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog");
+
+    now = freshGestureStartedAt + CHAPTER_OVERSCROLL_HOLD_MS;
+    fireEvent.wheel(scroller, { deltaY: 24 });
+
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Im Wald");
+    expect(scroller.scrollTop).toBe(0);
+  });
+
+  it("does not let residual momentum skip a second short chapter", () => {
+    const view = renderNavigation();
+    immediateAnimationFrames();
+    const scroller = editorScroller(view.container);
+    const rendered = within(view.container);
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 200 });
+    scroller.scrollTop = 0;
+
+    fireEvent.wheel(scroller, { deltaY: 24 });
+    for (now of [100, 200, 300, CHAPTER_OVERSCROLL_HOLD_MS - 1]) {
+      fireEvent.wheel(scroller, { deltaY: 24 });
+    }
+    now = CHAPTER_OVERSCROLL_HOLD_MS;
+    fireEvent.wheel(scroller, { deltaY: 24 });
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Im Wald");
+
+    // The chapter it landed in is short enough to be at both edges at once, so
+    // the tail of the same swipe would otherwise carry straight on through it.
+    const residualEndsAt = now + 640;
+    for (let residualAt = now + 16; residualAt <= residualEndsAt; residualAt += 16) {
+      now = residualAt;
+      fireEvent.wheel(scroller, { deltaY: 24 });
+    }
+
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Im Wald");
+  });
+
   it("clears a partially revealed chapter action after wheel input stops", () => {
     vi.useFakeTimers();
     const view = renderNavigation();
@@ -235,6 +314,80 @@ describe("continuous chapter navigation", () => {
 
     fireEvent.wheel(scroller, { deltaY: -1 });
     expect(scroller).toHaveAttribute("data-chapter-turn", "idle");
+  });
+
+  it("turns the page when a finger pulls past the threshold at an edge", () => {
+    const view = renderNavigation();
+    immediateAnimationFrames();
+    const scroller = editorScroller(view.container);
+    const rendered = within(view.container);
+
+    swipe(scroller, [{ y: 400 }, { y: 400 - CHAPTER_TOUCH_THRESHOLD_PX }]);
+
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Im Wald");
+    expect(scroller.scrollTop).toBe(0);
+  });
+
+  it("leaves the page alone for a pull that stops short of the threshold", () => {
+    const view = renderNavigation();
+    immediateAnimationFrames();
+    const scroller = editorScroller(view.container);
+    const rendered = within(view.container);
+
+    swipe(scroller, [{ y: 400 }, { y: 400 - (CHAPTER_TOUCH_THRESHOLD_PX - 1) }]);
+
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog");
+    expect(scroller).toHaveAttribute("data-chapter-turn", "idle");
+  });
+
+  it("abandons a pull that turns back before the finger lifts", () => {
+    const view = renderNavigation();
+    immediateAnimationFrames();
+    const scroller = editorScroller(view.container);
+    const rendered = within(view.container);
+
+    swipe(scroller, [
+      { y: 400 },
+      { y: 400 - CHAPTER_TOUCH_THRESHOLD_PX },
+      { y: 400 + 20 },
+      { y: 400 - CHAPTER_TOUCH_THRESHOLD_PX * 2 },
+    ]);
+
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog");
+  });
+
+  it("shows how far a pull has come while the finger is still down", () => {
+    const view = renderNavigation();
+    immediateAnimationFrames();
+    const scroller = editorScroller(view.container);
+
+    fireEvent.touchStart(scroller, { touches: [{ clientX: 100, clientY: 400 }] });
+    fireEvent.touchMove(scroller, {
+      touches: [{ clientX: 100, clientY: 400 - CHAPTER_TOUCH_THRESHOLD_PX / 2 }],
+    });
+
+    expect(scroller).toHaveAttribute("data-chapter-turn", "bottom");
+    expect(scroller.style.getPropertyValue("--chapter-turn-progress")).toBe("0.5");
+
+    fireEvent.touchEnd(scroller, { touches: [] });
+    expect(scroller).toHaveAttribute("data-chapter-turn", "idle");
+  });
+
+  it("keeps a swipe that started mid-chapter from turning the page at the edge", () => {
+    const view = renderNavigation();
+    immediateAnimationFrames();
+    const scroller = editorScroller(view.container);
+    const rendered = within(view.container);
+
+    scroller.scrollTop = 400;
+    fireEvent.touchStart(scroller, { touches: [{ clientX: 100, clientY: 400 }] });
+    scroller.scrollTop = 800;
+    fireEvent.touchMove(scroller, {
+      touches: [{ clientX: 100, clientY: 400 - CHAPTER_TOUCH_THRESHOLD_PX * 2 }],
+    });
+    fireEvent.touchEnd(scroller, { touches: [] });
+
+    expect(rendered.getByLabelText("Kapiteltitel")).toHaveValue("Prolog");
   });
 
   it("keeps nonexistent endpoint gestures idle", () => {

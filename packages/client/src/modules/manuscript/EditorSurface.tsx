@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type MutableRefObject,
+  type TouchEvent as ReactTouchEvent,
   type WheelEvent as ReactWheelEvent,
   useEffect,
   useLayoutEffect,
@@ -17,9 +18,17 @@ import { ChapterTurnAffordance, type ChapterTurnTarget } from "./ChapterTurnAffo
 import {
   advanceChapterOverscroll,
   CHAPTER_OVERSCROLL_REGRIP_GRACE_MS,
+  CHAPTER_WHEEL_STREAM_GAP_MS,
   type ChapterOverscrollDirection,
   idleChapterOverscroll,
 } from "./chapterOverscroll";
+import {
+  advanceChapterTouch,
+  beginChapterTouch,
+  chapterTouchNavigation,
+  type ChapterTouchState,
+  idleChapterTouch,
+} from "./chapterTouchTurn";
 import {
   type EditorTextSelection,
   ManuscriptEditor,
@@ -110,7 +119,14 @@ export function EditorSurface({
     edge: "top" | "bottom";
   } | null>(null);
   const chapterOverscrollInactivityRef = useRef<number | null>(null);
+  // What the current physical wheel stream is allowed to do, and when it last spoke.
+  const chapterWheelStreamRef = useRef<{ lastInputAt: number | null; blocked: boolean }>({
+    lastInputAt: null,
+    blocked: false,
+  });
   const [chapterOverscroll, setChapterOverscroll] = useState(idleChapterOverscroll);
+  const [chapterTouch, setChapterTouch] = useState<ChapterTouchState>(idleChapterTouch);
+  const chapterTouchRef = useRef(chapterTouch);
   const chapterOverscrollRef = useRef(chapterOverscroll);
   const currentChapterId = current?.id;
   const chapterNavigationContext = `${currentChapterId ?? ""}:${previousChapter?.id ?? ""}:${nextChapter?.id ?? ""}`;
@@ -153,6 +169,8 @@ export function EditorSurface({
       chapterId: target.id,
       edge: direction === "top" ? "bottom" : "top",
     };
+    // Whatever is still arriving belongs to the gesture that just turned this page.
+    chapterWheelStreamRef.current.blocked = true;
     resetChapterOverscroll();
     onNavigateChapter(target.id);
   };
@@ -185,6 +203,9 @@ export function EditorSurface({
     const next = idleChapterOverscroll();
     chapterOverscrollRef.current = next;
     setChapterOverscroll(next);
+    const idleTouch = idleChapterTouch();
+    chapterTouchRef.current = idleTouch;
+    setChapterTouch(idleTouch);
   }, [chapterNavigationContext]);
 
   useEffect(
@@ -204,6 +225,15 @@ export function EditorSurface({
       event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroller.clientHeight : 1;
     const delta = event.deltaY * deltaFactor;
     const direction: ChapterOverscrollDirection = delta < 0 ? "top" : "bottom";
+    const now = performance.now();
+    const stream = chapterWheelStreamRef.current;
+    const startsNewStream =
+      stream.lastInputAt === null ||
+      now < stream.lastInputAt ||
+      now - stream.lastInputAt > CHAPTER_WHEEL_STREAM_GAP_MS;
+    stream.lastInputAt = now;
+    if (startsNewStream) stream.blocked = false;
+
     if (Math.abs(delta) < 2) {
       if (
         chapterOverscrollRef.current.direction !== null &&
@@ -218,12 +248,19 @@ export function EditorSurface({
         ? scroller.scrollTop <= 1
         : scroller.scrollTop >= scroller.scrollHeight - scroller.clientHeight - 1;
     if (!atBoundary) {
+      // This stream was spent scrolling the chapter. Its momentum must not turn
+      // the page once it coasts into the edge -- that takes a fresh gesture.
+      stream.blocked = true;
+      resetChapterOverscroll();
+      return;
+    }
+    if (stream.blocked) {
       resetChapterOverscroll();
       return;
     }
     const transition = advanceChapterOverscroll(chapterOverscrollRef.current, {
       direction,
-      now: performance.now(),
+      now,
       hasTarget: Boolean(targetForDirection(direction)),
     });
     updateChapterOverscroll(transition.state);
@@ -234,6 +271,63 @@ export function EditorSurface({
     } else {
       clearChapterOverscrollInactivity();
     }
+  };
+
+  const edgesOf = (scroller: HTMLElement) => ({
+    atTop: scroller.scrollTop <= 1,
+    atBottom: scroller.scrollTop >= scroller.scrollHeight - scroller.clientHeight - 1,
+  });
+
+  const updateChapterTouch = (next: ChapterTouchState) => {
+    chapterTouchRef.current = next;
+    setChapterTouch(next);
+  };
+
+  const abandonChapterTouch = () => {
+    if (chapterTouchRef.current.abandoned && chapterTouchRef.current.direction === null) return;
+    updateChapterTouch({
+      ...chapterTouchRef.current,
+      direction: null,
+      progress: 0,
+      abandoned: true,
+    });
+  };
+
+  const onChapterTouchStart = (event: ReactTouchEvent<HTMLElement>) => {
+    // Two fingers are a pinch or a zoom, never a page turn.
+    if (event.touches.length !== 1) {
+      abandonChapterTouch();
+      return;
+    }
+    const touch = event.touches[0];
+    updateChapterTouch(
+      beginChapterTouch({
+        x: touch.clientX,
+        y: touch.clientY,
+        ...edgesOf(event.currentTarget),
+      }),
+    );
+  };
+
+  const onChapterTouchMove = (event: ReactTouchEvent<HTMLElement>) => {
+    if (event.touches.length !== 1) {
+      abandonChapterTouch();
+      return;
+    }
+    const touch = event.touches[0];
+    updateChapterTouch(
+      advanceChapterTouch(
+        chapterTouchRef.current,
+        { x: touch.clientX, y: touch.clientY, ...edgesOf(event.currentTarget) },
+        (direction) => Boolean(targetForDirection(direction)),
+      ),
+    );
+  };
+
+  const onChapterTouchEnd = () => {
+    const direction = chapterTouchNavigation(chapterTouchRef.current);
+    updateChapterTouch(idleChapterTouch());
+    if (direction) navigateChapter(direction);
   };
 
   const onChapterScroll = () => {
@@ -247,6 +341,11 @@ export function EditorSurface({
     if (!stillAtBoundary) resetChapterOverscroll();
   };
 
+  // One reading for the affordance, whichever kind of input is driving it.
+  const chapterTurnDirection = chapterOverscroll.direction ?? chapterTouch.direction;
+  const chapterTurnProgress =
+    chapterOverscroll.direction !== null ? chapterOverscroll.progress : chapterTouch.progress;
+
   return (
     <ScrollArea
       ref={scrollRef}
@@ -257,14 +356,18 @@ export function EditorSurface({
       scrollbar="thin"
       surface="paper"
       className="editor-scroll"
-      data-chapter-turn={chapterOverscroll.direction ?? "idle"}
+      data-chapter-turn={chapterTurnDirection ?? "idle"}
       style={
         {
-          "--chapter-turn-progress": chapterOverscroll.progress,
+          "--chapter-turn-progress": chapterTurnProgress,
         } as CSSProperties
       }
       onWheel={onChapterWheel}
       onScroll={onChapterScroll}
+      onTouchStart={onChapterTouchStart}
+      onTouchMove={onChapterTouchMove}
+      onTouchEnd={onChapterTouchEnd}
+      onTouchCancel={() => updateChapterTouch(idleChapterTouch())}
     >
       {current ? (
         <div className={`editor-page ${historyOpen ? "has-chapter-history" : ""}`}>
@@ -272,8 +375,8 @@ export function EditorSurface({
             <ChapterTurnAffordance
               direction="previous"
               target={previousChapter}
-              progress={chapterOverscroll.direction === "top" ? chapterOverscroll.progress : 0}
-              active={chapterOverscroll.direction === "top"}
+              progress={chapterTurnDirection === "top" ? chapterTurnProgress : 0}
+              active={chapterTurnDirection === "top"}
               onNavigate={() => navigateChapter("top")}
             />
           )}
@@ -351,8 +454,8 @@ export function EditorSurface({
             <ChapterTurnAffordance
               direction="next"
               target={nextChapter}
-              progress={chapterOverscroll.direction === "bottom" ? chapterOverscroll.progress : 0}
-              active={chapterOverscroll.direction === "bottom"}
+              progress={chapterTurnDirection === "bottom" ? chapterTurnProgress : 0}
+              active={chapterTurnDirection === "bottom"}
               onNavigate={() => navigateChapter("bottom")}
             />
           )}

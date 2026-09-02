@@ -38,6 +38,7 @@ describe("TextWorkspace layout and panels", () => {
     const workspaceCss = readFileSync(join(root, "WorkspaceLayout.css"), "utf8");
     const chapterCss = readFileSync(join(root, "ChapterBinder.css"), "utf8");
     const editorCss = readFileSync(join(root, "EditorSurface.css"), "utf8");
+    const turnCss = readFileSync(join(root, "ChapterTurnAffordance.css"), "utf8");
     expect(workspaceCss).not.toMatch(
       /scrollbar-(?:color|width|gutter)|--scrollbar-surface|::-webkit-scrollbar/,
     );
@@ -57,18 +58,26 @@ describe("TextWorkspace layout and panels", () => {
     expect(workspaceCss).toMatch(
       /\.text-layout\.no-inspector:not\(\.no-binder\) \.panel-edge-toggle--right:not\(\.is-open\)\s*\{[^}]*var\(--space-24\) -\s*var\(--editor-balance-offset\)/s,
     );
-    expect(editorCss).toMatch(
+    expect(turnCss).toMatch(
       /\.chapter-turn__action\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s,
     );
-    expect(editorCss).toMatch(
+    expect(turnCss).toMatch(
       /\.chapter-turn\[data-active="true"\] \.chapter-turn__action,[\s\S]*?\.chapter-turn__action:focus-visible\s*\{[^}]*pointer-events:\s*auto;/s,
     );
-    expect(editorCss).toMatch(
+    expect(turnCss).toMatch(
       /\.chapter-turn__progress > span\s*\{[^}]*transform:\s*scaleX\(var\(--chapter-turn-progress\)\);/s,
     );
-    expect(editorCss).toMatch(
+    expect(turnCss).toMatch(
       /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.chapter-turn__progress > span\s*\{[^}]*transition:\s*none;/s,
     );
+    // Where nothing hovers, the way out of a chapter has to stand in the page.
+    expect(turnCss).toMatch(
+      /@media \(hover: none\), \(pointer: coarse\)\s*\{[\s\S]*?\.chapter-turn\s*\{[^}]*position:\s*static;/s,
+    );
+    expect(turnCss).toMatch(
+      /@media \(hover: none\), \(pointer: coarse\)\s*\{[\s\S]*?\.chapter-turn\[data-active="true"\] \.chapter-turn__action\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/s,
+    );
+    expect(editorCss).not.toMatch(/\.chapter-turn__action\s*\{/);
     expect(editorCss).toMatch(
       /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.editor-scroll\[data-chapter-turn="top"\] \.editor-page,[\s\S]*?transform:\s*none;/s,
     );

@@ -20,6 +20,10 @@ export interface ChapterOverscrollTransition {
 }
 
 export const CHAPTER_OVERSCROLL_HOLD_MS = 425;
+// A wheel event does not say whether a hand or a trackpad produced it, and a trackpad keeps
+// sending them long after the fingers have left the glass. A short quiet gap is the only thing
+// that reliably separates two gestures, so that is where one physical stream is taken to end.
+export const CHAPTER_WHEEL_STREAM_GAP_MS = 160;
 // A mouse wheel has to be re-gripped between quick rotations. Keep the accumulated intent long
 // enough for that natural pause without allowing a lone boundary event to navigate.
 export const CHAPTER_OVERSCROLL_REGRIP_GRACE_MS = 650;
@@ -36,7 +40,10 @@ export function idleChapterOverscroll(): ChapterOverscrollState {
 
 /**
  * Advances a deliberate chapter-boundary gesture. The caller supplies monotonic timestamps so
- * the transition stays independent of browser timers and can be shared by wheel and touch input.
+ * the transition stays independent of browser timers.
+ *
+ * This is the wheel's policy: it measures a gesture in time, because a wheel at the edge has
+ * nothing else to measure. A finger is measured in distance instead -- see `chapterTouchTurn.ts`.
  */
 export function advanceChapterOverscroll(
   state: ChapterOverscrollState,

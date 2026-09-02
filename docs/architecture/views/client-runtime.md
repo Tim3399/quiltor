@@ -377,7 +377,14 @@ class DesignSpacingTokens {
 class ChapterOverscrollPolicy {
   <<pureManuscriptInteraction>>
   +holdDurationMs = 425
+  +wheelStreamGapMs = 160
   +advance(state, input) Transition
+}
+
+class ChapterTouchTurnPolicy {
+  <<pureManuscriptInteraction>>
+  +thresholdPx = 72
+  +advance(state, point) State
 }
 
 class EditorSurface
@@ -388,7 +395,8 @@ class DesignMotionTokens {
 
 ChapterTreeRows --> BinderLayoutRules : data-binder-depth
 BinderLayoutRules --> DesignSpacingTokens
-EditorSurface --> ChapterOverscrollPolicy : wheel or touch timestamps
+EditorSurface --> ChapterOverscrollPolicy : wheel timestamps
+EditorSurface --> ChapterTouchTurnPolicy : touch points and edges
 EditorSurface --> ChapterTurnAffordance : progress and target
 ChapterTurnAffordance --> DesignMotionTokens : decorative transition only
 ```
@@ -407,6 +415,23 @@ The pure transition in `chapterOverscroll.ts` owns that threshold,
 separate input-tolerance rule and remains unchanged unless its own interaction
 tests justify a change. Reduced-motion preferences affect only decorative
 motion, not the deterministic 425 ms navigation threshold.
+
+Wheel and touch are **two policies, not one**. A wheel event carries no record
+of what produced it, and a trackpad keeps emitting them long after the fingers
+have left the glass, so `EditorSurface` cuts the event stream at a quiet gap of
+`CHAPTER_WHEEL_STREAM_GAP_MS`: the stream that scrolled a chapter to its edge,
+and the stream that has just turned a page, cannot turn another one until that
+gap has passed. Touch cannot use a hold at all -- a finger is already at the
+edge when it lands -- so `chapterTouchTurn.ts` measures distance instead, at
+`CHAPTER_TOUCH_THRESHOLD_PX` from an edge the pull started at, resolved when
+the finger lifts. Neither policy calls `preventDefault`: scrolling, selection
+and zoom stay the browser's.
+
+Where no pointer hovers, `ChapterTurnAffordance` stops being an overlay that a
+gesture reveals and stands in the document flow, always visible and always
+tappable. That is not a nicety: a swipe is not something a keyboard or a screen
+reader can perform, so the explicit control is the accessible path and the
+gesture is only a shortcut over it.
 
 ## Save coordination without a global save batch
 
