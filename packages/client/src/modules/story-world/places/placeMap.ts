@@ -64,6 +64,21 @@ export function nearestMapDistances(
   return [...distances.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
+/**
+ * What a hundred pixels mean here, in one phrase.
+ *
+ * Said where the level is named rather than only where a distance is drawn:
+ * two-stage scales raise the question the moment they exist, and the answer
+ * belongs beside the thing that decides it.
+ */
+export function formatScale(
+  scale: { unitsPer100px: number; unitLabel: string } | undefined,
+  t: (key: MessageKey) => string,
+): string {
+  if (!scale) return "";
+  return `${scale.unitsPer100px} ${scale.unitLabel} ${t("perHundredPx")}`;
+}
+
 export function formatDistance(
   distance: number,
   t: (key: MessageKey) => string,

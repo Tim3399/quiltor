@@ -51,3 +51,15 @@
     max-width: calc(100% - var(--space-28));
   }
 }
+
+/* Set apart from the steps: it is not somewhere to go, it is what the place you
+   are already in measures in. */
+.place-level-trail__scale {
+  flex: none;
+  padding: 0 var(--space-8) 0 var(--space-6);
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -12,9 +12,18 @@ import "./PlaceLevelTrail.css";
  */
 export function PlaceLevelTrail({
   trail,
+  scale,
   onGoToLevel,
 }: {
   trail: FigureNode[];
+  /**
+   * What a hundred pixels mean on this level.
+   *
+   * Two-stage scales raise one question the moment they exist -- which units
+   * am I reading right now -- and the trail is where the answer belongs,
+   * because it is already the thing saying where "right now" is.
+   */
+  scale: string;
   onGoToLevel: (levelId: string | undefined) => void;
 }) {
   const { t } = useI18n();
@@ -47,6 +56,7 @@ export function PlaceLevelTrail({
           {level.name}
         </Button>
       ))}
+      {scale ? <span className="place-level-trail__scale">{scale}</span> : null}
     </ScrollArea>
   );
 }
