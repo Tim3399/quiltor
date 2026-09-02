@@ -93,6 +93,7 @@ describe("a map laid out on the level", () => {
       liveSize: null,
       livePosition: null,
       gridSize: 48,
+      zoom: 1,
       ...overrides,
     });
 

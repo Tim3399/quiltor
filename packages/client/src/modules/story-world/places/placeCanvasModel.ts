@@ -112,6 +112,7 @@ export function createPlaceMapNodes({
   liveSize,
   livePosition,
   gridSize,
+  zoom,
 }: {
   places: FigureNode[];
   sourceUrl: (imageId: string) => string;
@@ -141,6 +142,8 @@ export function createPlaceMapNodes({
    */
   livePosition: { id: string; x: number; y: number } | null;
   gridSize: number;
+  /** What the canvas is magnified by right now. */
+  zoom: number;
 }): PlaceMapFlowNode[] {
   return places.filter(isExpandedMap).map((place) => {
     const live = liveSize?.id === place.id ? liveSize : undefined;
@@ -168,6 +171,7 @@ export function createPlaceMapNodes({
         onCropCommit,
         onPictureSize,
         gridSize,
+        zoom,
       },
     };
   });
@@ -242,10 +246,12 @@ export function createGroundNode({
   level,
   sourceUrl,
   gridSize,
+  zoom,
 }: {
   level: FigureNode | undefined;
   sourceUrl: (imageId: string) => string;
   gridSize: number;
+  zoom: number;
 }): PlaceGroundNode | undefined {
   const rect = groundRect(level);
   if (!rect || !level?.mapImageId) return undefined;
@@ -261,6 +267,6 @@ export function createGroundNode({
     deletable: false,
     // Under the maps, which are themselves under the cards.
     zIndex: -2,
-    data: { source: sourceUrl(level.mapImageId), title: level.name, gridSize },
+    data: { source: sourceUrl(level.mapImageId), title: level.name, gridSize, zoom },
   };
 }

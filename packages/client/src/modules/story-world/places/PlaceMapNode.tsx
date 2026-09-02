@@ -22,6 +22,8 @@ export type PlaceMapNodeData = {
   onPictureSize: (place: FigureNode, size: { width: number; height: number }) => void;
   /** The grid drawn over the picture, in flow units. */
   gridSize: number;
+  /** What the canvas is magnified by, so grips can hold their size on screen. */
+  zoom: number;
 };
 
 export type PlaceMapFlowNode = Node<PlaceMapNodeData>;
@@ -87,6 +89,20 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
           // one ruling rather than two that happen to share a spacing.
           "--place-plate-grid-x": `${-mod(data.origin.x, data.gridSize)}px`,
           "--place-plate-grid-y": `${-mod(data.origin.y, data.gridSize)}px`,
+          // Everything inside a node is drawn in flow units and magnified with
+          // the canvas, which is right for a picture and wrong for something to
+          // take hold of: it leaves a grip a few pixels wide on a map drawn
+          // small, and pushes the corners off the screen on one drawn large.
+          // Dividing by the magnification gives a grip the same size on screen
+          // at every zoom, and puts one along every edge so a corner is never
+          // the only thing to aim at.
+          "--place-map-grip": `${GRIP_SCREEN_PX / Math.max(0.02, data.zoom)}px`,
+          // The neatline is a drawing convention, not part of the terrain: it
+          // says where the sheet ends, and it has to say so just as clearly on a
+          // map filling the screen as on one seen whole from far out. So its
+          // margin and its hairlines are measured on screen too, while the ticks
+          // crossing them keep the ruling's own spacing in world units.
+          ...plateRuling(data.zoom),
         } as CSSProperties
       }
     >
@@ -144,6 +160,22 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
       <span className="place-plate__grid" aria-hidden="true" />
     </figure>
   );
+}
+
+/** How wide a grip should be on screen, whatever the canvas is magnified by. */
+const GRIP_SCREEN_PX = 18;
+
+/** How wide the neatline's margin should be on screen, and its rules. */
+const BAND_SCREEN_PX = 10;
+const HAIRLINE_SCREEN_PX = 1;
+
+/** The plate's own measures, held at a constant size on screen. */
+export function plateRuling(zoom: number): CSSProperties {
+  const magnification = Math.max(0.02, zoom);
+  return {
+    "--place-plate-band": `${BAND_SCREEN_PX / magnification}px`,
+    "--place-plate-hair": `${HAIRLINE_SCREEN_PX / magnification}px`,
+  } as CSSProperties;
 }
 
 /** A modulo that stays positive, which the remainder operator does not. */

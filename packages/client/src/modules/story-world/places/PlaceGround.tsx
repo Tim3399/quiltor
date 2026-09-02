@@ -1,4 +1,5 @@
 import type { Node, NodeProps } from "@xyflow/react";
+import { plateRuling } from "./PlaceMapNode";
 import "./PlacePlate.css";
 import "./PlaceGround.css";
 
@@ -7,6 +8,8 @@ export type PlaceGroundData = {
   title: string;
   /** The grid drawn over the picture, in flow units. */
   gridSize: number;
+  /** What the canvas is magnified by, so the neatline holds its width. */
+  zoom: number;
 };
 
 export type PlaceGroundNode = Node<PlaceGroundData>;
@@ -26,7 +29,12 @@ export function PlaceGround({ data }: NodeProps<PlaceGroundNode>) {
   return (
     <div
       className="place-ground"
-      style={{ "--place-plate-grid": `${data.gridSize}px` } as React.CSSProperties}
+      style={
+        {
+          "--place-plate-grid": `${data.gridSize}px`,
+          ...plateRuling(data.zoom),
+        } as React.CSSProperties
+      }
     >
       <img src={data.source} alt={data.title} draggable={false} />
       <span className="place-plate__grid" aria-hidden="true" />

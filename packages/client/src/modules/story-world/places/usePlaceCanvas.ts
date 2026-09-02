@@ -111,7 +111,8 @@ export function usePlaceCanvas({
     [state.nodes, levelId],
   );
   const ground = useMemo(
-    () => createGroundNode({ level, sourceUrl: mapImageUrl, gridSize: GRID_SIZE }),
+    () =>
+      createGroundNode({ level, sourceUrl: mapImageUrl, gridSize: GRID_SIZE, zoom: viewportZoom }),
     [level, mapImageUrl],
   );
   const levelGround = useMemo(() => groundRect(level), [level]);
@@ -242,6 +243,7 @@ export function usePlaceCanvas({
         liveSize,
         livePosition,
         gridSize: GRID_SIZE,
+        zoom: viewportZoom,
       }),
     [
       places,
@@ -253,6 +255,7 @@ export function usePlaceCanvas({
       adjustingId,
       liveSize,
       livePosition,
+      viewportZoom,
     ],
   );
 

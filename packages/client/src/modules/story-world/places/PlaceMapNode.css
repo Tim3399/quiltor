@@ -9,9 +9,9 @@
   height: 100%;
   position: relative;
   margin: 0;
-  overflow: hidden;
   /* Barely rounded: enough that the corner is not a razor, not enough to read
-     as a card. */
+     as a card. Nothing is clipped here -- the resize grips sit astride the edge
+     and the corner blocks straddle it, and clipping halved both. */
   border-radius: var(--radius-xs);
   background: var(--canvas);
 }
@@ -33,6 +33,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+  border-radius: inherit;
 }
 
 /* Adjusting the picture inside its frame is a drag, and saying so with the
@@ -45,27 +46,50 @@
   cursor: grabbing;
 }
 
-/* Matches the storyboard's resizer so the same gesture looks the same
-   everywhere a thing on a canvas can be made larger. */
-.place-map-node__line {
-  border-color: var(--accent-primary-border);
+/* Every edge is a grip, not only the four corners. A map is drawn at the size of
+   the ground it stands for, so its corners are usually somewhere off the screen
+   while an edge is always crossing it -- and an edge grabbed anywhere along its
+   length resizes the map exactly as a corner would, because the proportions are
+   locked either way.
+
+   The two are sized differently on purpose. React Flow counters the canvas's
+   magnification on the corner blocks itself, so those take a plain screen
+   measure; it does not on the edges, so those take --place-map-grip, which the
+   node sets in flow units divided by that magnification. Both come out the same
+   size under the pointer however far in or out the view is. */
+.react-flow__resize-control.place-map-node__line {
+  border-color: color-mix(in srgb, var(--accent-primary) 55%, var(--transparent));
+  border-width: var(--place-map-grip, var(--space-8));
+  /* Reachable everywhere, visible only where the pointer is: a band this wide
+     drawn along all four edges would be a second frame competing with the one
+     the map already has. */
+  opacity: 0.001;
 }
 
-.place-map-node__handle {
-  width: var(--spacing-regular-tight);
-  height: var(--spacing-regular-tight);
-  border: 1px solid var(--paper);
+.react-flow__resize-control.place-map-node__line:hover,
+.react-flow__resize-control.place-map-node__line:active {
+  opacity: 0.3;
+}
+
+/* The mark is smaller than the target. A grip that can be caught with a shaking
+   hand should not also be a block sitting on the map. */
+.react-flow__resize-control.place-map-node__handle {
+  width: var(--space-18);
+  height: var(--space-18);
+  border: none;
   border-radius: var(--radius-xs);
-  background: var(--accent-primary);
+  background:
+    radial-gradient(closest-side, var(--accent-primary) 94%, var(--transparent)) center / 44% 44%
+    no-repeat,
+    color-mix(in srgb, var(--accent-primary) 14%, var(--transparent));
 }
 
-@media (max-width: 719px), (pointer: coarse) {
-  .place-map-node__handle {
-    width: var(--control-touch);
-    height: var(--control-touch);
-    border-color: var(--transparent);
-    background: color-mix(in srgb, var(--accent-primary) 30%, var(--transparent));
-  }
+.react-flow__resize-control.place-map-node__handle:hover,
+.react-flow__resize-control.place-map-node__handle:active {
+  background:
+    radial-gradient(closest-side, var(--accent-primary) 94%, var(--transparent)) center / 60% 60%
+    no-repeat,
+    color-mix(in srgb, var(--accent-primary) 28%, var(--transparent));
 }
 
 @media (forced-colors: active) {
