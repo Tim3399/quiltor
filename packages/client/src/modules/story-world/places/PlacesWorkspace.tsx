@@ -8,13 +8,7 @@ import type { FigureNode, FigureState } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
-import {
-  frameHeightForPicture,
-  isPlace,
-  levelTrail,
-  placesOnLevel,
-  scaleForLevel,
-} from "./placeLevels";
+import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
 import { DEFAULT_MAP_WIDTH, isExpandedMap } from "./placeCanvasModel";
 import { formatDistance } from "./placeMap";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
@@ -139,23 +133,6 @@ function PlacesWorkspaceInner({
     [onChange],
   );
 
-  /**
-   * Let a stale frame follow the picture it is meant to be.
-   *
-   * The picture fills its frame edge to edge, so proportions that disagree hide
-   * part of the map. Frames written before that was enforced can disagree, and
-   * this is the first moment the truth is available: when the browser has the
-   * file and knows what shape it is.
-   */
-  const correctMapFrame = useCallback(
-    (place: FigureNode, picture: { width: number; height: number }) => {
-      const corrected = frameHeightForPicture(place, picture);
-      if (corrected === null) return;
-      patchPlace(place.id, { mapHeight: corrected });
-    },
-    [patchPlace],
-  );
-
   const collapseMap = useCallback(
     (place: FigureNode) => patchPlace(place.id, { mapExpanded: false }),
     [patchPlace],
@@ -189,7 +166,6 @@ function PlacesWorkspaceInner({
     onExpandMap: expandMap,
     onResizeMap: resizeMap,
     onCropMap: cropMap,
-    onPictureSize: correctMapFrame,
     adjustingId,
     levelScale,
     onChange,
@@ -376,6 +352,10 @@ function PlacesWorkspaceInner({
         canRedo={canRedo}
         onAdd={() => setSelectedId(canvas.addPlace().id)}
         onAddMap={addMap}
+        snapToGrid={canvas.snapToGrid}
+        onSnapToGridChange={canvas.setSnapToGrid}
+        picturesVisible={canvas.picturesVisible}
+        onPicturesVisibleChange={canvas.setPicturesVisible}
         onMeasuringToggle={() => {
           setMeasuring((value) => !value);
           setMeasureSelection([]);

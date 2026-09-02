@@ -106,13 +106,14 @@ export function createPlaceMapNodes({
   onResizeLive,
   onCropDraft,
   onCropCommit,
-  onPictureSize,
   cropOverride,
   adjustingId,
   liveSize,
   livePosition,
   gridSize,
   zoom,
+  picturesVisible,
+  gridVisible,
 }: {
   places: FigureNode[];
   sourceUrl: (imageId: string) => string;
@@ -120,7 +121,6 @@ export function createPlaceMapNodes({
   onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
-  onPictureSize: (place: FigureNode, size: { width: number; height: number }) => void;
   /** The crop being dragged right now, which has not been written down yet. */
   cropOverride: { id: string; crop: ImageCrop } | null;
   adjustingId: string | undefined;
@@ -144,6 +144,10 @@ export function createPlaceMapNodes({
   gridSize: number;
   /** What the canvas is magnified by right now. */
   zoom: number;
+  /** Whether the pictures are drawn, or only the ground they rule. */
+  picturesVisible: boolean;
+  /** Whether the ruling is drawn over them. */
+  gridVisible: boolean;
 }): PlaceMapFlowNode[] {
   return places.filter(isExpandedMap).map((place) => {
     const live = liveSize?.id === place.id ? liveSize : undefined;
@@ -162,15 +166,15 @@ export function createPlaceMapNodes({
         // Where this sheet sits, so the lines drawn on it can be ruled from the
         // level's origin rather than from the sheet's own corner.
         origin: moved ? { x: moved.x, y: moved.y } : placePosition(place),
-        source: sourceUrl(place.mapImageId as string),
+        source: picturesVisible ? sourceUrl(place.mapImageId as string) : "",
         crop: cropOverride?.id === place.id ? cropOverride.crop : cropOf(place),
         adjusting: adjustingId === place.id,
         onResize,
         onResizeLive,
         onCropDraft,
         onCropCommit,
-        onPictureSize,
         gridSize,
+        gridVisible,
         zoom,
       },
     };
@@ -247,11 +251,15 @@ export function createGroundNode({
   sourceUrl,
   gridSize,
   zoom,
+  picturesVisible,
+  gridVisible,
 }: {
   level: FigureNode | undefined;
   sourceUrl: (imageId: string) => string;
   gridSize: number;
   zoom: number;
+  picturesVisible: boolean;
+  gridVisible: boolean;
 }): PlaceGroundNode | undefined {
   const rect = groundRect(level);
   if (!rect || !level?.mapImageId) return undefined;
@@ -267,6 +275,12 @@ export function createGroundNode({
     deletable: false,
     // Under the maps, which are themselves under the cards.
     zIndex: -2,
-    data: { source: sourceUrl(level.mapImageId), title: level.name, gridSize, zoom },
+    data: {
+      source: picturesVisible ? sourceUrl(level.mapImageId) : "",
+      title: level.name,
+      gridSize,
+      gridVisible,
+      zoom,
+    },
   };
 }

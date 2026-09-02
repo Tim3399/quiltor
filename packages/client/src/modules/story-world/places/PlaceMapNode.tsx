@@ -18,10 +18,10 @@ export type PlaceMapNodeData = {
   onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
-  /** What the picture turned out to be, once the browser has it. */
-  onPictureSize: (place: FigureNode, size: { width: number; height: number }) => void;
   /** The grid drawn over the picture, in flow units. */
   gridSize: number;
+  /** Whether that grid is drawn at all. */
+  gridVisible: boolean;
   /** What the canvas is magnified by, so grips can hold their size on screen. */
   zoom: number;
 };
@@ -107,12 +107,14 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
       }
     >
       {/* Resizing a map is how its scale is declared: making it wider says the
-          same picture covers more ground. Kept to the picture's own proportions,
-          so the frame can never show paper the picture does not cover. The places
+          same picture covers more ground. The frame takes whatever proportions
+          the author drags it to -- a map is a piece of ground, and ground is not
+          obliged to be the shape of the file it was drawn on. Where the two
+          disagree the picture is moved and enlarged inside the frame instead,
+          which is what the adjustment beside the canvas is for. The places
           standing on it are held as fractions, so they travel with the change. */}
       <NodeResizer
         isVisible={selected && !data.adjusting}
-        keepAspectRatio
         minWidth={120}
         minHeight={80}
         handleClassName="place-map-node__handle"
@@ -141,23 +143,21 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
           data.onCropCommit(place, zoomedCrop(crop, event.deltaY < 0 ? 1 : -1));
         }}
       >
-        <img
-          src={data.source}
-          alt={place.name}
-          draggable={false}
-          onLoad={(event) =>
-            data.onPictureSize(place, {
-              width: event.currentTarget.naturalWidth,
-              height: event.currentTarget.naturalHeight,
-            })
-          }
-          style={{
-            transform: `scale(${crop.zoom})`,
-            transformOrigin: `${crop.u * 100}% ${crop.v * 100}%`,
-          }}
-        />
+        {/* Hidden pictures leave the frame and the ruling standing: what is on
+            the map stays exactly where it was put, on ground you can now see. */}
+        {data.source ? (
+          <img
+            src={data.source}
+            alt={place.name}
+            draggable={false}
+            style={{
+              transform: `scale(${crop.zoom})`,
+              transformOrigin: `${crop.u * 100}% ${crop.v * 100}%`,
+            }}
+          />
+        ) : null}
       </div>
-      <span className="place-plate__grid" aria-hidden="true" />
+      {data.gridVisible ? <span className="place-plate__grid" aria-hidden="true" /> : null}
     </figure>
   );
 }

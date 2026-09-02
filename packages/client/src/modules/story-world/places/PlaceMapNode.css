@@ -16,10 +16,11 @@
   background: var(--canvas);
 }
 
-/* The picture fills its whole extent. The frame keeps the picture's own
-   proportions, so this can never crop anything away -- what it does prevent is
-   a strip of empty surface appearing along an edge mid-resize, which is exactly
-   the moment a sheet would stop looking like a sheet. */
+/* The picture fills its whole extent, whatever proportions the frame has been
+   dragged to. Filling rather than fitting is what keeps a sheet looking like a
+   sheet: a strip of empty surface along an edge would give it away at once.
+   What the fill leaves outside the frame is reachable through the picture
+   adjustment, which moves and enlarges it inside. */
 .place-map-node img {
   width: 100%;
   height: 100%;

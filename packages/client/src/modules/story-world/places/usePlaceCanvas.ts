@@ -46,6 +46,12 @@ export type PlaceCanvasController = {
   fitViewOptions: FitViewOptions;
   onInit: (instance: ReactFlowInstance<PlaceFlowNode, Edge>) => void;
   onMove: (viewport: Viewport) => void;
+  /** Whether the ruling is drawn, and whether things come to rest on it. */
+  snapToGrid: boolean;
+  setSnapToGrid: (snap: boolean) => void;
+  /** Whether the map pictures are drawn, or only the ground they rule. */
+  picturesVisible: boolean;
+  setPicturesVisible: (visible: boolean) => void;
   onNodesChange: (changes: NodeChange<PlaceFlowNode>[]) => void;
   onNodeDragStop: (node: PlaceFlowNode) => void;
 };
@@ -61,7 +67,6 @@ export function usePlaceCanvas({
   onExpandMap: expandMap,
   onResizeMap: resizeMap,
   onCropMap: cropMap,
-  onPictureSize: correctMapFrame,
   adjustingId,
   levelScale,
   onChange,
@@ -79,8 +84,6 @@ export function usePlaceCanvas({
   onExpandMap: (place: FigureNode) => void;
   onResizeMap: (place: FigureNode, size: { width: number; height: number }) => void;
   onCropMap: (place: FigureNode, crop: ImageCrop) => void;
-  /** Told what a picture turned out to be, so a stale frame can follow it. */
-  onPictureSize: (place: FigureNode, size: { width: number; height: number }) => void;
   /** Which map's picture is being adjusted, if any. */
   adjustingId: string | undefined;
   /** What a distance on the open level means, for the map's width readout. */
@@ -101,6 +104,10 @@ export function usePlaceCanvas({
   const [livePosition, setLivePosition] = useState<{ id: string; x: number; y: number } | null>(
     null,
   );
+  // What the surface shows, as opposed to what it holds. Neither is written to
+  // the world: how somebody is looking at a level is not part of the level.
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [picturesVisible, setPicturesVisible] = useState(true);
   const flow = useRef<ReactFlowInstance<PlaceFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
@@ -112,8 +119,15 @@ export function usePlaceCanvas({
   );
   const ground = useMemo(
     () =>
-      createGroundNode({ level, sourceUrl: mapImageUrl, gridSize: GRID_SIZE, zoom: viewportZoom }),
-    [level, mapImageUrl],
+      createGroundNode({
+        level,
+        sourceUrl: mapImageUrl,
+        gridSize: GRID_SIZE,
+        gridVisible: snapToGrid,
+        zoom: viewportZoom,
+        picturesVisible,
+      }),
+    [level, mapImageUrl, snapToGrid, picturesVisible, viewportZoom],
   );
   const levelGround = useMemo(() => groundRect(level), [level]);
   const latestGround = useRef(levelGround);
@@ -224,13 +238,13 @@ export function usePlaceCanvas({
     () =>
       createPlaceMapNodes({
         places,
+        picturesVisible,
         sourceUrl: mapImageUrl,
         onResize: (place, size) => {
           setLiveSize(null);
           resizeMap(place, size);
         },
         onResizeLive: (place, size) => setLiveSize({ id: place.id, ...size }),
-        onPictureSize: correctMapFrame,
         onCropDraft: (place, crop) => setCropDraft({ id: place.id, crop }),
         onCropCommit: (place, crop) => {
           // The draft goes as the write lands, in the same batch, or the buttons
@@ -243,6 +257,7 @@ export function usePlaceCanvas({
         liveSize,
         livePosition,
         gridSize: GRID_SIZE,
+        gridVisible: snapToGrid,
         zoom: viewportZoom,
       }),
     [
@@ -250,9 +265,10 @@ export function usePlaceCanvas({
       mapImageUrl,
       resizeMap,
       cropMap,
-      correctMapFrame,
       cropDraft,
       adjustingId,
+      picturesVisible,
+      snapToGrid,
       liveSize,
       livePosition,
       viewportZoom,
@@ -411,6 +427,10 @@ export function usePlaceCanvas({
         return current === next ? current : next;
       });
     },
+    snapToGrid,
+    setSnapToGrid,
+    picturesVisible,
+    setPicturesVisible,
     onNodesChange: (changes) => {
       // A map is derived from the level rather than held in the flow's own list,
       // so applyNodeChanges has nothing to apply its movement to. Catching the

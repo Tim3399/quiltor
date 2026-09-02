@@ -6,7 +6,6 @@ import {
   anchoredPoint,
   ancestorsOf,
   expandedRect,
-  frameHeightForPicture,
   hasLevelContents,
   levelTrail,
   mapRect,
@@ -403,43 +402,6 @@ describe("a level that is itself a picture", () => {
         size: { width: 20, height: 20 },
       }),
     ).toMatchObject({ parentPlaceId: "rom", mapX: 90, mapY: 40 });
-  });
-});
-
-describe("a frame following its picture", () => {
-  const map = (mapWidth?: number, mapHeight?: number): FigureNode => ({
-    id: "m",
-    x: 0,
-    y: 0,
-    name: "Karte",
-    type: "ort",
-    mapImageId: "sha",
-    ...(mapWidth === undefined ? {} : { mapWidth }),
-    ...(mapHeight === undefined ? {} : { mapHeight }),
-  });
-
-  it("says nothing when the frame already has the picture's proportions", () => {
-    expect(frameHeightForPicture(map(1600, 900), { width: 3200, height: 1800 })).toBeNull();
-  });
-
-  it("forgives a pixel of rounding", () => {
-    expect(frameHeightForPicture(map(1600, 901), { width: 3200, height: 1800 })).toBeNull();
-  });
-
-  it("keeps the width an author dragged and corrects the height", () => {
-    // The picture fills its frame edge to edge, so proportions that disagree
-    // hide part of the map along two of its sides.
-    expect(frameHeightForPicture(map(1600, 1200), { width: 3200, height: 1800 })).toBe(900);
-  });
-
-  it("supplies a height where a frame never had one", () => {
-    expect(frameHeightForPicture(map(2400), { width: 1672, height: 941 })).toBe(1351);
-  });
-
-  it("says nothing when there is nothing to work from", () => {
-    expect(frameHeightForPicture(map(), { width: 1600, height: 900 })).toBeNull();
-    expect(frameHeightForPicture(map(1600, 900), { width: 0, height: 900 })).toBeNull();
-    expect(frameHeightForPicture(map(1600, 900), { width: 1600, height: 0 })).toBeNull();
   });
 });
 

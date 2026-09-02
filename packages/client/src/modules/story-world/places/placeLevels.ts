@@ -139,32 +139,6 @@ export function expandedRect(place: FigureNode, host: LevelRect): LevelRect {
  * A map is positioned directly rather than by an anchor -- it is the ground the
  * anchors are measured against, so it cannot itself be anchored to something.
  */
-/**
- * The height this map's frame should have, or nothing if it already has it.
- *
- * A frame is the picture's extent, not a window onto it: the picture fills it
- * edge to edge, so a frame whose proportions disagree with the picture's would
- * quietly hide part of the map along two of its sides. Frames are created from
- * the picture and resized with their proportions locked, so they agree by
- * construction -- but a world written before that was true, or one whose
- * picture has been swapped for another shape, can still disagree.
- *
- * The width is what an author set by dragging, so the width is what is kept.
- */
-export function frameHeightForPicture(
-  place: FigureNode,
-  picture: { width: number; height: number },
-): number | null {
-  if (!(picture.width > 0) || !(picture.height > 0)) return null;
-  const width = place.mapWidth;
-  const height = place.mapHeight;
-  if (!(typeof width === "number" && width > 0)) return null;
-  const wanted = Math.max(1, Math.round((width * picture.height) / picture.width));
-  if (typeof height !== "number" || !(height > 0)) return wanted;
-  // A pixel of rounding is not a disagreement worth a write.
-  return Math.abs(height - wanted) <= 1 ? null : wanted;
-}
-
 export function mapRect(place: FigureNode): LevelRect {
   return {
     x: typeof place.mapX === "number" ? place.mapX : place.x,
