@@ -64,7 +64,9 @@ export function PlaceCanvas({
       nodes={controller.nodes as PlaceFlowNode[]}
       edges={controller.edges as Edge[]}
       zoomTier={controller.zoomTier}
-      className={`places-flow-area ${measuring ? "is-connecting" : ""}`}
+      className={`places-flow-area ${measuring ? "is-connecting" : ""} ${
+        controller.hasGround && controller.boundToGround ? "is-bound-to-ground" : ""
+      }`}
       gridSize={GRID_SIZE}
       showGrid={controller.snapToGrid}
       overlay={
@@ -84,8 +86,6 @@ export function PlaceCanvas({
       flowProps={{
         nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode, placeGround: PlaceGround },
         nodesConnectable: true,
-        snapToGrid: controller.snapToGrid,
-        snapGrid: [GRID_SIZE, GRID_SIZE],
         fitViewOptions: controller.fitViewOptions,
         translateExtent: controller.translateExtent,
         onKeyDown: selectPlaceFromKeyboard,
