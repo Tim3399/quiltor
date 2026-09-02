@@ -34,7 +34,10 @@ export function createFigureFlowNodes(
     id: figure.id,
     type: "story",
     position: { x: figure.x, y: figure.y },
-    draggable: !figure.pinned,
+    // Only ever spelled out when it is false. A node saying it is
+    // draggable overrides the surface's own interactivity switch, which
+    // is why the dock's lock left everything as movable as before.
+    ...(figure.pinned ? { draggable: false } : {}),
     data: {
       figure,
       deceased: false,

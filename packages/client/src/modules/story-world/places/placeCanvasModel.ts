@@ -59,7 +59,10 @@ export function createPlaceFlowNodes({
     id: place.id,
     type: "place",
     position: host ? anchoredPoint(place, host, guesses.get(place.id)) : placePosition(place),
-    draggable: !place.pinned,
+    // Only ever spelled out when it is false. A node saying it is
+    // draggable overrides the surface's own interactivity switch, which
+    // is why the dock's lock left everything as movable as before.
+    ...(place.pinned ? { draggable: false } : {}),
     ariaLabel: t("placeNodeLabel", { name: place.name }),
     // A group, not a button: the card carries its own controls now, and a
     // button holding buttons is a control nested in a control -- announced
@@ -159,7 +162,7 @@ export function createPlaceMapNodes({
       position: moved ? { x: moved.x, y: moved.y } : placePosition(place),
       width: live?.width ?? place.mapWidth ?? DEFAULT_MAP_WIDTH,
       height: live?.height ?? place.mapHeight ?? DEFAULT_MAP_WIDTH,
-      draggable: !place.pinned,
+      ...(place.pinned ? { draggable: false } : {}),
       // Behind the cards that stand on it.
       zIndex: -1,
       data: {

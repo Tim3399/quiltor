@@ -22,6 +22,9 @@ export type GraphViewportChromeProps<NodeType extends Node = Node> = {
    * a surface where one node is the ground means framing the ground.
    */
   fitViewOptions?: FitViewOptions<NodeType>;
+  /** Whether the surface may be rearranged, which the canvas above owns. */
+  interactive?: boolean;
+  onInteractiveChange?: (interactive: boolean) => void;
 };
 
 /** Shared React Flow navigation dock and optional overview map. */
@@ -30,6 +33,8 @@ export function GraphViewportChrome<NodeType extends Node>({
   minimapVisible,
   onMinimapVisibleChange,
   fitViewOptions,
+  interactive = true,
+  onInteractiveChange,
 }: GraphViewportChromeProps<NodeType>) {
   const { t } = useI18n();
   const supportsMinimap = minimapProps !== false;
@@ -41,6 +46,7 @@ export function GraphViewportChrome<NodeType extends Node>({
         position="bottom-left"
         aria-label={t("graphControlsLabel")}
         fitViewOptions={fitViewOptions}
+        onInteractiveChange={onInteractiveChange}
       >
         {supportsMinimap && (
           <ControlButton

@@ -40,9 +40,11 @@ describe("place canvas model", () => {
       position: { x: 10, y: 20 },
       ariaLabel: "Ort: A",
       ariaRole: "group",
-      draggable: true,
       data: { zoomTier: "overview", zoom: 0.2 },
     });
+    // Unlocked says nothing: a node claiming to be draggable overrides the
+    // surface's own interactivity switch, so only the locked one spells it out.
+    expect(nodes[0].draggable).toBeUndefined();
     expect(nodes[1]).toMatchObject({
       position: { x: 3, y: 4 },
       draggable: false,

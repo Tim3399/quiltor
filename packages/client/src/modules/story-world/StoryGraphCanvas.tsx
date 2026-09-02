@@ -43,6 +43,16 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   children,
 }: StoryGraphCanvasProps<NodeType, EdgeType>) {
   const [minimapVisible, setMinimapVisible] = useState(true);
+  /**
+   * Whether the surface may be rearranged, held here rather than in React Flow.
+   *
+   * Its dock has a lock, and its node renderer reads `nodesDraggable` from the
+   * props it was rendered with rather than from the store the lock writes to.
+   * So the lock could take away selecting and connecting and left dragging
+   * exactly as it was -- everything still moved under a closed padlock. Holding
+   * the state here and passing it down is what makes the button mean something.
+   */
+  const [interactive, setInteractive] = useState(true);
   const hasVisibleMinimap = minimapProps !== false && minimapVisible;
 
   return (
@@ -58,6 +68,9 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
         minZoom={0.08}
         maxZoom={2.2}
         deleteKeyCode={null}
+        nodesDraggable={interactive}
+        nodesConnectable={interactive && (flowProps.nodesConnectable ?? true)}
+        elementsSelectable={interactive && (flowProps.elementsSelectable ?? true)}
       >
         {showGrid && zoomTier !== "overview" && (
           <Background
@@ -74,6 +87,8 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
           minimapProps={minimapProps}
           minimapVisible={minimapVisible}
           onMinimapVisibleChange={setMinimapVisible}
+          interactive={interactive}
+          onInteractiveChange={setInteractive}
         />
       </ReactFlow>
       {children}
