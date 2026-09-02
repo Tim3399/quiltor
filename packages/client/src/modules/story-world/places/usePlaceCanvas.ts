@@ -29,7 +29,15 @@ export type PlaceCanvasController = {
   nodes: (PlaceFlowNode | PlaceMapFlowNode | PlaceGroundNode)[];
   edges: Edge[];
   zoomTier: SemanticZoomTier;
-  addPlace: () => FigureNode;
+  /**
+   * Add a place, complete.
+   *
+   * `overrides` exists so a caller never has to create and then patch: the two
+   * writes read different copies of the state, and the second lands on one that
+   * does not know about the first -- which silently drops the place that was
+   * just made.
+   */
+  addPlace: (overrides?: Partial<FigureNode>) => FigureNode;
   duplicatePlace: (place: FigureNode) => FigureNode;
   centerOnPlace: (place: FigureNode) => void;
   onInit: (instance: ReactFlowInstance<PlaceFlowNode, Edge>) => void;
@@ -266,7 +274,7 @@ export function usePlaceCanvas({
     nodes: [...(ground ? [ground] : []), ...maps, ...nodes, ...pins],
     edges,
     zoomTier,
-    addPlace: () => {
+    addPlace: (overrides) => {
       const current = latestState.current;
       const center = flow.current?.screenToFlowPosition({
         x: window.innerWidth / 2,
@@ -285,6 +293,7 @@ export function usePlaceCanvas({
         // A new place belongs to the level it was created on, not to the world.
         ...(levelId ? { parentPlaceId: levelId } : {}),
         profile: { fields: [] },
+        ...overrides,
       };
       const next = { ...current, nodes: [...current.nodes, place] };
       latestState.current = next;

@@ -1,8 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import type { FigureState } from "../model";
+import { quiltorClient } from "../../../platform";
+import * as placeMapUpload from "./placeMapUpload";
 import { PLACE_COMPACT_MEDIA_QUERY, PlacesWorkspace } from "./PlacesWorkspace";
 
 vi.mock("@xyflow/react", () => ({
@@ -376,5 +378,57 @@ describe("PlacesWorkspace map overlays", () => {
       </I18nProvider>,
     );
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("A");
+  });
+});
+
+describe("adding a map", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    cleanup();
+  });
+
+  it("keeps the map it just made", async () => {
+    // The regression this pins: creating the place and then patching it read two
+    // different copies of the state, and the patch landed on one that had never
+    // heard of the place -- dropping it again, so choosing a file did nothing.
+    vi.spyOn(placeMapUpload, "askForMapImage").mockResolvedValue(new Blob(["x"]));
+    vi.spyOn(placeMapUpload, "prepareMapImage").mockImplementation(async (file) => file);
+    vi.spyOn(quiltorClient.application.placeMaps, "store").mockResolvedValue({
+      id: "sha-of-the-map",
+      mime: "image/png",
+      width: 800,
+      height: 400,
+      byteSize: 4096,
+    });
+
+    const changes: FigureState[] = [];
+    render(
+      <ControlledPlaces
+        initialState={{ nodes: [], edges: [] }}
+        onChange={(next) => changes.push(next)}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Neue Karte" }));
+    await waitFor(() => expect(changes.length).toBeGreaterThan(0));
+
+    const latest = changes[changes.length - 1];
+    const map = latest.nodes.find((node) => node.mapImageId === "sha-of-the-map");
+    expect(map).toBeDefined();
+    expect(map).toMatchObject({ type: "ort", mapExpanded: true, mapWidth: 1200 });
+    // 800 x 400 laid out 1200 wide keeps its shape.
+    expect(map?.mapHeight).toBe(600);
+  });
+
+  it("says so when the upload is refused instead of doing nothing", async () => {
+    vi.spyOn(placeMapUpload, "askForMapImage").mockResolvedValue(new Blob(["x"]));
+    vi.spyOn(placeMapUpload, "prepareMapImage").mockImplementation(async (file) => file);
+    vi.spyOn(quiltorClient.application.placeMaps, "store").mockRejectedValue(new Error("nope"));
+
+    render(<ControlledPlaces initialState={{ nodes: [], edges: [] }} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Neue Karte" }));
+
+    // A danger toast announces assertively, so it is an alert rather than a status.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 });

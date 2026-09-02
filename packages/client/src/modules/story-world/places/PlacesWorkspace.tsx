@@ -164,8 +164,11 @@ function PlacesWorkspaceInner({
       setMapError(applicationErrorMessage(error));
       return;
     }
-    const created = canvas.addPlace();
-    patchPlace(created.id, {
+    // One write, not a create followed by a patch: the two read different copies
+    // of the state, and the patch would land on one that has never heard of the
+    // place just created -- dropping it again, which looks like nothing at all
+    // happening.
+    const created = canvas.addPlace({
       name: t("newMap"),
       mapImageId: stored.id,
       mapExpanded: true,
@@ -174,7 +177,7 @@ function PlacesWorkspaceInner({
       mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),
     });
     setSelectedId(created.id);
-  }, [canvas, patchPlace, t]);
+  }, [canvas, t]);
 
   const centerOnPlace = useRef(canvas.centerOnPlace);
   centerOnPlace.current = canvas.centerOnPlace;
