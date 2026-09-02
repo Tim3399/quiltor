@@ -22,21 +22,22 @@
   box-shadow: var(--ring-2) var(--accent-primary);
 }
 
-/* A place that carries a map wears a slice of it.
-   Not a thumbnail pinned to a corner -- a band cut clean through the card, with
-   the card's own surface left standing as a wedge on either side. The picture is
-   zoomed past its edges so what shows is a detail rather than a shrunken sheet,
-   and it sits under the text at an opacity that reads as material rather than as
-   an image somebody stuck on. Its presence is the only marker that a place has a
-   map at all, so it never hides -- and it never competes with the name either. */
-/* No negative depth here: the card paints its surface on its own box, and a
-   child sent behind that would be behind the paint as well as the text. Order
-   in the markup is enough -- the band comes first, the writing after it. */
+/* A map card wears its picture in a column down one side, not as a wash behind
+   the writing. The diagonal band it used to wear put a busy picture under the
+   name at 42 % and made the one word that matters the hardest thing to read --
+   and a map is rarely a quiet picture. Beside the words, the picture can be at
+   full strength and the words can be on paper.
+
+   The column's inner edge carries the same rim the laid-out sheet does, so the
+   card is recognisably the same object seen from further away. */
 .place-node__preview {
+  width: 38%;
   position: absolute;
-  inset: 0;
+  inset: 0 auto 0 0;
   overflow: hidden;
   border-radius: inherit;
+  box-shadow: inset calc(var(--space-2) * -1) 0 0 0
+    color-mix(in srgb, var(--ink) 16%, var(--transparent));
   pointer-events: none;
 }
 
@@ -45,40 +46,32 @@
   height: 100%;
   display: block;
   object-fit: cover;
-  /* Past the edges: a corner of the map, not the whole thing made tiny. */
-  transform: scale(1.45);
-  opacity: 0.42;
-  /* The band. What is left uncovered on each side is the card itself. */
-  clip-path: polygon(32% 0%, 88% 0%, 68% 100%, 12% 100%);
 }
 
-.place-node-shell:hover .place-node__preview img {
-  opacity: 0.58;
+/* The writing keeps clear of the column and sits on paper. */
+.place-node-shell .story-node.is-map > *:not(.place-node__preview) {
+  position: relative;
+  z-index: var(--z-local);
+  margin-left: 38%;
+  padding-left: var(--space-10);
 }
 
-/* The name and the actions ride above the band. */
 .place-node-shell .story-node-card > *:not(.place-node__preview) {
   position: relative;
   z-index: var(--z-local);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .place-node__preview img {
-    transition: opacity var(--motion-fast) var(--ease-standard);
-  }
-}
-
-/* A picture behind text is exactly what a contrast preference is asking to be
-   spared, and forced colours would render it as noise. */
-@media (prefers-contrast: more) {
-  .place-node__preview {
-    display: none;
-  }
-}
-
+/* Beside the text rather than behind it, the picture costs nothing in
+   legibility -- so a contrast preference keeps it now. Forced colours would
+   still render it as noise, and there it goes. */
 @media (forced-colors: active) {
   .place-node__preview {
     display: none;
+  }
+
+  .place-node-shell .story-node.is-map > *:not(.place-node__preview) {
+    margin-left: 0;
+    padding-left: 0;
   }
 }
 
