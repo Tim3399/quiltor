@@ -4,6 +4,8 @@ import {
   Image,
   ImageOff,
   ImagePlus,
+  Lock,
+  LockOpen,
   MapPinPlus,
   MoreHorizontal,
   Ruler,
@@ -37,6 +39,9 @@ export function PlaceToolbar({
   onSnapToGridChange,
   picturesVisible,
   onPicturesVisibleChange,
+  boundToGround,
+  onBoundToGroundChange,
+  hasGround,
   onUndo,
   onRedo,
   onDuplicate,
@@ -54,6 +59,9 @@ export function PlaceToolbar({
   onSnapToGridChange: (snap: boolean) => void;
   picturesVisible: boolean;
   onPicturesVisibleChange: (visible: boolean) => void;
+  boundToGround: boolean;
+  onBoundToGroundChange: (bound: boolean) => void;
+  hasGround: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
   onDuplicate: () => void;
@@ -108,6 +116,12 @@ export function PlaceToolbar({
               icon={picturesVisible ? <ImageOff /> : <Image />}
               label={picturesVisible ? t("hideMapPictures") : t("showMapPictures")}
               onSelect={() => onPicturesVisibleChange(!picturesVisible)}
+            />
+            <MenuItem
+              disabled={!hasGround}
+              icon={boundToGround ? <Lock /> : <LockOpen />}
+              label={boundToGround ? t("unbindFromMap") : t("bindToMap")}
+              onSelect={() => onBoundToGroundChange(!boundToGround)}
             />
           </DropdownMenu>
         </WorkspaceToolbarGroup>

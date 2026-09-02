@@ -75,6 +75,9 @@ describe("workspace create-action consistency", () => {
         onSnapToGridChange={vi.fn()}
         picturesVisible
         onPicturesVisibleChange={vi.fn()}
+        boundToGround
+        onBoundToGroundChange={vi.fn()}
+        hasGround
         onUndo={vi.fn()}
         onRedo={vi.fn()}
         onDuplicate={vi.fn()}

@@ -68,6 +68,9 @@ describe("story-world action menu contracts", () => {
           onSnapToGridChange={vi.fn()}
           picturesVisible
           onPicturesVisibleChange={vi.fn()}
+          boundToGround
+          onBoundToGroundChange={vi.fn()}
+          hasGround
           onDuplicate={vi.fn()}
           onDelete={vi.fn()}
         />

@@ -87,6 +87,7 @@ export function PlaceCanvas({
         snapToGrid: controller.snapToGrid,
         snapGrid: [GRID_SIZE, GRID_SIZE],
         fitViewOptions: controller.fitViewOptions,
+        translateExtent: controller.translateExtent,
         onKeyDown: selectPlaceFromKeyboard,
         onInit: controller.onInit,
         onMove: (_, viewport) => controller.onMove(viewport),
