@@ -42,41 +42,48 @@
   position: absolute;
   z-index: var(--z-local);
   inset: 0;
-  border: var(--place-plate-hair, 1px) solid color-mix(in srgb, var(--ink) 42%, var(--transparent));
+  border: calc(var(--place-plate-hair, 1px) * 2) solid
+    color-mix(in srgb, var(--ink) 62%, var(--transparent));
   border-radius: inherit;
   box-shadow: inset 0 0 calc(var(--place-plate-band, var(--space-6)) * 2)
     color-mix(in srgb, var(--ink) 10%, var(--transparent));
   pointer-events: none;
 }
 
-/* The margin between the rules, and the ticks crossing it. Ruled at the grid's
-   own spacing and shifted by the same origin, so every tick is the end of a
-   line running under the picture rather than an ornament placed near one. */
+/* The margin between the rules, chequered.
+
+   This is the border an early modern sheet wears: the margin divided into
+   alternating dark and light blocks, so that the border is itself a scale you
+   can count along. It is not decoration borrowed from an old map -- it is what
+   the old maps were doing, which is measuring, and it lands here on the ruling
+   the surface already has: one block per grid square, ruled from the level's
+   origin, so counting the blocks along an edge counts the squares across the
+   ground. */
 .place-plate__rule::before {
   position: absolute;
   z-index: var(--z-behind);
   inset: 0;
-  background-color: color-mix(in srgb, var(--paper) 34%, var(--transparent));
+  background-color: color-mix(in srgb, var(--paper) 62%, var(--transparent));
   background-image:
     repeating-linear-gradient(
       to right,
-      color-mix(in srgb, var(--ink) 38%, var(--transparent)) 0 var(--place-plate-hair, 1px),
-      transparent var(--place-plate-hair, 1px) var(--place-plate-grid)
+      color-mix(in srgb, var(--ink) 72%, var(--transparent)) 0 var(--place-plate-grid),
+      transparent var(--place-plate-grid) calc(var(--place-plate-grid) * 2)
     ),
     repeating-linear-gradient(
       to right,
-      color-mix(in srgb, var(--ink) 38%, var(--transparent)) 0 var(--place-plate-hair, 1px),
-      transparent var(--place-plate-hair, 1px) var(--place-plate-grid)
+      color-mix(in srgb, var(--ink) 72%, var(--transparent)) 0 var(--place-plate-grid),
+      transparent var(--place-plate-grid) calc(var(--place-plate-grid) * 2)
     ),
     repeating-linear-gradient(
       to bottom,
-      color-mix(in srgb, var(--ink) 38%, var(--transparent)) 0 var(--place-plate-hair, 1px),
-      transparent var(--place-plate-hair, 1px) var(--place-plate-grid)
+      color-mix(in srgb, var(--ink) 72%, var(--transparent)) 0 var(--place-plate-grid),
+      transparent var(--place-plate-grid) calc(var(--place-plate-grid) * 2)
     ),
     repeating-linear-gradient(
       to bottom,
-      color-mix(in srgb, var(--ink) 38%, var(--transparent)) 0 var(--place-plate-hair, 1px),
-      transparent var(--place-plate-hair, 1px) var(--place-plate-grid)
+      color-mix(in srgb, var(--ink) 72%, var(--transparent)) 0 var(--place-plate-grid),
+      transparent var(--place-plate-grid) calc(var(--place-plate-grid) * 2)
     );
   background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
   background-size:
@@ -84,11 +91,14 @@
     100% var(--place-plate-band, var(--space-6)),
     var(--place-plate-band, var(--space-6)) 100%,
     var(--place-plate-band, var(--space-6)) 100%;
+  /* The two horizontal runs start half a block apart, and so do the vertical
+     ones, so opposite edges alternate against each other the way a chequy
+     border does rather than marching in step. */
   background-position:
     var(--place-plate-grid-x, 0) top,
-    var(--place-plate-grid-x, 0) bottom,
+    calc(var(--place-plate-grid-x, 0px) + var(--place-plate-grid)) bottom,
     left var(--place-plate-grid-y, 0),
-    right var(--place-plate-grid-y, 0);
+    right calc(var(--place-plate-grid-y, 0px) + var(--place-plate-grid));
   content: "";
   /* The margin is the band; the middle is picture and must stay uncovered. */
   mask-image: linear-gradient(var(--ink) 0 0), linear-gradient(var(--ink) 0 0);
@@ -108,7 +118,7 @@
   position: absolute;
   z-index: var(--z-behind);
   inset: var(--place-plate-band, var(--space-6));
-  border: var(--place-plate-hair, 1px) solid color-mix(in srgb, var(--ink) 26%, var(--transparent));
+  border: var(--place-plate-hair, 1px) solid color-mix(in srgb, var(--ink) 52%, var(--transparent));
   content: "";
 }
 
