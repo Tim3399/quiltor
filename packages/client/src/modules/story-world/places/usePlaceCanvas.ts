@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
 import { GRID_SIZE, type SemanticZoomTier, semanticZoomTier } from "../figures/relationships";
-import type { FigureNode, FigureState } from "../model";
+import type { FigureNode, FigureState, MapScale } from "../model";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
 import {
@@ -46,6 +46,7 @@ export function usePlaceCanvas({
   onCollapseMap: collapseMap,
   onExpandMap: expandMap,
   onResizeMap: resizeMap,
+  levelScale,
   onChange,
 }: {
   state: FigureState;
@@ -61,6 +62,8 @@ export function usePlaceCanvas({
   onCollapseMap: (place: FigureNode) => void;
   onExpandMap: (place: FigureNode) => void;
   onResizeMap: (place: FigureNode, size: { width: number; height: number }) => void;
+  /** What a distance on the open level means, for the map's width readout. */
+  levelScale: MapScale | undefined;
   onChange: (state: FigureState) => void;
 }): PlaceCanvasController {
   const { t } = useI18n();
@@ -141,10 +144,11 @@ export function usePlaceCanvas({
         places,
         sourceUrl: mapImageUrl,
         onCollapse: collapseMap,
-        onOpenLevel,
         onResize: resizeMap,
+        levelScale,
+        t,
       }),
-    [places, mapImageUrl, collapseMap, onOpenLevel, resizeMap],
+    [places, mapImageUrl, collapseMap, resizeMap, levelScale, t],
   );
 
   const edges = useMemo(

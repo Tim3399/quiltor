@@ -140,6 +140,7 @@ function PlacesWorkspaceInner({
     onCollapseMap: collapseMap,
     onExpandMap: expandMap,
     onResizeMap: resizeMap,
+    levelScale,
     onChange,
   });
 

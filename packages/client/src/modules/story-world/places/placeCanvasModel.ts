@@ -1,6 +1,7 @@
 import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
-import type { FigureNode } from "../model";
+import type { FigureNode, MapScale } from "../model";
+import { formatDistance } from "./placeMap";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
 import { anchoredPoint, hasLevelContents, isPlace, mapRect, spreadAnchor } from "./placeLevels";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
@@ -71,14 +72,17 @@ export function createPlaceMapNodes({
   places,
   sourceUrl,
   onCollapse,
-  onOpenLevel,
   onResize,
+  levelScale,
+  t,
 }: {
   places: FigureNode[];
   sourceUrl: (imageId: string) => string;
   onCollapse: (place: FigureNode) => void;
-  onOpenLevel: (place: FigureNode) => void;
   onResize: (place: FigureNode, size: { width: number; height: number }) => void;
+  /** Falls back to the level's scale for a map that declares none of its own. */
+  levelScale: MapScale | undefined;
+  t: Translate;
 }): PlaceMapFlowNode[] {
   return places.filter(isExpandedMap).map((place) => ({
     id: place.id,
@@ -93,8 +97,12 @@ export function createPlaceMapNodes({
       place,
       source: sourceUrl(place.mapImageId as string),
       onCollapse,
-      onOpenLevel,
       onResize,
+      measured: formatDistance(
+        place.mapWidth ?? DEFAULT_MAP_WIDTH,
+        t,
+        place.mapScale ?? levelScale,
+      ),
     },
   }));
 }

@@ -86,7 +86,16 @@ export function PlaceCanvas({
         onNodesChange: controller.onNodesChange,
         onNodeDragStop: (_, node) => controller.onNodeDragStop(node),
       }}
-      minimapProps={{ nodeColor: () => cardKindColor("ort") }}
+      minimapProps={{
+        // A laid-out map is the ground, and everything worth finding in the
+        // minimap is standing on it. Drawn at full strength it would swallow
+        // the very pins the minimap exists to show, so it recedes to a wash.
+        nodeColor: (node) =>
+          node.type === "placeMap"
+            ? `color-mix(in srgb, ${cardKindColor("ort")} 18%, transparent)`
+            : cardKindColor("ort"),
+        nodeStrokeWidth: 0,
+      }}
     >
       {!placesCount && (
         <EmptyState

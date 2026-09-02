@@ -82,3 +82,15 @@
     background: color-mix(in srgb, var(--accent-primary) 30%, var(--transparent));
   }
 }
+
+/* What the map's width comes to in the author's units. It sits beside the name
+   rather than over the picture, so reading the map is never the thing that has
+   to give way to reading its size. */
+.place-map-node__measure {
+  flex: none;
+  padding: 0 var(--space-6);
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

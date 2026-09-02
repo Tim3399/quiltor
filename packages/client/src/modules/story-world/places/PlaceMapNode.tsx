@@ -1,5 +1,5 @@
 import { type Node, NodeResizer, type NodeProps } from "@xyflow/react";
-import { ChevronsDownUp, CornerDownRight } from "lucide-react";
+import { ChevronsDownUp } from "lucide-react";
 import { IconButton } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { FigureNode } from "../model";
@@ -9,8 +9,9 @@ export type PlaceMapNodeData = {
   place: FigureNode;
   source: string;
   onCollapse: (place: FigureNode) => void;
-  onOpenLevel: (place: FigureNode) => void;
   onResize: (place: FigureNode, size: { width: number; height: number }) => void;
+  /** What this map's width comes to in the author's own units. */
+  measured: string;
 };
 
 export type PlaceMapFlowNode = Node<PlaceMapNodeData>;
@@ -21,6 +22,10 @@ export type PlaceMapFlowNode = Node<PlaceMapNodeData>;
  * It rides in the flow as a node so it pans, zooms and drags with everything
  * standing on it. Collapsing turns it back into a card without changing what it
  * is -- only how much room it takes.
+ *
+ * There is no way in from here, deliberately: laid out, the map already shows
+ * what is inside it. Going in is what a collapsed card offers, and offering both
+ * would be two doors into the same room.
  */
 export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
   const { t } = useI18n();
@@ -41,6 +46,10 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
       <img src={data.source} alt={place.name} draggable={false} />
       <figcaption className="place-map-node__bar">
         <span className="place-map-node__name">{place.name}</span>
+        {/* Resizing a map is how far it reaches across the world; saying so
+            while the handle is held is what makes that a measurement rather
+            than a guess. */}
+        <span className="place-map-node__measure">{data.measured}</span>
         <IconButton
           className="place-map-node__action nodrag nopan"
           size="compact"
@@ -50,17 +59,6 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
           onClick={(event) => {
             event.stopPropagation();
             data.onCollapse(place);
-          }}
-        />
-        <IconButton
-          className="place-map-node__action nodrag nopan"
-          size="compact"
-          appearance="ghost"
-          label={t("placeOpenLevel", { name: place.name })}
-          icon={<CornerDownRight />}
-          onClick={(event) => {
-            event.stopPropagation();
-            data.onOpenLevel(place);
           }}
         />
       </figcaption>
