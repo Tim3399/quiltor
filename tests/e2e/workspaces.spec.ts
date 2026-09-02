@@ -501,7 +501,7 @@ test("Orte behalten am 820px-Übergang die volle Kartenhöhe", async ({ page }, 
   expect(layout.flowHeight).toBeGreaterThan(400);
   expect(Math.abs(layout.flowHeight - layout.layoutHeight)).toBeLessThanOrEqual(1);
 
-  await page.getByRole("button", { name: "Ort: Nordtor", exact: true }).click();
+  await page.getByRole("group", { name: "Ort: Nordtor", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Orte-Inspector" })).toBeVisible();
   await expect(page.locator(".places-inspector")).toHaveCount(0);
 });
@@ -537,8 +537,8 @@ test("Orte teilen im Overview-LOD Marker und Prioritätspillen mit Figuren", asy
   await page.getByRole("button", { name: "Orte", exact: true }).click();
 
   await expect(page.locator(".places-flow-area")).toHaveClass(/zoom-overview/);
-  await expect(page.getByRole("button", { name: "Ort: Hafen", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ort: Leuchtturm", exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Ort: Hafen", exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Ort: Leuchtturm", exact: true })).toBeVisible();
 
   const markers = await page.locator(".places-workspace .story-node").evaluateAll((nodes) =>
     nodes.map((node) => {
