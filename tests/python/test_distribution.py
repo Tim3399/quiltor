@@ -197,6 +197,18 @@ class EmbeddedProfileTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("materialize web-self-hosted", dockerfile)
+        # The assistant's runtime and model belong in the volume, not the image
+        # layer, or a container recreate silently costs the user the download.
+        self.assertIn("ENV QUILTOR_HOME=/data/assistant", dockerfile)
+        # llama-server links against OpenMP. Without libgomp1 the assistant
+        # installs perfectly and then cannot start a single time.
+        self.assertIn("libgomp1", dockerfile)
+        self.assertIn("mkdir -p /data/assistant", dockerfile)
+        self.assertLess(
+            dockerfile.index("mkdir -p /data/assistant"),
+            dockerfile.index("USER quiltor"),
+            "the assistant root must exist and be owned before the image drops privileges",
+        )
         self.assertIn("p['id']=='web-self-hosted'", dockerfile)
         self.assertIn("distribution/web/self-hosted/requirements.lock", dockerfile)
         self.assertIn("pyjwt==2.13.0", requirements)

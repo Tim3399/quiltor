@@ -26,7 +26,7 @@ RUN test "$WEB_RUNTIME_BASE_IMAGE" = \
     "ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517" \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-      ca-certificates libstdc++6 python3 python3-venv \
+      ca-certificates libgomp1 libstdc++6 python3 python3-venv \
     && python3 -c "import platform; assert platform.python_version() == '3.12.3', platform.python_version()" \
     && rm -rf /var/lib/apt/lists/*
 
@@ -141,12 +141,18 @@ LABEL org.opencontainers.image.source="https://github.com/Tim3399/quiltor" \
 # actually restricts who can reach it.
 ENV QUILTOR_HOST=0.0.0.0
 ENV QUILTOR_DATA_DIR=/data
+# The assistant installs a llama.cpp runtime and downloads a multi-gigabyte model
+# into QUILTOR_HOME. Left at its default that root is /app, which lives in the
+# image layer: a `docker compose up --force-recreate` or any image update throws
+# both away and the user downloads them again. Inside the volume they survive.
+# Worlds are unaffected -- QUILTOR_DATA_DIR is set explicitly and wins outright.
+ENV QUILTOR_HOME=/data/assistant
 ENV PYTHONPATH=/app/src
 
 # Run as a non-root user: this container handles session cookies and OIDC secrets.
 # /data must be owned by that user *before* VOLUME is declared, since Docker seeds a
 # freshly created volume's ownership from whatever is at that path in the image.
-RUN mkdir -p /data && chown -R quiltor:quiltor /app /data
+RUN mkdir -p /data/assistant && chown -R quiltor:quiltor /app /data
 USER quiltor
 
 # Exercise the exact production path as the unprivileged runtime user. This

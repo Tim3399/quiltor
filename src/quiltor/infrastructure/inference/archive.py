@@ -6,7 +6,7 @@ import shutil
 import stat
 import tarfile
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from quiltor.infrastructure.inference.install_manifest import safe_relative_path
 
@@ -63,25 +63,128 @@ def _extract_zip(archive: Path, destination: Path) -> None:
                 _copy_bounded(source, target, member.file_size)
 
 
+def _tar_member_name(member: tarfile.TarInfo) -> str:
+    selected = member.name[:-1] if member.isdir() and member.name.endswith("/") else member.name
+    return safe_relative_path(selected).as_posix()
+
+
+def _tar_symbolic_target(member: tarfile.TarInfo) -> str:
+    """Resolve a TAR symlink lexically, without ever consulting the host filesystem."""
+
+    raw_target = member.linkname
+    if not raw_target or "\\" in raw_target or "\x00" in raw_target:
+        raise ValueError("Archive symbolic link has an invalid target.")
+    relative_target = PurePosixPath(raw_target)
+    if relative_target.is_absolute():
+        raise ValueError("Archive symbolic link target escapes the extraction directory.")
+
+    parts = list(PurePosixPath(_tar_member_name(member)).parent.parts)
+    for part in relative_target.parts:
+        if part in {"", "."}:
+            continue
+        if part == "..":
+            if not parts:
+                raise ValueError("Archive symbolic link target escapes the extraction directory.")
+            parts.pop()
+            continue
+        parts.append(part)
+    if not parts:
+        raise ValueError("Archive symbolic link has an invalid target.")
+    return safe_relative_path("/".join(parts)).as_posix()
+
+
+def _resolve_tar_symbolic_link(
+    member: tarfile.TarInfo,
+    members_by_name: dict[str, tarfile.TarInfo],
+    resolved: dict[str, tarfile.TarInfo],
+) -> tarfile.TarInfo:
+    """Follow a chain of internal symlinks down to the one regular file it names."""
+
+    current = member
+    trail: list[str] = []
+    seen: set[str] = set()
+    while current.issym():
+        current_name = _tar_member_name(current)
+        cached = resolved.get(current_name)
+        if cached is not None:
+            current = cached
+            break
+        if current_name in seen:
+            raise ValueError("Archive symbolic link cycle is not supported.")
+        seen.add(current_name)
+        trail.append(current_name)
+        target = members_by_name.get(_tar_symbolic_target(current))
+        if target is None:
+            raise ValueError("Archive symbolic link target is missing.")
+        current = target
+
+    if not current.isfile():
+        raise ValueError("Archive symbolic links must resolve to regular files.")
+    for name in trail:
+        resolved[name] = current
+    return current
+
+
 def _extract_tar(archive: Path, destination: Path) -> None:
     with tarfile.open(archive, "r:gz") as bundle:
         members = bundle.getmembers()
         if len(members) > MAX_ARCHIVE_FILES:
             raise ValueError("Archive contains too many files.")
-        if sum(member.size for member in members if member.isfile()) > MAX_EXTRACTED_BYTES:
+
+        members_by_name: dict[str, tarfile.TarInfo] = {}
+        for member in members:
+            name = _tar_member_name(member)
+            if name in members_by_name:
+                raise ValueError("Archive contains duplicate member paths.")
+            members_by_name[name] = member
+
+        # Everything is decided before a single byte is written: which members
+        # are links, what they resolve to, and how much the whole thing costs.
+        resolved: dict[str, tarfile.TarInfo] = {}
+        symbolic_links: list[tuple[tarfile.TarInfo, tarfile.TarInfo]] = []
+        for member in members:
+            if member.isdir() or member.isfile():
+                continue
+            if member.issym():
+                symbolic_links.append(
+                    (member, _resolve_tar_symbolic_link(member, members_by_name, resolved))
+                )
+                continue
+            raise ValueError("Archive hard links and special files are not supported.")
+
+        written_members = [member for member in members if member.isfile()]
+        written_members.extend(target for _, target in symbolic_links)
+        if any(member.size < 0 for member in written_members):
+            raise ValueError("Archive member exceeds the extraction limit.")
+        if sum(member.size for member in written_members) > MAX_EXTRACTED_BYTES:
             raise ValueError("Archive expands beyond the configured limit.")
+
         for member in members:
             target = _destination(destination, member.name, directory=member.isdir())
             if member.isdir():
                 target.mkdir(parents=True, exist_ok=True)
                 continue
-            if not member.isfile():
-                raise ValueError("Archive links and special files are not supported.")
+            if member.issym():
+                continue
             source = bundle.extractfile(member)
             if source is None:
                 raise ValueError("Archive member could not be read.")
             with source:
                 _copy_bounded(source, target, member.size)
+
+        # A runtime archive names its shared libraries the way every Linux
+        # distribution does: libllama.so points at libllama.so.0, which points
+        # at the real file. Those aliases are needed for the loader to find the
+        # library at all, so they are written out as ordinary copies of what
+        # they name. The staged payload stays portable that way, and no link
+        # ever exists on disk that could redirect a later extraction or copy.
+        for member, source_member in symbolic_links:
+            target = _destination(destination, member.name)
+            source = bundle.extractfile(source_member)
+            if source is None:
+                raise ValueError("Archive symbolic link target could not be read.")
+            with source:
+                _copy_bounded(source, target, source_member.size)
 
 
 def extract_archive(archive: Path, destination: Path) -> None:

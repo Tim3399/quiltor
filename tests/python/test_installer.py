@@ -1,6 +1,8 @@
 import hashlib
+import io
 import stat
 import re
+import tarfile
 import tempfile
 import threading
 import time
@@ -339,6 +341,172 @@ class InstallManifestTests(unittest.TestCase):
 
 
 class SafeArchiveTests(unittest.TestCase):
+    @staticmethod
+    def _add_tar_file(bundle, name, payload):
+        member = tarfile.TarInfo(name)
+        member.size = len(payload)
+        bundle.addfile(member, io.BytesIO(payload))
+
+    @staticmethod
+    def _add_tar_symlink(bundle, name, target):
+        member = tarfile.TarInfo(name)
+        member.type = tarfile.SYMTYPE
+        member.linkname = target
+        bundle.addfile(member)
+
+    @staticmethod
+    def _tar_with(root, build):
+        archive = root / "runtime.tar.gz"
+        with tarfile.open(archive, "w:gz") as bundle:
+            build(bundle)
+        return archive
+
+    def test_tar_extraction_materializes_internal_symbolic_link_chains(self):
+        library = b"shared-library"
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(bundle):
+                # Exactly how a llama.cpp Linux release names its libraries.
+                self._add_tar_symlink(bundle, "llama/libllama.so", "libllama.so.0")
+                self._add_tar_symlink(bundle, "llama/libllama.so.0", "libllama.so.0.0.0")
+                self._add_tar_file(bundle, "llama/libllama.so.0.0.0", library)
+                self._add_tar_file(bundle, "llama/llama-server", b"server")
+
+            destination = root / "extracted"
+            extract_archive(self._tar_with(root, build), destination)
+
+            for name in ("libllama.so", "libllama.so.0", "libllama.so.0.0.0"):
+                target = destination / "llama" / name
+                self.assertEqual(target.read_bytes(), library)
+                self.assertFalse(target.is_symlink())
+            # The copier skips symlinks, so an alias left as a link would never
+            # reach the install directory and the runtime would not load.
+            with patch.object(installer.system, "os_name", return_value="linux"):
+                payload = installer._runtime_payload_files(destination / "llama", "llama-server")
+            self.assertEqual(
+                {item.name for item in payload},
+                {"llama-server", "libllama.so", "libllama.so.0", "libllama.so.0.0.0"},
+            )
+
+    def test_tar_extraction_rejects_symbolic_links_outside_the_archive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            archive = self._tar_with(
+                root,
+                lambda bundle: self._add_tar_symlink(bundle, "llama/libllama.so", "../../outside"),
+            )
+            with self.assertRaisesRegex(ValueError, "escapes"):
+                extract_archive(archive, root / "extracted")
+            self.assertFalse((root / "outside").exists())
+
+    def test_tar_extraction_rejects_absolute_symbolic_link_targets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            archive = self._tar_with(
+                root,
+                lambda bundle: self._add_tar_symlink(bundle, "llama/libllama.so", "/etc/passwd"),
+            )
+            with self.assertRaisesRegex(ValueError, "escapes"):
+                extract_archive(archive, root / "extracted")
+
+    def test_tar_extraction_rejects_symbolic_link_cycles(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(bundle):
+                self._add_tar_symlink(bundle, "llama/liba.so", "libb.so")
+                self._add_tar_symlink(bundle, "llama/libb.so", "liba.so")
+
+            with self.assertRaisesRegex(ValueError, "cycle"):
+                extract_archive(self._tar_with(root, build), root / "extracted")
+
+    def test_tar_extraction_rejects_missing_symbolic_link_targets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            archive = self._tar_with(
+                root,
+                lambda bundle: self._add_tar_symlink(bundle, "llama/libllama.so", "libllama.so.0"),
+            )
+            with self.assertRaisesRegex(ValueError, "missing"):
+                extract_archive(archive, root / "extracted")
+
+    def test_tar_extraction_rejects_symbolic_links_to_directories(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(bundle):
+                directory = tarfile.TarInfo("llama/lib")
+                directory.type = tarfile.DIRTYPE
+                bundle.addfile(directory)
+                self._add_tar_symlink(bundle, "llama/alias", "lib")
+
+            with self.assertRaisesRegex(ValueError, "regular files"):
+                extract_archive(self._tar_with(root, build), root / "extracted")
+
+    def test_tar_extraction_rejects_duplicate_member_paths(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(bundle):
+                self._add_tar_file(bundle, "llama/llama-server", b"one")
+                self._add_tar_file(bundle, "llama/llama-server", b"two")
+
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                extract_archive(self._tar_with(root, build), root / "extracted")
+
+    def test_tar_extraction_rejects_hard_links(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(bundle):
+                self._add_tar_file(bundle, "llama/libllama.so.0", b"library")
+                member = tarfile.TarInfo("llama/libllama.so")
+                member.type = tarfile.LNKTYPE
+                member.linkname = "llama/libllama.so.0"
+                bundle.addfile(member)
+
+            with self.assertRaisesRegex(ValueError, "hard links"):
+                extract_archive(self._tar_with(root, build), root / "extracted")
+
+    def test_tar_extraction_rejects_special_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(bundle):
+                member = tarfile.TarInfo("llama/runtime.pipe")
+                member.type = tarfile.FIFOTYPE
+                bundle.addfile(member)
+
+            with self.assertRaisesRegex(ValueError, "special files"):
+                extract_archive(self._tar_with(root, build), root / "extracted")
+
+    def test_tar_extraction_counts_materialized_links_toward_the_size_limit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(bundle):
+                self._add_tar_file(bundle, "llama/libllama.so.0", b"1234")
+                self._add_tar_symlink(bundle, "llama/libllama.so", "libllama.so.0")
+
+            archive = self._tar_with(root, build)
+            with patch("quiltor.infrastructure.inference.archive.MAX_EXTRACTED_BYTES", 7):
+                with self.assertRaisesRegex(ValueError, "expands"):
+                    extract_archive(archive, root / "extracted")
+
+    def test_tar_extraction_writes_nothing_when_a_link_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(bundle):
+                self._add_tar_file(bundle, "llama/llama-server", b"server")
+                self._add_tar_symlink(bundle, "llama/libllama.so", "../../../etc/passwd")
+
+            destination = root / "extracted"
+            with self.assertRaises(ValueError):
+                extract_archive(self._tar_with(root, build), destination)
+            self.assertEqual(list(destination.rglob("*")), [])
+
     def test_zip_extraction_rejects_traversal_before_writing_outside(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
