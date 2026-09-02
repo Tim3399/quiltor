@@ -1,8 +1,8 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ConfirmDialog, Sheet, SidePanel } from "../../../design";
+import { ConfirmDialog, Sheet, SidePanel, Toast } from "../../../design";
 import { useI18n } from "../../../i18n";
-import { quiltorClient } from "../../../platform";
+import { applicationErrorMessage, quiltorClient, type StoredMapImage } from "../../../platform";
 import type { Workspace } from "../../../shared";
 import type { FigureNode, FigureState } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
@@ -55,6 +55,7 @@ function PlacesWorkspaceInner({
   // rather than remembered while descending, so arriving from a search result or
   // a backlink still shows where a place really sits.
   const [levelId, setLevelId] = useState<string | undefined>(undefined);
+  const [mapError, setMapError] = useState("");
   const [measuring, setMeasuring] = useState(false);
   const [measureSelection, setMeasureSelection] = useState<string[]>([]);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
@@ -154,8 +155,15 @@ function PlacesWorkspaceInner({
   const addMap = useCallback(async () => {
     const file = await askForMapImage();
     if (!file) return;
-    const prepared = await prepareMapImage(file);
-    const stored = await quiltorClient.application.placeMaps.store(prepared);
+    let stored: StoredMapImage;
+    try {
+      stored = await quiltorClient.application.placeMaps.store(await prepareMapImage(file));
+    } catch (error) {
+      // Silence here reads as a button that does nothing, which is the one thing
+      // a refused or failed upload must not look like.
+      setMapError(applicationErrorMessage(error));
+      return;
+    }
     const created = canvas.addPlace();
     patchPlace(created.id, {
       name: t("newMap"),
@@ -266,6 +274,15 @@ function PlacesWorkspaceInner({
         onDelete={() => setDeletePlace(selected)}
       />
       <div className={`figure-layout${places.length ? "" : " places-layout-empty"}`}>
+        {mapError && (
+          <Toast
+            className="story-world-toast"
+            tone="danger"
+            title={mapError}
+            dismissLabel={t("closeMessage")}
+            onDismiss={() => setMapError("")}
+          />
+        )}
         <PlaceCanvas
           controller={canvas}
           placesCount={places.length}

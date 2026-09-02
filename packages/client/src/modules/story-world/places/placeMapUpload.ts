@@ -59,10 +59,24 @@ export function askForMapImage(): Promise<Blob | null> {
     const picker = document.createElement("input");
     picker.type = "file";
     picker.accept = ACCEPTED_MAP_TYPES;
-    picker.addEventListener("change", () => resolve(picker.files?.[0] ?? null), { once: true });
-    // A cancelled dialog fires nothing in older browsers; `cancel` covers the
-    // rest so the promise cannot hang forever.
-    picker.addEventListener("cancel", () => resolve(null), { once: true });
+    // Out of the way but in the document: a detached input can be clicked
+    // without a browser opening anything, which looks exactly like a button
+    // that does nothing. `display: none` is not safe here for the same reason,
+    // so it is moved off-screen instead.
+    picker.style.position = "fixed";
+    picker.style.left = "-9999px";
+    picker.style.opacity = "0";
+    document.body.append(picker);
+
+    const settle = (file: Blob | null) => {
+      picker.remove();
+      resolve(file);
+    };
+    picker.addEventListener("change", () => settle(picker.files?.[0] ?? null), { once: true });
+    // A dialog dismissed without choosing fires `cancel` where it is supported;
+    // where it is not, the element is collected with the page rather than
+    // leaving the promise pending forever on a path nothing awaits.
+    picker.addEventListener("cancel", () => settle(null), { once: true });
     picker.click();
   });
 }

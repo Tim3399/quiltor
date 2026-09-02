@@ -28,6 +28,8 @@ export type {
   IdentityLogoutResult,
   ManuscriptGateway,
   MetadataGateway,
+  PlaceMapsGateway,
+  StoredMapImage,
   StoryWorldGateway,
   StoryboardsGateway,
   WorldsGateway,
