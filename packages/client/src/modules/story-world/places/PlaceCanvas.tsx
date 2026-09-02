@@ -23,8 +23,10 @@ export function PlaceCanvas({
   measureSelection,
   scale,
   trail,
+  trailScale,
   onGoToLevel,
   onSelectPlace,
+  onEnterPlace,
   onClearSelection,
   onStopMeasuring,
   onScale,
@@ -36,8 +38,11 @@ export function PlaceCanvas({
   measureSelection: string[];
   scale?: FigureState["mapScale"];
   trail: FigureNode[];
+  /** What a hundred pixels mean here, said where the level is named. */
+  trailScale: string;
   onGoToLevel: (levelId: string | undefined) => void;
   onSelectPlace: (id: string) => void;
+  onEnterPlace: (id: string) => void;
   onClearSelection: () => void;
   onStopMeasuring: () => void;
   onScale: (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => void;
@@ -73,7 +78,7 @@ export function PlaceCanvas({
       onSurfaceResize={controller.onSurfaceResize}
       overlay={
         <>
-          <PlaceLevelTrail trail={trail} onGoToLevel={onGoToLevel} />
+          <PlaceLevelTrail trail={trail} scale={trailScale} onGoToLevel={onGoToLevel} />
           {mapTools}
           {measuring ? (
             <PlaceMeasurementOverlay
@@ -94,6 +99,13 @@ export function PlaceCanvas({
         onInit: controller.onInit,
         onMove: (_, viewport) => controller.onMove(viewport),
         onNodeClick: (_, node) => onSelectPlace(node.id),
+        // The ordinary gesture for one level down, so a level can be reached
+        // without first selecting something to find out that it has one. The
+        // canvas has to give the gesture up for it: React Flow's zoom claims
+        // every double click and stops it dead before it reaches a node, and on
+        // a surface built out of levels going down beats zooming in.
+        onNodeDoubleClick: (_, node) => onEnterPlace(node.id),
+        zoomOnDoubleClick: false,
         onPaneClick: onClearSelection,
         onNodesChange: controller.onNodesChange,
         onNodeDragStop: (_, node) => controller.onNodeDragStop(node),

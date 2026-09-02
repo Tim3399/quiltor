@@ -10,7 +10,7 @@ import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
 import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
 import { DEFAULT_MAP_WIDTH, isExpandedMap } from "./placeCanvasModel";
-import { formatDistance } from "./placeMap";
+import { formatDistance, formatScale } from "./placeMap";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
 import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
 import { askForMapImage, prepareMapImage } from "./placeMapUpload";
@@ -422,8 +422,13 @@ function PlacesWorkspaceInner({
           measureSelection={measureSelection}
           scale={levelScale}
           trail={trail}
+          trailScale={formatScale(levelScale, t)}
           onGoToLevel={goToLevel}
           onSelectPlace={selectPlace}
+          onEnterPlace={(id) => {
+            const place = latestState.current.nodes.find((node) => node.id === id);
+            if (place) openLevel(place);
+          }}
           onClearSelection={() => setSelectedId(null)}
           onStopMeasuring={stopMeasuring}
           onScale={patchScale}
