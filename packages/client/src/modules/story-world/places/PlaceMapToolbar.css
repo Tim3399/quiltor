@@ -47,3 +47,21 @@
     max-width: none;
   }
 }
+
+.place-map-toolbar__scale {
+  display: grid;
+  grid-template-columns: minmax(0, 7ch) auto;
+  gap: var(--space-8) var(--space-8);
+  align-items: end;
+  padding: var(--space-12);
+}
+
+.place-map-toolbar__scale-per {
+  padding-bottom: var(--space-6);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+
+.place-map-toolbar__scale-unit {
+  grid-column: 1 / -1;
+}

@@ -356,6 +356,9 @@ function PlacesWorkspaceInner({
         onSnapToGridChange={canvas.setSnapToGrid}
         picturesVisible={canvas.picturesVisible}
         onPicturesVisibleChange={canvas.setPicturesVisible}
+        boundToGround={canvas.boundToGround}
+        onBoundToGroundChange={canvas.setBoundToGround}
+        hasGround={canvas.hasGround}
         onMeasuringToggle={() => {
           setMeasuring((value) => !value);
           setMeasureSelection([]);
@@ -400,6 +403,16 @@ function PlacesWorkspaceInner({
                 onToggleLock={() => toggleMapLock(selectedMap)}
                 onCollapse={() => collapseMap(selectedMap)}
                 onExpand={() => expandMap(selectedMap)}
+                scale={selectedMap.mapScale}
+                onScale={(patch) =>
+                  patchPlace(selectedMap.id, {
+                    mapScale: {
+                      unitsPer100px: selectedMap.mapScale?.unitsPer100px ?? 1,
+                      unitLabel: selectedMap.mapScale?.unitLabel ?? t("unitsDefault"),
+                      ...patch,
+                    },
+                  })
+                }
               />
             ) : null
           }

@@ -7,10 +7,12 @@ import {
   LockOpen,
   Minus,
   Plus,
+  Ruler,
 } from "lucide-react";
-import { IconButton } from "../../../design";
+import { IconButton, Popover, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
-import type { FigureNode } from "../model";
+import type { FigureNode, MapScale } from "../model";
+import { useRef, useState } from "react";
 import { type ImageCrop, IMAGE_ZOOM_RANGE, zoomedCrop } from "./placeImageCrop";
 import "./PlaceMapToolbar.css";
 
@@ -33,6 +35,8 @@ export function PlaceMapToolbar({
   onToggleLock,
   onCollapse,
   onExpand,
+  scale,
+  onScale,
 }: {
   map: FigureNode;
   crop: ImageCrop;
@@ -45,8 +49,13 @@ export function PlaceMapToolbar({
   onToggleLock: () => void;
   onCollapse: () => void;
   onExpand: () => void;
+  /** What a hundred pixels across this map mean, when the author has said. */
+  scale: MapScale | undefined;
+  onScale: (patch: Partial<MapScale>) => void;
 }) {
   const { t } = useI18n();
+  const scaleAnchor = useRef<HTMLButtonElement>(null);
+  const [scaleOpen, setScaleOpen] = useState(false);
   const locked = Boolean(map.pinned);
   return (
     <div className="place-map-toolbar" role="toolbar" aria-label={t("placeMapActions")}>
@@ -54,6 +63,51 @@ export function PlaceMapToolbar({
       <span className="place-map-toolbar__measure">
         {adjusting && expanded ? `${Math.round(crop.zoom * 100)} %` : measured}
       </span>
+      {/* A map carries its own scale -- a hundred pixels across a city plan and
+          a hundred across the continent it stands on are not the same distance
+          -- and the place to say which is beside the reading it decides. Laid
+          out is where a map is being read, so laid out is where it can be told
+          what it means. */}
+      {expanded && !adjusting ? (
+        <>
+          <IconButton
+            ref={scaleAnchor}
+            size="compact"
+            appearance="ghost"
+            label={t("placeMapScale", { name: map.name })}
+            icon={<Ruler />}
+            aria-haspopup="dialog"
+            aria-expanded={scaleOpen}
+            onClick={() => setScaleOpen((open) => !open)}
+          />
+          <Popover
+            anchorRef={scaleAnchor}
+            open={scaleOpen}
+            onClose={() => setScaleOpen(false)}
+            label={t("placeMapScale", { name: map.name })}
+            compactMode="popover"
+          >
+            <div className="place-map-toolbar__scale">
+              <TextField
+                fieldClassName="place-map-toolbar__scale-value"
+                label={t("scale")}
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={scale?.unitsPer100px ?? 1}
+                onChange={(event) => onScale({ unitsPer100px: Number(event.target.value) || 1 })}
+              />
+              <span className="place-map-toolbar__scale-per">{t("perHundredPx")}</span>
+              <TextField
+                fieldClassName="place-map-toolbar__scale-unit"
+                label={t("unitLabelField")}
+                value={scale?.unitLabel ?? t("unitsDefault")}
+                onChange={(event) => onScale({ unitLabel: event.target.value })}
+              />
+            </div>
+          </Popover>
+        </>
+      ) : null}
       {adjusting && expanded ? (
         <>
           {/* Buttons as well as the wheel: a trackpad's wheel is easy to miss by
