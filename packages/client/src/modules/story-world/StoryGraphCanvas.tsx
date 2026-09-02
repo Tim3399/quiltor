@@ -70,6 +70,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
         )}
         {flowChildren}
         <GraphViewportChrome<NodeType>
+          fitViewOptions={flowProps.fitViewOptions}
           minimapProps={minimapProps}
           minimapVisible={minimapVisible}
           onMinimapVisibleChange={setMinimapVisible}
