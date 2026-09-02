@@ -63,6 +63,7 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
         selected={selected}
         modifiers={[
           item.mapImageId ? "is-map" : "",
+          item.pinned ? "is-pinned" : "",
           data.measuring ? "is-measuring" : "",
           data.measureStart ? "is-measure-start" : "",
         ]}

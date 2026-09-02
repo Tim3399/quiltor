@@ -59,6 +59,7 @@
 }
 .story-node {
   box-sizing: border-box;
+  position: relative;
   width: 200px;
   height: 96px;
   min-height: 96px;
@@ -71,6 +72,27 @@
   box-shadow: var(--elevation-2) var(--node-shadow);
   font-family: var(--ui);
 }
+/* A card that cannot be moved says so, or the surface just feels broken when
+   you try. A tack: the thing that is actually holding it, small and in the
+   corner where a real one would be -- present enough to answer the question
+   without becoming another mark competing for the eye. */
+.story-node.is-pinned::after {
+  width: var(--space-6);
+  height: var(--space-6);
+  position: absolute;
+  top: var(--space-8);
+  right: var(--space-8);
+  border-radius: var(--radius-pill);
+  background:
+    radial-gradient(
+      circle at 34% 30%,
+      color-mix(in srgb, var(--paper) 70%, var(--transparent)),
+      var(--transparent) 58%
+    ),
+    color-mix(in srgb, var(--ink) 34%, var(--transparent));
+  content: "";
+}
+
 .story-node.selected {
   box-shadow:
     var(--ring-2) var(--selection-border),

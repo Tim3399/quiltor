@@ -30,7 +30,11 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
       important={!!item.important}
       dashed={!!item.dash}
       selected={selected}
-      modifiers={[data.deceased ? "is-deceased" : "", data.guests.length ? "has-guests" : ""]}
+      modifiers={[
+        data.deceased ? "is-deceased" : "",
+        data.guests.length ? "has-guests" : "",
+        item.pinned ? "is-pinned" : "",
+      ]}
     >
       <Handle
         id={GRAPH_CONNECTION_HANDLES.incoming}
