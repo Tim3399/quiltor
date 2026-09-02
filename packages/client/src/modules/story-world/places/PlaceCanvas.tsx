@@ -69,6 +69,8 @@ export function PlaceCanvas({
       }`}
       gridSize={GRID_SIZE}
       showGrid={controller.snapToGrid}
+      minZoom={controller.minZoom}
+      onSurfaceResize={controller.onSurfaceResize}
       overlay={
         <>
           <PlaceLevelTrail trail={trail} onGoToLevel={onGoToLevel} />

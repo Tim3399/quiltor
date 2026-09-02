@@ -61,6 +61,10 @@ export type PlaceCanvasController = {
   hasGround: boolean;
   /** How far the view may travel, when it is being held. */
   translateExtent: CoordinateExtent | undefined;
+  /** How far out it may go, so the sheet always fills the surface. */
+  minZoom: number | undefined;
+  /** Told how large the surface is, since the floor is measured from it. */
+  onSurfaceResize: (size: { width: number; height: number }) => void;
   onNodesChange: (changes: NodeChange<PlaceFlowNode>[]) => void;
   onNodeDragStop: (node: PlaceFlowNode) => void;
 };
@@ -153,6 +157,22 @@ export function usePlaceCanvas({
    * Only where there is a picture. A level without one is the open grid it has
    * always been, and holding a view to nothing would just be a smaller canvas.
    */
+  /**
+   * The furthest out the view may go while it is held to the ground.
+   *
+   * Exactly the scale at which the sheet fills the surface it is drawn on, so
+   * zooming out stops where the sheet stops. Measured from the surface rather
+   * than assumed, and re-measured when it changes size, because the answer is
+   * different on a phone and on a wide window.
+   */
+  const [surface, setSurface] = useState<{ width: number; height: number } | null>(null);
+  const minZoom = useMemo(() => {
+    if (!boundToGround || !levelGround || !surface) return undefined;
+    if (!(levelGround.width > 0) || !(levelGround.height > 0)) return undefined;
+    const fills = Math.max(surface.width / levelGround.width, surface.height / levelGround.height);
+    return Number.isFinite(fills) && fills > 0 ? fills : undefined;
+  }, [boundToGround, levelGround, surface]);
+
   const translateExtent = useMemo<CoordinateExtent | undefined>(() => {
     if (!boundToGround || !levelGround) return undefined;
     return [
@@ -481,6 +501,8 @@ export function usePlaceCanvas({
     setBoundToGround,
     hasGround: Boolean(levelGround),
     translateExtent,
+    minZoom,
+    onSurfaceResize: setSurface,
     onNodesChange: (changes) => {
       // A map is derived from the level rather than held in the flow's own list,
       // so applyNodeChanges has nothing to apply its movement to. Catching the

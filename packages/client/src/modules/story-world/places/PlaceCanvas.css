@@ -8,11 +8,14 @@
    the surface itself, so the eye reads the sheet as the whole of the place
    rather than as one more thing lying on a canvas that carries on past it. */
 .places-flow-area.is-bound-to-ground {
-  background: color-mix(in srgb, var(--ink) 7%, var(--canvas));
+  background: color-mix(in srgb, var(--ink) 17%, var(--canvas));
 }
 
+/* No ruling out here. The grid belongs to the sheet, and a surround without one
+   next to a sheet with one says where the map ends more plainly than any line
+   drawn round it -- which is the whole reason there is no longer a line. */
 .places-flow-area.is-bound-to-ground .react-flow__background {
-  opacity: 0.35;
+  display: none;
 }
 
 @media (prefers-contrast: more) {
