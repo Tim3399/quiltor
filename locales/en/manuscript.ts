@@ -116,4 +116,5 @@ export const manuscript = {
   updateEntityMentionsDescription:
     "“{from}” was renamed to “{to}”. Replace all linked occurrences in the manuscript?",
   updateMentions: "Replace occurrences",
+  openEntity: "Open {name}",
 } as const;

@@ -1,0 +1,71 @@
+/* The card behind a name in the manuscript.
+
+   Laid out like the identity block of a board card, because that is what it is:
+   the kind above in small capitals, the name in the prose face, the description
+   under it, and the element's own colour carried down the leading edge so the
+   thing recognised in the text is visibly the thing on the board. */
+.entity-mention-card {
+  min-width: var(--popover-min);
+  max-width: 34ch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-12);
+  padding: var(--space-10) var(--space-12) var(--space-10) var(--space-14);
+  border-left: var(--space-2) solid var(--graph-card-kind-color, var(--line-strong));
+  border-radius: inherit;
+  background: linear-gradient(
+    to right,
+    var(--graph-card-kind-surface, var(--transparent)),
+    var(--transparent) var(--space-48)
+  );
+}
+
+.entity-mention-card__kind {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  font-weight: 650;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.entity-mention-card__name {
+  min-width: 0;
+  grid-column: 1;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--prose);
+  font-size: var(--font-size-3);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-mention-card__detail {
+  grid-column: 1;
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+
+/* Beside the words rather than under them: the card is read left to right and
+   the way through belongs at the end of that, not after a line break. */
+.entity-mention-card__open {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  align-self: center;
+}
+
+@media (prefers-contrast: more) {
+  .entity-mention-card {
+    background: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .entity-mention-card {
+    border-left-color: CanvasText;
+    background: none;
+  }
+}

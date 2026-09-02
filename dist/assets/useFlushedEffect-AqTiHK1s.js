@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-Bh1tDfsg.js";import{At as t}from"./i18n-2bkhAZ0n.js";var n=e(t(),1);function r(e,t){(0,n.useEffect)(()=>{e().then(t)},[e])}export{r as t};

@@ -6,7 +6,9 @@ import {
   placeholder as placeholderExtension,
 } from "@codemirror/view";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { FigureNode } from "../story-world";
+import { EntityMentionCard, type EntityMentionDescription } from "./EntityMentionCard";
 import {
   createdMention,
   type EditorCompletion,
@@ -63,6 +65,7 @@ export function ManuscriptEditor({
   onIssue,
   onOpenEntity,
   describeEntity = (entity) => entity.sub || entity.label || "",
+  describeMention,
 }: {
   value: string;
   label: string;
@@ -85,6 +88,8 @@ export function ManuscriptEditor({
   onIssue?: (issue: WritingIssue) => void;
   onOpenEntity?: (entity: FigureNode) => void;
   describeEntity?: (entity: FigureNode) => string;
+  /** What the hover card says about a mention, composed where the words live. */
+  describeMention?: (entity: FigureNode) => EntityMentionDescription;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -106,6 +111,14 @@ export function ManuscriptEditor({
   issueRef.current = onIssue;
   openEntityRef.current = onOpenEntity;
   describeEntityRef.current = describeEntity;
+  const describeMentionRef = useRef(describeMention);
+  describeMentionRef.current = describeMention;
+  // The card is React's, rendered through the node CodeMirror hands over, so
+  // the design system owns it the same way it owns every other surface.
+  const [mentionCard, setMentionCard] = useState<{
+    host: HTMLElement;
+    entity: FigureNode;
+  } | null>(null);
   vocabularyRef.current = vocabulary;
   mentionsRef.current = mentions || [];
   marksRef.current = marks || [];
@@ -189,19 +202,13 @@ export function ManuscriptEditor({
               above: true,
               create: () => {
                 const dom = document.createElement("div");
-                dom.className = "entity-mention-card";
-                const title = document.createElement("strong");
-                title.textContent = entity.name;
-                const detail = document.createElement("span");
-                detail.textContent = describeEntityRef.current(entity);
-                const button = document.createElement("button");
-                button.className = "entity-mention-card__open";
-                button.type = "button";
-                button.textContent = "→";
-                button.setAttribute("aria-label", entity.name);
-                button.addEventListener("click", () => openEntityRef.current?.(entity));
-                dom.append(title, detail, button);
-                return { dom };
+                dom.className = "entity-mention-host";
+                setMentionCard({ host: dom, entity });
+                return {
+                  dom,
+                  destroy: () =>
+                    setMentionCard((current) => (current?.host === dom ? null : current)),
+                };
               },
             };
           }),
@@ -456,6 +463,16 @@ export function ManuscriptEditor({
           </span>
         </div>
       )}
+      {mentionCard &&
+        describeMention &&
+        createPortal(
+          <EntityMentionCard
+            entity={mentionCard.entity}
+            description={describeMention(mentionCard.entity)}
+            onOpen={() => onOpenEntity?.(mentionCard.entity)}
+          />,
+          mentionCard.host,
+        )}
     </div>
   );
 }

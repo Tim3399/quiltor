@@ -435,6 +435,11 @@ export function EditorSurface({
               describeEntity={(node: FigureNode) =>
                 `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ""}`
               }
+              describeMention={(node: FigureNode) => ({
+                kind: kindLabel(node.type, t),
+                detail: node.sub ?? "",
+                openLabel: t("openEntity", { name: node.name }),
+              })}
             />
           </div>
           {historyOpen && (

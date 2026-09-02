@@ -118,4 +118,5 @@ export const manuscript = {
   updateEntityMentionsDescription:
     "„{from}“ wurde in „{to}“ umbenannt. Sollen alle verknüpften Vorkommen im Manuskript ersetzt werden?",
   updateMentions: "Vorkommen ersetzen",
+  openEntity: "{name} öffnen",
 } as const;
