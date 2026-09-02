@@ -439,4 +439,21 @@ describe("a map coming to rest", () => {
   it("lands where it was dropped when nothing is ruled", () => {
     expect(drop({ x: 137, y: 70 }, 0)).toEqual({ mapX: 137, mapY: 70 });
   });
+
+  it("leaves a place exactly where it was dropped, ruling or no ruling", () => {
+    // Only ground is ruled. A place is anchored as a fraction of whatever it
+    // stands on, so rounding its corner would fight the thing holding it there.
+    const place: FigureNode = { id: "p", x: 0, y: 0, name: "Hafen", type: "ort" };
+    expect(
+      placementForDrop({
+        dragged: place,
+        nodes: [place],
+        maps: [],
+        levelId: undefined,
+        position: { x: 137, y: 70 },
+        size: { width: 200, height: 80 },
+        grid: 48,
+      }),
+    ).toMatchObject({ mapX: 137, mapY: 70 });
+  });
 });
