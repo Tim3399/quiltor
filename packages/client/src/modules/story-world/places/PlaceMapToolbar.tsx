@@ -68,10 +68,11 @@ export function PlaceMapToolbar({
       </span>
       {/* A map carries its own scale -- a hundred pixels across a city plan and
           a hundred across the continent it stands on are not the same distance
-          -- and the place to say which is beside the reading it decides. Laid
-          out is where a map is being read, so laid out is where it can be told
-          what it means. */}
-      {expanded && !adjusting ? (
+          -- and the place to say which is beside the reading it decides. It
+          describes the sheet, not the way the sheet is being shown, so it is
+          reachable whether the map is laid out or sitting as a card; only while
+          the picture is being adjusted does the reading mean something else. */}
+      {adjusting ? null : (
         <>
           <IconButton
             ref={scaleAnchor}
@@ -110,7 +111,7 @@ export function PlaceMapToolbar({
             </div>
           </Popover>
         </>
-      ) : null}
+      )}
       {adjusting && expanded ? (
         <>
           {/* Buttons as well as the wheel: a trackpad's wheel is easy to miss by
