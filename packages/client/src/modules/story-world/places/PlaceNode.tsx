@@ -75,7 +75,8 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
           </span>
         ) : null}
         <StoryNodeIdentity
-          kindLabel={t("place")}
+          // It says what it is. A sheet you lay places onto is not one of them.
+          kindLabel={item.mapImageId ? t("mapKind") : t("place")}
           name={item.name}
           leading={
             item.important ? (

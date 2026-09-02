@@ -4,6 +4,7 @@ export const places = {
   newMap: "New map",
   placeCollapseMap: "Collapse {name}",
   placeExpandMap: "Expand {name}",
+  mapKind: "Map",
   placeViewMenu: "View",
   hideMapPictures: "Hide map pictures",
   showMapPictures: "Show map pictures",

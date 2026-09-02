@@ -4,6 +4,7 @@ export const places = {
   newMap: "Neue Karte",
   placeCollapseMap: "{name} einklappen",
   placeExpandMap: "{name} aufklappen",
+  mapKind: "Karte",
   placeViewMenu: "Ansicht",
   hideMapPictures: "Kartenbilder ausblenden",
   showMapPictures: "Kartenbilder einblenden",
