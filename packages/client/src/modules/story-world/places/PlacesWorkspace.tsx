@@ -403,6 +403,7 @@ function PlacesWorkspaceInner({
                 onToggleLock={() => toggleMapLock(selectedMap)}
                 onCollapse={() => collapseMap(selectedMap)}
                 onExpand={() => expandMap(selectedMap)}
+                onEnter={() => openLevel(selectedMap)}
                 scale={selectedMap.mapScale}
                 onScale={(patch) =>
                   patchPlace(selectedMap.id, {

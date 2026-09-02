@@ -2,6 +2,7 @@ import {
   Check,
   ChevronsDownUp,
   ChevronsUpDown,
+  CornerDownRight,
   Crop,
   Lock,
   LockOpen,
@@ -35,6 +36,7 @@ export function PlaceMapToolbar({
   onToggleLock,
   onCollapse,
   onExpand,
+  onEnter,
   scale,
   onScale,
 }: {
@@ -49,6 +51,7 @@ export function PlaceMapToolbar({
   onToggleLock: () => void;
   onCollapse: () => void;
   onExpand: () => void;
+  onEnter: () => void;
   /** What a hundred pixels across this map mean, when the author has said. */
   scale: MapScale | undefined;
   onScale: (patch: Partial<MapScale>) => void;
@@ -162,6 +165,16 @@ export function PlaceMapToolbar({
             }
             icon={locked ? <Lock /> : <LockOpen />}
             onClick={onToggleLock}
+          />
+          {/* The way in, in the bar rather than on the sheet: entering a map is
+              something an author decides to do, not a door standing open on
+              every surface it happens to be lying on. */}
+          <IconButton
+            size="compact"
+            appearance="ghost"
+            label={t("placeOpenLevel", { name: map.name })}
+            icon={<CornerDownRight />}
+            onClick={onEnter}
           />
           <IconButton
             size="compact"
