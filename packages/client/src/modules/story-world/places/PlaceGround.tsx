@@ -1,4 +1,5 @@
 import type { Node, NodeProps } from "@xyflow/react";
+import "./PlacePlate.css";
 import "./PlaceGround.css";
 
 export type PlaceGroundData = {
@@ -29,6 +30,12 @@ export function PlaceGround({ data }: NodeProps<PlaceGroundNode>) {
     >
       <img src={data.source} alt={data.title} draggable={false} />
       <span className="place-ground__grid" aria-hidden="true" />
+      <span className="place-plate__rule" aria-hidden="true">
+        <span className="place-plate__stud" />
+        <span className="place-plate__stud" />
+        <span className="place-plate__stud" />
+        <span className="place-plate__stud" />
+      </span>
     </div>
   );
 }

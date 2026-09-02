@@ -3,10 +3,13 @@
   height: 100%;
   position: relative;
   overflow: hidden;
+  /* The same mat as a laid-out map, so entering one shows the same object from
+     closer rather than a different thing. No shadow: down here it is the ground
+     rather than something resting on it. */
+  padding: var(--space-8);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--panel);
-  box-shadow: var(--shadow);
   pointer-events: none;
 }
 
@@ -23,7 +26,7 @@
    the same flow units so the two read as one surface. */
 .place-ground__grid {
   position: absolute;
-  inset: 0;
+  inset: var(--space-8);
   background-image:
     linear-gradient(to right, var(--line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--line) 1px, transparent 1px);

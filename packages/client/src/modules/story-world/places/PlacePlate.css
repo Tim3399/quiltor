@@ -1,0 +1,78 @@
+/* The plate a map is mounted on.
+ *
+ * A map is the one thing in a world that was drawn rather than written, so it
+ * gets the treatment an engraved plate would have: a mat of paper around the
+ * picture, a neat line ruled just inside it, and a block set on its point where
+ * the rules meet -- the corner block of a quilt, which is the house it lives in.
+ *
+ * Shared by the map laid out on a surface and by the same map entered as the
+ * ground under one, so both read as the same object seen from different
+ * distances. */
+
+.place-plate__rule {
+  position: absolute;
+  z-index: var(--z-local);
+  /* Inside the mat, so paper shows between the picture and the outer edge. */
+  inset: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 42%, var(--transparent));
+  border-radius: var(--radius-xs);
+  pointer-events: none;
+}
+
+.place-plate__stud {
+  width: var(--space-6);
+  height: var(--space-6);
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 55%, var(--transparent));
+  background: var(--panel);
+  /* Set on its point: a quilt block, not a bullet. */
+  transform: rotate(45deg);
+}
+
+.place-plate__stud:nth-child(1) {
+  top: calc(var(--space-6) / -2);
+  left: calc(var(--space-6) / -2);
+}
+
+.place-plate__stud:nth-child(2) {
+  top: calc(var(--space-6) / -2);
+  right: calc(var(--space-6) / -2);
+}
+
+.place-plate__stud:nth-child(3) {
+  bottom: calc(var(--space-6) / -2);
+  left: calc(var(--space-6) / -2);
+}
+
+.place-plate__stud:nth-child(4) {
+  bottom: calc(var(--space-6) / -2);
+  right: calc(var(--space-6) / -2);
+}
+
+/* Selected, the rule is what brightens -- the ornament stays where it is, so
+   selection reads as attention rather than as decoration piled on decoration. */
+.is-selected > .place-plate__rule {
+  border-color: color-mix(in srgb, var(--accent-primary) 85%, var(--transparent));
+}
+
+/* Ornament is the first thing a contrast preference should be spared, and
+   forced colours would render the studs as opaque blocks over the picture. */
+@media (prefers-contrast: more) {
+  .place-plate__rule {
+    border-color: var(--ink);
+  }
+
+  .place-plate__stud {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .place-plate__rule {
+    border-color: CanvasText;
+  }
+
+  .place-plate__stud {
+    display: none;
+  }
+}

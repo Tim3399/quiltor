@@ -3,6 +3,7 @@ import { ChevronsDownUp } from "lucide-react";
 import { IconButton } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { FigureNode } from "../model";
+import "./PlacePlate.css";
 import "./PlaceMapNode.css";
 
 export type PlaceMapNodeData = {
@@ -43,6 +44,12 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
         lineClassName="place-map-node__line"
         onResizeEnd={(_, size) => data.onResize(place, { width: size.width, height: size.height })}
       />
+      <span className="place-plate__rule" aria-hidden="true">
+        <span className="place-plate__stud" />
+        <span className="place-plate__stud" />
+        <span className="place-plate__stud" />
+        <span className="place-plate__stud" />
+      </span>
       <img src={data.source} alt={place.name} draggable={false} />
       <figcaption className="place-map-node__bar">
         <span className="place-map-node__name">{place.name}</span>

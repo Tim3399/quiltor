@@ -89,6 +89,20 @@ export function usePlaceCanvas({
   const latestGround = useRef(levelGround);
   latestGround.current = levelGround;
 
+  // Arriving on a level should show what is on it, at the size it deserves:
+  // without this you land at whatever zoom the level above happened to be at,
+  // and a map entered from a distant view opens as a postage stamp.
+  //
+  // Armed on the change and spent once the new level's nodes have actually been
+  // handed to the flow -- fitting before that would frame the level you just
+  // left, which is what a plain timeout ends up doing.
+  const pendingFit = useRef(false);
+  const previousLevel = useRef(levelId);
+  if (previousLevel.current !== levelId) {
+    previousLevel.current = levelId;
+    pendingFit.current = true;
+  }
+
   const derivedNodes = useMemo(
     () =>
       createPlaceFlowNodes({
@@ -120,6 +134,27 @@ export function usePlaceCanvas({
   );
   const [nodes, setFlowNodes] = useState<PlaceFlowNode[]>(derivedNodes);
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
+  // Keyed on what the flow actually renders rather than on what was derived for
+  // it: the derived list changes a commit earlier, and fitting then would frame
+  // the level just left. The short wait on top gives React Flow time to measure
+  // the new nodes, without which the fit has nothing to fit to.
+  //
+  // A timer rather than an animation frame, and no animation on the fit itself:
+  // both hang on frames a backgrounded tab never runs, and arriving somewhere
+  // should have framed it by the time it is looked at rather than travelling
+  // there once it is.
+  //
+  // The flag is spent when the fit runs, not when it is scheduled: strict mode
+  // runs an effect, cleans it up and runs it again, and spending it up front
+  // left the first attempt cancelled and the second with nothing to do.
+  useEffect(() => {
+    if (!pendingFit.current || nodes.length === 0) return;
+    const settle = window.setTimeout(() => {
+      pendingFit.current = false;
+      flow.current?.fitView({ padding: 0.12 });
+    }, 60);
+    return () => window.clearTimeout(settle);
+  }, [nodes]);
 
   // Maps are derived rather than kept in the dragging state: rebuilding them
   // from the level makes a freshly created map appear at once instead of waiting

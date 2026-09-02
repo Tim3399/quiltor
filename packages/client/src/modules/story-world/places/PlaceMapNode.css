@@ -6,7 +6,8 @@
   flex-direction: column;
   margin: 0;
   overflow: hidden;
-  /* A sheet laid on the surface, not pixels bleeding into the grid behind it. */
+  /* A mat of paper around the picture: the sheet is mounted, not cropped. */
+  padding: var(--space-8) var(--space-8) 0;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--panel);
@@ -29,13 +30,15 @@
   user-select: none;
 }
 
+/* The plate's label: what an engraver would have cut along the bottom edge. */
 .place-map-node__bar {
   min-width: 0;
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--space-6);
-  padding: var(--space-4) var(--space-6);
+  margin: var(--space-6) calc(var(--space-8) * -1) 0;
+  padding: var(--space-5) var(--space-10);
   border-top: 1px solid var(--line);
   background: var(--panel);
 }
@@ -46,7 +49,9 @@
   overflow: hidden;
   color: var(--ink);
   font: 600 var(--font-size-2) var(--prose);
+  letter-spacing: 0.06em;
   text-overflow: ellipsis;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
