@@ -365,3 +365,35 @@ describe("where a drag leaves a place", () => {
     expect(placement.parentPlaceId).toBe("welt");
   });
 });
+
+describe("a level that is itself a picture", () => {
+  const grund = { x: 0, y: 0, width: 400, height: 200 };
+  const frei = place("frei");
+
+  it("holds a place against the picture rather than placing it outright", () => {
+    expect(
+      placementForDrop({
+        dragged: frei,
+        nodes: [frei],
+        maps: [],
+        levelId: "rom",
+        levelGround: grund,
+        position: { x: 90, y: 40 },
+        size: { width: 20, height: 20 },
+      }),
+    ).toEqual({ parentPlaceId: "rom", mapU: 0.25, mapV: 0.25 });
+  });
+
+  it("still places outright on a level with no picture under it", () => {
+    expect(
+      placementForDrop({
+        dragged: frei,
+        nodes: [frei],
+        maps: [],
+        levelId: "rom",
+        position: { x: 90, y: 40 },
+        size: { width: 20, height: 20 },
+      }),
+    ).toMatchObject({ parentPlaceId: "rom", mapX: 90, mapY: 40 });
+  });
+});

@@ -2,8 +2,16 @@ import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode, MapScale } from "../model";
 import { formatDistance } from "./placeMap";
+import type { PlaceGroundNode } from "./PlaceGround";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
-import { anchoredPoint, hasLevelContents, isPlace, mapRect, spreadAnchor } from "./placeLevels";
+import {
+  anchoredPoint,
+  hasLevelContents,
+  isPlace,
+  type LevelRect,
+  mapRect,
+  spreadAnchor,
+} from "./placeLevels";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
 
 export function createPlaceFlowNodes({
@@ -14,6 +22,7 @@ export function createPlaceFlowNodes({
   onOpenLevel,
   onExpandMap,
   sourceUrl,
+  host,
   zoomTier,
   viewportZoom,
   t,
@@ -21,6 +30,14 @@ export function createPlaceFlowNodes({
   /** Every node in the world: what is inside a place lives outside this level. */
   nodes: FigureNode[];
   places: FigureNode[];
+  /**
+   * The ground these places stand on, when there is one.
+   *
+   * Given, positions come from each place's normalised anchor, which is what
+   * carries them along when that ground is moved or resized. Absent -- a bare
+   * grid with no picture under it -- they are placed outright.
+   */
+  host?: LevelRect;
   measuring: boolean;
   measureSelection: string[];
   onOpenLevel: (place: FigureNode) => void;
@@ -30,28 +47,31 @@ export function createPlaceFlowNodes({
   viewportZoom: number;
   t: Translate;
 }): PlaceFlowNode[] {
-  return places
-    .filter((place) => !isExpandedMap(place))
-    .map((place) => ({
-      id: place.id,
-      type: "place",
-      position: placePosition(place),
-      draggable: !place.pinned,
-      ariaLabel: t("placeNodeLabel", { name: place.name }),
-      ariaRole: "button",
-      data: {
-        place,
-        measuring,
-        measureStart:
-          measuring && measureSelection.length === 1 && measureSelection[0] === place.id,
-        filled: hasLevelContents(nodes, place.id),
-        ...(place.mapImageId ? { mapPreview: sourceUrl(place.mapImageId) } : {}),
-        onOpenLevel,
-        onExpandMap,
-        zoomTier,
-        zoom: viewportZoom,
-      },
-    }));
+  const standing = places.filter((place) => !isExpandedMap(place));
+  // Places made before this ground existed carry no anchor. Without a guess
+  // they would all take the default one and pile up in a single spot.
+  const guesses = new Map(
+    standing.map((place, index) => [place.id, spreadAnchor(index, standing.length)]),
+  );
+  return standing.map((place) => ({
+    id: place.id,
+    type: "place",
+    position: host ? anchoredPoint(place, host, guesses.get(place.id)) : placePosition(place),
+    draggable: !place.pinned,
+    ariaLabel: t("placeNodeLabel", { name: place.name }),
+    ariaRole: "button",
+    data: {
+      place,
+      measuring,
+      measureStart: measuring && measureSelection.length === 1 && measureSelection[0] === place.id,
+      filled: hasLevelContents(nodes, place.id),
+      ...(place.mapImageId ? { mapPreview: sourceUrl(place.mapImageId) } : {}),
+      onOpenLevel,
+      onExpandMap,
+      zoomTier,
+      zoom: viewportZoom,
+    },
+  }));
 }
 
 /** How wide a new map is drawn before anybody resizes it, in flow units. */
@@ -138,33 +158,63 @@ export function createPinNodes({
   viewportZoom: number;
   t: Translate;
 }): PlaceFlowNode[] {
-  return maps.flatMap((map) => {
-    const rect = mapRect(map);
-    const standing = nodes.filter((node) => isPlace(node) && node.parentPlaceId === map.id);
-    // A level opened out into a map for the first time has places on it that
-    // never needed an anchor. Without a guess they would all take the default
-    // one and pile up in the middle.
-    const guesses = new Map(
-      standing.map((place, index) => [place.id, spreadAnchor(index, standing.length)]),
-    );
-    return createPlaceFlowNodes({
+  return maps.flatMap((map) =>
+    createPlaceFlowNodes({
       nodes,
-      places: standing,
+      places: nodes.filter((node) => isPlace(node) && node.parentPlaceId === map.id),
       measuring,
       measureSelection,
       onOpenLevel,
       onExpandMap,
       sourceUrl,
+      host: mapRect(map),
       zoomTier,
       viewportZoom,
       t,
-    }).map((pin) => ({
-      ...pin,
-      position: anchoredPoint(
-        nodes.find((node) => node.id === pin.id) as FigureNode,
-        rect,
-        guesses.get(pin.id),
-      ),
-    }));
-  });
+    }),
+  );
+}
+
+/** Where the open level's own picture is laid, when it carries one. */
+export function groundRect(level: FigureNode | undefined): LevelRect | undefined {
+  if (!level?.mapImageId) return undefined;
+  return {
+    x: 0,
+    y: 0,
+    width: level.mapWidth ?? DEFAULT_MAP_WIDTH,
+    height: level.mapHeight ?? DEFAULT_MAP_WIDTH,
+  };
+}
+
+/**
+ * The picture under everything on the open level.
+ *
+ * Entering a map lands you on that map rather than on the bare grid it was filed
+ * under, and the places it holds are then positioned against this rectangle.
+ */
+export function createGroundNode({
+  level,
+  sourceUrl,
+  gridSize,
+}: {
+  level: FigureNode | undefined;
+  sourceUrl: (imageId: string) => string;
+  gridSize: number;
+}): PlaceGroundNode | undefined {
+  const rect = groundRect(level);
+  if (!rect || !level?.mapImageId) return undefined;
+  return {
+    id: `ground:${level.id}`,
+    type: "placeGround",
+    position: { x: rect.x, y: rect.y },
+    width: rect.width,
+    height: rect.height,
+    draggable: false,
+    selectable: false,
+    focusable: false,
+    deletable: false,
+    // Under the maps, which are themselves under the cards.
+    zIndex: -2,
+    data: { source: sourceUrl(level.mapImageId), title: level.name, gridSize },
+  };
 }

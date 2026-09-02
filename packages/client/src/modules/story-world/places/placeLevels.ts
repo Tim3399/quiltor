@@ -300,6 +300,7 @@ export function placementForDrop({
   nodes,
   maps,
   levelId,
+  levelGround,
   position,
   size,
 }: {
@@ -308,6 +309,8 @@ export function placementForDrop({
   /** The maps laid out on the open level. */
   maps: readonly FigureNode[];
   levelId: string | undefined;
+  /** The picture the open level stands on, when it carries one. */
+  levelGround?: LevelRect;
   /** The dragged card's top-left corner, in flow units. */
   position: { x: number; y: number };
   size?: { width?: number; height?: number };
@@ -324,6 +327,12 @@ export function placementForDrop({
   if (host && !wouldCycle(nodes, dragged.id, host.id)) {
     const anchor = anchorForPoint(centre, mapRect(host));
     return { parentPlaceId: host.id, mapU: anchor.u, mapV: anchor.v };
+  }
+  // Off every laid-out map, but the level itself may be a picture -- and then
+  // everything on it is held against that picture just the same.
+  if (levelGround) {
+    const anchor = anchorForPoint(centre, levelGround);
+    return { parentPlaceId: levelId, mapU: anchor.u, mapV: anchor.v };
   }
   return { parentPlaceId: levelId, mapX: x, mapY: y, mapU: undefined, mapV: undefined };
 }

@@ -12,18 +12,21 @@ import { uid } from "../../../shared/id";
 import { GRID_SIZE, type SemanticZoomTier, semanticZoomTier } from "../figures/relationships";
 import type { FigureNode, FigureState, MapScale } from "../model";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
+import type { PlaceGroundNode } from "./PlaceGround";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
 import {
+  createGroundNode,
   createPinNodes,
   createPlaceFlowNodes,
   createPlaceMapNodes,
+  groundRect,
   isExpandedMap,
 } from "./placeCanvasModel";
 import { createPlaceMeasurementEdges } from "./placeMeasurementGraph";
 import { placementForDrop } from "./placeLevels";
 
 export type PlaceCanvasController = {
-  nodes: (PlaceFlowNode | PlaceMapFlowNode)[];
+  nodes: (PlaceFlowNode | PlaceMapFlowNode | PlaceGroundNode)[];
   edges: Edge[];
   zoomTier: SemanticZoomTier;
   addPlace: () => FigureNode;
@@ -74,6 +77,18 @@ export function usePlaceCanvas({
   const latestState = useRef(state);
   latestState.current = state;
 
+  const level = useMemo(
+    () => (levelId ? state.nodes.find((node) => node.id === levelId) : undefined),
+    [state.nodes, levelId],
+  );
+  const ground = useMemo(
+    () => createGroundNode({ level, sourceUrl: mapImageUrl, gridSize: GRID_SIZE }),
+    [level, mapImageUrl],
+  );
+  const levelGround = useMemo(() => groundRect(level), [level]);
+  const latestGround = useRef(levelGround);
+  latestGround.current = levelGround;
+
   const derivedNodes = useMemo(
     () =>
       createPlaceFlowNodes({
@@ -84,6 +99,7 @@ export function usePlaceCanvas({
         onOpenLevel,
         onExpandMap: expandMap,
         sourceUrl: mapImageUrl,
+        host: levelGround,
         zoomTier,
         viewportZoom,
         t,
@@ -91,6 +107,7 @@ export function usePlaceCanvas({
     [
       state.nodes,
       places,
+      levelGround,
       measuring,
       measureSelection,
       onOpenLevel,
@@ -194,6 +211,7 @@ export function usePlaceCanvas({
         nodes: current.nodes,
         maps: latestMaps.current,
         levelId,
+        levelGround: latestGround.current,
         position: { x, y },
         size: node.measured,
       });
@@ -210,7 +228,7 @@ export function usePlaceCanvas({
   );
 
   return {
-    nodes: [...maps, ...nodes, ...pins],
+    nodes: [...(ground ? [ground] : []), ...maps, ...nodes, ...pins],
     edges,
     zoomTier,
     addPlace: () => {

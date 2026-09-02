@@ -10,6 +10,7 @@ import type { FigureNode, FigureState } from "../model";
 import { StoryGraphCanvas } from "../StoryGraphCanvas";
 import { PlaceLevelTrail } from "./PlaceLevelTrail";
 import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
+import { PlaceGround } from "./PlaceGround";
 import { PlaceMapNode } from "./PlaceMapNode";
 import { type PlaceFlowNode, placeNodeTypes } from "./PlaceNode";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
@@ -76,7 +77,7 @@ export function PlaceCanvas({
         </>
       }
       flowProps={{
-        nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode },
+        nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode, placeGround: PlaceGround },
         nodesConnectable: true,
         onKeyDown: selectPlaceFromKeyboard,
         onInit: controller.onInit,

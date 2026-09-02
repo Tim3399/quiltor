@@ -1,0 +1,48 @@
+.place-ground {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+.place-ground img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* The same lines the canvas draws beyond the picture's edges, laid over it in
+   the same flow units so the two read as one surface. */
+.place-ground__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: var(--place-ground-grid) var(--place-ground-grid);
+  opacity: 0.45;
+}
+
+@media (prefers-contrast: more) {
+  .place-ground__grid {
+    opacity: 0.8;
+  }
+}
+
+@media (forced-colors: active) {
+  .place-ground {
+    border-color: CanvasText;
+  }
+
+  .place-ground__grid {
+    display: none;
+  }
+}
