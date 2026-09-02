@@ -13,12 +13,20 @@ export type PlaceMeasurementPoint = IdentifiedMapPoint & { name: string };
 export function createPlaceMeasurementEdges({
   points,
   selection,
-  scale,
+  scaleFor,
   t,
 }: {
   points: PlaceMeasurementPoint[];
   selection: string[];
-  scale?: FigureState["mapScale"];
+  /**
+   * What a distance between these two means, which is not one answer.
+   *
+   * A map carries its own scale: a hundred pixels across a city plan and a
+   * hundred pixels across the continent it stands on are not the same distance,
+   * and reading both in the same units would be a lie the surface tells
+   * confidently. So the pair decides, not the level.
+   */
+  scaleFor: (from: string, to: string) => FigureState["mapScale"];
   t: Translate;
 }): Edge[] {
   const pairs = new Map(nearestMapDistances(points).map((pair) => [pair.id, pair]));
@@ -29,7 +37,7 @@ export function createPlaceMeasurementEdges({
 
   const names = new Map(points.map((point) => [point.id, point.name]));
   return [...pairs.values()].map((pair) => {
-    const distance = formatDistance(pair.distance, t, scale);
+    const distance = formatDistance(pair.distance, t, scaleFor(pair.from, pair.to));
     return {
       id: pair.id,
       source: pair.from,

@@ -1,5 +1,6 @@
 import {
   applyNodeChanges,
+  type CoordinateExtent,
   type Edge,
   type FitViewOptions,
   type NodeChange,
@@ -26,7 +27,7 @@ import {
 } from "./placeCanvasModel";
 import type { ImageCrop } from "./placeImageCrop";
 import { createPlaceMeasurementEdges } from "./placeMeasurementGraph";
-import { placementForDrop } from "./placeLevels";
+import { placementForDrop, scaleForPair } from "./placeLevels";
 
 export type PlaceCanvasController = {
   nodes: (PlaceFlowNode | PlaceMapFlowNode | PlaceGroundNode)[];
@@ -53,6 +54,13 @@ export type PlaceCanvasController = {
   /** Whether the map pictures are drawn, or only the ground they rule. */
   picturesVisible: boolean;
   setPicturesVisible: (visible: boolean) => void;
+  /** Whether the view is held to the picture the open level stands on. */
+  boundToGround: boolean;
+  setBoundToGround: (bound: boolean) => void;
+  /** Whether this level has a picture to be held to at all. */
+  hasGround: boolean;
+  /** How far the view may travel, when it is being held. */
+  translateExtent: CoordinateExtent | undefined;
   onNodesChange: (changes: NodeChange<PlaceFlowNode>[]) => void;
   onNodeDragStop: (node: PlaceFlowNode) => void;
 };
@@ -109,6 +117,7 @@ export function usePlaceCanvas({
   // the world: how somebody is looking at a level is not part of the level.
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [picturesVisible, setPicturesVisible] = useState(true);
+  const [boundToGround, setBoundToGround] = useState(true);
   const flow = useRef<ReactFlowInstance<PlaceFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
@@ -131,6 +140,28 @@ export function usePlaceCanvas({
     [level, mapImageUrl, snapToGrid, picturesVisible, viewportZoom],
   );
   const levelGround = useMemo(() => groundRect(level), [level]);
+  /**
+   * How far the view may travel while standing inside a map.
+   *
+   * A map is the ground of the level it opens onto, so the sheet is the world
+   * down here and there is nothing beyond its edges to go and look at. Held to
+   * it, the picture is always as large as the view allows and the edges stay
+   * where they can be found -- with a square of slack all round, so the border
+   * and the grips along it are still reachable.
+   *
+   * Only where there is a picture. A level without one is the open grid it has
+   * always been, and holding a view to nothing would just be a smaller canvas.
+   */
+  const translateExtent = useMemo<CoordinateExtent | undefined>(() => {
+    if (!boundToGround || !levelGround) return undefined;
+    return [
+      [levelGround.x - GRID_SIZE, levelGround.y - GRID_SIZE],
+      [
+        levelGround.x + levelGround.width + GRID_SIZE,
+        levelGround.y + levelGround.height + GRID_SIZE,
+      ],
+    ];
+  }, [boundToGround, levelGround]);
   const latestGround = useRef(levelGround);
   latestGround.current = levelGround;
 
@@ -287,9 +318,14 @@ export function usePlaceCanvas({
         ? createPlaceMeasurementEdges({
             points: measurablePoints,
             selection: measureSelection,
-            // The level's own scale, not the world's: a distance read inside a
-            // city is a distance in that city's units.
-            scale: levelScale,
+            scaleFor: (from, to) => {
+              const nodes = latestState.current.nodes;
+              const first = nodes.find((node) => node.id === from);
+              const second = nodes.find((node) => node.id === to);
+              // Two points on the same laid-out map are read in that map's own
+              // units; anything else in the units of the level they are on.
+              return first && second ? scaleForPair(nodes, first, second, levelScale) : levelScale;
+            },
             t,
           })
         : [],
@@ -434,6 +470,10 @@ export function usePlaceCanvas({
     setSnapToGrid,
     picturesVisible,
     setPicturesVisible,
+    boundToGround,
+    setBoundToGround,
+    hasGround: Boolean(levelGround),
+    translateExtent,
     onNodesChange: (changes) => {
       // A map is derived from the level rather than held in the flow's own list,
       // so applyNodeChanges has nothing to apply its movement to. Catching the
