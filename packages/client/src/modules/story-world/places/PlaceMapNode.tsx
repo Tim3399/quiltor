@@ -7,6 +7,8 @@ import "./PlaceMapNode.css";
 
 export type PlaceMapNodeData = {
   place: FigureNode;
+  /** This sheet's top-left corner on the level, in flow units. */
+  origin: { x: number; y: number };
   source: string;
   /** How the picture sits in the frame right now, draft included. */
   crop: ImageCrop;
@@ -16,6 +18,8 @@ export type PlaceMapNodeData = {
   onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
+  /** What the picture turned out to be, once the browser has it. */
+  onPictureSize: (place: FigureNode, size: { width: number; height: number }) => void;
   /** The grid drawn over the picture, in flow units. */
   gridSize: number;
 };
@@ -75,7 +79,16 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
       className={`place-map-node ${selected ? "is-selected" : ""} ${
         data.adjusting ? "is-adjusting" : ""
       }`}
-      style={{ "--place-plate-grid": `${data.gridSize}px` } as CSSProperties}
+      style={
+        {
+          "--place-plate-grid": `${data.gridSize}px`,
+          // The canvas rules its lines from the level's origin. Shifting the
+          // sheet's own pattern by where the sheet starts is what makes the two
+          // one ruling rather than two that happen to share a spacing.
+          "--place-plate-grid-x": `${-mod(data.origin.x, data.gridSize)}px`,
+          "--place-plate-grid-y": `${-mod(data.origin.y, data.gridSize)}px`,
+        } as CSSProperties
+      }
     >
       {/* Resizing a map is how its scale is declared: making it wider says the
           same picture covers more ground. Kept to the picture's own proportions,
@@ -116,6 +129,12 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
           src={data.source}
           alt={place.name}
           draggable={false}
+          onLoad={(event) =>
+            data.onPictureSize(place, {
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            })
+          }
           style={{
             transform: `scale(${crop.zoom})`,
             transformOrigin: `${crop.u * 100}% ${crop.v * 100}%`,
@@ -125,4 +144,10 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
       <span className="place-plate__grid" aria-hidden="true" />
     </figure>
   );
+}
+
+/** A modulo that stays positive, which the remainder operator does not. */
+function mod(value: number, size: number): number {
+  if (!(size > 0) || !Number.isFinite(value)) return 0;
+  return ((value % size) + size) % size;
 }

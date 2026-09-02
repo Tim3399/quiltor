@@ -139,6 +139,32 @@ export function expandedRect(place: FigureNode, host: LevelRect): LevelRect {
  * A map is positioned directly rather than by an anchor -- it is the ground the
  * anchors are measured against, so it cannot itself be anchored to something.
  */
+/**
+ * The height this map's frame should have, or nothing if it already has it.
+ *
+ * A frame is the picture's extent, not a window onto it: the picture fills it
+ * edge to edge, so a frame whose proportions disagree with the picture's would
+ * quietly hide part of the map along two of its sides. Frames are created from
+ * the picture and resized with their proportions locked, so they agree by
+ * construction -- but a world written before that was true, or one whose
+ * picture has been swapped for another shape, can still disagree.
+ *
+ * The width is what an author set by dragging, so the width is what is kept.
+ */
+export function frameHeightForPicture(
+  place: FigureNode,
+  picture: { width: number; height: number },
+): number | null {
+  if (!(picture.width > 0) || !(picture.height > 0)) return null;
+  const width = place.mapWidth;
+  const height = place.mapHeight;
+  if (!(typeof width === "number" && width > 0)) return null;
+  const wanted = Math.max(1, Math.round((width * picture.height) / picture.width));
+  if (typeof height !== "number" || !(height > 0)) return wanted;
+  // A pixel of rounding is not a disagreement worth a write.
+  return Math.abs(height - wanted) <= 1 ? null : wanted;
+}
+
 export function mapRect(place: FigureNode): LevelRect {
   return {
     x: typeof place.mapX === "number" ? place.mapX : place.x,
@@ -295,6 +321,12 @@ export type DropPlacement = Partial<
  * A map is the ground the fractions are measured against, so it is only ever
  * placed outright and can never come to rest on something else.
  */
+/** The nearest ruled line, or the value itself where nothing is ruled. */
+export function snapToGrid(value: number, grid: number): number {
+  if (!(grid > 0) || !Number.isFinite(value)) return value;
+  return Math.round(value / grid) * grid;
+}
+
 export function placementForDrop({
   dragged,
   nodes,
@@ -303,6 +335,7 @@ export function placementForDrop({
   levelGround,
   position,
   size,
+  grid,
 }: {
   dragged: FigureNode;
   nodes: readonly FigureNode[];
@@ -314,9 +347,17 @@ export function placementForDrop({
   /** The dragged card's top-left corner, in flow units. */
   position: { x: number; y: number };
   size?: { width?: number; height?: number };
+  /** The canvas's ruling, in flow units. */
+  grid: number;
 }): DropPlacement {
   const { x, y } = position;
-  if (dragged.mapExpanded && dragged.mapImageId) return { mapX: x, mapY: y };
+  // A laid-out map is ground, and ground is ruled. Snapping its corner is what
+  // keeps the lines drawn across it continuous with the lines drawn beside it:
+  // both are ruled from the same origin, so a corner off the grid puts the two
+  // permanently half a square apart.
+  if (dragged.mapExpanded && dragged.mapImageId) {
+    return { mapX: snapToGrid(x, grid), mapY: snapToGrid(y, grid) };
+  }
 
   // What the pointer aimed at is the middle of the card, not its corner.
   const centre = { x: x + (size?.width ?? 0) / 2, y: y + (size?.height ?? 0) / 2 };

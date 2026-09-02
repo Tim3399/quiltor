@@ -6,6 +6,7 @@ import {
   anchoredPoint,
   ancestorsOf,
   expandedRect,
+  frameHeightForPicture,
   hasLevelContents,
   levelTrail,
   mapRect,
@@ -289,6 +290,7 @@ describe("where a drag leaves a place", () => {
 
   it("adopts a place that came to rest on a map", () => {
     const placement = placementForDrop({
+      grid: 0,
       dragged: frei,
       nodes,
       maps: [karte],
@@ -302,6 +304,7 @@ describe("where a drag leaves a place", () => {
   it("aims by the middle of the card, not its corner", () => {
     // The corner is off the map, the middle is on it.
     const placement = placementForDrop({
+      grid: 0,
       dragged: frei,
       nodes,
       maps: [karte],
@@ -314,6 +317,7 @@ describe("where a drag leaves a place", () => {
 
   it("returns a place to the level when it lands beside every map", () => {
     const placement = placementForDrop({
+      grid: 0,
       dragged: { ...frei, parentPlaceId: "karte", mapU: 0.2, mapV: 0.2 },
       nodes,
       maps: [karte],
@@ -333,6 +337,7 @@ describe("where a drag leaves a place", () => {
   it("places a map outright, because it is the ground the fractions measure against", () => {
     expect(
       placementForDrop({
+        grid: 0,
         dragged: karte,
         nodes,
         maps: [karte],
@@ -355,6 +360,7 @@ describe("where a drag leaves a place", () => {
       mapHeight: 200,
     });
     const placement = placementForDrop({
+      grid: 0,
       dragged: eltern,
       nodes: [eltern, kind],
       maps: [kind],
@@ -373,6 +379,7 @@ describe("a level that is itself a picture", () => {
   it("holds a place against the picture rather than placing it outright", () => {
     expect(
       placementForDrop({
+        grid: 0,
         dragged: frei,
         nodes: [frei],
         maps: [],
@@ -387,6 +394,7 @@ describe("a level that is itself a picture", () => {
   it("still places outright on a level with no picture under it", () => {
     expect(
       placementForDrop({
+        grid: 0,
         dragged: frei,
         nodes: [frei],
         maps: [],
@@ -395,5 +403,78 @@ describe("a level that is itself a picture", () => {
         size: { width: 20, height: 20 },
       }),
     ).toMatchObject({ parentPlaceId: "rom", mapX: 90, mapY: 40 });
+  });
+});
+
+describe("a frame following its picture", () => {
+  const map = (mapWidth?: number, mapHeight?: number): FigureNode => ({
+    id: "m",
+    x: 0,
+    y: 0,
+    name: "Karte",
+    type: "ort",
+    mapImageId: "sha",
+    ...(mapWidth === undefined ? {} : { mapWidth }),
+    ...(mapHeight === undefined ? {} : { mapHeight }),
+  });
+
+  it("says nothing when the frame already has the picture's proportions", () => {
+    expect(frameHeightForPicture(map(1600, 900), { width: 3200, height: 1800 })).toBeNull();
+  });
+
+  it("forgives a pixel of rounding", () => {
+    expect(frameHeightForPicture(map(1600, 901), { width: 3200, height: 1800 })).toBeNull();
+  });
+
+  it("keeps the width an author dragged and corrects the height", () => {
+    // The picture fills its frame edge to edge, so proportions that disagree
+    // hide part of the map along two of its sides.
+    expect(frameHeightForPicture(map(1600, 1200), { width: 3200, height: 1800 })).toBe(900);
+  });
+
+  it("supplies a height where a frame never had one", () => {
+    expect(frameHeightForPicture(map(2400), { width: 1672, height: 941 })).toBe(1351);
+  });
+
+  it("says nothing when there is nothing to work from", () => {
+    expect(frameHeightForPicture(map(), { width: 1600, height: 900 })).toBeNull();
+    expect(frameHeightForPicture(map(1600, 900), { width: 0, height: 900 })).toBeNull();
+    expect(frameHeightForPicture(map(1600, 900), { width: 1600, height: 0 })).toBeNull();
+  });
+});
+
+describe("a map coming to rest", () => {
+  const map: FigureNode = {
+    id: "m",
+    x: 0,
+    y: 0,
+    name: "Karte",
+    type: "ort",
+    mapImageId: "sha",
+    mapExpanded: true,
+    mapWidth: 2400,
+    mapHeight: 1350,
+  };
+
+  const drop = (position: { x: number; y: number }, grid: number) =>
+    placementForDrop({
+      dragged: map,
+      nodes: [map],
+      maps: [map],
+      levelId: undefined,
+      position,
+      size: { width: 2400, height: 1350 },
+      grid,
+    });
+
+  it("lands on the nearest ruled line", () => {
+    // The canvas rules from the level's origin and so does the sheet. A corner
+    // between two lines leaves the two rulings permanently out of step.
+    expect(drop({ x: 137, y: 70 }, 48)).toEqual({ mapX: 144, mapY: 48 });
+    expect(drop({ x: 96, y: 240 }, 48)).toEqual({ mapX: 96, mapY: 240 });
+  });
+
+  it("lands where it was dropped when nothing is ruled", () => {
+    expect(drop({ x: 137, y: 70 }, 0)).toEqual({ mapX: 137, mapY: 70 });
   });
 });

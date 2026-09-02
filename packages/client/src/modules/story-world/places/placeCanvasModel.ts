@@ -106,6 +106,7 @@ export function createPlaceMapNodes({
   onResizeLive,
   onCropDraft,
   onCropCommit,
+  onPictureSize,
   cropOverride,
   adjustingId,
   liveSize,
@@ -118,6 +119,7 @@ export function createPlaceMapNodes({
   onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
+  onPictureSize: (place: FigureNode, size: { width: number; height: number }) => void;
   /** The crop being dragged right now, which has not been written down yet. */
   cropOverride: { id: string; crop: ImageCrop } | null;
   adjustingId: string | undefined;
@@ -154,6 +156,9 @@ export function createPlaceMapNodes({
       zIndex: -1,
       data: {
         place,
+        // Where this sheet sits, so the lines drawn on it can be ruled from the
+        // level's origin rather than from the sheet's own corner.
+        origin: moved ? { x: moved.x, y: moved.y } : placePosition(place),
         source: sourceUrl(place.mapImageId as string),
         crop: cropOverride?.id === place.id ? cropOverride.crop : cropOf(place),
         adjusting: adjustingId === place.id,
@@ -161,6 +166,7 @@ export function createPlaceMapNodes({
         onResizeLive,
         onCropDraft,
         onCropCommit,
+        onPictureSize,
         gridSize,
       },
     };

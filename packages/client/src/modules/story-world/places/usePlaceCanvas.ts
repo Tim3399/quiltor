@@ -61,6 +61,7 @@ export function usePlaceCanvas({
   onExpandMap: expandMap,
   onResizeMap: resizeMap,
   onCropMap: cropMap,
+  onPictureSize: correctMapFrame,
   adjustingId,
   levelScale,
   onChange,
@@ -78,6 +79,8 @@ export function usePlaceCanvas({
   onExpandMap: (place: FigureNode) => void;
   onResizeMap: (place: FigureNode, size: { width: number; height: number }) => void;
   onCropMap: (place: FigureNode, crop: ImageCrop) => void;
+  /** Told what a picture turned out to be, so a stale frame can follow it. */
+  onPictureSize: (place: FigureNode, size: { width: number; height: number }) => void;
   /** Which map's picture is being adjusted, if any. */
   adjustingId: string | undefined;
   /** What a distance on the open level means, for the map's width readout. */
@@ -226,6 +229,7 @@ export function usePlaceCanvas({
           resizeMap(place, size);
         },
         onResizeLive: (place, size) => setLiveSize({ id: place.id, ...size }),
+        onPictureSize: correctMapFrame,
         onCropDraft: (place, crop) => setCropDraft({ id: place.id, crop }),
         onCropCommit: (place, crop) => {
           // The draft goes as the write lands, in the same batch, or the buttons
@@ -239,7 +243,17 @@ export function usePlaceCanvas({
         livePosition,
         gridSize: GRID_SIZE,
       }),
-    [places, mapImageUrl, resizeMap, cropMap, cropDraft, adjustingId, liveSize, livePosition],
+    [
+      places,
+      mapImageUrl,
+      resizeMap,
+      cropMap,
+      correctMapFrame,
+      cropDraft,
+      adjustingId,
+      liveSize,
+      livePosition,
+    ],
   );
 
   const edges = useMemo(
@@ -310,6 +324,7 @@ export function usePlaceCanvas({
         levelGround: latestGround.current,
         position: { x, y },
         size: node.measured,
+        grid: GRID_SIZE,
       });
 
       const next = {

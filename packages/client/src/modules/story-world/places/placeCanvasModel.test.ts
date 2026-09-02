@@ -87,6 +87,7 @@ describe("a map laid out on the level", () => {
       onResizeLive: () => {},
       onCropDraft: () => {},
       onCropCommit: () => {},
+      onPictureSize: () => {},
       cropOverride: null,
       adjustingId: undefined,
       liveSize: null,
