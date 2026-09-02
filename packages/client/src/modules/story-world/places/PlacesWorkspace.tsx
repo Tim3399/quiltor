@@ -8,7 +8,13 @@ import type { FigureNode, FigureState } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
-import { levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
+import {
+  frameHeightForPicture,
+  isPlace,
+  levelTrail,
+  placesOnLevel,
+  scaleForLevel,
+} from "./placeLevels";
 import { DEFAULT_MAP_WIDTH, isExpandedMap } from "./placeCanvasModel";
 import { formatDistance } from "./placeMap";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
@@ -94,7 +100,12 @@ function PlacesWorkspaceInner({
     if (!state.nodes.some((node) => node.id === levelId && node.type === "ort"))
       setLevelId(undefined);
   }, [state.nodes, levelId]);
-  const selected = places.find((place) => place.id === selectedId) ?? null;
+  // Looked up across the world rather than in the level's own list: a place
+  // standing on a laid-out map belongs to that map's level, but it is drawn
+  // here, on the map, and clicking something that is drawn has to select it.
+  const selected = selectedId
+    ? (state.nodes.find((node) => node.id === selectedId && isPlace(node)) ?? null)
+    : null;
   // Either state: a card still needs somewhere to be opened out from.
   const selectedMap = selected?.mapImageId ? selected : null;
   // Adjusting is a mode on one map; picking another map leaves it behind.
@@ -126,6 +137,23 @@ function PlacesWorkspaceInner({
       onChange(next);
     },
     [onChange],
+  );
+
+  /**
+   * Let a stale frame follow the picture it is meant to be.
+   *
+   * The picture fills its frame edge to edge, so proportions that disagree hide
+   * part of the map. Frames written before that was enforced can disagree, and
+   * this is the first moment the truth is available: when the browser has the
+   * file and knows what shape it is.
+   */
+  const correctMapFrame = useCallback(
+    (place: FigureNode, picture: { width: number; height: number }) => {
+      const corrected = frameHeightForPicture(place, picture);
+      if (corrected === null) return;
+      patchPlace(place.id, { mapHeight: corrected });
+    },
+    [patchPlace],
   );
 
   const collapseMap = useCallback(
@@ -161,6 +189,7 @@ function PlacesWorkspaceInner({
     onExpandMap: expandMap,
     onResizeMap: resizeMap,
     onCropMap: cropMap,
+    onPictureSize: correctMapFrame,
     adjustingId,
     levelScale,
     onChange,
@@ -173,18 +202,74 @@ function PlacesWorkspaceInner({
    * you can dive into -- which is why creating one adds a node rather than
    * hanging a picture on the level you happen to be standing on.
    */
-  const addMap = useCallback(async () => {
+  /**
+   * Ask for a picture and put it away, or nothing if there was none to put.
+   *
+   * The dialog is the browser's, so a cancel is a normal outcome and says
+   * nothing. A refused or failed upload is not: silence there reads as a button
+   * that does nothing, which is the one thing it must not look like.
+   */
+  const pickStoredImage = useCallback(async (): Promise<StoredMapImage | null> => {
     const file = await askForMapImage();
-    if (!file) return;
-    let stored: StoredMapImage;
+    if (!file) return null;
     try {
-      stored = await quiltorClient.application.placeMaps.store(await prepareMapImage(file));
+      return await quiltorClient.application.placeMaps.store(await prepareMapImage(file));
     } catch (error) {
-      // Silence here reads as a button that does nothing, which is the one thing
-      // a refused or failed upload must not look like.
       setMapError(applicationErrorMessage(error));
-      return;
+      return null;
     }
+  }, []);
+
+  /** The frame a stored picture takes on the level, in flow units. */
+  const mapFrame = (stored: StoredMapImage) => ({
+    mapWidth: DEFAULT_MAP_WIDTH,
+    mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),
+  });
+
+  /**
+   * Give a place a picture, or swap the one it has.
+   *
+   * A place that had none stays a card: it gains the slice of map its card
+   * wears and the button to open it out, but the level around it does not
+   * suddenly rearrange itself around a sheet two thousand units wide. A place
+   * that is already laid out keeps its frame's shape, following the new
+   * picture, so what stands on it stays where it was put.
+   */
+  const chooseMapImage = useCallback(
+    async (place: FigureNode) => {
+      const stored = await pickStoredImage();
+      if (!stored) return;
+      patchPlace(place.id, { mapImageId: stored.id, ...mapFrame(stored) });
+      setSelectedId(place.id);
+    },
+    [patchPlace, pickStoredImage],
+  );
+
+  /**
+   * Take the picture away and leave the place standing.
+   *
+   * The level under a map is the grid it always was and works without one, so
+   * everything inside stays inside. What goes with the picture is only what
+   * described it: the frame it filled and the part of it a card was showing.
+   */
+  const removeMapImage = useCallback(
+    (place: FigureNode) => {
+      patchPlace(place.id, {
+        mapImageId: undefined,
+        mapExpanded: undefined,
+        mapWidth: undefined,
+        mapHeight: undefined,
+        mapImageZoom: undefined,
+        mapImageU: undefined,
+        mapImageV: undefined,
+      });
+    },
+    [patchPlace],
+  );
+
+  const addMap = useCallback(async () => {
+    const stored = await pickStoredImage();
+    if (!stored) return;
     // One write, not a create followed by a patch: the two read different copies
     // of the state, and the patch would land on one that has never heard of the
     // place just created -- dropping it again, which looks like nothing at all
@@ -197,11 +282,10 @@ function PlacesWorkspaceInner({
       // that fills the view reads as panning rather than as moving it.
       pinned: true,
       // The stored pixels set the shape; the surface is measured in flow units.
-      mapWidth: DEFAULT_MAP_WIDTH,
-      mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),
+      ...mapFrame(stored),
     });
     setSelectedId(created.id);
-  }, [canvas, t]);
+  }, [canvas, pickStoredImage, t]);
 
   const centerOnPlace = useRef(canvas.centerOnPlace);
   centerOnPlace.current = canvas.centerOnPlace;
@@ -276,6 +360,9 @@ function PlacesWorkspaceInner({
       onPatch={patchSelected}
       onClose={() => setSelectedId(null)}
       onOpen={onOpen}
+      mapImageUrl={mapImageUrl}
+      onChooseMapImage={chooseMapImage}
+      onRemoveMapImage={removeMapImage}
     />
   );
 

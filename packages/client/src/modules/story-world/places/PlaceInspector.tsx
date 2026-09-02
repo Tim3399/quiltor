@@ -13,7 +13,9 @@ import type { Workspace } from "../../../shared";
 import { NoteEditor, noteFocusCopy } from "../../notes";
 import type { FigureNode, FigureState } from "../model";
 import { NodePriorityActions } from "../NodePriorityActions";
+import { isExpandedMap } from "./placeCanvasModel";
 import { PlaceHistory } from "./PlaceHistory";
+import { PlaceMapSection } from "./PlaceMapSection";
 import "./PlaceInspector.css";
 
 export function PlaceInspector({
@@ -22,12 +24,19 @@ export function PlaceInspector({
   onPatch,
   onClose,
   onOpen,
+  mapImageUrl,
+  onChooseMapImage,
+  onRemoveMapImage,
 }: {
   selected: FigureNode | null;
   state: FigureState;
   onPatch: (patch: Partial<FigureNode>) => void;
   onClose: () => void;
   onOpen: (target: { workspace: Workspace; id: string }) => void;
+  /** Where a stored picture can be read from. */
+  mapImageUrl: (imageId: string) => string;
+  onChooseMapImage: (place: FigureNode) => void;
+  onRemoveMapImage: (place: FigureNode) => void;
 }) {
   const { t } = useI18n();
   const [nameDraft, setNameDraft] = useState(selected?.name ?? "");
@@ -41,6 +50,8 @@ export function PlaceInspector({
     const nextName = selected?.name ?? "";
     setNameDraft((current) => (ownerChanged || current !== nextName ? nextName : current));
   }, [selected?.id, selected?.name]);
+
+  const laidOut = selected ? isExpandedMap(selected) : false;
 
   const commitName = () => {
     if (skipNameCommit.current) {
@@ -91,11 +102,23 @@ export function PlaceInspector({
                 }
               }}
             />
-            <TextArea
-              id="place-short-description"
-              label={t("shortDescription")}
-              value={selected.sub || ""}
-              onChange={(event) => onPatch({ sub: event.target.value })}
+            {/* The short description is what a card wears under its name. A map
+                laid out as ground has no card and no room for one, so the field
+                only appears where it shows -- and nothing written in it is lost
+                by collapsing the map again. */}
+            {laidOut ? null : (
+              <TextArea
+                id="place-short-description"
+                label={t("shortDescription")}
+                value={selected.sub || ""}
+                onChange={(event) => onPatch({ sub: event.target.value })}
+              />
+            )}
+            <PlaceMapSection
+              place={selected}
+              source={selected.mapImageId ? mapImageUrl(selected.mapImageId) : null}
+              onChoose={() => onChooseMapImage(selected)}
+              onRemove={() => onRemoveMapImage(selected)}
             />
             <NoteEditor
               owner={{ kind: "place", id: selected.id }}
@@ -119,7 +142,11 @@ export function PlaceInspector({
               onPinnedChange={(pinned) => onPatch({ pinned })}
             />
           </SidePanelBody>
-          <PlaceHistory place={selected} state={state} onOpen={onOpen} />
+          {/* Who stood here and when things moved is what a place records. A
+              map opened out is the ground being stood on, not somewhere to
+              stand, so it keeps its own panel free of them until it is a card
+              again. Nothing is deleted -- it is simply not asked about here. */}
+          {laidOut ? null : <PlaceHistory place={selected} state={state} onOpen={onOpen} />}
         </>
       )}
     </>

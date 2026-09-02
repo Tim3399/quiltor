@@ -1,0 +1,58 @@
+/* The picture a place carries, shown where it can be changed.
+
+   It sits inside the field column rather than as one of the collapsible
+   sections below it: the picture is part of what the place is, like its name,
+   not a record of what happened at it. */
+.place-map-section {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-8);
+}
+
+.place-map-section__title {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--font-size-1);
+  font-weight: 650;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+/* Whole rather than cropped: this is the picture being identified, not the
+   detail a card wears. Wide sheets stay legible, tall ones stay in the panel. */
+.place-map-section__preview {
+  width: 100%;
+  max-height: var(--space-48);
+  display: block;
+  overflow: hidden;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--canvas);
+}
+
+.place-map-section__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0;
+  padding: var(--space-12);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  line-height: 1.4;
+}
+
+.place-map-section__hint > svg {
+  flex: none;
+  width: var(--font-size-5);
+  height: var(--font-size-5);
+  color: var(--line-strong);
+}
+
+.place-map-section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}

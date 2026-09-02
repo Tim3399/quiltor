@@ -41,6 +41,9 @@ describe("PlaceInspector", () => {
           onPatch={vi.fn()}
           onClose={vi.fn()}
           onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
         />
       </I18nProvider>,
     );
@@ -94,6 +97,9 @@ describe("PlaceInspector", () => {
           onPatch={onPatch}
           onClose={vi.fn()}
           onOpen={onOpen}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={() => {}}
+          onRemoveMapImage={() => {}}
         />
       </I18nProvider>,
     );
@@ -119,6 +125,9 @@ describe("PlaceInspector", () => {
           onPatch={onPatch}
           onClose={vi.fn()}
           onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
         />
       </I18nProvider>,
     );
@@ -146,6 +155,9 @@ describe("PlaceInspector", () => {
           onPatch={onPatch}
           onClose={vi.fn()}
           onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
         />
       </I18nProvider>,
     );
@@ -173,6 +185,9 @@ describe("PlaceInspector", () => {
           onPatch={onPatch}
           onClose={vi.fn()}
           onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
         />
       </I18nProvider>,
     );
@@ -201,6 +216,9 @@ describe("PlaceInspector", () => {
           onPatch={onPatch}
           onClose={vi.fn()}
           onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
         />
       </I18nProvider>,
     );
@@ -242,11 +260,82 @@ describe("PlaceInspector", () => {
           onPatch={vi.fn()}
           onClose={vi.fn()}
           onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
         />
       </I18nProvider>,
     );
 
     expect(screen.getByText("Ort auswählen")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("the picture a place carries", () => {
+  function inspect(node: FigureState["nodes"][number], overrides: Record<string, unknown> = {}) {
+    const world: FigureState = { ...state, nodes: [...state.nodes, node] };
+    return render(
+      <I18nProvider>
+        <PlaceInspector
+          selected={node}
+          state={world}
+          onPatch={vi.fn()}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
+          {...overrides}
+        />
+      </I18nProvider>,
+    );
+  }
+
+  it("offers a picture to a place that has none", () => {
+    inspect({ id: "wald", x: 0, y: 0, name: "Wald", type: "ort" });
+
+    expect(screen.getByRole("button", { name: "Bild hinterlegen" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Bild entfernen" })).toBeNull();
+  });
+
+  it("offers to swap or drop the picture a place already carries", () => {
+    inspect({ id: "rom", x: 0, y: 0, name: "Rom", type: "ort", mapImageId: "sha" });
+
+    expect(screen.getByRole("img", { name: "Rom" })).toHaveAttribute(
+      "src",
+      "/api/place-map?id=sha",
+    );
+    expect(screen.getByRole("button", { name: "Bild austauschen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bild entfernen" })).toBeInTheDocument();
+  });
+
+  it("asks a place who stood there and what it looks like", () => {
+    inspect({ id: "rom", x: 0, y: 0, name: "Rom", type: "ort", mapImageId: "sha" });
+
+    expect(screen.getByLabelText("Kurzbeschreibung")).toBeInTheDocument();
+    expect(screen.getByText("Wer war hier")).toBeInTheDocument();
+    expect(screen.getByText("Chronik")).toBeInTheDocument();
+  });
+
+  it("asks a laid-out map none of that", () => {
+    // Opened out, it is the ground being stood on rather than somewhere to
+    // stand, and it wears no card for a short description to sit under.
+    inspect({
+      id: "welt",
+      x: 0,
+      y: 0,
+      name: "Weltkarte",
+      type: "ort",
+      mapImageId: "sha",
+      mapExpanded: true,
+    });
+
+    expect(screen.queryByLabelText("Kurzbeschreibung")).toBeNull();
+    expect(screen.queryByText("Wer war hier")).toBeNull();
+    expect(screen.queryByText("Chronik")).toBeNull();
+    // What it is still gets asked, and so does its picture.
+    expect(screen.getByLabelText("Name")).toHaveValue("Weltkarte");
+    expect(screen.getByRole("button", { name: "Bild austauschen" })).toBeInTheDocument();
   });
 });
