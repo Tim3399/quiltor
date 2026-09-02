@@ -101,6 +101,11 @@ export function PlaceCanvas({
         // minimap is standing on it. Drawn at full strength it would swallow
         // the very pins the minimap exists to show, so it recedes to a wash.
         nodeColor: (node) => {
+          // Held to the ground, the minimap's frame and the sheet are the same
+          // rectangle: drawing the sheet inside it says nothing and covers the
+          // things the minimap exists to show.
+          if (node.type === "placeGround")
+            return controller.boundToGround ? "var(--transparent)" : cardKindColor("storyboard");
           if (node.type === "placeMap")
             return `color-mix(in srgb, ${cardKindColor("storyboard")} 18%, transparent)`;
           // Collapsed maps keep their own hue down here as well, so the minimap

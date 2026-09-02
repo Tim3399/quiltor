@@ -144,10 +144,11 @@ export function usePlaceCanvas({
    * How far the view may travel while standing inside a map.
    *
    * A map is the ground of the level it opens onto, so the sheet is the world
-   * down here and there is nothing beyond its edges to go and look at. Held to
-   * it, the picture is always as large as the view allows and the edges stay
-   * where they can be found -- with a square of slack all round, so the border
-   * and the grips along it are still reachable.
+   * down here and there is nothing beyond its edges to go and look at. The
+   * extent is the sheet exactly -- no slack, because slack is somewhere past
+   * the edge to end up, and not ending up there is the whole of what this is
+   * for. Nothing needs reaching out there either: the ground is not something
+   * that gets dragged or resized, it is what everything else stands on.
    *
    * Only where there is a picture. A level without one is the open grid it has
    * always been, and holding a view to nothing would just be a smaller canvas.
@@ -155,11 +156,8 @@ export function usePlaceCanvas({
   const translateExtent = useMemo<CoordinateExtent | undefined>(() => {
     if (!boundToGround || !levelGround) return undefined;
     return [
-      [levelGround.x - GRID_SIZE, levelGround.y - GRID_SIZE],
-      [
-        levelGround.x + levelGround.width + GRID_SIZE,
-        levelGround.y + levelGround.height + GRID_SIZE,
-      ],
+      [levelGround.x, levelGround.y],
+      [levelGround.x + levelGround.width, levelGround.y + levelGround.height],
     ];
   }, [boundToGround, levelGround]);
   const latestGround = useRef(levelGround);
