@@ -95,7 +95,8 @@ function PlacesWorkspaceInner({
       setLevelId(undefined);
   }, [state.nodes, levelId]);
   const selected = places.find((place) => place.id === selectedId) ?? null;
-  const selectedMap = selected && isExpandedMap(selected) ? selected : null;
+  // Either state: a card still needs somewhere to be opened out from.
+  const selectedMap = selected?.mapImageId ? selected : null;
   // Adjusting is a mode on one map; picking another map leaves it behind.
   useEffect(() => {
     if (adjustingId && adjustingId !== selectedMap?.id) setAdjustingId(undefined);
@@ -316,6 +317,7 @@ function PlacesWorkspaceInner({
               <PlaceMapToolbar
                 map={selectedMap}
                 crop={cropOf(selectedMap)}
+                expanded={isExpandedMap(selectedMap)}
                 adjusting={adjustingId === selectedMap.id}
                 measured={formatDistance(
                   selectedMap.mapWidth ?? DEFAULT_MAP_WIDTH,
@@ -330,6 +332,7 @@ function PlacesWorkspaceInner({
                 onCrop={(next) => cropMap(selectedMap, next)}
                 onToggleLock={() => toggleMapLock(selectedMap)}
                 onCollapse={() => collapseMap(selectedMap)}
+                onExpand={() => expandMap(selectedMap)}
               />
             ) : null
           }
