@@ -64,6 +64,10 @@ describe("story-world action menu contracts", () => {
           onAdd={vi.fn()}
           onAddMap={vi.fn()}
           onMeasuringToggle={vi.fn()}
+          snapToGrid
+          onSnapToGridChange={vi.fn()}
+          picturesVisible
+          onPicturesVisibleChange={vi.fn()}
           onDuplicate={vi.fn()}
           onDelete={vi.fn()}
         />

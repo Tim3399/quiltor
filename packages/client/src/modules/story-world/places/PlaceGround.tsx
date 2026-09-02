@@ -8,6 +8,8 @@ export type PlaceGroundData = {
   title: string;
   /** The grid drawn over the picture, in flow units. */
   gridSize: number;
+  /** Whether that grid is drawn at all. */
+  gridVisible: boolean;
   /** What the canvas is magnified by, so the neatline holds its width. */
   zoom: number;
 };
@@ -36,8 +38,8 @@ export function PlaceGround({ data }: NodeProps<PlaceGroundNode>) {
         } as React.CSSProperties
       }
     >
-      <img src={data.source} alt={data.title} draggable={false} />
-      <span className="place-plate__grid" aria-hidden="true" />
+      {data.source ? <img src={data.source} alt={data.title} draggable={false} /> : null}
+      {data.gridVisible ? <span className="place-plate__grid" aria-hidden="true" /> : null}
       <span className="place-plate__rule" aria-hidden="true">
         <span className="place-plate__stud" />
         <span className="place-plate__stud" />

@@ -66,6 +66,7 @@ export function PlaceCanvas({
       zoomTier={controller.zoomTier}
       className={`places-flow-area ${measuring ? "is-connecting" : ""}`}
       gridSize={GRID_SIZE}
+      showGrid={controller.snapToGrid}
       overlay={
         <>
           <PlaceLevelTrail trail={trail} onGoToLevel={onGoToLevel} />
@@ -83,6 +84,8 @@ export function PlaceCanvas({
       flowProps={{
         nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode, placeGround: PlaceGround },
         nodesConnectable: true,
+        snapToGrid: controller.snapToGrid,
+        snapGrid: [GRID_SIZE, GRID_SIZE],
         fitViewOptions: controller.fitViewOptions,
         onKeyDown: selectPlaceFromKeyboard,
         onInit: controller.onInit,

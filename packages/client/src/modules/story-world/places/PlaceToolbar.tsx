@@ -1,4 +1,14 @@
-import { Copy, ImagePlus, MapPinPlus, MoreHorizontal, Ruler, Trash2 } from "lucide-react";
+import {
+  Copy,
+  Grid3X3,
+  Image,
+  ImageOff,
+  ImagePlus,
+  MapPinPlus,
+  MoreHorizontal,
+  Ruler,
+  Trash2,
+} from "lucide-react";
 import {
   DropdownMenu,
   MenuItem,
@@ -23,6 +33,10 @@ export function PlaceToolbar({
   onAdd,
   onAddMap,
   onMeasuringToggle,
+  snapToGrid,
+  onSnapToGridChange,
+  picturesVisible,
+  onPicturesVisibleChange,
   onUndo,
   onRedo,
   onDuplicate,
@@ -36,6 +50,10 @@ export function PlaceToolbar({
   onAdd: () => void;
   onAddMap: () => void;
   onMeasuringToggle: () => void;
+  snapToGrid: boolean;
+  onSnapToGridChange: (snap: boolean) => void;
+  picturesVisible: boolean;
+  onPicturesVisibleChange: (visible: boolean) => void;
   onUndo?: () => void;
   onRedo?: () => void;
   onDuplicate: () => void;
@@ -68,6 +86,30 @@ export function PlaceToolbar({
             aria-pressed={measuring}
             onClick={onMeasuringToggle}
           />
+        </WorkspaceToolbarGroup>
+        <WorkspaceToolbarGroup label={t("placeViewMenu")}>
+          <DropdownMenu
+            label={t("placeViewMenu")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <ToolbarButton
+                ref={ref}
+                {...triggerProps}
+                label={t("placeViewMenu")}
+                icon={<Grid3X3 />}
+              />
+            )}
+          >
+            <MenuItem
+              icon={<Grid3X3 />}
+              label={snapToGrid ? t("hideGrid") : t("showGrid")}
+              onSelect={() => onSnapToGridChange(!snapToGrid)}
+            />
+            <MenuItem
+              icon={picturesVisible ? <ImageOff /> : <Image />}
+              label={picturesVisible ? t("hideMapPictures") : t("showMapPictures")}
+              onSelect={() => onPicturesVisibleChange(!picturesVisible)}
+            />
+          </DropdownMenu>
         </WorkspaceToolbarGroup>
         <WorkspaceToolbarGroup label={`${t("undoPlaces")} / ${t("redoPlaces")}`}>
           <UndoRedoControls

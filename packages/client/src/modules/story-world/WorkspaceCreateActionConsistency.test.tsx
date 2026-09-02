@@ -71,6 +71,10 @@ describe("workspace create-action consistency", () => {
         onAdd={vi.fn()}
         onAddMap={vi.fn()}
         onMeasuringToggle={vi.fn()}
+        snapToGrid
+        onSnapToGridChange={vi.fn()}
+        picturesVisible
+        onPicturesVisibleChange={vi.fn()}
         onUndo={vi.fn()}
         onRedo={vi.fn()}
         onDuplicate={vi.fn()}
