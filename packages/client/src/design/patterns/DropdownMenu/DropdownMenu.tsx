@@ -28,6 +28,7 @@ export interface DropdownMenuProps {
   renderTrigger: (props: DropdownMenuTriggerProps) => ReactNode;
   children: ReactNode;
   header?: ReactNode;
+  footer?: ReactNode;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -42,6 +43,7 @@ export function DropdownMenu({
   renderTrigger,
   children,
   header,
+  footer,
   open,
   defaultOpen = false,
   onOpenChange,
@@ -110,6 +112,7 @@ export function DropdownMenu({
           >
             {children}
           </Menu>
+          {footer && <div className="ui-dropdown-menu__footer">{footer}</div>}
         </div>
       </Popover>
     </>

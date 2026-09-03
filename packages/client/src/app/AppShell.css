@@ -2,7 +2,7 @@
 .app-frame {
   height: 100%;
   display: grid;
-  grid-template-rows: var(--bar) 1fr;
+  grid-template-rows: var(--bar) minmax(0, 1fr) var(--status-bar);
   /* minmax(0, 1fr) prevents a wide workspace toolbar from widening the viewport. */
   grid-template-columns: minmax(0, 1fr);
 }
@@ -113,20 +113,15 @@
   width: 16px;
   height: 16px;
 }
+/* Der Speicherstand sitzt in der Statuszeile und richtet sich nach deren Hoehe;
+   die frueheren Leisten- und Menuemasse sind damit gegenstandslos. */
+/* Der Speicherstand steht mit Text in der Leiste, wie im Zielbild -- er darf sich
+   verschmaelern, bevor irgendetwas anderes weichen muss. */
 .app-save-status {
   min-width: 0;
-  height: 32px;
+  max-width: 210px;
   flex: 0 1 auto;
-  padding: 0 var(--space-8);
-  color: var(--muted);
-}
-.menu-save-status {
-  display: flex;
-  align-items: center;
-}
-.menu-save-status .app-save-status {
-  height: auto;
-  padding: 0;
+  margin-inline-start: var(--space-4);
 }
 
 @media (max-width: 1099px) {
@@ -238,4 +233,11 @@
     margin-right: auto;
     transform: none;
   }
+}
+.app-menu-version {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }

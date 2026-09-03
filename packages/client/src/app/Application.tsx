@@ -1,8 +1,8 @@
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { PRODUCT_MARK } from "../config/branding";
-import { PageState } from "../design";
+import { PageState, StatusBarItem } from "../design";
 import { useI18n } from "../i18n";
-import type { Manuscript } from "../modules/manuscript";
+import { type Manuscript, wordCount } from "../modules/manuscript";
 import { NoteReferenceProvider } from "../modules/notes";
 import { type FigureState, kindLabel } from "../modules/story-world";
 import type { StoryboardState } from "../modules/storyboard";
@@ -126,6 +126,37 @@ export function App() {
       : workspace.workspace === "storyboard"
         ? storyboardSave
         : figureSave;
+  // Was gerade offen ist, gehoert in die Statuszeile. Die Zahlen stehen hier ohnehin schon;
+  // jeder Workspace zaehlt das, worueber er Auskunft geben kann.
+  const summary = useMemo(() => {
+    if (workspace.workspace === "text") {
+      const words = manuscript?.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0);
+      return (
+        <>
+          <StatusBarItem>{t("nChapters", { n: manuscript?.chapters.length ?? 0 })}</StatusBarItem>
+          <StatusBarItem>
+            {t("nStandardPages", {
+              n: ((words ?? 0) / 250).toFixed(1).replace(".", ","),
+            })}
+          </StatusBarItem>
+          <StatusBarItem>{t("nWordsTotal", { n: (words ?? 0).toLocaleString() })}</StatusBarItem>
+        </>
+      );
+    }
+    if (workspace.workspace === "storyboard") {
+      return (
+        <StatusBarItem>
+          {t("storyboardNodeCount", { count: storyboards?.nodes.length ?? 0 })}
+        </StatusBarItem>
+      );
+    }
+    return (
+      <>
+        <StatusBarItem>{t("nElements", { n: figures?.nodes.length ?? 0 })}</StatusBarItem>
+        <StatusBarItem>{t("nRelationships", { n: figures?.edges.length ?? 0 })}</StatusBarItem>
+      </>
+    );
+  }, [workspace.workspace, manuscript, figures, storyboards, t]);
   const flushAll = useCallback(async () => {
     await Promise.all([manuscriptSave.flush(), figureSave.flush(), storyboardSave.flush()]);
   }, [manuscriptSave.flush, figureSave.flush, storyboardSave.flush]);
@@ -203,6 +234,7 @@ export function App() {
             workspace={workspace.workspace}
             onWorkspace={workspace.selectWorkspace}
             phase={activeSave.phase}
+            savedAt={activeSave.savedAt}
             error={activeSave.error}
             retry={activeSave.retry}
             theme={theme}
@@ -216,6 +248,7 @@ export function App() {
             whoami={shell.account}
             onLogout={shell.logout}
             version={shell.version}
+            summary={summary}
           >
             <NoteReferenceProvider
               candidates={noteReferenceCandidates}

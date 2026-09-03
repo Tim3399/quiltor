@@ -11,6 +11,7 @@ export function useAutosave<T>(
 ) {
   const { t } = useI18n();
   const [phase, setPhase] = useState<SavePhase>("idle");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState("");
   const timer = useRef<number | undefined>(undefined);
   const latest = useRef(value);
@@ -33,6 +34,7 @@ export function useAutosave<T>(
       await chain.current;
       if (latest.current === snapshot) {
         dirty.current = false;
+        setSavedAt(Date.now());
         setPhase("saved");
       } else setPhase("dirty");
     } catch (reason) {
@@ -66,5 +68,5 @@ export function useAutosave<T>(
     return () => window.removeEventListener("beforeunload", warn);
   }, [phase]);
 
-  return { phase, error, flush, retry: flush };
+  return { phase, error, savedAt, flush, retry: flush };
 }

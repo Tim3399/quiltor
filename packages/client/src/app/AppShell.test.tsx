@@ -51,7 +51,41 @@ describe("AppShell", () => {
     expect(more).toHaveFocus();
   });
 
-  it("keeps narrow save status outside the menu semantics", () => {
+  it("says how old a saved state is, but only once it has an age", () => {
+    const now = Date.UTC(2026, 8, 3, 12, 0, 0);
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const shell = (savedAt: number) => (
+      <I18nProvider>
+        <AppShell
+          title="Welt"
+          workspace="text"
+          onWorkspace={() => undefined}
+          phase="saved"
+          savedAt={savedAt}
+          retry={() => undefined}
+          theme="light"
+          onTheme={() => undefined}
+          onSearch={() => undefined}
+          onHistory={() => undefined}
+          onSnapshot={() => undefined}
+          onBackups={() => undefined}
+          onAssistant={() => undefined}
+          onExitWorld={() => undefined}
+        >
+          <div />
+        </AppShell>
+      </I18nProvider>
+    );
+
+    const view = render(shell(now - 20_000));
+    expect(screen.getByRole("status")).toHaveTextContent("Gespeichert");
+    expect(screen.getByRole("status")).not.toHaveTextContent("vor");
+
+    view.rerender(shell(now - 5 * 60_000));
+    expect(screen.getByRole("status")).toHaveTextContent("Gespeichert · vor 5 Min.");
+  });
+
+  it("keeps the save state in the bar and the document facts in the status line", () => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
@@ -72,15 +106,24 @@ describe("AppShell", () => {
           onBackups={() => undefined}
           onAssistant={() => undefined}
           onExitWorld={() => undefined}
+          summary={<span>4 Kapitel</span>}
         >
           <div />
         </AppShell>
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    // Unten steht, was offen ist; oben in der Leiste, was die Anwendung damit tut.
+    const bar = screen.getByRole("contentinfo", { name: "Arbeitsstand" });
+    expect(bar).toHaveTextContent("4 Kapitel");
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Gespeichert");
+    expect(bar.contains(status)).toBe(false);
+    expect(status.closest("header")).not.toBeNull();
+
+    // Er bleibt sichtbar, auch auf dem schmalsten Geraet -- kein Umzug ins Menue mehr.
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
     expect(status.closest('[role="menu"]')).toBeNull();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 });

@@ -11,6 +11,7 @@ export const shell = {
   openBackups: "Open backups",
   workspaceNav: "Workspace",
   globalTools: "Global tools",
+  statusBar: "Working state",
   openAssistant: "Open local assistant",
   localAssistant: "Local assistant",
   assistant: "Assistant",

@@ -30,6 +30,7 @@ export const cssDesignOwnerClassesByComponent = Object.freeze({
   SelectionMenu: Object.freeze(["ui-selection-menu"]),
   Sheet: Object.freeze(["ui-sheet", "ui-sheet-backdrop", "utility-sheet", "utility-sheet-content"]),
   SidePanel: Object.freeze(["side-panel"]),
+  StatusBar: Object.freeze(["status-bar"]),
   Tabs: Object.freeze(["design-tabs"]),
   TextArea: Object.freeze(["ui-field"]),
   TextField: Object.freeze(["ui-text-field"]),

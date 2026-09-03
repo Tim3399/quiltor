@@ -28,6 +28,7 @@ export {
   normalizeProfile,
   normalizeProfileFields,
 } from "./profileNormalization";
+export { relativeTime } from "./relativeTime";
 export type { SavePhase } from "./save";
 export type { Theme, ThemePreference } from "./theme";
 export type {

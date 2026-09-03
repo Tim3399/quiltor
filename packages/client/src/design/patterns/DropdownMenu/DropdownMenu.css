@@ -2,18 +2,31 @@
   min-width: var(--popover-min);
   max-height: min(420px, calc(100vh - var(--space-24)));
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  /* Three fixed rows with explicit placement: the list keeps the flexible middle row
+     whether or not a header or a footer is present. */
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .ui-dropdown-menu__header {
   min-width: 0;
+  grid-row: 1;
   padding: var(--spacing-compact-wide) var(--spacing-regular-tight);
   border-bottom: 1px solid var(--line);
+}
+
+.ui-dropdown-menu__footer {
+  min-width: 0;
+  grid-row: 3;
+  padding: var(--spacing-compact-wide) var(--spacing-regular-tight);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--font-size-2);
 }
 
 .ui-dropdown-menu {
   min-width: 0;
   min-height: 0;
+  grid-row: 2;
   overflow-y: auto;
   overscroll-behavior: contain;
 }

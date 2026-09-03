@@ -26,6 +26,7 @@ export type {
   WritingLocale,
 } from "./model";
 export { textSearchRanges } from "./search";
+export { wordCount } from "./wordCount";
 
 export const loadTextWorkspace = () =>
   import("./TextWorkspace").then(({ TextWorkspace }) => ({ default: TextWorkspace }));

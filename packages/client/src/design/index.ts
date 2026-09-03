@@ -19,6 +19,7 @@ export * from "./components/ProgressBar";
 export * from "./components/SaveStatus";
 export * from "./components/ScrollArea";
 export * from "./components/Sheet";
+export * from "./components/StatusBar";
 export * from "./components/SidePanel";
 export * from "./components/Tabs";
 export * from "./components/Toast";

@@ -1,0 +1,86 @@
+.status-bar {
+  min-width: 0;
+  max-width: 100%;
+  height: var(--status-bar);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-regular-tight);
+  padding: 0 var(--spacing-regular-base);
+  border-top: 1px solid var(--line);
+  background: var(--chrome);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+}
+
+.status-bar__group {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.status-bar__group--end {
+  margin-inline-start: auto;
+  flex: none;
+}
+
+.status-bar__item {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-compact-tight);
+  overflow: hidden;
+  white-space: nowrap;
+  /* Counts sit next to each other and change while the writer works; proportional digits
+     would make the whole line twitch on every keystroke. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* A hairline instead of a middle dot: a separator is not content, and a CSS dot is read
+   aloud by some screen readers. */
+.status-bar__group > .status-bar__item + .status-bar__item {
+  margin-inline-start: var(--spacing-regular-tight);
+  padding-inline-start: var(--spacing-regular-tight);
+  border-inline-start: 1px solid var(--line);
+}
+
+.status-bar__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bar__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.status-bar__icon > svg {
+  width: var(--font-size-3);
+  height: var(--font-size-3);
+}
+
+.status-bar__item[data-tone="info"] {
+  color: var(--info-text);
+}
+
+.status-bar__item[data-tone="success"] {
+  color: var(--success-text);
+}
+
+.status-bar__item[data-tone="warning"] {
+  color: var(--warning-text);
+}
+
+.status-bar__item[data-tone="danger"] {
+  color: var(--error-text);
+}
+
+@media (max-width: 719px) {
+  .status-bar {
+    padding: 0 var(--spacing-transition-container-inline-compact);
+    gap: var(--spacing-compact-wide);
+  }
+}
