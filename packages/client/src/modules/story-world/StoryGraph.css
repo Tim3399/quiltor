@@ -5,6 +5,9 @@
 .board-grid-compact {
   opacity: 0.26;
 }
+/* Diesen Rahmen tragen Figuren UND Orte. Die Basis hat zwei Spalten, weil Orte keine
+   Weltuebersicht haben; die dritte Spalte gehoert unter .figure-workspace und nirgends
+   sonst hin. StoryGraphLayout.test.ts haelt genau das fest. */
 .figure-layout {
   min-height: 0;
   position: relative;

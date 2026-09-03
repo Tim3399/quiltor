@@ -1,3 +1,6 @@
+/* Kanten-Inspector von Weltgraph und Storyboard. Er schwebt ueber der Leinwand und darf
+   sich mit Minimap und Bedienknoepfen nicht ueberschneiden -- layout-invariants.spec.ts
+   misst das. */
 .graph-edge-inspector-panel {
   z-index: var(--z-float-legend);
   bottom: var(--graph-edge-inspector-safe-bottom, auto);

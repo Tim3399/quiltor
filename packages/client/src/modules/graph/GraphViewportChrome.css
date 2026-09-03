@@ -1,3 +1,6 @@
+/* Die Huelle jeder Leinwand: Weltgraph, Orte und Storyboard sitzen darin. Was hier an
+   Freihalteflaechen entsteht, gilt fuer alle drei -- eine Ecke, die nur im Storyboard
+   passt, gehoert in dessen eigenes Stylesheet. */
 .graph-viewport-surface {
   --graph-viewport-inset: var(--space-14);
   --graph-overlay-gap: var(--space-10);

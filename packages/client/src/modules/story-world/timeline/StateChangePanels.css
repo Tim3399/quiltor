@@ -1,3 +1,7 @@
+/* Achtung: denselben Klassennamen setzt auch storyboard/StoryboardWorkspace.css, mit
+   derselben Basis und einem anderen Zusatz (.has-inspector hier, .has-library dort).
+   Beide Dateien liegen im selben Dokument, die spaetere gewinnt. Aenderungen an der
+   Basis also immer in beiden. */
 .storyboard-layout {
   min-width: 0;
   min-height: 0;

@@ -50,6 +50,8 @@
   align-items: flex-start;
   transform: translateY(-50%);
 }
+/* Beschrieben hier, gerendert von WorkspaceLayout. Der Abstand zum Rand kommt aus
+   --focus-margin, damit beide Reiter symmetrisch stehen. */
 .focus-helper-toggle {
   width: var(--focus-rail-width, 30px);
   height: 38px;
@@ -125,6 +127,8 @@
   transform: translateY(-50%);
 }
 
+/* Gegenstueck zum Schreibhilfe-Reiter, ebenfalls von WorkspaceLayout gerendert und an
+   dieselbe --focus-margin gebunden. */
 .focus-side-toggle {
   width: 30px;
   height: 38px;
