@@ -32,7 +32,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(editor).toHaveAttribute("data-gutter", "both-edges");
     expect(editor).toHaveAttribute("data-overscroll", "contain");
     expect(editor).toHaveAttribute("data-scrollbar", "thin");
-    expect(editor).toHaveAttribute("data-surface", "paper");
+    expect(editor).toHaveAttribute("data-surface", "canvas");
 
     const root = join(process.cwd(), "packages/client/src/modules/manuscript");
     const workspaceCss = readFileSync(join(root, "WorkspaceLayout.css"), "utf8");
@@ -93,7 +93,7 @@ describe("TextWorkspace layout and panels", () => {
     });
     const editor = view.container.querySelector(".editor-scroll");
 
-    expect(editor).toHaveAttribute("data-surface", "paper");
+    expect(editor).toHaveAttribute("data-surface", "canvas");
 
     const root = join(process.cwd(), "packages/client/src");
     const editorCss = readFileSync(join(root, "modules/manuscript/EditorSurface.css"), "utf8");
@@ -104,11 +104,14 @@ describe("TextWorkspace layout and panels", () => {
     const colorsCss = readFileSync(join(root, "design/colors.css"), "utf8");
     const printCss = readFileSync(join(root, "modules/manuscript/PrintDocument.css"), "utf8");
     const texturePath = join(root, "modules/manuscript/assets/paper-fiber-texture.webp");
-    const paperRule = editorCss.match(
-      /\.editor-scroll\[data-surface="paper"\]\s*\{([^}]*)\}/s,
-    )?.[1];
+    const paperRule = editorCss.match(/\.editor-page\s*\{([^}]*)\}/s)?.[1];
 
     expect(paperRule, "EditorSurface.css must own the manuscript paper material").toBeDefined();
+    // Das Blatt: the material belongs to the page, so the page also carries the edge and
+    // the shadow that make it read as an object lying on the desk behind it.
+    expect(paperRule).toMatch(/border-radius:\s*var\(--radius-xl\)/);
+    expect(paperRule).toMatch(/box-shadow:\s*var\(--elevation-\d\) var\(--shadow-[a-z]+\);/);
+    expect(paperRule).toMatch(/width:\s*min\([^;]*var\(--measure-prose\)\);/);
     expect(paperRule).toMatch(/background-color:\s*var\(--surface-paper\);/);
     expect(paperRule).not.toMatch(/var\(--(?:paper|ink|soft|line)\)/);
     expect(paperRule).not.toMatch(/(?<!var\(--)(?<!-)\btransparent\b/);
@@ -140,10 +143,10 @@ describe("TextWorkspace layout and panels", () => {
     expect(lightTextureVeil).toBeLessThanOrEqual(0.05);
     expect(darkTextureVeil).toBeGreaterThanOrEqual(0.9);
     expect(editorCss).toMatch(
-      /@media \(prefers-contrast: more\)\s*\{[\s\S]*?\.editor-scroll\[data-surface="paper"\]\s*\{[^}]*background-image:\s*none;/s,
+      /@media \(prefers-contrast: more\)\s*\{[\s\S]*?\.editor-page\s*\{[^}]*background-image:\s*none;/s,
     );
     expect(editorCss).toMatch(
-      /@media \(forced-colors: active\)\s*\{[\s\S]*?\.editor-scroll\[data-surface="paper"\]\s*\{[^}]*background-image:\s*none;/s,
+      /@media \(forced-colors: active\)\s*\{[\s\S]*?\.editor-page\s*\{[^}]*background-image:\s*none;/s,
     );
 
     const globalPaperRule = scrollAreaCss.match(
@@ -236,7 +239,7 @@ describe("TextWorkspace layout and panels", () => {
       { key: "ArrowRight" },
     );
     fireEvent.keyDown(
-      screen.getByRole("separator", { name: "Schreibhilfe breiter oder schmaler ziehen" }),
+      screen.getByRole("separator", { name: "Details breiter oder schmaler ziehen" }),
       { key: "ArrowLeft" },
     );
     expect(onSidebarWidth).toHaveBeenCalledWith(256);
@@ -264,7 +267,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(chapters).toHaveAttribute("aria-controls", "chapter-binder");
     fireEvent.click(chapters);
     expect(onBinderOpen).toHaveBeenCalledWith(true);
-    const writingAid = rendered.getByRole("button", { name: "Schreibhilfe öffnen" });
+    const writingAid = rendered.getByRole("button", { name: "Details öffnen" });
     expect(writingAid).toHaveAttribute("aria-expanded", "false");
     expect(writingAid).toHaveAttribute("aria-controls", "writing-aid-inspector");
     expect(writingAid.querySelector(".lucide-panel-right")).not.toBeNull();
@@ -300,7 +303,7 @@ describe("TextWorkspace layout and panels", () => {
     const rendered = within(view.container);
     const toolbar = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
     const chapters = toolbar.getByRole("button", { name: "Kapitel" });
-    const writingAid = toolbar.getByRole("button", { name: "Schreibhilfe" });
+    const writingAid = toolbar.getByRole("button", { name: "Details" });
 
     expect(chapters).toBeVisible();
     expect(writingAid).toBeVisible();
@@ -312,10 +315,10 @@ describe("TextWorkspace layout and panels", () => {
     fireEvent.click(chapters);
     expect(rendered.getByRole("complementary", { name: "Kapitel" })).toBeVisible();
     fireEvent.click(writingAid);
-    expect(rendered.queryByRole("complementary", { name: "Schreibhilfe" })).toBeNull();
+    expect(rendered.queryByRole("complementary", { name: "Details" })).toBeNull();
     expect(writingAid).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(writingAid);
-    expect(rendered.getByRole("complementary", { name: "Schreibhilfe" })).toBeVisible();
+    expect(rendered.getByRole("complementary", { name: "Details" })).toBeVisible();
   });
 
   it("meldet die Schreibhilfe ohne Kapitel weder geöffnet noch als steuernd", () => {
@@ -333,12 +336,12 @@ describe("TextWorkspace layout and panels", () => {
     const rendered = within(view.container);
     const writingAid = within(
       within(view.container).getByRole("toolbar", { name: "Manuskript" }),
-    ).getByRole("button", { name: "Schreibhilfe" });
+    ).getByRole("button", { name: "Details" });
     expect(writingAid).toBeDisabled();
     expect(writingAid).toHaveAttribute("aria-expanded", "false");
     expect(writingAid).toHaveAttribute("aria-pressed", "false");
     expect(writingAid).not.toHaveAttribute("aria-controls");
-    expect(rendered.queryByRole("complementary", { name: "Schreibhilfe" })).toBeNull();
+    expect(rendered.queryByRole("complementary", { name: "Details" })).toBeNull();
     fireEvent.click(writingAid);
     expect(onInspectorOpen).not.toHaveBeenCalled();
   });
@@ -382,16 +385,16 @@ describe("TextWorkspace layout and panels", () => {
       "aria-expanded",
       "false",
     );
-    fireEvent.click(rendered.getByRole("button", { name: "Schreibhilfe öffnen" }));
-    const aid = rendered.getByRole("complementary", { name: "Schreibhilfe" });
+    fireEvent.click(rendered.getByRole("button", { name: "Details öffnen" }));
+    const aid = rendered.getByRole("complementary", { name: "Details" });
     expect(aid).toHaveAttribute("id", "writing-aid-inspector");
-    expect(rendered.queryByRole("button", { name: "Schreibhilfe öffnen" })).toBeNull();
-    const closeAid = within(aid).getByRole("button", { name: "Schreibhilfe schließen" });
-    expect(closeAid.closest(".writing-aid__header")).not.toBeNull();
+    expect(rendered.queryByRole("button", { name: "Details öffnen" })).toBeNull();
+    const closeAid = within(aid).getByRole("button", { name: "Details schließen" });
+    expect(closeAid.closest(".manuscript-inspector__header")).not.toBeNull();
     expect(closeAid.parentElement?.firstElementChild).toBe(closeAid);
     fireEvent.click(closeAid);
-    expect(rendered.queryByRole("complementary", { name: "Schreibhilfe" })).toBeNull();
-    expect(rendered.getByRole("button", { name: "Schreibhilfe öffnen" })).toHaveAttribute(
+    expect(rendered.queryByRole("complementary", { name: "Details" })).toBeNull();
+    expect(rendered.getByRole("button", { name: "Details öffnen" })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
@@ -410,10 +413,10 @@ describe("TextWorkspace layout and panels", () => {
     });
     const rendered = within(view.container);
     expect(rendered.queryByRole("button", { name: "Kapitelnavigation öffnen" })).toBeNull();
-    expect(rendered.queryByRole("button", { name: "Schreibhilfe öffnen" })).toBeNull();
+    expect(rendered.queryByRole("button", { name: "Details öffnen" })).toBeNull();
     const context = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
     expect(context.getByRole("button", { name: "Kapitel" })).toBeVisible();
-    expect(context.getByRole("button", { name: "Schreibhilfe" })).toBeVisible();
+    expect(context.getByRole("button", { name: "Details" })).toBeVisible();
   });
 
   it("öffnet und schließt beide kompakten Sheets über Toolbar und Panel-X", () => {
@@ -445,10 +448,10 @@ describe("TextWorkspace layout and panels", () => {
     const chapters = screen.getByRole("dialog", { name: "Kapitel" });
     fireEvent.click(within(chapters).getByRole("button", { name: "Kapitelnavigation schließen" }));
     expect(screen.queryByRole("dialog", { name: "Kapitel" })).toBeNull();
-    fireEvent.click(toolbar.getByRole("button", { name: "Schreibhilfe" }));
-    const writingAid = screen.getByRole("dialog", { name: "Schreibhilfe" });
-    fireEvent.click(within(writingAid).getByRole("button", { name: "Schreibhilfe schließen" }));
-    expect(screen.queryByRole("dialog", { name: "Schreibhilfe" })).toBeNull();
+    fireEvent.click(toolbar.getByRole("button", { name: "Details" }));
+    const writingAid = screen.getByRole("dialog", { name: "Details" });
+    fireEvent.click(within(writingAid).getByRole("button", { name: "Details schließen" }));
+    expect(screen.queryByRole("dialog", { name: "Details" })).toBeNull();
   });
 
   it("behält im Fokusmodus die dezenten Aufklappschalter und keine Toolbar-Dopplung", () => {
@@ -473,7 +476,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(chapters).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(chapters);
     expect(chapters).toHaveAttribute("aria-expanded", "false");
-    const writingAid = rendered.getByRole("button", { name: "Schreibhilfe öffnen" });
+    const writingAid = rendered.getByRole("button", { name: "Details öffnen" });
     expect(writingAid.querySelector(".lucide-panel-right")).not.toBeNull();
     fireEvent.click(writingAid);
     expect(writingAid).toHaveAttribute("aria-expanded", "true");
@@ -481,7 +484,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(writingAid).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("hält im rechten Panel nur noch die Schreibhilfe", () => {
+  it("trennt Struktur links von Steuerung rechts", () => {
     const view = renderWorkspace({
       manuscript,
       figures,
@@ -492,11 +495,23 @@ describe("TextWorkspace layout and panels", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    const aid = within(within(view.container).getByRole("complementary", { name: "Schreibhilfe" }));
-    expect(aid.getByRole("tab", { name: "Nachschlagen" })).toBeTruthy();
-    expect(aid.queryByRole("tab", { name: "Kapitel" })).toBeNull();
-    expect(aid.queryByLabelText("Kapitelnotiz")).toBeNull();
-    expect(aid.queryByRole("button", { name: "Kapitel löschen" })).toBeNull();
-    expect(aid.queryByRole("button", { name: "Nach oben" })).toBeNull();
+    const rendered = within(view.container);
+    const binder = within(rendered.getByRole("complementary", { name: "Kapitel" }));
+    const details = within(rendered.getByRole("complementary", { name: "Details" }));
+
+    // Links steht nur, welches Kapitel gemeint ist.
+    expect(binder.queryByLabelText("Kapitelnotiz")).toBeNull();
+    expect(binder.queryByText("Handlungszeit")).toBeNull();
+
+    // Rechts steht, was mit ihm geschieht -- in zwei Registern unter einem Kopf.
+    expect(details.getByRole("radio", { name: "Kapitel" })).toBeChecked();
+    expect(details.getByLabelText("Kapitelnotiz")).toBeTruthy();
+    expect(details.getByText("Handlungszeit")).toBeTruthy();
+    expect(details.getByRole("button", { name: "Kapitel löschen" })).toBeTruthy();
+    expect(details.queryByRole("tab", { name: "Nachschlagen" })).toBeNull();
+
+    fireEvent.click(details.getByRole("radio", { name: "Schreibhilfe" }));
+    expect(details.getByRole("tab", { name: "Nachschlagen" })).toBeTruthy();
+    expect(details.queryByLabelText("Kapitelnotiz")).toBeNull();
   });
 });
