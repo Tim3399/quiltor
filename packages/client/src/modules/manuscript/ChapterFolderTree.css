@@ -5,15 +5,15 @@
 
 .binder-tree-toolbar {
   flex: none;
-  padding: var(--space-7) var(--space-14);
-  border-bottom: 1px solid var(--line);
+  padding: var(--space-6) var(--space-8) 0;
 }
 .binder-tree-toolbar .binder-add-folder {
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
+  padding-inline: var(--space-8);
 }
 .binder-tree {
-  --binder-level-step: var(--space-20);
+  --binder-level-step: var(--space-14);
   padding: var(--space-4) var(--space-7) var(--space-8);
   list-style: none;
 }
@@ -56,12 +56,14 @@
   opacity: 1;
 }
 .binder-drag-handle {
-  width: 100%;
-  min-height: calc(var(--control-touch) - var(--space-4));
+  position: absolute;
+  inset-block: 0;
+  /* Ueber dem linken Rand der Zeile, nicht daneben: negativ gesetzt stand der Griff
+     ausserhalb der Karte und bei der obersten Ebene ausserhalb des Panels. */
+  inset-inline-start: 0;
+  width: var(--space-16);
   display: grid;
-  grid-area: drag;
   place-items: center;
-  align-self: center;
   color: var(--muted);
   opacity: 0;
   transition: opacity var(--motion-fast) var(--ease-standard);
@@ -80,18 +82,21 @@
 }
 .binder-folder-row {
   width: 100%;
-  min-height: var(--control-touch);
+  min-height: var(--control-regular);
+  position: relative;
   display: grid;
-  grid-template-columns: var(--space-24) minmax(0, 1fr) auto;
-  grid-template-areas: "drag main actions";
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "main actions";
   align-items: center;
   gap: var(--space-4);
-  margin-block: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--line);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--transparent);
   border-radius: var(--radius-sm);
-  background: var(--paper);
+  background: var(--transparent);
   color: var(--ink);
+}
+.binder-folder-row:hover {
+  background: var(--control-hover-subtle);
 }
 .binder-folder-row:not([data-binder-depth="0"]) {
   border-inline-start-width: var(--space-2);

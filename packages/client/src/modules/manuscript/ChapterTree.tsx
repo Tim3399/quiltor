@@ -15,6 +15,7 @@ import {
 } from "./binder/manuscriptTree";
 import { ChapterActionsMenu, type ChapterActionsMenuProps } from "./ChapterActionsMenu";
 import { chapterStoryTimeLabel } from "./ChapterStoryTimeFields";
+import { romanNumeral } from "./romanNumeral";
 import { ChapterTreeChapterRow, ChapterTreeEntry, ChapterTreeFolderRow } from "./ChapterTreeRows";
 import type { Chapter, Manuscript, ManuscriptStructure, ManuscriptTreeItem } from "./model";
 import { useChapterTreeDragDrop } from "./useChapterTreeDragDrop";
@@ -155,13 +156,17 @@ export function ChapterTree({
             depth={depth}
             selected={chapter.id === current?.id}
             label={chapter.title || t("untitled")}
-            number={String(numberById.get(chapter.id) ?? 0).padStart(2, "0")}
+            number={romanNumeral(numberById.get(chapter.id) ?? 0)}
             words={
               <>
                 {wordCount(chapter.body)} {t("words")}
               </>
             }
-            storyTime={chapterStoryTimeLabel(chapter, timeline, timeSystem, t)}
+            storyTime={
+              chapter.storyTime?.startMomentId
+                ? chapterStoryTimeLabel(chapter, timeline, timeSystem, t)
+                : undefined
+            }
             dragDrop={dragDrop}
             actions={
               chapter.id === current?.id && chapterActions ? (
@@ -229,7 +234,8 @@ export function ChapterTree({
     <>
       <div className="binder-tree-toolbar">
         <Button
-          appearance="secondary"
+          appearance="ghost"
+          size="compact"
           icon={<FolderPlus />}
           className="binder-add-folder"
           onClick={createFolder}
