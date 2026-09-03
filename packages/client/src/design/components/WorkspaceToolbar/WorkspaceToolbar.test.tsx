@@ -18,11 +18,13 @@ describe("WorkspaceToolbar", () => {
     render(
       <WorkspaceToolbar label="Kapitelwerkzeuge">
         <WorkspaceToolbarTitle title="Kapitel 1" detail="120 Wörter" />
-        <WorkspaceToolbarActions>
-          <WorkspaceToolbarGroup label="Bearbeiten">
-            <Button>Speichern</Button>
-          </WorkspaceToolbarGroup>
-        </WorkspaceToolbarActions>
+        <WorkspaceToolbarActions
+          actions={
+            <WorkspaceToolbarGroup label="Bearbeiten">
+              <Button>Speichern</Button>
+            </WorkspaceToolbarGroup>
+          }
+        />
       </WorkspaceToolbar>,
     );
 
@@ -43,11 +45,15 @@ describe("WorkspaceToolbar", () => {
   it("offers a wrapping action layout without a horizontal scroll container", () => {
     render(
       <WorkspaceToolbar label="Zeitstrahlwerkzeuge">
-        <WorkspaceToolbarActions layout="wrap" data-testid="actions">
-          <WorkspaceToolbarGroup label="Erstellen">
-            <Button>Neu</Button>
-          </WorkspaceToolbarGroup>
-        </WorkspaceToolbarActions>
+        <WorkspaceToolbarActions
+          layout="wrap"
+          data-testid="actions"
+          create={
+            <WorkspaceToolbarGroup label="Erstellen">
+              <Button>Neu</Button>
+            </WorkspaceToolbarGroup>
+          }
+        />
       </WorkspaceToolbar>,
     );
 
@@ -61,23 +67,29 @@ describe("WorkspaceToolbar", () => {
   it("accepts a semantic composite fieldset as a direct action group", () => {
     render(
       <WorkspaceToolbar label="Kapitelwerkzeuge">
-        <WorkspaceToolbarActions>
-          <WorkspaceToolbarGroup label="Erstellen">
-            <Button>Neu</Button>
-          </WorkspaceToolbarGroup>
-          <UndoRedoControls
-            label="Verlauf"
-            undoLabel="Rückgängig"
-            redoLabel="Wiederholen"
-            onUndo={() => undefined}
-            onRedo={() => undefined}
-            canUndo
-            canRedo={false}
-          />
-          <WorkspaceToolbarGroup label="Ausgabe">
-            <Button>Exportieren</Button>
-          </WorkspaceToolbarGroup>
-        </WorkspaceToolbarActions>
+        <WorkspaceToolbarActions
+          create={
+            <WorkspaceToolbarGroup label="Erstellen">
+              <Button>Neu</Button>
+            </WorkspaceToolbarGroup>
+          }
+          history={
+            <UndoRedoControls
+              label="Verlauf"
+              undoLabel="Rückgängig"
+              redoLabel="Wiederholen"
+              onUndo={() => undefined}
+              onRedo={() => undefined}
+              canUndo
+              canRedo={false}
+            />
+          }
+          actions={
+            <WorkspaceToolbarGroup label="Ausgabe">
+              <Button>Exportieren</Button>
+            </WorkspaceToolbarGroup>
+          }
+        />
       </WorkspaceToolbar>,
     );
 

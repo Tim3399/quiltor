@@ -51,51 +51,59 @@ export function TimelineToolbar({
           </>
         }
       />
-      <WorkspaceToolbarActions className="timeline-toolbar-actions" layout="wrap">
-        <WorkspaceToolbarGroup className="timeline-time-group" label={t("timelineTimeSystem")}>
-          <TimeSystemControls
-            system={system}
-            onKindChange={onKindChange}
-            onPatch={onPatchSystem}
-            settingsOpen={settingsOpen}
-            onSettingsOpenChange={setSettingsOpen}
-            locale={locale}
-            t={t}
-          />
-        </WorkspaceToolbarGroup>
-        <WorkspaceToolbarGroup
-          className="timeline-create-group"
-          label={`${t("timelineAddCustomCalendar")} / ${t("addMoment")}`}
-        >
-          <WorkspaceToolbarCreateButton
-            label={t("timelineAddCustomCalendar")}
-            icon={<CalendarPlus />}
-            onClick={() => {
-              if (system.kind !== "custom") onKindChange("custom");
-              setSettingsOpen(true);
-            }}
-          />
-          <WorkspaceToolbarCreateButton
-            label={t("addMoment")}
-            icon={<ClockPlus />}
-            onClick={onAddMoment}
-          />
-        </WorkspaceToolbarGroup>
-        <WorkspaceToolbarGroup
-          className="timeline-history-group"
-          label={`${t("timelineUndo")} / ${t("timelineRedo")}`}
-        >
-          <UndoRedoControls
+      <WorkspaceToolbarActions
+        className="timeline-toolbar-actions"
+        layout="wrap"
+        create={
+          <WorkspaceToolbarGroup
+            className="timeline-create-group"
+            label={`${t("timelineAddCustomCalendar")} / ${t("addMoment")}`}
+          >
+            <WorkspaceToolbarCreateButton
+              label={t("timelineAddCustomCalendar")}
+              icon={<CalendarPlus />}
+              onClick={() => {
+                if (system.kind !== "custom") onKindChange("custom");
+                setSettingsOpen(true);
+              }}
+            />
+            <WorkspaceToolbarCreateButton
+              label={t("addMoment")}
+              icon={<ClockPlus />}
+              onClick={onAddMoment}
+            />
+          </WorkspaceToolbarGroup>
+        }
+        view={
+          <WorkspaceToolbarGroup className="timeline-time-group" label={t("timelineTimeSystem")}>
+            <TimeSystemControls
+              system={system}
+              onKindChange={onKindChange}
+              onPatch={onPatchSystem}
+              settingsOpen={settingsOpen}
+              onSettingsOpenChange={setSettingsOpen}
+              locale={locale}
+              t={t}
+            />
+          </WorkspaceToolbarGroup>
+        }
+        history={
+          <WorkspaceToolbarGroup
+            className="timeline-history-group"
             label={`${t("timelineUndo")} / ${t("timelineRedo")}`}
-            undoLabel={t("timelineUndo")}
-            redoLabel={t("timelineRedo")}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            onUndo={() => onUndo?.()}
-            onRedo={() => onRedo?.()}
-          />
-        </WorkspaceToolbarGroup>
-      </WorkspaceToolbarActions>
+          >
+            <UndoRedoControls
+              label={`${t("timelineUndo")} / ${t("timelineRedo")}`}
+              undoLabel={t("timelineUndo")}
+              redoLabel={t("timelineRedo")}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={() => onUndo?.()}
+              onRedo={() => onRedo?.()}
+            />
+          </WorkspaceToolbarGroup>
+        }
+      />
     </WorkspaceToolbar>
   );
 }

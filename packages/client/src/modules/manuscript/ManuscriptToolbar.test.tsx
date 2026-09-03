@@ -10,7 +10,6 @@ it("links manuscript export actions and restores focus after selection", async (
   const { container } = render(
     <I18nProvider>
       <ManuscriptToolbar
-        totalWords={1200}
         focus={false}
         binderOpen={false}
         inspectorOpen={false}

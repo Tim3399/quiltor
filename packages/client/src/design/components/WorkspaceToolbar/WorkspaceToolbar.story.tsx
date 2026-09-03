@@ -12,18 +12,24 @@ export function Default() {
   return (
     <WorkspaceToolbar label="Kapitelwerkzeuge">
       <WorkspaceToolbarTitle title="Die Ankunft" detail="1.240 Wörter" />
-      <WorkspaceToolbarActions>
-        <WorkspaceToolbarGroup label="Erstellen">
-          <WorkspaceToolbarCreateButton label="Neues Kapitel" />
-        </WorkspaceToolbarGroup>
-        <WorkspaceToolbarGroup label="Verlauf">
-          <ToolbarButton label="Rückgängig" icon={<Undo2 />} />
-          <ToolbarButton label="Wiederholen" icon={<Redo2 />} disabled />
-        </WorkspaceToolbarGroup>
-        <WorkspaceToolbarGroup label="Ausgabe">
-          <ToolbarButton label="Exportieren" icon={<Download />} />
-        </WorkspaceToolbarGroup>
-      </WorkspaceToolbarActions>
+      <WorkspaceToolbarActions
+        create={
+          <WorkspaceToolbarGroup label="Erstellen">
+            <WorkspaceToolbarCreateButton label="Neues Kapitel" />
+          </WorkspaceToolbarGroup>
+        }
+        history={
+          <WorkspaceToolbarGroup label="Verlauf">
+            <ToolbarButton label="Rückgängig" icon={<Undo2 />} />
+            <ToolbarButton label="Wiederholen" icon={<Redo2 />} disabled />
+          </WorkspaceToolbarGroup>
+        }
+        actions={
+          <WorkspaceToolbarGroup label="Ausgabe">
+            <ToolbarButton label="Exportieren" icon={<Download />} />
+          </WorkspaceToolbarGroup>
+        }
+      />
     </WorkspaceToolbar>
   );
 }

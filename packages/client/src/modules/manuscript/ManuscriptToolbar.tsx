@@ -20,14 +20,12 @@ import {
 } from "../../design";
 import { useI18n } from "../../i18n";
 import type { Chapter } from "./model";
-import { wordCount } from "./wordCount";
 import "./ManuscriptToolbar.css";
 
 type PdfState = "idle" | "loading" | "error";
 
 interface ManuscriptToolbarProps {
   current?: Chapter;
-  totalWords: number;
   focus: boolean;
   binderOpen: boolean;
   inspectorOpen: boolean;
@@ -48,7 +46,6 @@ interface ManuscriptToolbarProps {
 
 export function ManuscriptToolbar({
   current,
-  totalWords,
   focus,
   binderOpen,
   inspectorOpen,
@@ -72,115 +69,115 @@ export function ManuscriptToolbar({
     <WorkspaceToolbar className="manuscript-toolbar" label={t("manuscript")}>
       <div className="manuscript-toolbar__summary">
         <WorkspaceToolbarTitle title={current?.title || t("manuscript")} />
-        <dl className="manuscript-toolbar__stats">
-          {current && (
-            <>
-              <div>
-                <dt>{t("words")}</dt>
-                <dd>{wordCount(current.body).toLocaleString(locale)}</dd>
-              </div>
-              <div>
-                <dt>{t("characters")}</dt>
-                <dd>{current.body.length.toLocaleString(locale)}</dd>
-              </div>
-              <div>
-                <dt>{t("standardPages")}</dt>
-                <dd>{(wordCount(current.body) / 250).toFixed(1).replace(".", ",")}</dd>
-              </div>
-            </>
-          )}
-          <div>
-            <dt>{t("totalWords")}</dt>
-            <dd>{totalWords.toLocaleString(locale)}</dd>
-          </div>
-        </dl>
       </div>
-      <WorkspaceToolbarActions className="manuscript-toolbar-actions">
-        <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-          <WorkspaceToolbarCreateButton
-            label={t("newChapter")}
-            icon={<FilePlus2 />}
-            onClick={onAddChapter}
-          />
-        </WorkspaceToolbarGroup>
-        {!focus && (
-          <WorkspaceToolbarGroup className="manuscript-toolbar-group panel-toggles">
-            <ToolbarButton
-              label={t("chapters")}
-              icon={<PanelLeft />}
-              collapseAt="medium"
-              aria-pressed={binderOpen}
-              aria-expanded={binderOpen}
-              aria-controls="chapter-binder"
-              onClick={() => onBinderOpen(!binderOpen)}
-            />
-            <ToolbarButton
-              label={t("writingAid")}
-              icon={<PanelRight />}
-              collapseAt="medium"
-              disabled={!current}
-              aria-pressed={Boolean(current && inspectorOpen)}
-              aria-expanded={Boolean(current && inspectorOpen)}
-              aria-controls={current ? "writing-aid-inspector" : undefined}
-              onClick={() => {
-                if (current) onInspectorOpen(!inspectorOpen);
-              }}
-            />
-          </WorkspaceToolbarGroup>
-        )}
-        <UndoRedoControls
-          className="manuscript-toolbar-group"
-          label={t("manuscript")}
-          undoLabel={t("undoManuscript")}
-          redoLabel={t("redoManuscript")}
-          onUndo={() => onUndo?.()}
-          onRedo={() => onRedo?.()}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-        <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-          <ToolbarButton
-            label={t("focus")}
-            icon={<Focus />}
-            collapseAt="medium"
-            aria-pressed={focus}
-            onClick={() => onFocus(!focus)}
-          />
-        </WorkspaceToolbarGroup>
-        {current && (
+      <WorkspaceToolbarActions
+        className="manuscript-toolbar-actions"
+        create={
           <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-            <ToolbarButton
-              label={t("versions")}
-              icon={<HistoryIcon />}
-              collapseAt="medium"
-              aria-pressed={historyOpen}
-              onClick={() => onHistoryOpen(!historyOpen)}
+            <WorkspaceToolbarCreateButton
+              label={t("newChapter")}
+              icon={<FilePlus2 />}
+              onClick={onAddChapter}
             />
           </WorkspaceToolbarGroup>
-        )}
-        <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-          <DropdownMenu
-            label={t("exportOptions")}
-            renderTrigger={({ ref, ...triggerProps }) => (
-              <ToolbarButton
-                {...triggerProps}
-                ref={ref}
-                label={t("exportManuscript")}
-                icon={<Download />}
-                collapseAt="medium"
-              />
+        }
+        view={
+          <>
+            {!focus && (
+              <WorkspaceToolbarGroup className="manuscript-toolbar-group panel-toggles">
+                <ToolbarButton
+                  label={t("chapters")}
+                  icon={<PanelLeft />}
+                  collapseAt="medium"
+                  aria-pressed={binderOpen}
+                  aria-expanded={binderOpen}
+                  aria-controls="chapter-binder"
+                  onClick={() => onBinderOpen(!binderOpen)}
+                />
+                <ToolbarButton
+                  label={t("inspectorPanel")}
+                  icon={<PanelRight />}
+                  collapseAt="medium"
+                  disabled={!current}
+                  aria-pressed={Boolean(current && inspectorOpen)}
+                  aria-expanded={Boolean(current && inspectorOpen)}
+                  aria-controls={current ? "writing-aid-inspector" : undefined}
+                  onClick={() => {
+                    if (current) onInspectorOpen(!inspectorOpen);
+                  }}
+                />
+                <ToolbarButton
+                  label={t("focus")}
+                  icon={<Focus />}
+                  collapseAt="medium"
+                  aria-pressed={focus}
+                  onClick={() => onFocus(!focus)}
+                />
+              </WorkspaceToolbarGroup>
             )}
-          >
-            <MenuItem icon={<Download />} label={t("manuscript")} onSelect={onExport} />
-            <MenuItem
-              icon={<Printer />}
-              label={pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
-              disabled={pdfState === "loading"}
-              onSelect={onPrint}
+            {focus && (
+              <WorkspaceToolbarGroup className="manuscript-toolbar-group">
+                <ToolbarButton
+                  label={t("focus")}
+                  icon={<Focus />}
+                  collapseAt="medium"
+                  aria-pressed={focus}
+                  onClick={() => onFocus(!focus)}
+                />
+              </WorkspaceToolbarGroup>
+            )}
+          </>
+        }
+        history={
+          <>
+            <UndoRedoControls
+              className="manuscript-toolbar-group"
+              label={t("manuscript")}
+              undoLabel={t("undoManuscript")}
+              redoLabel={t("redoManuscript")}
+              onUndo={() => onUndo?.()}
+              onRedo={() => onRedo?.()}
+              canUndo={canUndo}
+              canRedo={canRedo}
             />
-          </DropdownMenu>
-        </WorkspaceToolbarGroup>
-      </WorkspaceToolbarActions>
+            {current && (
+              <WorkspaceToolbarGroup className="manuscript-toolbar-group">
+                <ToolbarButton
+                  label={t("versions")}
+                  icon={<HistoryIcon />}
+                  collapseAt="medium"
+                  aria-pressed={historyOpen}
+                  onClick={() => onHistoryOpen(!historyOpen)}
+                />
+              </WorkspaceToolbarGroup>
+            )}
+          </>
+        }
+        actions={
+          <WorkspaceToolbarGroup className="manuscript-toolbar-group">
+            <DropdownMenu
+              label={t("exportOptions")}
+              renderTrigger={({ ref, ...triggerProps }) => (
+                <ToolbarButton
+                  {...triggerProps}
+                  ref={ref}
+                  label={t("exportManuscript")}
+                  icon={<Download />}
+                  collapseAt="medium"
+                />
+              )}
+            >
+              <MenuItem icon={<Download />} label={t("manuscript")} onSelect={onExport} />
+              <MenuItem
+                icon={<Printer />}
+                label={pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
+                disabled={pdfState === "loading"}
+                onSelect={onPrint}
+              />
+            </DropdownMenu>
+          </WorkspaceToolbarGroup>
+        }
+      />
     </WorkspaceToolbar>
   );
 }
