@@ -107,10 +107,20 @@ function hasBaselines() {
   return existsSync(join(SNAPSHOTS, `light-manuscript-wide-${process.platform}.png`));
 }
 
+/**
+ * Der Bootstrap-Lauf des Workflows visual-baselines-bootstrap.
+ *
+ * Er laeuft nur von Hand und nur mit --update-snapshots=missing, schreibt also ausschliesslich
+ * Bilder, die es noch nicht gibt, und ruehrt vorhandene Referenzen nicht an. Ohne dieses
+ * Zugestaendnis wuerde der Ausweich-Skip oben verhindern, dass ueberhaupt je ein erster Satz
+ * entsteht -- der Lauf uebersprraenge sich selbst.
+ */
+const BOOTSTRAP = process.env.QUILTOR_BASELINE_BOOTSTRAP === "1";
+
 for (const theme of ["light", "dark"] as const) {
   test(`${theme}: Kernansichten bleiben visuell reproduzierbar`, async ({ page }) => {
     test.skip(
-      !hasBaselines(),
+      !BOOTSTRAP && !hasBaselines(),
       `Fuer ${process.platform} liegt noch kein Baseline-Satz vor. Einmal mit ` +
         "`npx playwright test tests/e2e/visual-baseline.spec.ts --update-snapshots` " +
         "erzeugen und einchecken; danach vergleicht dieser Lauf.",

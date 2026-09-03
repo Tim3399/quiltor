@@ -74,7 +74,7 @@ export function checkVisualBaselineReach(repositoryRoot) {
     if (!images.some((name) => name.includes(`-${platform}.`))) {
       violations.push(
         `${platform}: ein Job vergleicht dort, aber ${SNAPSHOTS} enthaelt keinen Satz. ` +
-          "Einmal mit --update-snapshots erzeugen und einchecken.",
+          'Den Workflow "Visual-Baselines erzeugen" einmal starten; er fuellt nur, was fehlt.',
       );
     }
   }
