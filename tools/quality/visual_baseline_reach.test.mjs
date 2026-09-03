@@ -3,25 +3,17 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { after, test } from "node:test";
-import {
-  checkVisualBaselineReach,
-  pinnedPlatform,
-  suitePlatforms,
-} from "./visual_baseline_reach.mjs";
+import { checkVisualBaselineReach, suitePlatforms } from "./visual_baseline_reach.mjs";
 
 const fixtureRoot = mkdtempSync(join(tmpdir(), "quiltor-baseline-reach-"));
 
 after(() => rmSync(fixtureRoot, { recursive: true, force: true }));
 
-function world(name, { runner, runsSuite, pinned = "darwin", images = ["a-darwin.png"] }) {
+function world(name, { runner, runsSuite, images = ["a-darwin.png"] }) {
   const root = resolve(fixtureRoot, name);
   mkdirSync(resolve(root, ".github/workflows"), { recursive: true });
   mkdirSync(resolve(root, "tests/e2e/visual-baseline.spec.ts-snapshots"), { recursive: true });
-  writeFileSync(
-    resolve(root, "tests/e2e/visual-baseline.spec.ts"),
-    `test.skip(process.platform !== "${pinned}", "gebunden");\n`,
-    "utf8",
-  );
+  writeFileSync(resolve(root, "tests/e2e/visual-baseline.spec.ts"), "// spec", "utf8");
   for (const image of images) {
     writeFileSync(resolve(root, "tests/e2e/visual-baseline.spec.ts-snapshots", image), "", "utf8");
   }
@@ -44,11 +36,6 @@ function world(name, { runner, runsSuite, pinned = "darwin", images = ["a-darwin
   return root;
 }
 
-test("liest die gebundene Plattform aus dem Skip-Guard", () => {
-  assert.equal(pinnedPlatform('test.skip(process.platform !== "darwin", "x");'), "darwin");
-  assert.equal(pinnedPlatform("test.skip(true);"), undefined);
-});
-
 test("zaehlt nur Jobs, die die Suite auch ausfuehren", () => {
   const workflow = [
     "jobs:",
@@ -66,28 +53,28 @@ test("zaehlt nur Jobs, die die Suite auch ausfuehren", () => {
   assert.deepEqual([...suitePlatforms([workflow])], ["linux"]);
 });
 
-test("meldet eine Bindung, die nirgends laeuft", () => {
-  const root = world("tot", { runner: "ubuntu-24.04", runsSuite: true });
+test("nennt die Plattform, die noch keinen Satz mitbringt", () => {
+  const root = world("ohne-linux", { runner: "ubuntu-24.04", runsSuite: true });
   const violations = checkVisualBaselineReach(root);
 
   assert.equal(violations.length, 1);
-  assert.match(violations[0], /vergleicht nur auf "darwin"/);
+  assert.match(violations[0], /^linux: ein Job vergleicht dort/);
 });
 
-test("schweigt, wenn ein Job auf der gebundenen Plattform die Suite ausfuehrt", () => {
-  const root = world("lebendig", { runner: "macos-15", runsSuite: true });
+test("schweigt, wenn jede vergleichende Plattform ihren Satz hat", () => {
+  const root = world("vollstaendig", {
+    runner: "macos-15",
+    runsSuite: true,
+    images: ["a-darwin.png"],
+  });
 
   assert.deepEqual(checkVisualBaselineReach(root), []);
 });
 
-test("meldet Bilder, die zur gebundenen Plattform nicht passen", () => {
-  const root = world("falsche-bilder", {
-    runner: "macos-15",
-    runsSuite: true,
-    images: ["a-linux.png"],
-  });
+test("meldet, wenn ueberhaupt kein Job die Suite ausfuehrt", () => {
+  const root = world("niemand", { runner: "macos-15", runsSuite: false });
   const violations = checkVisualBaselineReach(root);
 
   assert.equal(violations.length, 1);
-  assert.match(violations[0], /keines fuer "darwin"/);
+  assert.match(violations[0], /Kein Job fuehrt/);
 });

@@ -10,11 +10,6 @@ const NEWLINE = String.fromCharCode(10);
 
 const RUNNER_PLATFORMS = Object.freeze({ macos: "darwin", ubuntu: "linux", windows: "win32" });
 
-/** The platform a `test.skip(process.platform !== "x", …)` guard pins the suite to. */
-export function pinnedPlatform(source) {
-  return source.match(/process\.platform\s*!==\s*["'](\w+)["']/u)?.[1];
-}
-
 /** Job blocks of a workflow, keyed by nothing -- only their text is needed here. */
 function jobBlocks(source) {
   const lines = source.split(NEWLINE);
@@ -49,41 +44,37 @@ export function suitePlatforms(files) {
 /**
  * A gate that runs nowhere is not a gate.
  *
- * The pixel baselines are pinned to one rendering engine on purpose -- fonts differ between
- * platforms and a shared baseline would be noise. That is only a decision as long as some
- * job actually runs on that platform. Otherwise the suite reports green everywhere while
- * comparing nothing, and the checked-in images quietly rot.
+ * Pixel baselines are versioned per platform, because font rasterisation differs. That only
+ * guards anything while every platform running the suite actually has a set: a job without
+ * baselines skips its comparison, and the suite reports green while comparing nothing. This
+ * check names the platforms that still owe a set.
  */
 export function checkVisualBaselineReach(repositoryRoot) {
   const violations = [];
   const specPath = resolve(repositoryRoot, SPEC);
-  if (!existsSync(specPath)) return violations;
-
-  const platform = pinnedPlatform(readFileSync(specPath, "utf8"));
-  if (!platform) return violations;
-
   const workflowDirectory = resolve(repositoryRoot, WORKFLOWS);
-  if (!existsSync(workflowDirectory)) return violations;
+  if (!existsSync(specPath) || !existsSync(workflowDirectory)) return violations;
+
   const files = readdirSync(workflowDirectory)
     .filter((name) => /\.ya?ml$/u.test(name))
     .map((name) => readFileSync(resolve(workflowDirectory, name), "utf8"));
-
-  const platforms = suitePlatforms(files);
-  if (!platforms.has(platform)) {
-    violations.push(
-      `${SPEC} vergleicht nur auf "${platform}", aber kein Job, der die Suite ausfuehrt, ` +
-        `laeuft dort (gefunden: ${[...platforms].sort().join(", ") || "keiner"}). ` +
-        `Die Baselines werden damit nirgends verglichen.`,
-    );
-  }
+  const platforms = [...suitePlatforms(files)].sort();
 
   const snapshotDirectory = resolve(repositoryRoot, SNAPSHOTS);
-  if (existsSync(snapshotDirectory)) {
-    const images = readdirSync(snapshotDirectory).filter((name) => name.endsWith(".png"));
-    const matching = images.filter((name) => name.includes(`-${platform}.`));
-    if (images.length && !matching.length) {
+  const images = existsSync(snapshotDirectory)
+    ? readdirSync(snapshotDirectory).filter((name) => name.endsWith(".png"))
+    : [];
+
+  if (!platforms.length) {
+    violations.push(`Kein Job fuehrt ${SPEC} aus; die Baselines werden nirgends verglichen.`);
+    return violations;
+  }
+
+  for (const platform of platforms) {
+    if (!images.some((name) => name.includes(`-${platform}.`))) {
       violations.push(
-        `${SNAPSHOTS} enthaelt ${images.length} Bilder, aber keines fuer "${platform}".`,
+        `${platform}: ein Job vergleicht dort, aber ${SNAPSHOTS} enthaelt keinen Satz. ` +
+          "Einmal mit --update-snapshots erzeugen und einchecken.",
       );
     }
   }
@@ -93,6 +84,8 @@ export function checkVisualBaselineReach(repositoryRoot) {
 
 export function formatVisualBaselineReport(violations) {
   return violations.length
-    ? `Visual-Baseline-Reichweite fehlgeschlagen:\n${violations.map((line) => `- ${line}`).join("\n")}`
+    ? ["Visual-Baseline-Reichweite fehlgeschlagen:", ...violations.map((line) => `- ${line}`)].join(
+        NEWLINE,
+      )
     : "Visual-Baseline-Reichweite haelt.";
 }

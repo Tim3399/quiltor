@@ -202,3 +202,45 @@ jobs:
             echo "::error::At least one browser E2E matrix slot failed or was cancelled ($SHARD_RESULT)."
             exit 1
           fi
+
+  # Linux vergleicht die Pixel-Baselines bereits in browser-e2e-shards, weil der Spec dort
+  # Teil der Produktsuite ist. macOS und Windows brauchen einen eigenen, kleinen Job: sie
+  # laufen nur gegen Vite, weil visual-baseline.spec.ts jede API-Route selbst mockt -- also
+  # ohne Python und ohne Anwendungsserver. Fehlt fuer eine Plattform noch ein Baseline-Satz,
+  # weicht der Spec dort aus und check_visual_baseline_reach.mjs nennt sie beim Namen.
+  visual-baselines:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.23.2"
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Compare the baselines
+        shell: bash
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+        run: |
+          npx vite --port 4173 --strictPort --host 127.0.0.1 > "$RUNNER_TEMP/vite.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/vite.pid"
+          for attempt in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          npx playwright test tests/e2e/visual-baseline.spec.ts --reporter=line
+      - name: Upload the differences
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: visual-baselines-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: |
+            test-results/**
+            ${{ runner.temp }}/vite.log
