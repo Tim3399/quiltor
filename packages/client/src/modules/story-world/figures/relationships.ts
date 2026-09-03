@@ -37,12 +37,67 @@ export function semanticZoomTier(zoom: number): SemanticZoomTier {
   return "detail";
 }
 
+/*
+ * A card is 200x96 (see .story-node). Two cards clear each other once they are a card plus
+ * a gutter apart; both distances are multiples of GRID_SIZE so a nudged card still sits on
+ * the same grid a single drag snaps to.
+ */
+const CARD_CLEARANCE_X = 5 * GRID_SIZE;
+const CARD_CLEARANCE_Y = 3 * GRID_SIZE;
+
+/** Snap to the grid. The `|| 0` folds the negative zero that -24 would otherwise produce. */
+function snap(value: number) {
+  return Math.round(value / GRID_SIZE) * GRID_SIZE || 0;
+}
+
+function overlaps(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return Math.abs(a.x - b.x) < CARD_CLEARANCE_X && Math.abs(a.y - b.y) < CARD_CLEARANCE_Y;
+}
+
+/** Grid offsets ordered by how far they move a card, nearest first. */
+function* nearbyCells(): Generator<{ x: number; y: number }> {
+  yield { x: 0, y: 0 };
+  for (let ring = 1; ring <= 40; ring += 1) {
+    for (let column = -ring; column <= ring; column += 1) {
+      for (let row = -ring; row <= ring; row += 1) {
+        if (Math.max(Math.abs(column), Math.abs(row)) !== ring) continue;
+        yield { x: column * GRID_SIZE, y: row * GRID_SIZE };
+      }
+    }
+  }
+}
+
+/**
+ * Tidy the surface: snap every element to the grid, then move apart the ones that would
+ * still sit on top of each other.
+ *
+ * Rounding alone was not enough -- it could even push two overlapping cards onto exactly the
+ * same coordinates. Elements are visited top-to-bottom and left-to-right, and one that has
+ * room where it already stands does not move at all, so the arrangement the author built
+ * survives and the result is the same on every run.
+ */
 export function alignNodesToGrid(nodes: FigureNode[]) {
-  return nodes.map((node) => ({
-    ...node,
-    x: Math.round(node.x / GRID_SIZE) * GRID_SIZE,
-    y: Math.round(node.y / GRID_SIZE) * GRID_SIZE,
-  }));
+  const order = nodes
+    .map((node, index) => ({ node, index }))
+    .sort(
+      (left, right) =>
+        left.node.y - right.node.y || left.node.x - right.node.x || left.index - right.index,
+    );
+  const placed: Array<{ x: number; y: number }> = [];
+  const positions = new Map<number, { x: number; y: number }>();
+
+  for (const { node, index } of order) {
+    const snapped = { x: snap(node.x), y: snap(node.y) };
+    let spot = snapped;
+    for (const offset of nearbyCells()) {
+      spot = { x: snapped.x + offset.x, y: snapped.y + offset.y };
+      if (!placed.some((other) => overlaps(spot, other))) break;
+    }
+    placed.push(spot);
+    positions.set(index, spot);
+  }
+
+  return nodes.map((node, index) => ({ ...node, ...positions.get(index) }));
 }
 
 export function resolveRelationship(

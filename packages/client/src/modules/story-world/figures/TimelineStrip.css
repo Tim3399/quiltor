@@ -209,7 +209,7 @@
 }
 
 .flow-area .timeline-strip {
-  right: var(--graph-viewport-inset, var(--space-14));
+  right: var(--graph-minimap-safe-inline-end, var(--graph-viewport-inset, var(--space-14)));
   bottom: var(--graph-viewport-inset, var(--space-14));
   left: var(--graph-controls-safe-inline-end, 62px);
 }
@@ -234,13 +234,13 @@
 
 @media (max-width: 820px) {
   .flow-area .timeline-strip {
-    right: var(--graph-viewport-inset, var(--space-14));
+    right: var(--graph-minimap-safe-inline-end, var(--graph-viewport-inset, var(--space-14)));
   }
 }
 
 @media (max-width: 640px) {
   .flow-area .timeline-strip {
-    right: var(--graph-viewport-inset, var(--space-14));
+    right: var(--graph-minimap-safe-inline-end, var(--graph-viewport-inset, var(--space-14)));
     bottom: var(--graph-viewport-inset, var(--space-14));
     left: var(--graph-controls-safe-inline-end, 62px);
   }

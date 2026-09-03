@@ -255,7 +255,12 @@ export function useFigureCanvas({
     const next = { ...current, nodes: alignNodesToGrid(current.nodes) };
     latestState.current = next;
     onChange(next);
-    window.requestAnimationFrame(() => updateNodeInternals(next.nodes.map((node) => node.id)));
+    window.requestAnimationFrame(() => {
+      updateNodeInternals(next.nodes.map((node) => node.id));
+      // Aufraeumen kann Karten aus dem Ausschnitt schieben. Wer anordnet, will das Ergebnis
+      // sehen, also folgt der Ausschnitt der neuen Anordnung.
+      flow.current?.fitView({ duration: 350, padding: 0.2 });
+    });
   }, [onChange, updateNodeInternals]);
   const addNode = useCallback(
     (kind: FigureKind) => {
