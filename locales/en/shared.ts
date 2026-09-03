@@ -17,6 +17,7 @@ export const shared = {
   unsaved: "Unsaved",
   saving: "Saving …",
   saved: "Saved",
+  savedAgo: "Saved · {ago}",
   notSaved: "Not saved",
   saveFailed: "Save failed",
   // Raised when an export never reaches its destination -- practically never in the browser, and in
@@ -67,6 +68,9 @@ export const shared = {
   searchTerm: "Search term",
   // Counters carry the whole phrase so components never concatenate number and word themselves
   // -- otherwise English lower-casing is not controllable from the catalog.
+  nWordsTotal: "{n} words in total",
+  nChapters: "{n} chapters",
+  nStandardPages: "{n} standard pages",
   nElements: "{n} elements",
   nRelationships: "{n} relationships",
   nMoments: "{n} moments",

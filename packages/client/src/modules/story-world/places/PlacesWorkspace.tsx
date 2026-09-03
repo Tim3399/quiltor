@@ -72,6 +72,7 @@ function PlacesWorkspaceInner({
   latestState.current = state;
 
   const places = useMemo(() => placesOnLevel(state.nodes, levelId), [state.nodes, levelId]);
+  // Ohne Auswahl gibt es nichts zu steuern; die Spalte gehoert dann der Karte.
   const trail = useMemo(() => levelTrail(state.nodes, levelId), [state.nodes, levelId]);
   const levelScale = useMemo(
     () => scaleForLevel(state.nodes, levelId, state.mapScale),
@@ -100,6 +101,7 @@ function PlacesWorkspaceInner({
   const selected = selectedId
     ? (state.nodes.find((node) => node.id === selectedId && isPlace(node)) ?? null)
     : null;
+  const placesInspectorOpen = !compact && !!places.length && !!selected;
   // Either state: a card still needs somewhere to be opened out from.
   const selectedMap = selected?.mapImageId ? selected : null;
   // Adjusting is a mode on one map; picking another map leaves it behind.
@@ -370,7 +372,11 @@ function PlacesWorkspaceInner({
         }}
         onDelete={() => setDeletePlace(selected)}
       />
-      <div className={`figure-layout${places.length ? "" : " places-layout-empty"}`}>
+      <div
+        className={`figure-layout${places.length ? "" : " places-layout-empty"}${
+          placesInspectorOpen ? "" : " layout-without-inspector"
+        }`}
+      >
         {mapError && (
           <Toast
             className="story-world-toast"
@@ -433,10 +439,11 @@ function PlacesWorkspaceInner({
           onStopMeasuring={stopMeasuring}
           onScale={patchScale}
         />
-        {!compact && !!places.length && (
+        {placesInspectorOpen && (
           <SidePanel
             className={`places-inspector ${selected ? "has-selection" : ""}`}
             label={t("placesInspectorLabel")}
+            width="fill"
           >
             {inspectorContent}
           </SidePanel>

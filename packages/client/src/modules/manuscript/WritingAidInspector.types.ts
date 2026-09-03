@@ -32,7 +32,6 @@ export interface WritingAidInspectorProps {
   ambiguousMentions: AmbiguousMention[];
   symbolPicker: boolean;
   onSymbolPicker: (open: boolean) => void;
-  onClose: () => void;
   onRunLookup: () => void;
   onChooseTool: (tool: WritingTool) => void;
   onLocale: (locale: WritingLocale) => void;

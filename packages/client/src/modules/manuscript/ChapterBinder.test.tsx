@@ -11,8 +11,9 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidePanel } from "../../design";
-import { flattenChapterIds } from "./binder/manuscriptTree";
+import { flattenChapterIds, manuscriptStructure } from "./binder/manuscriptTree";
 import { ChapterBinder } from "./ChapterBinder";
+import { chapterPlacement } from "./chapterPlacement";
 import type { Manuscript } from "./model";
 import { requireValue, TestProviders } from "./TextWorkspace.testSupport";
 
@@ -64,6 +65,9 @@ function renderBinder(
   onExportCurrent = vi.fn(),
   onRequestDelete = vi.fn(),
 ) {
+  // Dieselbe Rechnung wie im Workspace: der Binder zeigt die Befehle nur noch an.
+  const structure = manuscriptStructure(manuscript);
+  const placement = chapterPlacement(structure, manuscript.chapters[0]);
   return {
     onStructureChange,
     onSelect,
@@ -75,14 +79,25 @@ function renderBinder(
           <ChapterBinder
             manuscript={manuscript}
             current={manuscript.chapters[0]}
-            totalWords={6}
             viewportMode="wide"
+            chapterActions={{
+              title: manuscript.chapters[0]?.title ?? "",
+              canMoveUp: placement.canMoveUp,
+              canMoveDown: placement.canMoveDown,
+              onMoveUp: () => {
+                const next = placement.move(-1);
+                if (next) onStructureChange(next);
+              },
+              onMoveDown: () => {
+                const next = placement.move(1);
+                if (next) onStructureChange(next);
+              },
+              onExport: onExportCurrent,
+              onDelete: onRequestDelete,
+            }}
             onClose={vi.fn()}
             onSelect={onSelect}
             onStructureChange={onStructureChange}
-            onUpdateCurrent={vi.fn()}
-            onExportCurrent={onExportCurrent}
-            onRequestDelete={onRequestDelete}
           />
         </SidePanel>
       </TestProviders>,
@@ -161,7 +176,7 @@ describe("ChapterBinder folders", () => {
       "utf8",
     );
     expect(chapterCss).toMatch(
-      /\.binder-chapter-row\s*\{[^}]*grid-template-columns:\s*16px minmax\(0, 1fr\) auto;[^}]*grid-template-areas:\s*"drag main actions";/s,
+      /\.binder-chapter-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;[^}]*grid-template-areas:\s*"main actions";/s,
     );
     expect(chapterCss).toMatch(
       /\.binder-chapter-content\s*\{[^}]*grid-template-areas:\s*"number name" "number meta";/s,
@@ -171,10 +186,10 @@ describe("ChapterBinder folders", () => {
       /\.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-16\);/s,
     );
     expect(chapterCss).toMatch(
-      /\.binder-chapter-row\[data-binder-depth="0"\] \.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-24\);/s,
+      /\.binder-chapter-row\[data-binder-depth="0"\] \.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-10\);/s,
     );
     expect(chapterCss).toMatch(
-      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-chapter-row\[data-binder-depth="0"\] \.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-20\);/s,
+      /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?\.binder-chapter-row\[data-binder-depth="0"\] \.binder-chapter-content\s*\{[^}]*padding-inline-start:\s*var\(--space-8\);/s,
     );
     expect(actionsCss).toMatch(
       /\.binder-chapter-action-trigger\s*\{[^}]*grid-area:\s*actions;[^}]*opacity:\s*0\.72;/s,
@@ -572,7 +587,7 @@ describe("ChapterBinder folders", () => {
     );
 
     expect(css).toMatch(
-      /\.binder-folder-row\s*\{[^}]*grid-template-columns:\s*var\(--space-24\) minmax\(0, 1fr\) auto;[^}]*grid-template-areas:\s*"drag main actions";/s,
+      /\.binder-folder-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;[^}]*grid-template-areas:\s*"main actions";/s,
     );
     expect(css).toMatch(
       /\.binder-drop-before\.is-visible\s*\{[^}]*height:\s*15px;[^}]*margin-block:\s*calc\(var\(--space-6\) \* -1\);/s,
@@ -601,7 +616,7 @@ describe("ChapterBinder folders", () => {
       "utf8",
     );
 
-    expect(treeCss).toMatch(/\.binder-tree\s*\{[^}]*--binder-level-step:\s*var\(--space-20\);/s);
+    expect(treeCss).toMatch(/\.binder-tree\s*\{[^}]*--binder-level-step:\s*var\(--space-14\);/s);
     expect(treeCss).toMatch(/\.binder-folder-row\s*\{[^}]*width:\s*100%;/s);
     expect(chapterCss).toMatch(/\.binder-chapter-row\s*\{[^}]*width:\s*100%;/s);
     expect(chapterCss).toMatch(

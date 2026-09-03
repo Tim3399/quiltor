@@ -17,6 +17,7 @@ export const shared = {
   unsaved: "Ungespeichert",
   saving: "Speichert …",
   saved: "Gespeichert",
+  savedAgo: "Gespeichert · {ago}",
   notSaved: "Nicht gespeichert",
   saveFailed: "Speichern fehlgeschlagen",
   // Fällt an, wenn ein Export den Speicherort nicht erreicht -- im Browser praktisch nie, in der
@@ -68,6 +69,9 @@ export const shared = {
   searchTerm: "Suchbegriff",
   // Zähler stehen als ganze Formulierung im Katalog, damit die Komponente Zahl und Wort nicht
   // selbst zusammensetzen muss -- im Englischen ist die Kleinschreibung sonst nicht steuerbar.
+  nWordsTotal: "{n} Wörter gesamt",
+  nChapters: "{n} Kapitel",
+  nStandardPages: "{n} Normseiten",
   nElements: "{n} Elemente",
   nRelationships: "{n} Beziehungen",
   nMoments: "{n} Zeitpunkte",

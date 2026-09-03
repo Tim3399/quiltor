@@ -6,7 +6,7 @@ import { uiLocaleStorageKey } from "../../i18n";
 import {
   figures,
   manuscript,
-  renderWorkspace,
+  renderWritingAid,
   requireValue,
   writingAssistanceApi,
 } from "./TextWorkspace.testSupport";
@@ -34,7 +34,7 @@ describe("TextWorkspace writing aid", () => {
     },
   ] as const)("keeps every $locale tab label intact inside its own scroller", (labels) => {
     localStorage.setItem(uiLocaleStorageKey, labels.locale);
-    const view = renderWorkspace({
+    const view = renderWritingAid({
       manuscript,
       figures,
       onChange: vi.fn(),
@@ -126,7 +126,7 @@ describe("TextWorkspace writing aid", () => {
       ],
     });
     const onChange = vi.fn();
-    const view = renderWorkspace({
+    const view = renderWritingAid({
       manuscript,
       figures,
       onChange,
@@ -166,7 +166,7 @@ describe("TextWorkspace writing aid", () => {
         download: { url: "", checksum: "", license: "LGPL" },
       },
     });
-    const view = renderWorkspace({
+    const view = renderWritingAid({
       manuscript,
       figures,
       onChange: vi.fn(),
@@ -227,7 +227,7 @@ describe("TextWorkspace writing aid", () => {
         },
       ],
     });
-    const view = renderWorkspace({
+    const view = renderWritingAid({
       manuscript,
       figures,
       onChange: vi.fn(),
@@ -245,7 +245,7 @@ describe("TextWorkspace writing aid", () => {
 
   it("führt eigene Begriffe erst im Verwaltungs-Sheet zum Bearbeiten", async () => {
     const withTerms = { ...manuscript, words: [{ w: "Traumweberin", d: "" }] };
-    const view = renderWorkspace({
+    const view = renderWritingAid({
       manuscript: withTerms,
       figures,
       onChange: vi.fn(),
@@ -300,7 +300,7 @@ describe("TextWorkspace writing aid", () => {
       ],
     });
     const onChange = vi.fn();
-    const view = renderWorkspace({
+    const view = renderWritingAid({
       manuscript,
       figures,
       onChange,
@@ -343,7 +343,7 @@ describe("TextWorkspace writing aid", () => {
         download: { url: "", checksum: "", license: "LGPL" },
       },
     });
-    const view = renderWorkspace({
+    const view = renderWritingAid({
       manuscript,
       figures,
       onChange: vi.fn(),

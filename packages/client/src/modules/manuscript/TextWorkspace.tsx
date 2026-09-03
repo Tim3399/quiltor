@@ -10,9 +10,12 @@ import {
   orderedChapters,
   removeChapterItem,
 } from "./binder/manuscriptTree";
+import { chapterPlacement } from "./chapterPlacement";
 import { ChapterBinder } from "./ChapterBinder";
+import { ChapterInspector } from "./ChapterInspector";
 import { EditorSurface } from "./EditorSurface";
 import { FocusPanels } from "./FocusPanels";
+import { ManuscriptInspector, type ManuscriptInspectorRegister } from "./ManuscriptInspector";
 import { ManuscriptToolbar } from "./ManuscriptToolbar";
 import { markdownBody } from "./marks";
 import type { Chapter } from "./model";
@@ -26,7 +29,6 @@ import { useWorkspaceSizing } from "./useWorkspaceSizing";
 import { useWritingAssistance } from "./useWritingAssistance";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 import { WritingAidInspector } from "./WritingAidInspector";
-import { wordCount } from "./wordCount";
 import type { TextWorkspaceProps } from "./workspaceTypes";
 import "./TextWorkspace.css";
 
@@ -74,6 +76,8 @@ export function TextWorkspace({
   const setBinderOpen = onBinderOpen ?? setLocalBinderOpen;
   const setInspectorOpen = onInspectorOpen ?? setLocalInspectorOpen;
   const structure = useMemo(() => manuscriptStructure(manuscript), [manuscript]);
+  const [inspectorRegister, setInspectorRegister] =
+    useState<ManuscriptInspectorRegister>("chapter");
   const chapters = useMemo(() => orderedChapters(manuscript), [manuscript]);
   const current = chapters.find((chapter) => chapter.id === currentId) ?? chapters[0];
   const currentPosition = current ? chapters.indexOf(current) : -1;
@@ -85,10 +89,6 @@ export function TextWorkspace({
   useEffect(() => {
     onCurrentChapterId?.(current?.id || "");
   }, [current?.id, onCurrentChapterId]);
-  const totalWords = useMemo(
-    () => chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0),
-    [chapters],
-  );
   const commitManuscript = (nextChapters: Chapter[], nextStructure = structure) => {
     const byId = new Map(nextChapters.map((chapter) => [chapter.id, chapter]));
     const ordered = flattenChapterIds(nextStructure).map((id) => {
@@ -182,33 +182,54 @@ export function TextWorkspace({
     }
   };
 
+  // Binder und Inspector zeigen dieselben Befehle; die Antwort steht an einer Stelle.
+  const placement = chapterPlacement(structure, current);
+  const exportCurrent = () => {
+    if (!current) return;
+    runExport(
+      saveTextFile(
+        quiltorClient.platform,
+        `${current.title || t("chapter")}.md`,
+        `# ${current.title}
+
+${markdownBody(current.body, current.marks)}
+`,
+        t("exportFailed"),
+      ),
+    );
+  };
+  const chapterActions = current
+    ? {
+        title: current.title || t("untitled"),
+        canMoveUp: placement.canMoveUp,
+        canMoveDown: placement.canMoveDown,
+        onMoveUp: () => {
+          const next = placement.move(-1);
+          if (next) commitManuscript(chapters, next);
+        },
+        onMoveDown: () => {
+          const next = placement.move(1);
+          if (next) commitManuscript(chapters, next);
+        },
+        onExport: exportCurrent,
+        onDelete: () => setDeleteOpen(true),
+      }
+    : undefined;
+
   const binder = (
     <ChapterBinder
       manuscript={manuscript}
       current={current}
       timeline={figures.timeline}
       timeSystem={figures.timeSystem}
-      totalWords={totalWords}
       viewportMode={viewportMode}
+      chapterActions={chapterActions}
       onClose={() => setBinderOpen(false)}
       onSelect={setCurrentId}
       onStructureChange={(nextStructure) => commitManuscript(chapters, nextStructure)}
-      onUpdateCurrent={updateCurrent}
-      onExportCurrent={() => {
-        if (!current) return;
-        runExport(
-          saveTextFile(
-            quiltorClient.platform,
-            `${current.title || t("chapter")}.md`,
-            `# ${current.title}\n\n${markdownBody(current.body, current.marks)}\n`,
-            t("exportFailed"),
-          ),
-        );
-      }}
-      onRequestDelete={() => setDeleteOpen(true)}
     />
   );
-  const inspector = current ? (
+  const writingAid = current ? (
     <WritingAidInspector
       current={current}
       manuscript={manuscript}
@@ -232,7 +253,6 @@ export function TextWorkspace({
       ambiguousMentions={writing.ambiguousMentions}
       symbolPicker={writing.symbolPicker}
       onSymbolPicker={writing.setSymbolPicker}
-      onClose={() => setInspectorOpen(false)}
       onRunLookup={() => writing.runLookup()}
       onChooseTool={writing.chooseTool}
       onLocale={writing.changeLocale}
@@ -257,12 +277,30 @@ export function TextWorkspace({
       }
     />
   ) : null;
+  const inspector =
+    current && chapterActions ? (
+      <ManuscriptInspector
+        title={current.title || t("chapter")}
+        register={inspectorRegister}
+        onRegisterChange={setInspectorRegister}
+        onClose={() => setInspectorOpen(false)}
+        chapter={
+          <ChapterInspector
+            current={current}
+            timeline={figures.timeline}
+            timeSystem={figures.timeSystem}
+            actions={chapterActions}
+            onUpdateCurrent={updateCurrent}
+          />
+        }
+        writingAid={writingAid}
+      />
+    ) : null;
 
   return (
     <section className={`text-workspace ${focus ? "is-focus" : ""}`} aria-label={t("manuscript")}>
       <ManuscriptToolbar
         current={current}
-        totalWords={totalWords}
         focus={focus}
         binderOpen={binderOpen}
         inspectorOpen={inspectorOpen}

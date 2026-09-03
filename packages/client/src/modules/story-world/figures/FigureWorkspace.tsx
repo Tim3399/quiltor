@@ -20,6 +20,7 @@ import { FigureCanvas } from "./FigureCanvas";
 import { FigureInspector } from "./FigureInspector";
 import { FigureNodeContextMenu, type FigureNodeMenuState } from "./FigureNodeContextMenu";
 import { FigureToolbar } from "./FigureToolbar";
+import { WorldOverviewPanel } from "./WorldOverviewPanel";
 import { prunePresence } from "./presence";
 import {
   patchRelationship,
@@ -89,6 +90,7 @@ function FigureWorkspaceInner({
   const selectedEdgeLabel = selectedEdge
     ? relationshipLabelEditor(selectedEdge, timeline, activeMomentId)
     : null;
+  const inspectorOpen = Boolean(selected || visibleSelectedEdge);
   const selectNode = useCallback((id: string) => {
     setSelectedId(id);
     setSelectedEdgeId(null);
@@ -232,7 +234,13 @@ function FigureWorkspaceInner({
           setSelectedEdgeId(null);
         }}
       />
-      <div className="figure-layout">
+      <div className={`figure-layout${inspectorOpen ? "" : " layout-without-inspector"}`}>
+        <WorldOverviewPanel
+          state={state}
+          selectedId={selectedId}
+          onSelect={selectNode}
+          onReveal={canvas.centerOnNode}
+        />
         <FigureCanvas
           controller={canvas}
           connecting={connecting}
@@ -368,46 +376,49 @@ function FigureWorkspaceInner({
             />
           )}
         </FigureCanvas>
-        <SidePanel
-          className={`figure-inspector ${selected ? "has-selection" : ""}`}
-          label={t("figureInspectorLabel")}
-        >
-          <SidePanelHeader
-            className="figure-inspector-header"
-            title={selected ? t("selection") : t("inspector")}
-            actions={
-              selected ? (
-                <IconButton
-                  label={t("closeSelection")}
-                  icon={<X />}
-                  onClick={() => setSelectedId(null)}
-                />
-              ) : undefined
-            }
-          />
-          {!selected ? (
-            <SidePanelEmpty
-              className="figure-inspector-empty"
-              icon={<UserRound />}
-              title={t("selectElement")}
-            >
-              <p>{t("selectElementHelp")}</p>
-            </SidePanelEmpty>
-          ) : (
-            <FigureInspector
-              figure={selected}
-              state={state}
-              activeMomentId={activeMomentId}
-              onPatch={(patch) => patchNode(selected.id, patch)}
-              onState={onChange}
-              onDelete={() => setConfirmDelete(true)}
-              onSelectMoment={(id) => {
-                setPlaying(false);
-                setActiveMomentId(id);
-              }}
+        {inspectorOpen && (
+          <SidePanel
+            className={`figure-inspector ${selected ? "has-selection" : ""}`}
+            label={t("figureInspectorLabel")}
+            width="fill"
+          >
+            <SidePanelHeader
+              className="figure-inspector-header"
+              title={selected ? t("selection") : t("inspector")}
+              actions={
+                selected ? (
+                  <IconButton
+                    label={t("closeSelection")}
+                    icon={<X />}
+                    onClick={() => setSelectedId(null)}
+                  />
+                ) : undefined
+              }
             />
-          )}
-        </SidePanel>
+            {!selected ? (
+              <SidePanelEmpty
+                className="figure-inspector-empty"
+                icon={<UserRound />}
+                title={t("selectElement")}
+              >
+                <p>{t("selectElementHelp")}</p>
+              </SidePanelEmpty>
+            ) : (
+              <FigureInspector
+                figure={selected}
+                state={state}
+                activeMomentId={activeMomentId}
+                onPatch={(patch) => patchNode(selected.id, patch)}
+                onState={onChange}
+                onDelete={() => setConfirmDelete(true)}
+                onSelectMoment={(id) => {
+                  setPlaying(false);
+                  setActiveMomentId(id);
+                }}
+              />
+            )}
+          </SidePanel>
+        )}
       </div>
       <FigureNodeContextMenu
         menu={nodeMenu}
