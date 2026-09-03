@@ -222,7 +222,7 @@
 
 @media (max-width: 1099px) {
   .focus-helper-panel {
-    max-height: calc(100dvh - var(--bar) - 24px);
+    max-height: calc(100dvh - var(--bar) - var(--space-24));
   }
   .focus-chapter-list {
     right: auto;
