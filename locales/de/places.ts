@@ -42,6 +42,7 @@ export const places = {
   favoritePlace: "Ort favorisieren",
   unfavoritePlace: "Favorit entfernen",
   favoritePlaceMarker: "Favorisierter Ort",
+  placePositionLocked: "Position gesperrt",
   lockPlacePosition: "Position fixieren",
   unlockPlacePosition: "Position lösen",
   scale: "Maßstab",

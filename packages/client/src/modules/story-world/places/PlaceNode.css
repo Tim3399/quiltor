@@ -48,15 +48,16 @@
   object-fit: cover;
 }
 
-/* The writing keeps clear of the column and sits on paper. */
-.place-node-shell .story-node.is-map > *:not(.place-node__preview) {
+/* The writing keeps clear of the column and sits on paper. The card's own commands are
+   not part of that column -- they sit in the corner and are excluded here. */
+.place-node-shell .story-node.is-map > *:not(.place-node__preview):not(.place-node__enter) {
   position: relative;
   z-index: var(--z-local);
   margin-left: 38%;
   padding-left: var(--space-10);
 }
 
-.place-node-shell .story-node-card > *:not(.place-node__preview) {
+.place-node-shell .story-node-card > *:not(.place-node__preview):not(.place-node__enter) {
   position: relative;
   z-index: var(--z-local);
 }
@@ -82,4 +83,48 @@
 .place-node-shell .story-node.is-map {
   --graph-card-kind-color: var(--card-kind-storyboard);
   --graph-card-kind-surface: var(--card-kind-storyboard-surface);
+}
+
+/* Die beiden Kartenbefehle -- aufklappen und betreten -- hatten nie eigene Regeln. Sie
+   fielen damit in den normalen Fluss der Karte, stapelten sich untereinander, und der
+   zweite lag zur Haelfte ausserhalb der 96px hohen Karte. Sie stehen jetzt als Zeile in
+   der unteren Ecke der Textspalte, ausserhalb des Bildes und ausserhalb des Namens. */
+.place-node-shell .story-node .place-node__enter {
+  position: absolute;
+  z-index: var(--z-local);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  margin: 0;
+}
+
+.place-node-shell .story-node .place-node__enter + .place-node__enter {
+  right: calc(var(--space-4) + var(--control-compact) + var(--space-2));
+}
+
+/* Sie melden sich erst, wenn die Karte gemeint ist: eine Flaeche voller Orte soll nicht
+   aus lauter Knoepfen bestehen. */
+.place-node-shell .story-node .place-node__enter {
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+
+.place-node-shell .story-node:hover .place-node__enter,
+.place-node-shell .story-node.is-selected .place-node__enter,
+.place-node-shell .story-node:focus-within .place-node__enter {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .place-node-shell .story-node .place-node__enter {
+    opacity: 1;
+  }
+}
+
+/* Die Nadel sitzt in der Zeile des Namens, nicht als Fleck in der Ecke: klein, ruhig,
+   und in derselben Farbe wie die uebrigen Nebenangaben der Karte. */
+.place-node__pinned {
+  width: var(--font-size-3);
+  height: var(--font-size-3);
+  flex: none;
+  color: var(--muted);
 }

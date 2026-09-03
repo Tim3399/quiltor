@@ -102,9 +102,10 @@ describe("Storyboard node notes", () => {
     const body = textbox.closest(".storyboard-node__body");
     expect(body).toBeInTheDocument();
     expect(body).toHaveClass("scroll-area");
-    // The wheel belongs to the card's own scroller here. Without nowheel the
-    // canvas zooms instead and the body can never be scrolled at all.
-    expect(body).toHaveClass("nowheel");
+    // Der Radwert gehoert dem eigenen Scroller der Karte -- aber nur, solange es dort
+    // etwas zu scrollen gibt. Eine kurze Karte gibt ihn an die Leinwand zurueck, sonst
+    // schluckt ein Board voller kurzer Karten jedes Zoomen.
+    expect(body).not.toHaveClass("nowheel");
     // Dragging stays on: the card is still moved by grabbing its padding.
     expect(body).not.toHaveClass("nodrag");
     expect(body).not.toHaveClass("nopan");
@@ -178,5 +179,58 @@ describe("Storyboard node notes", () => {
         name: "Notiz zu Zweiter Akt · Main Storyboard",
       }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Storyboard-Karte und das Mausrad", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    cleanup();
+  });
+
+  it("nimmt das Rad erst, wenn die Karte wirklich etwas zu scrollen hat", () => {
+    // Der Ueberlauf existiert in jsdom nicht von selbst; er wird hier gestellt, damit die
+    // Messung dieselbe Antwort bekommt wie im Browser bei einer langen Notiz.
+    const observers: Array<() => void> = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback);
+        }
+        observe() {
+          return undefined;
+        }
+        disconnect() {
+          return undefined;
+        }
+      },
+    );
+    const scrollHeight = vi
+      .spyOn(HTMLElement.prototype, "scrollHeight", "get")
+      .mockReturnValue(400);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(120);
+
+    renderNode(
+      {
+        id: "n1",
+        kind: "note",
+        boardId: "b1",
+        x: 0,
+        y: 0,
+        text: "Lange Notiz",
+        note: "Viel Text",
+      },
+      vi.fn(),
+    );
+
+    const body = document.querySelector(".storyboard-node__body");
+    expect(body).toHaveClass("nowheel");
+
+    scrollHeight.mockReturnValue(120);
+    act(() => {
+      for (const notify of observers) notify();
+    });
+    expect(document.querySelector(".storyboard-node__body")).not.toHaveClass("nowheel");
   });
 });
