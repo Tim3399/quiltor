@@ -141,6 +141,61 @@ def validate_actions(sources: dict[Path, str], locked: dict[str, str]) -> None:
         raise WorkflowContractError("unused GitHub Action locks: " + ", ".join(sorted(unused)))
 
 
+MATRIX_RUNNER = re.compile(r"^\$\{\{\s*matrix\.([a-z_][a-z0-9_]*)\s*\}\}$")
+
+
+def _job_blocks(source: str) -> list[tuple[str, str]]:
+    """Every job of a workflow as (name, body)."""
+    _, _, jobs = source.partition("\njobs:")
+    matches = list(JOB_HEADER.finditer(jobs))
+    blocks = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(jobs)
+        blocks.append((match.group(1), jobs[match.end() : end]))
+    return blocks
+
+
+def _matrix_values(job: str, key: str) -> list[str]:
+    """The values a matrix key can take, from a flow list, a block list or `include:` rows."""
+    values: list[str] = []
+    flow = re.search(rf"^\s*{re.escape(key)}:\s*\[([^\]]*)\]", job, re.MULTILINE)
+    if flow:
+        values += [item.strip().strip("\"'") for item in flow.group(1).split(",")]
+    rows = rf"^\s*(?:-\s+)?{re.escape(key)}:\s*([^\s#\[]+)\s*$"
+    for match in re.finditer(rows, job, re.MULTILINE):
+        values.append(match.group(1).strip("\"'"))
+    return [value for value in values if value]
+
+
+def resolved_runners(sources: dict[Path, str]) -> set[str]:
+    """
+    Every runner label a workflow can actually land on.
+
+    `runs-on: ${{ matrix.os }}` is resolved against that job's matrix instead of being read
+    literally. Without this the lock could only be honoured by workflows that never use a
+    matrix -- and running the suite on three platforms is exactly a matrix. An expression
+    that cannot be resolved raises: an unreadable runner is an unchecked runner.
+    """
+    runners: set[str] = set()
+    for path, source in sources.items():
+        for name, job in _job_blocks(source):
+            for match in re.finditer(r"runs-on:\s*([^\n#]+)", job):
+                value = match.group(1).strip()
+                expression = MATRIX_RUNNER.fullmatch(value)
+                if not expression:
+                    runners.add(value)
+                    continue
+                key = expression.group(1)
+                values = _matrix_values(job, key)
+                if not values:
+                    raise WorkflowContractError(
+                        f"{path.name}:{name} runs on a matrix expression for {key}, "
+                        "but that key has no readable list of runner labels"
+                    )
+                runners.update(values)
+    return runners
+
+
 def validate_toolchains(sources: dict[Path, str], contract: dict[str, object]) -> None:
     release_toolchains = contract["releaseToolchains"]
     if not isinstance(release_toolchains, dict):
@@ -175,12 +230,12 @@ def validate_toolchains(sources: dict[Path, str], contract: dict[str, object]) -
         "windowsX64",
     }:
         raise WorkflowContractError("the hosted runner lock is incomplete")
-    runner_values = re.findall(r"runs-on:\s*([^\s#]+)", "\n".join(sources.values()))
+    runner_values = resolved_runners(sources)
     expected_runners = {str(value) for value in hosted_runners.values()}
-    if set(runner_values) != expected_runners or any("latest" in value for value in runner_values):
+    if runner_values != expected_runners or any("latest" in value for value in runner_values):
         raise WorkflowContractError(
             f"workflow runners must use exactly {sorted(expected_runners)}; "
-            f"found {sorted(set(runner_values))}"
+            f"found {sorted(runner_values)}"
         )
     artifact_runtimes = contract["artifactRuntimes"]
     if not isinstance(artifact_runtimes, dict):

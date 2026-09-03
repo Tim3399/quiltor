@@ -78,3 +78,35 @@ test("meldet, wenn ueberhaupt kein Job die Suite ausfuehrt", () => {
   assert.equal(violations.length, 1);
   assert.match(violations[0], /Kein Job fuehrt/);
 });
+
+test("loest eine Runner-Matrix auf, statt sie zu uebersehen", () => {
+  const workflow = [
+    "jobs:",
+    "  browser:",
+    "    runs-on: ${{ matrix.os }}",
+    "    strategy:",
+    "      matrix:",
+    "        os: [macos-15, windows-2025]",
+    "    steps:",
+    "      - run: npx playwright test",
+    "",
+  ].join("\n");
+
+  assert.deepEqual([...suitePlatforms([workflow])].sort(), ["darwin", "win32"]);
+});
+
+test("zaehlt eine Matrix nicht mit, wenn der Job die Suite gar nicht startet", () => {
+  const workflow = [
+    "jobs:",
+    "  package:",
+    "    runs-on: ${{ matrix.os }}",
+    "    strategy:",
+    "      matrix:",
+    "        os: [macos-15, windows-2025]",
+    "    steps:",
+    "      - run: npm run build",
+    "",
+  ].join("\n");
+
+  assert.deepEqual([...suitePlatforms([workflow])], []);
+});

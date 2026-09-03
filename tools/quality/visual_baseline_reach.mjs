@@ -28,14 +28,27 @@ function jobBlocks(source) {
  * Asking which platforms the repository uses at all is the wrong question: a macOS runner
  * that only signs a release build never compares a single pixel.
  */
+function runnerLabels(block) {
+  const value = block.match(/runs-on:\s*([^\n#]+)/u)?.[1]?.trim();
+  if (!value) return [];
+  const key = value.match(/^\$\{\{\s*matrix\.([a-z_][a-z0-9_]*)\s*\}\}$/u)?.[1];
+  if (!key) return [value];
+  // `runs-on: ${{ matrix.os }}` waere sonst kein lesbarer Runner -- und ein Job, dessen
+  // Plattform diese Pruefung nicht liest, ist ein Job, dessen fehlende Bilder sie nicht
+  // meldet. Genau die Luecke, die es hier zu schliessen gilt.
+  const list = block.match(new RegExp(`\\n\\s*${key}:\\s*\\[([^\\]]*)\\]`, "u"))?.[1];
+  return list ? list.split(",").map((entry) => entry.trim().replace(/^["']|["']$/gu, "")) : [];
+}
+
 export function suitePlatforms(files) {
   const platforms = new Set();
   for (const source of files) {
     for (const block of jobBlocks(source)) {
       if (!/playwright test|test:e2e/u.test(block)) continue;
-      const runner = block.match(/runs-on:\s*\[?\s*["']?([a-z]+)-/u)?.[1];
-      const platform = runner && RUNNER_PLATFORMS[runner];
-      if (platform) platforms.add(platform);
+      for (const label of runnerLabels(block)) {
+        const platform = RUNNER_PLATFORMS[label.split("-")[0]];
+        if (platform) platforms.add(platform);
+      }
     }
   }
   return platforms;
