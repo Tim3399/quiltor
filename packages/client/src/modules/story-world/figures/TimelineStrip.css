@@ -310,3 +310,13 @@
     min-width: 0;
   }
 }
+
+/* Zwischen Handbreite und Schreibtisch wird die Leinwand zu schmal, als dass Dock, Streifen
+   und Uebersichtskarte nebeneinander passen -- der Streifen bekaeme dort eine negative
+   Breite und laege unter der Karte. Er rueckt dann ueber sie, statt zu verschwinden. */
+@media (max-width: 1099px) {
+  .flow-area.has-minimap .timeline-strip {
+    right: var(--graph-viewport-inset, var(--space-14));
+    bottom: var(--graph-edge-inspector-safe-bottom, var(--graph-viewport-inset, var(--space-14)));
+  }
+}

@@ -1,0 +1,234 @@
+import { expect, type Page, test } from "@playwright/test";
+import { mockRequiredWorldDocuments } from "./support/application-api";
+
+/*
+ * Geometrie-Invarianten.
+ *
+ * Die uebrigen Pruefungen des Projekts sehen Farbe, Abstand, Radius, Typo, Kontrast,
+ * Importgrenzen, CSS-Ownership und Story-Abdeckung -- aber keine Geometrie. Genau dort lagen
+ * die Fehler, die beim Umbau auf die Werkstatt-Richtung entstanden sind: ein Panel, das seine
+ * Rasterspalte nicht ausfuellte; ein Knopf, der ausserhalb seiner Karte lag; zwei schwebende
+ * Werkzeuge im selben Streifen; eine Spalte, die eine Ansicht bekam, die es dort nicht gibt.
+ *
+ * Diese Datei prueft nicht, wie etwas aussieht, sondern nur, dass nichts irgendwo liegt, wo es
+ * nichts zu suchen hat. Damit ist sie plattformunabhaengig und braucht keine Pixel-Baseline.
+ */
+
+const TOLERANCE = 1.5;
+
+const manuscript = {
+  chapters: [
+    {
+      id: "c1",
+      title: "Die Ankunft",
+      body: "Der Morgen lag still über dem Hafen. Zwischen den Masten schimmerte das Archiv.",
+      note: "Die Unruhe der Stadt nur andeuten.",
+    },
+    { id: "c2", title: "Das Archiv", body: "Acht Wörter stehen hier schon bereit.", note: "" },
+  ],
+  words: [],
+  zeichenAktiv: [],
+};
+
+const figures = {
+  nodes: [
+    {
+      id: "mara",
+      x: 120,
+      y: 120,
+      type: "person" as const,
+      name: "Mara Venn",
+      label: "Kartographin",
+      sub: "Liest lebende Karten.",
+    },
+    {
+      id: "archiv",
+      x: 460,
+      y: 300,
+      type: "ort" as const,
+      name: "Gezeitenarchiv",
+      label: "Ort",
+      sub: "Ein gläserner Bau am Hafen.",
+      mapX: 35,
+      mapY: 45,
+    },
+    {
+      id: "gilde",
+      x: 460,
+      y: 120,
+      type: "organisation" as const,
+      name: "Kartographengilde",
+      label: "Organisation",
+      sub: "Kontrolliert die Seewege.",
+    },
+  ],
+  edges: [{ id: "e1", from: "mara", to: "archiv", label: "hütet", gerichtet: true }],
+  timeline: [{ id: "t1", title: "Ankunft", date: "1847-09-03", note: "Mara erreicht den Hafen." }],
+  presence: [],
+};
+
+async function mockWorkshop(page: Page) {
+  await page.route("**/api/version", (route) =>
+    route.fulfill({ json: { ok: true, version: "layout" } }),
+  );
+  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
+  const world = {
+    id: "layout",
+    title: "Der gläserne Atlas",
+    backupUrl: "",
+    updated: "2026-09-03T12:00:00Z",
+  };
+  await page.route("**/api/worlds", (route) =>
+    route.fulfill({ json: { ok: true, worlds: [world] } }),
+  );
+  await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
+  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures });
+  await page.route("**/api/assistant/status*", (route) =>
+    route.fulfill({
+      json: { ok: true, available: false, mode: "local", reason: "-", chunks: 0 },
+    }),
+  );
+}
+
+/** Every violation as one readable line; an empty list is the pass. */
+async function violations(page: Page, tolerance: number): Promise<string[]> {
+  return page.evaluate((tol) => {
+    const found: string[] = [];
+    const box = (element: Element) => element.getBoundingClientRect();
+
+    const name = (element: Element) => {
+      const classes = (element.className ?? "")
+        .toString()
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(".");
+      const label = element.getAttribute("aria-label");
+      return `${element.tagName.toLowerCase()}${classes ? `.${classes}` : ""}${
+        label ? ` [${label}]` : ""
+      }`;
+    };
+
+    const visible = (element: Element) => {
+      const rect = box(element);
+      if (rect.width < 1 || rect.height < 1) return false;
+      const style = getComputedStyle(element);
+      return style.visibility !== "hidden" && style.opacity !== "0";
+    };
+
+    // 1. Ein Panel fuellt seine Rasterspalte. Sonst bleibt daneben ein toter Streifen, der
+    //    aussieht wie ein Fehler und keiner ist -- oder das Panel laeuft ueber seine Spur.
+    for (const layout of document.querySelectorAll<HTMLElement>(".figure-layout, .text-layout")) {
+      const tracks = getComputedStyle(layout)
+        .gridTemplateColumns.split(" ")
+        .map((value) => Number.parseFloat(value));
+      const children = [...layout.children].filter(visible);
+      children.forEach((child, index) => {
+        const track = tracks[index];
+        if (!Number.isFinite(track)) return;
+        const width = box(child).width;
+        if (Math.abs(width - track) > tol) {
+          found.push(
+            `${name(child)} ist ${width.toFixed(0)}px breit, seine Rasterspalte ${track.toFixed(0)}px`,
+          );
+        }
+      });
+    }
+
+    // 2. Was auf einer Karte steht, steht auch auf ihr. Ein Knopf ausserhalb ist nicht nur
+    //    haesslich, er ist unerreichbar.
+    for (const card of document.querySelectorAll(
+      ".story-node, .place-map-node, .storyboard-node",
+    )) {
+      const outer = box(card);
+      for (const control of card.querySelectorAll("button")) {
+        if (!visible(control)) continue;
+        const inner = box(control);
+        const escapes =
+          inner.left < outer.left - tol ||
+          inner.right > outer.right + tol ||
+          inner.top < outer.top - tol ||
+          inner.bottom > outer.bottom + tol;
+        if (escapes) found.push(`${name(control)} liegt ausserhalb von ${name(card)}`);
+      }
+    }
+
+    // 3. Schwebende Werkzeuge teilen sich einen Rand, nicht denselben Fleck.
+    const floating = [
+      ...document.querySelectorAll(
+        ".react-flow__panel.react-flow__controls, .react-flow__panel.react-flow__minimap, .timeline-strip, .place-level-trail, .graph-edge-inspector",
+      ),
+    ].filter(visible);
+    for (let left = 0; left < floating.length; left += 1) {
+      for (let right = left + 1; right < floating.length; right += 1) {
+        const a = box(floating[left]);
+        const b = box(floating[right]);
+        const overlaps =
+          a.left < b.right - tol &&
+          a.right > b.left + tol &&
+          a.top < b.bottom - tol &&
+          a.bottom > b.top + tol;
+        if (overlaps) {
+          found.push(`${name(floating[left])} liegt über ${name(floating[right])}`);
+        }
+      }
+    }
+
+    // 4. Chrome scrollt nicht seitwaerts. Tut es das, ist etwas darin zu breit geraten.
+    //    Geclippte Flaechen sind ausgenommen: dort ragt bewusst etwas ueber die Kante --
+    //    der Ziehrand eines Panels etwa, den man von beiden Seiten greifen koennen soll --
+    //    und niemand kann es je zu Gesicht bekommen.
+    for (const region of document.querySelectorAll(
+      ".side-panel, .workspace-toolbar, .status-bar, .app-bar",
+    )) {
+      if (!visible(region)) continue;
+      const overflowX = getComputedStyle(region).overflowX;
+      if (overflowX === "hidden" || overflowX === "clip") continue;
+      if (region.scrollWidth > region.clientWidth + tol) {
+        found.push(
+          `${name(region)} scrollt seitwärts: ${region.scrollWidth}px Inhalt in ${region.clientWidth}px`,
+        );
+      }
+    }
+
+    return found;
+  }, tolerance);
+}
+
+const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as const;
+
+for (const workspace of workspaces) {
+  test(`${workspace}: nichts liegt ausserhalb seines Platzes`, async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("quiltor-theme", "light");
+      localStorage.setItem("quiltor-interface-language", "de");
+    });
+    await mockWorkshop(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+    await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+
+    if (workspace !== "Text") {
+      await page.getByRole("button", { name: workspace, exact: true }).click();
+    }
+
+    // Die Steuerspalte gibt es erst, wenn etwas ausgewaehlt ist -- ohne diesen Schritt
+    // pruefte der Test genau den Zustand, in dem die interessanten Panels fehlen. Unterhalb
+    // der Spaltenbreite ist die Steuerung ein Sheet und kein Panel; dort gibt es nichts
+    // auszurichten, also entfaellt der Schritt.
+    const spalten = (page.viewportSize()?.width ?? 0) > 820;
+    if (spalten && workspace === "Figuren") {
+      await page.locator(".world-overview__item").first().click();
+      await expect(page.locator(".figure-inspector")).toBeVisible();
+    }
+    if (spalten && workspace === "Orte") {
+      await page.locator(".story-node").first().click();
+      await expect(page.locator(".places-inspector")).toBeVisible();
+    }
+    // Die Leinwaende passen ihren Ausschnitt beim Ankommen an; erst danach stehen die
+    // Rechtecke, die hier gemessen werden.
+    await page.waitForTimeout(900);
+
+    expect(await violations(page, TOLERANCE)).toEqual([]);
+  });
+}
