@@ -148,6 +148,12 @@ ENV QUILTOR_DATA_DIR=/data
 # Worlds are unaffected -- QUILTOR_DATA_DIR is set explicitly and wins outright.
 ENV QUILTOR_HOME=/data/assistant
 ENV PYTHONPATH=/app/src
+# Python block-buffers stdout when it is a pipe rather than a terminal, so
+# anything the process prints reaches `docker logs` only once 8 KB have piled
+# up -- which, for a download that is stuck or about to fail, is never. The
+# assistant installer is the loudest thing in here and the one most worth
+# watching, so trade the buffer for a log that keeps up.
+ENV PYTHONUNBUFFERED=1
 
 # Run as a non-root user: this container handles session cookies and OIDC secrets.
 # /data must be owned by that user *before* VOLUME is declared, since Docker seeds a

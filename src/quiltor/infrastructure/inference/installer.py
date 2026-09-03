@@ -48,16 +48,19 @@ from quiltor import resources
 from quiltor.infrastructure.inference.archive import extract_archive, locate_expected_files
 from quiltor.infrastructure.inference.install_manifest import (
     ArtifactManifest,
+    LLAMA_CPP_RELEASE,
+    MAX_HUGGINGFACE_TREE_PAGES,
     github_release_api_url,
     github_runtime_artifact,
     huggingface_artifacts,
     huggingface_model_api_url,
     huggingface_repository_revision,
     huggingface_tree_api_url,
+    huggingface_tree_next_cursor,
     safe_relative_path,
 )
 from quiltor.infrastructure.inference.runtimes import bundled_runtime_dir, llamacpp
-from quiltor.infrastructure.inference.transfer import download, read_json
+from quiltor.infrastructure.inference.transfer import download, read_json, read_json_page
 from quiltor.infrastructure.platform import capabilities, system
 from quiltor.infrastructure.platform.runtime_target import is_store_distribution
 from quiltor.infrastructure.platform.system import force_utf8_streams, is_apple_silicon
@@ -177,6 +180,10 @@ def install(
     on_progress: Callable[[str, int], None] | None = None,
 ) -> None:
     paths = installer_paths(home)
+    # The web UI starts this on a background thread, where the console is the
+    # only place the attempt is recorded at all -- so say what is being set up,
+    # and where, before anything reaches for the network.
+    print(f"Installing the local assistant ({runtime} runtime) into {paths.home} ...", flush=True)
     if runtime == "mlx":
         if not skip_runtime:
             install_mlx_runtime(on_progress, paths=paths)
@@ -215,6 +222,7 @@ def platform_asset_pattern() -> re.Pattern[str]:
 def latest_release_asset(pattern: re.Pattern[str], binary_name: str) -> ArtifactManifest:
     """Resolve one asset from the deliberately pinned, digest-bearing release."""
 
+    print(f"Resolving llama.cpp {LLAMA_CPP_RELEASE} on GitHub ...", flush=True)
     release = read_json(github_release_api_url())
     if not isinstance(release, dict):
         raise ValueError("llama.cpp release metadata must be an object.")
@@ -222,10 +230,27 @@ def latest_release_asset(pattern: re.Pattern[str], binary_name: str) -> Artifact
 
 
 def _model_artifacts(repository: str, revision: str = "main") -> dict[str, ArtifactManifest]:
+    print(f"Resolving model repository {repository} on Hugging Face ...", flush=True)
     metadata = read_json(huggingface_model_api_url(repository, revision))
     commit = huggingface_repository_revision(metadata)
-    entries = read_json(huggingface_tree_api_url(repository, commit))
-    return huggingface_artifacts(repository, entries, revision=commit)
+    # Hugging Face serves the file tree one bounded page at a time and points at
+    # the next one through a Link header; a repository whose listing is cut short
+    # would silently install an incomplete model, so walk it to the end.
+    entries: list[Any] = []
+    seen: set[str] = set()
+    cursor: str | None = None
+    for _ in range(MAX_HUGGINGFACE_TREE_PAGES):
+        page, link = read_json_page(huggingface_tree_api_url(repository, commit, cursor=cursor))
+        if not isinstance(page, list):
+            raise ValueError("Model repository metadata must be a list.")
+        entries.extend(page)
+        cursor = huggingface_tree_next_cursor(link, repository, commit)
+        if cursor is None:
+            return huggingface_artifacts(repository, entries, revision=commit)
+        if cursor in seen:
+            raise ValueError("Model repository listing repeated a pagination cursor.")
+        seen.add(cursor)
+    raise ValueError("Model repository listing is longer than the installer reads.")
 
 
 def _runtime_payload_files(directory: Path, binary_name: str) -> list[Path]:

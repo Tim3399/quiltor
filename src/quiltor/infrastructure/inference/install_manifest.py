@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Any, Literal
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 
 DigestAlgorithm = Literal["sha256", "git-sha1"]
@@ -24,6 +24,16 @@ LLAMA_CPP_REPOSITORY = "ggml-org/llama.cpp"
 
 MAX_RUNTIME_ARCHIVE_BYTES = 1024 * 1024 * 1024
 MAX_MODEL_FILE_BYTES = 16 * 1024 * 1024 * 1024
+
+# Hugging Face rejects a larger page outright -- "Invalid limit for index tree
+# pagination", HTTP 400 -- so a repository is read one page at a time and the
+# pages are concatenated.  Asking for everything at once used to work and no
+# longer does; the page bound below just keeps a broken cursor from looping.
+HUGGINGFACE_TREE_PAGE_LIMIT = 100
+MAX_HUGGINGFACE_TREE_PAGES = 64
+
+CURSOR_RE = re.compile(r"[A-Za-z0-9+/=_-]{1,4096}")
+LINK_NEXT_RE = re.compile(r'<([^>]+)>\s*;\s*[^,]*(?<![A-Za-z])rel\s*=\s*"?next"?', re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,13 +183,50 @@ def huggingface_repository_revision(document: Any) -> str:
     return _revision(str(document.get("sha") or ""), immutable=True)
 
 
-def huggingface_tree_api_url(repository: str, revision: str) -> str:
+def huggingface_tree_api_url(repository: str, revision: str, *, cursor: str | None = None) -> str:
     selected = _repository(repository)
     commit = _revision(revision, immutable=True)
-    return (
+    url = (
         f"https://huggingface.co/api/models/{quote(selected, safe='/')}/tree/"
-        f"{quote(commit, safe='')}?recursive=true&expand=true&limit=1000"
+        f"{quote(commit, safe='')}?recursive=true&expand=true"
+        f"&limit={HUGGINGFACE_TREE_PAGE_LIMIT}"
     )
+    if cursor is None:
+        return url
+    if CURSOR_RE.fullmatch(cursor) is None:
+        raise ValueError("Model tree cursor is malformed.")
+    return f"{url}&cursor={quote(cursor, safe='')}"
+
+
+def huggingface_tree_next_cursor(
+    link_header: str,
+    repository: str,
+    revision: str,
+) -> str | None:
+    """Read the next page's cursor out of the tree endpoint's RFC 8288 Link header.
+
+    Only the cursor travels; the next request is rebuilt from the repository and
+    commit we already pinned, so a rewritten "next" link cannot walk the listing
+    onto another host or another repository.
+    """
+
+    match = LINK_NEXT_RE.search(link_header or "")
+    if match is None:
+        return None
+    parsed = urlsplit(match.group(1).strip())
+    expected = urlsplit(huggingface_tree_api_url(repository, revision))
+    if (
+        parsed.scheme != "https"
+        or (parsed.hostname or "").casefold() != expected.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.path != expected.path
+    ):
+        raise ValueError("Model tree pagination left the pinned repository listing.")
+    cursors = parse_qs(parsed.query).get("cursor") or []
+    if len(cursors) != 1 or CURSOR_RE.fullmatch(cursors[0]) is None:
+        raise ValueError("Model tree pagination carries no usable cursor.")
+    return cursors[0]
 
 
 def huggingface_artifacts(
@@ -284,12 +331,15 @@ def safe_relative_path(value: str):
 
 __all__ = [
     "ArtifactManifest",
+    "HUGGINGFACE_TREE_PAGE_LIMIT",
     "LLAMA_CPP_RELEASE",
+    "MAX_HUGGINGFACE_TREE_PAGES",
     "github_release_api_url",
     "github_runtime_artifact",
     "huggingface_artifacts",
     "huggingface_model_api_url",
     "huggingface_repository_revision",
     "huggingface_tree_api_url",
+    "huggingface_tree_next_cursor",
     "safe_relative_path",
 ]

@@ -15,6 +15,10 @@ ARG QUILTOR_VERSION=dev
 ARG QUILTOR_REVISION=unknown
 
 ENV PYTHONDONTWRITEBYTECODE=1
+# Unbuffered for the same reason as the app image: a pipe makes Python hold
+# stdout back until 8 KB have accumulated, which turns `docker logs` into a
+# record that arrives long after the moment anyone wanted to see.
+ENV PYTHONUNBUFFERED=1
 
 RUN useradd --create-home --shell /usr/sbin/nologin quiltor
 

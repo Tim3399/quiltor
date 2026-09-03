@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import io
 import stat
@@ -18,9 +19,12 @@ from quiltor.infrastructure.inference.coordinator import InstallationCoordinator
 from quiltor.infrastructure.inference.archive import extract_archive, locate_expected_files
 from quiltor.infrastructure.inference.install_manifest import (
     ArtifactManifest,
+    HUGGINGFACE_TREE_PAGE_LIMIT,
     LLAMA_CPP_RELEASE,
     github_runtime_artifact,
     huggingface_artifacts,
+    huggingface_tree_api_url,
+    huggingface_tree_next_cursor,
     safe_relative_path,
 )
 from quiltor.infrastructure.inference.installation import LocalAssistantInstallation
@@ -55,6 +59,30 @@ class _FakeResponse:
         return chunk
 
     def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *args: object) -> bool:
+        return False
+
+
+CARRIAGE_RETURN = chr(13)
+
+
+class _ChunkedResponse:
+    """Serves a body in fixed slices, so a download reports progress more than once."""
+
+    def __init__(self, body: bytes, chunk: int):
+        self._remaining = body
+        self._chunk = chunk
+        self.status = 200
+        self.headers = {"Content-Length": str(len(body))}
+
+    def read(self, n: int = -1) -> bytes:
+        size = min(self._chunk, len(self._remaining))
+        chunk, self._remaining = self._remaining[:size], self._remaining[size:]
+        return chunk
+
+    def __enter__(self) -> "_ChunkedResponse":
         return self
 
     def __exit__(self, *args: object) -> bool:
@@ -277,6 +305,78 @@ class DownloadResumeTest(unittest.TestCase):
         )
 
 
+class InstallerLogTests(unittest.TestCase):
+    """A container writes its console to a pipe, and a carriage-returned progress bar
+    is invisible there: `docker logs` showed a download start and then nothing at all,
+    whether it was running, stalled or already dead."""
+
+    @staticmethod
+    def _download(*, interactive: bool) -> str:
+        body = b"x" * 1000
+        console = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            with (
+                patch.object(transfer, "_interactive_console", return_value=interactive),
+                patch.object(
+                    transfer, "_open_artifact", return_value=_ChunkedResponse(body, chunk=40)
+                ),
+                contextlib.redirect_stdout(console),
+            ):
+                transfer.download(_artifact(body), Path(tmp) / "model.gguf", "model.gguf")
+        return console.getvalue()
+
+    def test_a_piped_console_gets_whole_lines_instead_of_a_redrawn_bar(self):
+        output = self._download(interactive=False)
+        self.assertNotIn(CARRIAGE_RETURN, output)
+        reported = [line for line in output.splitlines() if line.strip().startswith("model.gguf ")]
+        # Every 10%, not every one of the 25 chunks: readable, and still moving.
+        self.assertLessEqual(len(reported), 11)
+        self.assertGreaterEqual(len(reported), 5)
+        percentages = [int(line.split("%")[0].split()[-1]) for line in reported]
+        self.assertEqual(percentages, sorted(set(percentages)))
+        self.assertEqual(percentages[-1], 100)
+
+    def test_a_terminal_still_gets_the_bar_it_can_redraw(self):
+        output = self._download(interactive=True)
+        self.assertIn(CARRIAGE_RETURN, output)
+
+    def test_a_download_says_what_it_wants_before_it_starts(self):
+        output = self._download(interactive=False)
+        opening = output.splitlines()[0]
+        self.assertIn("Downloading model.gguf", opening)
+        self.assertIn("example.test", opening)
+        self.assertIn("verifying", output)
+
+    def test_a_rejected_request_names_the_status_url_and_the_servers_own_reason(self):
+        url = "https://huggingface.co/api/models/owner/model/tree/abc"
+        rejection = transfer.urllib.error.HTTPError(
+            url,
+            400,
+            "Bad Request",
+            {},
+            io.BytesIO(b'{"error":"Invalid limit for index tree pagination"}'),
+        )
+        opener = MagicMock()
+        opener.open.side_effect = rejection
+        with patch.object(transfer, "_https_opener", return_value=opener):
+            with self.assertRaises(transfer.TransferError) as caught:
+                transfer.read_json(url)
+        message = str(caught.exception)
+        self.assertIn("400", message)
+        self.assertIn("Bad Request", message)
+        self.assertIn(url, message)
+        self.assertIn("Invalid limit for index tree pagination", message)
+
+    def test_an_unreachable_host_names_the_url_it_could_not_reach(self):
+        opener = MagicMock()
+        opener.open.side_effect = transfer.urllib.error.URLError("Name or service not known")
+        with patch.object(transfer, "_https_opener", return_value=opener):
+            with self.assertRaises(transfer.TransferError) as caught:
+                transfer.read_json("https://huggingface.co/api/models/owner/model")
+        self.assertIn("huggingface.co/api/models/owner/model", str(caught.exception))
+        self.assertIn("Name or service not known", str(caught.exception))
+
+
 class InstallManifestTests(unittest.TestCase):
     def test_pinned_runtime_asset_requires_the_published_digest_and_size(self):
         release = {
@@ -338,6 +438,91 @@ class InstallManifestTests(unittest.TestCase):
             with self.subTest(path=invalid):
                 with self.assertRaises(ValueError):
                     safe_relative_path(invalid)
+
+    def test_model_tree_is_requested_in_pages_hugging_face_accepts(self):
+        # Hugging Face answers a larger page with HTTP 400 ("Invalid limit for
+        # index tree pagination"), which used to surface as a bare "HTTP Error
+        # 400: Bad Request" halfway through setting the assistant up.
+        self.assertLessEqual(HUGGINGFACE_TREE_PAGE_LIMIT, 100)
+        url = huggingface_tree_api_url("owner/model", "d" * 40)
+        self.assertIn(f"limit={HUGGINGFACE_TREE_PAGE_LIMIT}", url)
+        self.assertNotIn("cursor=", url)
+        self.assertIn(
+            "cursor=abc%2B%3D", huggingface_tree_api_url("owner/model", "d" * 40, cursor="abc+=")
+        )
+        with self.assertRaises(ValueError):
+            huggingface_tree_api_url("owner/model", "d" * 40, cursor="not a cursor")
+
+    def test_model_tree_pagination_keeps_to_the_pinned_listing(self):
+        revision = "d" * 40
+        page = huggingface_tree_api_url("owner/model", revision)
+        self.assertIsNone(huggingface_tree_next_cursor("", "owner/model", revision))
+        self.assertIsNone(
+            huggingface_tree_next_cursor(
+                f'<{page}&cursor=abc>; rel="prev"', "owner/model", revision
+            )
+        )
+        self.assertEqual(
+            huggingface_tree_next_cursor(
+                f'<{page}&cursor=abc>; rel="next"', "owner/model", revision
+            ),
+            "abc",
+        )
+        for hostile in (
+            '<https://example.invalid/api/models/owner/model/tree/{revision}?cursor=abc>; rel="next"',
+            '<https://huggingface.co/api/models/other/model/tree/{revision}?cursor=abc>; rel="next"',
+            '<{page}>; rel="next"',
+        ):
+            with self.subTest(link=hostile):
+                with self.assertRaises(ValueError):
+                    huggingface_tree_next_cursor(
+                        hostile.format(page=page, revision=revision), "owner/model", revision
+                    )
+
+    def test_model_artifacts_concatenate_every_tree_page(self):
+        revision = "d" * 40
+        first = huggingface_tree_api_url("owner/model", revision)
+        pages = [
+            (
+                [{"type": "file", "path": "config.json", "size": 2, "oid": "c" * 40}],
+                f'<{first}&cursor=next1>; rel="next"',
+            ),
+            (
+                [
+                    {
+                        "type": "file",
+                        "path": "model.safetensors",
+                        "size": 12,
+                        "lfs": {"oid": "b" * 64},
+                    }
+                ],
+                "",
+            ),
+        ]
+        seen = []
+
+        def fake_read_json_page(url, **kwargs):
+            seen.append(url)
+            return pages[len(seen) - 1]
+
+        with (
+            patch.object(installer, "read_json", return_value={"sha": revision}),
+            patch.object(installer, "read_json_page", side_effect=fake_read_json_page),
+        ):
+            artifacts = installer._model_artifacts("owner/model")
+        self.assertEqual(sorted(artifacts), ["config.json", "model.safetensors"])
+        self.assertNotIn("cursor=", seen[0])
+        self.assertIn("cursor=next1", seen[1])
+
+    def test_model_artifacts_refuse_a_looping_cursor(self):
+        revision = "d" * 40
+        link = f'<{huggingface_tree_api_url("owner/model", revision)}&cursor=same>; rel="next"'
+        with (
+            patch.object(installer, "read_json", return_value={"sha": revision}),
+            patch.object(installer, "read_json_page", return_value=([], link)),
+        ):
+            with self.assertRaisesRegex(ValueError, "cursor"):
+                installer._model_artifacts("owner/model")
 
 
 class SafeArchiveTests(unittest.TestCase):
