@@ -2,27 +2,63 @@ name: Visual-Baselines erzeugen
 
 # Fuellt fehlende Pixel-Baselines und schiebt sie in den Branch zurueck.
 #
-# Nur von Hand startbar, und ausschliesslich mit --update-snapshots=missing: der Lauf schreibt
-# nur Bilder, die es fuer diese Plattform noch nicht gibt, und ruehrt vorhandene Referenzen
-# nicht an. Damit kann er keine Regression stillschweigend zur neuen Wahrheit machen -- ein
-# geaendertes Bild bleibt ein Fehlschlag, den ein Mensch ansehen muss.
+# Ausschliesslich mit --update-snapshots=missing: der Lauf schreibt nur Bilder, die es fuer
+# diese Plattform noch nicht gibt, und ruehrt vorhandene Referenzen nicht an. Damit kann er
+# keine Regression stillschweigend zur neuen Wahrheit machen -- ein geaendertes Bild bleibt
+# ein Fehlschlag, den ein Mensch ansehen muss.
 #
-# Zu tun ist das einmal pro Plattform, und wieder, wenn die Baselines fuer eine Plattform
-# bewusst geloescht wurden, weil sich das Design geaendert hat.
+# Der Lauf startet bei jedem Push, prueft aber zuerst, ob ueberhaupt etwas fehlt, und bricht
+# sonst nach einem einzigen kleinen Job ab. Zu tun ist es einmal pro Plattform -- und wieder,
+# wenn die Bilder einer Plattform bewusst geloescht wurden, weil sich das Design geaendert hat.
+#
+# Ein Push mit GITHUB_TOKEN loest keinen neuen Workflow aus. Das schliesst eine Schleife aus,
+# heisst aber auch: nach dem Nachtragen der Bilder muss der Testlauf einmal neu gestartet
+# werden, damit er sie vergleicht. Auf einem geschuetzten Branch schlaegt der Push fehl; dort
+# gehoeren die Bilder ueber einen Pull Request hinein.
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       branch:
         description: "Branch, in den die Bilder geschrieben werden"
-        required: true
-        default: "main"
+        required: false
+        default: ""
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  ZIELBRANCH: ${{ inputs.branch || github.ref_name }}
 
 jobs:
+  # Ohne diesen Vorlauf zahlte jeder Push drei Runner, nur um festzustellen, dass alles da ist.
+  luecke:
+    runs-on: ubuntu-24.04
+    outputs:
+      fehlt: ${{ steps.pruefen.outputs.fehlt }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.ZIELBRANCH }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.23.2"
+      - name: Fehlt einer Plattform ihr Satz?
+        id: pruefen
+        shell: bash
+        run: |
+          if node tools/quality/check_visual_baseline_reach.mjs; then
+            echo "fehlt=nein" >> "$GITHUB_OUTPUT"
+          else
+            echo "fehlt=ja" >> "$GITHUB_OUTPUT"
+          fi
+
   bootstrap:
+    needs: luecke
+    if: needs.luecke.outputs.fehlt == 'ja'
+    permissions:
+      contents: write
     runs-on: ${{ matrix.os }}
     strategy:
       # Nacheinander: alle drei Jobs schreiben in denselben Branch, und ein paralleler
@@ -34,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ env.ZIELBRANCH }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22.23.2"
@@ -60,8 +96,6 @@ jobs:
             --update-snapshots=missing --reporter=line || true
       - name: Neue Bilder einchecken
         shell: bash
-        env:
-          BRANCH: ${{ inputs.branch }}
         run: |
           snapshots=tests/e2e/visual-baseline.spec.ts-snapshots
           if [ -z "$(git status --porcelain -- "$snapshots")" ]; then
@@ -73,8 +107,8 @@ jobs:
           git add "$snapshots"
           git commit -m "test(e2e): Baselines für ${{ matrix.os }} erzeugt"
           # Zwischen Lauf und Push kann ein anderer Matrix-Job geschrieben haben.
-          git pull --rebase origin "$BRANCH"
-          git push origin "HEAD:$BRANCH"
+          git pull --rebase origin "$ZIELBRANCH"
+          git push origin "HEAD:$ZIELBRANCH"
       - name: Diagnose hochladen
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
