@@ -31,7 +31,6 @@ export const SHARED_FEATURE_CLASSES = Object.freeze({
   "graph-edge-appearance-select__control": "Teil derselben Huelle.",
   "directed-handle": "Verbindungspunkt aus dem Figurenboard; das Storyboard benutzt denselben.",
   "neutral-handle": "Ungerichteter Verbindungspunkt, ebenfalls aus dem Figurenboard.",
-  "storyboard-layout": "Rasterrahmen, den Timeline und Storyboard teilen.",
   "focus-side-toggle": "In FocusPanels.css beschrieben, von WorkspaceLayout gerendert.",
   "focus-helper-toggle": "Zweiter Reiter derselben Fokusleiste, gleiche Aufteilung.",
   "writing-data-state": "Ergebnisdarstellung der Schreibhilfe, von Nachschlagen und Pruefen.",
