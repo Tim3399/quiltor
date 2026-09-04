@@ -70,6 +70,34 @@ const figures = {
       label: "Ort",
       sub: "Eine begehbare Karte.",
       mapImageId: "karte-1",
+      mapWidth: 800,
+      mapHeight: 600,
+    },
+    // Zwei Orte, die auf der Karte stehen statt auf der Ebene: sie erscheinen erst, wenn die
+    // Karte aufgeklappt ist, und werden dann aus ihr abgeleitet statt gehalten.
+    {
+      id: "steg",
+      x: 0,
+      y: 0,
+      type: "ort" as const,
+      name: "Steg",
+      label: "Ort",
+      sub: "Auf der Karte.",
+      parentPlaceId: "hafenkarte",
+      mapX: 30,
+      mapY: 40,
+    },
+    {
+      id: "kran",
+      x: 0,
+      y: 0,
+      type: "ort" as const,
+      name: "Kran",
+      label: "Ort",
+      sub: "Auch auf der Karte.",
+      parentPlaceId: "hafenkarte",
+      mapX: 70,
+      mapY: 60,
     },
   ],
   edges: [{ id: "e1", from: "mara", to: "archiv", label: "hütet", gerichtet: true }],
@@ -335,4 +363,47 @@ test("Orte: Monogramme sitzen mittig im Kreis", async ({ page }) => {
   });
 
   expect(versatz).toEqual([]);
+});
+
+/*
+ * Die Uebersichtskarte zeigt, was auf der Leinwand steht.
+ *
+ * Sie zeigte die aufgeklappte Karte und liess alles weg, was darauf stand. Der Grund liegt
+ * nicht im Zeichnen: React Flow nimmt in die Uebersichtskarte nur Knoten auf, die eine
+ * Groesse mitbringen (`nodeHasDimensions`). Eine Karte nennt ihre selbst, eine gewoehnliche
+ * Ortskarte laesst sich messen -- und die Messung wird dem Knoten zugestellt, den der Fluss
+ * in seiner eigenen Liste haelt. Die Orte auf einer Karte werden aber aus der Karte
+ * abgeleitet und stehen dort nicht, also ging ihre Messung ins Leere.
+ *
+ * Gezaehlt wird deshalb gegen die Leinwand, nicht gegen eine feste Zahl: was dort steht,
+ * gehoert auch in die Uebersicht.
+ */
+test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+
+  // Unterhalb der Spaltenbreite blendet die Leinwand ihre Uebersichtskarte aus; dann gibt es
+  // nichts zu vergleichen.
+  test.skip((page.viewportSize()?.width ?? 0) <= 719, "Schmal gibt es keine Uebersichtskarte.");
+  await expect(page.locator(".react-flow__minimap")).toBeVisible();
+
+  // Erst aufgeklappt gibt es ueberhaupt Orte, die auf einer Karte stehen.
+  await page.getByRole("button", { name: "Nordhafen aufklappen" }).click();
+  await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
+  await page.waitForTimeout(900);
+
+  const zahlen = await page.evaluate(() => ({
+    leinwand: document.querySelectorAll(".react-flow__node").length,
+    uebersicht: document.querySelectorAll(".react-flow__minimap-node").length,
+  }));
+
+  expect(zahlen.leinwand).toBeGreaterThan(2);
+  expect(zahlen.uebersicht).toBe(zahlen.leinwand);
 });

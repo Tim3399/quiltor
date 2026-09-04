@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
+import { type MeasuredSizes, NO_MEASURED_SIZES, rememberMeasured, withMeasured } from "../../graph";
 import { GRID_SIZE, type SemanticZoomTier, semanticZoomTier } from "../figures/relationships";
 import type { FigureNode, FigureState, MapScale } from "../model";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
@@ -232,6 +233,9 @@ export function usePlaceCanvas({
   const latestFlowNodes = useRef(nodes);
   latestFlowNodes.current = nodes;
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
+  // Karten und die Orte darauf werden aus der Ebene abgeleitet und stehen nicht in
+  // dieser Liste. Ihre Messung haette sonst nirgends hin.
+  const [measured, setMeasured] = useState<MeasuredSizes>(NO_MEASURED_SIZES);
   // Keyed on what the flow actually renders rather than on what was derived for
   // it: the derived list changes a commit earlier, and fitting then would frame
   // the level just left. The short wait on top gives React Flow time to measure
@@ -430,7 +434,7 @@ export function usePlaceCanvas({
   );
 
   return {
-    nodes: [...(ground ? [ground] : []), ...maps, ...nodes, ...pins],
+    nodes: withMeasured([...(ground ? [ground] : []), ...maps, ...nodes, ...pins], measured),
     edges,
     fitViewOptions,
     zoomTier,
@@ -524,6 +528,7 @@ export function usePlaceCanvas({
         const { x, y } = change.position;
         setLivePosition(change.dragging ? { id: change.id, x, y } : null);
       }
+      setMeasured((known) => rememberMeasured(known, changes));
       setFlowNodes((current) => applyNodeChanges(changes, current));
     },
     onNodeDragStop: (node) => {
