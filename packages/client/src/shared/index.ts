@@ -30,7 +30,7 @@ export {
 } from "./profileNormalization";
 export { relativeTime } from "./relativeTime";
 export type { SavePhase } from "./save";
-export { IS_APPLE_OS, shortcut, undoShortcut, useShortcut } from "./shortcut";
+export { IS_APPLE_OS, shortcut, undoShortcut } from "./shortcut";
 export type { Theme, ThemePreference } from "./theme";
 export type {
   TextSearchTarget,

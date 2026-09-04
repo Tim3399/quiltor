@@ -2,7 +2,7 @@ import { Clock3, Command, FileText, MapPin, PanelsTopLeft, UserRound } from "luc
 import { useMemo, useState } from "react";
 import { CommandPalette, type CommandPaletteItem } from "../../design";
 import { useI18n } from "../../i18n";
-import { useShortcut, type Workspace, type WorkspaceTarget } from "../../shared";
+import { shortcut, type Workspace, type WorkspaceTarget } from "../../shared";
 import { type Manuscript, textSearchRanges } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { kindLabel } from "../story-world";
@@ -31,8 +31,7 @@ export function SearchDialog({
   onSelect: (target: WorkspaceTarget) => void;
   onCommand: (command: string) => void;
 }) {
-  const { t } = useI18n();
-  const keys = useShortcut();
+  const { t, locale } = useI18n();
   const [query, setQuery] = useState("");
   const items = useMemo<CommandPaletteItem[]>(() => {
     // Die zweite Zeile trug frueher fuer jeden Eintrag dasselbe Wort "Befehl" -- neun Mal
@@ -48,7 +47,7 @@ export function SearchDialog({
         ["storyboard", t("switchToStoryboard"), "view"],
         ["focus", t("toggleFocus"), "action"],
         ["history", t("openHistory"), "action"],
-        ["snapshot", t("openBackupDialog"), "action", keys("S", { shift: true })],
+        ["snapshot", t("openBackupDialog"), "action", shortcut("S", locale, { shift: true })],
         ["backups", t("openBackups"), "action"],
       ] as const
     ).map(([id, label, kind, shortcutLabel]) => ({

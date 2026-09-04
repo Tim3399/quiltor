@@ -49,8 +49,15 @@
 }
 
 /* The writing keeps clear of the column and sits on paper. The card's own commands are
-   not part of that column -- they sit in the corner and are excluded here. */
-.place-node-shell .story-node.is-map > *:not(.place-node__preview):not(.place-node__enter) {
+   not part of that column -- they sit in the corner and are excluded here.
+   Die Spalte haengt am Bild, nicht an der Kartennatur: herausgezoomt ist die Karte ein
+   32px-Kreis mit einem Buchstaben darin und rendert gar kein Vorschaubild -- die 38%
+   schoben das Monogramm dann zehn Pixel aus der Kreismitte. Dasselbe galt still fuer jede
+   Karte, deren Bild noch nicht geladen war. :has() bindet den Einzug an das, was ihn
+   begruendet, statt an eine Zoomstufe, die hier ohnehin nichts zu suchen haette. */
+.place-node-shell
+  .story-node.is-map:has(.place-node__preview)
+  > *:not(.place-node__preview):not(.place-node__enter) {
   position: relative;
   z-index: var(--z-local);
   margin-left: 38%;

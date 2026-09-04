@@ -1,5 +1,7 @@
-import { useCallback } from "react";
-import { type UiLocale, useI18n } from "../i18n";
+// Nur der Typ, kein Laufzeit-Import: sonst zoege jeder Nutzer von shared die kompletten
+// Sprachkataloge mit -- und mit ihnen deren JSON-Manifeste, an denen der ESM-Loader von
+// Playwright bricht. Der React-Hook dazu lebt in app/shell, wo die Bindung an i18n hingehoert.
+import type { UiLocale } from "../i18n";
 
 // The platform never changes while the app runs, so it is sniffed exactly once here and every
 // shortcut label reads this one constant afterwards. Shortcut notation lives in a .ts file on
@@ -22,14 +24,6 @@ export function shortcut(
   if (modifiers.shift) parts.push(locale.startsWith("de") ? "Umschalt" : "Shift");
   parts.push(key);
   return parts.join("+");
-}
-
-export function useShortcut() {
-  const { locale } = useI18n();
-  return useCallback(
-    (key: string, modifiers?: { shift?: boolean }) => shortcut(key, locale, modifiers),
-    [locale],
-  );
 }
 
 export function undoShortcut(locale: UiLocale): string {

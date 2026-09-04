@@ -61,6 +61,16 @@ const figures = {
       label: "Organisation",
       sub: "Kontrolliert die Seewege.",
     },
+    {
+      id: "hafenkarte",
+      x: 120,
+      y: 300,
+      type: "ort" as const,
+      name: "Nordhafen",
+      label: "Ort",
+      sub: "Eine begehbare Karte.",
+      mapImageId: "karte-1",
+    },
   ],
   edges: [{ id: "e1", from: "mara", to: "archiv", label: "hütet", gerichtet: true }],
   timeline: [{ id: "t1", title: "Ankunft", date: "1847-09-03", note: "Mara erreicht den Hafen." }],
@@ -278,4 +288,51 @@ test("Menues liegen ueber der geoeffneten Schublade", async ({ page }) => {
   });
 
   expect(verdeckt).toBe("");
+});
+
+/*
+ * Ein Monogramm sitzt in der Mitte seines Kreises.
+ *
+ * Herausgezoomt schrumpft eine Ortskarte auf 32 Pixel mit einem Buchstaben darin. Die
+ * Kartenkarte schob ihre Schrift dabei weiter um 38 Prozent nach rechts -- die Spalte neben
+ * dem Vorschaubild, das es in dieser Groesse gar nicht mehr gibt. Zehn Pixel aus der Mitte
+ * eines Kreises sieht man sofort, messen liess es sich vorher trotzdem nirgends.
+ */
+test("Orte: Monogramme sitzen mittig im Kreis", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+
+  // Der Kreis erscheint erst weit herausgezoomt; die Leinwand kennt dafuer keine Abkuerzung.
+  const kleiner = page.locator(".react-flow__controls-zoomout");
+  for (let schritt = 0; schritt < 6; schritt += 1) {
+    await kleiner.click();
+    await page.waitForTimeout(120);
+  }
+  await expect(page.locator(".story-node.zoom-overview.is-map")).toHaveCount(1);
+
+  const versatz = await page.evaluate(() => {
+    const found: string[] = [];
+    for (const node of document.querySelectorAll(".story-node.zoom-overview")) {
+      const monogram = node.querySelector(".node-monogram");
+      if (!monogram) continue;
+      const box = node.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(monogram);
+      const ink = range.getBoundingClientRect();
+      const offset = ink.left + ink.width / 2 - (box.left + box.width / 2);
+      if (Math.abs(offset) > 1.5) {
+        found.push(`${monogram.textContent} steht ${offset.toFixed(1)}px neben der Mitte`);
+      }
+    }
+    return found;
+  });
+
+  expect(versatz).toEqual([]);
 });
