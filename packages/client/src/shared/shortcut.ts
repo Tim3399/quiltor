@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { type UiLocale, useI18n } from "../../i18n";
+import { type UiLocale, useI18n } from "../i18n";
 
 // The platform never changes while the app runs, so it is sniffed exactly once here and every
 // shortcut label reads this one constant afterwards. Shortcut notation lives in a .ts file on

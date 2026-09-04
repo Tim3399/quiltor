@@ -2,7 +2,7 @@ import { Clock3, Command, FileText, MapPin, PanelsTopLeft, UserRound } from "luc
 import { useMemo, useState } from "react";
 import { CommandPalette, type CommandPaletteItem } from "../../design";
 import { useI18n } from "../../i18n";
-import type { Workspace, WorkspaceTarget } from "../../shared";
+import { useShortcut, type Workspace, type WorkspaceTarget } from "../../shared";
 import { type Manuscript, textSearchRanges } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { kindLabel } from "../story-world";
@@ -32,22 +32,29 @@ export function SearchDialog({
   onCommand: (command: string) => void;
 }) {
   const { t } = useI18n();
+  const keys = useShortcut();
   const [query, setQuery] = useState("");
   const items = useMemo<CommandPaletteItem[]>(() => {
-    const commands: CommandPaletteItem[] = [
-      ["text", t("switchToManuscript")],
-      ["figures", t("switchToFigures")],
-      ["timeline", t("switchToTimeline")],
-      ["places", t("switchToPlaces")],
-      ["storyboard", t("switchToStoryboard")],
-      ["focus", t("toggleFocus")],
-      ["history", t("openHistory")],
-      ["snapshot", t("openBackupDialog")],
-      ["backups", t("openBackups")],
-    ].map(([id, label]) => ({
+    // Die zweite Zeile trug frueher fuer jeden Eintrag dasselbe Wort "Befehl" -- neun Mal
+    // dieselbe Auskunft ist keine. Sie nennt jetzt die Tastenkombination, wo es eine gibt,
+    // und sonst wenigstens, ob der Eintrag die Ansicht wechselt oder etwas tut. Nur
+    // "Arbeitsstand sichern" hat heute eine; erfunden wird hier keine.
+    const commands: CommandPaletteItem[] = (
+      [
+        ["text", t("switchToManuscript"), "view"],
+        ["figures", t("switchToFigures"), "view"],
+        ["timeline", t("switchToTimeline"), "view"],
+        ["places", t("switchToPlaces"), "view"],
+        ["storyboard", t("switchToStoryboard"), "view"],
+        ["focus", t("toggleFocus"), "action"],
+        ["history", t("openHistory"), "action"],
+        ["snapshot", t("openBackupDialog"), "action", keys("S", { shift: true })],
+        ["backups", t("openBackups"), "action"],
+      ] as const
+    ).map(([id, label, kind, shortcutLabel]) => ({
       id: `command-${id}`,
       label,
-      detail: t("command"),
+      detail: shortcutLabel ?? (kind === "view" ? t("commandView") : t("commandAction")),
       icon: <Command />,
       onSelect: () => onCommand(id),
     }));

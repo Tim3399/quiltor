@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IS_APPLE_OS, shortcut } from "./useShortcut";
+import { IS_APPLE_OS, shortcut } from "./shortcut";
 
 // IS_APPLE_OS is read once at module load, so the branch that runs here is the one this machine
 // would show. Both branches are asserted through the constant rather than by stubbing navigator,

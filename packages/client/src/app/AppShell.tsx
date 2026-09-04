@@ -23,9 +23,8 @@ import {
   StatusBar,
 } from "../design";
 import { type MessageKey, useI18n } from "../i18n";
-import { relativeTime, type SavePhase, type Theme, type Workspace } from "../shared";
+import { relativeTime, type SavePhase, type Theme, useShortcut, type Workspace } from "../shared";
 import "./AppShell.css";
-import { useShortcut } from "./shell/useShortcut";
 import { WorkspaceSwitcher } from "./shell/WorkspaceSwitcher";
 
 const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
