@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FigureState } from "../model";
 import {
   applyFigureNodeContext,
+  belongsOnFigureBoard,
   combineFigureFlowEdges,
   createFigureFlowNodes,
   createRelationshipFlowEdges,
@@ -105,5 +106,34 @@ describe("figure canvas model", () => {
     expect(explicitAuto.labelBgStyle).toMatchObject({
       stroke: "var(--graph-edge-undirected-stroke)",
     });
+  });
+});
+
+describe("belongsOnFigureBoard", () => {
+  const welt: FigureState = {
+    nodes: [
+      { id: "mara", x: 0, y: 0, name: "Mara", type: "person" },
+      { id: "hafen", x: 200, y: 0, name: "Hafen", type: "ort" },
+      { id: "karte", x: 0, y: 200, name: "Nordhafen", type: "ort", mapImageId: "bild-1" },
+    ],
+    edges: [],
+  };
+
+  it("laesst eine Karte weg, denn sie ist der Bogen und kein Element der Welt", () => {
+    expect(belongsOnFigureBoard(welt.nodes[2])).toBe(false);
+    expect(createFigureFlowNodes(welt.nodes, "detail", 1).map((node) => node.id)).toEqual([
+      "mara",
+      "hafen",
+    ]);
+  });
+
+  it("laesst einen gewoehnlichen Ort stehen", () => {
+    expect(belongsOnFigureBoard(welt.nodes[1])).toBe(true);
+  });
+
+  it("aendert nichts am Dokument -- gefiltert wird beim Zeichnen", () => {
+    createFigureFlowNodes(welt.nodes, "detail", 1);
+
+    expect(welt.nodes).toHaveLength(3);
   });
 });

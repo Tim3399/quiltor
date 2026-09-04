@@ -25,12 +25,26 @@ import {
 
 const EMPTY_NODES: FigureNode[] = [];
 
+/**
+ * Ob ein Element auf das Figurenboard gehoert.
+ *
+ * Eine Karte ist keins: sie ist der Bogen, auf den Orte gelegt werden, so wie ein
+ * Storyboard einer ist. Auf dem Figurenboard stand sie trotzdem, weil dort bisher
+ * jeder Knoten der Welt landete -- neben den Figuren also ein Stueck Grund, mit dem
+ * sich weder eine Beziehung knuepfen noch eine Reise gehen laesst.
+ *
+ * Das Dokument behaelt sie: gefiltert wird beim Zeichnen, nicht beim Schreiben.
+ */
+export function belongsOnFigureBoard(figure: FigureNode): boolean {
+  return !figure.mapImageId;
+}
+
 export function createFigureFlowNodes(
   figures: FigureNode[],
   zoomTier: SemanticZoomTier,
   viewportZoom: number,
 ): FigureFlowNode[] {
-  return figures.map((figure) => ({
+  return figures.filter(belongsOnFigureBoard).map((figure) => ({
     id: figure.id,
     type: "story",
     position: { x: figure.x, y: figure.y },

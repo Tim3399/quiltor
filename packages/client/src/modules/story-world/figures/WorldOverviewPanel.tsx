@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Button, SidePanel, SidePanelBody, SidePanelHeader } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { FigureKind, FigureNode, FigureState } from "../model";
+import { belongsOnFigureBoard } from "./figureCanvasModel";
 import { kindLabel } from "./relationships";
 import "./WorldOverviewPanel.css";
 
@@ -46,9 +47,13 @@ export function WorldOverviewPanel({
   onReveal,
 }: WorldOverviewPanelProps) {
   const { t } = useI18n();
+  // Dieselbe Auswahl wie auf der Leinwand daneben: die Uebersicht ist deren Inhaltsverzeichnis
+  // und darf nichts auffuehren, das dort nicht steht -- ein Doppelklick sprang sonst zu einem
+  // Knoten, den es auf diesem Board gar nicht gibt.
+  const elemente = useMemo(() => state.nodes.filter(belongsOnFigureBoard), [state.nodes]);
   const groups = useMemo(() => {
     const byKind = new Map<FigureKind, FigureNode[]>();
-    for (const node of state.nodes) {
+    for (const node of elemente) {
       const kind = node.type ?? "person";
       const bucket = byKind.get(kind);
       if (bucket) bucket.push(node);
@@ -60,13 +65,13 @@ export function WorldOverviewPanel({
         .slice()
         .sort((left, right) => (left.name || "").localeCompare(right.name || "")),
     }));
-  }, [state.nodes]);
+  }, [elemente]);
 
   return (
     <SidePanel className="world-overview" label={t("worldOverviewLabel")} side="start" width="fill">
       <SidePanelHeader
         className="world-overview__header"
-        title={t("nElements", { n: state.nodes.length })}
+        title={t("nElements", { n: elemente.length })}
       />
       <SidePanelBody className="world-overview__body">
         {groups.map((group) => {

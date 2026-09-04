@@ -56,3 +56,30 @@ describe("WorldOverviewPanel", () => {
     expect(onReveal).toHaveBeenCalledWith(expect.objectContaining({ id: "archiv" }));
   });
 });
+
+describe("WorldOverviewPanel und Karten", () => {
+  it("fuehrt keine Karte auf, denn auf der Leinwand daneben steht auch keine", () => {
+    const mitKarte: FigureState = {
+      nodes: [
+        ...state.nodes,
+        { id: "karte", x: 0, y: 400, type: "ort", name: "Nordhafen", mapImageId: "bild-1" },
+      ],
+      edges: state.edges,
+    };
+    render(
+      <I18nProvider>
+        <WorldOverviewPanel
+          state={mitKarte}
+          selectedId={null}
+          onSelect={vi.fn()}
+          onReveal={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+    const panel = screen.getByRole("complementary", { name: "Weltübersicht" });
+
+    expect(within(panel).queryByText("Nordhafen")).toBeNull();
+    // Die Zahl in der Kopfzeile zaehlt dasselbe wie die Liste darunter.
+    expect(within(panel).getByText("3 Elemente")).toBeVisible();
+  });
+});
