@@ -105,6 +105,47 @@ const figures = {
   presence: [],
 };
 
+const storyboards = {
+  boards: [{ id: "main-storyboard", title: "Erster Entwurf" }],
+  nodes: [
+    {
+      id: "gruppe",
+      boardId: "main-storyboard",
+      kind: "group" as const,
+      x: 0,
+      y: 0,
+      width: 620,
+      height: 420,
+      label: "Erster Akt",
+    },
+    {
+      id: "karte-a",
+      boardId: "main-storyboard",
+      kind: "note" as const,
+      x: 60,
+      y: 80,
+      text: "Ankunft im Hafen.",
+    },
+    {
+      id: "karte-b",
+      boardId: "main-storyboard",
+      kind: "note" as const,
+      x: 380,
+      y: 80,
+      text: "Aufbruch ins Archiv.",
+    },
+  ],
+  edges: [
+    {
+      id: "kante-1",
+      boardId: "main-storyboard",
+      sourceNodeId: "karte-a",
+      targetNodeId: "karte-b",
+      directed: true,
+    },
+  ],
+};
+
 async function mockWorkshop(page: Page) {
   await page.route("**/api/version", (route) =>
     route.fulfill({ json: { ok: true, version: "layout" } }),
@@ -120,7 +161,7 @@ async function mockWorkshop(page: Page) {
     route.fulfill({ json: { ok: true, worlds: [world] } }),
   );
   await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
-  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures });
+  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures, storyboards });
   await page.route("**/api/assistant/status*", (route) =>
     route.fulfill({
       json: { ok: true, available: false, mode: "local", reason: "-", chunks: 0 },
@@ -406,4 +447,73 @@ test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async (
 
   expect(zahlen.leinwand).toBeGreaterThan(2);
   expect(zahlen.uebersicht).toBe(zahlen.leinwand);
+});
+
+/*
+ * Eine Verbindung in einer Gruppe laesst sich anklicken.
+ *
+ * Eine Gruppe ist keine durchlaessige Rahmung, sondern eine grosse Karte mit eigenem Koerper.
+ * React Flow legt Kanten ohne eigene Ebene auf 0, Gruppen liegen ebenfalls dort, und bei
+ * gleichem Rang gewinnt der spaeter gezeichnete Knoten -- der Klick landete auf der Gruppe.
+ *
+ * Gemessen wird an einem Punkt, der wirklich auf dem Pfad liegt. Die Mitte des Umrisses tut
+ * das bei einer gebogenen Kante nicht und haette hier zufaellig mitten auf einer Karte
+ * gelegen: der Test waere rot gewesen, aber aus dem falschen Grund.
+ */
+test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await page.getByRole("button", { name: "Storyboard", exact: true }).click();
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  await page.waitForTimeout(600);
+
+  const stelle = await page.evaluate(() => {
+    const pfad = document.querySelector<SVGPathElement>(".react-flow__edge-interaction");
+    if (!pfad) return null;
+    const punkt = pfad.getPointAtLength(pfad.getTotalLength() / 2);
+    const schirm = pfad.getScreenCTM();
+    if (!schirm) return null;
+    const auf = punkt.matrixTransform(schirm);
+    const treffer = document.elementFromPoint(auf.x, auf.y);
+    return {
+      x: auf.x,
+      y: auf.y,
+      aufDerKante: Boolean(treffer?.closest(".react-flow__edge")),
+      verdecktVon: treffer?.closest(".react-flow__node")?.getAttribute("data-id") ?? null,
+      // Schmal legt sich die Bibliothek ueber die Leinwand. Die Frage nach der Reihenfolge
+      // von Gruppe und Kante hat dort keinen Sinn -- an dieser Stelle ist gar keine
+      // Leinwand. Ohne diese Angabe waere der Test rot, aber aus einem anderen Grund.
+      ueberDerLeinwand: Boolean(treffer?.closest(".react-flow")),
+    };
+  });
+
+  expect(stelle).not.toBeNull();
+  test.skip(
+    !stelle?.ueberDerLeinwand,
+    "Schmal deckt die Bibliothek die Leinwand ab; dort liegt an dieser Stelle keine.",
+  );
+
+  expect(stelle?.verdecktVon).toBeNull();
+  expect(stelle?.aufDerKante).toBe(true);
+
+  // Und der Klick kommt auch an: die Auswahl oeffnet die Steuerung fuer die Verbindung.
+  await page.mouse.click(stelle?.x ?? 0, stelle?.y ?? 0);
+  await expect(page.locator(".graph-edge-inspector-panel")).toBeVisible();
+
+  // Die Kante liegt trotzdem hinter den Karten -- sie soll darunter durchlaufen, nicht
+  // darueber hinweg.
+  const aufDerKarte = await page.evaluate(() => {
+    const karte = document.querySelector<HTMLElement>('.react-flow__node[data-id="karte-a"]');
+    if (!karte) return "keine Karte";
+    const box = karte.getBoundingClientRect();
+    const treffer = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return treffer?.closest(".react-flow__edge") ? "Kante liegt ueber der Karte" : "";
+  });
+  expect(aufDerKarte).toBe("");
 });

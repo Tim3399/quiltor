@@ -133,17 +133,41 @@ function StoryboardWorkspaceInner({
     setSelectedId(null);
     setSelectedEdgeId(edgeId);
   }, []);
+  /*
+   * Ueber jeder Gruppe, unter jeder Karte.
+   *
+   * Eine Gruppe ist keine durchlaessige Rahmung, sondern eine grosse Karte mit eigenem
+   * Koerper -- sie deckt alles ab, was hinter ihr liegt. React Flow legt Kanten ohne eigene
+   * Ebene auf 0, Gruppen liegen ebenfalls dort, und bei gleichem Rang gewinnt der spaeter
+   * gezeichnete Knoten. Eine Verbindung zwischen zwei Karten in derselben Gruppe war damit
+   * nicht nur schwer zu sehen, sondern gar nicht zu treffen: der Klick landete auf der
+   * Gruppe darunter.
+   *
+   * Ohne Gruppen bleibt es bei 0, also beim bisherigen Verhalten. Karten liegen nach der
+   * Verdichtung ueber allen Gruppen und damit weiterhin ueber den Kanten -- eine Kante soll
+   * hinter der Karte durchlaufen, nicht ueber sie hinweg.
+   */
+  const edgeLayer = useMemo(
+    () =>
+      activeNodes.reduce(
+        (hoechste, node) =>
+          node.kind === "group" ? Math.max(hoechste, node.zIndex ?? 0) : hoechste,
+        -1,
+      ) + 1,
+    [activeNodes],
+  );
   const renderedEdges = useMemo(
     () =>
       positionGraphRelationshipEdgeLabels(
         flowNodes,
         activeEdges.map((edge) => ({
           ...storyboardFlowEdge(edge, activeNodes),
+          zIndex: edgeLayer,
           selected: edge.id === selectedEdgeId,
         })),
         { onLabelClick: selectEdgeFromLabel },
       ),
-    [activeEdges, activeNodes, flowNodes, selectEdgeFromLabel, selectedEdgeId],
+    [activeEdges, activeNodes, edgeLayer, flowNodes, selectEdgeFromLabel, selectedEdgeId],
   );
   const selectedEdge = activeEdges.find((edge) => edge.id === selectedEdgeId) ?? null;
   const selectedNode = selectedId
