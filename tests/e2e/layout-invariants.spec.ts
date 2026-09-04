@@ -588,3 +588,44 @@ test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
   expect(Math.abs(dx - zug), abweichung).toBeLessThan(8);
   expect(Math.abs(dy - zug), abweichung).toBeLessThan(8);
 });
+
+/*
+ * Suchfeld und Suchknopf stehen auf einer Linie.
+ *
+ * Ein Feld traegt den Abstand zum naechsten Formularfeld unter sich. In der Suchzeile der
+ * Schreibhilfe steht darunter keins, sondern daneben ein Knopf -- der Abstand machte die
+ * Rasterzeile 16px hoeher als die Eingabe, und die mittige Ausrichtung bezog sich auf diese
+ * zu hohe Zeile. Der Knopf sass acht Pixel zu tief und sah aus, als haenge er heraus.
+ */
+test("Text: der Suchknopf der Schreibhilfe sitzt auf der Zeile seines Feldes", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+
+  await page.waitForTimeout(900);
+  const schreibhilfe = page.getByRole("radio", { name: "Schreibhilfe" });
+  test.skip(
+    !(await schreibhilfe.isVisible()),
+    "Ohne Steuerspalte gibt es hier keine Schreibhilfe.",
+  );
+  await schreibhilfe.click();
+  await expect(page.locator(".writing-search")).toBeVisible();
+
+  const versatz = await page.evaluate(() => {
+    const zeile = document.querySelector(".writing-search");
+    const eingabe = zeile?.querySelector("input");
+    const knopf = zeile?.querySelector(".writing-search__submit");
+    if (!eingabe || !knopf) return "Suchzeile unvollstaendig";
+    const e = eingabe.getBoundingClientRect();
+    const k = knopf.getBoundingClientRect();
+    const abstand = Math.abs(e.top + e.height / 2 - (k.top + k.height / 2));
+    return abstand > 1.5 ? `Knopf ${abstand.toFixed(1)}px neben der Mitte des Feldes` : "";
+  });
+
+  expect(versatz).toBe("");
+});
