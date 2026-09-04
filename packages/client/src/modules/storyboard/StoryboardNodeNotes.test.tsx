@@ -276,3 +276,20 @@ describe("Kartenchrome", () => {
     expect(css).toMatch(/\.storyboard-note-control:focus-within\s*\{[^}]*border-color:/s);
   });
 });
+
+describe("Notizhoehe auf Karten ohne eigene Notiz", () => {
+  it("laesst die Notiz einer Referenz mitwachsen statt sie auf eine Zeile zu setzen", () => {
+    const css = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/storyboard/StoryboardNode.css"),
+      "utf8",
+    );
+    const tsx = readFileSync(
+      join(process.cwd(), "packages/client/src/modules/storyboard/StoryboardNode.tsx"),
+      "utf8",
+    );
+
+    expect(css).toMatch(/\.storyboard-node__note--compact\s*\{[^}]*flex:\s*1;/s);
+    // Eine feste Zeilenzahl waere genau das, was hier weg sollte.
+    expect(tsx).not.toMatch(/rows=\{isNoteCard \? undefined : \d+\}/);
+  });
+});

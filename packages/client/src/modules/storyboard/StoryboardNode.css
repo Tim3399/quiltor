@@ -96,8 +96,12 @@
   flex: 1;
 }
 
+/* Hielt die Notiz einer Referenz- oder Storyboard-Karte auf ihrer einen Zeile fest, waehrend
+   der Rest der 210px hohen Karte leer blieb. Sie waechst jetzt wie auf einer Notizkarte --
+   was die Karte an Hoehe hergibt, gehoert dem Text. */
 .storyboard-node__note--compact {
-  flex: none;
+  min-height: 0;
+  flex: 1;
 }
 
 /* Die Karte ist schon der Rahmen. Ein zweiter darin macht aus einer Notiz ein Formular --

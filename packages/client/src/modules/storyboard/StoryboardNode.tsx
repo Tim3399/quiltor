@@ -189,8 +189,11 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
           isNoteCard ? t("storyboardNotePlaceholder") : t("storyboardNodeNotePlaceholder")
         }
         size="compact"
-        fill={isNoteCard}
-        rows={isNoteCard ? undefined : 1}
+        // Auch auf einer Referenz- oder Storyboard-Karte ist die Notiz eine Notiz und keine
+        // Zeile: die Karte ist 210px hoch und laesst sich ziehen, also fuellt der Text, was
+        // da ist. Eine feste Zeilenzahl liess den Rest der Karte leer und zwang zum Scrollen
+        // im Feld, obwohl daneben Platz stand.
+        fill
         labelHidden
         fieldClassName="storyboard-node-note-field nodrag nopan"
         formatActionClassName="storyboard-note-format nodrag nopan"
