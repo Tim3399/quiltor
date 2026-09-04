@@ -193,7 +193,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
         rows={isNoteCard ? undefined : 1}
         labelHidden
         fieldClassName="storyboard-node-note-field nodrag nopan"
-        formatActionClassName="nodrag nopan"
+        formatActionClassName="storyboard-note-format nodrag nopan"
         className="storyboard-note-control nodrag nopan"
         focus={{
           openLabel: t("storyboardNoteFocusOpen"),

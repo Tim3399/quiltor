@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { EditorView } from "@codemirror/view";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentType } from "react";
@@ -232,5 +234,45 @@ describe("Storyboard-Karte und das Mausrad", () => {
       for (const notify of observers) notify();
     });
     expect(document.querySelector(".storyboard-node__body")).not.toHaveClass("nowheel");
+  });
+});
+
+describe("Kartenchrome", () => {
+  const css = readFileSync(
+    join(process.cwd(), "packages/client/src/modules/storyboard/StoryboardNode.css"),
+    "utf8",
+  );
+  const tsx = readFileSync(
+    join(process.cwd(), "packages/client/src/modules/storyboard/StoryboardNode.tsx"),
+    "utf8",
+  );
+
+  it("gibt der Formatleiste eine eigene Klasse, sonst zeigt die CSS ins Leere", () => {
+    expect(tsx).toContain("storyboard-note-format");
+  });
+
+  it("haelt die Leiste still, bis die Karte gemeint ist", () => {
+    expect(css).toMatch(/\.storyboard-note-format\s*\{[^}]*opacity:\s*0;/s);
+  });
+
+  // Unsichtbar bleiben duerfen sie nur, solange sie sich zeigen, sobald jemand hinzeigt oder
+  // hintabbt -- sonst waeren die Knoepfe fuer die Tastatur schlicht verschwunden.
+  it("zeigt sie bei Hover, Auswahl und Tastaturfokus", () => {
+    expect(css).toContain(".storyboard-node:hover .storyboard-note-format");
+    expect(css).toContain(".storyboard-node.is-selected .storyboard-note-format");
+    expect(css).toContain(".storyboard-node:focus-within .storyboard-note-format");
+  });
+
+  it("laesst sie auf Fingergeraeten stehen, wo es kein Hover gibt", () => {
+    expect(css).toMatch(
+      /@media \(pointer: coarse\)\s*\{\s*\.storyboard-note-format\s*\{[^}]*opacity:\s*1;/s,
+    );
+  });
+
+  it("nimmt dem Notizfeld den zweiten Rahmen und gibt ihn beim Schreiben zurueck", () => {
+    expect(css).toMatch(
+      /\.storyboard-note-control\s*\{[^}]*border-color:\s*var\(--transparent\);/s,
+    );
+    expect(css).toMatch(/\.storyboard-note-control:focus-within\s*\{[^}]*border-color:/s);
   });
 });
