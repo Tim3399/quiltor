@@ -178,8 +178,12 @@
   --z-drawer: 12;
   --z-app-bar: 20;
   --z-hint: 24;
-  --z-popover: 30;
   --z-drawer-panel: 70;
+  /* Ueber der Schublade, nicht darunter: ein Menue ist fluechtig und gehoert auf das, woraus
+     es aufgeklappt wurde. Stand es bei 30, oeffnete sich das ⋯-Menue der Kopfleiste bei
+     geoeffnetem Assistenten unsichtbar hinter dessen Panel -- aria-expanded sagte "true", zu
+     sehen war nichts. Unter dem Toast bleibt es, damit eine Meldung ein Menue uebersteigt. */
+  --z-popover: 75;
   --z-toast: 80;
   --z-modal: 100;
   --z-drawer-panel-mobile: 110;

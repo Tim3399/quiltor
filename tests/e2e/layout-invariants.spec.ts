@@ -232,3 +232,50 @@ for (const workspace of workspaces) {
     expect(await violations(page, TOLERANCE)).toEqual([]);
   });
 }
+
+/*
+ * Ein Menue liegt auf dem, woraus es aufgeklappt wurde.
+ *
+ * Der Fehler dahinter war nicht zu sehen, sondern nur zu messen: das ueberlaufende Menue der
+ * Kopfleiste stand auf --z-popover: 30, die Assistenten-Schublade auf --z-drawer-panel: 70.
+ * Bei offener Schublade oeffnete sich das Menue also unsichtbar dahinter -- aria-expanded
+ * sagte "true", der Fokus sass darin, zu sehen war nichts. Jede Pruefung, die nur den
+ * Zustand liest, haelt das fuer richtig; erst die Frage "was liegt tatsaechlich an dieser
+ * Stelle?" findet es.
+ */
+test("Menues liegen ueber der geoeffneten Schublade", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+
+  test.skip(
+    (page.viewportSize()?.width ?? 0) <= 820,
+    "Schmal ist die Schublade ein Sheet und verdraengt das Menue, statt neben ihm zu stehen.",
+  );
+
+  await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
+  await page.getByRole("button", { name: "Mehr" }).click();
+
+  const menu = page.locator(".ui-popover");
+  await expect(menu).toBeVisible();
+
+  const verdeckt = await page.evaluate(() => {
+    const popover = document.querySelector(".ui-popover");
+    if (!popover) return "kein Menue im Baum";
+    const box = popover.getBoundingClientRect();
+    // Nicht die Mitte: dort kann eine Luecke zwischen zwei Eintraegen liegen. Ein Punkt
+    // knapp unter der Oberkante trifft immer den ersten Eintrag.
+    const treffer = document.elementFromPoint(box.left + box.width / 2, box.top + 12);
+    if (!treffer) return "an dieser Stelle liegt nichts";
+    return popover.contains(treffer)
+      ? ""
+      : `verdeckt von ${treffer.tagName.toLowerCase()}.${treffer.className}`;
+  });
+
+  expect(verdeckt).toBe("");
+});
