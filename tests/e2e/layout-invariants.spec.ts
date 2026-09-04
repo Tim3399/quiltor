@@ -70,6 +70,7 @@ const figures = {
       label: "Ort",
       sub: "Eine begehbare Karte.",
       mapImageId: "karte-1",
+      mapExpanded: true,
       mapWidth: 800,
       mapHeight: 600,
     },
@@ -84,8 +85,8 @@ const figures = {
       label: "Ort",
       sub: "Auf der Karte.",
       parentPlaceId: "hafenkarte",
-      mapX: 30,
-      mapY: 40,
+      mapU: 0.3,
+      mapV: 0.4,
     },
     {
       id: "kran",
@@ -96,8 +97,8 @@ const figures = {
       label: "Ort",
       sub: "Auch auf der Karte.",
       parentPlaceId: "hafenkarte",
-      mapX: 70,
-      mapY: 60,
+      mapU: 0.7,
+      mapV: 0.6,
     },
   ],
   edges: [{ id: "e1", from: "mara", to: "archiv", label: "hütet", gerichtet: true }],
@@ -436,7 +437,6 @@ test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async (
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
 
   // Erst aufgeklappt gibt es ueberhaupt Orte, die auf einer Karte stehen.
-  await page.getByRole("button", { name: "Nordhafen aufklappen" }).click();
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
   await page.waitForTimeout(900);
 
@@ -516,4 +516,75 @@ test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page
     return treffer?.closest(".react-flow__edge") ? "Kante liegt ueber der Karte" : "";
   });
   expect(aufDerKarte).toBe("");
+});
+
+/*
+ * Ein Ort auf einer Karte folgt dem Zeiger.
+ *
+ * Der Anker sagt, wo der Ort steht. Gespeichert wurde er aus der Mitte der Karte, gezeichnet
+ * aber als linke obere Ecke -- jedes Ziehen verschob den Ort dadurch zusaetzlich um eine
+ * halbe Karte nach unten rechts. Gemessen: ein Zug um 100px bewegte ihn um 188 in x und um
+ * 135 in y, also um die halbe Kartenbreite und -hoehe zu weit.
+ *
+ * Der Test zieht bewusst um einen krummen Betrag und in vielen Schritten: d3-drag verbraucht
+ * die erste Bewegung fuer den Anfassen-Punkt, deshalb fehlt immer genau ein Schritt.
+ */
+test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+  await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
+  await page.waitForTimeout(900);
+
+  const stelle = () =>
+    page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>('.react-flow__node[data-id="steg"]');
+      if (!el) return null;
+      const m = new DOMMatrix(getComputedStyle(el).transform);
+      return { x: m.e, y: m.f };
+    });
+
+  // Der Zug muss auf der Karte bleiben, sonst misst der Test das Umhaengen an eine andere
+  // Ebene statt die Bewegung. Auf schmalen Fenstern ist die Karte dafuer zu klein.
+  const karte = await page.locator(".react-flow__node-placeMap").boundingBox();
+  test.skip(
+    !karte || karte.width < 240 || karte.height < 240,
+    "Die aufgeklappte Karte ist hier zu klein, um darauf zu ziehen.",
+  );
+
+  const vorher = await stelle();
+  expect(vorher).not.toBeNull();
+
+  const steg = page.locator('.react-flow__node[data-id="steg"]');
+  const box = await steg.boundingBox();
+  expect(box).not.toBeNull();
+  const zug = 40;
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 + zug, box!.y + box!.height / 2 + zug, {
+    steps: 40,
+  });
+  await page.mouse.up();
+  await page.waitForTimeout(900);
+
+  // Die Transformation steht in Flow-Einheiten, der Zeiger bewegt sich in Bildschirmpixeln.
+  // Auf schmalen Fenstern zoomt die Leinwand heraus, dort sind das nicht dieselben Zahlen.
+  const skala = await page.evaluate(() => {
+    const v = document.querySelector<HTMLElement>(".react-flow__viewport");
+    return v ? new DOMMatrix(getComputedStyle(v).transform).a : 1;
+  });
+  const nachher = await stelle();
+  const dx = ((nachher?.x ?? 0) - (vorher?.x ?? 0)) * skala;
+  const dy = ((nachher?.y ?? 0) - (vorher?.y ?? 0)) * skala;
+
+  const abweichung = `dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} erwartet ${zug}`;
+  // Ein Schritt Toleranz, mehr nicht: die halbe Karte waere 100 in x und 48 in y.
+  expect(Math.abs(dx - zug), abweichung).toBeLessThan(8);
+  expect(Math.abs(dy - zug), abweichung).toBeLessThan(8);
 });

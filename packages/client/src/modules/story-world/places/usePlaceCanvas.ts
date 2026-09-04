@@ -406,13 +406,23 @@ export function usePlaceCanvas({
       const dragged = current.nodes.find((item) => item.id === node.id);
       if (!dragged) return;
 
+      // Ein verankerter Ort wird um seine Mitte gezeichnet, also meldet React Flow auch die
+      // Mitte. Alles Weitere hier rechnet mit der linken oberen Ecke -- ein Ort, der gerade
+      // erst auf eine Karte gezogen wird, kommt ja noch von der Ebene und meldet die Ecke.
+      const verankert =
+        Boolean(latestGround.current) ||
+        latestMaps.current.some((map) => map.id === dragged.parentPlaceId);
+      const ecke = verankert
+        ? { x: x - (node.measured?.width ?? 0) / 2, y: y - (node.measured?.height ?? 0) / 2 }
+        : { x, y };
+
       const patch = placementForDrop({
         dragged,
         nodes: current.nodes,
         maps: latestMaps.current,
         levelId,
         levelGround: latestGround.current,
-        position: { x, y },
+        position: ecke,
         size: node.measured,
         // Only a map is held to the ruling, and only while the ruling is drawn.
         // A place is anchored as a fraction of whatever it stands on, so
