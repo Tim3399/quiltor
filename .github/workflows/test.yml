@@ -258,8 +258,16 @@ jobs:
       - name: Portable core
         run: cargo --locked test --workspace --all-targets
 
-  cross-platform-browser:
-    name: Browser auf ${{ matrix.os }}
+  # Frueher lief hier beides hintereinander in einem Job: erst die Produkt-, dann die
+  # Design-Suite, auf Windows zusammen ueber zwanzig Minuten. Aufgeteilt sind es zwei Jobs
+  # nebeneinander -- die Wanduhr zeigt nur noch den laengeren von beiden, bezahlt wird ein
+  # zweiter Aufbau je System statt einer dritten Runner-Stunde fuer eine Scherbenteilung.
+  #
+  # Die Design-Suite braucht die Anwendung gar nicht: sie faehrt gegen die Design-Galerie,
+  # die ihre Konfiguration selbst startet. Getrennt spart sie sich Python, die Installation
+  # und den Serverstart mit.
+  cross-platform-product:
+    name: Produkt auf ${{ matrix.os }}
     needs: frontend
     runs-on: ${{ matrix.os }}
     strategy:
@@ -302,12 +310,45 @@ jobs:
           cat "$RUNNER_TEMP/quiltor-server.log"
           exit 1
 
-      # Ungeschaerdet: drei Runner-Stunden fuer eine Aufteilung zu bezahlen lohnt sich erst
-      # bei der Laufzeit, die Linux hat. visual-baseline.spec.ts liegt in dieser Suite und
-      # vergleicht hier die Bilder dieser Plattform.
+      # Ohne PLAYWRIGHT_WORKERS gilt die Vorgabe der Konfiguration: zwei Arbeiter, dieselbe
+      # Zahl, mit der die Suite auf jedem Schreibtisch laeuft. Der eine Arbeiter hier war
+      # Vorsicht aus einer Zeit vor der Weltenverwaltung je Arbeiter; der Anwendungsserver
+      # ist ein ThreadingTCPServer und bedient sie nebeneinander.
+      # visual-baseline.spec.ts liegt in dieser Suite und vergleicht die Bilder dieses Systems.
       - name: Product suite
         shell: bash
-        run: PLAYWRIGHT_WORKERS=1 npx playwright test --output=test-results/product --reporter=line
+        run: npx playwright test --output=test-results/product --reporter=line
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cross-platform-product-${{ matrix.os }}-diagnostics
+          if-no-files-found: ignore
+          path: |
+            test-results/**
+            ${{ runner.temp }}/quiltor-server.log
+
+  cross-platform-design:
+    name: Design auf ${{ matrix.os }}
+    needs: frontend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.23.2"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Design suite
         shell: bash
@@ -319,8 +360,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: cross-platform-browser-${{ matrix.os }}-diagnostics
+          name: cross-platform-design-${{ matrix.os }}-diagnostics
           if-no-files-found: ignore
-          path: |
-            test-results/**
-            ${{ runner.temp }}/quiltor-server.log
+          path: test-results/**
