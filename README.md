@@ -279,6 +279,20 @@ npm run dev
 python3 apps/web/server.py --no-open
 ```
 
+### Werkzeuge für den Alltag
+
+| Befehl                                                   | Wofür                                                                                                                                                 |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm start`                                              | Beide Hälften hochfahren -- API auf 8000, Vite auf 5173 -- und gemeinsam beenden.                                                                     |
+| `npm run check`                                          | Alle Gates hintereinander, ohne zu bauen.                                                                                                             |
+| `npm run doctor`                                         | Zeigt, welche der vier gepinnten Laufzeiten von `distribution/toolchains.json` abweicht. Ohne sie lehnt `npm run set-version` den Versionswechsel ab. |
+| `npm run probe -- "<ausdruck>"`                          | Wertet einen Ausdruck in der laufenden Anwendung aus und gibt das Ergebnis als JSON zurück. Optional `--orte`, `--storyboard`, `--schmal` …           |
+| `npm run mutate -- <datei> --von X --nach Y -- <befehl>` | Dreht eine Korrektur zurück und prüft, ob der Test es merkt. Erfolg heißt: der Befehl schlägt fehl.                                                   |
+
+`probe` misst bewusst über Playwright und nicht im eingebetteten Browser-Fenster: ein
+ausgeblendetes Fenster zeichnet nicht, dort feuert kein `ResizeObserver`, und Messungen von
+dort sehen aus wie Befunde, ohne welche zu sein.
+
 ---
 
 ## Lokaler Assistent und Runtime-Vertrag

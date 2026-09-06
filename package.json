@@ -6,6 +6,10 @@
   "packageManager": "npm@10.9.8",
   "type": "module",
   "scripts": {
+    "probe": "node tools/dev/probe.mjs",
+    "doctor": "node tools/dev/doctor.mjs",
+    "mutate": "node tools/dev/mutate.mjs",
+    "check": "npm run check:contracts && npm run check:architecture && npm run check:design && npm run check:design-system && npm run check:i18n && npm run check:platform && npm run check:format",
     "start": "node tools/dev/start-workshop.mjs",
     "dev": "vite",
     "build": "npm run check:contracts && npm run check:architecture && npm run check:design && npm run check:design-system && npm run check:i18n && npm run check:platform && tsc -b && vite build",
