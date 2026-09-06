@@ -45,6 +45,7 @@ export interface WritingAidInspectorProps {
   onInsertEntity: (entity: FigureNode) => void;
   onResolveAmbiguous: (candidate: AmbiguousMention, entity: FigureNode) => void;
   onManageTerms: () => void;
+  onManageElements: () => void;
   onInsert: (value: string) => void;
   onToggleSymbol: (symbol: string, active: boolean) => void;
 }

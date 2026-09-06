@@ -32,6 +32,7 @@ describe("WritingInsertPanel", () => {
           onInsertEntity={onInsertEntity}
           onResolveAmbiguous={vi.fn()}
           onManageTerms={vi.fn()}
+          onManageElements={vi.fn()}
           onInsert={onInsert}
           onToggleSymbol={vi.fn()}
         />
@@ -65,6 +66,7 @@ describe("WritingInsertPanel", () => {
           onInsertEntity={vi.fn()}
           onResolveAmbiguous={vi.fn()}
           onManageTerms={vi.fn()}
+          onManageElements={vi.fn()}
           onInsert={vi.fn()}
           onToggleSymbol={onToggleSymbol}
         />
@@ -76,5 +78,52 @@ describe("WritingInsertPanel", () => {
     expect(symbol).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(symbol);
     expect(onToggleSymbol).toHaveBeenCalledWith("—", true);
+  });
+});
+
+describe("WritingInsertPanel und verborgene Elemente", () => {
+  afterEach(cleanup);
+
+  const zeichne = (eigenes: Partial<Manuscript>, onManageElements = vi.fn()) => {
+    render(
+      <TestProviders>
+        <WritingInsertPanel
+          manuscript={{ ...manuscript, ...eigenes }}
+          figures={figures}
+          orphanedMentions={0}
+          ambiguousMentions={[]}
+          symbolPicker={false}
+          onSymbolPicker={vi.fn()}
+          onInsertEntity={vi.fn()}
+          onResolveAmbiguous={vi.fn()}
+          onManageTerms={vi.fn()}
+          onManageElements={onManageElements}
+          onInsert={vi.fn()}
+          onToggleSymbol={vi.fn()}
+        />
+      </TestProviders>,
+    );
+    return { onManageElements };
+  };
+
+  it("bietet ein abgewaehltes Element nicht mehr an", () => {
+    zeichne({ elementeVerborgen: ["figure"] });
+
+    expect(screen.queryByRole("button", { name: "Mara" })).toBeNull();
+  });
+
+  it("bietet es an, solange es nicht abgewaehlt ist", () => {
+    zeichne({});
+
+    expect(screen.getByRole("button", { name: "Mara" })).toBeVisible();
+  });
+
+  // Ein Blatt, kein Umbau der Liste an Ort und Stelle: die Auswahl trifft man einmal in Ruhe.
+  it("fuehrt zum Blatt", () => {
+    const { onManageElements } = zeichne({});
+
+    fireEvent.click(screen.getByRole("button", { name: "Figuren & Orte verwalten" }));
+
+    expect(onManageElements).toHaveBeenCalled();
   });
 });

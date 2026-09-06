@@ -257,7 +257,7 @@ describe("TextWorkspace writing aid", () => {
     fireEvent.click(rendered.getByRole("tab", { name: "Einfügen" }));
     expect(rendered.getByRole("button", { name: "Traumweberin" })).toBeTruthy();
     expect(screen.queryByLabelText("Neuer Begriff")).toBeNull();
-    fireEvent.click(rendered.getByRole("button", { name: "Verwalten" }));
+    fireEvent.click(rendered.getByRole("button", { name: "Eigene Begriffe verwalten" }));
     const sheet = within(screen.getByRole("dialog", { name: "Eigene Begriffe" }));
     expect(sheet.getByLabelText("Neuer Begriff")).toBeTruthy();
     expect(sheet.getByRole("button", { name: "Traumweberin entfernen" })).toBeTruthy();

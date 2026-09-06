@@ -22,6 +22,7 @@ import type { Chapter } from "./model";
 import { PrintDocument } from "./PrintDocument";
 import { SelectionActions } from "./SelectionActions";
 import { manuscriptShortcut } from "./shortcuts";
+import { ElementsSheet } from "./ElementsSheet";
 import { TermsSheet } from "./TermsSheet";
 import { useChapterHistory } from "./useChapterHistory";
 import { useManuscriptSearch } from "./useManuscriptSearch";
@@ -266,6 +267,7 @@ ${markdownBody(current.body, current.marks)}
       onInsertEntity={writing.insertEntity}
       onResolveAmbiguous={writing.resolveAmbiguous}
       onManageTerms={() => writing.setTermsOpen(true)}
+      onManageElements={() => writing.setElementsOpen(true)}
       onInsert={writing.insert}
       onToggleSymbol={(symbol, active) =>
         onChange({
@@ -416,6 +418,13 @@ ${markdownBody(current.body, current.marks)}
         onLeave={() => onFocus(false)}
       />
       <PrintDocument worldTitle={worldTitle} manuscript={manuscript} />
+      <ElementsSheet
+        open={writing.elementsOpen}
+        manuscript={manuscript}
+        figures={figures}
+        onChange={onChange}
+        onClose={() => writing.setElementsOpen(false)}
+      />
       <TermsSheet
         open={writing.termsOpen}
         manuscript={manuscript}

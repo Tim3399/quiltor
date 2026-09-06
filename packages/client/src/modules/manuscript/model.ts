@@ -87,5 +87,7 @@ export interface Manuscript {
   grammarMode?: GrammarMode;
   words?: Array<string | { w: string; d?: string }>;
   zeichenAktiv?: string[];
+  /** Elemente der Welt, die im Einfuegen-Bereich nicht angeboten werden. */
+  elementeVerborgen?: string[];
   [key: string]: unknown;
 }

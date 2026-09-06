@@ -15,6 +15,8 @@ const MODULES = "packages/client/src/modules";
  * stehen -- und Eintraege, die nichts mehr teilen, fallen ebenso auf.
  */
 export const SHARED_FEATURE_CLASSES = Object.freeze({
+  "editable-chips":
+    "Chip-Liste zum Bearbeiten, die sich das Begriffe- und das Elemente-Blatt teilen: beide zeigen dieselbe Art Liste, in der man ein- und ausschaltet oder entfernt.",
   "figure-layout":
     "Rasterrahmen von Figuren UND Orten. Spaltenzahl nur unter .figure-workspace aendern -- siehe StoryGraphLayout.test.ts.",
   "layout-without-inspector": "Derselbe Rahmen ohne Steuerspalte, in beiden Ansichten.",

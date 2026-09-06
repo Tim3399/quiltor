@@ -72,6 +72,15 @@ export const manuscript = {
   addTerm: "Begriff hinzufügen",
   newTerm: "Neuer Begriff",
   manageTerms: "Verwalten",
+  manageElements: "Verwalten",
+  manageTermsTitle: "Eigene Begriffe verwalten",
+  manageElementsTitle: "Figuren & Orte verwalten",
+  manageElementsIntro:
+    "Abgewählte Elemente verschwinden aus der Einfügen-Liste. In der Welt bleiben sie unverändert.",
+  elementHidden: "{name} wird nicht angeboten",
+  elementShown: "{name} wird angeboten",
+  elementsAllHidden: "Zurzeit ist kein Element ausgewählt.",
+  elementsEmpty: "Diese Welt hat noch keine Figuren oder Orte.",
   ownTermsEmpty: "Noch keine eigenen Begriffe.",
   ownTermsIntro:
     "Eigene Begriffe gelten der Grammatikprüfung als richtig geschrieben und stehen beim Schreiben zum Einfügen bereit.",

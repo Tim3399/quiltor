@@ -70,6 +70,15 @@ export const manuscript = {
   addTerm: "Add term",
   newTerm: "New term",
   manageTerms: "Manage",
+  manageElements: "Manage",
+  manageTermsTitle: "Manage own terms",
+  manageElementsTitle: "Manage characters & places",
+  manageElementsIntro:
+    "Unselected elements disappear from the insert list. They stay untouched in the world.",
+  elementHidden: "{name} is not offered",
+  elementShown: "{name} is offered",
+  elementsAllHidden: "No element is selected right now.",
+  elementsEmpty: "This world has no characters or places yet.",
   ownTermsEmpty: "No custom terms yet.",
   ownTermsIntro:
     "Custom terms count as correctly spelled for the grammar check and are ready to insert while you write.",

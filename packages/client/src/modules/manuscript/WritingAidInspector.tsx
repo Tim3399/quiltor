@@ -44,6 +44,7 @@ export function WritingAidInspector({
   onInsertEntity,
   onResolveAmbiguous,
   onManageTerms,
+  onManageElements,
   onInsert,
   onToggleSymbol,
 }: WritingAidInspectorProps) {
@@ -110,6 +111,7 @@ export function WritingAidInspector({
               onInsertEntity={onInsertEntity}
               onResolveAmbiguous={onResolveAmbiguous}
               onManageTerms={onManageTerms}
+              onManageElements={onManageElements}
               onInsert={onInsert}
               onToggleSymbol={onToggleSymbol}
             />
