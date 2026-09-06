@@ -92,6 +92,26 @@ describe("ListboxSelect", () => {
     await waitFor(() => expect(gamma).toHaveFocus());
   });
 
+  it("holt einen weitergewanderten Fokus nicht in die gewaehlte Zeile zurueck", () => {
+    // Der Nachlauf des Oeffnens laeuft einen Frame spaeter. Hier wird er angehalten, der Fokus
+    // wandert wie beim Druck auf die Pfeiltaste weiter, und erst dann darf er laufen.
+    const nachlauf: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (rueckruf: FrameRequestCallback) =>
+      nachlauf.push(rueckruf),
+    );
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    render(
+      <ListboxSelect label="Auswahl" value="a" options={options} onChange={() => undefined} />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
+    const gamma = screen.getByRole("option", { name: "Gamma" });
+    gamma.focus();
+    for (const rueckruf of nachlauf) rueckruf(0);
+
+    expect(gamma).toHaveFocus();
+  });
+
   it("keeps long labels inside the trigger without displacing its chevron", () => {
     const css = readFileSync(
       join(process.cwd(), "packages/client/src/design/components/ListboxSelect/ListboxSelect.css"),

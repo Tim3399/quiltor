@@ -43,6 +43,11 @@ export function ListboxSelect<T extends string>({
   useEffect(() => {
     if (!open) return;
     const frame = requestAnimationFrame(() => {
+      // Nur, wenn der Fokus noch nicht drin ist. Als Sheet setzt useOverlayFocus ihn schon im
+      // selben Takt wie den Klick; dieser Nachlauf kam einen Frame spaeter -- und wer in dieser
+      // Luecke die Pfeiltaste gedrueckt hatte, wurde wieder auf die gewaehlte Zeile zurueck-
+      // geholt. Auf einem ausgelasteten Rechner ist die Luecke breit genug dafuer.
+      if (listRef.current?.contains(document.activeElement)) return;
       const current = listRef.current?.querySelector<HTMLElement>(
         '[aria-selected="true"]:not(:disabled)',
       );
