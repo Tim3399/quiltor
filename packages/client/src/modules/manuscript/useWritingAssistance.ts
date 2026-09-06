@@ -20,6 +20,15 @@ interface WritingAssistanceOptions {
   onChange: (manuscript: Manuscript) => void;
   onUpdateCurrent: (patch: Partial<Chapter>) => void;
   onInspectorOpen: (open: boolean) => void;
+  /**
+   * Die Schreibhilfe zeigen -- nicht bloss die Steuerspalte aufklappen.
+   *
+   * Seit der Inspector zwei Register hat, reicht `onInspectorOpen(true)` nicht mehr:
+   * er kam mit dem Kapitel-Register hoch, und das Nachschlagen landete hinter einem
+   * Reiter, den niemand umgelegt hatte. Ein Aufruf, der beides bedeutet, laesst die
+   * Luecke nicht wiederkommen.
+   */
+  onShowWritingAid: () => void;
   onError: (message: string) => void;
 }
 
@@ -31,6 +40,7 @@ export function useWritingAssistance({
   onChange,
   onUpdateCurrent,
   onInspectorOpen,
+  onShowWritingAid,
   onError,
 }: WritingAssistanceOptions) {
   const { t } = useI18n();
@@ -183,7 +193,7 @@ export function useWritingAssistance({
     setSelectionTool(tool);
     setQuery(selectedText.text);
     setHelperMode("lookup");
-    onInspectorOpen(true);
+    onShowWritingAid();
     requestAnimationFrame(() => runLookup(tool, selectedText.text, locale));
   };
   const chooseTool = (tool: WritingTool) => {
@@ -372,7 +382,7 @@ export function useWritingAssistance({
     onIssue: (issue: WritingIssue) => {
       setSelectedIssue(issue);
       setHelperMode("check");
-      onInspectorOpen(true);
+      onShowWritingAid();
     },
   };
 }

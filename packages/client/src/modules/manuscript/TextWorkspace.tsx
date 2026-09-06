@@ -113,6 +113,10 @@ export function TextWorkspace({
     onChange,
     onUpdateCurrent: updateCurrent,
     onInspectorOpen: setInspectorOpen,
+    onShowWritingAid: () => {
+      setInspectorOpen(true);
+      setInspectorRegister("writingAid");
+    },
     onError: setExportError,
   });
   const history = useChapterHistory(current);
