@@ -160,7 +160,7 @@ Quiltor befindet sich in aktiver Entwicklung. Der Schwerpunkt liegt auf einem ru
 
 # Schnellstart
 
-Voraussetzung: **Python 3.11+**.
+Voraussetzung: **Python 3.12+**.
 
 ```bash
 git clone https://github.com/Tim3399/quiltor.git
@@ -228,7 +228,7 @@ pip install quiltor-<version>-py3-none-any.whl
 quiltor
 ```
 
-Das Paket benötigt Python 3.11 oder neuer. Der eigentliche Serverpfad bleibt bewusst leichtgewichtig; für das gepackte CLI wird `typer` verwendet.
+Das Paket benötigt Python 3.12 oder neuer. Der eigentliche Serverpfad bleibt bewusst leichtgewichtig; für das gepackte CLI wird `typer` verwendet.
 
 Der Basis-Wheel meldet PDF-Export bewusst als nicht verfügbar, statt heimlich
 eine Browser-Runtime nachzuladen. Für PDF-Export aus dem **installierten Wheel**

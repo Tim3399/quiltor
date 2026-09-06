@@ -7,7 +7,10 @@ name = "quiltor"
 dynamic = ["version"]
 description = "Local-first writing workshop with a private, on-device assistant"
 readme = "README.md"
-requires-python = ">=3.11"
+# Gebaut wird mit dem Interpreter aus distribution/toolchains.json (3.14.7). Die
+# Untergrenze liegt tiefer, weil das ausgelieferte Web-Image auf Ubuntu 24.04 laeuft und
+# von dort 3.12.3 mitbringt -- was dort laeuft, muss hier auch erlaubt sein.
+requires-python = ">=3.12"
 license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0" }
 
 # Core dependencies are shared by every supported host. PyJWT's crypto extra is
@@ -99,7 +102,10 @@ only-include = [
 # ---------------------------------------------------------------- Formatting
 
 [tool.ruff]
-target-version = "py311"
+# Die kleinste Version, die laufen muss -- nicht die, mit der gebaut wird. Mit "py314"
+# schrieb Ruff `except (A, B):` in die klammerlose Form aus PEP 758 um; die gibt es erst
+# ab 3.14, und auf dem ausgelieferten 3.12 waere der Code damit nicht mehr lauffaehig.
+target-version = "py312"
 line-length = 100
 
 # Markdown belongs to Prettier. Current Ruff versions can also process Python

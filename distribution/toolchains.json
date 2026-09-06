@@ -3,7 +3,7 @@
   "releaseToolchains": {
     "node": "22.23.2",
     "npm": "10.9.8",
-    "python": "3.11.9",
+    "python": "3.14.7",
     "rust": "1.98.0"
   },
   "pythonBuildTools": {

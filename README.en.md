@@ -159,7 +159,7 @@ Quiltor is under active development. Its focus is a calm writing workflow, a con
 
 # Quick start
 
-Requires **Python 3.11+**.
+Requires **Python 3.12+**.
 
 ```bash
 git clone https://github.com/Tim3399/quiltor.git
@@ -227,7 +227,7 @@ pip install quiltor-<version>-py3-none-any.whl
 quiltor
 ```
 
-The package requires Python 3.11 or newer. The normal server path intentionally stays lightweight; the packaged CLI uses `typer`.
+The package requires Python 3.12 or newer. The normal server path intentionally stays lightweight; the packaged CLI uses `typer`.
 
 The base wheel deliberately reports PDF export as unavailable instead of
 silently downloading a browser runtime. For PDF export from the **installed

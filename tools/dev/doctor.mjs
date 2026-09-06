@@ -29,11 +29,11 @@ const LAUFZEITEN = [
     name: "python",
     // Der Preflight prueft den Interpreter, der ihn ausfuehrt -- nicht den im Pfad.
     frage: WINDOWS
-      ? ["py", ["-3.11", "-c", "import platform;print(platform.python_version())"]]
-      : ["python3.11", ["-c", "import platform;print(platform.python_version())"]],
+      ? ["py", ["-3.14", "-c", "import platform;print(platform.python_version())"]]
+      : ["python3.14", ["-c", "import platform;print(platform.python_version())"]],
     hinweis: (soll) =>
       WINDOWS
-        ? `winget install Python.Python.3.11 --version ${soll}`
+        ? `winget install Python.Python.3.14 --version ${soll}`
         : `pyenv install ${soll}   (oder das Paket der Distribution)`,
   },
   {

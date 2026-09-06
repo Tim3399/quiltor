@@ -27,17 +27,20 @@ const WINDOWS = process.platform === "win32";
  * einmal ausgefuehrt, statt ihm zu glauben.
  */
 function findePython() {
+  // Neueste zuerst: 3.14 ist der Interpreter, mit dem gebaut und geprueft wird. Darunter
+  // laeuft es weiterhin, bis hinunter zu der Grenze, die pyproject.toml zusagt -- das
+  // ausgelieferte Web-Image bringt 3.12 mit, also ist 3.12 die Grenze.
   const kandidaten = WINDOWS
     ? [
+        ["py", ["-3.14"]],
         ["py", ["-3.13"]],
         ["py", ["-3.12"]],
-        ["py", ["-3.11"]],
         ["python", []],
       ]
     : [
+        ["python3.14", []],
         ["python3.13", []],
         ["python3.12", []],
-        ["python3.11", []],
         ["python3", []],
       ];
 
@@ -45,7 +48,7 @@ function findePython() {
   for (const [befehl, vorgabe] of kandidaten) {
     const probe = spawnSync(
       befehl,
-      [...vorgabe, "-c", "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"],
+      [...vorgabe, "-c", "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)"],
       { encoding: "utf8" },
     );
     if (probe.status === 0) return [befehl, vorgabe];
@@ -53,12 +56,12 @@ function findePython() {
       probe.error?.code === "ENOENT"
         ? "nicht vorhanden"
         : probe.status === 1
-          ? "aelter als 3.11"
+          ? "aelter als 3.12"
           : (probe.stderr || "").split("\n")[0] || "startet nicht";
     abgelehnt.push(`  ${[befehl, ...vorgabe].join(" ")}: ${grund}`);
   }
 
-  console.error("Kein brauchbares Python gefunden. Das Projekt braucht 3.11 oder neuer.");
+  console.error("Kein brauchbares Python gefunden. Das Projekt braucht 3.12 oder neuer.");
   console.error(abgelehnt.join("\n"));
   process.exit(1);
 }
