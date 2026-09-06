@@ -1725,7 +1725,13 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
     const menuItem = compactChapterMenu.getByRole("menuitem", { name: item, exact: true });
     await expect(menuItem).toBeVisible();
     const itemHeight = await menuItem.evaluate((element) => element.getBoundingClientRect().height);
-    expect(itemHeight, `${item} ist kompakt kein 44px-Touchziel`).toBeGreaterThanOrEqual(44);
+    // Auf das Hundertstel genau, nicht auf die letzte Nachkommastelle: macOS mass hier
+    // 43,99993896484375 fuer einen Eintrag, der 44 hoch gebaut ist. Ein wirklich zu kleines
+    // Ziel faellt weiterhin durch -- 43,9 rundet nicht auf 44.
+    expect(
+      Math.round(itemHeight * 100) / 100,
+      `${item} ist kompakt kein 44px-Touchziel`,
+    ).toBeGreaterThanOrEqual(44);
   }
   await compactChapterMenu.press("Escape");
   await expect(chapterActionTrigger).toBeFocused();
