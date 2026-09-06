@@ -46,7 +46,10 @@ def _load_reference_server(root: Path, issuer_url: str):
 class RestoreTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        # .resolve(), weil macOS Temp-Verzeichnisse unter /var/folders anlegt und /var dort
+        # ein Symlink auf /private/var ist. Der Backup-Vertrag lehnt jeden Pfad mit einem
+        # verlinkten Bestandteil ab -- zu Recht, nur liegt eine echte Welt nie dort.
+        self.root = Path(self.temp.name).resolve()
         self.issuer = FakeIssuer().start()
         self.issuer.issue(TOKEN, sub=ACCOUNT)
         self.reference = _load_reference_server(self.root / "served", self.issuer.url)
