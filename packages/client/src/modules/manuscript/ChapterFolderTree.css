@@ -59,9 +59,12 @@
   position: absolute;
   inset-block: 0;
   /* Ueber dem linken Rand der Zeile, nicht daneben: negativ gesetzt stand der Griff
-     ausserhalb der Karte und bei der obersten Ebene ausserhalb des Panels. */
+     ausserhalb der Karte und bei der obersten Ebene ausserhalb des Panels.
+     Die 24px sind kein Augenmass, sondern die Mindestgroesse eines Ziels aus WCAG 2.2.
+     Der Griff hatte sie als eigene Rasterspalte; beim Umzug auf den Zeilenrand blieben
+     16 uebrig -- gemeint war, die Spalte zu sparen, nicht das Ziel zu verkleinern. */
   inset-inline-start: 0;
-  width: var(--space-16);
+  width: var(--space-24);
   display: grid;
   place-items: center;
   color: var(--muted);

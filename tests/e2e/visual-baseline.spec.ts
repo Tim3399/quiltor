@@ -117,6 +117,41 @@ function hasBaselines() {
  */
 const BOOTSTRAP = process.env.QUILTOR_BASELINE_BOOTSTRAP === "1";
 
+/*
+ * Ein paar Pixel Nachsicht -- aber nur auf den beiden Leinwänden.
+ *
+ * Am linken Rand steht eine Karte halb ausserhalb des Ausschnitts. Ihre angeglaettete Kante
+ * faellt je nach Lauf ein bis zwei Pixel anders aus; das Warten auf die stehende Leinwand
+ * hat das seltener gemacht, aber nicht beseitigt. Eine echte Designabweichung bewegt hier
+ * Tausende von Pixeln, keine zwei -- die Grenze trennt beides sicher.
+ */
+const LEINWAND_TOLERANZ = { maxDiffPixels: 24 } as const;
+
+/*
+ * Warten, bis die Leinwand steht.
+ *
+ * React Flow passt den Ausschnitt erst ein, wenn es seine Knoten gemessen hat. Wer sofort
+ * fotografiert, erwischt manchmal das Bild davor -- und dann liegt eine Karte am Rand ein
+ * Pixel woanders als in der Referenz. Das sah aus wie eine Designabweichung und war eine
+ * Momentaufnahme. Gewartet wird auf zwei gleiche Transformationen hintereinander.
+ */
+async function stillstehendeLeinwand(page: Page) {
+  const viewport = page.locator(".flow-area .react-flow__viewport").first();
+  if ((await viewport.count()) === 0) return;
+  let vorige: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const jetzt = await viewport.getAttribute("style");
+        const ruhig = jetzt !== null && jetzt === vorige;
+        vorige = jetzt;
+        return ruhig;
+      },
+      { message: "Die Leinwand passt ihren Ausschnitt noch an." },
+    )
+    .toBe(true);
+}
+
 for (const theme of ["light", "dark"] as const) {
   test(`${theme}: Kernansichten bleiben visuell reproduzierbar`, async ({ page }) => {
     test.skip(
@@ -140,7 +175,11 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.getByRole("button", { name: "Figuren", exact: true }).click();
     await expect(page.getByLabel("Figuren und Beziehungen")).toBeVisible();
-    await expect(page).toHaveScreenshot(`${theme}-figures.png`, { animations: "disabled" });
+    await stillstehendeLeinwand(page);
+    await expect(page).toHaveScreenshot(`${theme}-figures.png`, {
+      animations: "disabled",
+      ...LEINWAND_TOLERANZ,
+    });
 
     await page.getByRole("button", { name: "Timeline", exact: true }).click();
     await expect(page.getByRole("region", { name: "Timeline" })).toBeVisible();
@@ -148,7 +187,11 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.getByRole("button", { name: "Orte", exact: true }).click();
     await expect(page.locator(".places-workspace")).toBeVisible();
-    await expect(page).toHaveScreenshot(`${theme}-places.png`, { animations: "disabled" });
+    await stillstehendeLeinwand(page);
+    await expect(page).toHaveScreenshot(`${theme}-places.png`, {
+      animations: "disabled",
+      ...LEINWAND_TOLERANZ,
+    });
 
     await page.keyboard.press("Control+KeyF");
     await expect(page.getByRole("dialog")).toBeVisible();

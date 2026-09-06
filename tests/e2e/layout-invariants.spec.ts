@@ -74,6 +74,20 @@ const figures = {
       mapWidth: 800,
       mapHeight: 600,
     },
+    // Eine zusammengefaltete Karte. Sie ist hier, weil eine aufgeklappte Karte keine Karte
+    // mehr ist, sondern Grund: sie wird als Flaeche gezeichnet, nie als Kaertchen, und wird
+    // deshalb auch herausgezoomt nicht zum Kreis. Wer das Monogramm einer Karte messen will,
+    // braucht also eine, die noch gefaltet ist.
+    {
+      id: "werftplan",
+      x: 700,
+      y: 300,
+      type: "ort" as const,
+      name: "Werftplan",
+      label: "Ort",
+      sub: "Eine gefaltete Karte.",
+      mapImageId: "karte-2",
+    },
     // Zwei Orte, die auf der Karte stehen statt auf der Ebene: sie erscheinen erst, wenn die
     // Karte aufgeklappt ist, und werden dann aus ihr abgeleitet statt gehalten.
     {

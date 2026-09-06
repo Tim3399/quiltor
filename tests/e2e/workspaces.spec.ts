@@ -141,10 +141,15 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
     expect(undersized, `${label} enthält Touchziele unter 44px`).toEqual([]);
   };
 
+  // Eine Zeile heißt gemeinsame Mitte, nicht gemeinsame Oberkante: der Segmentstreifen
+  // trägt seinen eigenen Innenrand und ist damit ein paar Pixel höher als seine Nachbarn.
   const actionRows = await toolbarGroups.evaluateAll((groups) =>
     groups
       .filter((group) => group.getBoundingClientRect().width > 0)
-      .map((group) => Math.round(group.getBoundingClientRect().top)),
+      .map((group) => {
+        const bounds = group.getBoundingClientRect();
+        return Math.round(bounds.top + bounds.height / 2);
+      }),
   );
   expect(new Set(actionRows).size).toBe(1);
   const compactGroupInsets = await toolbarGroups.evaluateAll((groups) =>
@@ -313,12 +318,14 @@ test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag"
   const worldTitle = `Schreibhilfe-Vertragswelt ${crypto.randomUUID()}`;
   await openBlankWorld(page, worldTitle);
 
+  // Schmal ist die Detailspalte ein Sheet; die Schreibhilfe ist eines ihrer beiden Register.
   await page
     .getByRole("toolbar", { name: "Manuskript" })
-    .getByRole("button", { name: "Schreibhilfe", exact: true })
+    .getByRole("button", { name: "Details", exact: true })
     .click();
-  const writingAid = page.getByRole("dialog", { name: "Schreibhilfe", exact: true });
-  const writingAidSurface = page.locator('[role="dialog"][aria-label="Schreibhilfe"]');
+  const writingAid = page.getByRole("dialog", { name: "Details", exact: true });
+  const writingAidSurface = page.locator('[role="dialog"][aria-label="Details"]');
+  await writingAid.getByRole("radio", { name: "Schreibhilfe", exact: true }).click();
   await writingAid.getByRole("tab", { name: "Einfügen", exact: true }).click();
 
   await writingAid.locator("summary").filter({ hasText: "Sonderzeichen auswählen" }).click();
@@ -365,7 +372,8 @@ test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag"
     ).toBeLessThanOrEqual(0.75);
   }
 
-  await writingAid.getByRole("button", { name: "Verwalten", exact: true }).click();
+  // Zwei Knöpfe heißen „Verwalten"; unterschieden werden sie über ihre Beschriftung.
+  await writingAid.getByRole("button", { name: "Eigene Begriffe verwalten" }).click();
   const terms = page.getByRole("dialog", { name: "Eigene Begriffe", exact: true });
   await expect(terms).toBeVisible();
   await expect(writingAidSurface).toHaveAttribute("aria-hidden", "true");
@@ -419,9 +427,10 @@ test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag"
   await waitForManuscriptReady(page);
   await page
     .getByRole("toolbar", { name: "Manuskript" })
-    .getByRole("button", { name: "Schreibhilfe", exact: true })
+    .getByRole("button", { name: "Details", exact: true })
     .click();
-  const reloadedAid = page.getByRole("dialog", { name: "Schreibhilfe", exact: true });
+  const reloadedAid = page.getByRole("dialog", { name: "Details", exact: true });
+  await reloadedAid.getByRole("radio", { name: "Schreibhilfe", exact: true }).click();
   await reloadedAid.getByRole("tab", { name: "Einfügen", exact: true }).click();
   const persistedTerm = reloadedAid.getByRole("button", { name: "Nachtarchiv", exact: true });
   await expect(persistedTerm).toBeVisible();
@@ -430,7 +439,7 @@ test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag"
   await insertSave;
   await expect(page.getByLabel("Kapiteltext")).toContainText("Nachtarchiv");
 
-  await reloadedAid.getByRole("button", { name: "Verwalten", exact: true }).click();
+  await reloadedAid.getByRole("button", { name: "Eigene Begriffe verwalten" }).click();
   const reloadedTerms = page.getByRole("dialog", { name: "Eigene Begriffe", exact: true });
   const removeSave = waitForSuccessfulManuscriptWrite(page);
   await reloadedTerms.getByRole("button", { name: "Nachtarchiv entfernen" }).click();
@@ -447,9 +456,10 @@ test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag"
   await waitForManuscriptReady(page);
   await page
     .getByRole("toolbar", { name: "Manuskript" })
-    .getByRole("button", { name: "Schreibhilfe", exact: true })
+    .getByRole("button", { name: "Details", exact: true })
     .click();
-  const afterRemovalReload = page.getByRole("dialog", { name: "Schreibhilfe", exact: true });
+  const afterRemovalReload = page.getByRole("dialog", { name: "Details", exact: true });
+  await afterRemovalReload.getByRole("radio", { name: "Schreibhilfe", exact: true }).click();
   await afterRemovalReload.getByRole("tab", { name: "Einfügen", exact: true }).click();
   await expect(
     afterRemovalReload.getByRole("button", { name: "Nachtarchiv", exact: true }),
@@ -741,9 +751,9 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
   // Die volle Manuskriptleiste klappt Beschriftungen etwas früher ein als kleine Toolbars, damit
   // Zwischenbreiten nie erst horizontal gescrollt werden müssen.
   const chapters = manuscriptToolbar.getByRole("button", { name: "Kapitel", exact: true });
-  const aid = manuscriptToolbar.getByRole("button", { name: "Schreibhilfe", exact: true });
+  const aid = manuscriptToolbar.getByRole("button", { name: "Details", exact: true });
   const chaptersLabel = chapters.getByText("Kapitel", { exact: true });
-  const aidLabel = aid.getByText("Schreibhilfe", { exact: true });
+  const aidLabel = aid.getByText("Details", { exact: true });
   await page.setViewportSize({ width: 901, height: 900 });
   await expect(chaptersLabel).toBeVisible();
   await expect(aidLabel).toBeVisible();
@@ -761,7 +771,7 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
   }
   await expect(chapters).toBeVisible();
   await expect(chapters).toHaveAttribute("aria-label", "Kapitel");
-  await expect(aid).toHaveAttribute("aria-label", "Schreibhilfe");
+  await expect(aid).toHaveAttribute("aria-label", "Details");
 });
 
 test("Schmale Leisten behalten dieselbe visuelle Reihenfolge wie die breite Ansicht", async ({
@@ -817,16 +827,21 @@ test("Schmale Leisten behalten dieselbe visuelle Reihenfolge wie die breite Ansi
 
   const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
   const title = await manuscriptToolbar.locator(".workspace-toolbar__title").boundingBox();
-  const actionRows = await manuscriptToolbar
-    .getByRole("group")
-    .evaluateAll((groups) =>
-      groups
-        .filter((group) => group.getBoundingClientRect().width > 0)
-        .map((group) => Math.round(group.getBoundingClientRect().top)),
-    );
+  const actionGeometry = await manuscriptToolbar.getByRole("group").evaluateAll((groups) =>
+    groups
+      .filter((group) => group.getBoundingClientRect().width > 0)
+      .map((group) => {
+        const bounds = group.getBoundingClientRect();
+        return { top: bounds.top, middle: bounds.top + bounds.height / 2 };
+      }),
+  );
   expect(title).not.toBeNull();
-  expect(new Set(actionRows).size).toBe(1);
-  expect(actionRows[0]).toBeGreaterThanOrEqual(Math.floor(title!.y + title!.height));
+  // Wie oben: eine Zeile ist eine gemeinsame Mitte. Unter dem Titel stehen muss trotzdem
+  // die oberste Kante, sonst rutschte der höhere Streifen in die Titelzeile hinein.
+  expect(new Set(actionGeometry.map((group) => Math.round(group.middle))).size).toBe(1);
+  expect(Math.min(...actionGeometry.map((group) => group.top))).toBeGreaterThanOrEqual(
+    Math.floor(title!.y + title!.height),
+  );
 });
 
 test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn zu verdecken", async ({
@@ -859,7 +874,17 @@ test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn z
   }
 });
 
-test("Der Speicherstand weicht schmal ins Menü aus, der Fehler aber nie", async ({
+/*
+ * Der Speicherstand bleibt in der Leiste, auch wenn es eng wird.
+ *
+ * Frueher verschwand er unter 400px und tauchte im ⋯-Menue wieder auf. Diese Umsiedlung ist
+ * mit der Werkstatt weggefallen: er darf sich verschmaelern, bevor irgendetwas anderes weichen
+ * muss, und steht deshalb bis hinunter zu 320px an derselben Stelle. Ein Zustand, der je nach
+ * Fensterbreite woanders steht, ist schwerer zu finden als einer, der schmaler wird.
+ *
+ * Geprueft wird beides: dass er bleibt, und dass er dabei im Fenster bleibt.
+ */
+test("Der Speicherstand bleibt in der Leiste, statt schmal ins Menü auszuweichen", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -869,14 +894,26 @@ test("Der Speicherstand weicht schmal ins Menü aus, der Fehler aber nie", async
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 
-  await page.setViewportSize({ width: 400, height: 844 });
-  await expect(page.getByRole("status")).toBeVisible();
+  const status = page.getByRole("status");
+  for (const width of [400, 399, 360, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(status).toHaveCount(1);
+    await expect(status).toBeVisible();
+    const box = await status.boundingBox();
+    expect(box, `Kein Speicherstand bei ${width}px`).not.toBeNull();
+    expect(box!.x, `Speicherstand ragt bei ${width}px links hinaus`).toBeGreaterThanOrEqual(0);
+    expect(
+      box!.x + box!.width,
+      `Speicherstand ragt bei ${width}px rechts hinaus`,
+    ).toBeLessThanOrEqual(width + 1);
+    await expect(status.locator("xpath=ancestor::header[contains(@class, 'app-bar')]")).toHaveCount(
+      1,
+    );
+  }
 
-  // Ab hier fehlt der App-Leiste der Platz; der ruhige Stand zieht ins ⋯-Menü um.
-  await page.setViewportSize({ width: 399, height: 844 });
-  await expect(page.getByRole("status")).toHaveCount(0);
+  // Und er steht nur dort: ein zweiter Stand im Menue waere derselbe Satz an zwei Orten.
   await page.getByRole("button", { name: "Mehr" }).click();
-  await expect(page.getByRole("dialog", { name: "Aktionen" }).getByRole("status")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Aktionen" }).getByRole("status")).toHaveCount(0);
   await page.keyboard.press("Escape");
 });
 
@@ -1080,16 +1117,23 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
   );
 });
 
-test("Kapitel- und Schreibhilfe-Spalte lassen sich aus der Werkzeugleiste umschalten", async ({
+/*
+ * Zwei Spalten, nicht drei: links das Kapitelverzeichnis, rechts eine Steuerungsspalte.
+ *
+ * Die Steuerungsspalte heisst „Details" und traegt zwei Register -- das Kapitel und die
+ * Schreibhilfe. Deshalb schaltet die Werkzeugleiste sie als ein Stueck, und das Umschalten
+ * zwischen Kapitel und Schreibhilfe passiert innen, am Registerschalter der Spalte.
+ */
+test("Kapitel- und Detailspalte lassen sich aus der Werkzeugleiste umschalten", async ({
   page,
 }) => {
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
   const chapters = manuscriptToolbar.getByRole("button", { name: "Kapitel", exact: true });
-  const aid = manuscriptToolbar.getByRole("button", { name: "Schreibhilfe", exact: true });
+  const aid = manuscriptToolbar.getByRole("button", { name: "Details", exact: true });
   const chapterPanel = page.getByRole("complementary", { name: "Kapitel" });
-  const writingAidPanel = page.getByRole("complementary", { name: "Schreibhilfe" });
+  const writingAidPanel = page.getByRole("complementary", { name: "Details" });
   await expect(chapters).toBeVisible();
   await expect(aid).toBeVisible();
   const width = page.viewportSize()?.width || 0;
@@ -1112,12 +1156,16 @@ test("Kapitel- und Schreibhilfe-Spalte lassen sich aus der Werkzeugleiste umscha
     await chapters.click();
     const binderSheet = page.getByRole("dialog", { name: "Kapitel" });
     await expect(binderSheet).toBeVisible();
-    await expect(binderSheet.getByLabel("Kapitelnotiz")).toBeVisible();
+    // Das Verzeichnis listet, es bearbeitet nicht: die Kapitelnotiz steht drueben im Register.
+    await expect(binderSheet.getByRole("button", { name: /Ohne Titel/ }).first()).toBeVisible();
+    await expect(binderSheet.getByLabel("Kapitelnotiz")).toHaveCount(0);
     await page.getByRole("button", { name: "Kapitelnavigation schließen" }).click();
     await expect(binderSheet).toHaveCount(0);
     await aid.click();
-    const aidSheet = page.getByRole("dialog", { name: "Schreibhilfe" });
+    const aidSheet = page.getByRole("dialog", { name: "Details" });
     await expect(aidSheet).toBeVisible();
+    await expect(aidSheet.getByLabel("Kapitelnotiz")).toBeVisible();
+    await aidSheet.getByRole("radio", { name: "Schreibhilfe" }).click();
     await expect(aidSheet.getByRole("tab", { name: "Nachschlagen" })).toBeVisible();
   } else {
     // 720-1100: beide Spalten liegen als Schublade über dem Text, also kann nur eine offen sein.
@@ -1133,6 +1181,17 @@ test("Kapitel- und Schreibhilfe-Spalte lassen sich aus der Werkzeugleiste umscha
     await expect(aid).toHaveAttribute("aria-pressed", "false");
     await expect(writingAidPanel).toHaveCount(0);
   }
+
+  if (width >= 720) {
+    // Innen wird umgeschaltet: ein Registerschalter, kein zweiter Spaltenschalter.
+    if ((await writingAidPanel.count()) === 0) await aid.click();
+    const register = writingAidPanel.getByRole("radiogroup", { name: "Kapitel oder Schreibhilfe" });
+    await expect(register.getByRole("radio", { name: "Kapitel" })).toBeVisible();
+    await register.getByRole("radio", { name: "Schreibhilfe" }).click();
+    await expect(writingAidPanel.getByRole("tab", { name: "Nachschlagen" })).toBeVisible();
+    await register.getByRole("radio", { name: "Kapitel" }).click();
+    await expect(writingAidPanel.getByRole("tab", { name: "Nachschlagen" })).toHaveCount(0);
+  }
 });
 
 test("Schreibhilfe zeigt alle Tabtitel in der 294px-Spalte vollständig", async ({
@@ -1146,10 +1205,16 @@ test("Schreibhilfe zeigt alle Tabtitel in der 294px-Spalte vollständig", async 
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 
-  const writingAid = page.getByRole("complementary", { name: "Schreibhilfe" });
-  await expect(writingAid).toBeVisible();
-  const panelWidth = await writingAid.evaluate((panel) => panel.getBoundingClientRect().width);
+  const inspector = page.getByRole("complementary", { name: "Details" });
+  await expect(inspector).toBeVisible();
+  const panelWidth = await inspector.evaluate((panel) => panel.getBoundingClientRect().width);
   expect(panelWidth).toBeCloseTo(294, 0);
+  // Die Schreibhilfe ist ein Register dieser Spalte; die Spalte gibt ihr die Breite vor.
+  await inspector
+    .getByRole("radiogroup", { name: "Kapitel oder Schreibhilfe" })
+    .getByRole("radio", { name: "Schreibhilfe" })
+    .click();
+  const writingAid = inspector;
 
   const tabLists = [
     {
@@ -1205,7 +1270,14 @@ test("Schreibhilfe zeigt alle Tabtitel in der 294px-Spalte vollständig", async 
   expect(documentWidth.scroll).toBeLessThanOrEqual(documentWidth.client + 1);
 });
 
-test("Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab", async ({
+/*
+ * Wo die Eigenschaften eines Kapitels stehen.
+ *
+ * Nicht mehr an drei Orten: der Titel ueber dem Text, alles andere im Kapitel-Register der
+ * Detailspalte. Das Verzeichnis links listet nur noch -- es trug frueher die Notiz mit, und
+ * die Zaehlungen standen als Begriffsliste in der Werkzeugleiste.
+ */
+test("Kapiteleigenschaften stehen im Kapitel-Register der Detailspalte", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -1222,22 +1294,31 @@ test("Kapiteleigenschaften hängen am Kapitel, nicht mehr in einem Inspektor-Tab
     page.getByRole("article").getByRole("textbox", { name: "Kapiteltitel" }),
   ).toHaveCount(1);
 
-  // Die Zählungen stehen als semantische Begriffe in der Manuskript-Werkzeugleiste.
-  const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
-  const stats = manuscriptToolbar.locator("dl");
+  // Zählungen und Notiz stehen im Kapitel-Register der Detailspalte, das offen aufgeht.
+  const inspector = page.getByRole("complementary", { name: "Details" });
+  await expect(inspector.getByRole("radio", { name: "Kapitel" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  const stats = inspector.locator("dl");
   for (const term of ["Wörter", "Zeichen", "Normseiten"]) {
     await expect(stats.getByText(term, { exact: true })).toBeVisible();
   }
+  await expect(inspector.getByLabel("Kapitelnotiz")).toBeVisible();
 
-  // Die Notiz liegt links unter der Kapitelliste.
+  // Links wird nur gelistet: weder Notiz noch Zählungen stehen ein zweites Mal dort.
   const chapterPanel = page.getByRole("complementary", { name: "Kapitel" });
-  await expect(chapterPanel.getByLabel("Kapitelnotiz")).toBeVisible();
+  await expect(chapterPanel.getByLabel("Kapitelnotiz")).toHaveCount(0);
+  await expect(chapterPanel.locator("dl")).toHaveCount(0);
 
-  // Der zweigeteilte Inspektor ist fort: rechts gibt es nur noch die Schreibhilfe.
+  // Die Register sind Register, keine Reiter -- die Reiter drinnen gehören der Schreibhilfe.
   await expect(page.getByRole("tab", { name: "Kapitel", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("complementary", { name: "Schreibhilfe" })).toContainText(
-    "Schreibhilfe",
-  );
+  await expect(
+    page.getByRole("toolbar", { name: "Manuskript" }).getByRole("button", {
+      name: "Schreibhilfe",
+      exact: true,
+    }),
+  ).toHaveCount(0);
 
   // Kapitelaktionen bleiben ruhig in der aktiven Zeile und öffnen ein semantisches Aktionsmenü.
   const activeChapter = chapterPanel.locator(".binder-chapter-row.active");
@@ -2403,7 +2484,11 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
       const style = getComputedStyle(node);
       const box = node.getBoundingClientRect();
       return {
-        tier: node.classList.contains("zoom-compact") ? "compact" : "detail",
+        tier: node.classList.contains("zoom-overview")
+          ? "overview"
+          : node.classList.contains("zoom-compact")
+            ? "compact"
+            : "detail",
         width: Number.parseFloat(style.width),
         height: Number.parseFloat(style.height),
         compactWidth: Number.parseFloat(style.getPropertyValue("--node-compact-width")),
@@ -2413,25 +2498,42 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
       };
     }),
   );
-  const compactViewport = (page.viewportSize()?.width || 0) < 720;
+  // Die Stufe haengt an der Zoomstufe, nicht an der Fensterbreite -- der Einpassvorgang
+  // stellt sie ein, und auf einer 200px schmalen Leinwand landet er weit draussen. Erwartet
+  // wird deshalb die Stufe, die zur gemessenen Zoomstufe gehoert, und zu ihr die Geometrie.
+  const zoomTier = await page.evaluate(() => {
+    const viewport = document.querySelector(".figure-workspace .react-flow__viewport");
+    const transform = viewport instanceof HTMLElement ? viewport.style.transform : "";
+    const scale = Number.parseFloat(/scale\(([-\d.]+)\)/.exec(transform)?.[1] ?? "1");
+    return scale < 0.34 ? "overview" : scale < 0.68 ? "compact" : "detail";
+  });
   for (const [index, node] of nodeGeometry.entries()) {
     expect(minimapNodeGeometry[index].width).toBeCloseTo(node.width, 0);
     expect(minimapNodeGeometry[index].height).toBeCloseTo(node.height, 0);
-    if (compactViewport) {
-      expect(node.tier).toBe("compact");
+    expect(node.tier).toBe(zoomTier);
+    if (zoomTier === "compact") {
       expect(node.width).toBeCloseTo(node.compactWidth, 1);
       expect(node.height).toBeCloseTo(node.compactHeight, 1);
       expect(node.width).toBeGreaterThanOrEqual(200);
       expect(node.height).toBeGreaterThanOrEqual(68);
       expect(node.visualWidth).toBeGreaterThanOrEqual(96);
       expect(node.visualHeight).toBeGreaterThanOrEqual(44);
-    } else {
-      expect(node.tier).toBe("detail");
+    } else if (zoomTier === "detail") {
       expect(node.width).toBe(200);
       expect(node.height).toBe(96);
+    } else {
+      // Herausgezoomt bleibt vom Kaertchen ein Kreis mit einem Buchstaben darin.
+      expect(node.width).toBeGreaterThanOrEqual(32);
+      expect(node.height).toBeGreaterThanOrEqual(32);
+      expect(node.visualWidth).toBeGreaterThan(0);
+      expect(node.visualHeight).toBeGreaterThan(0);
     }
   }
-  await expect(page.locator(".react-flow__background path")).toHaveCount(1);
+  // Herausgezoomt zeichnet die Leinwand kein Raster: die Linien staenden dichter als die
+  // Karten, die darauf sitzen. Dass es dort fehlt, ist die Zusage -- nicht ein Ausfall.
+  await expect(page.locator(".react-flow__background path")).toHaveCount(
+    zoomTier === "overview" ? 0 : 1,
+  );
   await page.getByRole("button", { name: "Ansicht", exact: true }).click();
   await page.getByRole("menuitem", { name: "Anordnen", exact: true }).click();
   await expect
@@ -2443,6 +2545,10 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
 
   const flowArea = page.locator(".figure-workspace .flow-area");
   const minimap = page.locator(".react-flow__minimap");
+  // Unter 720px und auf Fingerbedienung tritt die Übersichtskarte ab: 140x105 sind dort kein
+  // Überblick, sondern ein Hindernis vor dem Zeitstreifen. Wo sie fehlt, gibt es an ihr auch
+  // nichts zu messen -- der Rest dieses Vertrags gilt den breiteren Ansichten.
+  if (!(await minimap.isVisible())) return;
   await expect(minimap).toBeVisible();
   const flowBox = await flowArea.boundingBox();
   const minimapBeforeToggle = await minimap.boundingBox();
@@ -2677,7 +2783,7 @@ test("Fokusmodus bietet eine diskrete Schreibhilfe", async ({ page }, testInfo) 
   await page.getByRole("button", { name: "Fokus", exact: true }).click();
   const helper = page.getByRole("complementary", { name: "Schreibhilfe im Fokusmodus" });
   await expect(helper).toBeVisible();
-  await helper.getByRole("button", { name: "Schreibhilfe öffnen" }).click();
+  await helper.getByRole("button", { name: "Details öffnen" }).click();
   await expect(helper).toContainText("Figuren & Orte");
   await expect(helper).toContainText("Sonderzeichen");
   await page.screenshot({ path: testInfo.outputPath("focus-helper.png"), fullPage: true });
@@ -2693,15 +2799,20 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
   const title = page.locator(".chapter-title");
   const initialTitleBox = await title.boundingBox();
   expect(initialTitleBox).not.toBeNull();
-  const edgeGap = await page
+  // Zwei Masse, nicht eins. Der Schalter haengt am Satzspiegel -- `--space-24` davor --, und
+  // `--space-8` ist nur der Boden, den die Regel als `max()` dagegensetzt, damit er in einem
+  // schmalen Fenster nicht aus dem Bild rutscht. Solange hier breit geprueft wird, gilt das
+  // erste Mass; frueher gewann der Boden, weil der Satzspiegel noch schmaler war.
+  const [edgeGap, windowGap] = await page
     .locator(".text-layout")
-    .evaluate((layout) =>
+    .evaluate((layout) => [
+      Number.parseFloat(getComputedStyle(layout).getPropertyValue("--space-24")),
       Number.parseFloat(getComputedStyle(layout).getPropertyValue("--space-8")),
-    );
+    ]);
   const closeChapters = page.getByRole("button", { name: "Kapitelnavigation schließen" });
-  const closeAid = page.getByRole("button", { name: "Schreibhilfe schließen" });
+  const closeAid = page.getByRole("button", { name: "Details schließen" });
   const chapters = page.getByRole("button", { name: "Kapitelnavigation öffnen" });
-  const writingAid = page.getByRole("button", { name: "Schreibhilfe öffnen" });
+  const writingAid = page.getByRole("button", { name: "Details öffnen" });
 
   const expectStableTitle = async () => {
     const box = await title.boundingBox();
@@ -2712,13 +2823,17 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
     const [titleBox, chapterBox] = await Promise.all([title.boundingBox(), chapters.boundingBox()]);
     expect(titleBox).not.toBeNull();
     expect(chapterBox).not.toBeNull();
-    expect(titleBox!.x - (chapterBox!.x + chapterBox!.width)).toBeCloseTo(edgeGap, 0);
+    const gap = titleBox!.x - (chapterBox!.x + chapterBox!.width);
+    expect(gap).toBeCloseTo(edgeGap, 0);
+    expect(gap).toBeGreaterThanOrEqual(windowGap);
   };
   const expectRightEdgeGap = async () => {
     const [titleBox, aidBox] = await Promise.all([title.boundingBox(), writingAid.boundingBox()]);
     expect(titleBox).not.toBeNull();
     expect(aidBox).not.toBeNull();
-    expect(aidBox!.x - (titleBox!.x + titleBox!.width)).toBeCloseTo(edgeGap, 0);
+    const gap = aidBox!.x - (titleBox!.x + titleBox!.width);
+    expect(gap).toBeCloseTo(edgeGap, 0);
+    expect(gap).toBeGreaterThanOrEqual(windowGap);
   };
 
   // Each one-sided state has a non-zero editor balance. The edge toggle must follow that offset
@@ -2768,9 +2883,14 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
   const focusChapters = await page
     .getByRole("button", { name: "Kapitelauswahl öffnen" })
     .boundingBox();
-  const focusAid = await page.getByRole("button", { name: "Schreibhilfe öffnen" }).boundingBox();
-  expect(focusTitle!.x - (focusChapters!.x + focusChapters!.width)).toBeCloseTo(edgeGap, 0);
-  expect(focusAid!.x - (focusTitle!.x + focusTitle!.width)).toBeCloseTo(edgeGap, 0);
+  const focusAid = await page.getByRole("button", { name: "Details öffnen" }).boundingBox();
+  // Im Fokusmodus haengen die Reiter am Fensterrand, nicht am Satzspiegel: ihr Abstand
+  // waechst mit dem Fenster. Versprochen ist dort Symmetrie -- beide sitzen auf demselben
+  // Einzug, und das Blatt steht mittig zwischen ihnen.
+  const focusLeftGap = focusTitle!.x - (focusChapters!.x + focusChapters!.width);
+  const focusRightGap = focusAid!.x - (focusTitle!.x + focusTitle!.width);
+  expect(focusLeftGap).toBeGreaterThan(edgeGap);
+  expect(focusLeftGap).toBeCloseTo(focusRightGap, 0);
 });
 
 test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async ({ page }) => {
@@ -2804,7 +2924,7 @@ test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async
     expect(chapters!.x + chapters!.width).toBeLessThanOrEqual(initial!.x);
   else expect(chapters!.x).toBeGreaterThanOrEqual(0);
 
-  await page.getByRole("button", { name: "Schreibhilfe öffnen" }).click();
+  await page.getByRole("button", { name: "Details öffnen" }).click();
   const withBoth = await editor.boundingBox();
   expect(withBoth).toEqual(initial);
   const helper = await page.locator(".focus-helper-panel").boundingBox();
@@ -2813,7 +2933,7 @@ test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async
   else expect(helper!.x + helper!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
 
   await page.getByRole("button", { name: "Kapitelauswahl schließen" }).click();
-  await page.getByRole("button", { name: "Schreibhilfe schließen" }).click();
+  await page.getByRole("button", { name: "Details schließen" }).click();
   expect(await editor.boundingBox()).toEqual(initial);
 });
 
@@ -2892,20 +3012,9 @@ test("Autosave überlebt Reload und meldet konkurrierende Änderungen", async ({
   const initialSave = waitForSuccessfulManuscriptWrite(page);
   await page.getByLabel("Kapiteltext").fill("Nach Reload vorhanden");
   await initialSave;
-  // Unter 400px ist in der App-Leiste kein Platz mehr für den ruhigen Speicherstand; er steht
-  // dort im ⋯-Menü. Gemeldet wird er also weiterhin, nur eine Ebene tiefer.
-  if ((page.viewportSize()?.width || 0) < 400) {
-    await page.getByRole("button", { name: "Mehr" }).click();
-    await expect(
-      page
-        .getByRole("dialog", { name: "Aktionen" })
-        .getByRole("status")
-        .filter({ hasText: "Gespeichert" }),
-    ).toBeVisible();
-    await page.keyboard.press("Escape");
-  } else {
-    await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible();
-  }
+  // In jeder Breite an derselben Stelle: der Speicherstand verschmälert sich in der Leiste,
+  // statt unter 400px ins ⋯-Menü zu wandern.
+  await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible();
   await page.reload();
   await waitForManuscriptReady(page);
   await expect(page.getByLabel("Kapiteltext")).toHaveText("Nach Reload vorhanden");
@@ -2988,8 +3097,15 @@ test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", 
         return theme;
       };
 
+      const dock = buttons[0]?.closest(".react-flow__controls");
       return {
-        defaultTheme: resolveTheme("var(--paper)", "var(--ink)"),
+        // Die Flaeche traegt seit dem Werkstatt-Umbau der Dock, nicht mehr jeder Knopf: die
+        // Steuerung ist eine Pille aus einem Stueck. Geprueft wird deshalb der Dock -- und an
+        // den Knoepfen, dass sie durchsichtig darin sitzen und ihre Iconfarbe vom Thema kommt.
+        dockTheme: resolveTheme("var(--material-toolbar)", "var(--ink)"),
+        dockBackground: dock ? getComputedStyle(dock).backgroundColor : "kein Dock gefunden",
+        inkColor: resolveTheme("var(--paper)", "var(--ink)").color,
+        transparent: resolveTheme("var(--transparent)", "var(--ink)").background,
         activeMinimapTheme: resolveTheme("var(--selection-surface)", "var(--accent-primary)"),
         buttons: buttons.map((button) => ({
           label: button.getAttribute("aria-label") ?? "Unbenannte Kartensteuerung",
@@ -2999,11 +3115,14 @@ test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", 
         })),
       };
     });
+  expect(graphControlTheme.dockBackground, "Die Kartensteuerung hat keine Darkmode-Fläche").toBe(
+    graphControlTheme.dockTheme.background,
+  );
   for (const control of graphControlTheme.buttons) {
     const expectedTheme = control.activeMinimap
       ? graphControlTheme.activeMinimapTheme
-      : graphControlTheme.defaultTheme;
-    expect(control.background, `${control.label} hat keine Darkmode-Fläche`).toBe(
+      : { background: graphControlTheme.transparent, color: graphControlTheme.inkColor };
+    expect(control.background, `${control.label} sitzt nicht durchsichtig im Dock`).toBe(
       expectedTheme.background,
     );
     expect(control.color, `${control.label} hat keine Darkmode-Iconfarbe`).toBe(

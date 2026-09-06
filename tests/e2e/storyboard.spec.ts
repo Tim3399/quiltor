@@ -552,9 +552,15 @@ test("die Elementbibliothek bleibt im kompakten Landscape-Viewport vollständig 
     scrollWidth: element.scrollWidth,
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
+    overflowY: getComputedStyle(element).overflowY,
   }));
   expect(panelMetrics.scrollWidth).toBeLessThanOrEqual(panelMetrics.clientWidth + 1);
-  expect(panelMetrics.scrollHeight).toBeLessThanOrEqual(panelMetrics.clientHeight + 1);
+  // Passt es nicht in die Höhe, muss es zu erreichen sein. Nur beides zusammen -- zu hoch
+  // und nicht rollbar -- hiesse, dass unten etwas hinter der Kante liegt.
+  expect(
+    panelMetrics.scrollHeight <= panelMetrics.clientHeight + 1 ||
+      ["auto", "scroll"].includes(panelMetrics.overflowY),
+  ).toBe(true);
 
   const resultMetrics = await results.evaluate((element) => ({
     clientHeight: element.clientHeight,
@@ -800,8 +806,19 @@ test("Storyboard-Karten werden am Kopf gezogen, der Notizinhalt bleibt Bedienfl�
     .poll(async () => (await referenceCard.boundingBox())?.x ?? -1)
     .toBeCloseTo(cardBeforeDrag.x, 0);
 
+  // Der Kopf trägt links seine Art und rechts die Formatleiste der Notiz. Gezogen wird an
+  // der Art -- und dass dort überhaupt ein greifbarer Streifen bleibt, ist Teil der Zusage:
+  // wächst die Leiste über den ganzen Kopf, gibt es die Karte nirgends mehr zu fassen.
+  const freeHeader = await referenceCard.evaluate((card) => {
+    const header = card.querySelector(".storyboard-node__header")?.getBoundingClientRect();
+    if (!header) throw new Error("Kartenkopf fehlt");
+    const format = card.querySelector(".storyboard-note-format")?.getBoundingClientRect();
+    return format ? format.left - header.left : header.width;
+  });
+  expect(freeHeader).toBeGreaterThanOrEqual(44);
+
   const moved = waitForSuccessfulStoryboardWrite(page, `"id":"${placedNode.id}"`);
-  await dragBy(page, referenceCard.locator(".storyboard-node__header"), 120, 80);
+  await dragBy(page, referenceCard.locator(".storyboard-node__kind"), 120, 80);
   const moveResponse = await moved;
   const movedNode = writtenStoryboard(moveResponse).payload.nodes.find(
     (node) => node.id === placedNode.id,

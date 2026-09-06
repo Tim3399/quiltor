@@ -95,6 +95,15 @@
   list-style: none;
 }
 
+/* Kein Nullboden, solange es etwas zu treffen gibt: mit eingeblendeter Bildschirmtastatur
+   blieben von der Trefferliste einunddreissig Pixel -- weniger als eine Zeile, in der nichts
+   mehr zu treffen war. Eine Zeile muss stehen bleiben; gescrollt wird dann eben in ihr.
+   Die leere Liste behaelt ihre Null: sonst reserviert die Bibliothek eine Zeile fuer nichts
+   und laeuft im flachen Querformat ueber. */
+.storyboard-search-results:not(:empty) {
+  min-height: var(--control-touch);
+}
+
 .storyboard-search-result {
   width: 100%;
   min-width: 0;
@@ -188,7 +197,10 @@
     width: min(var(--sidebar-max), calc(100% - var(--spacing-section-tight)));
     height: min(70vh, calc(100% - var(--spacing-section-tight)));
     max-height: var(--sheet-max);
-    overflow: hidden;
+    /* Beschneiden ja -- die Ecken sind rund --, aber nicht wegschneiden: im flachen
+       Querformat blieben die letzten Pixel der Trefferliste hinter der Kante liegen,
+       unerreichbar. `auto` schneidet genauso und gibt sie beim Rollen wieder her. */
+    overflow: auto;
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-lg);
     box-shadow: var(--elevation-4) var(--shadow-color);

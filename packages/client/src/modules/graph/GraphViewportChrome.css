@@ -150,6 +150,22 @@
     /* Auf schmalen Flaechen steht der Dock wieder als Turm: waagerecht wuerde er den
        Zeitstreifen daneben auf wenige Zentimeter zusammendruecken. */
     --graph-controls-button-count: 1;
+    /* Als Turm wandert sein Platzbedarf von der Breite in die Hoehe. Dieselben fuenf
+       Knoepfe wie oben, nur gestapelt -- wer unter ihm liegt, muss wissen, wie hoch. */
+    --graph-controls-block-total: calc(
+      5 *
+      var(--control-touch) +
+      4 *
+      var(--graph-controls-gap) +
+      2 *
+      var(--graph-controls-padding) +
+      var(--space-2)
+    );
+    --graph-controls-safe-block-end: calc(
+      var(--graph-viewport-inset) +
+      var(--graph-controls-block-total) +
+      var(--graph-overlay-gap)
+    );
   }
 
   .graph-viewport-surface .react-flow__panel.react-flow__controls {

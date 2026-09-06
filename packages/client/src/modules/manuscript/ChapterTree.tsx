@@ -149,24 +149,27 @@ export function ChapterTree({
     if (item.kind === "chapter") {
       const chapter = chapterById.get(item.chapterId);
       if (!chapter) return null;
+      const position = numberById.get(chapter.id) ?? 0;
+      const title = chapter.title || t("untitled");
+      const words = `${wordCount(chapter.body)} ${t("words")}`;
+      const storyTime = chapter.storyTime?.startMomentId
+        ? chapterStoryTimeLabel(chapter, timeline, timeSystem, t)
+        : undefined;
       return (
         <ChapterTreeEntry key={item.id} item={item} depth={depth} dragDrop={dragDrop}>
           <ChapterTreeChapterRow
             item={item}
             depth={depth}
             selected={chapter.id === current?.id}
-            label={chapter.title || t("untitled")}
-            number={romanNumeral(numberById.get(chapter.id) ?? 0)}
-            words={
-              <>
-                {wordCount(chapter.body)} {t("words")}
-              </>
-            }
-            storyTime={
-              chapter.storyTime?.startMomentId
-                ? chapterStoryTimeLabel(chapter, timeline, timeSystem, t)
-                : undefined
-            }
+            label={title}
+            number={romanNumeral(position)}
+            /* Gesprochen wird die gewoehnliche Zahl: das Mediaevalzeichen ist Schrift, kein
+               Wort, und eine Vorlesesoftware sagt sonst "I". Ohne eigene Beschriftung fielen
+               die Spalten der Zeile ausserdem zu "IKapitel im Bogen0 Woerter" zusammen -- der
+               berechnete Name kennt die Luecken nicht, die das Auge sieht. */
+            spokenLabel={[String(position), title, words, storyTime].filter(Boolean).join(" ")}
+            words={words}
+            storyTime={storyTime}
             dragDrop={dragDrop}
             actions={
               chapter.id === current?.id && chapterActions ? (

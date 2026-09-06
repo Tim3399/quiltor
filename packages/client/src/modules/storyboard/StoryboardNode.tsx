@@ -29,18 +29,48 @@ function StoryboardNodeBody({ children }: { children: ReactNode }) {
 
   const measure = useCallback(() => {
     const body = bodyRef.current;
-    if (body) setScrollable(body.scrollHeight - body.clientHeight > 1);
+    if (!body) return;
+    const overflows = (element: HTMLElement) => element.scrollHeight - element.clientHeight > 1;
+    // Eine Notiz bringt mit CodeMirror ihren eigenen Scroller mit. Der Koerper meldet dann
+    // null Ueberlauf, waehrend drinnen vierzig Zeilen stehen -- die Karte trug kein
+    // `nowheel`, und das Mausrad zoomte die Leinwand, statt die Notiz zu scrollen.
+    //
+    // Die Klasse bekommt dabei der Scroller selbst, nicht der Koerper um ihn herum. Der
+    // Koerper reicht weiter als sein Inhalt: die Formatleiste einer Notiz haengt ueber den
+    // Kartenrand hinaus, und ueber ihr gaebe es nichts zu scrollen -- ein `nowheel` am
+    // Koerper haette dort das Zoomen der Leinwand verschluckt.
+    for (const element of body.querySelectorAll<HTMLElement>(".nowheel")) {
+      element.classList.remove("nowheel");
+    }
+    for (const element of body.querySelectorAll<HTMLElement>("*")) {
+      if (!overflows(element)) continue;
+      const overflowY = getComputedStyle(element).overflowY;
+      if (overflowY === "auto" || overflowY === "scroll") element.classList.add("nowheel");
+    }
+    setScrollable(overflows(body));
   }, []);
 
   useEffect(() => {
     const body = bodyRef.current;
     if (!body) return;
     measure();
-    if (typeof ResizeObserver !== "function") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(body);
-    for (const child of body.children) observer.observe(child);
-    return () => observer.disconnect();
+    const observers: { disconnect: () => void }[] = [];
+    if (typeof ResizeObserver === "function") {
+      const observer = new ResizeObserver(measure);
+      observer.observe(body);
+      for (const child of body.children) observer.observe(child);
+      observers.push(observer);
+    }
+    // Ein fremder Scroller waechst, ohne dass sich irgendeine Groesse aendert: getippte Zeilen
+    // erhoehen nur seinen scrollHeight. Ein ResizeObserver sieht das nicht.
+    if (typeof MutationObserver === "function") {
+      const observer = new MutationObserver(measure);
+      observer.observe(body, { subtree: true, childList: true, characterData: true });
+      observers.push(observer);
+    }
+    return () => {
+      for (const observer of observers) observer.disconnect();
+    };
   }, [measure]);
 
   return (

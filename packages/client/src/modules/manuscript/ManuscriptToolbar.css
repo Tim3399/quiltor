@@ -87,3 +87,13 @@
   background: var(--paper);
   box-shadow: var(--elevation-1) var(--shadow-raised);
 }
+
+/* Der Streifen trennt schon selbst: seine Tonflaeche steht zwischen den Nachbarn wie ein
+   Absatz zwischen zwei Saetzen. Eine Haarlinie unmittelbar daneben sagt dasselbe ein
+   zweites Mal -- und sie kann es nicht einmal mittig sagen: der Streifen braucht seine
+   2px Innenrand, die Nachbargruppen halten 9px, und der Trenner klebte deshalb an der
+   Tonflaeche statt zwischen zwei Knoepfen zu stehen (9,5px vor / 2,5px nach). */
+.manuscript-toolbar-group.panel-toggles,
+.manuscript-toolbar-group.panel-toggles + * {
+  border-inline-start: 0;
+}

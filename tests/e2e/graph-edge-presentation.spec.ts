@@ -197,7 +197,14 @@ async function expectCompactLabelCard(
       textWidth: textBox?.width ?? 0,
       radius: Number.parseFloat(cardStyle.borderTopLeftRadius),
       borderColor: cardStyle.borderTopColor,
-      isTopmost: topmost === element || element.contains(topmost),
+      // Oben liegen heißt: über der Leinwand. Die Inspektorspalte der gewählten Kante ist
+      // kein Teil der Leinwand, sondern liegt bewusst darüber -- sie steht rechts und deckt
+      // dort, wo sie steht, auch Beschriftungen ab. Alles andere über einer Beschriftung
+      // wäre ein Stapelfehler.
+      isTopmost:
+        topmost === element ||
+        element.contains(topmost) ||
+        Boolean(topmost?.closest(".graph-edge-inspector")),
     };
   });
 
@@ -323,6 +330,12 @@ async function expectGraphEdgeContract(
   await expect(directed).toHaveClass(/\bselected\b/);
   await expect(directedPath).toHaveCSS("stroke", expected.directed);
   await expectCompactLabelCard(surface, edgeIds.directed, expected.directed);
+
+  // Erst ablegen, dann die nächste wählen. Die Inspektorspalte der gewählten Kante steht
+  // oben rechts und kann die Beschriftung einer anderen verdecken -- auf der Leinwand löst
+  // ein Klick ins Leere die Auswahl, und das ist auch der Weg, den ein Mensch hier nimmt.
+  await surface.locator(".react-flow__pane").click({ position: { x: 6, y: 6 } });
+  await expect(directed).not.toHaveClass(/selected/);
 
   await surface.locator(`.graph-edge-label[data-edge-label-id="${edgeIds.undirected}"]`).click();
   await expect(undirected).toHaveClass(/\bselected\b/);

@@ -124,6 +124,15 @@
   cursor: pointer;
 }
 
+/* Titel und Datum standen ohne Trennung nebeneinander -- „Ankunft03.09.1847". Sichtbar
+   wurde das erst, seit der Streifen auf Handbreite ueberhaupt Platz hat. */
+.timeline-moment-copy {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-6);
+}
+
 .timeline-moment-copy b {
   max-width: 135px;
   overflow: hidden;
@@ -318,5 +327,27 @@
   .flow-area.has-minimap .timeline-strip {
     right: var(--graph-viewport-inset, var(--space-14));
     bottom: var(--graph-edge-inspector-safe-bottom, var(--graph-viewport-inset, var(--space-14)));
+  }
+}
+
+/* Auf Handbreite steht der Dock als Turm in der linken unteren Ecke, die Übersichtskarte
+   ist dort ausgeblendet. Der Streifen stand bis hierher neben dem Turm -- bei 390px
+   Fensterbreite blieben ihm achtzehn Pixel, in denen „Gesamtsicht" auf 20 und das
+   Datumsfeld auf 18 Pixel zusammenfielen, schmaler als eine Fingerkuppe. Er nimmt die
+   Breite jetzt ganz und rückt über den Turm. */
+@media (max-width: 640px) {
+  .flow-area .timeline-strip,
+  .flow-area.has-minimap .timeline-strip {
+    right: var(--graph-viewport-inset, var(--space-14));
+    bottom: var(--graph-controls-safe-block-end, var(--graph-viewport-inset, var(--space-14)));
+    left: var(--graph-viewport-inset, var(--space-14));
+  }
+
+  .timeline-heading {
+    flex-wrap: wrap;
+  }
+
+  .timeline-heading-action {
+    flex: none;
   }
 }

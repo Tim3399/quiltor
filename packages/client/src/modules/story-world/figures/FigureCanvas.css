@@ -115,6 +115,15 @@
   );
 }
 
+/* Nur solange die Karte auch dort steht. Auf Handbreite ist sie ausgeblendet, und der
+   trotzdem freigehaltene Streifen liess vom Zeitstreifen zweiundzwanzig Pixel uebrig --
+   „Gesamtsicht" schrumpfte darin auf 20, das Datumsfeld auf 18 Pixel. */
+@media (max-width: 640px) {
+  .figure-workspace .flow-area.has-timeline.has-minimap .timeline-strip {
+    right: var(--graph-viewport-inset, var(--space-14));
+  }
+}
+
 .figure-empty-state {
   position: absolute;
   z-index: var(--z-float);

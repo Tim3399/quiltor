@@ -102,6 +102,8 @@ export interface ChapterTreeChapterRowProps {
   selected: boolean;
   label: string;
   number: string;
+  /** Was eine Vorlesesoftware sagt -- die Zeile selbst zeigt Mediaevalziffern und Spalten. */
+  spokenLabel: string;
   words: ReactNode;
   storyTime: ReactNode;
   actions?: ReactNode;
@@ -115,6 +117,7 @@ export function ChapterTreeChapterRow({
   selected,
   label,
   number,
+  spokenLabel,
   words,
   storyTime,
   actions,
@@ -151,6 +154,7 @@ export function ChapterTreeChapterRow({
         draggable
         data-binder-item
         aria-current={selected ? "page" : undefined}
+        aria-label={spokenLabel}
         className="binder-chapter-select"
         onClick={(event) => {
           if (dragDrop.suppressSelectionRef.current) {
