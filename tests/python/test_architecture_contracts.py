@@ -411,7 +411,10 @@ class ArchitectureContractTests(unittest.TestCase):
         # internally valid, or a reader that accepts only the fixture's shape.
         world_id = "0123456789abcdef0123456789abcdef"
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            # .resolve(), weil macOS Temp-Verzeichnisse unter /var/folders anlegt und /var dort
+            # ein Symlink auf /private/var ist. Der Backup-Vertrag lehnt jeden Pfad mit einem
+            # verlinkten Bestandteil ab -- zu Recht, nur liegt eine echte Welt nie dort.
+            root = Path(directory).resolve()
             database = root / "world.sqlite3"
             manuscripts = root / "manuscripts"
             profiles = root / "profiles"

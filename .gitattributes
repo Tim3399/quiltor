@@ -5,3 +5,9 @@
 # Windows with CRLF -- as LF, and every macOS build leaves a whole-file diff behind
 # that has no actual content change in it.
 dist/** text=auto eol=lf
+
+# Von diesen Dateien steht ein SHA-256 in distribution/dependency-locks.json, und der
+# Vertrag prueft ihn Byte fuer Byte. Wird eine davon mit CRLF ausgecheckt -- was der
+# Windows-Runner mit seinem core.autocrlf=true tut --, stimmt der Digest nicht mehr, und
+# vierzehn Tests scheitern an einer Datei, die niemand angefasst hat.
+*.lock text eol=lf

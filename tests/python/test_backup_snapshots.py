@@ -16,7 +16,10 @@ from quiltor.infrastructure.backup.snapshots import BackupContext
 class SnapshotStoreTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        # .resolve(), weil macOS Temp-Verzeichnisse unter /var/folders anlegt und /var
+        # dort ein Symlink auf /private/var ist. Der Backup-Vertrag lehnt jeden Pfad mit
+        # einem verlinkten Bestandteil ab -- zu Recht, nur liegt eine echte Welt nie dort.
+        self.root = Path(self.temp.name).resolve()
         self.store = SnapshotStore(self.root / "history")
 
     def tearDown(self):
