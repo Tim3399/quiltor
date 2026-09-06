@@ -88,6 +88,14 @@ const intentionalTextTruncationOwners = [
     reason: "Command names remain visible; secondary result detail is intentionally single-line.",
   },
   {
+    selector: ".status-bar__label",
+    reason:
+      "The status bar is a one-line summary and nothing lives only there: the chapter title " +
+      "stands in the binder and above the sheet, the counts stand in the chapter inspector, " +
+      "and the save state has its own item in the app bar. The text stays in the DOM, so " +
+      "assistive technology reads it whole; only a touch-width strip yields the tail.",
+  },
+  {
     selector: ".selection-card__title, .selection-card__description",
     reason: "SelectionCard exposes the complete primary action through its explicit aria-label.",
   },
