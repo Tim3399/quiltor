@@ -107,131 +107,141 @@ export function FigureToolbar({
             </>
           }
         />
-        <WorkspaceToolbarActions>
-          <WorkspaceToolbarGroup className="figure-create-group" label={t("createElementMenu")}>
-            <DropdownMenu
-              label={t("createElementMenu")}
-              renderTrigger={({ ref, ...triggerProps }) => (
-                <WorkspaceToolbarCreateButton ref={ref} {...triggerProps} label={t("element")} />
-              )}
-            >
-              {FIGURE_ELEMENT_TYPES.map((type) => (
-                <MenuItem
-                  key={type.kind}
-                  icon={<Plus />}
-                  label={t(type.label)}
-                  onSelect={() => onAddNode(type.kind)}
-                />
-              ))}
-            </DropdownMenu>
-          </WorkspaceToolbarGroup>
-          <WorkspaceToolbarGroup label={t("connect")}>
-            <ToolbarButton
-              label={t("connect")}
-              icon={<Link2 />}
-              aria-pressed={connecting}
-              onClick={() => {
-                onConnectingChange(!connecting);
-                if (!connecting) onRelationshipsVisibleChange(true);
-              }}
-            />
-          </WorkspaceToolbarGroup>
-          <WorkspaceToolbarGroup label={t("figureViewMenu")}>
-            <DropdownMenu
-              label={t("figureViewMenu")}
-              renderTrigger={({ ref, ...triggerProps }) => (
+        <WorkspaceToolbarActions
+          create={
+            <WorkspaceToolbarGroup className="figure-create-group" label={t("createElementMenu")}>
+              <DropdownMenu
+                label={t("createElementMenu")}
+                renderTrigger={({ ref, ...triggerProps }) => (
+                  <WorkspaceToolbarCreateButton ref={ref} {...triggerProps} label={t("element")} />
+                )}
+              >
+                {FIGURE_ELEMENT_TYPES.map((type) => (
+                  <MenuItem
+                    key={type.kind}
+                    icon={<Plus />}
+                    label={t(type.label)}
+                    onSelect={() => onAddNode(type.kind)}
+                  />
+                ))}
+              </DropdownMenu>
+            </WorkspaceToolbarGroup>
+          }
+          view={
+            <>
+              <WorkspaceToolbarGroup label={t("connect")}>
                 <ToolbarButton
-                  ref={ref}
-                  {...triggerProps}
+                  label={t("connect")}
+                  icon={<Link2 />}
+                  aria-pressed={connecting}
+                  onClick={() => {
+                    onConnectingChange(!connecting);
+                    if (!connecting) onRelationshipsVisibleChange(true);
+                  }}
+                />
+              </WorkspaceToolbarGroup>
+              <WorkspaceToolbarGroup label={t("figureViewMenu")}>
+                <DropdownMenu
                   label={t("figureViewMenu")}
-                  icon={<Grid3X3 />}
+                  renderTrigger={({ ref, ...triggerProps }) => (
+                    <ToolbarButton
+                      ref={ref}
+                      {...triggerProps}
+                      label={t("figureViewMenu")}
+                      icon={<Grid3X3 />}
+                    />
+                  )}
+                >
+                  <MenuItem
+                    icon={<Grid3X3 />}
+                    label={snapToGrid ? t("hideGrid") : t("showGrid")}
+                    onSelect={() => onSnapToGridChange(!snapToGrid)}
+                  />
+                  <MenuItem
+                    disabled={!state.nodes.length}
+                    icon={<LayoutGrid />}
+                    label={t("arrangeGrid")}
+                    onSelect={onAlignAllNodes}
+                  />
+                  <MenuItem
+                    disabled={!state.edges.length}
+                    icon={<Link2 />}
+                    label={relationshipsVisible ? t("hideRelationships") : t("showRelationships")}
+                    onSelect={() => onRelationshipsVisibleChange(!relationshipsVisible)}
+                  />
+                  <MenuSeparator />
+                  <MenuItem
+                    icon={<Clock3 />}
+                    label={timelineOpen ? t("hideTimeline") : t("showTimeline")}
+                    onSelect={() => onTimelineOpenChange(!timelineOpen)}
+                  />
+                  <MenuItem
+                    icon={<MapPin />}
+                    label={journeyOverlayOpen ? t("hidePaths") : t("showPaths")}
+                    onSelect={() => onJourneyOverlayOpenChange(!journeyOverlayOpen)}
+                  />
+                </DropdownMenu>
+              </WorkspaceToolbarGroup>
+            </>
+          }
+          history={
+            <WorkspaceToolbarGroup label={`${t("undoDiagram")} / ${t("redoDiagram")}`}>
+              <UndoRedoControls
+                label={`${t("undoDiagram")} / ${t("redoDiagram")}`}
+                undoLabel={t("undoDiagram")}
+                redoLabel={t("redoDiagram")}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                onUndo={() => onUndo?.()}
+                onRedo={() => onRedo?.()}
+              />
+            </WorkspaceToolbarGroup>
+          }
+          actions={
+            <WorkspaceToolbarGroup label={t("figureManageMenu")}>
+              <DropdownMenu
+                label={t("figureManageMenu")}
+                renderTrigger={({ ref, ...triggerProps }) => (
+                  <ToolbarButton
+                    ref={ref}
+                    {...triggerProps}
+                    label={t("figureManageMenu")}
+                    icon={<MoreHorizontal />}
+                    labelMode="hidden"
+                    size="regular"
+                  />
+                )}
+              >
+                <MenuItem
+                  icon={<Download />}
+                  label={t("profiles")}
+                  onSelect={() => runExport(saveFigureProfiles(state, t))}
                 />
-              )}
-            >
-              <MenuItem
-                icon={<Grid3X3 />}
-                label={snapToGrid ? t("hideGrid") : t("showGrid")}
-                onSelect={() => onSnapToGridChange(!snapToGrid)}
-              />
-              <MenuItem
-                disabled={!state.nodes.length}
-                icon={<LayoutGrid />}
-                label={t("arrangeGrid")}
-                onSelect={onAlignAllNodes}
-              />
-              <MenuItem
-                disabled={!state.edges.length}
-                icon={<Link2 />}
-                label={relationshipsVisible ? t("hideRelationships") : t("showRelationships")}
-                onSelect={() => onRelationshipsVisibleChange(!relationshipsVisible)}
-              />
-              <MenuSeparator />
-              <MenuItem
-                icon={<Clock3 />}
-                label={timelineOpen ? t("hideTimeline") : t("showTimeline")}
-                onSelect={() => onTimelineOpenChange(!timelineOpen)}
-              />
-              <MenuItem
-                icon={<MapPin />}
-                label={journeyOverlayOpen ? t("hidePaths") : t("showPaths")}
-                onSelect={() => onJourneyOverlayOpenChange(!journeyOverlayOpen)}
-              />
-            </DropdownMenu>
-          </WorkspaceToolbarGroup>
-          <WorkspaceToolbarGroup label={`${t("undoDiagram")} / ${t("redoDiagram")}`}>
-            <UndoRedoControls
-              label={`${t("undoDiagram")} / ${t("redoDiagram")}`}
-              undoLabel={t("undoDiagram")}
-              redoLabel={t("redoDiagram")}
-              canUndo={canUndo}
-              canRedo={canRedo}
-              onUndo={() => onUndo?.()}
-              onRedo={() => onRedo?.()}
-            />
-          </WorkspaceToolbarGroup>
-          <WorkspaceToolbarGroup label={t("figureManageMenu")}>
-            <DropdownMenu
-              label={t("figureManageMenu")}
-              renderTrigger={({ ref, ...triggerProps }) => (
-                <ToolbarButton
-                  ref={ref}
-                  {...triggerProps}
-                  label={t("figureManageMenu")}
-                  icon={<MoreHorizontal />}
-                  labelMode="hidden"
-                  size="regular"
+                <MenuItem
+                  icon={<Download />}
+                  label="JSON"
+                  onSelect={() => runExport(saveFigureState(state, t))}
                 />
-              )}
-            >
-              <MenuItem
-                icon={<Download />}
-                label={t("profiles")}
-                onSelect={() => runExport(saveFigureProfiles(state, t))}
-              />
-              <MenuItem
-                icon={<Download />}
-                label="JSON"
-                onSelect={() => runExport(saveFigureState(state, t))}
-              />
-              <MenuSeparator />
-              <MenuItem
-                icon={<Upload />}
+                <MenuSeparator />
+                <MenuItem
+                  icon={<Upload />}
+                  label={t("import")}
+                  onSelect={() => input.current?.click()}
+                />
+              </DropdownMenu>
+              <TextField
+                ref={input}
+                fieldClassName="figure-import-field"
                 label={t("import")}
-                onSelect={() => input.current?.click()}
+                labelHidden
+                hidden
+                type="file"
+                accept="application/json"
+                onChange={(event) => void importState(event.target.files?.[0])}
               />
-            </DropdownMenu>
-            <TextField
-              ref={input}
-              fieldClassName="figure-import-field"
-              label={t("import")}
-              labelHidden
-              hidden
-              type="file"
-              accept="application/json"
-              onChange={(event) => void importState(event.target.files?.[0])}
-            />
-          </WorkspaceToolbarGroup>
-        </WorkspaceToolbarActions>
+            </WorkspaceToolbarGroup>
+          }
+        />
       </WorkspaceToolbar>
       {importError && (
         <Toast

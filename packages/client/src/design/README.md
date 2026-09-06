@@ -207,6 +207,39 @@ Auswahl-APIs bleiben semantisch getrennt:
 Menütrigger, unstrukturierte Einträge, destruktive Icons ohne Danger-Ton und zurückgezogene lokale
 Dropdown-Rezepte.
 
+## Aktionsränge in Workspace-Toolbars
+
+Eine Workspace-Toolbar kennt genau drei Ränge, und jede Aktion beantwortet beim Lesen sofort,
+welchen sie hat:
+
+| Rang            | Darstellung                    | Wofür                                            |
+| --------------- | ------------------------------ | ------------------------------------------------ |
+| Betont          | `WorkspaceToolbarCreateButton` | Etwas Neues anlegen -- der einzige gefüllte Rang |
+| Umschalter      | Ghost mit `aria-pressed`       | Panel, Modus oder Ansicht ein- und ausschalten   |
+| Reguläre Aktion | `ToolbarButton` (Ghost)        | Alles Übrige: exportieren, verwalten, löschen    |
+
+Betonung gehört dem Anlegen. Kein Export, kein Umschalter und keine destruktive Aktion trägt
+`appearance="primary"`; ein Umschalter wird nie `secondary`, sondern zeigt seinen Zustand über
+`aria-pressed`.
+
+Die Reihenfolge gehört nicht der einzelnen Ansicht. `WorkspaceToolbarActions` nimmt vier Slots und
+rendert sie immer in derselben Folge:
+
+```tsx
+<WorkspaceToolbarActions
+  create={/* Neues anlegen */}
+  view={/* Panels, Modi, Ansichtsmenüs */}
+  history={/* Undo, Redo, Fassungen */}
+  actions={/* exportieren, verwalten, löschen */}
+/>
+```
+
+Der Strip nimmt bewusst keine `children` mehr: eine Ansicht entscheidet, was in einen Slot kommt,
+nie wo der Slot sitzt. Dadurch liegt dieselbe Art von Aktion in Manuskript, Welt, Timeline, Orten
+und Storyboard an derselben Stelle, und TypeScript weist die alte freie Komposition ab.
+`check_action_ranks.mjs` prüft die Rangregel in jeder Datei, die einen Strip rendert; Dialoge und
+Canvas-Overlays folgen ihren eigenen Verträgen und sind nicht im Geltungsbereich.
+
 ## Produktzustands-Tiefe
 
 Ein grüner Komponenten- oder Workspace-Grundzustand deckt keine Oberfläche ab, die erst hinter
@@ -275,6 +308,8 @@ Eine öffentliche Komponente ist fertig, wenn:
   direkte CSS-Design-Owner-Overrides;
 - keine lokale Menükomposition, manuelle Menütrigger oder unstrukturierte/destruktiv falsch
   getönte Menüeinträge im Produktcode;
+- die Aktionsränge der Workspace-Toolbars: betont ist ausschließlich der Create-Vertrag, und ein
+  Umschalter bleibt leise;
 - genau ein öffentlicher Scrollbar-Owner: lokale `scrollbar-color`-, `scrollbar-width`- oder
   `::-webkit-scrollbar`-Rezepte sind ohne Ausnahme verboten;
 - vollständiges CSS-Owner-Manifest für jeden öffentlichen Design-Folder;

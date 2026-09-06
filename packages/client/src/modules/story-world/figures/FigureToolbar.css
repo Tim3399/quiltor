@@ -2,6 +2,8 @@
   position: relative;
 }
 
+/* Meldungsflaeche beider Weltansichten. Wer sie verschiebt, verschiebt sie in Figuren
+   und in Orten. */
 .story-world-toast {
   position: fixed;
   z-index: var(--z-toast);

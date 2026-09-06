@@ -46,6 +46,7 @@ export function useWritingAssistance({
   const [helperMode, setHelperMode] = useState<HelperMode>("lookup");
   const [selectionTool, setSelectionTool] = useState<WritingTool>("lookup");
   const [termsOpen, setTermsOpen] = useState(false);
+  const [elementsOpen, setElementsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [locale, setLocale] = useState<"de-DE" | "en-GB">("de-DE");
   const [status, setStatus] = useState<WritingAssistanceStatus | null>(null);
@@ -328,6 +329,8 @@ export function useWritingAssistance({
     activeMode,
     setHelperMode,
     termsOpen,
+    elementsOpen,
+    setElementsOpen,
     setTermsOpen,
     symbolPicker,
     setSymbolPicker,

@@ -5,11 +5,31 @@
 .board-grid-compact {
   opacity: 0.26;
 }
+/* Diesen Rahmen tragen Figuren UND Orte. Die Basis hat zwei Spalten, weil Orte keine
+   Weltuebersicht haben; die dritte Spalte gehoert unter .figure-workspace und nirgends
+   sonst hin. StoryGraphLayout.test.ts haelt genau das fest. */
 .figure-layout {
   min-height: 0;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+/* Struktur links, Leinwand in der Mitte, Steuerung rechts -- dieselbe Regel wie im
+   Manuskript, aber nur dort, wo es die Weltuebersicht ueberhaupt gibt. Orte teilen sich
+   diese Klasse und haben nur zwei Spalten. */
+.figure-workspace .figure-layout {
+  grid-template-columns: 232px minmax(0, 1fr) 340px;
+}
+
+/* Ohne Auswahl gibt es nichts zu steuern. Die Spalte verschwindet dann, statt als
+   "Element auswaehlen" 288 Pixel neben der Leinwand stehen zu bleiben. */
+.figure-layout.layout-without-inspector {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.figure-workspace .figure-layout.layout-without-inspector {
+  grid-template-columns: 232px minmax(0, 1fr);
 }
 .flow-area {
   position: relative;
@@ -71,26 +91,6 @@
   background: color-mix(in srgb, var(--graph-card-kind-surface, var(--paper)) 22%, var(--paper));
   box-shadow: var(--elevation-2) var(--node-shadow);
   font-family: var(--ui);
-}
-/* A card that cannot be moved says so, or the surface just feels broken when
-   you try. A tack: the thing that is actually holding it, small and in the
-   corner where a real one would be -- present enough to answer the question
-   without becoming another mark competing for the eye. */
-.story-node.is-pinned::after {
-  width: var(--space-6);
-  height: var(--space-6);
-  position: absolute;
-  top: var(--space-8);
-  right: var(--space-8);
-  border-radius: var(--radius-pill);
-  background:
-    radial-gradient(
-      circle at 34% 30%,
-      color-mix(in srgb, var(--paper) 70%, var(--transparent)),
-      var(--transparent) 58%
-    ),
-    color-mix(in srgb, var(--ink) 34%, var(--transparent));
-  content: "";
 }
 
 .story-node.selected {
@@ -296,9 +296,20 @@
   .figure-layout {
     grid-template-columns: minmax(0, 1fr) 300px;
   }
+  .figure-workspace .figure-layout {
+    grid-template-columns: 200px minmax(0, 1fr) 300px;
+  }
+  .figure-workspace .figure-layout.layout-without-inspector {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
 }
 @media (max-width: 820px) {
   .figure-layout {
     grid-template-columns: 1fr;
+  }
+  /* Auf schmalen Flaechen bleibt die Leinwand; die Uebersicht ist dort das Erste,
+     was Platz abgibt. */
+  .figure-layout > .world-overview {
+    display: none;
   }
 }

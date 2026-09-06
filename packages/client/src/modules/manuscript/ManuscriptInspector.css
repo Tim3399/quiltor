@@ -1,0 +1,8 @@
+.manuscript-inspector__registers {
+  flex: none;
+  padding: var(--space-10) var(--space-14) 0;
+}
+
+.manuscript-inspector__registers > * {
+  width: 100%;
+}

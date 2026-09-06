@@ -1,0 +1,72 @@
+.world-overview {
+  border-right: 1px solid var(--line);
+  border-left: 0;
+}
+
+.world-overview__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-10) var(--space-8) var(--space-16);
+}
+
+.world-overview__group > ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Der Gruppentitel traegt den Satz des Manuskripts, wie die Panelkoepfe daneben. */
+.world-overview__group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  margin: 0 0 var(--space-4);
+  padding: 0 var(--space-8);
+  color: var(--muted);
+  font: var(--font-size-4) var(--prose);
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+}
+
+.world-overview__group-title > svg {
+  width: var(--font-size-4);
+  height: var(--font-size-4);
+  flex: none;
+}
+
+.world-overview__group-title > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-overview__group-title > small {
+  margin-left: auto;
+  font-family: var(--ui);
+  font-size: var(--font-size-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.world-overview__item {
+  width: 100%;
+  justify-content: flex-start;
+  padding-inline: var(--space-8);
+  text-align: start;
+}
+
+.world-overview__item[aria-current="true"] {
+  background: var(--selection-surface);
+  color: var(--ink);
+}
+
+.world-overview__footer {
+  flex: none;
+  padding: var(--space-8) var(--space-14);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--font-size-2);
+  font-variant-numeric: tabular-nums;
+}

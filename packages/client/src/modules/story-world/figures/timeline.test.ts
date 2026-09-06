@@ -37,6 +37,38 @@ describe("relationship timeline", () => {
     ]);
     expect(nodes[0]).toMatchObject({ x: 73, y: -70 });
   });
+  it("moves cards apart that would still overlap after snapping", () => {
+    const nodes: FigureNode[] = [
+      { id: "n1", x: 10, y: 10, name: "A" },
+      { id: "n2", x: 14, y: 12, name: "B" },
+      { id: "n3", x: 18, y: 14, name: "C" },
+    ];
+    const arranged = alignNodesToGrid(nodes);
+
+    // Der erste behaelt seinen Platz; die anderen weichen auf das naechste freie Rasterfeld aus.
+    expect(arranged[0]).toMatchObject({ x: 0, y: 0 });
+    for (const [left, right] of [
+      [arranged[0], arranged[1]],
+      [arranged[0], arranged[2]],
+      [arranged[1], arranged[2]],
+    ]) {
+      const apart = Math.abs(left.x - right.x) >= 240 || Math.abs(left.y - right.y) >= 144;
+      expect(apart, `${left.id} und ${right.id} ueberlappen weiterhin`).toBe(true);
+    }
+    for (const node of arranged) {
+      // Math.abs, weil der Modulo einer negativen Koordinate -0 liefert.
+      expect(Math.abs(node.x % 48)).toBe(0);
+      expect(Math.abs(node.y % 48)).toBe(0);
+    }
+  });
+  it("leaves an already tidy surface untouched", () => {
+    const nodes: FigureNode[] = [
+      { id: "n1", x: 0, y: 0, name: "A" },
+      { id: "n2", x: 240, y: 0, name: "B" },
+      { id: "n3", x: 0, y: 144, name: "C" },
+    ];
+    expect(alignNodesToGrid(nodes)).toEqual(nodes);
+  });
   it("distinguishes directed and centered undirected connectors", () => {
     expect(connectionKind("out", "in")).toBe("directed");
     expect(connectionKind("neutral-top", "neutral-bottom")).toBe("undirected");

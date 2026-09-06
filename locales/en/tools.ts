@@ -1,7 +1,8 @@
 export const tools = {
   searchCommands: "Search & commands",
   searchPlaceholder: "Chapters, text, characters, places, storyboards …",
-  command: "Command",
+  commandView: "View",
+  commandAction: "Action",
   snapshotSave: "Save working state",
   target: "Target",
   changed: "Changed",

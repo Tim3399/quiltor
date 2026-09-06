@@ -97,8 +97,8 @@ export function FocusPanels({
           className="focus-helper-toggle"
           aria-expanded={helpersOpen}
           onClick={() => setHelpersOpen(!helpersOpen)}
-          title={t("writingAid")}
-          label={helpersOpen ? t("closeWritingAid") : t("openWritingAid")}
+          title={t("inspectorPanel")}
+          label={helpersOpen ? t("closeInspector") : t("openInspector")}
           icon={helpersOpen ? <X /> : <PanelRight />}
         />
         {helpersOpen && (

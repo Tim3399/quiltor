@@ -128,13 +128,16 @@ describe("workspace create-action consistency", () => {
     const groups = Array.from(
       actions?.querySelectorAll(":scope > .workspace-toolbar__group") ?? [],
     );
+    // Die Reihenfolge stammt aus den Slots der Action-Strip (create, view, history,
+    // actions) und nicht aus dieser Toolbar. Die kompakte Zweizeilen-Anordnung wird in
+    // TimelineWorkspace.css explizit platziert.
     expect(groups.map((group) => group.classList.item(1))).toEqual([
-      "timeline-time-group",
       "timeline-create-group",
+      "timeline-time-group",
       "timeline-history-group",
     ]);
     const timelineCreateButtons = Array.from(
-      groups[1]?.querySelectorAll<HTMLButtonElement>('[data-workspace-action="create"]') ?? [],
+      groups[0]?.querySelectorAll<HTMLButtonElement>('[data-workspace-action="create"]') ?? [],
     );
     expect(timelineCreateButtons).toHaveLength(2);
     expect(timelineCreateButtons[0]?.querySelector(".lucide-calendar-plus")).not.toBeNull();

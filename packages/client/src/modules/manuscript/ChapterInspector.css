@@ -1,0 +1,63 @@
+.chapter-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+  padding: var(--space-14);
+}
+
+/* Eine Gruppe mit einer Kante statt drei Trennlinien fuer drei Zahlen. */
+.chapter-inspector__stats {
+  margin: 0;
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.chapter-inspector__stats > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-10);
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--control-hint);
+}
+
+.chapter-inspector__stats > div:last-child {
+  border-bottom: 0;
+}
+
+.chapter-inspector__stats dt {
+  color: var(--muted);
+  font: var(--font-size-3) var(--prose);
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+}
+
+.chapter-inspector__stats dd {
+  margin: 0;
+  font-size: var(--font-size-4);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.chapter-inspector__placement {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+}
+
+/* Ueber die eigene Huelle statt ueber die Owner-Klasse der Komponente. */
+.chapter-inspector__placement > *,
+.chapter-inspector__wide {
+  min-width: 0;
+  width: 100%;
+  justify-content: center;
+}
+
+/* Die Notiz ist in diesem Register das Hauptfeld und traegt Autorentext, keine Eingabe:
+   Papierflaeche statt Formularkasten, und Platz fuer mehr als zwei Zeilen. */
+.chapter-inspector__note {
+  min-width: 0;
+}

@@ -267,6 +267,16 @@ export const designAuditProfiles = {
       responsive: ["Inspector", "Fill"],
     },
   },
+  StatusBar: {
+    priority: "P1",
+    coverage: {
+      default: ["Tones"],
+      feedbackTones: ["Tones"],
+      variants: ["OneSideOnly"],
+      empty: ["OneSideOnly"],
+      longContent: ["LongContent"],
+    },
+  },
   Tabs: {
     priority: "P0",
     coverage: {

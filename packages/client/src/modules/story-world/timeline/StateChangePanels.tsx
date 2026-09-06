@@ -123,8 +123,8 @@ export function MomentStateWorkspace({
 
   return (
     <>
-      <div className={`storyboard-layout ${selectedEdge ? "has-inspector" : ""}`}>
-        <main className="storyboard-main">
+      <div className={`state-change-layout ${selectedEdge ? "has-inspector" : ""}`}>
+        <main className="state-change-main">
           {editor}
           <ManagerSection
             id="relationships"
@@ -136,10 +136,10 @@ export function MomentStateWorkspace({
             open={openSections.has("relationships")}
             onToggle={() => toggleSection("relationships")}
           >
-            <div className="storyboard-mode-row">
+            <div className="state-change-mode-row">
               <span>{t("timelineRelationshipView")}</span>
               <SegmentedControl<BoardMode>
-                className="storyboard-mode"
+                className="state-change-mode"
                 label={t("timelineView")}
                 value={mode}
                 options={[
@@ -292,7 +292,7 @@ export function MomentStateWorkspace({
       {selectedEdge && compact && (
         <Sheet
           open
-          className="storyboard-inspector-sheet"
+          className="state-change-inspector-sheet"
           label={t("relationship")}
           onClose={closeInspector}
         >
@@ -439,7 +439,7 @@ function RelationshipInspector({
   const from = nodes.find((node) => node.id === resolved.from),
     to = nodes.find((node) => node.id === resolved.to);
   return (
-    <aside className="storyboard-inspector" aria-label={t("relationship")}>
+    <aside className="state-change-inspector" aria-label={t("relationship")}>
       <header>
         <div>
           <span>{t("relationship")}</span>
@@ -449,7 +449,7 @@ function RelationshipInspector({
         </div>
         <IconButton label={t("timelineCloseRelation")} icon={<X />} onClick={onClose} />
       </header>
-      <div className="storyboard-inspector-body">
+      <div className="state-change-inspector-body">
         <TextField
           fieldClassName="relationship-label-field"
           label={t("timelineLabelFromHere")}

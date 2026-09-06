@@ -68,3 +68,22 @@
     border-inline-start: 0;
   }
 }
+
+/* Was die Ansicht schaltet, steht als ein Streifen zusammen: drei unabhaengige Schalter,
+   optisch eine Gruppe. Ein SegmentedControl waere eine Radiogruppe und damit die falsche
+   Zusage -- Kapitel und Details lassen sich beide gleichzeitig oeffnen. */
+.manuscript-toolbar-group.panel-toggles {
+  gap: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--control-hint);
+}
+
+.manuscript-toolbar-group.panel-toggles > * {
+  border-radius: var(--radius-sm);
+}
+
+.manuscript-toolbar-group.panel-toggles > [aria-pressed="true"] {
+  background: var(--paper);
+  box-shadow: var(--elevation-1) var(--shadow-raised);
+}

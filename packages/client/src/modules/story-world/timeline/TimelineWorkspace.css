@@ -28,7 +28,12 @@
     gap: var(--space-6);
   }
   .timeline-workspace .timeline-toolbar-actions > .timeline-time-group {
+    grid-row: 1;
     grid-column: 1 / -1;
+  }
+  .timeline-workspace .timeline-toolbar-actions > .timeline-create-group {
+    grid-row: 2;
+    grid-column: 1;
   }
   .timeline-workspace .timeline-toolbar-actions > * {
     min-width: 0;
@@ -36,6 +41,8 @@
     border-inline-start: 0;
   }
   .timeline-workspace .timeline-history-group {
+    grid-row: 2;
+    grid-column: 2;
     justify-self: end;
   }
 }

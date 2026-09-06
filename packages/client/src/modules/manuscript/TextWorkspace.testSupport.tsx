@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { I18nProvider } from "../../i18n";
 import { quiltorClient } from "../../platform";
@@ -30,4 +30,19 @@ export function renderWorkspace(props: React.ComponentProps<typeof TextWorkspace
       <TextWorkspace {...props} />
     </TestProviders>,
   );
+}
+
+/**
+ * Render the workspace and switch the inspector to its writing-aid register.
+ *
+ * The inspector opens on the chapter register, so a test about the writing aid has to say
+ * so -- the same click a writer makes.
+ */
+export function renderWritingAid(props: React.ComponentProps<typeof TextWorkspace>) {
+  const view = renderWorkspace(props);
+  // Nach Position statt nach Beschriftung: die Tests laufen auch auf Englisch.
+  const registers = view.container.querySelector<HTMLElement>(".manuscript-inspector__registers");
+  const writingAid = registers ? within(registers).getAllByRole("radio").at(-1) : undefined;
+  if (writingAid) fireEvent.click(writingAid);
+  return view;
 }

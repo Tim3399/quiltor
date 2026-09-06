@@ -44,7 +44,8 @@ describe("figure workspace responsive layout contracts", () => {
       /@media \(max-width: 820px\)[\s\S]*?\.react-flow__minimap\s*\{[^}]*display:\s*none;/,
     );
     expect(timeline).toMatch(
-      /\.flow-area \.timeline-strip\s*\{[^}]*right:\s*var\(--graph-viewport-inset,[^}]*left:\s*var\(--graph-controls-safe-inline-end,/s,
+      // Der Streifen haelt sich von beidem frei: links vom Dock, rechts von der Uebersichtskarte.
+      /\.flow-area \.timeline-strip\s*\{[^}]*right:\s*var\(--graph-minimap-safe-inline-end,[^}]*left:\s*var\(--graph-controls-safe-inline-end,/s,
     );
     expect(timeline).not.toMatch(
       /@media \(max-width: 640px\)[\s\S]*?\.flow-area \.timeline-strip\s*\{[^}]*left:\s*var\(--space-8\);/,

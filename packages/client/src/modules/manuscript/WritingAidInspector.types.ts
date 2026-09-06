@@ -32,7 +32,6 @@ export interface WritingAidInspectorProps {
   ambiguousMentions: AmbiguousMention[];
   symbolPicker: boolean;
   onSymbolPicker: (open: boolean) => void;
-  onClose: () => void;
   onRunLookup: () => void;
   onChooseTool: (tool: WritingTool) => void;
   onLocale: (locale: WritingLocale) => void;
@@ -46,6 +45,7 @@ export interface WritingAidInspectorProps {
   onInsertEntity: (entity: FigureNode) => void;
   onResolveAmbiguous: (candidate: AmbiguousMention, entity: FigureNode) => void;
   onManageTerms: () => void;
+  onManageElements: () => void;
   onInsert: (value: string) => void;
   onToggleSymbol: (symbol: string, active: boolean) => void;
 }

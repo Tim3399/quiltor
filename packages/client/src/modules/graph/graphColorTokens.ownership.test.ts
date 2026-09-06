@@ -29,10 +29,15 @@ const semanticGraphColorRoles = [
 describe("graph semantic color ownership", () => {
   it("defines every stable card and edge role in the design color owner only", () => {
     const stylesheets = filesBelow(clientSource).filter((file) => file.endsWith(".css"));
+    // Jede Datei einmal lesen statt einmal je Rolle. Bei rund dreissig Rollen und dreistellig
+    // vielen Stylesheets waren das ebenso viele Durchgaenge durch die Platte -- der Test lief
+    // unter der Last des Gesamtlaufs in die Fuenf-Sekunden-Grenze, und zwar nicht wegen eines
+    // Fehlers, sondern weil eine Testdatei mehr dazugekommen war.
+    const sources = new Map(stylesheets.map((file) => [file, readFileSync(file, "utf8")]));
 
     for (const role of semanticGraphColorRoles) {
       const declaration = new RegExp(`${escapeRegExp(role)}\\s*:`);
-      const owners = stylesheets.filter((file) => declaration.test(readFileSync(file, "utf8")));
+      const owners = stylesheets.filter((file) => declaration.test(sources.get(file) ?? ""));
       expect(owners, role).toEqual([colorOwner]);
     }
   });

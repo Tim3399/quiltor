@@ -21,7 +21,7 @@ function codeMirrorView(textbox: HTMLElement) {
 }
 
 describe("TextWorkspace chapter binder", () => {
-  it("speichert die Kapitelnotiz aus der linken Spalte", () => {
+  it("speichert die Kapitelnotiz aus der rechten Spalte", () => {
     const onChange = vi.fn();
     const view = renderWorkspace({
       manuscript,
@@ -33,8 +33,8 @@ describe("TextWorkspace chapter binder", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
-    const note = codeMirrorView(binder.getByLabelText("Kapitelnotiz"));
+    const controls = within(within(view.container).getByRole("complementary", { name: "Details" }));
+    const note = codeMirrorView(controls.getByLabelText("Kapitelnotiz"));
     act(() =>
       note.dispatch({
         changes: { from: 0, to: note.state.doc.length, insert: "Die Unruhe nur andeuten." },
@@ -48,7 +48,7 @@ describe("TextWorkspace chapter binder", () => {
     );
   });
 
-  it("zeigt Wörter, Zeichen und Normseiten in der Statuszeile", async () => {
+  it("zeigt Wörter, Zeichen und Normseiten im Kapitel-Register", async () => {
     function Stateful() {
       const [value, setValue] = useState<Manuscript>(manuscript);
       return (
@@ -69,7 +69,8 @@ describe("TextWorkspace chapter binder", () => {
         <Stateful />
       </TestProviders>,
     );
-    const status = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
+    // Die Zaehlungen zum Kapitel stehen rechts, nicht mehr doppelt in der Kontextleiste.
+    const status = within(within(view.container).getByRole("complementary", { name: "Details" }));
     expect(status.getByText("Wörter").nextSibling).toHaveTextContent("2");
     expect(status.getByText("Zeichen").nextSibling).toHaveTextContent("10");
     expect(status.getByText("Normseiten").nextSibling).toHaveTextContent("0,0");
@@ -177,13 +178,15 @@ describe("TextWorkspace chapter binder", () => {
     );
     const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
     fireEvent.click(binder.getByRole("button", { name: /Rückblende/ }));
+    // Die Handlungszeit steuert man rechts; links steht nur noch, welches Kapitel gemeint ist.
+    const controls = within(within(view.container).getByRole("complementary", { name: "Details" }));
     fireEvent.click(
       requireValue(
-        binder.getByText("Handlungszeit").closest("summary"),
+        controls.getByText("Handlungszeit").closest("summary"),
         "Story-time summary missing",
       ),
     );
-    fireEvent.click(binder.getByRole("radio", { name: "Zeitpunkt" }));
+    fireEvent.click(controls.getByRole("radio", { name: "Zeitpunkt" }));
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({

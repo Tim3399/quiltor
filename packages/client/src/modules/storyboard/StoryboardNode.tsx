@@ -1,6 +1,6 @@
 import { Handle, type NodeProps, NodeResizer, Position } from "@xyflow/react";
 import { ExternalLink, Frame, LayoutDashboard, Scaling, StickyNote } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button, IconButton, ScrollArea, TextField } from "../../design";
 import { useI18n } from "../../i18n";
 import { cardKindClassName, GRAPH_CONNECTION_HANDLES } from "../graph";
@@ -15,10 +15,38 @@ import "./StoryboardNode.css";
 
 export const storyboardNodeTypes = { storyboard: StoryboardCanvasNode };
 
+/**
+ * The card's own scroller, and only then.
+ *
+ * `nowheel` hands the wheel to this body instead of the canvas -- necessary while there is
+ * something to scroll here, wrong the rest of the time: a board full of short cards would
+ * swallow every zoom, because the pointer is almost always over one of them. So the class
+ * is worn only while the content actually overflows.
+ */
 function StoryboardNodeBody({ children }: { children: ReactNode }) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
+
+  const measure = useCallback(() => {
+    const body = bodyRef.current;
+    if (body) setScrollable(body.scrollHeight - body.clientHeight > 1);
+  }, []);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    measure();
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    for (const child of body.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [measure]);
+
   return (
     <ScrollArea
-      className="storyboard-node__body nowheel"
+      ref={bodyRef}
+      className={`storyboard-node__body${scrollable ? " nowheel" : ""}`}
       axis="y"
       gutter="auto"
       overscroll="contain"
@@ -161,11 +189,14 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
           isNoteCard ? t("storyboardNotePlaceholder") : t("storyboardNodeNotePlaceholder")
         }
         size="compact"
-        fill={isNoteCard}
-        rows={isNoteCard ? undefined : 1}
+        // Auch auf einer Referenz- oder Storyboard-Karte ist die Notiz eine Notiz und keine
+        // Zeile: die Karte ist 210px hoch und laesst sich ziehen, also fuellt der Text, was
+        // da ist. Eine feste Zeilenzahl liess den Rest der Karte leer und zwang zum Scrollen
+        // im Feld, obwohl daneben Platz stand.
+        fill
         labelHidden
         fieldClassName="storyboard-node-note-field nodrag nopan"
-        formatActionClassName="nodrag nopan"
+        formatActionClassName="storyboard-note-format nodrag nopan"
         className="storyboard-note-control nodrag nopan"
         focus={{
           openLabel: t("storyboardNoteFocusOpen"),

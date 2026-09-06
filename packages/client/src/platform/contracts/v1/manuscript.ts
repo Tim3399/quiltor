@@ -88,6 +88,13 @@ export interface ManuscriptPayloadWireV1 {
   grammarMode?: "manual" | "automatic";
   words?: Array<string | { w: string; d?: string; [key: string]: unknown }>;
   zeichenAktiv?: string[];
+  /**
+   * Elemente der Welt, die im Einfuegen-Bereich nicht angeboten werden.
+   *
+   * Gespeichert wird das Verborgene, nicht das Sichtbare: eine Figur, die nach dieser
+   * Einstellung angelegt wird, soll erscheinen und nicht erst freigeschaltet werden muessen.
+   */
+  elementeVerborgen?: string[];
   [key: string]: unknown;
 }
 
@@ -356,6 +363,14 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
       `${path}.zeichenAktiv`,
     ).entries()) {
       wireString(character, `${path}.zeichenAktiv[${index}]`);
+    }
+  }
+  if (payload.elementeVerborgen !== undefined) {
+    for (const [index, id] of wireArray(
+      payload.elementeVerborgen,
+      `${path}.elementeVerborgen`,
+    ).entries()) {
+      wireString(id, `${path}.elementeVerborgen[${index}]`);
     }
   }
   return {

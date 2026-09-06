@@ -1,5 +1,19 @@
-.editor-scroll[data-surface="paper"] {
+/* Das Blatt. The manuscript page is an object lying on the desk, not a flush-filled
+   region: the paper material, its edge and its shadow belong to the page, while the
+   scrolling and the desk underneath stay with the ScrollArea. */
+.editor-page {
+  width: min(100% - 64px, var(--measure-prose));
   min-width: 0;
+  position: relative;
+  /* The desk has to stay visible above the sheet, otherwise the top edge and its
+     radius sit flush against the toolbar and the page stops reading as an object. */
+  margin: var(--space-16) auto 0;
+  /* Ein Blatt hat einen Rand, keinen Anschlag: seitlich derselbe Abstand wie oben,
+     sonst steht der Satz an der Kante und die Seite wirkt beschnitten. */
+  padding: var(--space-48) var(--space-48) 45vh;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--elevation-2) var(--shadow-raised);
+  transition: transform var(--motion-fast) var(--ease-standard);
   --editor-paper-lift: color-mix(in srgb, var(--text-secondary) 3%, var(--transparent));
   --editor-paper-mottle: color-mix(in srgb, var(--border-subtle) 9%, var(--transparent));
   background-color: var(--surface-paper);
@@ -9,14 +23,12 @@
     radial-gradient(ellipse at 14% 18%, var(--editor-paper-mottle) 0, var(--transparent) 43%),
     radial-gradient(ellipse at 82% 74%, var(--editor-paper-lift) 0, var(--transparent) 39%);
   background-blend-mode: normal, soft-light, normal, normal;
-  /* The fibre texture is a tile and repeats. The two mottle ellipses are single
-     washes over the whole sheet, and both declarations below matter: each ellipse
-     is wider than a 73rem/67rem box, so repeating restarts it at the box edge and
-     a box smaller than the surface clips it there even when it does not repeat.
-     Either one leaves a hard vertical seam mid-page, at 73rem and at 48px + 67rem,
-     where the wash drops from most of its opacity to nothing. Only the light theme
-     shows it: --material-paper-texture-veil is near-opaque in the dark theme and
-     covers the layers under it, and carries zero alpha in the light one. */
+  /* The fibre texture is a tile and repeats. The two mottle ellipses are single washes
+     over one sheet, and both declarations below still matter now that the painted box
+     is the page itself: repeating would restart a wash at the page edge, and a size
+     other than 100% would end it mid-sheet -- either one leaves a hard seam. Only the
+     light theme shows it: --material-paper-texture-veil is near-opaque in the dark
+     theme and covers the layers under it, and carries zero alpha in the light one. */
   background-repeat: repeat, repeat, no-repeat, no-repeat;
   background-position:
     0 0,
@@ -28,13 +40,6 @@
     640px 640px,
     100% 100%,
     100% 100%;
-}
-.editor-page {
-  width: min(100% - 64px, 760px);
-  position: relative;
-  margin: 0 auto;
-  padding: var(--space-48) var(--space-32) 45vh;
-  transition: transform var(--motion-fast) var(--ease-standard);
 }
 .editor-scroll[data-chapter-turn="top"] .editor-page {
   transform: translateY(calc(var(--chapter-turn-progress) * var(--space-8)));
@@ -92,7 +97,7 @@
 .chapter-history {
   position: sticky;
   top: 28px;
-  max-height: calc(100vh - var(--bar) - var(--context) - 56px);
+  max-height: calc(100vh - var(--bar) - var(--context) - var(--space-48) - var(--space-8));
   overflow: auto;
   padding: var(--space-16);
   border-left: 1px solid var(--line);
@@ -271,7 +276,7 @@
 
 @media (max-width: 820px) {
   .editor-page {
-    width: min(100% - 32px, 720px);
+    width: min(100% - 32px, var(--measure-prose));
     padding: var(--space-32) var(--space-20) 45vh;
   }
   .editor-page.has-chapter-history {
@@ -299,7 +304,7 @@
 }
 
 @media (prefers-contrast: more) {
-  .editor-scroll[data-surface="paper"] {
+  .editor-page {
     background-image: none;
   }
 
@@ -311,7 +316,7 @@
 }
 
 @media (forced-colors: active) {
-  .editor-scroll[data-surface="paper"] {
+  .editor-page {
     background-image: none;
   }
 }

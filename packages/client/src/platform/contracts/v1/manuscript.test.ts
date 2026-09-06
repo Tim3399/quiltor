@@ -196,3 +196,23 @@ describe("manuscript wire v1", () => {
     }
   });
 });
+
+describe("manuscript wire v1 und verborgene Elemente", () => {
+  it("traegt die Auswahl des Einfuegen-Bereichs durch die Leitung", () => {
+    const wire = copy(fixture);
+    (wire.payload as Record<string, unknown>).elementeVerborgen = ["mara", "archiv"];
+
+    expect(decodeManuscriptV1(wire).document.elementeVerborgen).toEqual(["mara", "archiv"]);
+  });
+
+  it("weist etwas zurueck, das keine Liste von Ids ist", () => {
+    const wire = copy(fixture);
+    (wire.payload as Record<string, unknown>).elementeVerborgen = [42];
+
+    expect(() => decodeManuscriptV1(wire)).toThrow();
+  });
+
+  it("bleibt ohne die Angabe gueltig -- aeltere Dokumente kennen sie nicht", () => {
+    expect(decodeManuscriptV1(copy(fixture)).document.elementeVerborgen).toBeUndefined();
+  });
+});

@@ -105,30 +105,30 @@ export function WorkspaceLayout({
             className="focus-helper-toggle panel-edge-toggle panel-edge-toggle--right"
             aria-expanded="false"
             aria-controls="writing-aid-inspector"
-            title={t("openWritingAid")}
+            title={t("openInspector")}
             onClick={() => onInspectorOpen(true)}
-            label={t("openWritingAid")}
+            label={t("openInspector")}
             icon={<PanelRight />}
           />
         )}
         <AdaptivePanel
           open={!focus && viewportMode !== "compact" && inspectorOpen && hasCurrent}
           presentation="inline"
-          label={t("writingAid")}
-          closeLabel={t("closeWritingAid")}
+          label={t("inspectorPanel")}
+          closeLabel={t("closeInspector")}
           onClose={() => onInspectorOpen(false)}
           renderInline={({ children }) => (
             <SidePanel
               id="writing-aid-inspector"
               className="manuscript-inspector-panel drawer-open"
-              label={t("writingAid")}
+              label={t("inspectorPanel")}
               style={{ width: inspectorWidth }}
             >
               {onInspectorWidth && (
                 <PanelResizeHandle
                   containerRef={layoutRef}
                   edge="start"
-                  label={t("resizeWritingAid")}
+                  label={t("resizeInspector")}
                   min={240}
                   max={380}
                   value={inspectorWidth}
@@ -167,15 +167,15 @@ export function WorkspaceLayout({
       <AdaptivePanel
         open={!focus && viewportMode === "compact" && hasCurrent && inspectorOpen}
         presentation="overlay"
-        label={t("writingAid")}
-        closeLabel={t("closeWritingAid")}
+        label={t("inspectorPanel")}
+        closeLabel={t("closeInspector")}
         onClose={() => onInspectorOpen(false)}
         renderOverlay={({ children }) => (
-          <Sheet open label={t("writingAid")} onClose={() => onInspectorOpen(false)}>
+          <Sheet open label={t("inspectorPanel")} onClose={() => onInspectorOpen(false)}>
             <SidePanel
               id="writing-aid-inspector"
               className="manuscript-inspector-panel manuscript-compact-panel"
-              label={t("writingAid")}
+              label={t("inspectorPanel")}
               width="fill"
             >
               {children}

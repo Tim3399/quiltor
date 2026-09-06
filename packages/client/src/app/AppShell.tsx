@@ -13,11 +13,19 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PRODUCT_NAME } from "../config/branding";
-import { Button, DropdownMenu, IconButton, MenuItem, MenuSeparator, SaveStatus } from "../design";
+import {
+  Button,
+  DropdownMenu,
+  IconButton,
+  MenuItem,
+  MenuSeparator,
+  SaveStatus,
+  StatusBar,
+} from "../design";
 import { type MessageKey, useI18n } from "../i18n";
-import type { SavePhase, Theme, Workspace } from "../shared";
-import "./AppShell.css";
+import { relativeTime, type SavePhase, type Theme, type Workspace } from "../shared";
 import { useShortcut } from "./shell/useShortcut";
+import "./AppShell.css";
 import { WorkspaceSwitcher } from "./shell/WorkspaceSwitcher";
 
 const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
@@ -28,23 +36,18 @@ const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
   error: "notSaved",
 };
 
-// Unterhalb von 400px reicht die App-Leiste nicht mehr fuer alles: Marke, drei 44px-Touchziele
-// und der Speicherstand ergeben zusammen rund 398px. Der Speicherstand zieht deshalb dort ins
-// ⋯-Menue um -- aber nur, solange er nichts Schlimmes zu melden hat, siehe unten.
-function useNarrowBar() {
-  const query = "(max-width: 399px)";
-  const [narrow, setNarrow] = useState(
-    () => typeof matchMedia === "function" && matchMedia(query).matches,
-  );
+// Ein gespeicherter Stand altert waehrend man liest. Die Minute ist die feinste Stufe, die
+// relativeTime ueberhaupt ausgibt, deshalb reicht ein Tick in dieser Aufloesung -- und er laeuft
+// nur, solange ueberhaupt eine Zeitangabe zu sehen ist.
+function useMinuteTick(active: boolean) {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (typeof matchMedia !== "function") return;
-    const media = matchMedia(query),
-      change = () => setNarrow(media.matches);
-    change();
-    media.addEventListener("change", change);
-    return () => media.removeEventListener("change", change);
-  }, []);
-  return narrow;
+    if (!active) return;
+    setNow(Date.now());
+    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(tick);
+  }, [active]);
+  return now;
 }
 
 export function AppShell({
@@ -55,6 +58,7 @@ export function AppShell({
   navigationOpen = false,
   onNavigation,
   phase,
+  savedAt,
   error,
   retry,
   theme,
@@ -68,12 +72,14 @@ export function AppShell({
   whoami,
   onLogout,
   version,
+  summary,
   children,
 }: {
   title: string;
   workspace: Workspace;
   onWorkspace: (value: Workspace) => void;
   phase: SavePhase;
+  savedAt?: number | null;
   error?: string;
   retry: () => void;
   theme: Theme;
@@ -90,18 +96,19 @@ export function AppShell({
   whoami?: { email?: string; name?: string } | null;
   onLogout?: () => void;
   version?: string;
+  /** What is open in the active workspace: counts and position for the status bar. */
+  summary?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const keys = useShortcut();
   const [overflowOpen, setOverflowOpen] = useState(false);
-  // Ein fehlgeschlagenes Speichern bleibt in der Leiste, auch auf dem schmalsten Geraet. Der
-  // Speicherstand ist keine Zierde -- er ist die einzige Auskunft darueber, ob der Text sicher
-  // ist -- und hinter einem geschlossenen Menue waere ein Fehler unsichtbar. Die ruhigen
-  // Zustaende duerfen umziehen, der Fehler nicht; er ist ausserdem der seltene Fall, in dem die
-  // Leiste die 30px lieber wieder ausgibt.
-  const narrowBar = useNarrowBar();
-  const saveStatusInBar = !narrowBar || phase === "error";
+  // "Gespeichert" allein beantwortet nicht, ob der Stand von eben oder von vorhin ist. Erst
+  // nach der ersten Minute gibt es etwas zu sagen; davor bleibt das schlichte Label stehen.
+  const showSavedAgo = phase === "saved" && Boolean(savedAt);
+  const now = useMinuteTick(showSavedAgo);
+  const savedAgo = showSavedAgo && savedAt ? relativeTime(locale, savedAt, now) : null;
+  const saveLabel = savedAgo ? t("savedAgo", { ago: savedAgo }) : t(SAVE_STATUS_LABEL_KEYS[phase]);
   return (
     <div className="app-frame" data-workspace={workspace}>
       <header className="app-bar">
@@ -123,10 +130,7 @@ export function AppShell({
             title={`${title} · ${PRODUCT_NAME}${version ? ` v${version}` : ""}`}
           >
             <span>{title}</span>
-            <small>
-              {PRODUCT_NAME}
-              {version && ` · v${version}`}
-            </small>
+            <small>{PRODUCT_NAME}</small>
           </div>
         </div>
         <WorkspaceSwitcher value={workspace} onChange={onWorkspace} />
@@ -158,18 +162,11 @@ export function AppShell({
             label={t("menuActions")}
             open={overflowOpen}
             onOpenChange={setOverflowOpen}
-            header={
-              !saveStatusInBar ? (
-                <div className="menu-save-status">
-                  <SaveStatus
-                    className="app-save-status"
-                    phase={phase}
-                    label={t(SAVE_STATUS_LABEL_KEYS[phase])}
-                    error={error}
-                    retryLabel={t("retry")}
-                    onRetry={retry}
-                  />
-                </div>
+            footer={
+              version ? (
+                <span className="app-menu-version">
+                  {PRODUCT_NAME} v{version}
+                </span>
               ) : undefined
             }
             renderTrigger={({ ref, ...triggerProps }) => (
@@ -208,20 +205,18 @@ export function AppShell({
               </>
             )}
           </DropdownMenu>
-        </div>
-        {saveStatusInBar && (
           <SaveStatus
             className="app-save-status"
             phase={phase}
-            label={t(SAVE_STATUS_LABEL_KEYS[phase])}
-            labelVisibility="attention"
+            label={saveLabel}
             error={error}
             retryLabel={t("retry")}
             onRetry={retry}
           />
-        )}
+        </div>
       </header>
       <main className="app-workspace">{children}</main>
+      <StatusBar label={t("statusBar")} start={summary} />
     </div>
   );
 }

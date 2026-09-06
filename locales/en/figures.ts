@@ -52,6 +52,8 @@ export const figures = {
   element: "Element",
   figuresAndRelationsLabel: "Characters and relationships",
   grid: "Grid",
+  worldOverviewReveal: "Double-click to show the element on the canvas",
+  worldOverviewLabel: "World overview",
   arrangeGrid: "Arrange",
   connectModeHint: "Right to left: directed · Center to center: undirected",
   createElementMenu: "Create element",

@@ -42,6 +42,7 @@ export const places = {
   favoritePlace: "Favorite place",
   unfavoritePlace: "Remove favorite",
   favoritePlaceMarker: "Favorite place",
+  placePositionLocked: "Position locked",
   lockPlacePosition: "Lock position",
   unlockPlacePosition: "Unlock position",
   scale: "Scale",

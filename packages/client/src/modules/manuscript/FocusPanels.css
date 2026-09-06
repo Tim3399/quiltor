@@ -1,5 +1,15 @@
 .text-workspace.is-focus {
   grid-template-rows: 1fr;
+  /* Beide Rand-Reiter standen auf eigenen Zahlen -- einer auf 375px, der andere auf 720px --
+     und damit unsymmetrisch neben einem Blatt, das inzwischen --measure-prose folgt. Der
+     Abstand wird einmal aus der Blattkante gerechnet und von beiden Seiten benutzt. */
+  --focus-rail-width: 30px;
+  --focus-sheet-width: min(100vw - var(--space-88), var(--measure-prose));
+  /* Was neben dem Blatt frei bleibt. Daraus folgen der Ort der Rand-Reiter und die Breite
+     der Panels, die von dort aufklappen -- die Formel stand vorher dreimal abgeschrieben da. */
+  --focus-margin: calc((100vw - var(--focus-sheet-width)) / 2);
+  --focus-rail-inset: calc(var(--focus-margin) - var(--focus-rail-width) - var(--space-12));
+  --focus-panel-width: min(254px, max(150px, calc(var(--focus-margin) - var(--space-48))));
 }
 .text-workspace.is-focus .manuscript-toolbar {
   display: none;
@@ -8,7 +18,7 @@
   grid-template-columns: 1fr;
 }
 .text-workspace.is-focus .editor-page {
-  width: min(100% - 80px, 720px);
+  width: min(100% - 80px, var(--measure-prose));
   padding-top: 10vh;
 }
 .exit-focus {
@@ -34,14 +44,16 @@
   position: fixed;
   z-index: var(--z-popover);
   top: 50%;
-  right: calc(50% + 375px);
+  right: var(--focus-rail-inset);
   display: flex;
   flex-direction: row-reverse;
   align-items: flex-start;
   transform: translateY(-50%);
 }
+/* Beschrieben hier, gerendert von WorkspaceLayout. Der Abstand zum Rand kommt aus
+   --focus-margin, damit beide Reiter symmetrisch stehen. */
 .focus-helper-toggle {
-  width: 30px;
+  width: var(--focus-rail-width, 30px);
   height: 38px;
   display: grid;
   place-items: center;
@@ -65,8 +77,12 @@
   overflow: auto;
   margin-right: var(--space-7);
   padding: var(--space-6);
-  border: 0;
-  background: var(--transparent);
+  /* Ohne Flaeche standen die Chips auf der Prosa, sobald das Panel ueber den Satz reichte.
+     Es bekommt dieselbe Platte wie die Kapitelliste gegenueber. */
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
 }
 .focus-helper-panel section + section {
   margin-top: var(--space-16);
@@ -106,14 +122,13 @@
   position: fixed;
   z-index: var(--z-popover);
   top: 50%;
-  left: max(
-    var(--space-4),
-    calc((100vw - min(720px, 100vw - 80px)) / 2 + var(--space-32) - 30px - var(--space-8))
-  );
-  width: 30px;
+  left: max(var(--space-4), var(--focus-rail-inset));
+  width: var(--focus-rail-width);
   transform: translateY(-50%);
 }
 
+/* Gegenstueck zum Schreibhilfe-Reiter, ebenfalls von WorkspaceLayout gerendert und an
+   dieselbe --focus-margin gebunden. */
 .focus-side-toggle {
   width: 30px;
   height: 38px;
@@ -139,7 +154,7 @@
   position: absolute;
   top: 50%;
   right: calc(100% + var(--space-7));
-  width: min(238px, max(150px, calc((100vw - min(720px, 100vw - 80px)) / 2 - 46px)));
+  width: var(--focus-panel-width);
   max-height: 68vh;
   overflow: auto;
   padding: var(--space-6);
@@ -195,26 +210,23 @@
 }
 
 .text-workspace .focus-helper {
-  right: max(
-    var(--space-4),
-    calc((100vw - min(720px, 100vw - 80px)) / 2 + var(--space-32) - 30px - var(--space-8))
-  );
+  right: max(var(--space-4), var(--focus-rail-inset));
   left: auto;
-  width: 30px;
+  width: var(--focus-rail-width);
 }
 
 .text-workspace .focus-helper-panel {
   position: absolute;
   top: 50%;
   left: calc(100% + var(--space-7));
-  width: min(254px, max(150px, calc((100vw - min(720px, 100vw - 80px)) / 2 - 46px)));
+  width: var(--focus-panel-width);
   margin: 0;
   transform: translateY(-50%);
 }
 
 @media (max-width: 1099px) {
   .focus-helper-panel {
-    max-height: calc(100dvh - var(--bar) - 24px);
+    max-height: calc(100dvh - var(--bar) - var(--space-24));
   }
   .focus-chapter-list {
     right: auto;

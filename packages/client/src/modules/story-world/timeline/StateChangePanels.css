@@ -1,23 +1,27 @@
-.storyboard-layout {
+/* Der Rasterrahmen der Zustandswechsel: Liste links, Inspector rechts.
+   Hiess frueher .storyboard-layout und stiess damit mit dem gleichnamigen Rahmen des
+   Storyboards zusammen -- zwei Dateien, dieselbe Basisregel, verschiedene Zusaetze, und
+   die spaeter geladene gewann. Mit einem Storyboard hat diese Ansicht nichts zu tun. */
+.state-change-layout {
   min-width: 0;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   overflow: hidden;
 }
-.storyboard-layout.has-inspector {
+.state-change-layout.has-inspector {
   grid-template-columns: minmax(0, 1fr) 340px;
 }
-.storyboard-main {
+.state-change-main {
   min-width: 0;
   overflow: auto;
   padding: clamp(var(--space-18), 3vw, var(--space-48));
 }
-.storyboard-main > * {
+.state-change-main > * {
   width: min(1040px, 100%);
   margin-inline: auto;
 }
-.storyboard-mode-row {
+.state-change-mode-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -25,11 +29,11 @@
   padding: var(--space-10) var(--space-14);
   border-bottom: 1px solid var(--line);
 }
-.storyboard-mode-row > span {
+.state-change-mode-row > span {
   color: var(--muted);
   font-size: var(--font-size-2);
 }
-.storyboard-mode {
+.state-change-mode {
   display: flex;
   gap: var(--space-4);
   padding: var(--space-4);
@@ -38,14 +42,14 @@
   border-radius: var(--radius);
   background: var(--canvas);
 }
-.storyboard-mode [role="radio"] {
+.state-change-mode [role="radio"] {
   padding: 0 var(--space-12);
   border-radius: var(--radius-sm);
   background: var(--transparent);
   color: var(--muted);
   cursor: pointer;
 }
-.storyboard-mode [role="radio"][aria-checked="true"] {
+.state-change-mode [role="radio"][aria-checked="true"] {
   background: var(--selection-surface);
   color: var(--selection-text);
   box-shadow: inset var(--ring-1) var(--selection-border);
@@ -186,14 +190,14 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
-.storyboard-inspector {
+.state-change-inspector {
   min-height: 0;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--line);
   background: var(--panel);
 }
-.storyboard-inspector > header {
+.state-change-inspector > header {
   min-height: 64px;
   display: flex;
   align-items: center;
@@ -202,25 +206,25 @@
   padding: var(--space-10) var(--space-14);
   border-bottom: 1px solid var(--line);
 }
-.storyboard-inspector > header > div {
+.state-change-inspector > header > div {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
-.storyboard-inspector > header span {
+.state-change-inspector > header span {
   color: var(--muted);
   font-size: var(--font-size-1);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
-.storyboard-inspector > header strong {
+.state-change-inspector > header strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: 600 var(--font-size-5) var(--prose);
 }
-.storyboard-inspector-body {
+.state-change-inspector-body {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
@@ -378,10 +382,10 @@
   text-align: center;
 }
 @media (max-width: 900px) {
-  .storyboard-layout.has-inspector {
+  .state-change-layout.has-inspector {
     grid-template-columns: minmax(0, 1fr);
   }
-  .storyboard-inspector {
+  .state-change-inspector {
     position: fixed;
     z-index: var(--z-drawer-panel);
     right: 0;
@@ -394,7 +398,7 @@
 }
 
 @media (max-width: 640px) {
-  .storyboard-main {
+  .state-change-main {
     padding: var(--space-14) var(--space-10);
   }
 }
@@ -403,14 +407,14 @@
   .relationship-change-list {
     grid-template-columns: 1fr;
   }
-  .storyboard-mode-row {
+  .state-change-mode-row {
     align-items: stretch;
     flex-direction: column;
   }
-  .storyboard-mode {
+  .state-change-mode {
     width: 100%;
   }
-  .storyboard-mode [role="radio"] {
+  .state-change-mode [role="radio"] {
     flex: 1;
   }
   .timeline-section-toggle {
@@ -423,11 +427,11 @@
 }
 
 @media (max-width: 640px) {
-  .storyboard-inspector {
+  .state-change-inspector {
     top: var(--bar);
     width: 100%;
   }
-  .storyboard-inspector-sheet .storyboard-inspector {
+  .state-change-inspector-sheet .state-change-inspector {
     position: static;
     width: 100%;
     height: 100%;

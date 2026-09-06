@@ -86,9 +86,9 @@ describe("TimelineWorkspace sections", () => {
       /\.calendar-coordinate-control\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
     );
     expect(panelsCss).toMatch(
-      /\.storyboard-inspector-sheet \.storyboard-inspector\s*\{[^}]*position:\s*static;[^}]*width:\s*100%;/s,
+      /\.state-change-inspector-sheet \.state-change-inspector\s*\{[^}]*position:\s*static;[^}]*width:\s*100%;/s,
     );
-    expect(panelsCss).not.toContain(".ui-sheet .storyboard-inspector");
+    expect(panelsCss).not.toContain(".ui-sheet .state-change-inspector");
   });
 
   it("leaves touch sizing of segmented and inspector actions with the design controls", () => {
@@ -104,7 +104,7 @@ describe("TimelineWorkspace sections", () => {
       join(process.cwd(), "packages/client/src/design/tokens.css"),
       "utf8",
     );
-    const modeRule = panelsCss.match(/\.storyboard-mode \[role="radio"\]\s*\{([^}]*)\}/s)?.[1];
+    const modeRule = panelsCss.match(/\.state-change-mode \[role="radio"\]\s*\{([^}]*)\}/s)?.[1];
     const inspectorActionRule = panelsCss.match(
       /\.relationship-inspector-action,\s*\.reset-inheritance\s*\{([^}]*)\}/s,
     )?.[1];

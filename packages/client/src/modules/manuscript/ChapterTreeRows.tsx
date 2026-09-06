@@ -167,7 +167,7 @@ export function ChapterTreeChapterRow({
           <span className="chapter-name">{label}</span>
           <span className="chapter-meta">
             <span className="chapter-words">{words}</span>
-            <span className="chapter-story-time-summary">{storyTime}</span>
+            {storyTime && <span className="chapter-story-time-summary">{storyTime}</span>}
           </span>
         </span>
       </Button>

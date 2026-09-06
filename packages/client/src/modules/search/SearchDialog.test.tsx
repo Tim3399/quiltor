@@ -73,3 +73,20 @@ describe("SearchDialog manuscript results", () => {
     expect(onSelect).toHaveBeenCalledWith({ workspace: "storyboard", id: "main-storyboard" });
   });
 });
+
+describe("SearchDialog command rows", () => {
+  it("names the shortcut where one exists instead of repeating the word command", () => {
+    renderSearch();
+
+    // Neun Zeilen trugen frueher alle dieselbe zweite Zeile. Nur dieser eine Befehl hat
+    // heute wirklich eine Tastenkombination -- erfunden wird hier keine.
+    const gesichert = screen.getByRole("option", { name: /Sicherung öffnen/ });
+    expect(gesichert.textContent).toMatch(/⇧⌘S|Strg\+Umschalt\+S/);
+
+    const manuskript = screen.getByRole("option", { name: /Zum Manuskript wechseln/ });
+    expect(manuskript.textContent).toContain("Ansicht");
+
+    const verlauf = screen.getByRole("option", { name: /Verlauf öffnen/ });
+    expect(verlauf.textContent).toContain("Aktion");
+  });
+});

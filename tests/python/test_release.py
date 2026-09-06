@@ -1285,6 +1285,37 @@ class WorkflowBoundaryTests(unittest.TestCase):
         ):
             workflow_contract.validate_toolchains(mutable_runner, contract)
 
+    def test_matrix_runners_are_resolved_rather_than_read_literally(self):
+        """A cross-platform suite is a matrix, and the runner lock has to survive one."""
+        matrix_job = (
+            "\njobs:\n"
+            "  browser:\n"
+            "    runs-on: ${{ matrix.os }}\n"
+            "    strategy:\n"
+            "      matrix:\n"
+            "        os: [macos-15, windows-2025]\n"
+            "    steps:\n"
+            "      - run: true\n"
+        )
+        sources = {Path("matrix.yml"): matrix_job}
+        self.assertEqual(
+            workflow_contract.resolved_runners(sources),
+            {"macos-15", "windows-2025"},
+        )
+
+        loose = matrix_job.replace("os: [macos-15, windows-2025]", "os: [ubuntu-latest]")
+        self.assertEqual(
+            workflow_contract.resolved_runners({Path("matrix.yml"): loose}),
+            {"ubuntu-latest"},
+        )
+
+        unreadable = matrix_job.replace("        os: [macos-15, windows-2025]\n", "")
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError,
+            "no readable list of runner labels",
+        ):
+            workflow_contract.resolved_runners({Path("matrix.yml"): unreadable})
+
     def test_dependency_locks_declare_reproducible_target_environments(self):
         records = dependency_lock_contract.records()
         self.assertEqual(

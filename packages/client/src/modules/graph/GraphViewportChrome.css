@@ -1,10 +1,29 @@
+/* Die Huelle jeder Leinwand: Weltgraph, Orte und Storyboard sitzen darin. Was hier an
+   Freihalteflaechen entsteht, gilt fuer alle drei -- eine Ecke, die nur im Storyboard
+   passt, gehoert in dessen eigenes Stylesheet. */
 .graph-viewport-surface {
   --graph-viewport-inset: var(--space-14);
   --graph-overlay-gap: var(--space-10);
-  --graph-controls-inline-size: 26px;
+  --graph-controls-inline-size: 28px;
+  --graph-controls-gap: var(--spacing-optical-tight);
+  --graph-controls-padding: var(--spacing-optical-base);
+  /* Zoom aus, Zoom ein, Einpassen, Sperren, Uebersicht -- der volle Dock. Die Zahl wird
+     bewusst nicht gemessen: Zeitstreifen und Ebenenpfad muessen ihren Platz kennen, bevor
+     der Dock gerendert ist, und ein zu breit reservierter Rand ist harmloser als ein Streifen,
+     der unter den Knoepfen verschwindet. */
+  --graph-controls-button-count: 5;
+  --graph-controls-inline-total: calc(
+    var(--graph-controls-button-count) *
+    var(--graph-controls-inline-size) +
+    (var(--graph-controls-button-count) - 1) *
+    var(--graph-controls-gap) +
+    2 *
+    var(--graph-controls-padding) +
+    var(--space-2)
+  );
   --graph-controls-safe-inline-end: calc(
     var(--graph-viewport-inset) +
-    var(--graph-controls-inline-size) +
+    var(--graph-controls-inline-total) +
     var(--graph-overlay-gap)
   );
   --graph-minimap-inline-size: 200px;
@@ -26,15 +45,31 @@
 .graph-viewport-surface .react-flow__panel.react-flow__controls {
   bottom: var(--graph-viewport-inset);
   left: var(--graph-viewport-inset);
-  overflow: hidden;
+  display: flex;
+  /* Waagerecht statt als Turm: der Dock steht auf derselben Kante wie die Uebersichtskarte
+     und liest sich mit ihr als ein Werkzeugpaar, nicht als zwei fremde Widgets. */
+  flex-direction: row;
+  align-items: center;
+  gap: var(--graph-controls-gap);
   margin: 0;
+  padding: var(--graph-controls-padding);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: none;
+  border-radius: var(--radius-pill);
+  background: var(--material-toolbar);
+  backdrop-filter: blur(var(--blur-toolbar));
+  box-shadow: var(--elevation-1) var(--shadow-raised);
 }
 
 .graph-viewport-surface .react-flow__controls-button {
-  border-bottom-color: var(--line);
+  width: var(--graph-controls-inline-size);
+  height: var(--graph-controls-inline-size);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--transparent);
+}
+
+.graph-viewport-surface .react-flow__controls-button:hover {
+  background: var(--control-hover);
 }
 
 .graph-viewport-surface .react-flow__controls-button svg {
@@ -46,10 +81,13 @@
   right: var(--graph-viewport-inset);
   bottom: var(--graph-viewport-inset);
   left: auto;
+  overflow: hidden;
   margin: 0;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
+  border-radius: var(--radius-lg);
+  background: var(--material-toolbar);
+  backdrop-filter: blur(var(--blur-toolbar));
+  box-shadow: var(--elevation-1) var(--shadow-raised);
   transform: scale(var(--graph-minimap-scale));
   transform-origin: right bottom;
 }
@@ -66,6 +104,14 @@
   --graph-edge-inspector-safe-bottom: calc(
     var(--graph-viewport-inset) +
     var(--graph-minimap-block-size) +
+    var(--graph-overlay-gap)
+  );
+  /* Alles, was am unteren Rand schwebt, teilt sich dort denselben Streifen. Der Zeitstreifen
+     wusste bisher nur vom Dock links und lief deshalb unter der Uebersichtskarte durch. */
+  --graph-minimap-safe-inline-end: calc(
+    var(--graph-viewport-inset) +
+    var(--graph-minimap-inline-size) *
+    var(--graph-minimap-scale) +
     var(--graph-overlay-gap)
   );
 }
@@ -89,8 +135,26 @@
 }
 
 @media (max-width: 719px), (pointer: coarse) {
+  /* Auf einer Handflaeche ist eine Uebersichtskarte von 140x105 kein Ueberblick, sondern
+     ein Hindernis vor dem Zeitstreifen. Sie tritt ab; der Dock bleibt. */
+  .graph-viewport-surface .react-flow__panel.react-flow__minimap {
+    display: none;
+  }
+
+  .graph-viewport-surface.has-minimap {
+    --graph-minimap-safe-inline-end: var(--graph-viewport-inset);
+  }
+
   .graph-viewport-surface {
     --graph-controls-inline-size: var(--control-touch);
+    /* Auf schmalen Flaechen steht der Dock wieder als Turm: waagerecht wuerde er den
+       Zeitstreifen daneben auf wenige Zentimeter zusammendruecken. */
+    --graph-controls-button-count: 1;
+  }
+
+  .graph-viewport-surface .react-flow__panel.react-flow__controls {
+    flex-direction: column;
+    border-radius: var(--radius-lg);
   }
 
   .graph-viewport-surface .react-flow__controls-button {

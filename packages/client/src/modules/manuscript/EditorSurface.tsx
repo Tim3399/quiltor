@@ -354,7 +354,7 @@ export function EditorSurface({
       gutter="both-edges"
       overscroll="contain"
       scrollbar="thin"
-      surface="paper"
+      surface="canvas"
       className="editor-scroll"
       data-chapter-turn={chapterTurnDirection ?? "idle"}
       style={

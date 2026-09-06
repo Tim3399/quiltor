@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
 import {
   fulfillDocumentSave,
@@ -86,11 +89,41 @@ async function mockWorkshop(page: Page) {
   );
 }
 
+const SNAPSHOTS = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "visual-baseline.spec.ts-snapshots",
+);
+
+/**
+ * Ob diese Plattform ueberhaupt etwas zu vergleichen hat.
+ *
+ * Baselines sind pro Plattform versioniert -- Playwright haengt darwin, linux oder win32 an
+ * den Dateinamen, weil Schriftrasterung sich unterscheidet. Frueher lief der Vergleich nur
+ * auf macOS, wo ihn kein Job ausfuehrte: ueberall gruen, nirgends geprueft. Er laeuft jetzt
+ * ueberall und weicht nur dort aus, wo noch niemand einen Satz erzeugt hat -- welche
+ * Plattform das ist, meldet check_visual_baseline_reach.mjs.
+ */
+function hasBaselines() {
+  return existsSync(join(SNAPSHOTS, `light-manuscript-wide-${process.platform}.png`));
+}
+
+/**
+ * Der Bootstrap-Lauf des Workflows visual-baselines-bootstrap.
+ *
+ * Er laeuft nur von Hand und nur mit --update-snapshots=missing, schreibt also ausschliesslich
+ * Bilder, die es noch nicht gibt, und ruehrt vorhandene Referenzen nicht an. Ohne dieses
+ * Zugestaendnis wuerde der Ausweich-Skip oben verhindern, dass ueberhaupt je ein erster Satz
+ * entsteht -- der Lauf uebersprraenge sich selbst.
+ */
+const BOOTSTRAP = process.env.QUILTOR_BASELINE_BOOTSTRAP === "1";
+
 for (const theme of ["light", "dark"] as const) {
   test(`${theme}: Kernansichten bleiben visuell reproduzierbar`, async ({ page }) => {
     test.skip(
-      process.platform !== "darwin",
-      "Die versionierten Pixel-Baselines sind absichtlich an die macOS-Renderengine gebunden.",
+      !BOOTSTRAP && !hasBaselines(),
+      `Fuer ${process.platform} liegt noch kein Baseline-Satz vor. Einmal mit ` +
+        "`npx playwright test tests/e2e/visual-baseline.spec.ts --update-snapshots` " +
+        "erzeugen und einchecken; danach vergleicht dieser Lauf.",
     );
     await page.addInitScript((selected) => {
       localStorage.setItem("quiltor-theme", selected);

@@ -1,5 +1,5 @@
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
-import { ChevronsUpDown, CornerDownRight, Plus, Star } from "lucide-react";
+import { ChevronsUpDown, CornerDownRight, Pin, Plus, Star } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useI18n } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
@@ -82,6 +82,14 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
           leading={
             item.important ? (
               <Star className="importance-mark" aria-label={t("favoritePlaceMarker")} />
+            ) : undefined
+          }
+          // Ein grauer Punkt in der Ecke beantwortet die Frage nicht, warum sich die Karte
+          // nicht ziehen laesst. Die Nadel, die sie haelt, beantwortet sie -- mit demselben
+          // Zeichen, das die Aktion daneben traegt, und mit einem Namen fuer Vorlesesoftware.
+          trailing={
+            item.pinned ? (
+              <Pin className="place-node__pinned" aria-label={t("placePositionLocked")} />
             ) : undefined
           }
           // A map card carries its picture, not a description of a place: the

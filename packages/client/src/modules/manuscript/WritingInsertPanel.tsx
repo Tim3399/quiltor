@@ -41,6 +41,7 @@ export interface WritingInsertPanelProps {
   onInsertEntity: (entity: FigureNode) => void;
   onResolveAmbiguous: (candidate: AmbiguousMention, entity: FigureNode) => void;
   onManageTerms: () => void;
+  onManageElements: () => void;
   onInsert: (value: string) => void;
   onToggleSymbol: (symbol: string, active: boolean) => void;
 }
@@ -55,27 +56,51 @@ export function WritingInsertPanel({
   onInsertEntity,
   onResolveAmbiguous,
   onManageTerms,
+  onManageElements,
   onInsert,
   onToggleSymbol,
 }: WritingInsertPanelProps) {
   const { t } = useI18n();
   const projectDictionary = manuscript.words || [];
+  // Verborgen wird gespeichert, nicht Sichtbares: eine Figur, die spaeter angelegt wird,
+  // erscheint von selbst und muss nicht erst freigeschaltet werden.
+  const verborgen = new Set(manuscript.elementeVerborgen ?? []);
+  const angeboteneElemente = figures.nodes.filter((node) => !verborgen.has(node.id));
 
   return (
     <div className="writing-insert">
       <section>
-        <h3>{t("figuresPlaces")}</h3>
-        <ChipList className="chip-list" label={t("figuresPlaces")}>
-          {figures.nodes.map((node) => (
-            <ChipAction
-              className="writing-insert-chip"
-              key={node.id}
-              onClick={() => onInsertEntity(node)}
-            >
-              {node.name}
-            </ChipAction>
-          ))}
-        </ChipList>
+        <div className="helper-section-heading">
+          <h3>{t("figuresPlaces")}</h3>
+          <Button
+            appearance="ghost"
+            size="compact"
+            icon={<SlidersHorizontal />}
+            aria-label={t("manageElementsTitle")}
+            onClick={onManageElements}
+          >
+            {t("manageElements")}
+          </Button>
+        </div>
+        {angeboteneElemente.length ? (
+          <ChipList className="chip-list" label={t("figuresPlaces")}>
+            {angeboteneElemente.map((node) => (
+              <ChipAction
+                className="writing-insert-chip"
+                key={node.id}
+                onClick={() => onInsertEntity(node)}
+              >
+                {node.name}
+              </ChipAction>
+            ))}
+          </ChipList>
+        ) : (
+          <EmptyState
+            title={t(figures.nodes.length ? "elementsAllHidden" : "elementsEmpty")}
+            headingLevel={3}
+            size="compact"
+          />
+        )}
       </section>
       {!!ambiguousMentions.length && (
         <section className="mention-review">
@@ -113,6 +138,7 @@ export function WritingInsertPanel({
             appearance="ghost"
             size="compact"
             icon={<SlidersHorizontal />}
+            aria-label={t("manageTermsTitle")}
             onClick={onManageTerms}
           >
             {t("manageTerms")}

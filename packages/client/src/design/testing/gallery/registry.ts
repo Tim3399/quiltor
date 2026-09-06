@@ -14,6 +14,7 @@ import * as SaveStatusStories from "../../components/SaveStatus/SaveStatus.story
 import * as ScrollAreaStories from "../../components/ScrollArea/ScrollArea.story";
 import * as SheetStories from "../../components/Sheet/Sheet.story";
 import * as SidePanelStories from "../../components/SidePanel/SidePanel.story";
+import * as StatusBarStories from "../../components/StatusBar/StatusBar.story";
 import * as TabsStories from "../../components/Tabs/Tabs.story";
 import * as ToastStories from "../../components/Toast/Toast.story";
 import * as ToolbarButtonStories from "../../components/ToolbarButton/ToolbarButton.story";
@@ -85,6 +86,7 @@ export const designStories: readonly DesignStory[] = [
   ...collectStories("Navigation", "SelectionMenu", SelectionMenuStories),
   ...collectStories("Overlays", "Sheet", SheetStories),
   ...collectStories("Navigation", "SidePanel", SidePanelStories),
+  ...collectStories("Feedback", "StatusBar", StatusBarStories),
   ...collectStories("Navigation", "Tabs", TabsStories),
   ...collectStories("Feedback", "Toast", ToastStories),
   ...collectStories("Actions", "ToolbarButton", ToolbarButtonStories),

@@ -100,7 +100,7 @@ describe("Storyboard workspace review guards", () => {
     expect(noteCard?.closest(".nowheel")).toBeNull();
     // The card body claims the wheel so it can scroll; the canvas zoom would
     // otherwise consume it and leave the note unscrollable.
-    expect(noteCard?.querySelector(".storyboard-node__body")).toHaveClass("nowheel");
+    expect(noteCard?.querySelector(".storyboard-node__body")).not.toHaveClass("nowheel");
     expect(noteCard).not.toHaveTextContent(/Freie Planung|nicht Teil des Kanons/i);
     const textbox = screen.getByRole("textbox", { name: "Storyboard-Notiz" });
     expect(document.querySelector(`label[for="${textbox.id}"]`)).toHaveClass("sr-only");

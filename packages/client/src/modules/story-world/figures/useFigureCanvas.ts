@@ -14,6 +14,7 @@ import type { FigureKind, FigureNode, FigureState, PresenceEntry, TimelineMoment
 import type { FigureFlowNode } from "./FigureNode";
 import {
   applyFigureNodeContext,
+  belongsOnFigureBoard,
   combineFigureFlowEdges,
   createFigureFlowNodes,
   createJourneyFlowEdges,
@@ -156,9 +157,18 @@ export function useFigureCanvas({
       }),
     [state, selected, timeline, presence, activeMomentId, journeyOverlayOpen],
   );
+  // Eine Beziehung zu einer Karte kann bestehen -- gezeichnet wird sie hier nicht,
+  // sonst haengt sie an einem Ende im Nichts.
+  const aufDemBoard = useMemo(
+    () => new Set(state.nodes.filter(belongsOnFigureBoard).map((node) => node.id)),
+    [state.nodes],
+  );
   const edges = useMemo(
-    () => combineFigureFlowEdges(relationshipEdges, journeyEdges, relationshipsVisible),
-    [relationshipEdges, journeyEdges, relationshipsVisible],
+    () =>
+      combineFigureFlowEdges(relationshipEdges, journeyEdges, relationshipsVisible).filter(
+        (edge) => aufDemBoard.has(edge.source) && aufDemBoard.has(edge.target),
+      ),
+    [aufDemBoard, relationshipEdges, journeyEdges, relationshipsVisible],
   );
 
   const onConnect = useCallback(
@@ -255,7 +265,12 @@ export function useFigureCanvas({
     const next = { ...current, nodes: alignNodesToGrid(current.nodes) };
     latestState.current = next;
     onChange(next);
-    window.requestAnimationFrame(() => updateNodeInternals(next.nodes.map((node) => node.id)));
+    window.requestAnimationFrame(() => {
+      updateNodeInternals(next.nodes.map((node) => node.id));
+      // Aufraeumen kann Karten aus dem Ausschnitt schieben. Wer anordnet, will das Ergebnis
+      // sehen, also folgt der Ausschnitt der neuen Anordnung.
+      flow.current?.fitView({ duration: 350, padding: 0.2 });
+    });
   }, [onChange, updateNodeInternals]);
   const addNode = useCallback(
     (kind: FigureKind) => {
