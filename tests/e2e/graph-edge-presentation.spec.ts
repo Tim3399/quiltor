@@ -335,7 +335,7 @@ async function expectGraphEdgeContract(
   // oben rechts und kann die Beschriftung einer anderen verdecken -- auf der Leinwand löst
   // ein Klick ins Leere die Auswahl, und das ist auch der Weg, den ein Mensch hier nimmt.
   await surface.locator(".react-flow__pane").click({ position: { x: 6, y: 6 } });
-  await expect(directed).not.toHaveClass(/selected/);
+  await expect(directed).not.toHaveClass(/\bselected\b/);
 
   await surface.locator(`.graph-edge-label[data-edge-label-id="${edgeIds.undirected}"]`).click();
   await expect(undirected).toHaveClass(/\bselected\b/);

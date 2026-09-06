@@ -71,6 +71,37 @@ test("schweigt, wenn jede vergleichende Plattform ihren Satz hat", () => {
   assert.deepEqual(checkVisualBaselineReach(root), []);
 });
 
+test("nennt die Bilder, die einer Plattform gegenueber den anderen fehlen", () => {
+  // Der Fall, fuer den es den Bootstrap-Lauf gibt: ein Design hat sich geaendert, die
+  // betroffenen Bilder wurden plattformweise geloescht. "Irgendein Bild ist da" haette hier
+  // geschwiegen -- und der Lauf, der die Luecke fuellen soll, haette sich uebersprungen.
+  const root = world("halber-satz", {
+    runner: "${{ matrix.os }}",
+    runsSuite: true,
+    images: ["a-darwin.png", "b-darwin.png", "a-win32.png"],
+  });
+  writeFileSync(
+    resolve(root, ".github/workflows/test.yml"),
+    [
+      "jobs:",
+      "  browser:",
+      "    runs-on: ${{ matrix.os }}",
+      "    strategy:",
+      "      matrix:",
+      "        os: [macos-15, windows-2025]",
+      "    steps:",
+      "      - run: npx playwright test",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  const violations = checkVisualBaselineReach(root);
+
+  assert.equal(violations.length, 1);
+  assert.match(violations[0], /^win32: 1 Bild\(er\) fehlen/);
+  assert.ok(violations[0].includes("(b)"), violations[0]);
+});
+
 test("meldet, wenn ueberhaupt kein Job die Suite ausfuehrt", () => {
   const root = world("niemand", { runner: "macos-15", runsSuite: false });
   const violations = checkVisualBaselineReach(root);

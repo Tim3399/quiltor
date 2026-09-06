@@ -83,11 +83,33 @@ export function checkVisualBaselineReach(repositoryRoot) {
     return violations;
   }
 
+  // Nicht "irgendein Bild", sondern jedes: geloescht wird hier plattformweise, wenn sich ein
+  // Design geaendert hat. Wer nur fragt, ob ueberhaupt ein Satz da ist, sagt "haelt", waehrend
+  // eine Plattform die Haelfte ihrer Ansichten nicht mehr vergleicht -- und der Bootstrap-Lauf,
+  // der genau daran haengt, ueberspringt sich selbst.
+  const stems = new Map();
+  for (const name of images) {
+    const platform = platforms.find((candidate) => name.endsWith(`-${candidate}.png`));
+    if (!platform) continue;
+    const stem = name.slice(0, -`-${platform}.png`.length);
+    stems.set(stem, (stems.get(stem) ?? new Set()).add(platform));
+  }
+
   for (const platform of platforms) {
-    if (!images.some((name) => name.includes(`-${platform}.`))) {
+    const fehlend = [...stems]
+      .filter(([, owners]) => !owners.has(platform))
+      .map(([stem]) => stem)
+      .sort();
+    if (!images.some((name) => name.endsWith(`-${platform}.png`))) {
       violations.push(
         `${platform}: ein Job vergleicht dort, aber ${SNAPSHOTS} enthaelt keinen Satz. ` +
           'Den Workflow "Visual-Baselines erzeugen" einmal starten; er fuellt nur, was fehlt.',
+      );
+    } else if (fehlend.length) {
+      violations.push(
+        `${platform}: ${fehlend.length} Bild(er) fehlen gegenueber den anderen Plattformen ` +
+          `(${fehlend.slice(0, 4).join(", ")}${fehlend.length > 4 ? ", ..." : ""}). ` +
+          'Der Workflow "Visual-Baselines erzeugen" traegt sie nach.',
       );
     }
   }
