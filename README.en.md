@@ -260,6 +260,16 @@ dependencies and the verified Chromium:
 ```bash
 npm install
 npx playwright install chromium
+npm start
+```
+
+`npm start` brings up both halves -- the API server on 8000 and Vite on 5173 --, waits
+until both answer, and stops both together on Ctrl+C. Vite proxies API requests to port
+8000; without the server the page loads and only reports that it is unreachable.
+
+To run the halves separately:
+
+```bash
 npm run dev
 ```
 

@@ -261,16 +261,23 @@ Node.js, die Projektabhängigkeiten und der geprüfte Chromium benötigt:
 ```bash
 npm install
 npx playwright install chromium
-npm run dev
+npm start
 ```
 
-Parallel:
+`npm start` fährt beide Hälften hoch -- den API-Server auf 8000 und Vite auf 5173 --,
+wartet, bis beide antworten, und beendet beide gemeinsam mit Strg+C. Vite leitet
+API-Anfragen an Port 8000 weiter; ohne den Server lädt die Seite und meldet nur, sie sei
+nicht erreichbar.
+
+Wer die Hälften einzeln braucht, startet sie weiterhin selbst:
+
+```bash
+npm run dev
+```
 
 ```bash
 python3 apps/web/server.py --no-open
 ```
-
-Vite leitet API-Anfragen an Port 8000 weiter.
 
 ---
 

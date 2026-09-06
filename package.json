@@ -6,6 +6,7 @@
   "packageManager": "npm@10.9.8",
   "type": "module",
   "scripts": {
+    "start": "node tools/dev/start-workshop.mjs",
     "dev": "vite",
     "build": "npm run check:contracts && npm run check:architecture && npm run check:design && npm run check:design-system && npm run check:i18n && npm run check:platform && tsc -b && vite build",
     "format": "npm run format:web && npm run format:python && npm run format:docs",
