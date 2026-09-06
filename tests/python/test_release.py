@@ -419,7 +419,7 @@ class PreflightContractTests(unittest.TestCase):
 
     def test_runtime_toolchain_versions_fail_closed_before_a_version_change(self):
         with patch.object(release_preflight.platform, "python_version", return_value="0.0.0"):
-            with self.assertRaisesRegex(release_preflight.PreflightError, "Python 3.14.7"):
+            with self.assertRaisesRegex(release_preflight.PreflightError, "Python 3.12.10"):
                 release_preflight._require_pinned_runtime_toolchains("cargo")
         with patch.object(
             release_preflight.metadata,
@@ -1228,7 +1228,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
             {
                 "node": "22.23.2",
                 "npm": "10.9.8",
-                "python": "3.14.7",
+                "python": "3.12.10",
                 "rust": "1.98.0",
             },
         )

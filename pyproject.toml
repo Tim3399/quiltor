@@ -7,9 +7,9 @@ name = "quiltor"
 dynamic = ["version"]
 description = "Local-first writing workshop with a private, on-device assistant"
 readme = "README.md"
-# Gebaut wird mit dem Interpreter aus distribution/toolchains.json (3.14.7). Die
-# Untergrenze liegt tiefer, weil das ausgelieferte Web-Image auf Ubuntu 24.04 laeuft und
-# von dort 3.12.3 mitbringt -- was dort laeuft, muss hier auch erlaubt sein.
+# Eine Minor-Reihe fuer alles: gebaut wird mit 3.12.10 (distribution/toolchains.json), das
+# ausgelieferte Web-Image bringt von Ubuntu 24.04 die 3.12.3 mit. Beide sind 3.12, und die
+# Zusage nennt genau das -- nicht den Patchstand, den keiner von beiden teilt.
 requires-python = ">=3.12"
 license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0" }
 

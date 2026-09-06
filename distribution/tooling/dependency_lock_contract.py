@@ -27,7 +27,7 @@ EXPECTED_LOCKS = {
         "pythonEnvironment": {
             "role": "release-build",
             "implementation": "CPython",
-            "version": "3.11.9",
+            "version": "3.12.10",
         },
         "pythonPlatform": "platform-independent",
         "sources": ["distribution/python-build-bootstrap.in"],
@@ -41,7 +41,7 @@ EXPECTED_LOCKS = {
         "pythonEnvironment": {
             "role": "target-runtime",
             "implementation": "CPython",
-            "version": "3.11.9",
+            "version": "3.12.10",
         },
         "pythonPlatform": "aarch64-apple-darwin",
         "sources": ["pyproject.toml", "distribution/native-build-tools.in"],
@@ -90,7 +90,7 @@ EXPECTED_LOCKS = {
         "pythonEnvironment": {
             "role": "target-runtime",
             "implementation": "CPython",
-            "version": "3.11.9",
+            "version": "3.12.10",
         },
         "pythonPlatform": "x86_64-pc-windows-msvc",
         "sources": ["pyproject.toml", "distribution/native-build-tools.in"],

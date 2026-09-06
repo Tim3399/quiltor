@@ -27,20 +27,20 @@ const WINDOWS = process.platform === "win32";
  * einmal ausgefuehrt, statt ihm zu glauben.
  */
 function findePython() {
-  // Neueste zuerst: 3.14 ist der Interpreter, mit dem gebaut und geprueft wird. Darunter
-  // laeuft es weiterhin, bis hinunter zu der Grenze, die pyproject.toml zusagt -- das
-  // ausgelieferte Web-Image bringt 3.12 mit, also ist 3.12 die Grenze.
+  // 3.12 zuerst: das ist die Reihe, mit der gebaut, geprueft und ausgeliefert wird. Neuere
+  // laufen auch -- wer 3.13 oder 3.14 installiert hat, soll damit arbeiten koennen --, aber
+  // die Reihe, in der ein Fehler auch in der CI auftaucht, kommt zuerst.
   const kandidaten = WINDOWS
     ? [
-        ["py", ["-3.14"]],
-        ["py", ["-3.13"]],
         ["py", ["-3.12"]],
+        ["py", ["-3.13"]],
+        ["py", ["-3.14"]],
         ["python", []],
       ]
     : [
-        ["python3.14", []],
-        ["python3.13", []],
         ["python3.12", []],
+        ["python3.13", []],
+        ["python3.14", []],
         ["python3", []],
       ];
 
