@@ -42,6 +42,7 @@ from tests.python.fake_issuer import FakeIssuer
 from tests.python.test_backup_login import FakeBackupEndpoint
 
 from quiltor.hosts.web import server
+from tests.python.request_timeout import REQUEST_TIMEOUT
 
 
 class BackupRouteTestCase(unittest.TestCase):
@@ -120,7 +121,7 @@ class BackupRouteTestCase(unittest.TestCase):
     # ------------------------------------------------------------- requesting
 
     def request(self, method: str, path: str, *, body=None, cookies=None):
-        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=20)
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
         headers = {}
         if cookies:
             headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())

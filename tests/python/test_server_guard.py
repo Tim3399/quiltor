@@ -25,6 +25,7 @@ from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.hosts.web import server
+from tests.python.request_timeout import REQUEST_TIMEOUT
 
 
 def _directories(root: Path) -> AppDirectories:
@@ -82,7 +83,7 @@ class _LiveLocalServerTestCase(unittest.TestCase):
     def _request(
         self, method: str, path: str, body=None, headers=None, content_type="application/json"
     ):
-        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
         hdrs = dict(headers or {})
         data = json.dumps(body).encode("utf-8") if body is not None else None
         if data is not None and content_type is not None:

@@ -14,6 +14,7 @@ from quiltor.bootstrap.application import AssistantServices
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.hosts.web import server
+from tests.python.request_timeout import REQUEST_TIMEOUT
 
 
 def _cookie_name_value(set_cookie_header: str) -> tuple[str, str]:
@@ -100,7 +101,7 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         self.temp.cleanup()
 
     def _request(self, method: str, path: str, body=None, headers=None, cookies=None):
-        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
         hdrs = dict(headers or {})
         if cookies:
             hdrs["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
@@ -482,7 +483,7 @@ class LocalIdentityServerTest(unittest.TestCase):
         self.temp.cleanup()
 
     def _get(self, path: str, headers: dict | None = None):
-        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
         conn.request("GET", path, headers=dict(headers or {}))
         resp = conn.getresponse()
         status, raw = resp.status, resp.read()
@@ -559,7 +560,7 @@ class LocalIdentityServerTest(unittest.TestCase):
 
     def test_a_query_token_logs_in_and_bounces_the_secret_out_of_the_url(self):
         self.application.bound_to_loopback = False
-        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
         conn.request("GET", f"/api/whoami?token={self.token}")
         resp = conn.getresponse()
         status, headers = resp.status, resp.getheaders()
