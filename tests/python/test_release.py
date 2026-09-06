@@ -1076,7 +1076,12 @@ class WorkflowBoundaryTests(unittest.TestCase):
         resolver = (REPO_ROOT / "tests/playwright/workers.ts").read_text(encoding="utf-8")
 
         self.assertIn("workers: resolvePlaywrightWorkers(2)", product)
-        self.assertIn("timeout: 30_000", product)
+        # Zwei Zahlen, beide sichtbar und beide begrenzt. Der Windows-Runner hat zweimal
+        # laenger als dreissig Sekunden gebraucht, um eine Welt anzulegen und zu oeffnen --
+        # dort greifen Dateisperren, wo Linux nur schreibt. Lokal bleibt es bei dreissig,
+        # damit ein langsam gewordener Test auf dem Schreibtisch auffaellt. Gepinnt bleibt
+        # der ganze Ausdruck: "unbegrenzt" darf hier auch weiterhin niemand hinschreiben.
+        self.assertIn("timeout: process.env.CI ? 60_000 : 30_000", product)
         self.assertIn("workers: resolvePlaywrightWorkers(4)", design)
         self.assertIn("process.env.PLAYWRIGHT_WORKERS", resolver)
         self.assertIn("Number.isSafeInteger(workers)", resolver)
