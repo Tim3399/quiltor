@@ -2,9 +2,9 @@
 
 ## Language: English in the code, German in the product
 
-The codebase is English. Comments, docstrings, identifiers, CLI flags, test titles,
-commit messages — all English. This is the repository's own convention, visible in its
-first 319 commits and in the comments at the top of `.github/workflows/test.yml`.
+The codebase is English. Comments, docstrings, identifiers, CLI flags, commit messages —
+all English. This is the repository's own convention, visible in its first 319 commits and
+in the comments at the top of `.github/workflows/test.yml`.
 
 It drifted in September 2026: 48 commits and roughly 500 comment blocks were written in
 German. That was a break with the convention, not a new one. If you find German in code,
@@ -15,12 +15,29 @@ What stays German, because it is the product and not the code:
 - `locales/de/*` — the interface itself.
 - Strings that assert German interface text, such as
   `getByRole("button", { name: "Kapitel" })`.
-- Fixture prose (`"Der Morgen lag still über dem Hafen."`).
+- Fixture prose (`"Der Morgen lag still über dem Hafen."`) and fixture ids.
 - Everything a person reads while writing in Quiltor.
 
-Persisted field names are code, not product. Two of them (`zeichenAktiv`,
-`elementeVerborgen`) were German and had to be renamed through a schema migration, which
-is much more expensive than getting them right the first time.
+A comment written in English may quote a German product string — a macOS menu item, an
+error message, a prompt. That is a quotation, not a leftover.
+
+Persisted field names are code, not product. Four of them (`zeichenAktiv`,
+`elementeVerborgen`, `gerichtet`, `notizen`) were German and had to be renamed through
+schema migrations, which is much more expensive than getting them right the first time.
+
+### Test titles
+
+Not settled the same way everywhere, and deliberately left that way:
+
+- The **product suite** (`tests/e2e/`) names its tests in German — 70 of 74. They read as
+  acceptance statements about a German interface. Follow that suite's convention there.
+- The **unit tests** and the **design suite** are English. German titles there are drift.
+
+## Assertion messages are code
+
+A message a `page.evaluate` returns for a failing expectation is read by whoever is
+debugging, not by an author. English, like the rest of the code — the German interface
+names inside it stay quoted.
 
 ## dist/ is committed, and the product suite runs against it
 

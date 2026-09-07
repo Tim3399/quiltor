@@ -157,7 +157,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(printCss).not.toMatch(/\b(?:repeating-)?(?:linear|radial|conic)-gradient\(|\burl\(/i);
   });
 
-  it("bindet alle Toolbar-Gruppen an den gemeinsamen symmetrischen Action-Strip", () => {
+  it("binds every toolbar group to the shared symmetric action strip", () => {
     const view = renderWorkspace({
       manuscript,
       figures,
@@ -173,7 +173,7 @@ describe("TextWorkspace layout and panels", () => {
     );
   });
 
-  it("macht den Fokusmodus explizit verlassbar", () => {
+  it("makes focus mode explicitly leavable", () => {
     renderWorkspace({ manuscript, figures, onChange: vi.fn(), focus: true, onFocus: vi.fn() });
     expect(screen.getByRole("button", { name: /Fokusmodus verlassen/ })).toBeVisible();
   });
@@ -204,7 +204,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(rendered.getByLabelText("Kapiteltext")).toHaveTextContent("Der Weg beginnt.");
   });
 
-  it("blendet die Kapitelauswahl bei nur einem Kapitel aus", () => {
+  it("hides the chapter picker when there is only one chapter", () => {
     const view = renderWorkspace({
       manuscript,
       figures,
@@ -217,7 +217,7 @@ describe("TextWorkspace layout and panels", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("ändert persistierbare Panelbreiten auch per Tastatur", () => {
+  it("changes persistable panel widths from the keyboard too", () => {
     const onSidebarWidth = vi.fn();
     const onInspectorWidth = vi.fn();
     renderWorkspace({
@@ -246,7 +246,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(onInspectorWidth).toHaveBeenCalledWith(304);
   });
 
-  it("lässt beide Spalten über die dezenten Rand-Schalter wieder aufmachen", () => {
+  it("lets both columns be reopened from the discreet margin switches", () => {
     const onBinderOpen = vi.fn();
     const onInspectorOpen = vi.fn();
     const view = renderWorkspace({
@@ -276,7 +276,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(onInspectorOpen).toHaveBeenCalledWith(true);
   });
 
-  it("zeigt die oberen Panel-Schalter auf Desktop und klappt beide Seiten wirklich um", () => {
+  it("shows the upper panel switches on desktop and really flips both sides", () => {
     function StatefulPanels() {
       const [binderOpen, setBinderOpen] = useState(true);
       const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -321,7 +321,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(rendered.getByRole("complementary", { name: "Details" })).toBeVisible();
   });
 
-  it("meldet die Schreibhilfe ohne Kapitel weder geöffnet noch als steuernd", () => {
+  it("reports the writing aid without a chapter as neither open nor controlling", () => {
     const onInspectorOpen = vi.fn();
     const view = renderWorkspace({
       manuscript: { chapters: [] },
@@ -346,7 +346,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(onInspectorOpen).not.toHaveBeenCalled();
   });
 
-  it("öffnet am Textrand und schließt außerhalb des Fokusmodus neben der Überschrift", () => {
+  it("opens at the text edge and closes beside the heading outside focus mode", () => {
     function StatefulPanels() {
       const [binderOpen, setBinderOpen] = useState(false);
       const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -400,7 +400,7 @@ describe("TextWorkspace layout and panels", () => {
     );
   });
 
-  it("nutzt im kompakten Layout weiterhin die Sheet-Schalter der Kontextleiste", () => {
+  it("still uses the context bar's sheet switches in the compact layout", () => {
     const view = renderWorkspace({
       manuscript,
       figures,
@@ -419,7 +419,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(context.getByRole("button", { name: "Details" })).toBeVisible();
   });
 
-  it("öffnet und schließt beide kompakten Sheets über Toolbar und Panel-X", () => {
+  it("opens and closes both compact sheets from the toolbar and the panel X", () => {
     function CompactPanels() {
       const [binderOpen, setBinderOpen] = useState(false);
       const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -454,7 +454,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(screen.queryByRole("dialog", { name: "Details" })).toBeNull();
   });
 
-  it("behält im Fokusmodus die dezenten Aufklappschalter und keine Toolbar-Dopplung", () => {
+  it("keeps the discreet opening switches in focus mode and no toolbar duplication", () => {
     const twoChapters = {
       chapters: [
         ...manuscript.chapters,
@@ -484,7 +484,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(writingAid).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("trennt Struktur links von Steuerung rechts", () => {
+  it("separates structure on the left from controls on the right", () => {
     const view = renderWorkspace({
       manuscript,
       figures,

@@ -101,7 +101,7 @@ describe("TextWorkspace writing aid", () => {
     );
   });
 
-  it("ändert beim freien Nachschlagen keinen Manuskripttext ohne Ergebnisaktion", async () => {
+  it("changes no manuscript text on a free lookup without a result action", async () => {
     vi.spyOn(writingAssistanceApi, "status").mockResolvedValue({
       ok: true,
       installed: true,
@@ -145,7 +145,7 @@ describe("TextWorkspace writing aid", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("zeigt immer nur einen Bereich der Schreibhilfe", async () => {
+  it("shows only one area of the writing aid at a time", async () => {
     vi.spyOn(writingAssistanceApi, "status").mockResolvedValue({
       ok: true,
       installed: true,
@@ -243,7 +243,7 @@ describe("TextWorkspace writing aid", () => {
     expect(rendered.getAllByText(/OpenThesaurus\.de · CC BY-SA 4\.0/)).toHaveLength(1);
   });
 
-  it("führt eigene Begriffe erst im Verwaltungs-Sheet zum Bearbeiten", async () => {
+  it("takes the author's own terms to editing only in the management sheet", async () => {
     const withTerms = { ...manuscript, words: [{ w: "Traumweberin", d: "" }] };
     const view = renderWritingAid({
       manuscript: withTerms,
@@ -263,7 +263,7 @@ describe("TextWorkspace writing aid", () => {
     expect(sheet.getByRole("button", { name: "Traumweberin entfernen" })).toBeTruthy();
   });
 
-  it("ändert bei einer Grammatikprüfung keinen Text ohne bestätigte Ersetzung", async () => {
+  it("changes no text on a grammar check without a confirmed replacement", async () => {
     vi.spyOn(writingAssistanceApi, "status").mockResolvedValue({
       ok: true,
       installed: true,
@@ -322,7 +322,7 @@ describe("TextWorkspace writing aid", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("blendet die Grammatikprüfung aus, wenn die Ausgabe sie nicht unterstützt", async () => {
+  it("hides the grammar check when the edition does not support it", async () => {
     vi.spyOn(writingAssistanceApi, "status").mockResolvedValue({
       ok: true,
       installed: true,

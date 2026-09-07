@@ -57,8 +57,8 @@ describe("WorldOverviewPanel", () => {
   });
 });
 
-describe("WorldOverviewPanel und Karten", () => {
-  it("fuehrt keine Karte auf, denn auf der Leinwand daneben steht auch keine", () => {
+describe("WorldOverviewPanel and maps", () => {
+  it("lists no map, because none stands on the canvas beside it either", () => {
     const withMap: FigureState = {
       nodes: [
         ...state.nodes,

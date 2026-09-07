@@ -48,7 +48,7 @@ function openStoryTimeFields() {
 }
 
 describe("chapter story time fields", () => {
-  it("ist standardmäßig kompakt und rendert editierbare Felder erst nach dem Öffnen", () => {
+  it("is compact by default and renders editable fields only once opened", () => {
     renderFields(chapter);
 
     const details = storyTimeDetails();
@@ -58,7 +58,7 @@ describe("chapter story time fields", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("öffnet die kompakte Zusammenfassung und zeigt die vollständigen Felder", () => {
+  it("opens the compact summary and shows the full fields", () => {
     renderFields(chapter);
 
     const details = openStoryTimeFields();
@@ -75,7 +75,7 @@ describe("chapter story time fields", () => {
     expect(within(details).queryByRole("radio", { name: "Offen" })).not.toBeInTheDocument();
   });
 
-  it("zeigt eine bestehende Belegung bereits in der geschlossenen Summary-Zeile", () => {
+  it("shows an existing assignment in the closed summary row already", () => {
     renderFields({
       ...chapter,
       storyTime: { startMomentId: "earlier", endMomentId: "later" },
@@ -86,7 +86,7 @@ describe("chapter story time fields", () => {
     expect(screen.queryByRole("combobox", { name: "Von" })).not.toBeInTheDocument();
   });
 
-  it("lässt Kapitel nach dem Öffnen bearbeiten und verankert sie chronologisch", () => {
+  it("lets chapters be edited once opened and anchors them chronologically", () => {
     const { onChange } = renderFields(chapter);
     openStoryTimeFields();
     expect(screen.getByRole("radio", { name: "Offen" })).toHaveAttribute("aria-checked", "true");
@@ -96,7 +96,7 @@ describe("chapter story time fields", () => {
     expect(onChange).toHaveBeenCalledWith({ startMomentId: "earlier" });
   });
 
-  it("hält das Ende eines Zeitraums beim Verschieben des Anfangs chronologisch gültig", () => {
+  it("keeps a span's end chronologically valid when its start is moved", () => {
     function Stateful() {
       const [value, setValue] = useState<Chapter>({
         ...chapter,
@@ -139,7 +139,7 @@ describe("chapter story time fields", () => {
     ).toBeDisabled();
   });
 
-  it("bietet bei nur einem Zeitpunkt keinen Zeitraum an", () => {
+  it("offers no span when there is only one point in time", () => {
     renderFields(chapter, vi.fn(), [{ id: "only", title: "Einziger Zeitpunkt", time: 0 }]);
     openStoryTimeFields();
 
@@ -147,7 +147,7 @@ describe("chapter story time fields", () => {
     expect(screen.getByRole("radio", { name: "Zeitraum" })).toBeDisabled();
   });
 
-  it("zeigt gregorianische Kapitelzeiten in der Reihenfolge Tag, Monat, Jahr", () => {
+  it("shows Gregorian chapter times in the order day, month, year", () => {
     const system: TimeSystem = {
       id: "primary",
       name: "Gregorianisch",
@@ -174,7 +174,7 @@ describe("chapter story time fields", () => {
     expect(label).toBe("Danach · 02.01.2021");
   });
 
-  it("formatiert Kapitelgrenzen ohne verschachtelte Zeiträume", () => {
+  it("formats chapter boundaries without nested spans", () => {
     const system: TimeSystem = {
       id: "primary",
       name: "Gregorianisch",

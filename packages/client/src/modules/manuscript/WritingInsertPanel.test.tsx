@@ -81,7 +81,7 @@ describe("WritingInsertPanel", () => {
   });
 });
 
-describe("WritingInsertPanel und verborgene Elemente", () => {
+describe("WritingInsertPanel and hidden elements", () => {
   afterEach(cleanup);
 
   const zeichne = (eigenes: Partial<Manuscript>, onManageElements = vi.fn()) => {
@@ -106,20 +106,20 @@ describe("WritingInsertPanel und verborgene Elemente", () => {
     return { onManageElements };
   };
 
-  it("bietet ein abgewaehltes Element nicht mehr an", () => {
+  it("no longer offers a deselected element", () => {
     zeichne({ hiddenElements: ["figure"] });
 
     expect(screen.queryByRole("button", { name: "Mara" })).toBeNull();
   });
 
-  it("bietet es an, solange es nicht abgewaehlt ist", () => {
+  it("offers it as long as it is not deselected", () => {
     zeichne({});
 
     expect(screen.getByRole("button", { name: "Mara" })).toBeVisible();
   });
 
   // A sheet, not a rebuild of the list in place: the choice is made once, at leisure.
-  it("fuehrt zum Blatt", () => {
+  it("leads to the sheet", () => {
     const { onManageElements } = zeichne({});
 
     fireEvent.click(screen.getByRole("button", { name: "Figuren & Orte verwalten" }));

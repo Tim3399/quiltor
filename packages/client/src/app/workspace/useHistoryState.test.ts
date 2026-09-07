@@ -7,7 +7,7 @@ describe("useHistoryState", () => {
     vi.useRealTimers();
   });
 
-  it("macht gruppierte Änderungen rückgängig und wiederholt sie", () => {
+  it("undoes grouped changes and redoes them", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);
     const { result } = renderHook(() => useHistoryState<{ text: string }>());
@@ -21,7 +21,7 @@ describe("useHistoryState", () => {
     expect(result.current.value?.text).toBe("Erste Änderung, weitergeschrieben");
   });
 
-  it("hält einen diskreten Schritt von schnellen Texteingaben davor und danach getrennt", () => {
+  it("keeps a discrete step separate from fast typing before and after it", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);
     const { result } = renderHook(() => useHistoryState<{ text: string }>());
@@ -50,7 +50,7 @@ describe("useHistoryState", () => {
     expect(result.current.value?.text).toBe("Text nach Kommando, weiter");
   });
 
-  it("legt auch direkt nach dem Laden einen diskreten Schritt separat ab", () => {
+  it("records a discrete step separately even right after loading", () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     const { result } = renderHook(() => useHistoryState<{ text: string }>());

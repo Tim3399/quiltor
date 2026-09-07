@@ -48,7 +48,7 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEdito
 const tarek = { id: "t", x: 0, y: 0, type: "person" as const, name: "Tarek", sub: "Bäcker" };
 
 describe("ManuscriptEditor selection", () => {
-  it("meldet eine Markierung, ohne dafür das Aktionsmenü zu öffnen", async () => {
+  it("reports a selection without opening the action menu for it", async () => {
     // The report is the information "this is selected". The menu with dictionary,
     // synonyms and translation is the writer's own decision and must not spring open on a
     // double click already.
@@ -62,7 +62,7 @@ describe("ManuscriptEditor selection", () => {
     expect(onSelectionMenu).not.toHaveBeenCalled();
   });
 
-  it("öffnet das Aktionsmenü beim Rechtsklick", async () => {
+  it("opens the action menu on right click", async () => {
     const { editor, onSelectionMenu } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
     fireEvent.contextMenu(editor.contentDOM);
@@ -71,7 +71,7 @@ describe("ManuscriptEditor selection", () => {
     );
   });
 
-  it("öffnet das Aktionsmenü auch per Tastatur mit Umschalt+F10", async () => {
+  it("opens the action menu from the keyboard with Shift+F10 too", async () => {
     const { editor, onSelectionMenu } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
     fireEvent.keyDown(editor.contentDOM, { key: "F10", shiftKey: true });
@@ -80,7 +80,7 @@ describe("ManuscriptEditor selection", () => {
     );
   });
 
-  it("meldet das Ende der Markierung, wenn der Cursor nur noch steht", async () => {
+  it("reports the end of the selection when the cursor merely stands", async () => {
     const { editor, onSelection } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
     await waitFor(() =>
@@ -90,7 +90,7 @@ describe("ManuscriptEditor selection", () => {
     await waitFor(() => expect(onSelection).toHaveBeenLastCalledWith(null));
   });
 
-  it("zeichnet Fett und Kursiv als Bereiche über dem Text", () => {
+  it("draws bold and italic as ranges over the text", () => {
     const { container } = renderEditor({
       marks: [
         { from: 0, to: 5, kind: "bold" },
@@ -104,7 +104,7 @@ describe("ManuscriptEditor selection", () => {
     expect(container.querySelector(".cm-content")).toHaveTextContent("Hallo Welt");
   });
 
-  it("setzt Fett und Kursiv per Tastenkürzel und nimmt sie damit auch wieder weg", () => {
+  it("sets bold and italic by shortcut and takes them away again with it", () => {
     const { editor, onChange } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
     // jsdom knows no Mac, so CodeMirror's "Mod" is Ctrl there -- in the product it is ⌘.
@@ -131,7 +131,7 @@ describe("ManuscriptEditor selection", () => {
     );
   });
 
-  it("nimmt eine Auszeichnung mit, wenn davor geschrieben wird", () => {
+  it("carries a mark along when text is written before it", () => {
     // The range hangs on the text, not on the character position: what is added in front
     // pushes it back rather than leaving it where it was.
     const { editor, onChange } = renderEditor({ marks: [{ from: 6, to: 10, kind: "italic" }] });
@@ -143,7 +143,7 @@ describe("ManuscriptEditor selection", () => {
     );
   });
 
-  it("schlägt eine Figur auch bei einem Vertipper vor und trennt Name und Beschreibung mit Abstand", async () => {
+  it("suggests a figure even on a typo and separates name and description with space", async () => {
     const { container, editor } = renderEditor({ value: "", entities: [tarek] });
     editor.dispatch({ changes: { from: 0, insert: "Tarke" }, selection: { anchor: 5 } });
     await waitFor(() => expect(container.querySelector(".word-completion")).not.toBeNull());
@@ -156,7 +156,7 @@ describe("ManuscriptEditor selection", () => {
     expect(hint.querySelector(".completion-detail")).toHaveTextContent("Bäcker");
   });
 
-  it("ersetzt den Vertipper mit Tab und merkt sich die Erwähnung", async () => {
+  it("replaces the typo with Tab and remembers the mention", async () => {
     const { editor, onChange } = renderEditor({ value: "", entities: [tarek] });
     editor.dispatch({ changes: { from: 0, insert: "Tarke" }, selection: { anchor: 5 } });
     fireEvent.keyDown(editor.contentDOM, { key: "Tab" });
@@ -214,14 +214,14 @@ describe("ManuscriptEditor selection", () => {
     },
   );
 
-  it("lässt ein richtig geschriebenes Wort in Ruhe", async () => {
+  it("leaves a correctly spelled word alone", async () => {
     const { container, editor } = renderEditor({ value: "", entities: [tarek] });
     editor.dispatch({ changes: { from: 0, insert: "Fenster" }, selection: { anchor: 7 } });
     await waitFor(() => expect(editor.state.doc.toString()).toBe("Fenster"));
     expect(container.querySelector(".word-completion")).toBeNull();
   });
 
-  it("hält die gemerkte Textstelle sichtbar, während der Fokus woanders ist", () => {
+  it("keeps the remembered passage visible while focus is elsewhere", () => {
     // Without this mark the text looks unselected as soon as someone reaches into the
     // writing aid -- the browser draws ::selection only while focused.
     const { container } = renderEditor({ held: { from: 6, to: 10 } });
@@ -230,7 +230,7 @@ describe("ManuscriptEditor selection", () => {
     expect(held).toHaveTextContent("Welt");
   });
 
-  it("markiert alle Suchtreffer und hebt den aktiven Treffer hervor", () => {
+  it("marks every search hit and highlights the active one", () => {
     const { container, editor, handle } = renderEditor({
       value: "Welt neben Welt",
       searchMatches: [

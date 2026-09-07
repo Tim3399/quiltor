@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 describe("SnapshotDialog", () => {
-  it("nutzt beschriftete Design-Controls mit unveränderter Speichern-Semantik", async () => {
+  it("uses labelled design controls with unchanged saving semantics", async () => {
     backupLoginStatus.mockResolvedValue(
       loginStatus({ signedIn: true, email: "autorin@example.org" }),
     );
@@ -98,7 +98,7 @@ describe("SnapshotDialog", () => {
     expect(saveOnly).toBeEnabled();
   });
 
-  it("bietet die Anmeldung an, statt in ein 401 hochzuladen", async () => {
+  it("offers the sign-in instead of uploading into a 401", async () => {
     backupLoginStatus.mockResolvedValue(loginStatus());
     backupLoginBegin.mockResolvedValue({
       ok: true,
@@ -124,7 +124,7 @@ describe("SnapshotDialog", () => {
     });
   });
 
-  it("meldet einen abgelehnten Anmeldebeginn, statt ihn zu verschlucken", async () => {
+  it("reports a refused sign-in start instead of swallowing it", async () => {
     backupLoginStatus.mockResolvedValue(loginStatus());
     backupLoginBegin.mockRejectedValue(new Error("Kein Endpunkt eingerichtet."));
     const open = vi.spyOn(window, "open").mockReturnValue(null);
@@ -134,7 +134,7 @@ describe("SnapshotDialog", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it("bietet keine Anmeldung an, wenn der Anmeldedienst nicht erreichbar ist", async () => {
+  it("offers no sign-in when the sign-in service is unreachable", async () => {
     backupLoginStatus.mockResolvedValue(loginStatus({ issuerReachable: false }));
     show();
     expect(
@@ -159,7 +159,7 @@ describe("SnapshotDialog", () => {
     expect(screen.getByRole("button", { name: /Bei der Sicherung anmelden/ })).toBeDisabled();
   });
 
-  it("bietet die Anmeldung an, sobald die Prüfung zurückkommt", async () => {
+  it("offers the sign-in as soon as the check comes back", async () => {
     backupLoginStatus
       .mockResolvedValueOnce(loginStatus({ issuerReachable: null }))
       .mockResolvedValue(loginStatus({ issuerReachable: true }));
@@ -174,7 +174,7 @@ describe("SnapshotDialog", () => {
     );
   });
 
-  it("lädt hoch und zeigt das Konto, sobald angemeldet", async () => {
+  it("uploads and shows the account once signed in", async () => {
     backupLoginStatus.mockResolvedValue(
       loginStatus({ signedIn: true, email: "autorin@example.org" }),
     );
@@ -193,7 +193,7 @@ describe("SnapshotDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("bleibt ohne eingerichtetes Ziel beim toten Knopf, weil es nichts anzumelden gibt", async () => {
+  it("keeps the dead button without a configured target, because there is nothing to sign in to", async () => {
     backupStatus.mockResolvedValue({
       ok: true,
       endpoint: "",

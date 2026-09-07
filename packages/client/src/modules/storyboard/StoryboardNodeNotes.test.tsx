@@ -184,13 +184,13 @@ describe("Storyboard node notes", () => {
   });
 });
 
-describe("Storyboard-Karte und das Mausrad", () => {
+describe("Storyboard card and the mouse wheel", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     cleanup();
   });
 
-  it("nimmt das Rad erst, wenn die Karte wirklich etwas zu scrollen hat", () => {
+  it("takes the wheel only once the card really has something to scroll", () => {
     // The overflow does not exist in jsdom by itself; it is staged here so the measurement
     // gets the same answer it would in a browser with a long note.
     const observers: Array<() => void> = [];
@@ -247,29 +247,29 @@ describe("Kartenchrome", () => {
     "utf8",
   );
 
-  it("gibt der Formatleiste eine eigene Klasse, sonst zeigt die CSS ins Leere", () => {
+  it("gives the formatting bar a class of its own, or the CSS points at nothing", () => {
     expect(tsx).toContain("storyboard-note-format");
   });
 
-  it("haelt die Leiste still, bis die Karte gemeint ist", () => {
+  it("keeps the bar quiet until the card is meant", () => {
     expect(css).toMatch(/\.storyboard-note-format\s*\{[^}]*opacity:\s*0;/s);
   });
 
   // They may stay invisible only as long as they show themselves the moment someone points
   // or tabs at them -- otherwise the buttons would simply be gone for the keyboard.
-  it("zeigt sie bei Hover, Auswahl und Tastaturfokus", () => {
+  it("shows it on hover, selection and keyboard focus", () => {
     expect(css).toContain(".storyboard-node:hover .storyboard-note-format");
     expect(css).toContain(".storyboard-node.is-selected .storyboard-note-format");
     expect(css).toContain(".storyboard-node:focus-within .storyboard-note-format");
   });
 
-  it("laesst sie auf Fingergeraeten stehen, wo es kein Hover gibt", () => {
+  it("leaves it standing on touch devices, where there is no hover", () => {
     expect(css).toMatch(
       /@media \(pointer: coarse\)\s*\{\s*\.storyboard-note-format\s*\{[^}]*opacity:\s*1;/s,
     );
   });
 
-  it("nimmt dem Notizfeld den zweiten Rahmen und gibt ihn beim Schreiben zurueck", () => {
+  it("takes the second frame off the note field and hands it back while writing", () => {
     expect(css).toMatch(
       /\.storyboard-note-control\s*\{[^}]*border-color:\s*var\(--transparent\);/s,
     );
@@ -277,8 +277,8 @@ describe("Kartenchrome", () => {
   });
 });
 
-describe("Notizhoehe auf Karten ohne eigene Notiz", () => {
-  it("laesst die Notiz einer Referenz mitwachsen statt sie auf eine Zeile zu setzen", () => {
+describe("Note height on cards without a note of their own", () => {
+  it("lets a reference's note grow along instead of holding it to one line", () => {
     const css = readFileSync(
       join(process.cwd(), "packages/client/src/modules/storyboard/StoryboardNode.css"),
       "utf8",

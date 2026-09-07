@@ -42,7 +42,7 @@ describe("ElementsSheet", () => {
     );
   });
 
-  it("merkt sich das Abgewaehlte, nicht das Ausgewaehlte", () => {
+  it("remembers what was deselected, not what was selected", () => {
     const { onChange } = renderSheet(leer);
 
     fireEvent.click(screen.getByRole("button", { name: /Mara Venn wird angeboten/ }));
@@ -51,7 +51,7 @@ describe("ElementsSheet", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ hiddenElements: ["mara"] }));
   });
 
-  it("nimmt ein Element wieder auf", () => {
+  it("takes an element back in", () => {
     const { onChange } = renderSheet({ chapters: [], hiddenElements: ["mara", "archiv"] });
 
     fireEvent.click(screen.getByRole("button", { name: /Mara Venn wird nicht angeboten/ }));
@@ -59,7 +59,7 @@ describe("ElementsSheet", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ hiddenElements: ["archiv"] }));
   });
 
-  it("laesst die Welt in Ruhe -- ausgeblendet ist nicht geloescht", () => {
+  it("leaves the world alone -- hidden is not deleted", () => {
     const { onChange } = renderSheet(leer);
 
     fireEvent.click(screen.getByRole("button", { name: /Gezeitenarchiv/ }));

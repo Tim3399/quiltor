@@ -21,7 +21,7 @@ function codeMirrorView(textbox: HTMLElement) {
 }
 
 describe("TextWorkspace chapter binder", () => {
-  it("speichert die Kapitelnotiz aus der rechten Spalte", () => {
+  it("saves the chapter note from the right column", () => {
     const onChange = vi.fn();
     const view = renderWorkspace({
       manuscript,
@@ -48,7 +48,7 @@ describe("TextWorkspace chapter binder", () => {
     );
   });
 
-  it("zeigt Wörter, Zeichen und Normseiten im Kapitel-Register", async () => {
+  it("shows words, characters and standard pages in the chapter section", async () => {
     function Stateful() {
       const [value, setValue] = useState<Manuscript>(manuscript);
       return (
@@ -85,7 +85,7 @@ describe("TextWorkspace chapter binder", () => {
     expect(status.getByText("Wörter").nextSibling).toHaveTextContent("5");
   });
 
-  it("bietet Kapitelbefehle im Kontextmenü der aktiven Kapitelzeile an", async () => {
+  it("offers chapter commands in the active chapter row's context menu", async () => {
     const twoChapters = {
       chapters: [
         ...manuscript.chapters,
@@ -117,7 +117,7 @@ describe("TextWorkspace chapter binder", () => {
     );
   });
 
-  it("löscht ein Kapitel aus dem linken Reiter erst nach Bestätigung", async () => {
+  it("deletes a chapter from the left tab only after confirmation", async () => {
     const onChange = vi.fn();
     const view = renderWorkspace({
       manuscript,
@@ -139,7 +139,7 @@ describe("TextWorkspace chapter binder", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [] }));
   });
 
-  it("verankert eine Rückblende, ohne die Manuskriptreihenfolge zu verändern", () => {
+  it("anchors a flashback without changing the manuscript order", () => {
     const onChange = vi.fn();
     const twoChapters: Manuscript = {
       chapters: [

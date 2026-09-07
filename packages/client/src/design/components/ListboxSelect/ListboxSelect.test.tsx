@@ -92,7 +92,7 @@ describe("ListboxSelect", () => {
     await waitFor(() => expect(gamma).toHaveFocus());
   });
 
-  it("setzt den Fokus im selben Takt, in dem die Liste erscheint", () => {
+  it("sets focus in the same beat the list appears in", () => {
     // Without waiting for a frame: after the click, focus is in the list at once. In the gap
     // before it, a key ran into nothing -- "End" hit the button, where it means nothing.
     render(

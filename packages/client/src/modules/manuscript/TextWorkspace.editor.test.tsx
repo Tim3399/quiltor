@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 describe("TextWorkspace editor, search and versions", () => {
-  it("ändert Text ohne die übrige Manuskriptstruktur zu verlieren", async () => {
+  it("changes text without losing the rest of the manuscript structure", async () => {
     const onChange = vi.fn();
     renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn() });
     const editor = screen.getByLabelText("Kapiteltext");
@@ -45,7 +45,7 @@ describe("TextWorkspace editor, search and versions", () => {
     );
   });
 
-  it("öffnet Fassungen und vergleicht die Auswahl mit ihrer direkten Vorgängerin", async () => {
+  it("opens versions and compares the selection with its immediate predecessor", async () => {
     vi.spyOn(historyApi, "log").mockResolvedValue({
       ok: true,
       commits: [
@@ -88,7 +88,7 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(view.container.querySelector("del")).toHaveTextContent("alte");
   });
 
-  it("markiert einen Suchtreffer und rotiert kapitelübergreifend weiter", async () => {
+  it("marks a search hit and rotates on across chapters", async () => {
     const searchable = {
       chapters: [
         { id: "c1", title: "Prolog", body: "Nebel hier. Nebel dort.", note: "" },
@@ -120,7 +120,7 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(rendered.getByRole("status")).toHaveTextContent("3 von 3");
   });
 
-  it("setzt in der Buchfassung Auszeichnungen als <strong> und <em>", () => {
+  it("sets marks as <strong> and <em> in the book version", () => {
     const formatted = {
       chapters: [
         {
@@ -152,7 +152,7 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(book.querySelectorAll(".book-chapter p")[0]).toHaveTextContent("Hallo Welt");
   });
 
-  it("bietet im Auswahlmenü Ausschneiden, Kopieren, Fett und Kursiv an", async () => {
+  it("offers cut, copy, bold and italic in the selection menu", async () => {
     vi.spyOn(EditorView.prototype, "coordsAtPos").mockReturnValue({
       left: 0,
       right: 40,
@@ -179,7 +179,7 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(screen.queryByRole("menuitem", { name: /Einfügen/ })).toBeNull();
   });
 
-  it("meldet es, wenn die Zwischenablage den Text ablehnt", async () => {
+  it("reports it when the clipboard refuses the text", async () => {
     vi.spyOn(EditorView.prototype, "coordsAtPos").mockReturnValue({
       left: 0,
       right: 40,

@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe("host file save", () => {
-  it("lädt im Browser über einen Anker herunter", async () => {
+  it("downloads through an anchor in the browser", async () => {
     let download = "";
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
       this: HTMLAnchorElement,
@@ -40,7 +40,7 @@ describe("host file save", () => {
     expect(download).toBe("Prolog - Rückkehr.md");
   });
 
-  it("übergibt den Export in der Desktop-App an die native Brücke statt an einen Anker", async () => {
+  it("hands the export to the native bridge in the desktop app instead of to an anchor", async () => {
     // An <a download> is, in the desktop app, precisely the path that produces nothing and
     // on macOS blocks the window as well -- see src/quiltor/hosts/desktop/bridge/api.py.
     const click = vi
@@ -68,14 +68,14 @@ describe("host file save", () => {
     );
   });
 
-  it("bleibt still, wenn der Speichern-Dialog abgebrochen wird", async () => {
+  it("stays quiet when the save dialog is cancelled", async () => {
     installBridge(response("cancelled"));
     await expect(
       saveTextFile(createPlatformGateway(), "Kapitel.md", "Text", "Export failed"),
     ).resolves.toBeUndefined();
   });
 
-  it("meldet einen fehlgeschlagenen Export, statt ihn zu verschlucken", async () => {
+  it("reports a failed export instead of swallowing it", async () => {
     installBridge(
       vi.fn().mockImplementation((request) =>
         Promise.resolve({
@@ -91,7 +91,7 @@ describe("host file save", () => {
     ).rejects.toThrow("Export failed");
   });
 
-  it("meldet auch einen Brückenfehler ohne Verdikt", async () => {
+  it("reports a bridge failure without a verdict too", async () => {
     installBridge(vi.fn().mockRejectedValue(new Error("bridge is gone")));
     await expect(
       saveTextFile(createPlatformGateway(), "Kapitel.md", "Text", "Export failed"),

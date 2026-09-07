@@ -119,7 +119,7 @@ describe("belongsOnFigureBoard", () => {
     edges: [],
   };
 
-  it("laesst eine Karte weg, denn sie ist der Bogen und kein Element der Welt", () => {
+  it("leaves a map out, because it is the sheet and not an element of the world", () => {
     expect(belongsOnFigureBoard(world.nodes[2])).toBe(false);
     expect(createFigureFlowNodes(world.nodes, "detail", 1).map((node) => node.id)).toEqual([
       "mara",
@@ -127,11 +127,11 @@ describe("belongsOnFigureBoard", () => {
     ]);
   });
 
-  it("laesst einen gewoehnlichen Ort stehen", () => {
+  it("leaves an ordinary place standing", () => {
     expect(belongsOnFigureBoard(world.nodes[1])).toBe(true);
   });
 
-  it("aendert nichts am Dokument -- gefiltert wird beim Zeichnen", () => {
+  it("changes nothing in the document -- the filtering happens when drawing", () => {
     createFigureFlowNodes(world.nodes, "detail", 1);
 
     expect(world.nodes).toHaveLength(3);
