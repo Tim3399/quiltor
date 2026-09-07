@@ -39,7 +39,7 @@ const figures: FigureState = {
       y: 0,
       aliases: [{ alias: "Die Kartografin" }],
       profile: {
-        notizen: "Bewahrt die Seekarte.",
+        notes: "Bewahrt die Seekarte.",
         fields: [{ id: "motive", key: "Geheimnis", value: "Kennt die Sturmroute" }],
       },
     },

@@ -2015,7 +2015,7 @@ test("Notizreferenzen und flexible Profilfelder bleiben nach Umbenennung stabil"
             type: "person",
             name: "Erzählerin",
             profile: {
-              notizen: "",
+              notes: "",
               fields: [
                 { id: "profile-age", key: "Alter", value: "42" },
                 { id: "profile-favourite-place", key: "Lieblingsort", value: "Nordhafen" },
@@ -2135,7 +2135,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
             to: "figure-bela",
             label: "kennt",
             active: true,
-            gerichtet: false,
+            directed: false,
           },
         ],
       },
@@ -2194,7 +2194,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
   await inspector.getByRole("checkbox", { name: "Verwandtschaft" }).check();
   await kinshipSaved;
 
-  const directedSaved = waitForSuccessfulStoryWorldWrite(page, '"gerichtet":true');
+  const directedSaved = waitForSuccessfulStoryWorldWrite(page, '"directed":true');
   await inspector.getByRole("checkbox", { name: "Gerichtet" }).check();
   const directedResponse = await directedSaved;
   const directedEdge = (
@@ -2205,7 +2205,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
           from: string;
           to: string;
           label?: string;
-          gerichtet?: boolean;
+          directed?: boolean;
           lineStyle?: string;
           relationshipKind?: string;
         }>;
@@ -2216,7 +2216,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
     from: "figure-ada",
     to: "figure-bela",
     label,
-    gerichtet: true,
+    directed: true,
     lineStyle: "dotted",
     relationshipKind: "kinship",
   });
@@ -2228,7 +2228,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
   const reversedEdge = (
     reversedResponse.request().postDataJSON() as {
       payload: {
-        edges: Array<{ id: string; from: string; to: string; label?: string; gerichtet?: boolean }>;
+        edges: Array<{ id: string; from: string; to: string; label?: string; directed?: boolean }>;
       };
     }
   ).payload.edges.find((edge) => edge.id === relationshipId);
@@ -2236,7 +2236,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
     from: "figure-bela",
     to: "figure-ada",
     label,
-    gerichtet: true,
+    directed: true,
   });
   await expect(inspector).toContainText("Bela → Ada");
   await expect(relationship.locator(".react-flow__edge-path")).toHaveAttribute(
@@ -2267,7 +2267,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
           from: string;
           to: string;
           label?: string;
-          gerichtet?: boolean;
+          directed?: boolean;
           lineStyle?: string;
           relationshipKind?: string;
         }>;
@@ -2631,7 +2631,7 @@ test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async 
     from: `n${index}`,
     to: `n${index + 1}`,
     label: `Beziehung ${index}`,
-    gerichtet: index % 2 === 0,
+    directed: index % 2 === 0,
   }));
   const saved = await page.request.put(`/api/state?world=${encodeURIComponent(world.id)}`, {
     headers: { "If-Match": revision },
@@ -2716,7 +2716,7 @@ test("Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab", async ({ pa
           ],
           edges: [
             { id: "e1", from: "n1", to: "n2", label: "Verbündete" },
-            { id: "e2", from: "n2", to: "n1", label: "Bewundert", gerichtet: true },
+            { id: "e2", from: "n2", to: "n1", label: "Bewundert", directed: true },
           ],
         })
       : fulfillDocumentSave(route, 1),

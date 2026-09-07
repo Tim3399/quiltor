@@ -206,7 +206,7 @@ describe("PlaceInspector", () => {
     const onPatch = vi.fn();
     const selected = {
       ...state.nodes[0],
-      profile: { alter: "Alt", extra: [{ k: "Geruch", v: "Salz" }], notizen: "Nebel" },
+      profile: { alter: "Alt", extra: [{ k: "Geruch", v: "Salz" }], notes: "Nebel" },
     };
     render(
       <I18nProvider>
@@ -237,7 +237,7 @@ describe("PlaceInspector", () => {
       profile: {
         alter: "Alt",
         extra: [{ k: "Geruch", v: "Salz" }],
-        notizen: "Salziger Nebel",
+        notes: "Salziger Nebel",
         noteReferences: [],
         noteMarks: [],
       },

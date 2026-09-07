@@ -13,7 +13,7 @@
         "to": "ben",
         "label": "Freunde",
         "style": "solid",
-        "gerichtet": false,
+        "directed": false,
         "versions": [
           { "momentId": "break", "active": false, "label": "Getrennt" },
           {
@@ -22,7 +22,7 @@
             "from": "ben",
             "to": "ada",
             "label": "Rivalen",
-            "gerichtet": true,
+            "directed": true,
             "style": "dashed"
           }
         ]

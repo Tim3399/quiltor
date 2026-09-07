@@ -20,7 +20,7 @@ const storyWorld: FigureState = {
       to: "figure-b",
       label: "führt",
       active: true,
-      gerichtet: true,
+      directed: true,
     },
     {
       id: "figure-undirected",
@@ -28,7 +28,7 @@ const storyWorld: FigureState = {
       to: "figure-b",
       label: "kennt",
       active: true,
-      gerichtet: false,
+      directed: false,
     },
   ],
 };

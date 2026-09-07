@@ -128,11 +128,11 @@ export function PlaceInspector({
             <NoteEditor
               owner={{ kind: "place", id: selected.id }}
               label={t("profileNotes")}
-              value={selected.profile?.notizen || ""}
+              value={selected.profile?.notes || ""}
               references={selected.profile?.noteReferences}
               marks={selected.profile?.noteMarks}
-              onChange={(notizen, noteReferences, noteMarks) =>
-                onPatch({ profile: { ...selected.profile, notizen, noteReferences, noteMarks } })
+              onChange={(notes, noteReferences, noteMarks) =>
+                onPatch({ profile: { ...selected.profile, notes, noteReferences, noteMarks } })
               }
               focus={noteFocusCopy(t, selected.name)}
             />

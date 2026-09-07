@@ -152,7 +152,7 @@ class NoteReferenceValidationTests(unittest.TestCase):
                     "x": 0,
                     "y": 0,
                     "profile": {
-                        "notizen": "😀 Mara und Hafen",
+                        "notes": "😀 Mara und Hafen",
                         "noteReferences": [self.reference()],
                     },
                 }
@@ -303,7 +303,7 @@ class NoteMarkValidationTests(unittest.TestCase):
                     "x": 0,
                     "y": 0,
                     "profile": {
-                        "notizen": "Titel",
+                        "notes": "Titel",
                         "noteMarks": [{"from": 0, "to": 5, "kind": "heading", "level": 1}],
                     },
                 }
@@ -585,7 +585,7 @@ class MarkdownMirrorTests(unittest.TestCase):
                         {
                             "id": "mara",
                             "name": "Mara",
-                            "profile": {"notizen": note, "noteMarks": marks},
+                            "profile": {"notes": note, "noteMarks": marks},
                         }
                     ],
                     "edges": [],

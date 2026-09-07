@@ -140,7 +140,7 @@ def _merge_accumulated(
                     "id": f"temp:edge:{len(edges)}",
                     "from": relation.get("from"),
                     "to": relation.get("to"),
-                    "gerichtet": relation.get("directed"),
+                    "directed": relation.get("directed"),
                     "label": relation.get("label"),
                 }
             )

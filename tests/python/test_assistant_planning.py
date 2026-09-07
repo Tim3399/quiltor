@@ -60,7 +60,7 @@ class AssistantPlanningTests(unittest.TestCase):
             {
                 "kind": "create_element",
                 "tempId": "new:corgi",
-                "element": {"type": "tier", "name": "Corgi", "profile": {"notizen": "klein"}},
+                "element": {"type": "tier", "name": "Corgi", "profile": {"notes": "klein"}},
             }
         ]
         completed = complete_compound_proposals(
@@ -128,14 +128,14 @@ class AssistantPlanningTests(unittest.TestCase):
                     "id": "e1",
                     "from": "a",
                     "to": "b",
-                    "gerichtet": True,
+                    "directed": True,
                     "versions": [{"momentId": "m1"}],
                 },
                 {
                     "id": "e2",
                     "from": "a",
                     "to": "missing",
-                    "gerichtet": True,
+                    "directed": True,
                     "versions": [{"momentId": "missing"}],
                 },
             ],

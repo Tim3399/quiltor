@@ -40,7 +40,7 @@ def _world():
                 "to": "ben",
                 "label": "Freunde",
                 "style": "solid",
-                "gerichtet": False,
+                "directed": False,
             }
         ],
         "timeline": [
@@ -226,7 +226,7 @@ class RelationshipEnsureTests(unittest.TestCase):
         self.assertEqual((unchanged.outcome, unchanged.resolved_id), ("unchanged", "ada-ben"))
         self.assertEqual(unchanged.canonical["from"], "ben")
         self.assertEqual(unchanged.canonical["to"], "ada")
-        self.assertNotIn("gerichtet", unchanged.canonical)
+        self.assertNotIn("directed", unchanged.canonical)
 
         update = ensure_relationship(
             context,

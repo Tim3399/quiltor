@@ -31,7 +31,7 @@ export interface Profile {
   herkunft?: string;
   /** @deprecated Use fields. */
   stimme?: string;
-  notizen?: string;
+  notes?: string;
   noteReferences?: NoteReference[];
   noteMarks?: NoteMark[];
   /** @deprecated Legacy custom fields remain readable until every persisted world is migrated. */
@@ -109,7 +109,7 @@ export interface FigureEdge {
   relationshipKind?: GraphRelationshipKind;
   /** @deprecated Use lineStyle, relationshipKind and color independently. */
   style?: "solid" | "dashed" | "blood" | "gold";
-  gerichtet?: boolean;
+  directed?: boolean;
   color?: GraphEdgeColor;
   fromHandle?: string;
   toHandle?: string;
@@ -127,7 +127,7 @@ export interface RelationshipVersion {
   relationshipKind?: GraphRelationshipKind;
   /** @deprecated Use lineStyle, relationshipKind and color independently. */
   style?: "solid" | "dashed" | "blood" | "gold";
-  gerichtet?: boolean;
+  directed?: boolean;
   color?: GraphEdgeColor;
   active: boolean;
 }

@@ -146,7 +146,7 @@ def validate_proposals(
                 ):
                     continue
                 if not isinstance(element.get("profile"), dict):
-                    element["profile"] = {"notizen": str(element.get("profile") or "")}
+                    element["profile"] = {"notes": str(element.get("profile") or "")}
                 age = re.search(r"\b(\d{1,3})\s*(?:jahre?|years?)\b", question, re.IGNORECASE)
                 if age and not element["profile"].get("alter"):
                     element["profile"]["alter"] = age.group(1)
@@ -178,7 +178,7 @@ def validate_proposals(
             if isinstance(patch.get("profile"), dict):
                 clean_patch["profile"] = {
                     key: str(patch["profile"][key])[:4000]
-                    for key in ("alter", "rolle", "aussehen", "herkunft", "stimme", "notizen")
+                    for key in ("alter", "rolle", "aussehen", "herkunft", "stimme", "notes")
                     if isinstance(patch["profile"].get(key), str)
                 }
             if not clean_patch:
@@ -285,7 +285,7 @@ def validate_proposals(
             directed = bool(relation.get("directed"))
             duplicate = any(
                 (
-                    bool(edge.get("gerichtet")) == directed
+                    bool(edge.get("directed")) == directed
                     and (
                         (
                             directed

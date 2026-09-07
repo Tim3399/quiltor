@@ -111,7 +111,7 @@ def _synthetic_staged_id(collection: str, item: Mapping[str, Any]) -> str | None
 
     if collection == "relationships":
         source, target = item.get("from"), item.get("to")
-        directed = item.get("gerichtet", item.get("directed", False))
+        directed = item.get("directed", item.get("directed", False))
         if not isinstance(source, str) or not isinstance(target, str) or type(directed) is not bool:
             return None
         endpoints = (source, target) if directed else tuple(sorted((source, target)))
@@ -153,8 +153,8 @@ def _normalized_staged(
                     else deepcopy(alias)
                     for alias in aliases
                 ]
-        if collection == "relationships" and "gerichtet" not in item:
-            item["gerichtet"] = item.get("directed", False)
+        if collection == "relationships" and "directed" not in item:
+            item["directed"] = item.get("directed", False)
         normalized.append(item)
     return normalized
 
@@ -450,7 +450,7 @@ def _resolved_reference(
 
 
 def _directed(value: Mapping[str, Any]) -> bool | None:
-    supplied = [value[key] for key in ("directed", "gerichtet") if key in value]
+    supplied = [value[key] for key in ("directed", "directed") if key in value]
     if any(type(item) is not bool for item in supplied):
         return None
     if len(supplied) == 2 and supplied[0] != supplied[1]:
@@ -459,7 +459,7 @@ def _directed(value: Mapping[str, Any]) -> bool | None:
 
 
 def _edge_directed(edge: Mapping[str, Any]) -> bool:
-    return bool(edge.get("gerichtet", edge.get("directed", False)))
+    return bool(edge.get("directed", edge.get("directed", False)))
 
 
 def _same_edge(edge: Mapping[str, Any], source: str, target: str, directed: bool) -> bool:
@@ -540,7 +540,7 @@ def ensure_relationship(
             candidate_ids=candidates,
         )
     canonical = deepcopy(value)
-    canonical.pop("gerichtet", None)
+    canonical.pop("directed", None)
     canonical.update(
         {
             "from": source_id,
@@ -586,7 +586,7 @@ def ensure_relationship(
         "to": target_id,
         "directed": directed,
     }
-    existing_canonical.pop("gerichtet", None)
+    existing_canonical.pop("directed", None)
     if changed:
         existing_canonical.update(
             {key: canonical[key] for key in ("label", "style") if key in value}

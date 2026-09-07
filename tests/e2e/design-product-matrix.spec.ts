@@ -48,7 +48,7 @@ const storyWorld = {
       mapY: 45,
     },
   ],
-  edges: [{ id: "audit-edge", from: "mara", to: "archiv", label: "sucht", gerichtet: true }],
+  edges: [{ id: "audit-edge", from: "mara", to: "archiv", label: "sucht", directed: true }],
   timeline: [
     {
       id: "audit-moment",

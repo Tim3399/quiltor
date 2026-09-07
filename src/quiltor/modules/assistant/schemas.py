@@ -32,7 +32,7 @@ KINDS = (
 )
 PROFILE_PROPERTIES = {
     key: {"type": "string", "maxLength": 1000}
-    for key in ("alter", "rolle", "aussehen", "herkunft", "stimme", "notizen")
+    for key in ("alter", "rolle", "aussehen", "herkunft", "stimme", "notes")
 }
 
 

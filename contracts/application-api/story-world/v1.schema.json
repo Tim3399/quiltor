@@ -82,7 +82,7 @@
         "aussehen": { "type": "string" },
         "herkunft": { "type": "string" },
         "stimme": { "type": "string" },
-        "notizen": { "type": "string" },
+        "notes": { "type": "string" },
         "noteReferences": {
           "type": "array",
           "maxItems": 10000,
@@ -125,14 +125,14 @@
             "required": ["noteReferences"],
             "properties": { "noteReferences": { "minItems": 1 } }
           },
-          "then": { "required": ["notizen"] }
+          "then": { "required": ["notes"] }
         },
         {
           "if": {
             "required": ["noteMarks"],
             "properties": { "noteMarks": { "minItems": 1 } }
           },
-          "then": { "required": ["notizen"] }
+          "then": { "required": ["notes"] }
         }
       ]
     },
@@ -149,7 +149,7 @@
         "lineStyle": { "enum": ["solid", "dashed", "dotted"] },
         "relationshipKind": { "enum": ["general", "kinship"] },
         "color": { "enum": ["auto", "ink", "gold", "rose", "moss", "blue"] },
-        "gerichtet": { "type": "boolean" },
+        "directed": { "type": "boolean" },
         "fromHandle": { "type": "string" },
         "toHandle": { "type": "string" },
         "active": { "type": "boolean" },
@@ -172,7 +172,7 @@
         "lineStyle": { "enum": ["solid", "dashed", "dotted"] },
         "relationshipKind": { "enum": ["general", "kinship"] },
         "color": { "enum": ["auto", "ink", "gold", "rose", "moss", "blue"] },
-        "gerichtet": { "type": "boolean" },
+        "directed": { "type": "boolean" },
         "active": { "type": "boolean" }
       }
     },

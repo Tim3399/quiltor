@@ -186,7 +186,7 @@ export function useFigureCanvas({
         const resolved = resolveRelationship(edge, timeline, activeMomentId);
         return (
           resolved.active &&
-          relationshipKey(resolved.from, resolved.to, !!resolved.gerichtet) === candidateKey
+          relationshipKey(resolved.from, resolved.to, !!resolved.directed) === candidateKey
         );
       });
       if (duplicate) {
@@ -202,7 +202,7 @@ export function useFigureCanvas({
         to: target,
         fromHandle: connection.sourceHandle || undefined,
         toHandle: connection.targetHandle || undefined,
-        gerichtet: kind === "directed",
+        directed: kind === "directed",
         label: "",
         lineStyle: "solid" as const,
         relationshipKind: "general" as const,
@@ -217,7 +217,7 @@ export function useFigureCanvas({
                   lineStyle: "solid" as const,
                   relationshipKind: "general" as const,
                   color: "auto" as const,
-                  gerichtet: kind === "directed",
+                  directed: kind === "directed",
                   active: true,
                 },
               ],

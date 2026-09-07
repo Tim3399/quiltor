@@ -67,7 +67,7 @@
     },
     {
       "id": "profile-notes",
-      "path": "/payload/nodes/0/profile/notizen",
+      "path": "/payload/nodes/0/profile/notes",
       "alsoRemove": [
         "/payload/nodes/0/profile/noteReferences",
         "/payload/nodes/0/profile/noteMarks"
@@ -109,7 +109,7 @@
     },
     {
       "id": "edge-directed",
-      "path": "/payload/edges/0/gerichtet",
+      "path": "/payload/edges/0/directed",
       "absent": "accept",
       "null": "reject"
     },
@@ -175,7 +175,7 @@
     },
     {
       "id": "version-directed",
-      "path": "/payload/edges/0/versions/0/gerichtet",
+      "path": "/payload/edges/0/versions/0/directed",
       "absent": "accept",
       "null": "reject"
     },
@@ -434,7 +434,7 @@
       "operation": "set",
       "path": "/payload/nodes/0/profile",
       "value": {
-        "notizen": "😀 Mara",
+        "notes": "😀 Mara",
         "noteReferences": [],
         "noteMarks": [{ "from": 3, "to": 7, "kind": "bold" }],
         "fields": []
@@ -446,7 +446,7 @@
       "operation": "set",
       "path": "/payload/nodes/0/profile",
       "value": {
-        "notizen": "😀 Mara",
+        "notes": "😀 Mara",
         "noteReferences": [],
         "noteMarks": [{ "from": 1, "to": 2, "kind": "bold" }],
         "fields": []
@@ -486,7 +486,7 @@
     {
       "id": "profile-note-text-required-for-note-ranges",
       "operation": "remove",
-      "path": "/payload/nodes/0/profile/notizen",
+      "path": "/payload/nodes/0/profile/notes",
       "expect": "reject"
     },
     {
@@ -520,7 +520,7 @@
     {
       "id": "edge-bool-is-not-integer",
       "operation": "set",
-      "path": "/payload/edges/0/gerichtet",
+      "path": "/payload/edges/0/directed",
       "value": 1,
       "expect": "reject"
     },

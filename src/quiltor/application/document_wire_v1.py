@@ -336,7 +336,7 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
                     "aussehen",
                     "herkunft",
                     "stimme",
-                    "notizen",
+                    "notes",
                 )
             ):
                 return False
@@ -385,7 +385,7 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
             for key in ("label", "fromHandle", "toHandle")
         ):
             return False
-        if any(key in edge and type(edge[key]) is not bool for key in ("gerichtet", "active")):
+        if any(key in edge and type(edge[key]) is not bool for key in ("directed", "active")):
             return False
         if any(
             not isinstance(version.get("style", "solid"), str)

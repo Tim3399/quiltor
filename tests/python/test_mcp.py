@@ -41,7 +41,7 @@ def story_world() -> dict:
                 "from": "ada",
                 "to": "tarek",
                 "label": "Verbündet",
-                "gerichtet": False,
+                "directed": False,
                 "style": "solid",
                 "versions": [],
             }
@@ -520,7 +520,7 @@ class McpTest(unittest.TestCase):
                 "momentId": "arrival",
                 "label": "Misstrauen",
                 "active": True,
-                "gerichtet": False,
+                "directed": False,
                 "style": "solid",
             }
         ]

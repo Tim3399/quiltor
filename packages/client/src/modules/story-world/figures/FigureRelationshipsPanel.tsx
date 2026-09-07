@@ -55,14 +55,14 @@ export function FigureRelationshipsPanel({
             {
               from: resolved.from,
               to: resolved.to,
-              gerichtet: !resolved.gerichtet,
+              directed: !resolved.directed,
             },
           );
-          const reverseDirectionConflict = resolved.gerichtet
+          const reverseDirectionConflict = resolved.directed
             ? relationshipConflicts(state.edges, state.timeline || [], activeMomentId, edge.id, {
                 from: resolved.to,
                 to: resolved.from,
-                gerichtet: true,
+                directed: true,
               })
             : false;
           const directionLabel = t("reverseDirectionTo")
@@ -74,7 +74,7 @@ export function FigureRelationshipsPanel({
                 sourceLabel={sourceName}
                 targetLabel={targetName}
                 value={labelEditor.value}
-                directed={resolved.gerichtet === true}
+                directed={resolved.directed === true}
                 lineStyle={graphEdgeLineStyle(resolved)}
                 color={resolved.color ?? (resolved.style === "gold" ? "gold" : "auto")}
                 labels={{
@@ -105,7 +105,7 @@ export function FigureRelationshipsPanel({
                 toggleConflict={toggleDirectionConflict}
                 reverseConflict={reverseDirectionConflict}
                 onLabelChange={(label) => patchEdge({ label })}
-                onDirectedChange={(gerichtet) => patchEdge({ gerichtet })}
+                onDirectedChange={(directed) => patchEdge({ directed })}
                 onLineStyleChange={(lineStyle) => patchEdge({ lineStyle })}
                 onColorChange={(color) => patchEdge({ color })}
                 onReverse={() => patchEdge({ from: resolved.to, to: resolved.from })}

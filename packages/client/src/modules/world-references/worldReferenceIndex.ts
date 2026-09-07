@@ -65,7 +65,7 @@ export function buildWorldReferenceCandidates({
         node.sub ?? "",
         node.type ?? "person",
         ...(node.aliases ?? []).map((alias) => alias.alias),
-        profile.notizen ?? "",
+        profile.notes ?? "",
         ...(profile.fields ?? []).flatMap((field) => [field.key, field.value]),
       ],
       isPlace ? "places" : "figures",

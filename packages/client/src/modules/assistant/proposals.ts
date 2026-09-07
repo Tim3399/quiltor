@@ -103,8 +103,8 @@ export function applyAssistantProposals(
       const directed = !!proposal.relationship.directed;
       const duplicate = next.edges.some((edge) =>
         directed
-          ? edge.from === from && edge.to === to && !!edge.gerichtet
-          : !edge.gerichtet &&
+          ? edge.from === from && edge.to === to && !!edge.directed
+          : !edge.directed &&
             new Set([edge.from, edge.to]).has(from) &&
             new Set([edge.from, edge.to]).has(to),
       );
@@ -114,7 +114,7 @@ export function applyAssistantProposals(
         from,
         to,
         label: String(proposal.relationship.label || "").slice(0, 160),
-        gerichtet: directed,
+        directed: directed,
         ...relationshipAppearance(proposal.relationship),
       });
     } else if (proposal.kind === "set_relationship_at_moment") {
@@ -129,7 +129,7 @@ export function applyAssistantProposals(
           momentId,
           label: proposal.patch.label ?? current.label,
           active: proposal.patch.active ?? current.active,
-          gerichtet: proposal.patch.directed ?? current.directed,
+          directed: proposal.patch.directed ?? current.directed,
           ...appearance,
         };
         return {
@@ -228,10 +228,10 @@ function sanitizeProfile(profile: Record<string, unknown> | undefined, ownerId: 
 function sanitizeProfilePatch(
   profile: Record<string, unknown> | undefined,
   ownerId: string,
-): Pick<Profile, "notizen" | "fields"> {
+): Pick<Profile, "notes" | "fields"> {
   if (!profile) return {};
-  const result: Pick<Profile, "notizen" | "fields"> = {};
-  if (typeof profile.notizen === "string") result.notizen = profile.notizen.slice(0, 4000);
+  const result: Pick<Profile, "notes" | "fields"> = {};
+  if (typeof profile.notes === "string") result.notes = profile.notes.slice(0, 4000);
   if (Array.isArray(profile.fields)) {
     const fields: ProfileField[] = [];
     const seenIds = new Set<string>();
@@ -287,8 +287,8 @@ function applyProfilePatch(
       ),
     ];
   }
-  if (typeof sanitized.notizen === "string") next.notizen = sanitized.notizen;
-  if (typeof sanitized.notizen === "string" && sanitized.notizen !== current?.notizen) {
+  if (typeof sanitized.notes === "string") next.notes = sanitized.notes;
+  if (typeof sanitized.notes === "string" && sanitized.notes !== current?.notes) {
     next.noteReferences = [];
     next.noteMarks = [];
   }
@@ -365,7 +365,7 @@ function relationshipStateAtMoment(
   const state = {
     label: edge.label,
     active: edge.active ?? true,
-    directed: !!edge.gerichtet,
+    directed: !!edge.directed,
     appearance: relationshipAppearance(edge),
   };
   const versions = [...(edge.versions || [])]
@@ -378,7 +378,7 @@ function relationshipStateAtMoment(
   for (const version of versions) {
     if (typeof version.label === "string") state.label = version.label;
     if (typeof version.active === "boolean") state.active = version.active;
-    if (typeof version.gerichtet === "boolean") state.directed = version.gerichtet;
+    if (typeof version.directed === "boolean") state.directed = version.directed;
     state.appearance = applyRelationshipAppearance(state.appearance, version);
   }
   return state;

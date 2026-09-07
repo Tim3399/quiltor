@@ -21,7 +21,7 @@ const state: FigureState = {
       name: "Ada",
       type: "person",
       profile: {
-        notizen: "Kennt den nördlichen Weg.",
+        notes: "Kennt den nördlichen Weg.",
         fields: [{ id: "age", key: "Alter", value: "" }],
       },
     },
@@ -181,7 +181,7 @@ describe("FigureInspector panels", () => {
     });
     expect(onPatch).toHaveBeenCalledWith({
       profile: {
-        notizen: "Kennt den nördlichen Weg.",
+        notes: "Kennt den nördlichen Weg.",
         fields: [{ id: "age", key: "31", value: "" }],
       },
     });
@@ -189,7 +189,7 @@ describe("FigureInspector panels", () => {
     fireEvent.change(age, { target: { value: "31" } });
     expect(onPatch).toHaveBeenLastCalledWith({
       profile: {
-        notizen: "Kennt den nördlichen Weg.",
+        notes: "Kennt den nördlichen Weg.",
         fields: [{ id: "age", key: "Alter", value: "31" }],
       },
     });
@@ -199,7 +199,7 @@ describe("FigureInspector panels", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Aussehen" }));
     expect(onPatch).toHaveBeenLastCalledWith({
       profile: {
-        notizen: "Kennt den nördlichen Weg.",
+        notes: "Kennt den nördlichen Weg.",
         fields: [
           { id: "age", key: "Alter", value: "" },
           { id: expect.stringMatching(/^pf/), key: "Aussehen", value: "" },
@@ -209,7 +209,7 @@ describe("FigureInspector panels", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Feld „Alter“ entfernen" }));
     expect(onPatch).toHaveBeenLastCalledWith({
-      profile: { notizen: "Kennt den nördlichen Weg.", fields: [] },
+      profile: { notes: "Kennt den nördlichen Weg.", fields: [] },
     });
   });
 
@@ -369,9 +369,9 @@ describe("FigureInspector panels", () => {
     const conflictState: FigureState = {
       ...state,
       edges: [
-        { ...state.edges[0], gerichtet: true },
-        { id: "reverse", from: "bela", to: "ada", label: "Rückweg", gerichtet: true },
-        { id: "undirected", from: "ada", to: "bela", label: "Bekannt", gerichtet: false },
+        { ...state.edges[0], directed: true },
+        { id: "reverse", from: "bela", to: "ada", label: "Rückweg", directed: true },
+        { id: "undirected", from: "ada", to: "bela", label: "Bekannt", directed: false },
       ],
     };
     render(

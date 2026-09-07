@@ -25,7 +25,7 @@ describe("assistant proposals", () => {
     expect(result.nodes.map((node) => node.name)).toEqual(["Ada", "Bela"]);
     expect(result.edges[0]).toMatchObject({
       label: "Misstrauen",
-      gerichtet: false,
+      directed: false,
       lineStyle: "solid",
       relationshipKind: "general",
       color: "auto",
@@ -172,7 +172,7 @@ describe("assistant proposals", () => {
     expect(result.presence).not.toContainEqual(expect.objectContaining({ id: "old-trial" }));
   });
 
-  it("keeps note text and references when an element update omits notizen", () => {
+  it("keeps note text and references when an element update omits notes", () => {
     const state: FigureState = {
       nodes: [
         {
@@ -189,7 +189,7 @@ describe("assistant proposals", () => {
                 value: "Zeugin",
               },
             ],
-            notizen: "Mara kennt das Archiv.",
+            notes: "Mara kennt das Archiv.",
             noteReferences: [
               {
                 id: "ref-archive",
@@ -220,13 +220,13 @@ describe("assistant proposals", () => {
           value: "Heldin",
         },
       ],
-      notizen: "Mara kennt das Archiv.",
+      notes: "Mara kennt das Archiv.",
       noteReferences: state.nodes[0].profile?.noteReferences,
       noteMarks: state.nodes[0].profile?.noteMarks,
     });
   });
 
-  it("reconciles note references atomically when an element update changes notizen", () => {
+  it("reconciles note references atomically when an element update changes notes", () => {
     const state: FigureState = {
       nodes: [
         {
@@ -236,7 +236,7 @@ describe("assistant proposals", () => {
           name: "Mara",
           type: "person",
           profile: {
-            notizen: "Mara kennt das Archiv.",
+            notes: "Mara kennt das Archiv.",
             noteReferences: [
               {
                 id: "ref-archive",
@@ -259,14 +259,14 @@ describe("assistant proposals", () => {
         {
           kind: "update_element",
           elementId: "mara",
-          patch: { profile: { notizen: "Mara kennt das neue Archiv." } },
+          patch: { profile: { notes: "Mara kennt das neue Archiv." } },
         },
       ],
       t,
     );
 
     expect(result.nodes[0].profile).toMatchObject({
-      notizen: "Mara kennt das neue Archiv.",
+      notes: "Mara kennt das neue Archiv.",
       noteReferences: [],
       noteMarks: [],
     });

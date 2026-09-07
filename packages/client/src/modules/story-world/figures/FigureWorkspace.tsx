@@ -177,20 +177,20 @@ function FigureWorkspaceInner({
   };
   const edgeConflict = (
     edge: FigureEdge & { active: boolean },
-    patch: Pick<FigureEdge, "from" | "to" | "gerichtet">,
+    patch: Pick<FigureEdge, "from" | "to" | "directed">,
   ) => relationshipConflicts(state.edges, timeline, activeMomentId, edge.id, patch);
   const toggleEdgeConflict = visibleSelectedEdge
     ? edgeConflict(visibleSelectedEdge, {
         from: visibleSelectedEdge.from,
         to: visibleSelectedEdge.to,
-        gerichtet: !visibleSelectedEdge.gerichtet,
+        directed: !visibleSelectedEdge.directed,
       })
     : false;
-  const reverseEdgeConflict = visibleSelectedEdge?.gerichtet
+  const reverseEdgeConflict = visibleSelectedEdge?.directed
     ? edgeConflict(visibleSelectedEdge, {
         from: visibleSelectedEdge.to,
         to: visibleSelectedEdge.from,
-        gerichtet: true,
+        directed: true,
       })
     : false;
   const removeSelected = () => {
@@ -272,7 +272,7 @@ function FigureWorkspaceInner({
                     t("unknown")
                   }
                   value={selectedEdgeLabel.value}
-                  directed={!!visibleSelectedEdge.gerichtet}
+                  directed={!!visibleSelectedEdge.directed}
                   lineStyle={graphEdgeLineStyle(visibleSelectedEdge)}
                   color={
                     visibleSelectedEdge.color ??
@@ -322,7 +322,7 @@ function FigureWorkspaceInner({
                   onColorChange={(color) => patchSelectedEdge({ color })}
                   onDirectedChange={(directed) => {
                     if (toggleEdgeConflict) return;
-                    patchSelectedEdge({ gerichtet: directed });
+                    patchSelectedEdge({ directed: directed });
                   }}
                   onReverse={() => {
                     if (reverseEdgeConflict) return;

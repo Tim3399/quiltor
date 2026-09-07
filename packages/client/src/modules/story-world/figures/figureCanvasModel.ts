@@ -110,7 +110,7 @@ export function createRelationshipFlowEdges(
         ...(temporal ? [semanticLabels.temporal] : []),
       ];
       const presentation = graphRelationshipEdgePresentation({
-        directed: edge.gerichtet === true,
+        directed: edge.directed === true,
         variant: lineStyle,
         temporal,
         sourceLabel: figureNames.get(edge.from) || edge.from,

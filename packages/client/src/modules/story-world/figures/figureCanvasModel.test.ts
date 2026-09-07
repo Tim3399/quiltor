@@ -21,7 +21,7 @@ const state: FigureState = {
       from: "a",
       to: "c",
       label: "Folgt",
-      gerichtet: true,
+      directed: true,
       color: "blue",
       lineStyle: "dotted",
     },

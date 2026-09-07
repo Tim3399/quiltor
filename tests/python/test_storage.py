@@ -97,7 +97,7 @@ def realistic_figure_state():
                     "aussehen": "Silberne Haarsträhne",
                     "herkunft": "Nordhafen",
                     "stimme": "ruhig",
-                    "notizen": "Verbirgt die alte Karte.",
+                    "notes": "Verbirgt die alte Karte.",
                     "futureProfileField": "bleibt erhalten",
                     "extra": [
                         {"k": "Motiv", "v": "Heimkehr"},
@@ -122,7 +122,7 @@ def realistic_figure_state():
                     "aussehen": "Wettergegerbtes Gesicht",
                     "herkunft": "Südbucht",
                     "stimme": "heiser",
-                    "notizen": "Kennt die Untiefen.",
+                    "notes": "Kennt die Untiefen.",
                     "extra": [{"k": "Versprechen", "v": "Ada beschützen"}],
                 },
             },
@@ -137,7 +137,7 @@ def realistic_figure_state():
                 "accent": "blue",
                 "dash": False,
                 "pinned": False,
-                "profile": {"notizen": "Ausgangspunkt der Reise.", "extra": []},
+                "profile": {"notes": "Ausgangspunkt der Reise.", "extra": []},
             },
         ],
         "edges": [
@@ -147,7 +147,7 @@ def realistic_figure_state():
                 "to": "figure-ben",
                 "label": "Vertrauen",
                 "style": "solid",
-                "gerichtet": False,
+                "directed": False,
                 "versions": [{"momentId": "moment-storm", "label": "Misstrauen"}],
             },
             {
@@ -156,7 +156,7 @@ def realistic_figure_state():
                 "to": "place-harbor",
                 "label": "kennt",
                 "style": "dashed",
-                "gerichtet": True,
+                "directed": True,
             },
         ],
         "timeline": [
@@ -213,7 +213,7 @@ def temporal_figure_state():
             "momentId": "moment-start",
             "active": True,
             "label": "Vertrauen",
-            "gerichtet": False,
+            "directed": False,
             "style": "solid",
             "futureRelationshipField": "confirmed",
         },
@@ -221,14 +221,14 @@ def temporal_figure_state():
             "momentId": "moment-storm",
             "active": True,
             "label": "Misstrauen",
-            "gerichtet": True,
+            "directed": True,
             "style": "dashed",
         },
         {
             "momentId": "moment-mutiny",
             "active": False,
             "label": "Bruch",
-            "gerichtet": True,
+            "directed": True,
             "style": "blood",
         },
     ]
@@ -378,7 +378,7 @@ class StorageTest(unittest.TestCase):
                     "diedMomentId": "t2",
                     "profile": {
                         "rolle": "Held",
-                        "notizen": "A vertraut B.",
+                        "notes": "A vertraut B.",
                         "noteReferences": [
                             {
                                 "id": "profile-note-reference",
@@ -875,7 +875,7 @@ class StorageTest(unittest.TestCase):
                     "type": "person",
                     "name": "Mara",
                     "profile": {
-                        "notizen": "Mara kennt das Archiv.",
+                        "notes": "Mara kennt das Archiv.",
                         "noteReferences": [
                             {
                                 "id": "profile-reference-archive",
@@ -914,7 +914,7 @@ class StorageTest(unittest.TestCase):
 
         story_world.save(state)
         profile = story_world.load()["nodes"][0]["profile"]
-        self.assertEqual(profile["notizen"], "Mara kennt das Archiv.")
+        self.assertEqual(profile["notes"], "Mara kennt das Archiv.")
         self.assertEqual(profile["noteReferences"], state["nodes"][0]["profile"]["noteReferences"])
         self.assertEqual(profile["futureProfileField"], {"kept": True})
         self.assertEqual(profile["fields"], state["nodes"][0]["profile"]["fields"])
@@ -1189,7 +1189,7 @@ class StorageTest(unittest.TestCase):
             },
         ]
         profile = story_world.load(db_path=legacy_db)["nodes"][0]["profile"]
-        self.assertEqual(profile["notizen"], "Mara kennt das Archiv.")
+        self.assertEqual(profile["notes"], "Mara kennt das Archiv.")
         self.assertEqual(profile["noteReferences"], note_references)
         self.assertEqual(profile["futureProfileField"], {"kept": True})
         self.assertEqual(profile["fields"], expected_fields)
@@ -1497,7 +1497,7 @@ class StorageTest(unittest.TestCase):
                 "momentId": "legacy-zero",
                 "label": "Feinde",
                 "active": True,
-                "gerichtet": True,
+                "directed": True,
                 "style": "dashed",
                 "futureVersion": {"certainty": 0.8},
             },

@@ -424,7 +424,7 @@ def _relationship_state_at(
     state = {
         "label": edge.get("label", ""),
         "active": edge.get("active", True),
-        "directed": edge.get("gerichtet", edge.get("directed", False)),
+        "directed": edge.get("directed", edge.get("directed", False)),
         **appearance,
     }
     active_index = next(
@@ -448,8 +448,8 @@ def _relationship_state_at(
         for key in ("label", "active"):
             if key in version:
                 state[key] = version[key]
-        if "gerichtet" in version or "directed" in version:
-            state["directed"] = version.get("gerichtet", version.get("directed"))
+        if "directed" in version or "directed" in version:
+            state["directed"] = version.get("directed", version.get("directed"))
         next_appearance = apply_relationship_appearance(state, version)
         if next_appearance is not None:
             state.update(next_appearance)

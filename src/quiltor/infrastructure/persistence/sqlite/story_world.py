@@ -61,7 +61,7 @@ def load(db_path: Path | None = None) -> dict[str, Any]:
             ).fetchone()
             if profile:
                 profile_state = decode_extra(profile["extra_json"])
-                profile_state["notizen"] = profile["notes"]
+                profile_state["notes"] = profile["notes"]
                 profile_state["fields"] = [
                     {
                         **decode_extra(field["extra_json"]),
@@ -100,7 +100,7 @@ def load(db_path: Path | None = None) -> dict[str, Any]:
                 to=row["target_id"],
                 label=row["label"],
                 style=row["style"],
-                gerichtet=bool(row["directed"]),
+                directed=bool(row["directed"]),
             )
             versions = []
             for version_row in database.execute(
@@ -121,7 +121,7 @@ def load(db_path: Path | None = None) -> dict[str, Any]:
                     "to": version_row["target_id"],
                     "active": bool(version_row["active"]),
                     "label": version_row["label"],
-                    "gerichtet": bool(version_row["directed"]),
+                    "directed": bool(version_row["directed"]),
                     "style": version_row["style"],
                 }
                 for field, value in values.items():
@@ -347,12 +347,12 @@ def _sync(state: dict[str, Any], database: sqlite3.Connection) -> None:
                 "",
                 "",
                 "",
-                profile.get("notizen", ""),
+                profile.get("notes", ""),
                 encode_extra(
                     profile,
                     {
                         *(key for key, _ in LEGACY_PROFILE_FIELDS),
-                        "notizen",
+                        "notes",
                         "extra",
                         "fields",
                     },
@@ -418,7 +418,7 @@ def _sync(state: dict[str, Any], database: sqlite3.Connection) -> None:
                 "to",
                 "label",
                 "style",
-                "gerichtet",
+                "directed",
                 "versions",
             }
         }
@@ -443,7 +443,7 @@ def _sync(state: dict[str, Any], database: sqlite3.Connection) -> None:
                 edge["to"],
                 edge.get("label", ""),
                 edge.get("style", "solid"),
-                int(bool(edge.get("gerichtet"))),
+                int(bool(edge.get("directed"))),
                 json.dumps(edge_extra, ensure_ascii=False),
             ),
         )

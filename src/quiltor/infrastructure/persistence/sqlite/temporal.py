@@ -153,7 +153,7 @@ def upsert_relationship_states(
                     version.get("to"),
                     int(bool(version.get("active"))),
                     version.get("label", ""),
-                    int(bool(version.get("gerichtet"))),
+                    int(bool(version.get("directed"))),
                     version.get("style", "solid"),
                     encode_extra(
                         version,
@@ -163,10 +163,10 @@ def upsert_relationship_states(
                             "to",
                             "active",
                             "label",
-                            "gerichtet",
+                            "directed",
                             "style",
                         },
-                        ("from", "to", "active", "label", "gerichtet", "style"),
+                        ("from", "to", "active", "label", "directed", "style"),
                     ),
                 ),
             )

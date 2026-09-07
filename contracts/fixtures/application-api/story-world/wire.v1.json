@@ -21,7 +21,7 @@
         "important": true,
         "diedMomentId": "arrival",
         "profile": {
-          "notizen": "Kennt das Archiv.",
+          "notes": "Kennt das Archiv.",
           "noteReferences": [
             {
               "id": "profile-reference-archive",
@@ -74,7 +74,7 @@
         "lineStyle": "dotted",
         "relationshipKind": "kinship",
         "color": "rose",
-        "gerichtet": true,
+        "directed": true,
         "fromHandle": "right",
         "toHandle": "left",
         "active": true,
@@ -89,7 +89,7 @@
             "lineStyle": "dashed",
             "relationshipKind": "general",
             "color": "blue",
-            "gerichtet": false
+            "directed": false
           }
         ]
       }

@@ -257,7 +257,7 @@ class AssistantEntityResolutionTests(unittest.TestCase):
                 "id": "alliance",
                 "from": "tarek",
                 "to": "mara",
-                "gerichtet": False,
+                "directed": False,
                 "label": "Verbündet",
                 "style": "solid",
             }
@@ -369,8 +369,8 @@ class AssistantEntityResolutionTests(unittest.TestCase):
     def test_ambiguous_relationship_without_stable_candidate_ids_stays_fail_closed(self):
         figures = copy.deepcopy(FIGURES)
         figures["edges"] = [
-            {"from": "tarek", "to": "mara", "gerichtet": False},
-            {"from": "mara", "to": "tarek", "gerichtet": False},
+            {"from": "tarek", "to": "mara", "directed": False},
+            {"from": "mara", "to": "tarek", "directed": False},
         ]
         result = resolve_proposals(
             [

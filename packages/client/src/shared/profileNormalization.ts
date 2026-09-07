@@ -35,7 +35,7 @@ export interface NormalizableProfile {
   aussehen?: string;
   herkunft?: string;
   stimme?: string;
-  notizen?: string;
+  notes?: string;
   noteReferences?: NoteReference[];
   noteMarks?: NoteMark[];
   extra?: Array<{ k: string; v: string; [key: string]: unknown }>;

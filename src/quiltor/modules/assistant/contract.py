@@ -243,7 +243,7 @@ def _structured_relationship(edge: Any) -> dict[str, Any]:
         return {}
     relationship = {
         key: edge.get(key)
-        for key in ("id", "from", "to", "label", "gerichtet", "active")
+        for key in ("id", "from", "to", "label", "directed", "active")
         if edge.get(key) not in (None, "", [], {})
     }
     relationship.update(
@@ -256,7 +256,7 @@ def _structured_relationship(edge: Any) -> dict[str, Any]:
             continue
         mapped = {
             key: version.get(key)
-            for key in ("momentId", "from", "to", "label", "active", "gerichtet")
+            for key in ("momentId", "from", "to", "label", "active", "directed")
             if version.get(key) not in (None, "", [], {})
         }
         appearance = normalize_relationship_appearance(version)

@@ -397,7 +397,7 @@ function RelationshipCard({
             : t("timelineInheritedBadge")}
         </span>
         <strong>
-          {from?.name || t("unknown")} <i>{current.gerichtet ? "→" : "↔"}</i>{" "}
+          {from?.name || t("unknown")} <i>{current.directed ? "→" : "↔"}</i>{" "}
           {to?.name || t("unknown")}
         </strong>
         <small>
@@ -444,7 +444,7 @@ function RelationshipInspector({
         <div>
           <span>{t("relationship")}</span>
           <strong>
-            {from?.name || t("unknown")} {resolved.gerichtet ? "→" : "↔"} {to?.name || t("unknown")}
+            {from?.name || t("unknown")} {resolved.directed ? "→" : "↔"} {to?.name || t("unknown")}
           </strong>
         </div>
         <IconButton label={t("timelineCloseRelation")} icon={<X />} onClick={onClose} />
@@ -472,15 +472,15 @@ function RelationshipInspector({
           </Button>
           <Button
             className="relationship-inspector-action"
-            aria-pressed={!!resolved.gerichtet}
+            aria-pressed={!!resolved.directed}
             disabled={!resolved.active}
-            onClick={() => onPatch({ gerichtet: !resolved.gerichtet })}
+            onClick={() => onPatch({ directed: !resolved.directed })}
           >
-            {resolved.gerichtet ? t("directed") : t("undirected")}
+            {resolved.directed ? t("directed") : t("undirected")}
           </Button>
           <Button
             className="relationship-inspector-action"
-            disabled={!resolved.active || !resolved.gerichtet}
+            disabled={!resolved.active || !resolved.directed}
             onClick={() => onPatch({ from: resolved.to, to: resolved.from })}
             icon={<ArrowLeftRight />}
           >
@@ -512,5 +512,5 @@ function relationshipName(
   const current = resolveRelationship(edge, timeline, momentId),
     from = nodes.find((node) => node.id === current.from),
     to = nodes.find((node) => node.id === current.to);
-  return `${from?.name || t("unknown")} ${current.gerichtet ? "→" : "↔"} ${to?.name || t("unknown")} · ${current.label || t("timelineNoLabel")}`;
+  return `${from?.name || t("unknown")} ${current.directed ? "→" : "↔"} ${to?.name || t("unknown")} · ${current.label || t("timelineNoLabel")}`;
 }

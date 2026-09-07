@@ -178,7 +178,7 @@ export function patchRelationship(
     label: current.label,
     lineStyle: graphEdgeLineStyle(current),
     relationshipKind: graphRelationshipKind(current),
-    gerichtet: current.gerichtet,
+    directed: current.directed,
     color: relationshipColor(current),
     active: patch.active ?? current.active,
   };
@@ -191,7 +191,7 @@ export function patchRelationship(
   if (patch.style !== undefined) version.style = patch.style;
   if (patch.lineStyle !== undefined) version.lineStyle = patch.lineStyle;
   if (patch.relationshipKind !== undefined) version.relationshipKind = patch.relationshipKind;
-  if (patch.gerichtet !== undefined) version.gerichtet = patch.gerichtet;
+  if (patch.directed !== undefined) version.directed = patch.directed;
   if (patch.color !== undefined) version.color = patch.color;
   return {
     ...edge,
@@ -241,15 +241,15 @@ export function relationshipConflicts(
   timeline: TimelineMoment[],
   activeId: string | null,
   edgeId: string,
-  candidate: Pick<FigureEdge, "from" | "to" | "gerichtet">,
+  candidate: Pick<FigureEdge, "from" | "to" | "directed">,
 ) {
-  const candidateKey = relationshipKey(candidate.from, candidate.to, !!candidate.gerichtet);
+  const candidateKey = relationshipKey(candidate.from, candidate.to, !!candidate.directed);
   return edges.some((edge) => {
     if (edge.id === edgeId) return false;
     const resolved = resolveRelationship(edge, timeline, activeId);
     return (
       resolved.active &&
-      relationshipKey(resolved.from, resolved.to, !!resolved.gerichtet) === candidateKey
+      relationshipKey(resolved.from, resolved.to, !!resolved.directed) === candidateKey
     );
   });
 }
@@ -259,7 +259,7 @@ export function relationshipHandles(edge: FigureEdge, nodes: FigureNode[]) {
     {
       sourceId: edge.from,
       targetId: edge.to,
-      directed: !!edge.gerichtet,
+      directed: !!edge.directed,
     },
     nodes,
     GRID_SIZE,

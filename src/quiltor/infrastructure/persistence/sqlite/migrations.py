@@ -18,6 +18,33 @@ from quiltor.infrastructure.persistence.sqlite.temporal import migrate_legacy_st
 from quiltor.infrastructure.persistence.sqlite.time_system import ensure_primary
 
 
+_GERMAN_KEYS = {"notizen": "notes", "gerichtet": "directed"}
+
+
+def _rename_german_keys(value: object) -> bool:
+    """Rename the two retired keys anywhere in a decoded response; report whether it did.
+
+    An English key already present wins: it is what the current code writes, and a document
+    carrying both spellings would only be a second source of truth.
+    """
+
+    changed = False
+    if isinstance(value, dict):
+        for german, english in _GERMAN_KEYS.items():
+            if german not in value:
+                continue
+            retired = value.pop(german)
+            if english not in value:
+                value[english] = retired
+            changed = True
+        for item in value.values():
+            changed = _rename_german_keys(item) or changed
+    elif isinstance(value, list):
+        for item in value:
+            changed = _rename_german_keys(item) or changed
+    return changed
+
+
 def migrate(database: sqlite3.Connection, version: int) -> None:
     """Apply every missing step; each migration remains idempotent."""
 
@@ -295,6 +322,41 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
                     "UPDATE manuscript_settings SET extra_json=? WHERE id=1",
                     (json.dumps(extra, ensure_ascii=False),),
                 )
+    if version < 14:
+        # The last two German keys, `notizen` and `gerichtet`, never reached a column: figure
+        # profiles and edges have been stored as `notes` and `directed` all along, and both keys
+        # were kept out of the passthrough bags. One place did persist them, though -- the
+        # assistant's own history. A proposal is stored as the raw answer it was, and a stored
+        # answer outlives the spelling it was written in.
+        #
+        # That matters because the history is not an archive: a proposal can still be applied.
+        # Under the new spelling `notizen` is simply an unknown key, so the note would vanish on
+        # the way in -- silently, which is the worst way for it to happen.
+        #
+        # Renaming keys rather than text: `notizen` also occurs in the prose these answers cite,
+        # and that prose is a value, never a key.
+        history_exists = database.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='assistant_interactions'"
+        ).fetchone()
+        rows = (
+            database.execute(
+                "SELECT id, response_json FROM assistant_interactions"
+                " WHERE response_json IS NOT NULL"
+            ).fetchall()
+            if history_exists
+            else []
+        )
+        for row in rows:
+            try:
+                response = json.loads(row[1])
+            except (TypeError, ValueError):
+                continue
+            if not _rename_german_keys(response):
+                continue
+            database.execute(
+                "UPDATE assistant_interactions SET response_json=? WHERE id=?",
+                (json.dumps(response, ensure_ascii=False), row[0]),
+            )
     database.execute(
         "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",
         (str(SCHEMA_VERSION),),

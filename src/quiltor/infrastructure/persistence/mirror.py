@@ -192,7 +192,7 @@ def mirror_profiles(state, profile_dir: Path) -> None:
 
         prof = normalize_profile(n.get("profile"), str(n.get("id", "")))
         notes = note_markdown(
-            prof.get("notizen") or "", prof.get("noteMarks") or [], heading_offset=2
+            prof.get("notes") or "", prof.get("noteMarks") or [], heading_offset=2
         ).strip()
         if notes:
             lines += ["## Notizen", "", notes, ""]

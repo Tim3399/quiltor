@@ -76,7 +76,7 @@ const figures = {
       mapV: 0.4,
     },
   ],
-  edges: [{ id: "e1", from: "mara", to: "hafen", label: "kennt", gerichtet: true }],
+  edges: [{ id: "e1", from: "mara", to: "hafen", label: "kennt", directed: true }],
   timeline: [{ id: "t1", title: "Ankunft", date: "1847-09-03", note: "Mara erreicht den Hafen." }],
   presence: [],
 };

@@ -30,7 +30,7 @@ class ProposalResolutionResult:
     discarded: int
 
 
-_PROFILE_KEYS = ("alter", "rolle", "aussehen", "herkunft", "stimme", "notizen")
+_PROFILE_KEYS = ("alter", "rolle", "aussehen", "herkunft", "stimme", "notes")
 
 
 def _clean_text(value: Any, limit: int) -> str | None:
@@ -80,7 +80,7 @@ def _element_candidate(value: Any) -> dict[str, Any] | None:
             if isinstance(profile.get(key), str)
         }
     elif profile is not None:
-        candidate["profile"] = {"notizen": str(profile)[:4000]}
+        candidate["profile"] = {"notes": str(profile)[:4000]}
     aliases = _clean_aliases(value.get("aliases"))
     if aliases is None:
         return None

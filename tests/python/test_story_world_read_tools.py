@@ -56,13 +56,13 @@ def _world():
                 "to": "ben",
                 "label": "Freunde",
                 "style": "solid",
-                "gerichtet": False,
+                "directed": False,
                 "versions": [
                     {
                         "momentId": "break",
                         "label": "Rivalen",
                         "active": False,
-                        "gerichtet": False,
+                        "directed": False,
                         "style": "dashed",
                     }
                 ],
@@ -277,7 +277,7 @@ class ReadToolExecutionTests(unittest.TestCase):
 
         large = copy.deepcopy(self.figures)
         large["nodes"][0]["profile"] = {
-            "notizen": "x" * 50_000,
+            "notes": "x" * 50_000,
             "extra": [{"k": "k" * 500, "v": "v" * 50_000} for _ in range(100)],
         }
         bounded = execute_read_tool(
@@ -313,7 +313,7 @@ class DomainIntegrityExtractionTests(unittest.TestCase):
                 "id": "dangling",
                 "from": "ada",
                 "to": None,
-                "gerichtet": False,
+                "directed": False,
                 "versions": [{"momentId": "missing"}, {"momentId": "missing"}],
             }
         )

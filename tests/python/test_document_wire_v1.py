@@ -369,7 +369,7 @@ class DocumentWireV1Tests(unittest.TestCase):
     def test_canonical_profile_fields_round_trip_with_extensions(self):
         fixture = registered_fixture("application.story-world-wire")
         profile = {
-            "notizen": "Mara kennt das Archiv.",
+            "notes": "Mara kennt das Archiv.",
             "noteReferences": [
                 {
                     "id": "profile-reference-archive",
@@ -415,7 +415,7 @@ class DocumentWireV1Tests(unittest.TestCase):
             "aussehen": "Reisemantel",
             "herkunft": "Nordküste",
             "stimme": "ruhig",
-            "notizen": "Mara kennt das Archiv.",
+            "notes": "Mara kennt das Archiv.",
             "noteReferences": [
                 {
                     "id": "profile-reference-archive",
@@ -440,7 +440,7 @@ class DocumentWireV1Tests(unittest.TestCase):
         self.assertEqual(
             profile,
             {
-                "notizen": "Mara kennt das Archiv.",
+                "notes": "Mara kennt das Archiv.",
                 "noteReferences": [
                     {
                         "id": "profile-reference-archive",
@@ -510,7 +510,7 @@ class DocumentWireV1Tests(unittest.TestCase):
         for fields in invalid_fields:
             candidate = registered_fixture("application.story-world-wire")
             candidate["payload"]["nodes"][0]["profile"] = {
-                "notizen": "",
+                "notes": "",
                 "fields": fields,
             }
             with self.subTest(fields=fields), self.assertRaises(InvalidDocumentWireV1):
@@ -635,7 +635,7 @@ class DocumentWireV1Tests(unittest.TestCase):
 
         malformed_edges = []
         wrong_directed = registered_fixture("application.story-world-wire")
-        wrong_directed["payload"]["edges"][0]["gerichtet"] = "yes"
+        wrong_directed["payload"]["edges"][0]["directed"] = "yes"
         malformed_edges.append(wrong_directed)
         wrong_active = registered_fixture("application.story-world-wire")
         wrong_active["payload"]["edges"][0]["active"] = "yes"
@@ -694,7 +694,7 @@ class DocumentWireV1Tests(unittest.TestCase):
         fixture = registered_fixture("application.story-world-wire")
         malformed = []
         for target, key, value in (
-            (fixture["payload"]["edges"][0], "gerichtet", "yes"),
+            (fixture["payload"]["edges"][0], "directed", "yes"),
             (fixture["payload"]["edges"][0], "active", "yes"),
             (fixture["payload"]["edges"][0]["versions"][0], "style", "wavy"),
         ):

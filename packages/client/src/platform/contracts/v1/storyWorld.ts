@@ -47,7 +47,7 @@ export interface ProfileWireV1 {
   aussehen?: string;
   herkunft?: string;
   stimme?: string;
-  notizen?: string;
+  notes?: string;
   noteReferences?: NoteReferenceWireV1[];
   noteMarks?: NoteMarkWireV1[];
   extra?: Array<{ k: string; v: string; [key: string]: unknown }>;
@@ -94,7 +94,7 @@ export interface RelationshipVersionWireV1 {
   style?: "solid" | "dashed" | "blood" | "gold";
   lineStyle?: GraphEdgeLineStyle;
   relationshipKind?: GraphRelationshipKind;
-  gerichtet?: boolean;
+  directed?: boolean;
   color?: GraphEdgeColor;
   active: boolean;
   [key: string]: unknown;
@@ -108,7 +108,7 @@ export interface FigureEdgeWireV1 {
   style?: "solid" | "dashed" | "blood" | "gold";
   lineStyle?: GraphEdgeLineStyle;
   relationshipKind?: GraphRelationshipKind;
-  gerichtet?: boolean;
+  directed?: boolean;
   color?: GraphEdgeColor;
   fromHandle?: string;
   toHandle?: string;
@@ -202,13 +202,13 @@ function optionalBoolean(record: WireRecord, key: string, path: string): void {
 
 function validateProfile(value: unknown, path: string): ProfileWireV1 {
   const profile = wireRecord(value, path);
-  for (const key of ["alter", "rolle", "aussehen", "herkunft", "stimme", "notizen"]) {
+  for (const key of ["alter", "rolle", "aussehen", "herkunft", "stimme", "notes"]) {
     optionalString(profile, key, path);
   }
   if (profile.noteReferences !== undefined) {
     validateNoteReferences(
       profile.noteReferences,
-      typeof profile.notizen === "string" ? profile.notizen : "",
+      typeof profile.notes === "string" ? profile.notes : "",
       `${path}.noteReferences`,
     );
   }
@@ -217,7 +217,7 @@ function validateProfile(value: unknown, path: string): ProfileWireV1 {
       ? undefined
       : validateNoteMarks(
           profile.noteMarks,
-          typeof profile.notizen === "string" ? profile.notizen : "",
+          typeof profile.notes === "string" ? profile.notes : "",
           `${path}.noteMarks`,
         );
   if (profile.extra !== undefined) {
@@ -496,7 +496,7 @@ function storyWorldPayload(value: unknown, path: string): StoryWorldPayloadWireV
       edgePath,
     );
     for (const key of ["fromHandle", "toHandle"]) optionalString(edge, key, edgePath);
-    for (const key of ["gerichtet", "active"]) optionalBoolean(edge, key, edgePath);
+    for (const key of ["directed", "active"]) optionalBoolean(edge, key, edgePath);
     if (edge.versions !== undefined) {
       const versionMoments = new Set<string>();
       for (const [versionIndex, versionValue] of wireArray(
@@ -541,7 +541,7 @@ function storyWorldPayload(value: unknown, path: string): StoryWorldPayloadWireV
           (item, itemPath) => wireEnum(item, GRAPH_EDGE_COLORS, itemPath),
           versionPath,
         );
-        optionalBoolean(version, "gerichtet", versionPath);
+        optionalBoolean(version, "directed", versionPath);
         wireBoolean(version.active, `${versionPath}.active`);
       }
     }

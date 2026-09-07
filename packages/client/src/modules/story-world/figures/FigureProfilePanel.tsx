@@ -48,11 +48,11 @@ export function FigureProfilePanel({
         fieldClassName="figure-profile-notes-field"
         className="figure-profile-notes-control"
         label={t("profileNotes")}
-        value={profile.notizen || ""}
+        value={profile.notes || ""}
         references={profile.noteReferences}
         marks={profile.noteMarks}
-        onChange={(notizen, noteReferences, noteMarks) =>
-          patchProfile({ notizen, noteReferences, noteMarks })
+        onChange={(notes, noteReferences, noteMarks) =>
+          patchProfile({ notes, noteReferences, noteMarks })
         }
         focus={noteFocusCopy(t, figure.name)}
         rows={9}

@@ -100,7 +100,7 @@ def _project(
             "from": edge["from"],
             "to": edge["to"],
             "label": edge.get("label"),
-            "directed": bool(edge.get("gerichtet", False)),
+            "directed": bool(edge.get("directed", False)),
             "style": edge.get("style"),
         }
         versions = sorted(
@@ -115,7 +115,7 @@ def _project(
                 ("from", "from"),
                 ("to", "to"),
                 ("label", "label"),
-                ("gerichtet", "directed"),
+                ("directed", "directed"),
                 ("style", "style"),
             ):
                 if source in version:

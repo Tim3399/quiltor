@@ -357,8 +357,8 @@ def _entity_view(node: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
     if isinstance(raw_profile, Mapping):
         profile = normalize_profile(raw_profile, str(node.get("id", "")))
         profile_view: dict[str, Any] = {}
-        if "notizen" in profile:
-            profile_view["notizen"], clipped = _clipped(profile["notizen"], 1_000)
+        if "notes" in profile:
+            profile_view["notes"], clipped = _clipped(profile["notes"], 1_000)
             truncated = truncated or clipped
         fields = profile.get("fields") or []
         if isinstance(fields, list):
@@ -378,7 +378,7 @@ def _entity_view(node: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
 
 def _relationship_view(edge: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
     result: dict[str, Any] = {
-        "directed": bool(edge.get("gerichtet", edge.get("directed", False))),
+        "directed": bool(edge.get("directed", edge.get("directed", False))),
         "active": edge.get("active", True) is not False,
     }
     truncated = False
@@ -412,8 +412,8 @@ def _relationship_view(edge: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
                     truncated = truncated or clipped
             if "active" in version:
                 view["active"] = version["active"] is True
-            if "gerichtet" in version or "directed" in version:
-                view["directed"] = bool(version.get("gerichtet", version.get("directed", False)))
+            if "directed" in version or "directed" in version:
+                view["directed"] = bool(version.get("directed", version.get("directed", False)))
             result["versions"].append(view)
     return result, truncated
 

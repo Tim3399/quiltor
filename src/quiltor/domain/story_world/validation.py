@@ -61,13 +61,13 @@ def _valid_note_references(owner: dict[str, Any], note_key: str) -> bool:
 def _valid_profile(profile: Any) -> bool:
     if (
         not isinstance(profile, dict)
-        or not _valid_note_references(profile, "notizen")
-        or not valid_note_marks(profile, "notizen")
+        or not _valid_note_references(profile, "notes")
+        or not valid_note_marks(profile, "notes")
     ):
         return False
     if any(
         key in profile and not isinstance(profile[key], str)
-        for key in (*LEGACY_PROFILE_KEYS, "notizen")
+        for key in (*LEGACY_PROFILE_KEYS, "notes")
     ):
         return False
     extras = profile.get("extra")
@@ -300,7 +300,7 @@ def valid_figures(payload: Any) -> bool:
                 or ("label" in version and not isinstance(version["label"], str))
                 or not isinstance(version.get("style", "solid"), str)
                 or version.get("style", "solid") not in edge_styles
-                or ("gerichtet" in version and type(version["gerichtet"]) is not bool)
+                or ("directed" in version and type(version["directed"]) is not bool)
                 or not isinstance(version.get("color", "auto"), str)
                 or version.get("color", "auto") not in edge_colors
                 or not isinstance(version.get("lineStyle", "solid"), str)

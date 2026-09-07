@@ -40,7 +40,7 @@ describe("story-world profile normalization", () => {
 
   it("clones canonical fields while preserving profile and field extensions", () => {
     const profile = {
-      notizen: "Text",
+      notes: "Text",
       futureProfile: { kept: true },
       fields: [
         {

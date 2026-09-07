@@ -105,8 +105,8 @@ def validate_world(figures: dict[str, Any]) -> dict[str, Any]:
                 )
             )
         endpoints = (edge.get("from"), edge.get("to"))
-        key = endpoints if edge.get("gerichtet") else tuple(sorted(endpoints, key=str))
-        duplicate_key = (bool(edge.get("gerichtet")), *key)
+        key = endpoints if edge.get("directed") else tuple(sorted(endpoints, key=str))
+        duplicate_key = (bool(edge.get("directed")), *key)
         if duplicate_key in seen:
             entries.append(
                 _issue(

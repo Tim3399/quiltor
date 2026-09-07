@@ -139,7 +139,7 @@ function fixture(): { manuscript: Manuscript; figures: FigureState } {
           x: 0,
           y: 0,
           profile: {
-            notizen: "Mara",
+            notes: "Mara",
             noteReferences: [
               { id: "place-note", target: entityTarget, from: 0, to: 4, surface: "Mara" },
             ],

@@ -107,7 +107,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
             f"Art: {node.get('type', 'person')}",
             f"Rolle/Kategorie: {_clean(node.get('label'))}",
             f"Kurzbeschreibung: {_clean(node.get('sub'))}",
-            f"Notizen: {_clean(profile.get('notizen'))}",
+            f"Notizen: {_clean(profile.get('notes'))}",
         ]
         profile_lines.extend(
             f"{_clean(field.get('key'))}: {_clean(field.get('value'))}"
@@ -143,7 +143,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
             )
         )
     for edge in figures.get("edges") or []:
-        direction = "gerichtet" if edge.get("gerichtet") else "ungerichtet"
+        direction = "directed" if edge.get("directed") else "ungerichtet"
         lines = [
             f"{names.get(edge.get('from'))} → {names.get(edge.get('to'))}",
             f"Beziehung: {_clean(edge.get('label'))}",

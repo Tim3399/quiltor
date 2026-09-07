@@ -104,7 +104,7 @@ def forced_proposal(
             }
     if required == {"update_element"} and node:
         note = re.search(r"(?:notiz|notes?)\s*:\s*(.+)$", question, re.IGNORECASE)
-        patch = {"profile": {"notizen": (note.group(1).strip().rstrip(".") if note else question)}}
+        patch = {"profile": {"notes": (note.group(1).strip().rstrip(".") if note else question)}}
         return {"kind": "update_element", "elementId": node["id"], "patch": patch}
     if required == {"set_relationship_at_moment"}:
         edge = next((item for item in edges if str(item.get("id", "")).casefold() in folded), None)
@@ -157,7 +157,7 @@ def forced_proposal(
                     "to": matches[1]["id"],
                     "label": label,
                     "directed": bool(
-                        re.search(r"\b(gerichtet|directed|besitzt|gehört|owns?)\b", folded)
+                        re.search(r"\b(directed|directed|besitzt|gehört|owns?)\b", folded)
                     ),
                     "lineStyle": "solid",
                     "relationshipKind": "general",

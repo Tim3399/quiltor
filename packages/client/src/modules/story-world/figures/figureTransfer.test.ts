@@ -50,7 +50,7 @@ describe("figure transfer", () => {
           y: 0,
           name: "Mara",
           profile: {
-            notizen: "Titel\nMara",
+            notes: "Titel\nMara",
             noteMarks: [
               { from: 0, to: 5, kind: "heading", level: 2 },
               { from: 6, to: 10, kind: "bold" },
@@ -113,7 +113,7 @@ describe("figure transfer", () => {
             y: 0,
             name: "Mara",
             profile: {
-              notizen: "Vertraut dem Archiv.",
+              notes: "Vertraut dem Archiv.",
               fields: [{ id: "role", key: "Aufgabe", value: "Archivarin" }],
             },
           },
@@ -137,7 +137,7 @@ describe("figure transfer", () => {
             y: 0,
             name: "Mara",
             profile: {
-              notizen: "Plan\nArchivarin",
+              notes: "Plan\nArchivarin",
               noteMarks: [
                 { from: 0, to: 4, kind: "heading", level: 1 },
                 { from: 5, to: 15, kind: "bold" },

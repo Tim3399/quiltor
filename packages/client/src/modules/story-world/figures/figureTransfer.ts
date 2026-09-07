@@ -12,7 +12,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function canonicalizeImportedNoteMarks(
   owner: Record<string, unknown>,
-  textKey: "notizen" | "note",
+  textKey: "notes" | "note",
   path: string,
 ) {
   if (!("noteMarks" in owner)) return;
@@ -31,7 +31,7 @@ function assertImportProfile(
   profile: unknown,
 ): asserts profile is FigureState["nodes"][number]["profile"] {
   if (!isRecord(profile)) throw new Error("Invalid figure profile");
-  canonicalizeImportedNoteMarks(profile, "notizen", "profile");
+  canonicalizeImportedNoteMarks(profile, "notes", "profile");
   if (
     "extra" in profile &&
     (!Array.isArray(profile.extra) ||
@@ -108,7 +108,7 @@ export function serializeFigureProfiles(state: FigureState, t: Translate): strin
       const profile = node.profile || {};
       const role = authoredFigureLabel(node);
       const lines = [`# ${node.name}`, "", role ? `*${role}*` : "", node.sub || "", ""];
-      const notes = noteMarkdown(String(profile.notizen || ""), profile.noteMarks, 2).trim();
+      const notes = noteMarkdown(String(profile.notes || ""), profile.noteMarks, 2).trim();
       if (notes) lines.push(`## ${t("profileNotes")}`, "", notes, "");
       const fields = normalizeProfileFields(profile, node.id, (legacyKey) => {
         const template = PROFILE_FIELD_TEMPLATES.find((item) => item.legacyKey === legacyKey);

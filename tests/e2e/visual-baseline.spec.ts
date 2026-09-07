@@ -43,7 +43,7 @@ const figures = {
       mapY: 45,
     },
   ],
-  edges: [{ id: "e1", from: "mara", to: "archiv", label: "sucht", gerichtet: true }],
+  edges: [{ id: "e1", from: "mara", to: "archiv", label: "sucht", directed: true }],
   timeline: [{ id: "t1", title: "Ankunft", date: "1847-09-03", note: "Mara erreicht den Hafen." }],
   presence: [],
 };

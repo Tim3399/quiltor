@@ -265,7 +265,7 @@ describe("relationship timeline", () => {
   });
 
   it("reverses a directed relationship only from the selected moment onward", () => {
-    const edge: FigureEdge = { id: "e1", from: "a", to: "b", label: "Folgt", gerichtet: true };
+    const edge: FigureEdge = { id: "e1", from: "a", to: "b", label: "Folgt", directed: true };
     const changed = patchRelationship(edge, timeline, "betrayal", { from: "b", to: "a" });
     expect(changed).toMatchObject({ from: "a", to: "b" });
     expect(resolveRelationship(changed, timeline, "before")).toMatchObject({ from: "a", to: "b" });
@@ -283,21 +283,21 @@ describe("relationship timeline", () => {
         id: "edited",
         from: "a",
         to: "b",
-        gerichtet: true,
-        versions: [{ momentId: "betrayal", from: "b", to: "a", gerichtet: true, active: true }],
+        directed: true,
+        versions: [{ momentId: "betrayal", from: "b", to: "a", directed: true, active: true }],
       },
       {
         id: "other",
         from: "c",
         to: "b",
-        gerichtet: true,
-        versions: [{ momentId: "betrayal", from: "a", to: "b", gerichtet: true, active: true }],
+        directed: true,
+        versions: [{ momentId: "betrayal", from: "a", to: "b", directed: true, active: true }],
       },
       {
         id: "inactive",
         from: "b",
         to: "a",
-        gerichtet: true,
+        directed: true,
         active: false,
       },
     ];
@@ -306,14 +306,14 @@ describe("relationship timeline", () => {
       relationshipConflicts(edges, timeline, "betrayal", "edited", {
         from: "a",
         to: "b",
-        gerichtet: true,
+        directed: true,
       }),
     ).toBe(true);
     expect(
       relationshipConflicts(edges, timeline, "betrayal", "edited", {
         from: "b",
         to: "a",
-        gerichtet: true,
+        directed: true,
       }),
     ).toBe(false);
   });
@@ -324,7 +324,7 @@ describe("relationship timeline", () => {
       from: "a",
       to: "b",
       label: "Folgt",
-      gerichtet: true,
+      directed: true,
       versions: [
         { momentId: "betrayal", from: "b", to: "a", label: "Jagt", active: true },
         { momentId: "after", label: "Meidet", active: true },

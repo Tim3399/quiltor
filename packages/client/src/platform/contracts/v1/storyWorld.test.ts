@@ -41,7 +41,7 @@ describe("story-world wire v1", () => {
     const invalidEndpoint = copy(fixture);
     invalidEndpoint.payload.edges[0].to = "missing-place";
     const invalidDirected = copy(fixture);
-    invalidDirected.payload.edges[0].gerichtet = "yes" as unknown as boolean;
+    invalidDirected.payload.edges[0].directed = "yes" as unknown as boolean;
     const invalidActive = copy(fixture);
     invalidActive.payload.edges[0].versions[0].active = "yes" as unknown as boolean;
     const invalidVersionStyle = copy(fixture);
@@ -146,7 +146,7 @@ describe("story-world wire v1", () => {
     const astralProfile = copy(fixture);
     const astralProfileValue = astralProfile.payload.nodes[0].profile;
     if (!astralProfileValue) throw new Error("profile fixture missing");
-    astralProfileValue.notizen = "😀 Mara";
+    astralProfileValue.notes = "😀 Mara";
     astralProfileValue.noteReferences = [];
     astralProfileValue.noteMarks = [{ from: 1, to: 2, kind: "bold" }];
     expect(() => decodeStoryWorldV1(astralProfile)).toThrow();
@@ -175,7 +175,7 @@ describe("story-world wire v1", () => {
 
     const decoded = decodeStoryWorldV1(source);
     expect(decoded.document.nodes[0].profile).toMatchObject({
-      notizen: "Kennt das Archiv.",
+      notes: "Kennt das Archiv.",
       fields: [
         { id: "profile-field:mara:legacy:alter", key: "Alter", value: "32" },
         {

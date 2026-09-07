@@ -38,7 +38,7 @@ describe("WorldState cross-language contract", () => {
       expect(relationship.active).toBe(check.relationshipActive);
       expect(relationship.label).toBe(check.relationshipLabel);
       expect(relationship.from).toBe(check.relationshipFrom);
-      expect(relationship.gerichtet ?? false).toBe(check.relationshipDirected);
+      expect(relationship.directed ?? false).toBe(check.relationshipDirected);
     }
   });
 });
