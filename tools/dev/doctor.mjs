@@ -27,10 +27,16 @@ const { releaseToolchains } = JSON.parse(
 const LAUFZEITEN = [
   {
     name: "python",
-    // Der Preflight prueft den Interpreter, der ihn ausfuehrt -- nicht den im Pfad.
-    frage: WINDOWS
-      ? ["py", ["-3.12", "-c", "import platform;print(platform.python_version())"]]
-      : ["python3.12", ["-c", "import platform;print(platform.python_version())"]],
+    // Der Preflight prueft den Interpreter, der ihn ausfuehrt -- nicht den im Pfad. Deshalb
+    // wird der Starter nach genau dieser Reihe gefragt, nicht ein "python" aus dem Pfad.
+    //
+    // `--version` statt eines `-c`-Schnipsels: unter Windows laeuft das hier durch cmd, und
+    // cmd zerlegt `import platform;print(...)` am Semikolon. Python bekam nur `import`,
+    // warf einen Syntaxfehler, und dieses Werkzeug meldete daraufhin stundenlang
+    // "startet nicht" fuer einen Interpreter, der da war -- nur in einer anderen
+    // Patchversion. Ein Argument ohne Leer- und Sonderzeichen kann das nicht passieren.
+    frage: WINDOWS ? ["py", ["-3.12", "--version"]] : ["python3.12", ["--version"]],
+    saeubern: (text) => text.match(/Python\s+([0-9.]+)/u)?.[1] ?? text,
     hinweis: (soll) =>
       WINDOWS
         ? `winget install Python.Python.3.12 --version ${soll}`
