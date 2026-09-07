@@ -4,16 +4,16 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /*
- * Was der Release-Preflight erwartet, und was hier steht.
+ * What the release preflight expects, and what is actually installed here.
  *
- * `release_preflight.py` verlangt exakt die Laufzeiten aus distribution/toolchains.json --
- * dieselben wie die Release-CI, damit ein Versionswechsel nicht mit anderen Werkzeugen
- * gebaut wird als der Release selbst. Es meldet aber immer nur die erste Abweichung und
- * bricht ab. Wer drei davon hat, sucht dreimal.
+ * `release_preflight.py` demands exactly the runtimes from distribution/toolchains.json --
+ * the same ones the release CI uses, so a version bump is never built with different tools
+ * than the release itself. It reports only the first mismatch, then stops. Anyone with
+ * three of them searches three times.
  *
- * Dieses Skript zeigt alle auf einmal, mit der Zeile zum Nachinstallieren daneben. Es
- * aendert nichts: Laufzeiten zu installieren ist ein Eingriff ins System und bleibt eine
- * Sache, die jemand bewusst tut.
+ * This script shows all of them at once, with the install line next to each. It changes
+ * nothing: installing a runtime touches the system, and that stays something a person
+ * decides to do.
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -23,87 +23,87 @@ const { releaseToolchains } = JSON.parse(
   readFileSync(resolve(ROOT, "distribution/toolchains.json"), "utf8"),
 );
 
-/** Wie man die Version erfragt, und wie man sie nachinstalliert. */
-const LAUFZEITEN = [
+/** How to ask for the version, and how to install it. */
+const RUNTIMES = [
   {
     name: "python",
-    // Der Preflight prueft den Interpreter, der ihn ausfuehrt -- nicht den im Pfad. Deshalb
-    // wird der Starter nach genau dieser Reihe gefragt, nicht ein "python" aus dem Pfad.
+    // The preflight checks the interpreter running it -- not whichever one is on PATH. So
+    // the launcher is asked for this exact series rather than a bare "python".
     //
-    // `--version` statt eines `-c`-Schnipsels: unter Windows laeuft das hier durch cmd, und
-    // cmd zerlegt `import platform;print(...)` am Semikolon. Python bekam nur `import`,
-    // warf einen Syntaxfehler, und dieses Werkzeug meldete daraufhin stundenlang
-    // "startet nicht" fuer einen Interpreter, der da war -- nur in einer anderen
-    // Patchversion. Ein Argument ohne Leer- und Sonderzeichen kann das nicht passieren.
-    frage: WINDOWS ? ["py", ["-3.12", "--version"]] : ["python3.12", ["--version"]],
-    saeubern: (text) => text.match(/Python\s+([0-9.]+)/u)?.[1] ?? text,
-    hinweis: (soll) =>
+    // `--version` instead of a `-c` snippet: on Windows this call goes through cmd, and cmd
+    // splits `import platform;print(...)` at the semicolon. Python received just `import`,
+    // raised a syntax error, and this tool then claimed for hours that the interpreter did
+    // not start -- for one that was there, only at a different patch level. An argument
+    // without spaces or punctuation cannot suffer that.
+    ask: WINDOWS ? ["py", ["-3.12", "--version"]] : ["python3.12", ["--version"]],
+    clean: (text) => text.match(/Python\s+([0-9.]+)/u)?.[1] ?? text,
+    hint: (expected) =>
       WINDOWS
-        ? `winget install Python.Python.3.12 --version ${soll}`
-        : `pyenv install ${soll}   (oder das Paket der Distribution)`,
+        ? `winget install Python.Python.3.12 --version ${expected}`
+        : `pyenv install ${expected}   (oder das Paket der Distribution)`,
   },
   {
     name: "node",
-    frage: ["node", ["--version"]],
-    saeubern: (text) => text.replace(/^v/u, ""),
-    hinweis: (soll) => `nvm install ${soll}   (oder volta pin node@${soll})`,
+    ask: ["node", ["--version"]],
+    clean: (text) => text.replace(/^v/u, ""),
+    hint: (expected) => `nvm install ${expected}   (oder volta pin node@${expected})`,
   },
   {
     name: "npm",
-    frage: [WINDOWS ? "npm.cmd" : "npm", ["--version"]],
-    hinweis: (soll) => `npm install --global npm@${soll}`,
+    ask: [WINDOWS ? "npm.cmd" : "npm", ["--version"]],
+    hint: (expected) => `npm install --global npm@${expected}`,
   },
   {
     name: "rust",
-    frage: ["cargo", ["--version"]],
-    saeubern: (text) => text.match(/cargo\s+([0-9.]+)/u)?.[1] ?? text,
-    hinweis: (soll) => `rustup toolchain install ${soll} && rustup default ${soll}`,
+    ask: ["cargo", ["--version"]],
+    clean: (text) => text.match(/cargo\s+([0-9.]+)/u)?.[1] ?? text,
+    hint: (expected) => `rustup toolchain install ${expected} && rustup default ${expected}`,
   },
 ];
 
-function gemessen({ frage: [befehl, argumente], saeubern }) {
-  const lauf = spawnSync(befehl, argumente, { encoding: "utf8", shell: WINDOWS });
-  if (lauf.status !== 0) {
-    const grund = lauf.error?.code === "ENOENT" ? "nicht gefunden" : "startet nicht";
-    return { fehlt: true, text: grund };
+function measure({ ask: [command, args], clean }) {
+  const run = spawnSync(command, args, { encoding: "utf8", shell: WINDOWS });
+  if (run.status !== 0) {
+    const reason = run.error?.code === "ENOENT" ? "nicht gefunden" : "startet nicht";
+    return { missing: true, text: reason };
   }
-  const roh = (lauf.stdout || lauf.stderr).trim().split("\n").pop().trim();
-  return { fehlt: false, text: saeubern ? saeubern(roh) : roh };
+  const raw = (run.stdout || run.stderr).trim().split("\n").pop().trim();
+  return { missing: false, text: clean ? clean(raw) : raw };
 }
 
-const zeilen = [];
-let abweichungen = 0;
+const rows = [];
+let mismatches = 0;
 
-for (const laufzeit of LAUFZEITEN) {
-  const soll = releaseToolchains[laufzeit.name];
-  const ist = gemessen(laufzeit);
-  const passt = !ist.fehlt && ist.text === soll;
-  if (!passt) abweichungen += 1;
-  zeilen.push({
-    zeichen: passt ? "  ok " : "  -- ",
-    name: laufzeit.name.padEnd(7),
-    soll: soll.padEnd(9),
-    ist: ist.text,
-    hinweis: passt ? "" : laufzeit.hinweis(soll),
+for (const runtime of RUNTIMES) {
+  const expected = releaseToolchains[runtime.name];
+  const found = measure(runtime);
+  const matches = !found.missing && found.text === expected;
+  if (!matches) mismatches += 1;
+  rows.push({
+    mark: matches ? "  ok " : "  -- ",
+    name: runtime.name.padEnd(7),
+    expected: expected.padEnd(9),
+    found: found.text,
+    hint: matches ? "" : runtime.hint(expected),
   });
 }
 
 console.log("Laufzeiten für den Release-Preflight (distribution/toolchains.json):\n");
-for (const zeile of zeilen) {
-  console.log(`${zeile.zeichen}${zeile.name} soll ${zeile.soll} ist ${zeile.ist}`);
-  if (zeile.hinweis) console.log(`         ${zeile.hinweis}`);
+for (const row of rows) {
+  console.log(`${row.mark}${row.name} soll ${row.expected} ist ${row.found}`);
+  if (row.hint) console.log(`         ${row.hint}`);
 }
 
 console.log("");
-if (abweichungen === 0) {
+if (mismatches === 0) {
   console.log("Alle vier passen. `npm run set-version` kann laufen.");
 } else {
   console.log(
-    `${abweichungen} von ${LAUFZEITEN.length} weichen ab. Solange das so ist, lehnt ` +
+    `${mismatches} von ${RUNTIMES.length} weichen ab. Solange das so ist, lehnt ` +
       "`npm run set-version` den Versionswechsel ab -- und zwar zu Recht: ein Release, das " +
       "lokal mit anderen Werkzeugen gebaut wird als in der CI, ist nicht nachvollziehbar.",
   );
   console.log("Der Alltag -- npm start, npm test, die check-Gates -- läuft davon unberührt.");
 }
 
-process.exitCode = abweichungen === 0 ? 0 : 1;
+process.exitCode = mismatches === 0 ? 0 : 1;

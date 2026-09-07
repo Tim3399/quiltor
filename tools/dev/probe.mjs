@@ -3,79 +3,79 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /*
- * Etwas in der laufenden Anwendung nachmessen, ohne dafuer eine Datei anzulegen.
+ * Measure something inside the running application without creating a file for it.
  *
  *   npm run probe -- "document.querySelectorAll('.story-node').length"
- *   npm run probe -- --orte "[...document.querySelectorAll('.react-flow__node')].length"
- *   npm run probe -- --storyboard --breit "getComputedStyle(document.body).fontSize"
+ *   npm run probe -- --places "[...document.querySelectorAll('.react-flow__node')].length"
+ *   npm run probe -- --storyboard --wide "getComputedStyle(document.body).fontSize"
  *
- * Der Ausdruck laeuft in der Seite, das Ergebnis kommt als JSON zurueck. Die Welt ist
- * vorbereitet: Figuren, ein Ort, eine aufgeklappte Karte mit einem Ort darauf, ein
- * Storyboard mit Gruppe, zwei Karten und einer Verbindung.
+ * The expression runs inside the page and its value comes back as JSON. The world is
+ * prepared: figures, a place, an opened-out map with a place on it, a storyboard with a
+ * group, two cards and one connection.
  *
- * Der Umweg ueber Playwright ist Absicht. Im eingebetteten Browser-Fenster wird nicht
- * gezeichnet, solange es ausgeblendet ist; dort feuert kein ResizeObserver, React Flow misst
- * nichts, und die Uebersichtskarte ist leer. Das sieht aus wie ein Befund und ist keiner --
- * genau darauf bin ich einmal hereingefallen.
+ * Going through Playwright is deliberate. The embedded browser pane does not paint while it
+ * is hidden; no ResizeObserver fires there, React Flow measures nothing, and the minimap
+ * comes back empty. That looks like a finding and is not one -- I fell for it once.
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
+// The values are the German workspace buttons in the interface, so they stay as they are.
 const WORKSPACES = {
   "--text": "Text",
-  "--figuren": "Figuren",
+  "--figures": "Figuren",
   "--timeline": "Timeline",
-  "--orte": "Orte",
+  "--places": "Orte",
   "--storyboard": "Storyboard",
 };
-const ANSICHTEN = { "--breit": "wide", "--mittel": "regular", "--schmal": "compact" };
+const VIEWPORTS = { "--wide": "wide", "--regular": "regular", "--compact": "compact" };
 
-const argumente = process.argv.slice(2);
+const args = process.argv.slice(2);
 let workspace = "";
-let projekt = "wide";
-let warten = "2000";
+let project = "wide";
+let wait = "2000";
 const rest = [];
 
-for (let stelle = 0; stelle < argumente.length; stelle += 1) {
-  const wort = argumente[stelle];
-  if (WORKSPACES[wort]) workspace = WORKSPACES[wort];
-  else if (ANSICHTEN[wort]) projekt = ANSICHTEN[wort];
-  else if (wort === "--warten") warten = argumente[(stelle += 1)];
-  else rest.push(wort);
+for (let at = 0; at < args.length; at += 1) {
+  const word = args[at];
+  if (WORKSPACES[word]) workspace = WORKSPACES[word];
+  else if (VIEWPORTS[word]) project = VIEWPORTS[word];
+  else if (word === "--wait") wait = args[(at += 1)];
+  else rest.push(word);
 }
 
-const ausdruck = rest.join(" ").trim();
-if (!ausdruck) {
-  console.error('Aufruf: npm run probe -- [--orte] [--schmal] "<javascript-ausdruck>"');
-  console.error("Der Ausdruck wird in der Seite ausgewertet; sein Wert kommt als JSON zurück.");
+const expression = rest.join(" ").trim();
+if (!expression) {
+  console.error('Usage: npm run probe -- [--places] [--compact] "<javascript expression>"');
+  console.error("The expression is evaluated in the page; its value comes back as JSON.");
   process.exit(2);
 }
 
-const lauf = spawnSync(
+const run = spawnSync(
   process.platform === "win32" ? "npx.cmd" : "npx",
-  ["playwright", "test", "tests/e2e/probe.spec.ts", `--project=${projekt}`, "--reporter=line"],
+  ["playwright", "test", "tests/e2e/probe.spec.ts", `--project=${project}`, "--reporter=line"],
   {
     cwd: ROOT,
     encoding: "utf8",
     shell: process.platform === "win32",
     env: {
       ...process.env,
-      QUILTOR_PROBE: ausdruck,
+      QUILTOR_PROBE: expression,
       QUILTOR_PROBE_WORKSPACE: workspace,
-      QUILTOR_PROBE_WAIT: warten,
+      QUILTOR_PROBE_WAIT: wait,
       PLAYWRIGHT_BASE_URL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5173",
     },
   },
 );
 
-const ausgabe = `${lauf.stdout ?? ""}${lauf.stderr ?? ""}`;
-const treffer = ausgabe.match(/^SONDE (.*)$/mu);
+const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
+const reported = output.match(/^PROBE (.*)$/mu);
 
-if (treffer) {
-  console.log(treffer[1]);
+if (reported) {
+  console.log(reported[1]);
   process.exit(0);
 }
 
-console.error("Die Sonde hat nichts gemeldet. Läuft `npm start`?\n");
-console.error(ausgabe.trim().split("\n").slice(-20).join("\n"));
+console.error("The probe reported nothing. Is `npm start` running?\n");
+console.error(output.trim().split("\n").slice(-20).join("\n"));
 process.exit(1);

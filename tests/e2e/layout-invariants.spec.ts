@@ -27,7 +27,7 @@ const manuscript = {
     { id: "c2", title: "Das Archiv", body: "Acht Wörter stehen hier schon bereit.", note: "" },
   ],
   words: [],
-  zeichenAktiv: [],
+  activeSymbols: [],
 };
 
 const figures = {

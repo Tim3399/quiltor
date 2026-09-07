@@ -2999,7 +2999,7 @@ test("Autosave überlebt Reload und meldet konkurrierende Änderungen", async ({
   let manuscript = {
     chapters: [{ id: "c1", title: "Test", body: "Anfang", note: "" }],
     words: [],
-    zeichenAktiv: [],
+    activeSymbols: [],
   };
   await page.route("**/api/manuscript*", async (route) => {
     if (route.request().method() === "GET") return fulfillManuscript(route, manuscript, revision);

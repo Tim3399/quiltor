@@ -18,7 +18,7 @@ const manuscript = {
     },
   ],
   words: [],
-  zeichenAktiv: ["„", "“", "…"],
+  activeSymbols: ["„", "“", "…"],
 };
 const figures = {
   nodes: [

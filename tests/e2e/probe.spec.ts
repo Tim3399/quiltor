@@ -2,20 +2,20 @@ import { expect, test } from "@playwright/test";
 import { mockRequiredWorldDocuments } from "./support/application-api";
 
 /*
- * Eine Messstelle in der laufenden Anwendung, ohne jedes Mal eine Wegwerf-Datei.
+ * A measuring point inside the running application, without a throwaway file every time.
  *
- * Gestartet wird sie über `npm run probe -- "<ausdruck>"`; der Ausdruck läuft in der Seite
- * und sein Ergebnis kommt als JSON zurück. Ohne QUILTOR_PROBE tut diese Datei nichts, damit
- * sie im normalen Lauf nicht im Weg steht.
+ * Started through `npm run probe -- "<expression>"`; the expression runs in the page and its
+ * result comes back as JSON. Without QUILTOR_PROBE this file does nothing, so it stays out
+ * of the way during a normal run.
  *
- * Warum überhaupt im Browser und nicht im eingebetteten Fenster: ein ausgeblendeter
- * Browser-Bereich zeichnet nicht, dort feuert kein ResizeObserver, und React Flow misst dann
- * gar nichts. Messungen von dort sehen aus wie Befunde und sind keine.
+ * Why a real browser rather than the embedded pane: a hidden browser pane does not paint, no
+ * ResizeObserver fires there, and React Flow then measures nothing at all. Numbers taken
+ * from there look like findings and are none.
  */
 
-const AUSDRUCK = process.env.QUILTOR_PROBE ?? "";
+const EXPRESSION = process.env.QUILTOR_PROBE ?? "";
 const WORKSPACE = process.env.QUILTOR_PROBE_WORKSPACE ?? "";
-const WARTEN = Number(process.env.QUILTOR_PROBE_WAIT ?? 2000);
+const WAIT = Number(process.env.QUILTOR_PROBE_WAIT ?? 2000);
 
 const manuscript = {
   chapters: [
@@ -27,7 +27,7 @@ const manuscript = {
     },
   ],
   words: [{ w: "Gezeitenarchiv", d: "" }],
-  zeichenAktiv: ["„", "“", "…"],
+  activeSymbols: ["„", "“", "…"],
 };
 
 const figures = {
@@ -123,7 +123,7 @@ const storyboards = {
 };
 
 test("Sonde", async ({ page }) => {
-  test.skip(!AUSDRUCK, "Nur mit QUILTOR_PROBE; siehe npm run probe.");
+  test.skip(!EXPRESSION, "Only with QUILTOR_PROBE; see npm run probe.");
 
   await page.addInitScript(() => {
     localStorage.setItem("quiltor-theme", "light");
@@ -152,12 +152,9 @@ test("Sonde", async ({ page }) => {
   if (WORKSPACE) {
     await page.getByRole("button", { name: WORKSPACE, exact: true }).click();
   }
-  // Die Leinwaende passen ihren Ausschnitt beim Ankommen an; erst danach stehen die Zahlen.
-  await page.waitForTimeout(WARTEN);
+  // The canvases fit their viewport on arrival; only after that do the numbers settle.
+  await page.waitForTimeout(WAIT);
 
-  const ergebnis = await page.evaluate(
-    (quelltext) => new Function(`return (${quelltext});`)(),
-    AUSDRUCK,
-  );
-  console.log(`SONDE ${JSON.stringify(ergebnis ?? null)}`);
+  const result = await page.evaluate((source) => new Function(`return (${source});`)(), EXPRESSION);
+  console.log(`PROBE ${JSON.stringify(result ?? null)}`);
 });

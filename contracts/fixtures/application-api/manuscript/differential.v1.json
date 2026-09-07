@@ -9,7 +9,7 @@
     { "id": "words", "path": "/payload/words", "absent": "accept", "null": "reject" },
     {
       "id": "active-characters",
-      "path": "/payload/zeichenAktiv",
+      "path": "/payload/activeSymbols",
       "absent": "accept",
       "null": "reject"
     },

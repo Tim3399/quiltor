@@ -64,7 +64,7 @@ export function WritingInsertPanel({
   const projectDictionary = manuscript.words || [];
   // Verborgen wird gespeichert, nicht Sichtbares: eine Figur, die spaeter angelegt wird,
   // erscheint von selbst und muss nicht erst freigeschaltet werden.
-  const verborgen = new Set(manuscript.elementeVerborgen ?? []);
+  const verborgen = new Set(manuscript.hiddenElements ?? []);
   const angeboteneElemente = figures.nodes.filter((node) => !verborgen.has(node.id));
 
   return (
@@ -166,7 +166,7 @@ export function WritingInsertPanel({
       <section>
         <h3>{t("specialCharacters")}</h3>
         <ChipList className="chip-list symbols" label={t("specialCharacters")}>
-          {(manuscript.zeichenAktiv || DEFAULT_SYMBOLS).map((symbol) => (
+          {(manuscript.activeSymbols || DEFAULT_SYMBOLS).map((symbol) => (
             <ChipAction
               className="writing-insert-chip writing-insert-symbol"
               key={symbol}
@@ -184,7 +184,7 @@ export function WritingInsertPanel({
         >
           <ChipList className="symbol-picker__chips" label={t("chooseSymbols")}>
             {AVAILABLE_SYMBOLS.map((symbol) => {
-              const active = (manuscript.zeichenAktiv || []).includes(symbol);
+              const active = (manuscript.activeSymbols || []).includes(symbol);
               return (
                 <ChipAction
                   className="symbol-picker__chip"

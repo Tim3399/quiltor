@@ -1,5 +1,6 @@
 """Map images round-trip through the world database and are swept when dropped."""
 
+import json
 import tempfile
 import unittest
 from datetime import datetime, timedelta
@@ -82,8 +83,25 @@ class PlaceMapStorageTests(unittest.TestCase):
 
 
 class PlaceMapSchemaTests(unittest.TestCase):
-    def test_the_migration_chain_tip_matches_the_schema_constant(self):
-        self.assertEqual(schema.SCHEMA_VERSION, 12)
+    def test_the_place_map_step_stays_in_the_migration_chain(self):
+        """Pin the step, not the tip.
+
+        This used to compare the schema constant against a literal 12, which made every
+        later migration look like a broken place-map contract. What this file actually
+        guards is that the step introducing `place_map_images` is still in the ladder.
+        """
+
+        chain = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "contracts/fixtures/persistence/sqlite-migration-chain.v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        place_map_step = next(
+            step for step in chain["steps"] if (step["from"], step["to"]) == (11, 12)
+        )
+        self.assertIn("place map images", " ".join(place_map_step["guarantees"]))
+        self.assertGreaterEqual(schema.SCHEMA_VERSION, 12)
 
     def test_an_existing_world_gains_the_table_without_losing_its_version(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -103,7 +121,7 @@ class PlaceMapSchemaTests(unittest.TestCase):
                 }
             finally:
                 handle.close()
-        self.assertEqual(int(version), 12)
+        self.assertEqual(int(version), schema.SCHEMA_VERSION)
         self.assertIn("place_map_images", tables)
 
 

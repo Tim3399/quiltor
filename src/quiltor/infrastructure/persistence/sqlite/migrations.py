@@ -258,6 +258,43 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
         database.execute(
             "CREATE INDEX IF NOT EXISTS place_map_images_created ON place_map_images(created_at)"
         )
+    if version < 13:
+        # Two manuscript settings carried German names until v3.16: `zeichenAktiv` for the
+        # symbols the insert panel offers, and `elementeVerborgen` for the world elements it
+        # hides. `zeichenAktiv` never reached the disk -- it was only the key this database
+        # handed upwards for the `characters_json` column, so renaming it costs nothing here.
+        #
+        # `elementeVerborgen` did: it lives in the settings' passthrough bag. It is renamed
+        # once, here, so that nothing downstream has to know two spellings. Both keys are
+        # cleared out afterwards; a document that still carries one is refused by the wire
+        # validator, and rightly so.
+        # Like every step above: ask whether the table is there before reading it. The ladder
+        # also runs against databases that carry only `meta` -- the contract test does exactly
+        # that -- and a step that assumes a full schema breaks the whole chain for them.
+        settings_exist = database.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='manuscript_settings'"
+        ).fetchone()
+        settings = (
+            database.execute("SELECT extra_json FROM manuscript_settings WHERE id=1").fetchone()
+            if settings_exist
+            else None
+        )
+        if settings:
+            try:
+                extra = json.loads(settings[0])
+            except (TypeError, ValueError):
+                extra = None
+            if isinstance(extra, dict) and (
+                "elementeVerborgen" in extra or "zeichenAktiv" in extra
+            ):
+                hidden = extra.pop("elementeVerborgen", None)
+                extra.pop("zeichenAktiv", None)
+                if isinstance(hidden, list) and "hiddenElements" not in extra:
+                    extra["hiddenElements"] = hidden
+                database.execute(
+                    "UPDATE manuscript_settings SET extra_json=? WHERE id=1",
+                    (json.dumps(extra, ensure_ascii=False),),
+                )
     database.execute(
         "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",
         (str(SCHEMA_VERSION),),

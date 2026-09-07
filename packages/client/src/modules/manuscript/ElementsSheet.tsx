@@ -29,13 +29,13 @@ export function ElementsSheet({
   onClose,
 }: ElementsSheetProps) {
   const { t } = useI18n();
-  const hidden = new Set(manuscript.elementeVerborgen ?? []);
+  const hidden = new Set(manuscript.hiddenElements ?? []);
 
   const toggle = (id: string) => {
     const next = new Set(hidden);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    onChange({ ...manuscript, elementeVerborgen: [...next] });
+    onChange({ ...manuscript, hiddenElements: [...next] });
   };
 
   return (

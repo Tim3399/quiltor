@@ -276,9 +276,9 @@ ${markdownBody(current.body, current.marks)}
       onToggleSymbol={(symbol, active) =>
         onChange({
           ...manuscript,
-          zeichenAktiv: active
-            ? (manuscript.zeichenAktiv || []).filter((item) => item !== symbol)
-            : [...(manuscript.zeichenAktiv || []), symbol],
+          activeSymbols: active
+            ? (manuscript.activeSymbols || []).filter((item) => item !== symbol)
+            : [...(manuscript.activeSymbols || []), symbol],
         })
       }
     />

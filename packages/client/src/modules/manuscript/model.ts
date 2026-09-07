@@ -86,8 +86,9 @@ export interface Manuscript {
   language?: WritingLocale;
   grammarMode?: GrammarMode;
   words?: Array<string | { w: string; d?: string }>;
-  zeichenAktiv?: string[];
-  /** Elemente der Welt, die im Einfuegen-Bereich nicht angeboten werden. */
-  elementeVerborgen?: string[];
+  /** Special characters the writer keeps in the insert panel. */
+  activeSymbols?: string[];
+  /** World elements the insert panel does not offer. */
+  hiddenElements?: string[];
   [key: string]: unknown;
 }

@@ -197,22 +197,39 @@ describe("manuscript wire v1", () => {
   });
 });
 
-describe("manuscript wire v1 und verborgene Elemente", () => {
-  it("traegt die Auswahl des Einfuegen-Bereichs durch die Leitung", () => {
+describe("manuscript wire v1 and hidden elements", () => {
+  it("carries the insert panel's selection across the wire", () => {
     const wire = copy(fixture);
-    (wire.payload as Record<string, unknown>).elementeVerborgen = ["mara", "archiv"];
+    (wire.payload as Record<string, unknown>).hiddenElements = ["mara", "archiv"];
 
-    expect(decodeManuscriptV1(wire).document.elementeVerborgen).toEqual(["mara", "archiv"]);
+    expect(decodeManuscriptV1(wire).document.hiddenElements).toEqual(["mara", "archiv"]);
   });
 
-  it("weist etwas zurueck, das keine Liste von Ids ist", () => {
+  it("rejects anything that is not a list of ids", () => {
     const wire = copy(fixture);
-    (wire.payload as Record<string, unknown>).elementeVerborgen = [42];
+    (wire.payload as Record<string, unknown>).hiddenElements = [42];
 
     expect(() => decodeManuscriptV1(wire)).toThrow();
   });
 
-  it("bleibt ohne die Angabe gueltig -- aeltere Dokumente kennen sie nicht", () => {
-    expect(decodeManuscriptV1(copy(fixture)).document.elementeVerborgen).toBeUndefined();
+  it("stays valid without it -- older documents do not know the field", () => {
+    expect(decodeManuscriptV1(copy(fixture)).document.hiddenElements).toBeUndefined();
+  });
+});
+
+describe("manuscript wire v1 and the German field names it used to have", () => {
+  /*
+   * Until v3.16 the two lists were called `zeichenAktiv` and `elementeVerborgen`. They are
+   * gone, and not merely unused: the world database renames them once when it migrates, so
+   * nothing on disk carries them any more. A payload that still does is a payload from
+   * somewhere else, and the wire refuses it rather than guessing.
+   */
+  it("does not map an old key onto the new one", () => {
+    const wire = copy(fixture);
+    const payload = wire.payload as Record<string, unknown>;
+    delete payload.activeSymbols;
+    payload.zeichenAktiv = ["„"];
+
+    expect(decodeManuscriptV1(wire).document).not.toHaveProperty("activeSymbols");
   });
 });

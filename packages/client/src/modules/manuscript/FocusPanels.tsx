@@ -142,7 +142,7 @@ export function FocusPanels({
                 className="focus-helper-chips focus-helper-symbols"
                 label={t("specialCharacters")}
               >
-                {(manuscript.zeichenAktiv || ["„", "“", "–", "—", "…"]).map((symbol) => (
+                {(manuscript.activeSymbols || ["„", "“", "–", "—", "…"]).map((symbol) => (
                   <ChipAction
                     className="focus-helper-chip focus-helper-symbol"
                     key={symbol}

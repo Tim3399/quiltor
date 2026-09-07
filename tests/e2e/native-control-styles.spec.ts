@@ -26,7 +26,7 @@ async function mockWorldWithLongCustomCalendar(page: Page) {
     manuscript: {
       chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
       words: [],
-      zeichenAktiv: [],
+      activeSymbols: [],
     },
     storyWorld: {
       nodes: [],
@@ -81,7 +81,7 @@ async function mockWorldWithStoryWorldUiAudit(page: Page) {
     manuscript: {
       chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
       words: [],
-      zeichenAktiv: [],
+      activeSymbols: [],
     },
     storyWorld: {
       nodes: [

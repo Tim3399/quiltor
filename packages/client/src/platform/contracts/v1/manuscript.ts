@@ -87,14 +87,15 @@ export interface ManuscriptPayloadWireV1 {
   language?: "de-DE";
   grammarMode?: "manual" | "automatic";
   words?: Array<string | { w: string; d?: string; [key: string]: unknown }>;
-  zeichenAktiv?: string[];
+  /** Special characters the writer keeps in the insert panel. */
+  activeSymbols?: string[];
   /**
-   * Elemente der Welt, die im Einfuegen-Bereich nicht angeboten werden.
+   * World elements the insert panel does not offer.
    *
-   * Gespeichert wird das Verborgene, nicht das Sichtbare: eine Figur, die nach dieser
-   * Einstellung angelegt wird, soll erscheinen und nicht erst freigeschaltet werden muessen.
+   * What is stored is the hidden set, not the visible one: a figure created after this
+   * setting was made should show up, not have to be unlocked first.
    */
-  elementeVerborgen?: string[];
+  hiddenElements?: string[];
   [key: string]: unknown;
 }
 
@@ -357,20 +358,10 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
       optional(item, "d", wireString, itemPath);
     }
   }
-  if (payload.zeichenAktiv !== undefined) {
-    for (const [index, character] of wireArray(
-      payload.zeichenAktiv,
-      `${path}.zeichenAktiv`,
-    ).entries()) {
-      wireString(character, `${path}.zeichenAktiv[${index}]`);
-    }
-  }
-  if (payload.elementeVerborgen !== undefined) {
-    for (const [index, id] of wireArray(
-      payload.elementeVerborgen,
-      `${path}.elementeVerborgen`,
-    ).entries()) {
-      wireString(id, `${path}.elementeVerborgen[${index}]`);
+  for (const field of ["activeSymbols", "hiddenElements"] as const) {
+    if (payload[field] === undefined) continue;
+    for (const [index, entry] of wireArray(payload[field], `${path}.${field}`).entries()) {
+      wireString(entry, `${path}.${field}[${index}]`);
     }
   }
   return {

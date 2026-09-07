@@ -41,7 +41,11 @@
             ]
           }
         },
-        "zeichenAktiv": {
+        "activeSymbols": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "hiddenElements": {
           "type": "array",
           "items": { "type": "string" }
         }

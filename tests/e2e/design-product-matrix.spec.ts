@@ -22,7 +22,7 @@ const manuscript = {
     },
   ],
   words: [],
-  zeichenAktiv: ["„", "“", "…"],
+  activeSymbols: ["„", "“", "…"],
 };
 
 const storyWorld = {

@@ -428,9 +428,9 @@ def valid_manuscript(payload: Any) -> bool:
         )
     ):
         return False
-    if "zeichenAktiv" in payload and (
-        not isinstance(payload["zeichenAktiv"], list)
-        or any(not isinstance(item, str) for item in payload["zeichenAktiv"])
+    if "activeSymbols" in payload and (
+        not isinstance(payload["activeSymbols"], list)
+        or any(not isinstance(item, str) for item in payload["activeSymbols"])
     ):
         return False
     ids: list[str] = []

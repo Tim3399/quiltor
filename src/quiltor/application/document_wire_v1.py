@@ -289,10 +289,16 @@ def _valid_manuscript_wire_fields(payload: dict[str, Any]) -> bool:
         )
     ):
         return False
-    characters = payload.get("zeichenAktiv")
-    return "zeichenAktiv" not in payload or (
-        isinstance(characters, list) and all(isinstance(item, str) for item in characters)
-    )
+    # The German spellings this document used until v3.16 are gone: the world database
+    # migrates them once on startup, so nothing on disk carries them any more and nothing
+    # on the wire may either.
+    for field in ("activeSymbols", "hiddenElements"):
+        if field not in payload:
+            continue
+        value = payload.get(field)
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            return False
+    return True
 
 
 def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:

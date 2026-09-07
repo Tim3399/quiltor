@@ -58,7 +58,7 @@
     "language": "de-DE",
     "grammarMode": "manual",
     "words": ["Gezeitenarchiv", { "w": "Arcène", "d": "Ort" }],
-    "zeichenAktiv": ["„", "“", "…"],
+    "activeSymbols": ["„", "“", "…"],
     "extension": { "source": "contract-fixture" }
   }
 }

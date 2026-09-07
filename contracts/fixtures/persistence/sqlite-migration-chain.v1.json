@@ -2,7 +2,7 @@
   "contract": "quiltor.sqlite-migrations",
   "version": 1,
   "baselineSchemaVersion": 1,
-  "currentSchemaVersion": 12,
+  "currentSchemaVersion": 13,
   "direction": "forward-only",
   "steps": [
     {
@@ -70,6 +70,13 @@
       "to": 12,
       "guarantees": [
         "Adds content-addressed storage for place map images inside the world database, so that backup, history, and restore carry them without a manifest change, and without touching document revisions or existing world data."
+      ]
+    },
+    {
+      "from": 12,
+      "to": 13,
+      "guarantees": [
+        "Renames the two manuscript settings that still carried German keys: the hidden insert-panel elements move from `elementeVerborgen` to `hiddenElements` inside the settings' passthrough bag, and any stale `zeichenAktiv` left in that bag is dropped because the active symbols live in their own column. Runs when a world is opened, leaves document revisions untouched, and is a no-op for a world that never stored either key."
       ]
     }
   ]

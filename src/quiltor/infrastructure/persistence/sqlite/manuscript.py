@@ -17,7 +17,7 @@ def load(db_path: Path | None = None) -> dict[str, Any]:
         settings = database.execute("SELECT * FROM manuscript_settings WHERE id=1").fetchone()
         result = decode_extra(settings["extra_json"]) if settings else {}
         result["words"] = json.loads(settings["words_json"]) if settings else []
-        result["zeichenAktiv"] = json.loads(settings["characters_json"]) if settings else []
+        result["activeSymbols"] = json.loads(settings["characters_json"]) if settings else []
         result.setdefault("language", "de-DE")
         result.setdefault("grammarMode", "manual")
         chapters_by_id: dict[str, dict[str, Any]] = {}
@@ -152,8 +152,8 @@ def save(
                 """,
                 (
                     json.dumps(state.get("words", []), ensure_ascii=False),
-                    json.dumps(state.get("zeichenAktiv", []), ensure_ascii=False),
-                    encode_extra(state, {"chapters", "structure", "words", "zeichenAktiv"}),
+                    json.dumps(state.get("activeSymbols", []), ensure_ascii=False),
+                    encode_extra(state, {"chapters", "structure", "words", "activeSymbols"}),
                 ),
             )
     finally:

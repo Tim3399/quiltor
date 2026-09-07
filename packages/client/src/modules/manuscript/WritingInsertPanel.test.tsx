@@ -12,7 +12,7 @@ const figures: FigureState = {
 const manuscript: Manuscript = {
   chapters: [],
   words: [{ w: "Dreamweaver", d: "" }],
-  zeichenAktiv: ["—"],
+  activeSymbols: ["—"],
 };
 
 describe("WritingInsertPanel", () => {
@@ -107,7 +107,7 @@ describe("WritingInsertPanel und verborgene Elemente", () => {
   };
 
   it("bietet ein abgewaehltes Element nicht mehr an", () => {
-    zeichne({ elementeVerborgen: ["figure"] });
+    zeichne({ hiddenElements: ["figure"] });
 
     expect(screen.queryByRole("button", { name: "Mara" })).toBeNull();
   });

@@ -48,17 +48,15 @@ describe("ElementsSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: /Mara Venn wird angeboten/ }));
 
     // Nur die eine Id: eine Figur, die spaeter angelegt wird, soll von selbst erscheinen.
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ elementeVerborgen: ["mara"] }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ hiddenElements: ["mara"] }));
   });
 
   it("nimmt ein Element wieder auf", () => {
-    const { onChange } = renderSheet({ chapters: [], elementeVerborgen: ["mara", "archiv"] });
+    const { onChange } = renderSheet({ chapters: [], hiddenElements: ["mara", "archiv"] });
 
     fireEvent.click(screen.getByRole("button", { name: /Mara Venn wird nicht angeboten/ }));
 
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ elementeVerborgen: ["archiv"] }),
-    );
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ hiddenElements: ["archiv"] }));
   });
 
   it("laesst die Welt in Ruhe -- ausgeblendet ist nicht geloescht", () => {
