@@ -203,11 +203,10 @@ jobs:
             exit 1
           fi
 
-  # Fehlt fuer eine Plattform der Baseline-Satz, weicht visual-baseline.spec.ts dort aus --
-  # und die Suite meldet gruen, obwohl sie kein einziges Pixel verglichen hat. Diese Pruefung
-  # nennt die Luecke beim Namen, statt sie unter einem "skipped" verschwinden zu lassen. Sie
-  # steht bewusst nicht im Build-Skript: sonst koennte niemand lokal bauen, bevor jede
-  # Plattform ihre Bilder hat.
+  # When a platform has no baseline set, visual-baseline.spec.ts skips itself there -- and
+  # the suite reports green while comparing not a single pixel. This check names the gap
+  # instead of letting it disappear behind a "skipped". It deliberately does not live in the
+  # build script: otherwise nobody could build locally before every platform has its images.
   visual-baseline-reach:
     runs-on: ubuntu-24.04
     steps:
@@ -218,9 +217,9 @@ jobs:
       - name: Jede vergleichende Plattform hat Bilder
         run: node tools/quality/check_visual_baseline_reach.mjs
 
-  # Linux laeuft oben, geschaerdet und als Pflichtcheck. Diese beiden Jobs holen macOS und
-  # Windows nach: dieselben Suiten, ungeschaerdet, damit ein Fehler, der nur dort auftritt,
-  # sichtbar wird statt erst beim Release-Build aufzuschlagen.
+  # Linux runs above, sharded and as the required check. These jobs add macOS and Windows:
+  # the same suites, so a failure that only happens there becomes visible here instead of
+  # landing during a release build.
   cross-platform-native:
     name: Kern auf ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -237,10 +236,10 @@ jobs:
         with:
           python-version: "3.12.10"
 
-      # Die Komponenten gehoeren an die Action, nicht an rustup. Ohne sie installiert der
-      # Aufruf von `cargo` die Toolchain, liest dann rust-toolchain.toml und traegt clippy
-      # nach -- auf macos-15 kollidiert das mit dem bin/cargo-clippy, das im Runner-Image
-      # schon liegt, und der Job stirbt vor dem ersten Test. Ubuntu macht es seit jeher so.
+      # The components belong to the action, not to rustup. Without them the first `cargo`
+      # call installs the toolchain, then reads rust-toolchain.toml and adds clippy after the
+      # fact -- on macos-15 that collides with the bin/cargo-clippy the runner image already
+      # ships, and the job dies before the first test. Ubuntu has always done it this way.
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
         with:
           toolchain: "1.98.0"
@@ -249,23 +248,23 @@ jobs:
       - name: Install declared Python dependencies
         run: python -m pip install --quiet -e .
 
-      # Pfadtrennzeichen, Dateisperren und Textkodierung sind die Stellen, an denen sich die
-      # drei Betriebssysteme wirklich unterscheiden -- und die Anwendung schreibt Dateien.
+      # Path separators, file locks and text encoding are where the three operating systems
+      # really differ -- and this application writes files.
       - name: Backend suite
         run: python -m unittest discover -s tests/python -t tests/python
 
-      # Formatierung und Clippy sind plattformunabhaengig und laufen einmal unter Linux.
+      # Formatting and clippy are platform independent and run once, on Linux.
       - name: Portable core
         run: cargo --locked test --workspace --all-targets
 
-  # Frueher lief hier beides hintereinander in einem Job: erst die Produkt-, dann die
-  # Design-Suite, auf Windows zusammen ueber zwanzig Minuten. Aufgeteilt sind es zwei Jobs
-  # nebeneinander -- die Wanduhr zeigt nur noch den laengeren von beiden, bezahlt wird ein
-  # zweiter Aufbau je System statt einer dritten Runner-Stunde fuer eine Scherbenteilung.
+  # Both suites used to run one after the other in a single job: product first, then design,
+  # together over twenty minutes on Windows. Split apart they are two jobs side by side --
+  # the wall clock now shows only the longer of the two, and what it costs is a second setup
+  # per system rather than a third runner hour for a four-way shard.
   #
-  # Die Design-Suite braucht die Anwendung gar nicht: sie faehrt gegen die Design-Galerie,
-  # die ihre Konfiguration selbst startet. Getrennt spart sie sich Python, die Installation
-  # und den Serverstart mit.
+  # The design suite does not need the application at all: it runs against the design
+  # gallery, which its own config starts. Split off, it also skips Python, the install and
+  # the server start.
   cross-platform-product:
     name: Produkt auf ${{ matrix.os }}
     needs: frontend
@@ -310,11 +309,11 @@ jobs:
           cat "$RUNNER_TEMP/quiltor-server.log"
           exit 1
 
-      # Ohne PLAYWRIGHT_WORKERS gilt die Vorgabe der Konfiguration: zwei Arbeiter, dieselbe
-      # Zahl, mit der die Suite auf jedem Schreibtisch laeuft. Der eine Arbeiter hier war
-      # Vorsicht aus einer Zeit vor der Weltenverwaltung je Arbeiter; der Anwendungsserver
-      # ist ein ThreadingTCPServer und bedient sie nebeneinander.
-      # visual-baseline.spec.ts liegt in dieser Suite und vergleicht die Bilder dieses Systems.
+      # Without PLAYWRIGHT_WORKERS the config's own default applies: two workers, the same
+      # number the suite runs with on any desk. The single worker here was caution from a
+      # time before the per-worker world registry; the application server is a
+      # ThreadingTCPServer and serves them side by side.
+      # visual-baseline.spec.ts lives in this suite and compares this system's images.
       - name: Product suite
         shell: bash
         run: npx playwright test --output=test-results/product --reporter=line

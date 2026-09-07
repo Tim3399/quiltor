@@ -1,20 +1,18 @@
 name: Visual-Baselines erzeugen
 
-# Fuellt fehlende Pixel-Baselines und schiebt sie in den Branch zurueck.
+# Fills in missing pixel baselines and pushes them back to the branch.
 #
-# Ausschliesslich mit --update-snapshots=missing: der Lauf schreibt nur Bilder, die es fuer
-# diese Plattform noch nicht gibt, und ruehrt vorhandene Referenzen nicht an. Damit kann er
-# keine Regression stillschweigend zur neuen Wahrheit machen -- ein geaendertes Bild bleibt
-# ein Fehlschlag, den ein Mensch ansehen muss.
+# Only ever with --update-snapshots=missing: the run writes images that do not exist for this
+# platform yet and leaves existing references alone. That way it cannot quietly promote a
+# regression to the new truth -- a changed image stays a failure a person has to look at.
 #
-# Der Lauf startet bei jedem Push, prueft aber zuerst, ob ueberhaupt etwas fehlt, und bricht
-# sonst nach einem einzigen kleinen Job ab. Zu tun ist es einmal pro Plattform -- und wieder,
-# wenn die Bilder einer Plattform bewusst geloescht wurden, weil sich das Design geaendert hat.
+# The run starts on every push but first checks whether anything is missing at all, and
+# otherwise stops after a single small job. There is work to do once per platform -- and
+# again when a platform's images were deliberately deleted because the design changed.
 #
-# Ein Push mit GITHUB_TOKEN loest keinen neuen Workflow aus. Das schliesst eine Schleife aus,
-# heisst aber auch: nach dem Nachtragen der Bilder muss der Testlauf einmal neu gestartet
-# werden, damit er sie vergleicht. Auf einem geschuetzten Branch schlaegt der Push fehl; dort
-# gehoeren die Bilder ueber einen Pull Request hinein.
+# A push with GITHUB_TOKEN triggers no new workflow. That rules out a loop, but it also
+# means the test run has to be restarted once after the images land, so that it compares
+# them. On a protected branch the push fails; there the images belong in a pull request.
 
 on:
   push:
@@ -32,7 +30,7 @@ env:
   ZIELBRANCH: ${{ inputs.branch || github.ref_name }}
 
 jobs:
-  # Ohne diesen Vorlauf zahlte jeder Push drei Runner, nur um festzustellen, dass alles da ist.
+  # Without this precheck every push would pay three runners just to learn nothing is missing.
   luecke:
     runs-on: ubuntu-24.04
     outputs:
@@ -61,8 +59,8 @@ jobs:
       contents: write
     runs-on: ${{ matrix.os }}
     strategy:
-      # Nacheinander: alle drei Jobs schreiben in denselben Branch, und ein paralleler
-      # Push waere ein Rennen um denselben Ref.
+      # One after another: all three jobs write to the same branch, and pushing in parallel
+      # would be a race for the same ref.
       max-parallel: 1
       fail-fast: false
       matrix:
@@ -89,9 +87,9 @@ jobs:
             curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
             sleep 1
           done
-          # Playwright laesst einen Lauf fehlschlagen, wenn es ein fehlendes Bild schreibt --
-          # richtig fuer einen normalen Lauf, hier aber der Erfolgsfall. Ob wirklich etwas
-          # entstanden ist, entscheidet der naechste Schritt an den Dateien.
+          # Playwright fails a run when it writes a missing image -- right for a normal run,
+          # but the success case here. Whether anything was actually produced is decided by
+          # the next step, from the files.
           npx playwright test tests/e2e/visual-baseline.spec.ts \
             --update-snapshots=missing --reporter=line || true
       - name: Neue Bilder einchecken
@@ -106,7 +104,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$snapshots"
           git commit -m "test(e2e): Baselines für ${{ matrix.os }} erzeugt"
-          # Zwischen Lauf und Push kann ein anderer Matrix-Job geschrieben haben.
+          # Between the run and the push another matrix job may have written.
           git pull --rebase origin "$ZIELBRANCH"
           git push origin "HEAD:$ZIELBRANCH"
       - name: Diagnose hochladen
