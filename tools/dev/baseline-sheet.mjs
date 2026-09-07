@@ -4,53 +4,52 @@ import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /*
- * Ein Kontaktbogen für die Pixel-Baselines, der selbst rechnet.
+ * A contact sheet for the pixel baselines that does its own arithmetic.
  *
- * Zwei Maße, die ich verworfen habe, bevor eines blieb: die Dichte im umschliessenden
- * Rechteck sagt bei einer schmalen Ansicht schon deshalb viel, weil dort wenig Flaeche
- * leer ist. Und der Anteil langer Abweichungslaeufe -- der Gedanke war, Bloecke von
- * Glyphenkanten zu trennen -- meldet jede Trennlinie, die um ein Pixel anders gerastert
- * ist, ueber die volle Breite. Beide fanden vor allem sich selbst.
+ * Two measures I discarded before one stayed: density inside the bounding rectangle says a
+ * lot in a narrow view simply because little of it is empty. And the share of long runs of
+ * difference -- the idea was to tell blocks apart from glyph edges -- reports every rule
+ * that rasterises one pixel differently, across the full width. Both mostly found
+ * themselves.
  *
- * Was traegt, ist die Frage nach einer Verschiebung: laesst sich die Abweichung dadurch
- * erklaeren, dass derselbe Inhalt ein paar Zeilen hoeher oder tiefer sitzt? Wenn ja, ist
- * es ein Umbruch, der auf der anderen Plattform anders faellt. Wenn nein, bleibt etwas
- * uebrig, das jemand ansehen sollte.
+ * What carries is the question of a shift: can the difference be explained by the same
+ * content sitting a few rows higher or lower? If so, it is a line break that falls
+ * elsewhere on the other platform. If not, something is left over that somebody should
+ * look at.
  *
- * Die Sätze für Linux und macOS sind mit --update-snapshots=missing entstanden: ein Runner
- * hat fotografiert, was da war, und es zur Referenz erklärt. Angesehen hat sie niemand.
- * Steckt in einem Bild ein Layoutfehler, verteidigt der Vergleich ihn ab jetzt still, denn
- * er ist ja "wie erwartet".
+ * The Linux and macOS sets came from --update-snapshots=missing: a runner photographed
+ * whatever was there and declared it the reference. Nobody looked. If one of those images
+ * holds a layout fault, the comparison defends it from then on, quietly, because it is
+ * "as expected".
  *
- * Windows ist hier der Maßstab -- diese Bilder sind während der Entwicklung entstanden und
- * wurden gesehen.
+ * Windows is the yardstick here -- those images came about during development and were
+ * seen by someone.
  *
- * Die Bilder kommen über http und nicht über file://, weil Chrome eine Leinwand mit einem
- * file://-Bild als fremdbestückt ansieht und das Auslesen verweigert. Ohne Auslesen kein
- * Vergleich.
+ * The images travel over http rather than file://, because Chrome treats a canvas holding a
+ * file:// image as tainted and refuses to read it back. No read, no comparison.
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SNAPSHOTS = resolve(ROOT, "tests/e2e/visual-baseline.spec.ts-snapshots");
-const PLATTFORMEN = ["win32", "linux", "darwin"];
-const NAMEN = { win32: "Windows", linux: "Linux", darwin: "macOS" };
+const PLATFORMS = ["win32", "linux", "darwin"];
+const NAMES = { win32: "Windows", linux: "Linux", darwin: "macOS" };
 const PORT = Number(process.env.QUILTOR_SHEET_PORT ?? 4180);
 
-const motive = new Map();
+const subjects = new Map();
 for (const name of readdirSync(SNAPSHOTS)) {
-  const treffer = name.match(/^(.*)-(win32|linux|darwin)\.png$/u);
-  if (!treffer) continue;
-  const [, motiv, plattform] = treffer;
-  if (!motive.has(motiv)) motive.set(motiv, {});
-  motive.get(motiv)[plattform] = {
-    datei: name,
+  const match = name.match(/^(.*)-(win32|linux|darwin)\.png$/u);
+  if (!match) continue;
+  const [, subject, platform] = match;
+  if (!subjects.has(subject)) subjects.set(subject, {});
+  subjects.get(subject)[platform] = {
+    file: name,
     kb: Math.round(statSync(resolve(SNAPSHOTS, name)).size / 1024),
   };
 }
 
-const daten = [...motive.entries()]
-  .map(([motiv, bilder]) => ({ motiv, bilder }))
-  .sort((links, rechts) => links.motiv.localeCompare(rechts.motiv));
+const data = [...subjects.entries()]
+  .map(([subject, images]) => ({ subject, images }))
+  .sort((left, right) => left.subject.localeCompare(right.subject));
 
 const html = `<!doctype html>
 <meta charset="utf-8">
@@ -59,178 +58,178 @@ const html = `<!doctype html>
   :root { color-scheme: light dark; }
   body { margin: 0; padding: 24px; font: 14px/1.55 system-ui, sans-serif; }
   h1 { margin: 0 0 4px; font-size: 20px; }
-  p.hinweis { max-width: 74ch; color: #666; margin: 0 0 20px; }
-  #stand { padding: 12px 16px; margin: 0 0 24px; max-width: 74ch;
+  p.intro { max-width: 74ch; color: #666; margin: 0 0 20px; }
+  #status { padding: 12px 16px; margin: 0 0 24px; max-width: 74ch;
            border-left: 4px solid #6b7280; background: #f3f4f6; color: #374151; }
-  .motiv { margin: 0 0 34px; }
-  .motiv h2 { font-size: 15px; margin: 0 0 6px; font-family: ui-monospace, monospace; }
-  .zahlen { font-size: 12px; color: #666; margin: 0 0 8px; }
-  .zahlen b { color: #b45309; }
-  .reihe { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: start; }
+  .subject { margin: 0 0 34px; }
+  .subject h2 { font-size: 15px; margin: 0 0 6px; font-family: ui-monospace, monospace; }
+  .numbers { font-size: 12px; color: #666; margin: 0 0 8px; }
+  .numbers b { color: #b45309; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: start; }
   figure { margin: 0; }
   figcaption { font-size: 12px; color: #666; margin: 0 0 4px; }
   img { width: 100%; height: auto; border: 1px solid #d4d4d4; background: #fff; display: block; }
 </style>
 <h1>Baseline-Kontaktbogen</h1>
-<p class="hinweis">
-  Dieselben ${daten.length} Motive auf drei Plattformen, verglichen gegen Windows. Zwischen
+<p class="intro">
+  Dieselben ${data.length} Motive auf drei Plattformen, verglichen gegen Windows. Zwischen
   ihnen darf sich nur die Schriftrasterung unterscheiden, und ein Umbruch, der anderswo
   fällt, verschiebt den Inhalt um ganze Zeilen. Was auch nach der besten Verschiebung übrig
   bleibt, ist etwas anderes -- und wäre ohne diesen Blick zur Referenz geworden.
 </p>
-<div id="stand">Wird verglichen …</div>
-<div id="bogen"></div>
+<div id="status">Wird verglichen …</div>
+<div id="sheet"></div>
 <script>
-const DATEN = ${JSON.stringify(daten)};
-const NAMEN = ${JSON.stringify(NAMEN)};
-const ORDNER = "";
+const DATA = ${JSON.stringify(data)};
+const NAMES = ${JSON.stringify(NAMES)};
+const FOLDER = "";
 
-function laden(datei) {
-  return new Promise((fertig, schiefgegangen) => {
-    const bild = new Image();
-    bild.onload = () => fertig(bild);
-    bild.onerror = () => schiefgegangen(new Error(datei));
-    bild.src = ORDNER + datei;
+function load(file) {
+  return new Promise((done, failed) => {
+    const image = new Image();
+    image.onload = () => done(image);
+    image.onerror = () => failed(new Error(file));
+    image.src = FOLDER + file;
   });
 }
 
-function pixel(bild) {
-  const flaeche = document.createElement("canvas");
-  flaeche.width = bild.naturalWidth;
-  flaeche.height = bild.naturalHeight;
-  const stift = flaeche.getContext("2d", { willReadFrequently: true });
-  stift.drawImage(bild, 0, 0);
-  return stift.getImageData(0, 0, flaeche.width, flaeche.height);
+function pixels(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  return context.getImageData(0, 0, canvas.width, canvas.height);
 }
 
 /*
- * Wie viel weicht ab -- und wie viel davon bleibt, wenn man eine Verschiebung zulaesst.
+ * How much differs -- and how much of that is left once a shift is allowed.
  */
-function vergleich(a, b) {
-  if (a.width !== b.width || a.height !== b.height) return { masseUneinig: true };
-  const abstand = (i, j) =>
+function compare(a, b) {
+  if (a.width !== b.width || a.height !== b.height) return { sizesDiffer: true };
+  const distance = (i, j) =>
     Math.abs(a.data[i] - b.data[j]) +
     Math.abs(a.data[i + 1] - b.data[j + 1]) +
     Math.abs(a.data[i + 2] - b.data[j + 2]);
-  // Jede dritte Spalte genuegt: gesucht wird eine Groessenordnung, keine Nachkommastelle.
-  const guete = (d) => {
-    let anders = 0;
-    let gezaehlt = 0;
+  // Every third column is enough: this looks for an order of magnitude, not a decimal.
+  const mismatch = (d) => {
+    let different = 0;
+    let counted = 0;
     for (let y = 0; y < a.height; y += 1) {
       const yb = y + d;
       if (yb < 0 || yb >= a.height) continue;
       for (let x = 0; x < a.width; x += 3) {
-        gezaehlt += 1;
-        if (abstand((y * a.width + x) * 4, (yb * a.width + x) * 4) > 24) anders += 1;
+        counted += 1;
+        if (distance((y * a.width + x) * 4, (yb * a.width + x) * 4) > 24) different += 1;
       }
     }
-    return gezaehlt ? anders / gezaehlt : 0;
+    return counted ? different / counted : 0;
   };
-  const ohne = guete(0);
-  let beste = { verschiebung: 0, wert: ohne };
+  const unshifted = mismatch(0);
+  let best = { shift: 0, value: unshifted };
   for (let d = -24; d <= 24; d += 1) {
     if (!d) continue;
-    const wert = guete(d);
-    if (wert < beste.wert) beste = { verschiebung: d, wert };
+    const value = mismatch(d);
+    if (value < best.value) best = { shift: d, value };
   }
-  return { anteil: ohne, verschiebung: beste.verschiebung, rest: beste.wert };
+  return { share: unshifted, shift: best.shift, remainder: best.value };
 }
 
 (async () => {
-  const ergebnisse = [];
-  for (const eintrag of DATEN) {
-    const bilder = {};
-    for (const plattform of Object.keys(eintrag.bilder)) {
-      bilder[plattform] = await laden(eintrag.bilder[plattform].datei);
+  const results = [];
+  for (const entry of DATA) {
+    const images = {};
+    for (const platform of Object.keys(entry.images)) {
+      images[platform] = await load(entry.images[platform].file);
     }
-    const massstab = pixel(bilder.win32);
-    const gegen = {};
-    for (const plattform of ["linux", "darwin"]) {
-      if (bilder[plattform]) gegen[plattform] = vergleich(massstab, pixel(bilder[plattform]));
+    const reference = pixels(images.win32);
+    const against = {};
+    for (const platform of ["linux", "darwin"]) {
+      if (images[platform]) against[platform] = compare(reference, pixels(images[platform]));
     }
-    ergebnisse.push({ motiv: eintrag.motiv, bilder: eintrag.bilder, gegen });
+    results.push({ subject: entry.subject, images: entry.images, against });
   }
 
-  // Sortiert wird nach dem, was eine Verschiebung nicht erklaert.
-  const schlimmste = (eintrag) =>
-    Math.max(...Object.values(eintrag.gegen).map((w) => w.rest ?? 1), 0);
-  ergebnisse.sort((a, b) => schlimmste(b) - schlimmste(a));
-  window.ergebnisse = ergebnisse.map((e) => ({
-    motiv: e.motiv,
-    linux: e.gegen.linux,
-    darwin: e.gegen.darwin,
+  // Sorted by what a shift does not explain.
+  const worst = (entry) =>
+    Math.max(...Object.values(entry.against).map((w) => w.remainder ?? 1), 0);
+  results.sort((a, b) => worst(b) - worst(a));
+  window.results = results.map((e) => ({
+    subject: e.subject,
+    linux: e.against.linux,
+    darwin: e.against.darwin,
   }));
 
-  const prozent = (wert) => (wert * 100).toFixed(1) + "%";
-  document.getElementById("bogen").innerHTML = ergebnisse
-    .map((eintrag) => {
-      const zahlen = ["linux", "darwin"]
-        .filter((p) => eintrag.gegen[p])
+  const percent = (value) => (value * 100).toFixed(1) + "%";
+  document.getElementById("sheet").innerHTML = results
+    .map((entry) => {
+      const numbers = ["linux", "darwin"]
+        .filter((p) => entry.against[p])
         .map((p) => {
-          const w = eintrag.gegen[p];
-          if (w.masseUneinig) return NAMEN[p] + ": <b>Maße weichen ab</b>";
-          const auffaellig = w.rest > 0.12;
-          const verschoben = w.verschiebung
-            ? " (" + w.verschiebung + " Zeilen verschoben, dann " + prozent(w.rest) + ")"
+          const w = entry.against[p];
+          if (w.sizesDiffer) return NAMES[p] + ": <b>Maße weichen ab</b>";
+          const notable = w.remainder > 0.12;
+          const shifted = w.shift
+            ? " (" + w.shift + " Zeilen verschoben, dann " + percent(w.remainder) + ")"
             : "";
-          const text = NAMEN[p] + ": " + prozent(w.anteil) + " abweichend" + verschoben;
-          return auffaellig ? "<b>" + text + "</b>" : text;
+          const text = NAMES[p] + ": " + percent(w.share) + " abweichend" + shifted;
+          return notable ? "<b>" + text + "</b>" : text;
         })
         .join(" &nbsp;·&nbsp; ");
-      const spalten = ["win32", "linux", "darwin"]
+      const columns = ["win32", "linux", "darwin"]
         .map((p) => {
-          const bild = eintrag.bilder[p];
-          if (!bild) return "<div>" + NAMEN[p] + ": fehlt</div>";
+          const image = entry.images[p];
+          if (!image) return "<div>" + NAMES[p] + ": fehlt</div>";
           return (
-            '<figure><figcaption>' + NAMEN[p] + " — " + bild.kb + " kB</figcaption>" +
-            '<img loading="lazy" src="' + bild.datei + '" alt=""></figure>'
+            '<figure><figcaption>' + NAMES[p] + " — " + image.kb + " kB</figcaption>" +
+            '<img loading="lazy" src="' + image.file + '" alt=""></figure>'
           );
         })
         .join("");
       return (
-        '<section class="motiv"><h2>' + eintrag.motiv + "</h2>" +
-        '<p class="zahlen">' + zahlen + "</p>" +
-        '<div class="reihe">' + spalten + "</div></section>"
+        '<section class="subject"><h2>' + entry.subject + "</h2>" +
+        '<p class="numbers">' + numbers + "</p>" +
+        '<div class="row">' + columns + "</div></section>"
       );
     })
     .join("");
 
-  const offen = ergebnisse.filter((e) => schlimmste(e) > 0.12);
-  document.getElementById("stand").textContent = offen.length
-    ? offen.length +
+  const open = results.filter((e) => worst(e) > 0.12);
+  document.getElementById("status").textContent = open.length
+    ? open.length +
       " Motive weichen mehr ab, als eine Verschiebung erklärt. Sie stehen oben."
     : "Bei jedem Motiv bleibt unter 12% übrig, sobald eine Verschiebung zugelassen wird.";
 })();
 </script>
 `;
 
-// Die Seite bleibt im Speicher: der Baseline-Ordner gehoert Playwright, und eine fremde
-// Datei darin taucht als unverstandene Aenderung im Arbeitsverzeichnis auf.
+// The page stays in memory: the baseline folder belongs to Playwright, and a foreign file
+// in it shows up as an unexplained change in the working tree.
 
-const TYPEN = { ".html": "text/html; charset=utf-8", ".png": "image/png" };
-const server = createServer((anfrage, antwort) => {
-  const datei = decodeURIComponent((anfrage.url ?? "/").split("?")[0]).replace(/^\//u, "");
-  if (!datei) {
-    antwort.writeHead(200, { "content-type": TYPEN[".html"] });
-    antwort.end(html);
+const TYPES = { ".html": "text/html; charset=utf-8", ".png": "image/png" };
+const server = createServer((request, response) => {
+  const file = decodeURIComponent((request.url ?? "/").split("?")[0]).replace(/^\//u, "");
+  if (!file) {
+    response.writeHead(200, { "content-type": TYPES[".html"] });
+    response.end(html);
     return;
   }
-  const pfad = resolve(SNAPSHOTS, datei);
-  // Nur aus dem Baseline-Ordner, nichts darüber hinaus.
-  if (!pfad.startsWith(SNAPSHOTS)) {
-    antwort.writeHead(403).end();
+  const path = resolve(SNAPSHOTS, file);
+  // From the baseline folder only, nothing above it.
+  if (!path.startsWith(SNAPSHOTS)) {
+    response.writeHead(403).end();
     return;
   }
   try {
-    antwort.writeHead(200, { "content-type": TYPEN[extname(pfad)] ?? "application/octet-stream" });
-    antwort.end(readFileSync(pfad));
+    response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream" });
+    response.end(readFileSync(path));
   } catch {
-    antwort.writeHead(404).end();
+    response.writeHead(404).end();
   }
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`${daten.length} Motive, ${daten.length * PLATTFORMEN.length} Bilder.`);
+  console.log(`${data.length} Motive, ${data.length * PLATFORMS.length} Bilder.`);
   console.log(`\n  http://127.0.0.1:${PORT}/\n`);
   console.log("Beenden mit Strg+C.");
 });
