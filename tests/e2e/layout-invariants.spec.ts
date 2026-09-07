@@ -2,16 +2,16 @@ import { expect, type Page, test } from "@playwright/test";
 import { mockRequiredWorldDocuments } from "./support/application-api";
 
 /*
- * Geometrie-Invarianten.
+ * Geometry invariants.
  *
- * Die uebrigen Pruefungen des Projekts sehen Farbe, Abstand, Radius, Typo, Kontrast,
- * Importgrenzen, CSS-Ownership und Story-Abdeckung -- aber keine Geometrie. Genau dort lagen
- * die Fehler, die beim Umbau auf die Werkstatt-Richtung entstanden sind: ein Panel, das seine
- * Rasterspalte nicht ausfuellte; ein Knopf, der ausserhalb seiner Karte lag; zwei schwebende
- * Werkzeuge im selben Streifen; eine Spalte, die eine Ansicht bekam, die es dort nicht gibt.
+ * The project's other checks see colour, spacing, radius, type, contrast, import boundaries,
+ * CSS ownership and story coverage -- but no geometry. That is exactly where the faults of
+ * the Werkstatt rebuild sat: a panel that did not fill its grid column; a button outside its
+ * card; two floating tools in the same strip; a column handed a view that does not exist
+ * there.
  *
- * Diese Datei prueft nicht, wie etwas aussieht, sondern nur, dass nichts irgendwo liegt, wo es
- * nichts zu suchen hat. Damit ist sie plattformunabhaengig und braucht keine Pixel-Baseline.
+ * This file does not check how anything looks, only that nothing sits somewhere it has no
+ * business being. That makes it platform independent and free of any pixel baseline.
  */
 
 const TOLERANCE = 1.5;
@@ -74,10 +74,9 @@ const figures = {
       mapWidth: 800,
       mapHeight: 600,
     },
-    // Eine zusammengefaltete Karte. Sie ist hier, weil eine aufgeklappte Karte keine Karte
-    // mehr ist, sondern Grund: sie wird als Flaeche gezeichnet, nie als Kaertchen, und wird
-    // deshalb auch herausgezoomt nicht zum Kreis. Wer das Monogramm einer Karte messen will,
-    // braucht also eine, die noch gefaltet ist.
+    // A folded-up map. It is here because an opened-out map is no longer a card but ground:
+    // it is drawn as a surface, never as a little card, and so it does not shrink to a circle
+    // when zoomed out either. Measuring a map's monogram needs one that is still folded.
     {
       id: "werftplan",
       x: 700,
@@ -88,8 +87,8 @@ const figures = {
       sub: "Eine gefaltete Karte.",
       mapImageId: "karte-2",
     },
-    // Zwei Orte, die auf der Karte stehen statt auf der Ebene: sie erscheinen erst, wenn die
-    // Karte aufgeklappt ist, und werden dann aus ihr abgeleitet statt gehalten.
+    // Two places that stand on the map rather than on the level: they appear only once the
+    // map is opened out, and are then derived from it rather than stored.
     {
       id: "steg",
       x: 0,
@@ -210,8 +209,8 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
       return style.visibility !== "hidden" && style.opacity !== "0";
     };
 
-    // 1. Ein Panel fuellt seine Rasterspalte. Sonst bleibt daneben ein toter Streifen, der
-    //    aussieht wie ein Fehler und keiner ist -- oder das Panel laeuft ueber seine Spur.
+    // 1. A panel fills its grid column. Otherwise a dead strip is left beside it that looks
+    //    like a fault and is none -- or the panel runs past its track.
     for (const layout of document.querySelectorAll<HTMLElement>(".figure-layout, .text-layout")) {
       const tracks = getComputedStyle(layout)
         .gridTemplateColumns.split(" ")
@@ -229,8 +228,8 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
       });
     }
 
-    // 2. Was auf einer Karte steht, steht auch auf ihr. Ein Knopf ausserhalb ist nicht nur
-    //    haesslich, er ist unerreichbar.
+    // 2. What sits on a card sits on it. A button outside is not merely ugly, it is out of
+    //    reach.
     for (const card of document.querySelectorAll(
       ".story-node, .place-map-node, .storyboard-node",
     )) {
@@ -247,7 +246,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
       }
     }
 
-    // 3. Schwebende Werkzeuge teilen sich einen Rand, nicht denselben Fleck.
+    // 3. Floating tools share an edge, not the same spot.
     const floating = [
       ...document.querySelectorAll(
         ".react-flow__panel.react-flow__controls, .react-flow__panel.react-flow__minimap, .timeline-strip, .place-level-trail, .graph-edge-inspector",
@@ -268,10 +267,10 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
       }
     }
 
-    // 4. Chrome scrollt nicht seitwaerts. Tut es das, ist etwas darin zu breit geraten.
-    //    Geclippte Flaechen sind ausgenommen: dort ragt bewusst etwas ueber die Kante --
-    //    der Ziehrand eines Panels etwa, den man von beiden Seiten greifen koennen soll --
-    //    und niemand kann es je zu Gesicht bekommen.
+    // 4. Chrome does not scroll sideways. When it does, something inside grew too wide.
+    //    Clipped surfaces are exempt: there something deliberately reaches past the edge --
+    //    a panel's resize grip, say, which has to be grabbable from both sides -- and nobody
+    //    can ever lay eyes on it.
     for (const region of document.querySelectorAll(
       ".side-panel, .workspace-toolbar, .status-bar, .app-bar",
     )) {
@@ -306,10 +305,10 @@ for (const workspace of workspaces) {
       await page.getByRole("button", { name: workspace, exact: true }).click();
     }
 
-    // Die Steuerspalte gibt es erst, wenn etwas ausgewaehlt ist -- ohne diesen Schritt
-    // pruefte der Test genau den Zustand, in dem die interessanten Panels fehlen. Unterhalb
-    // der Spaltenbreite ist die Steuerung ein Sheet und kein Panel; dort gibt es nichts
-    // auszurichten, also entfaellt der Schritt.
+    // The control column exists only once something is selected -- without this step the
+    // test would check precisely the state in which the interesting panels are missing.
+    // Below the column width the controls are a sheet, not a panel; there is nothing to
+    // align there, so the step falls away.
     const spalten = (page.viewportSize()?.width ?? 0) > 820;
     if (spalten && workspace === "Figuren") {
       await page.locator(".world-overview__item").first().click();
@@ -319,8 +318,8 @@ for (const workspace of workspaces) {
       await page.locator(".story-node").first().click();
       await expect(page.locator(".places-inspector")).toBeVisible();
     }
-    // Die Leinwaende passen ihren Ausschnitt beim Ankommen an; erst danach stehen die
-    // Rechtecke, die hier gemessen werden.
+    // The canvases fit their viewport on arrival; only after that do the rectangles this
+    // measures stand still.
     await page.waitForTimeout(900);
 
     expect(await violations(page, TOLERANCE)).toEqual([]);
@@ -328,14 +327,13 @@ for (const workspace of workspaces) {
 }
 
 /*
- * Ein Menue liegt auf dem, woraus es aufgeklappt wurde.
+ * A menu lies on top of whatever it was opened from.
  *
- * Der Fehler dahinter war nicht zu sehen, sondern nur zu messen: das ueberlaufende Menue der
- * Kopfleiste stand auf --z-popover: 30, die Assistenten-Schublade auf --z-drawer-panel: 70.
- * Bei offener Schublade oeffnete sich das Menue also unsichtbar dahinter -- aria-expanded
- * sagte "true", der Fokus sass darin, zu sehen war nichts. Jede Pruefung, die nur den
- * Zustand liest, haelt das fuer richtig; erst die Frage "was liegt tatsaechlich an dieser
- * Stelle?" findet es.
+ * The fault behind this could not be seen, only measured: the app bar's overflow menu sat at
+ * --z-popover: 30, the assistant drawer at --z-drawer-panel: 70. With the drawer open the
+ * menu therefore opened invisibly behind it -- aria-expanded said "true", focus was inside,
+ * and there was nothing to see. Any check that only reads state calls that correct; only the
+ * question "what is actually at this point?" finds it.
  */
 test("Menues liegen ueber der geoeffneten Schublade", async ({ page }) => {
   await page.addInitScript(() => {
@@ -358,29 +356,29 @@ test("Menues liegen ueber der geoeffneten Schublade", async ({ page }) => {
   const menu = page.locator(".ui-popover");
   await expect(menu).toBeVisible();
 
-  const verdeckt = await page.evaluate(() => {
+  const obscured = await page.evaluate(() => {
     const popover = document.querySelector(".ui-popover");
     if (!popover) return "kein Menue im Baum";
     const box = popover.getBoundingClientRect();
-    // Nicht die Mitte: dort kann eine Luecke zwischen zwei Eintraegen liegen. Ein Punkt
-    // knapp unter der Oberkante trifft immer den ersten Eintrag.
-    const treffer = document.elementFromPoint(box.left + box.width / 2, box.top + 12);
-    if (!treffer) return "an dieser Stelle liegt nichts";
-    return popover.contains(treffer)
+    // Not the middle: a gap between two entries can sit there. A point just below the top
+    // edge always lands on the first entry.
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 12);
+    if (!hit) return "an dieser Stelle liegt nichts";
+    return popover.contains(hit)
       ? ""
-      : `verdeckt von ${treffer.tagName.toLowerCase()}.${treffer.className}`;
+      : `obscured von ${hit.tagName.toLowerCase()}.${hit.className}`;
   });
 
-  expect(verdeckt).toBe("");
+  expect(obscured).toBe("");
 });
 
 /*
- * Ein Monogramm sitzt in der Mitte seines Kreises.
+ * A monogram sits in the middle of its circle.
  *
- * Herausgezoomt schrumpft eine Ortskarte auf 32 Pixel mit einem Buchstaben darin. Die
- * Kartenkarte schob ihre Schrift dabei weiter um 38 Prozent nach rechts -- die Spalte neben
- * dem Vorschaubild, das es in dieser Groesse gar nicht mehr gibt. Zehn Pixel aus der Mitte
- * eines Kreises sieht man sofort, messen liess es sich vorher trotzdem nirgends.
+ * Zoomed out, a place card shrinks to 32 pixels with a single letter in it. The map card kept
+ * pushing its text 38 percent to the right -- the column next to the preview image, which
+ * does not exist at all at that size. Ten pixels off the centre of a circle is obvious at a
+ * glance, and yet there was nowhere to measure it.
  */
 test("Orte: Monogramme sitzen mittig im Kreis", async ({ page }) => {
   await page.addInitScript(() => {
@@ -393,15 +391,15 @@ test("Orte: Monogramme sitzen mittig im Kreis", async ({ page }) => {
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
   await page.getByRole("button", { name: "Orte", exact: true }).click();
 
-  // Der Kreis erscheint erst weit herausgezoomt; die Leinwand kennt dafuer keine Abkuerzung.
-  const kleiner = page.locator(".react-flow__controls-zoomout");
-  for (let schritt = 0; schritt < 6; schritt += 1) {
-    await kleiner.click();
+  // The circle appears only far out; the canvas offers no shortcut for getting there.
+  const zoomOut = page.locator(".react-flow__controls-zoomout");
+  for (let step = 0; step < 6; step += 1) {
+    await zoomOut.click();
     await page.waitForTimeout(120);
   }
   await expect(page.locator(".story-node.zoom-overview.is-map")).toHaveCount(1);
 
-  const versatz = await page.evaluate(() => {
+  const offset = await page.evaluate(() => {
     const found: string[] = [];
     for (const node of document.querySelectorAll(".story-node.zoom-overview")) {
       const monogram = node.querySelector(".node-monogram");
@@ -418,21 +416,20 @@ test("Orte: Monogramme sitzen mittig im Kreis", async ({ page }) => {
     return found;
   });
 
-  expect(versatz).toEqual([]);
+  expect(offset).toEqual([]);
 });
 
 /*
- * Die Uebersichtskarte zeigt, was auf der Leinwand steht.
+ * The minimap shows what stands on the canvas.
  *
- * Sie zeigte die aufgeklappte Karte und liess alles weg, was darauf stand. Der Grund liegt
- * nicht im Zeichnen: React Flow nimmt in die Uebersichtskarte nur Knoten auf, die eine
- * Groesse mitbringen (`nodeHasDimensions`). Eine Karte nennt ihre selbst, eine gewoehnliche
- * Ortskarte laesst sich messen -- und die Messung wird dem Knoten zugestellt, den der Fluss
- * in seiner eigenen Liste haelt. Die Orte auf einer Karte werden aber aus der Karte
- * abgeleitet und stehen dort nicht, also ging ihre Messung ins Leere.
+ * It showed the opened-out map and left out everything standing on it. The reason is not in
+ * the drawing: React Flow only takes nodes into the minimap that bring a size along
+ * (`nodeHasDimensions`). A map states its own; an ordinary place card can be measured -- and
+ * that measurement is delivered to the node the flow holds in its own list. But places on a
+ * map are derived from the map and are not in that list, so their measurement went nowhere.
  *
- * Gezaehlt wird deshalb gegen die Leinwand, nicht gegen eine feste Zahl: was dort steht,
- * gehoert auch in die Uebersicht.
+ * Counting therefore happens against the canvas rather than against a fixed number: what
+ * stands there belongs in the overview too.
  */
 test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async ({ page }) => {
   await page.addInitScript(() => {
@@ -445,12 +442,12 @@ test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async (
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
   await page.getByRole("button", { name: "Orte", exact: true }).click();
 
-  // Unterhalb der Spaltenbreite blendet die Leinwand ihre Uebersichtskarte aus; dann gibt es
+  // Below the column width the canvas hides its minimap; there is then
   // nichts zu vergleichen.
   test.skip((page.viewportSize()?.width ?? 0) <= 719, "Schmal gibt es keine Uebersichtskarte.");
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
 
-  // Erst aufgeklappt gibt es ueberhaupt Orte, die auf einer Karte stehen.
+  // Only once it is opened out are there any places standing on a map.
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
   await page.waitForTimeout(900);
 
@@ -464,15 +461,15 @@ test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async (
 });
 
 /*
- * Eine Verbindung in einer Gruppe laesst sich anklicken.
+ * A connection inside a group can be clicked.
  *
- * Eine Gruppe ist keine durchlaessige Rahmung, sondern eine grosse Karte mit eigenem Koerper.
- * React Flow legt Kanten ohne eigene Ebene auf 0, Gruppen liegen ebenfalls dort, und bei
- * gleichem Rang gewinnt der spaeter gezeichnete Knoten -- der Klick landete auf der Gruppe.
+ * A group is not a see-through frame but a large card with a body of its own. React Flow puts
+ * edges without a layer of their own at 0, groups sit there as well, and at equal rank the
+ * node drawn later wins -- the click landed on the group.
  *
- * Gemessen wird an einem Punkt, der wirklich auf dem Pfad liegt. Die Mitte des Umrisses tut
- * das bei einer gebogenen Kante nicht und haette hier zufaellig mitten auf einer Karte
- * gelegen: der Test waere rot gewesen, aber aus dem falschen Grund.
+ * The measurement uses a point that really lies on the path. The centre of the bounding box
+ * does not, for a curved edge, and would have fallen in the middle of a card here: the test
+ * would have been red, but for the wrong reason.
  */
 test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page }) => {
   await page.addInitScript(() => {
@@ -494,16 +491,16 @@ test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page
     const schirm = pfad.getScreenCTM();
     if (!schirm) return null;
     const auf = punkt.matrixTransform(schirm);
-    const treffer = document.elementFromPoint(auf.x, auf.y);
+    const hit = document.elementFromPoint(auf.x, auf.y);
     return {
       x: auf.x,
       y: auf.y,
-      aufDerKante: Boolean(treffer?.closest(".react-flow__edge")),
-      verdecktVon: treffer?.closest(".react-flow__node")?.getAttribute("data-id") ?? null,
-      // Schmal legt sich die Bibliothek ueber die Leinwand. Die Frage nach der Reihenfolge
-      // von Gruppe und Kante hat dort keinen Sinn -- an dieser Stelle ist gar keine
-      // Leinwand. Ohne diese Angabe waere der Test rot, aber aus einem anderen Grund.
-      ueberDerLeinwand: Boolean(treffer?.closest(".react-flow")),
+      aufDerKante: Boolean(hit?.closest(".react-flow__edge")),
+      obscuredVon: hit?.closest(".react-flow__node")?.getAttribute("data-id") ?? null,
+      // When narrow, the library lies over the canvas. The question of group-versus-edge
+      // order makes no sense there -- at this point there is no canvas at all. Without this
+      // note the test would be red, but for a different reason.
+      ueberDerLeinwand: Boolean(hit?.closest(".react-flow")),
     };
   });
 
@@ -513,10 +510,10 @@ test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page
     "Schmal deckt die Bibliothek die Leinwand ab; dort liegt an dieser Stelle keine.",
   );
 
-  expect(stelle?.verdecktVon).toBeNull();
+  expect(stelle?.obscuredVon).toBeNull();
   expect(stelle?.aufDerKante).toBe(true);
 
-  // Und der Klick kommt auch an: die Auswahl oeffnet die Steuerung fuer die Verbindung.
+  // And the click arrives: selecting opens the controls for the connection.
   await page.mouse.click(stelle?.x ?? 0, stelle?.y ?? 0);
   await expect(page.locator(".graph-edge-inspector-panel")).toBeVisible();
 
@@ -526,22 +523,22 @@ test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page
     const karte = document.querySelector<HTMLElement>('.react-flow__node[data-id="karte-a"]');
     if (!karte) return "keine Karte";
     const box = karte.getBoundingClientRect();
-    const treffer = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-    return treffer?.closest(".react-flow__edge") ? "Kante liegt ueber der Karte" : "";
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return hit?.closest(".react-flow__edge") ? "Kante liegt ueber der Karte" : "";
   });
   expect(aufDerKarte).toBe("");
 });
 
 /*
- * Ein Ort auf einer Karte folgt dem Zeiger.
+ * A place on a map follows the pointer.
  *
- * Der Anker sagt, wo der Ort steht. Gespeichert wurde er aus der Mitte der Karte, gezeichnet
- * aber als linke obere Ecke -- jedes Ziehen verschob den Ort dadurch zusaetzlich um eine
- * halbe Karte nach unten rechts. Gemessen: ein Zug um 100px bewegte ihn um 188 in x und um
- * 135 in y, also um die halbe Kartenbreite und -hoehe zu weit.
+ * The anchor says where the place stands. It was stored from the card's centre but drawn as
+ * its top-left corner -- so every drag moved the place an extra half card down and to the
+ * right. Measured: a 100px drag moved it 188 in x and 135 in y, half a card's width and
+ * height too far.
  *
- * Der Test zieht bewusst um einen krummen Betrag und in vielen Schritten: d3-drag verbraucht
- * die erste Bewegung fuer den Anfassen-Punkt, deshalb fehlt immer genau ein Schritt.
+ * The test deliberately drags by an odd amount and in many steps: d3-drag spends the first
+ * movement on the grab point, so exactly one step is always missing.
  */
 test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
   await page.addInitScript(() => {
@@ -564,8 +561,8 @@ test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
       return { x: m.e, y: m.f };
     });
 
-  // Der Zug muss auf der Karte bleiben, sonst misst der Test das Umhaengen an eine andere
-  // Ebene statt die Bewegung. Auf schmalen Fenstern ist die Karte dafuer zu klein.
+  // The drag has to stay on the map, or the test measures a reparent to another level
+  // rather than the movement. On narrow windows the map is too small for that.
   const karte = await page.locator(".react-flow__node-placeMap").boundingBox();
   test.skip(
     !karte || karte.width < 240 || karte.height < 240,
@@ -587,8 +584,8 @@ test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
   await page.mouse.up();
   await page.waitForTimeout(900);
 
-  // Die Transformation steht in Flow-Einheiten, der Zeiger bewegt sich in Bildschirmpixeln.
-  // Auf schmalen Fenstern zoomt die Leinwand heraus, dort sind das nicht dieselben Zahlen.
+  // The transform is in flow units, the pointer moves in screen pixels. On narrow windows
+  // the canvas zooms out, and there those are not the same numbers.
   const skala = await page.evaluate(() => {
     const v = document.querySelector<HTMLElement>(".react-flow__viewport");
     return v ? new DOMMatrix(getComputedStyle(v).transform).a : 1;
@@ -598,7 +595,7 @@ test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
   const dy = ((nachher?.y ?? 0) - (vorher?.y ?? 0)) * skala;
 
   const abweichung = `dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} erwartet ${zug}`;
-  // Ein Schritt Toleranz, mehr nicht: die halbe Karte waere 100 in x und 48 in y.
+  // One step of tolerance, no more: half a card would be 100 in x and 48 in y.
   expect(Math.abs(dx - zug), abweichung).toBeLessThan(8);
   expect(Math.abs(dy - zug), abweichung).toBeLessThan(8);
 });
@@ -630,7 +627,7 @@ test("Text: der Suchknopf der Schreibhilfe sitzt auf der Zeile seines Feldes", a
   await schreibhilfe.click();
   await expect(page.locator(".writing-search")).toBeVisible();
 
-  const versatz = await page.evaluate(() => {
+  const offset = await page.evaluate(() => {
     const zeile = document.querySelector(".writing-search");
     const eingabe = zeile?.querySelector("input");
     const knopf = zeile?.querySelector(".writing-search__submit");
@@ -641,5 +638,5 @@ test("Text: der Suchknopf der Schreibhilfe sitzt auf der Zeile seines Feldes", a
     return abstand > 1.5 ? `Knopf ${abstand.toFixed(1)}px neben der Mitte des Feldes` : "";
   });
 
-  expect(versatz).toBe("");
+  expect(offset).toBe("");
 });
