@@ -572,9 +572,35 @@ class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
+    # Wie viele Verbindungen warten duerfen, bevor das Betriebssystem die naechste abweist.
+    #
+    # Die Vorgabe von socketserver ist fuenf. Eine einzige Seite oeffnet mehr als das: das
+    # Blatt, seine Schriften, die Bilder einer Karte und die API-Aufrufe daneben gehen
+    # gleichzeitig hinaus, und der annehmende Faden kommt kurz nicht hinterher. Linux laesst
+    # das SYN dann fallen und der Browser wiederholt es; Windows weist aktiv ab, und der
+    # Aufrufer sieht "Verbindung verweigert" von einem Server, der laeuft und weiter
+    # protokolliert. Genau so ist es in der CI passiert -- vier Tests, ein toter Port,
+    # ein Server, dem nichts fehlte.
+    request_queue_size = 128
+
     def __init__(self, server_address, handler_class, application: WebApplication):
         self.application = application
         super().__init__(server_address, handler_class)
+
+    def handle_error(self, request, client_address) -> None:
+        """Einen weggegangenen Browser nicht als Serverfehler ausgeben.
+
+        Wer einen Reiter schliesst, waehrend ein Bild laedt, bricht die Verbindung ab.
+        socketserver schreibt dafuer einen vollen Traceback ins Protokoll -- in dem
+        Protokoll, in dem man spaeter nach einem echten Fehler sucht. Alles andere
+        bleibt sichtbar.
+        """
+
+        if isinstance(
+            sys.exc_info()[1], (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
+        ):
+            return
+        super().handle_error(request, client_address)
 
 
 def run(
