@@ -113,10 +113,10 @@
   width: 16px;
   height: 16px;
 }
-/* Der Speicherstand sitzt in der Statuszeile und richtet sich nach deren Hoehe;
-   die frueheren Leisten- und Menuemasse sind damit gegenstandslos. */
-/* Der Speicherstand steht mit Text in der Leiste, wie im Zielbild -- er darf sich
-   verschmaelern, bevor irgendetwas anderes weichen muss. */
+/* The save status sits in the status line and takes its height from there; the former
+   bar and menu measures are moot. */
+/* The save status stands in the bar with its text, as in the target picture -- it may
+   narrow itself before anything else has to give way. */
 .app-save-status {
   min-width: 0;
   max-width: 210px;

@@ -2,8 +2,8 @@
   /* font stacks + structural sizing, moved from styles.css */
   --ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --prose: "EB Garamond", "Iowan Old Style", Georgia, serif;
-  /* Die Leisten tragen je eine Zeile: Marke und Reiter oben, Titel und Werkzeuge darunter.
-     54/52 stammten aus der Zeit, als die Kontextleiste zusaetzlich die Zaehlungen trug. */
+  /* The bars carry one row each: brand and tabs above, title and tools below. 54/52 date
+     from the time when the context bar carried the counts as well. */
   --bar: 44px;
   --context: 40px;
   --status-bar: 26px;
@@ -179,10 +179,10 @@
   --z-app-bar: 20;
   --z-hint: 24;
   --z-drawer-panel: 70;
-  /* Ueber der Schublade, nicht darunter: ein Menue ist fluechtig und gehoert auf das, woraus
-     es aufgeklappt wurde. Stand es bei 30, oeffnete sich das ⋯-Menue der Kopfleiste bei
-     geoeffnetem Assistenten unsichtbar hinter dessen Panel -- aria-expanded sagte "true", zu
-     sehen war nichts. Unter dem Toast bleibt es, damit eine Meldung ein Menue uebersteigt. */
+  /* Above the drawer, not below: a menu is fleeting and belongs on top of whatever it was
+     opened from. At 30, the app bar's ⋯ menu opened invisibly behind the assistant's panel
+     while that drawer was open -- aria-expanded said "true", there was nothing to see. It
+     stays below the toast, so that a message rises above a menu. */
   --z-popover: 75;
   --z-toast: 80;
   --z-modal: 100;

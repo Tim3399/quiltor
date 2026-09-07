@@ -6,23 +6,23 @@ const NEWLINE = String.fromCharCode(10);
 const roots = Object.freeze(["packages/client/src", "apps"]);
 
 /**
- * Die Breakpoint-Leiter.
+ * The breakpoint ladder.
  *
- * Media Queries koennen keine Custom Properties lesen, ihre Zahlen muessen also Literale
- * bleiben -- und stehen deshalb dutzendfach im Baum: 719px allein in 27 Dateien. Ein Token
- * hilft hier nicht, eine geschlossene Liste schon: sie verhindert, dass neben 719 irgendwann
- * ein 733 auftaucht, das an einer Handvoll Stellen anders bricht als der Rest.
+ * Media queries cannot read custom properties, so their numbers have to stay literals -- and
+ * therefore appear dozens of times across the tree: 719px alone in 27 files. A token does not
+ * help here; a closed list does: it keeps a 733 from turning up beside 719 one day and
+ * breaking differently from the rest in a handful of places.
  *
- * Paare wie 719/720 und 1050/1099 sind Absicht: `max-width: 719px` und `min-width: 720px`
- * teilen dieselbe Kante.
+ * Pairs like 719/720 and 1050/1099 are deliberate: `max-width: 719px` and `min-width: 720px`
+ * share the same edge.
  */
 export const BREAKPOINTS = Object.freeze([359, 480, 640, 719, 720, 820, 900, 1050, 1099]);
 
 /**
- * Gewachsene Ausnahmen, jede mit ihrem Grund.
+ * Exceptions that grew up here, each with its reason.
  *
- * Sie sind nicht Teil der Leiter und sollen es nicht werden. Der Eintrag haelt fest, dass
- * jemand sie gesehen hat -- neue Zahlen ausserhalb der Leiter fallen weiterhin auf.
+ * They are not part of the ladder and are not meant to become part of it. The entry records
+ * that somebody has seen them -- new numbers outside the ladder still stand out.
  */
 export const BREAKPOINT_EXCEPTIONS = Object.freeze({
   380: "ToolbarButton: eigene Schwelle, ab der das Label auch im Kompaktmodus weicht",
@@ -77,12 +77,12 @@ export function calcExpressions(source) {
 }
 
 /**
- * Zwei Regeln, beide aus Fehlern gelernt, die diese Codebasis wirklich hatte.
+ * Two rules, both learned from faults this codebase really had.
  *
- * Nicht geprueft wird "derselbe Wert in zwei Dateien". Gemessen ergab das 30 Treffer, fast
- * alle zufaellig gleich -- ein Menue mit 360px Hoechstbreite und ein Dialog mit derselben
- * treffen keine gemeinsame Entscheidung. Eine Regel, die vor allem Rauschen meldet, bringt
- * niemanden dazu, genauer hinzusehen.
+ * What is not checked is "the same value in two files". Measured, that gave 30 hits, almost
+ * all of them alike by chance -- a menu with a 360px maximum width and a dialog with the same
+ * are not making a shared decision. A rule that mostly reports noise gets nobody to look more
+ * closely.
  */
 export function analyzeLayoutGeometry(source) {
   const violations = [];

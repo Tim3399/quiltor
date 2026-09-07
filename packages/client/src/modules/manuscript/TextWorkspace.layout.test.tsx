@@ -107,7 +107,7 @@ describe("TextWorkspace layout and panels", () => {
     const paperRule = editorCss.match(/\.editor-page\s*\{([^}]*)\}/s)?.[1];
 
     expect(paperRule, "EditorSurface.css must own the manuscript paper material").toBeDefined();
-    // Das Blatt: the material belongs to the page, so the page also carries the edge and
+    // The sheet: the material belongs to the page, so the page also carries the edge and
     // the shadow that make it read as an object lying on the desk behind it.
     expect(paperRule).toMatch(/border-radius:\s*var\(--radius-xl\)/);
     expect(paperRule).toMatch(/box-shadow:\s*var\(--elevation-\d\) var\(--shadow-[a-z]+\);/);
@@ -499,11 +499,11 @@ describe("TextWorkspace layout and panels", () => {
     const binder = within(rendered.getByRole("complementary", { name: "Kapitel" }));
     const details = within(rendered.getByRole("complementary", { name: "Details" }));
 
-    // Links steht nur, welches Kapitel gemeint ist.
+    // The left only says which chapter is meant.
     expect(binder.queryByLabelText("Kapitelnotiz")).toBeNull();
     expect(binder.queryByText("Handlungszeit")).toBeNull();
 
-    // Rechts steht, was mit ihm geschieht -- in zwei Registern unter einem Kopf.
+    // The right says what happens to it -- in two sections under one head.
     expect(details.getByRole("radio", { name: "Kapitel" })).toBeChecked();
     expect(details.getByLabelText("Kapitelnotiz")).toBeTruthy();
     expect(details.getByText("Handlungszeit")).toBeTruthy();

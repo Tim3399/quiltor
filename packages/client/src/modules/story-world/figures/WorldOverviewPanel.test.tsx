@@ -59,7 +59,7 @@ describe("WorldOverviewPanel", () => {
 
 describe("WorldOverviewPanel und Karten", () => {
   it("fuehrt keine Karte auf, denn auf der Leinwand daneben steht auch keine", () => {
-    const mitKarte: FigureState = {
+    const withMap: FigureState = {
       nodes: [
         ...state.nodes,
         { id: "karte", x: 0, y: 400, type: "ort", name: "Nordhafen", mapImageId: "bild-1" },
@@ -69,7 +69,7 @@ describe("WorldOverviewPanel und Karten", () => {
     render(
       <I18nProvider>
         <WorldOverviewPanel
-          state={mitKarte}
+          state={withMap}
           selectedId={null}
           onSelect={vi.fn()}
           onReveal={vi.fn()}
@@ -79,7 +79,7 @@ describe("WorldOverviewPanel und Karten", () => {
     const panel = screen.getByRole("complementary", { name: "Weltübersicht" });
 
     expect(within(panel).queryByText("Nordhafen")).toBeNull();
-    // Die Zahl in der Kopfzeile zaehlt dasselbe wie die Liste darunter.
+    // The number in the header counts the same thing as the list below it.
     expect(within(panel).getByText("3 Elemente")).toBeVisible();
   });
 });

@@ -1,6 +1,6 @@
-// Nur der Typ, kein Laufzeit-Import: sonst zoege jeder Nutzer von shared die kompletten
-// Sprachkataloge mit -- und mit ihnen deren JSON-Manifeste, an denen der ESM-Loader von
-// Playwright bricht. Der React-Hook dazu lebt in app/shell, wo die Bindung an i18n hingehoert.
+// The type only, no runtime import: otherwise every user of shared would drag the complete
+// language catalogues along -- and with them their JSON manifests, which break Playwright's
+// ESM loader. The React hook for it lives in app/shell, where the binding to i18n belongs.
 import type { UiLocale } from "../i18n";
 
 // The platform never changes while the app runs, so it is sniffed exactly once here and every

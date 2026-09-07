@@ -153,10 +153,10 @@
   gap: var(--space-6);
   align-items: center;
 }
-/* Ein Feld traegt den Abstand zum naechsten Formularfeld unter sich. Hier steht darunter
-   keins, sondern daneben ein Knopf -- der Abstand machte die Zeile 16px hoeher als die
-   Eingabe, und `align-items: center` richtete den Knopf an dieser zu hohen Zeile aus statt
-   an der Eingabe. Er sass dadurch acht Pixel zu tief und sah aus, als haenge er heraus. */
+/* A field carries the distance to the next form field below itself. Here there is none
+   below but a button beside it -- that distance made the row 16px taller than the input, and
+   `align-items: center` aligned the button to this over-tall row instead of to the input. It
+   sat eight pixels too low as a result and looked as if it were hanging out. */
 .writing-search-field {
   margin-block-end: 0;
 }
@@ -260,7 +260,7 @@
   padding: 0;
   list-style: none;
 }
-/* Ergebniszeile, die Nachschlagen und Pruefen gemeinsam benutzen. */
+/* Result row shared by lookup and checking. */
 .writing-value {
   min-height: var(--control-compact);
   padding: 0 var(--space-8);

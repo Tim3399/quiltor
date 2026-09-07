@@ -16,7 +16,7 @@
   list-style: none;
 }
 
-/* Der Gruppentitel traegt den Satz des Manuskripts, wie die Panelkoepfe daneben. */
+/* The group title carries the manuscript's type, like the panel heads beside it. */
 .world-overview__group-title {
   display: flex;
   align-items: center;

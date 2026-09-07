@@ -448,8 +448,8 @@ class StorageTest(unittest.TestCase):
         mirror_dir = config.DATA / "manuskript"
         mirror.mirror_text(manuscript["chapters"], mirror_dir)
         exported = next(mirror_dir.glob("*.md")).read_text(encoding="utf-8")
-        # Der Kapiteltext bleibt in der Datenbank reine Prosa; erst der Markdown-Spiegel
-        # schreibt die Auszeichnungsbereiche als Marker.
+        # In the database the chapter text stays pure prose; only the Markdown mirror writes
+        # the mark ranges out as markers.
         self.assertEqual(manuscript["chapters"][0]["body"], "Hallo Welt")
         self.assertEqual(
             manuscript["chapters"][0]["marks"], [{"from": 6, "to": 10, "kind": "italic"}]

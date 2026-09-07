@@ -69,11 +69,11 @@ export function createPlaceFlowNodes({
   return standing.map((place) => ({
     id: place.id,
     type: "place",
-    // Der Anker sagt, wo der Ort steht -- nicht, wo die Ecke seiner Karte liegt. Gespeichert
-    // wurde er schon immer aus der Mitte der Karte, gezeichnet aber als linke obere Ecke:
-    // jedes Ziehen verschob den Ort dadurch zusaetzlich um eine halbe Karte nach unten
-    // rechts. Mit diesem Ursprung meint `position` dieselbe Mitte wie der Anker, und React
-    // Flow rechnet die Kartengroesse selbst dazu -- bei jeder Zoomstufe die richtige.
+    // The anchor says where the place stands -- not where the corner of its card lies. It
+    // has always been stored from the card's centre but drawn as its top-left corner: every
+    // drag therefore moved the place an extra half card down and to the right. With this
+    // origin `position` means the same centre the anchor does, and React Flow adds the card
+    // size itself -- the right one at every zoom level.
     ...(host ? { origin: [0.5, 0.5] as [number, number] } : {}),
     position:
       livePosition?.id === place.id

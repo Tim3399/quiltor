@@ -124,8 +124,8 @@
   cursor: pointer;
 }
 
-/* Titel und Datum standen ohne Trennung nebeneinander -- „Ankunft03.09.1847". Sichtbar
-   wurde das erst, seit der Streifen auf Handbreite ueberhaupt Platz hat. */
+/* Title and date stood side by side without separation -- „Ankunft03.09.1847". That only
+   became visible once the strip had any room at all at hand width. */
 .timeline-moment-copy {
   min-width: 0;
   display: inline-flex;
@@ -320,9 +320,9 @@
   }
 }
 
-/* Zwischen Handbreite und Schreibtisch wird die Leinwand zu schmal, als dass Dock, Streifen
-   und Uebersichtskarte nebeneinander passen -- der Streifen bekaeme dort eine negative
-   Breite und laege unter der Karte. Er rueckt dann ueber sie, statt zu verschwinden. */
+/* Between hand width and desk the canvas grows too narrow for dock, strip and minimap to
+   fit side by side -- the strip would be given a negative width there and lie beneath the
+   minimap. It moves over it instead of disappearing. */
 @media (max-width: 1099px) {
   .flow-area.has-minimap .timeline-strip {
     right: var(--graph-viewport-inset, var(--space-14));
@@ -330,11 +330,11 @@
   }
 }
 
-/* Auf Handbreite steht der Dock als Turm in der linken unteren Ecke, die Übersichtskarte
-   ist dort ausgeblendet. Der Streifen stand bis hierher neben dem Turm -- bei 390px
-   Fensterbreite blieben ihm achtzehn Pixel, in denen „Gesamtsicht" auf 20 und das
-   Datumsfeld auf 18 Pixel zusammenfielen, schmaler als eine Fingerkuppe. Er nimmt die
-   Breite jetzt ganz und rückt über den Turm. */
+/* At hand width the dock stands as a tower in the bottom-left corner and the minimap is
+   hidden there. Up to this point the strip stood beside the tower -- at a window width of
+   390px it was left eighteen pixels, in which „Gesamtsicht" collapsed to 20 and the date
+   field to 18 pixels, narrower than a fingertip. It now takes the width entirely and moves
+   over the tower. */
 @media (max-width: 640px) {
   .flow-area .timeline-strip,
   .flow-area.has-minimap .timeline-strip {

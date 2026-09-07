@@ -54,9 +54,9 @@ describe("withMeasured", () => {
     const known = rememberMeasured(NO_MEASURED_SIZES, [
       { id: "karte", type: "dimensions", dimensions: { width: 10, height: 10 } },
     ]);
-    const karte = node("karte", { width: 800, height: 600 });
+    const card = node("karte", { width: 800, height: 600 });
 
-    expect(withMeasured([karte], known)[0]).toBe(karte);
+    expect(withMeasured([card], known)[0]).toBe(card);
   });
 
   it("leaves the list untouched when nothing was measured yet", () => {

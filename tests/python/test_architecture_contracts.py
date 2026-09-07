@@ -411,11 +411,11 @@ class ArchitectureContractTests(unittest.TestCase):
         # internally valid, or a reader that accepts only the fixture's shape.
         world_id = "0123456789abcdef0123456789abcdef"
         with tempfile.TemporaryDirectory() as directory:
-            # Wie im Betrieb: SQLitePaths.from_data_directory ruft .resolve() auf, bevor das
-            # Datenverzeichnis irgendwo ankommt -- ein aufgeloester Pfad hat per Definition
-            # keinen verlinkten Bestandteil mehr. Ohne .resolve() reicht der Test dem
-            # Backup-Vertrag etwas, das die Anwendung ihm nie reicht, und faellt auf macOS
-            # ueber /var/folders, wo /var ein Symlink auf /private/var ist.
+            # As in production: SQLitePaths.from_data_directory calls .resolve() before the
+            # data directory reaches anywhere -- a resolved path has, by definition, no linked
+            # component left. Without .resolve() the test hands the backup contract something
+            # the application never hands it, and trips on macOS over /var/folders, where /var
+            # is a symlink to /private/var.
             root = Path(directory).resolve()
             database = root / "world.sqlite3"
             manuscripts = root / "manuscripts"

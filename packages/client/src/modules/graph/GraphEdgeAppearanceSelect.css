@@ -1,5 +1,5 @@
-/* Gemeinsame Huelle der Kanten-Auswahlfelder fuer Farbe und Linienart. Beide erben ihre
-   Breite von hier. */
+/* Shared shell of the edge selects for colour and line style. Both inherit their width
+   from here. */
 .graph-edge-appearance-select {
   min-width: 0;
   display: grid;
@@ -19,7 +19,7 @@
   white-space: nowrap;
 }
 
-/* Ebenfalls von Farb- und Linienart-Auswahl geteilt. */
+/* Shared by the colour and line-style selects as well. */
 .graph-edge-appearance-select__control {
   width: 100%;
   min-width: 0;

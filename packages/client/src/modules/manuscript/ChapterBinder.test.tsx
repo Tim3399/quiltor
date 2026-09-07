@@ -65,7 +65,7 @@ function renderBinder(
   onExportCurrent = vi.fn(),
   onRequestDelete = vi.fn(),
 ) {
-  // Dieselbe Rechnung wie im Workspace: der Binder zeigt die Befehle nur noch an.
+  // The same reckoning as in the workspace: the binder only displays the commands now.
   const structure = manuscriptStructure(manuscript);
   const placement = chapterPlacement(structure, manuscript.chapters[0]);
   return {

@@ -72,9 +72,9 @@ test("schweigt, wenn jede vergleichende Plattform ihren Satz hat", () => {
 });
 
 test("nennt die Bilder, die einer Plattform gegenueber den anderen fehlen", () => {
-  // Der Fall, fuer den es den Bootstrap-Lauf gibt: ein Design hat sich geaendert, die
-  // betroffenen Bilder wurden plattformweise geloescht. "Irgendein Bild ist da" haette hier
-  // geschwiegen -- und der Lauf, der die Luecke fuellen soll, haette sich uebersprungen.
+  // The case the bootstrap run exists for: a design has changed and the affected images
+  // were deleted per platform. "Some image is there" would have stayed silent here -- and
+  // the run meant to fill the gap would have skipped itself.
   const root = world("halber-satz", {
     runner: "${{ matrix.os }}",
     runsSuite: true,

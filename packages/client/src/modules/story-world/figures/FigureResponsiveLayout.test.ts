@@ -44,7 +44,7 @@ describe("figure workspace responsive layout contracts", () => {
       /@media \(max-width: 820px\)[\s\S]*?\.react-flow__minimap\s*\{[^}]*display:\s*none;/,
     );
     expect(timeline).toMatch(
-      // Der Streifen haelt sich von beidem frei: links vom Dock, rechts von der Uebersichtskarte.
+      // The strip keeps clear of both: the dock on the left, the minimap on the right.
       /\.flow-area \.timeline-strip\s*\{[^}]*right:\s*var\(--graph-minimap-safe-inline-end,[^}]*left:\s*var\(--graph-controls-safe-inline-end,/s,
     );
     expect(timeline).not.toMatch(

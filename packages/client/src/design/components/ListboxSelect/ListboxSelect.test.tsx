@@ -93,8 +93,8 @@ describe("ListboxSelect", () => {
   });
 
   it("setzt den Fokus im selben Takt, in dem die Liste erscheint", () => {
-    // Ohne Warten auf einen Frame: nach dem Klick steht der Fokus sofort in der Liste. In der
-    // Luecke davor lief eine Taste ins Leere -- "Ende" traf den Knopf, wo sie nichts bedeutet.
+    // Without waiting for a frame: after the click, focus is in the list at once. In the gap
+    // before it, a key ran into nothing -- "End" hit the button, where it means nothing.
     render(
       <ListboxSelect label="Auswahl" value="a" options={options} onChange={() => undefined} />,
     );

@@ -6,13 +6,13 @@ const NEWLINE = String.fromCharCode(10);
 const MODULES = "packages/client/src/modules";
 
 /**
- * CSS-Klassen, die ueber Feature-Grenzen hinweg benutzt werden -- und warum.
+ * CSS classes used across feature boundaries -- and why.
  *
- * Teilen ist nicht verboten; das Modul `graph` existiert genau dafuer. Nur unbemerkt teilen
- * ist teuer: `.figure-layout` heisst nach den Figuren, traegt aber auch die Ortsansicht, und
- * eine dritte Rasterspalte fuer die eine hat die andere zerlegt. Dieser Eintrag ist die
- * Stelle, an der jemand das gesehen hat. Neue geteilte Klassen fallen auf, bis sie hier
- * stehen -- und Eintraege, die nichts mehr teilen, fallen ebenso auf.
+ * Sharing is not forbidden; the `graph` module exists for exactly that. Only sharing
+ * unnoticed is expensive: `.figure-layout` is named after the figures but carries the places
+ * view as well, and a third grid column for the one took the other apart. This entry is the
+ * place where somebody saw that. New shared classes stand out until they are listed here --
+ * and entries that no longer share anything stand out just as much.
  */
 export const SHARED_FEATURE_CLASSES = Object.freeze({
   "editable-chips":
@@ -100,11 +100,11 @@ export function classNamesInSource(source) {
 }
 
 /**
- * Eigenschaften, bei denen eine Aenderung die Nachbaransicht verschiebt.
+ * Properties where a change moves the neighbouring view.
  *
- * Farbe oder Schriftschnitt einer geteilten Klasse aendert hoechstens den Eindruck. Eine
- * Rasterspalte aendert, wo alles andere liegt -- das war der Fehler, den die Ortsansicht
- * abbekommen hat, als die Figuren eine dritte Spalte brauchten.
+ * The colour or weight of a shared class changes the impression at most. A grid column
+ * changes where everything else lies -- that was the fault the places view took when the
+ * figures needed a third column.
  */
 const LAYOUT_PROPERTIES =
   /grid-template|grid-column|grid-row|position\s*:|inset|top\s*:|left\s*:|right\s*:|bottom\s*:|width\s*:|height\s*:|flex\s*:/u;
@@ -180,8 +180,8 @@ export function scanSharedFeatureClasses(repositoryRoot) {
     }
   }
 
-  // Das Verzeichnis liegt in tools/, geaendert wird im Stylesheet. Wer eine Rasterspalte
-  // anfasst, soll dort lesen, wer noch daran haengt -- und nicht hier.
+  // The register lives in tools/, the change happens in the stylesheet. Whoever touches a
+  // grid column should read there who else depends on it -- not here.
   for (const name of Object.keys(SHARED_FEATURE_CLASSES)) {
     for (const file of stylesheets) {
       for (const line of missingGeometryNotes(readFileSync(file, "utf8"), name)) {

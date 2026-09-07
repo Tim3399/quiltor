@@ -9,10 +9,10 @@
 
 .ui-segmented button {
   min-height: var(--control-regular);
-  /* Die Segmente teilen sich die Breite, sobald ein Aufrufer das Control streckt. Bleibt es
-     inhaltsbreit, aendert das nichts -- dann gibt es keinen freien Platz zu verteilen. Ohne
-     das sass ein gestrecktes Control mit zwei Segmenten neben einer Luecke, die wie ein
-     fehlender dritter Knopf aussah. */
+  /* The segments share the width as soon as a caller stretches the control. If it stays
+     content-wide this changes nothing -- there is no free space to hand out. Without it, a
+     stretched control with two segments sat beside a gap that looked like a missing third
+     button. */
   min-width: 0;
   flex: 1 1 auto;
   padding: 0 var(--spacing-transition-control-inline-base);

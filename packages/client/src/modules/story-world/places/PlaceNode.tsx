@@ -84,9 +84,9 @@ export function PlaceNode({ data, selected }: NodeProps<PlaceFlowNode>) {
               <Star className="importance-mark" aria-label={t("favoritePlaceMarker")} />
             ) : undefined
           }
-          // Ein grauer Punkt in der Ecke beantwortet die Frage nicht, warum sich die Karte
-          // nicht ziehen laesst. Die Nadel, die sie haelt, beantwortet sie -- mit demselben
-          // Zeichen, das die Aktion daneben traegt, und mit einem Namen fuer Vorlesesoftware.
+          // A grey dot in the corner does not answer why the card cannot be dragged. The
+          // pin that holds it does -- with the same glyph the action beside it carries, and
+          // with a name for screen readers.
           trailing={
             item.pinned ? (
               <Pin className="place-node__pinned" aria-label={t("placePositionLocked")} />

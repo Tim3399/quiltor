@@ -5,7 +5,7 @@
   padding: var(--space-14);
 }
 
-/* Eine Gruppe mit einer Kante statt drei Trennlinien fuer drei Zahlen. */
+/* One group with one edge instead of three rules for three numbers. */
 .chapter-inspector__stats {
   margin: 0;
   padding: 0 var(--space-10);
@@ -48,7 +48,7 @@
   gap: var(--space-6);
 }
 
-/* Ueber die eigene Huelle statt ueber die Owner-Klasse der Komponente. */
+/* Through its own shell rather than the component's owner class. */
 .chapter-inspector__placement > *,
 .chapter-inspector__wide {
   min-width: 0;
@@ -56,8 +56,8 @@
   justify-content: center;
 }
 
-/* Die Notiz ist in diesem Register das Hauptfeld und traegt Autorentext, keine Eingabe:
-   Papierflaeche statt Formularkasten, und Platz fuer mehr als zwei Zeilen. */
+/* In this section the note is the main field and carries an author's text, not an entry:
+   a paper surface rather than a form box, with room for more than two lines. */
 .chapter-inspector__note {
   min-width: 0;
 }

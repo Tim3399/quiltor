@@ -81,7 +81,7 @@ describe("Storyboard note-card UX contract", () => {
     expect(body).toHaveClass("scroll-area");
     // The card scrolls its own body under the wheel; the canvas zoom would
     // otherwise swallow the event and the note could never be scrolled.
-    // Leere Karte: kein Ueberlauf, also gehoert das Rad der Leinwand.
+    // Empty card: no overflow, so the wheel belongs to the canvas.
     expect(body).not.toHaveClass("nowheel");
     // Still draggable by its padding, so the card does not lose its grip.
     expect(body).not.toHaveClass("nodrag");

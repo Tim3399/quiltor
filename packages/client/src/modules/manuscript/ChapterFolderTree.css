@@ -58,11 +58,11 @@
 .binder-drag-handle {
   position: absolute;
   inset-block: 0;
-  /* Ueber dem linken Rand der Zeile, nicht daneben: negativ gesetzt stand der Griff
-     ausserhalb der Karte und bei der obersten Ebene ausserhalb des Panels.
-     Die 24px sind kein Augenmass, sondern die Mindestgroesse eines Ziels aus WCAG 2.2.
-     Der Griff hatte sie als eigene Rasterspalte; beim Umzug auf den Zeilenrand blieben
-     16 uebrig -- gemeint war, die Spalte zu sparen, nicht das Ziel zu verkleinern. */
+  /* Over the row's left edge, not beside it: set negative, the handle stood outside the
+     card and, at the top level, outside the panel.
+     The 24px is not a matter of eye but the minimum target size from WCAG 2.2. The handle
+     had it as a grid column of its own; moving it onto the row edge left 16 -- what was
+     meant was to save the column, not to shrink the target. */
   inset-inline-start: 0;
   width: var(--space-24);
   display: grid;

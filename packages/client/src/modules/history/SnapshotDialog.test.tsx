@@ -107,8 +107,8 @@ describe("SnapshotDialog", () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     show();
     const button = await screen.findByRole("button", { name: /Bei der Sicherung anmelden/ });
-    // Der Hochladen-Knopf ist hier gar nicht da: ein deaktivierter Knopf wäre eine
-    // Sackgasse, und genau das soll die Anmeldung ersetzen.
+    // The upload button is not here at all: a disabled button would be a dead end, and
+    // the sign-in is exactly what replaces it.
     expect(screen.queryByRole("button", { name: /Sichern & hochladen/ })).not.toBeInTheDocument();
     fireEvent.click(button);
     await waitFor(() =>
@@ -118,7 +118,7 @@ describe("SnapshotDialog", () => {
         "noopener,noreferrer",
       ),
     );
-    // Die Anmeldung endet im anderen Fenster -- der Dialog muss selbst nachfragen.
+    // The sign-in finishes in the other window -- the dialog has to ask for itself.
     await waitFor(() => expect(backupLoginStatus.mock.calls.length).toBeGreaterThan(1), {
       timeout: 4000,
     });
@@ -147,15 +147,15 @@ describe("SnapshotDialog", () => {
   });
 
   it('sagt "wird geprüft", solange der Anmeldedienst noch keine Antwort gegeben hat', async () => {
-    // null heißt nicht "nicht erreichbar", sondern "noch nicht beantwortet". Der
-    // Unterschied zählt: ein langsamer, aber lebender Anmeldedienst darf nicht
-    // dazu führen, dass der Knopf verschwindet und als Fehler dasteht.
+    // null does not mean "unreachable" but "not answered yet". The difference counts: a
+    // slow but living sign-in service must not make the button disappear and stand there
+    // as a failure.
     backupLoginStatus.mockResolvedValue(loginStatus({ issuerReachable: null }));
     show();
     expect(await screen.findByText(/wird gerade geprüft/)).toBeInTheDocument();
     expect(screen.queryByText(/antwortet gerade nicht/)).not.toBeInTheDocument();
-    // Der Anmeldeknopf bleibt sichtbar, nur noch nicht drückbar -- die Anzeige
-    // nimmt kein Urteil vorweg, das der Server noch gar nicht gefällt hat.
+    // The sign-in button stays visible, only not yet pressable -- the display pre-empts
+    // no verdict the server has not reached yet.
     expect(screen.getByRole("button", { name: /Bei der Sicherung anmelden/ })).toBeDisabled();
   });
 
@@ -165,8 +165,8 @@ describe("SnapshotDialog", () => {
       .mockResolvedValue(loginStatus({ issuerReachable: true }));
     show();
     expect(await screen.findByText(/wird gerade geprüft/)).toBeInTheDocument();
-    // Auf den Zustandswechsel warten, nicht auf das Element: der Knopf steht die
-    // ganze Zeit da, er ist nur erst deaktiviert.
+    // Wait for the state to change, not for the element: the button is there the whole
+    // time, it is merely disabled at first.
     await waitFor(
       () =>
         expect(screen.getByRole("button", { name: /Bei der Sicherung anmelden/ })).toBeEnabled(),

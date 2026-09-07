@@ -72,7 +72,7 @@ function PlacesWorkspaceInner({
   latestState.current = state;
 
   const places = useMemo(() => placesOnLevel(state.nodes, levelId), [state.nodes, levelId]);
-  // Ohne Auswahl gibt es nichts zu steuern; die Spalte gehoert dann der Karte.
+  // With nothing selected there is nothing to control; the column then belongs to the map.
   const trail = useMemo(() => levelTrail(state.nodes, levelId), [state.nodes, levelId]);
   const levelScale = useMemo(
     () => scaleForLevel(state.nodes, levelId, state.mapScale),

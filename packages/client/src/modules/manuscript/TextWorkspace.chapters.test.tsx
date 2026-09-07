@@ -69,7 +69,7 @@ describe("TextWorkspace chapter binder", () => {
         <Stateful />
       </TestProviders>,
     );
-    // Die Zaehlungen zum Kapitel stehen rechts, nicht mehr doppelt in der Kontextleiste.
+    // The chapter's counts stand on the right, no longer duplicated in the context bar.
     const status = within(within(view.container).getByRole("complementary", { name: "Details" }));
     expect(status.getByText("Wörter").nextSibling).toHaveTextContent("2");
     expect(status.getByText("Zeichen").nextSibling).toHaveTextContent("10");
@@ -178,7 +178,7 @@ describe("TextWorkspace chapter binder", () => {
     );
     const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
     fireEvent.click(binder.getByRole("button", { name: /Rückblende/ }));
-    // Die Handlungszeit steuert man rechts; links steht nur noch, welches Kapitel gemeint ist.
+    // Story time is controlled on the right; the left only says which chapter is meant.
     const controls = within(within(view.container).getByRole("complementary", { name: "Details" }));
     fireEvent.click(
       requireValue(

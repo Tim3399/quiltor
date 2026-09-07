@@ -41,8 +41,8 @@ describe("host file save", () => {
   });
 
   it("übergibt den Export in der Desktop-App an die native Brücke statt an einen Anker", async () => {
-    // Ein <a download> ist in der Desktop-App genau der Weg, der nichts erzeugt und unter
-    // macOS zusätzlich das Fenster blockiert -- siehe src/quiltor/hosts/desktop/bridge/api.py.
+    // An <a download> is, in the desktop app, precisely the path that produces nothing and
+    // on macOS blocks the window as well -- see src/quiltor/hosts/desktop/bridge/api.py.
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => undefined);

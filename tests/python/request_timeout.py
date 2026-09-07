@@ -1,16 +1,14 @@
-"""Wie lange ein Test auf eine Antwort des eingebauten Servers wartet.
+"""How long a test waits for an answer from the built-in server.
 
-Fünf Sekunden waren zu knapp. Auf einem ausgelasteten Windows-Runner hat das Anlegen
-einer Welt -- SQLite-Datei, Verzeichnisse, Synchronisieren auf die Platte -- länger
-gebraucht, und der Test fiel mit einem Socket-Timeout, obwohl nichts hängen geblieben
-war. Danach liess sich das Temp-Verzeichnis nicht mehr räumen, weil der Server die Datei
-noch offen hielt: aus einem langsamen Lauf wurden zwei Fehler.
+Five seconds were too tight. On a loaded Windows runner, creating a world -- SQLite file,
+directories, syncing to disk -- took longer, and the test failed with a socket timeout even
+though nothing had hung. Afterwards the temp directory could no longer be cleared, because
+the server still held the file open: one slow run turned into two failures.
 
-Zwanzig Sekunden nehmen einem echten Hänger nicht die Chance, aufzufallen -- der Lauf
-bricht weiterhin ab, statt zu warten, bis der Job seine Zeit verbraucht hat. Sie stehen
-hier an einer Stelle, damit nicht jede Suite ihre eigene Geduld erfindet; zwanzig war
-schon vorher das Mass in ``test_backup_routes``, das als einziges nie an dieser Grenze
-gescheitert ist.
+Twenty seconds do not deny a real hang its chance to be noticed -- the run still aborts
+instead of waiting until the job has spent its time. They stand here in one place so that
+not every suite invents its own patience; twenty was already the measure in
+``test_backup_routes``, the only one that never failed at this limit.
 """
 
 REQUEST_TIMEOUT = 20

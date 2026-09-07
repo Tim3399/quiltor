@@ -8,8 +8,8 @@
   /* The desk has to stay visible above the sheet, otherwise the top edge and its
      radius sit flush against the toolbar and the page stops reading as an object. */
   margin: var(--space-16) auto 0;
-  /* Ein Blatt hat einen Rand, keinen Anschlag: seitlich derselbe Abstand wie oben,
-     sonst steht der Satz an der Kante und die Seite wirkt beschnitten. */
+  /* A sheet has a margin, not a stop: the same distance at the sides as at the top, or
+     the type stands at the edge and the page looks trimmed. */
   padding: var(--space-48) var(--space-48) 45vh;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   box-shadow: var(--elevation-2) var(--shadow-raised);

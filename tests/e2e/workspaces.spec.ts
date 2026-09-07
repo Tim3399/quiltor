@@ -141,8 +141,8 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
     expect(undersized, `${label} enthält Touchziele unter 44px`).toEqual([]);
   };
 
-  // Eine Zeile heißt gemeinsame Mitte, nicht gemeinsame Oberkante: der Segmentstreifen
-  // trägt seinen eigenen Innenrand und ist damit ein paar Pixel höher als seine Nachbarn.
+  // One row means a shared centre, not a shared top edge: the segment strip carries its own
+  // inner padding and is therefore a few pixels taller than its neighbours.
   const actionRows = await toolbarGroups.evaluateAll((groups) =>
     groups
       .filter((group) => group.getBoundingClientRect().width > 0)
@@ -318,7 +318,7 @@ test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag"
   const worldTitle = `Schreibhilfe-Vertragswelt ${crypto.randomUUID()}`;
   await openBlankWorld(page, worldTitle);
 
-  // Schmal ist die Detailspalte ein Sheet; die Schreibhilfe ist eines ihrer beiden Register.
+  // When narrow the details column is a sheet; the writing aid is one of its two sections.
   await page
     .getByRole("toolbar", { name: "Manuskript" })
     .getByRole("button", { name: "Details", exact: true })
@@ -372,7 +372,7 @@ test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag"
     ).toBeLessThanOrEqual(0.75);
   }
 
-  // Zwei Knöpfe heißen „Verwalten"; unterschieden werden sie über ihre Beschriftung.
+  // Two buttons are called „Verwalten"; they are told apart by their label.
   await writingAid.getByRole("button", { name: "Eigene Begriffe verwalten" }).click();
   const terms = page.getByRole("dialog", { name: "Eigene Begriffe", exact: true });
   await expect(terms).toBeVisible();
@@ -594,11 +594,11 @@ test("Orte teilen im Overview-LOD Marker und Prioritätspillen mit Figuren", asy
   expect(priorityMarker?.boxShadow).not.toBe("none");
 });
 
-// Die drei Playwright-Projekte fahren 1440, 900 und 390px. Dazwischen liegen die Breiten, an
-// denen die Kontextleiste tatsächlich kippt -- der abgeschnittene Knopf saß bei 406px, der
-// Zeilenumbruch bei 998px. Statt für jede davon ein viertes Projekt anzulegen (das die ganze
-// Suite ein weiteres Mal fährt und vierzehn zusätzliche Vergleichsbilder verlangt), prüft ein
-// Test die Leiste über die ganze Spanne. Er braucht kein Bild, nur Geometrie.
+// The three Playwright projects run 1440, 900 and 390px. The widths at which the context bar
+// actually tips over lie between them -- the clipped button sat at 406px, the line break at
+// 998px. Rather than adding a fourth project for each (running the whole suite one more time
+// and demanding fourteen further comparison images), one test walks the bar across the entire
+// span. It needs no image, only geometry.
 test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async ({
   page,
 }, testInfo) => {
@@ -616,8 +616,8 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
     320, 360, 390, 406, 414, 500, 719, 720, 820, 821, 878, 900, 998, 1099, 1100, 1329, 1440,
   ]) {
     await page.setViewportSize({ width, height: 900 });
-    // Auf kompakten Breiten scrollen die Actions innerhalb der öffentlichen WorkspaceToolbar.
-    // Die Leiste und das Dokument selbst dürfen dadurch weiterhin nie breiter als das Fenster sein.
+    // At compact widths the actions scroll inside the public WorkspaceToolbar. Neither the bar
+    // nor the document itself may ever become wider than the window because of it.
     const containment = await page.evaluate(() => {
       const root = document.documentElement;
       const toolbar = document.querySelector<HTMLElement>(
@@ -748,8 +748,8 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
   expect(exportBox.x).toBeGreaterThanOrEqual(actionsBox.x - 0.5);
   expect(exportBox.x + exportBox.width).toBeLessThanOrEqual(actionsBox.x + actionsBox.width + 0.5);
 
-  // Die volle Manuskriptleiste klappt Beschriftungen etwas früher ein als kleine Toolbars, damit
-  // Zwischenbreiten nie erst horizontal gescrollt werden müssen.
+  // The full manuscript bar folds its labels away slightly earlier than small toolbars do, so
+  // that intermediate widths never have to be scrolled sideways first.
   const chapters = manuscriptToolbar.getByRole("button", { name: "Kapitel", exact: true });
   const aid = manuscriptToolbar.getByRole("button", { name: "Details", exact: true });
   const chaptersLabel = chapters.getByText("Kapitel", { exact: true });
@@ -836,8 +836,8 @@ test("Schmale Leisten behalten dieselbe visuelle Reihenfolge wie die breite Ansi
       }),
   );
   expect(title).not.toBeNull();
-  // Wie oben: eine Zeile ist eine gemeinsame Mitte. Unter dem Titel stehen muss trotzdem
-  // die oberste Kante, sonst rutschte der höhere Streifen in die Titelzeile hinein.
+  // As above: one row is a shared centre. The topmost edge still has to sit below the title,
+  // or the taller strip would slide up into the title row.
   expect(new Set(actionGeometry.map((group) => Math.round(group.middle))).size).toBe(1);
   expect(Math.min(...actionGeometry.map((group) => group.top))).toBeGreaterThanOrEqual(
     Math.floor(title!.y + title!.height),
@@ -862,27 +862,27 @@ test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn z
     await page.setViewportSize({ width, height: 900 });
     await expect(binder).toBeVisible();
     const [binderBox, pageBox] = [await binder.boundingBox(), await editorPage.boundingBox()];
-    // Der Kern der Entscheidung: die Spalte endet dort, wo die Schreibfläche anfängt.
-    // Vorher lag sie darüber und schnitt den linken Rand jeder Zeile ab.
+    // The heart of the decision: the column ends where the writing surface begins. Before, it
+    // lay over it and cut off the left edge of every line.
     expect(
       binderBox!.x + binderBox!.width,
       `Spalte überlappt den Text bei ${width}px`,
     ).toBeLessThanOrEqual(pageBox!.x + 0.5);
-    // Und die Schreibfläche darf dabei nicht seitwärts scrollen müssen.
+    // And the writing surface must not have to scroll sideways for it.
     const scrollsX = await editorScroller.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
     expect(scrollsX, `Editor scrollt waagerecht bei ${width}px`).toBe(false);
   }
 });
 
 /*
- * Der Speicherstand bleibt in der Leiste, auch wenn es eng wird.
+ * The save status stays in the bar, however tight it gets.
  *
- * Frueher verschwand er unter 400px und tauchte im ⋯-Menue wieder auf. Diese Umsiedlung ist
- * mit der Werkstatt weggefallen: er darf sich verschmaelern, bevor irgendetwas anderes weichen
- * muss, und steht deshalb bis hinunter zu 320px an derselben Stelle. Ein Zustand, der je nach
- * Fensterbreite woanders steht, ist schwerer zu finden als einer, der schmaler wird.
+ * It used to disappear below 400px and turn up again in the ⋯ menu. The Werkstatt rebuild did
+ * away with that move: it may narrow itself before anything else has to give way, and so it
+ * stands in the same place all the way down to 320px. A status that sits somewhere else
+ * depending on the window width is harder to find than one that merely gets narrower.
  *
- * Geprueft wird beides: dass er bleibt, und dass er dabei im Fenster bleibt.
+ * Both are checked: that it stays, and that it stays inside the window while doing so.
  */
 test("Der Speicherstand bleibt in der Leiste, statt schmal ins Menü auszuweichen", async ({
   page,
@@ -911,7 +911,7 @@ test("Der Speicherstand bleibt in der Leiste, statt schmal ins Menü auszuweiche
     );
   }
 
-  // Und er steht nur dort: ein zweiter Stand im Menue waere derselbe Satz an zwei Orten.
+  // And it stands only there: a second status in the menu would be one sentence in two places.
   await page.getByRole("button", { name: "Mehr" }).click();
   await expect(page.getByRole("dialog", { name: "Aktionen" }).getByRole("status")).toHaveCount(0);
   await page.keyboard.press("Escape");
@@ -1051,8 +1051,8 @@ test("CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil", a
   await expect(editor.locator(".cm-placeholder")).toBeVisible();
   await editor.fill("Der Morgen lag still über dem Hafen.");
   await editor.selectText();
-  // Markieren allein öffnet nichts mehr -- die Nachschlage-Aktionen sind eine eigene
-  // Anfrage, so wie unter macOS. Sichtbar ist die Markierung trotzdem.
+  // Selecting alone no longer opens anything -- the lookup actions are a request of their
+  // own, the way they are on macOS. The selection is visible all the same.
   const selectionMenu = page.getByRole("menu", { name: "Aktionen für die Textauswahl" });
   await expect(selectionMenu).toBeHidden();
   await expect(page.locator(".held-selection")).toContainText(
@@ -1061,8 +1061,8 @@ test("CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil", a
   await page.locator(".held-selection").click({ button: "right" });
   await expect(selectionMenu).toBeVisible();
   await selectionMenu.getByRole("menuitem", { name: "Nachschlagen" }).click();
-  // Die Schreibhilfe hat keine eigene Markierungskarte mehr (.writing-selection-state ist fort).
-  // Die Markierung *ist* die Frage, also steht sie im Suchfeld der Schreibhilfe.
+  // The writing aid no longer has a selection card of its own (.writing-selection-state is
+  // gone). The selection *is* the question, so it stands in the writing aid's search field.
   await expect(page.getByRole("textbox", { name: "Suchbegriff" })).toHaveValue(
     "Der Morgen lag still über dem Hafen.",
   );
@@ -1101,8 +1101,8 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
     "Der Morgen lag still über dem Hafen.",
   );
 
-  // Die Auszeichnung ist kein Zeichen im Text, sondern ein Bereich neben ihm (Chapter.marks).
-  // Der Beweis dafür ist, dass der Text unverändert bleibt und die Bereiche das Speichern überstehen.
+  // A mark is not a character in the text but a range beside it (Chapter.marks). The proof is
+  // that the text stays unchanged and the ranges survive being saved.
   await expect(editor).toHaveText("Der Morgen lag still über dem Hafen.");
   await italicSave;
   await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible();
@@ -1118,11 +1118,11 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
 });
 
 /*
- * Zwei Spalten, nicht drei: links das Kapitelverzeichnis, rechts eine Steuerungsspalte.
+ * Two columns, not three: the chapter list on the left, a control column on the right.
  *
- * Die Steuerungsspalte heisst „Details" und traegt zwei Register -- das Kapitel und die
- * Schreibhilfe. Deshalb schaltet die Werkzeugleiste sie als ein Stueck, und das Umschalten
- * zwischen Kapitel und Schreibhilfe passiert innen, am Registerschalter der Spalte.
+ * The control column is called „Details" and carries two sections -- the chapter and the
+ * writing aid. The toolbar therefore switches it as one piece, and moving between chapter and
+ * writing aid happens inside, at the column's own section switch.
  */
 test("Kapitel- und Detailspalte lassen sich aus der Werkzeugleiste umschalten", async ({
   page,
@@ -1139,7 +1139,7 @@ test("Kapitel- und Detailspalte lassen sich aus der Werkzeugleiste umschalten", 
   const width = page.viewportSize()?.width || 0;
 
   if (width >= 1100) {
-    // Breit ist Platz für beides: die Spalten stehen nebeneinander und schließen sich nicht aus.
+    // Wide there is room for both: the columns stand side by side and do not exclude each other.
     await expect(chapters).toHaveAttribute("aria-pressed", "true");
     await expect(aid).toHaveAttribute("aria-pressed", "true");
     await expect(chapterPanel).toHaveCount(1);
@@ -1150,13 +1150,13 @@ test("Kapitel- und Detailspalte lassen sich aus der Werkzeugleiste umschalten", 
     await chapters.click();
     await expect(chapterPanel).toHaveCount(1);
   } else if (width < 720) {
-    // Unter 720px sind beide Spalten Sheets. Ein Sheet ist modal, also muss das eine zu sein,
-    // bevor das andere aufgeht -- deshalb hier über den Schließen-Knopf statt über die Leiste.
+    // Below 720px both columns are sheets. A sheet is modal, so one has to be closed before the
+    // other opens -- hence the close button here rather than the bar.
     await expect(chapterPanel).toHaveCount(0);
     await chapters.click();
     const binderSheet = page.getByRole("dialog", { name: "Kapitel" });
     await expect(binderSheet).toBeVisible();
-    // Das Verzeichnis listet, es bearbeitet nicht: die Kapitelnotiz steht drueben im Register.
+    // The list lists, it does not edit: the chapter note lives over in the section.
     await expect(binderSheet.getByRole("button", { name: /Ohne Titel/ }).first()).toBeVisible();
     await expect(binderSheet.getByLabel("Kapitelnotiz")).toHaveCount(0);
     await page.getByRole("button", { name: "Kapitelnavigation schließen" }).click();
@@ -1168,7 +1168,7 @@ test("Kapitel- und Detailspalte lassen sich aus der Werkzeugleiste umschalten", 
     await aidSheet.getByRole("radio", { name: "Schreibhilfe" }).click();
     await expect(aidSheet.getByRole("tab", { name: "Nachschlagen" })).toBeVisible();
   } else {
-    // 720-1100: beide Spalten liegen als Schublade über dem Text, also kann nur eine offen sein.
+    // 720-1100: both columns lie over the text as drawers, so only one can be open.
     await expect(chapters).toHaveAttribute("aria-pressed", "true");
     await expect(aid).toHaveAttribute("aria-pressed", "false");
     await aid.click();
@@ -1183,13 +1183,15 @@ test("Kapitel- und Detailspalte lassen sich aus der Werkzeugleiste umschalten", 
   }
 
   if (width >= 720) {
-    // Innen wird umgeschaltet: ein Registerschalter, kein zweiter Spaltenschalter.
+    // The switching happens inside: a section switch, not a second column switch.
     if ((await writingAidPanel.count()) === 0) await aid.click();
-    const register = writingAidPanel.getByRole("radiogroup", { name: "Kapitel oder Schreibhilfe" });
-    await expect(register.getByRole("radio", { name: "Kapitel" })).toBeVisible();
-    await register.getByRole("radio", { name: "Schreibhilfe" }).click();
+    const sectionSwitch = writingAidPanel.getByRole("radiogroup", {
+      name: "Kapitel oder Schreibhilfe",
+    });
+    await expect(sectionSwitch.getByRole("radio", { name: "Kapitel" })).toBeVisible();
+    await sectionSwitch.getByRole("radio", { name: "Schreibhilfe" }).click();
     await expect(writingAidPanel.getByRole("tab", { name: "Nachschlagen" })).toBeVisible();
-    await register.getByRole("radio", { name: "Kapitel" }).click();
+    await sectionSwitch.getByRole("radio", { name: "Kapitel" }).click();
     await expect(writingAidPanel.getByRole("tab", { name: "Nachschlagen" })).toHaveCount(0);
   }
 });
@@ -1209,7 +1211,7 @@ test("Schreibhilfe zeigt alle Tabtitel in der 294px-Spalte vollständig", async 
   await expect(inspector).toBeVisible();
   const panelWidth = await inspector.evaluate((panel) => panel.getBoundingClientRect().width);
   expect(panelWidth).toBeCloseTo(294, 0);
-  // Die Schreibhilfe ist ein Register dieser Spalte; die Spalte gibt ihr die Breite vor.
+  // The writing aid is a section of this column; the column dictates its width.
   await inspector
     .getByRole("radiogroup", { name: "Kapitel oder Schreibhilfe" })
     .getByRole("radio", { name: "Schreibhilfe" })
@@ -1271,11 +1273,11 @@ test("Schreibhilfe zeigt alle Tabtitel in der 294px-Spalte vollständig", async 
 });
 
 /*
- * Wo die Eigenschaften eines Kapitels stehen.
+ * Where a chapter's properties live.
  *
- * Nicht mehr an drei Orten: der Titel ueber dem Text, alles andere im Kapitel-Register der
- * Detailspalte. Das Verzeichnis links listet nur noch -- es trug frueher die Notiz mit, und
- * die Zaehlungen standen als Begriffsliste in der Werkzeugleiste.
+ * No longer in three places: the title above the text, everything else in the details column's
+ * chapter section. The list on the left only lists now -- it used to carry the note as well,
+ * and the counts stood in the toolbar as a definition list.
  */
 test("Kapiteleigenschaften stehen im Kapitel-Register der Detailspalte", async ({
   page,
@@ -1287,14 +1289,14 @@ test("Kapiteleigenschaften stehen im Kapitel-Register der Detailspalte", async (
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 
-  // Der Titel steht über dem Text, nicht mehr rechts in einer Eigenschaftenspalte.
+  // The title stands above the text, no longer to the right in a properties column.
   const title = page.getByRole("textbox", { name: "Kapiteltitel" });
   await expect(title).toBeVisible();
   await expect(
     page.getByRole("article").getByRole("textbox", { name: "Kapiteltitel" }),
   ).toHaveCount(1);
 
-  // Zählungen und Notiz stehen im Kapitel-Register der Detailspalte, das offen aufgeht.
+  // Counts and note live in the details column's chapter section, which opens unfolded.
   const inspector = page.getByRole("complementary", { name: "Details" });
   await expect(inspector.getByRole("radio", { name: "Kapitel" })).toHaveAttribute(
     "aria-checked",
@@ -1306,12 +1308,12 @@ test("Kapiteleigenschaften stehen im Kapitel-Register der Detailspalte", async (
   }
   await expect(inspector.getByLabel("Kapitelnotiz")).toBeVisible();
 
-  // Links wird nur gelistet: weder Notiz noch Zählungen stehen ein zweites Mal dort.
+  // The left side only lists: neither note nor counts appear there a second time.
   const chapterPanel = page.getByRole("complementary", { name: "Kapitel" });
   await expect(chapterPanel.getByLabel("Kapitelnotiz")).toHaveCount(0);
   await expect(chapterPanel.locator("dl")).toHaveCount(0);
 
-  // Die Register sind Register, keine Reiter -- die Reiter drinnen gehören der Schreibhilfe.
+  // The sections are sections, not ARIA tabs -- the tabs inside belong to the writing aid.
   await expect(page.getByRole("tab", { name: "Kapitel", exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("toolbar", { name: "Manuskript" }).getByRole("button", {
@@ -1320,7 +1322,7 @@ test("Kapiteleigenschaften stehen im Kapitel-Register der Detailspalte", async (
     }),
   ).toHaveCount(0);
 
-  // Kapitelaktionen bleiben ruhig in der aktiven Zeile und öffnen ein semantisches Aktionsmenü.
+  // Chapter actions stay quietly in the active row and open a semantic action menu.
   const activeChapter = chapterPanel.locator(".binder-chapter-row.active");
   const actionTrigger = activeChapter.getByRole("button", { name: /Kapitelaktionen:/ });
   await expect(actionTrigger).toBeVisible();
@@ -1368,8 +1370,8 @@ test("Kapiteleigenschaften stehen im Kapitel-Register der Detailspalte", async (
 test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async ({
   page,
 }, testInfo) => {
-  // Der Vertrag bestätigt acht reale, aufeinander aufbauende Manuskript-Writes inklusive Reloads.
-  // Das zusätzliche Budget ist kein Warten: jeder Schritt bleibt an die konkrete API-Response gebunden.
+  // The contract confirms eight real manuscript writes that build on each other, reloads
+  // included. The extra budget is not waiting: every step stays tied to its own API response.
   test.setTimeout(60_000);
   test.skip(
     testInfo.project.name !== "wide",
@@ -1725,9 +1727,9 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
     const menuItem = compactChapterMenu.getByRole("menuitem", { name: item, exact: true });
     await expect(menuItem).toBeVisible();
     const itemHeight = await menuItem.evaluate((element) => element.getBoundingClientRect().height);
-    // Auf das Hundertstel genau, nicht auf die letzte Nachkommastelle: macOS mass hier
-    // 43,99993896484375 fuer einen Eintrag, der 44 hoch gebaut ist. Ein wirklich zu kleines
-    // Ziel faellt weiterhin durch -- 43,9 rundet nicht auf 44.
+    // Accurate to the hundredth, not to the last decimal place: macOS measured
+    // 43.99993896484375 here for an entry built 44 high. A target that really is too small
+    // still fails -- 43.9 does not round to 44.
     expect(
       Math.round(itemHeight * 100) / 100,
       `${item} ist kompakt kein 44px-Touchziel`,
@@ -1808,20 +1810,20 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
 });
 
 test("Shortcuts unterscheiden Speichern und Sicherung", async ({ page }) => {
-  // Der Test prüft die zwei Tastenkürzel, nicht das Hochladen. Er behauptete früher
-  // zusätzlich, ein eingerichteter Endpunkt mache "Sichern & hochladen" aktiv -- das
-  // gilt nicht mehr: der Endpunkt verlangt eine Anmeldung, und ohne sie liefe der
-  // Upload in ein 401. Der Dialog bietet dann die Anmeldung an statt eines Knopfes,
-  // der scheitern würde. Dass der Upload nach Anmeldung wirklich auslöst, steht als
-  // Einheitentest in packages/client/src/modules/history/SnapshotDialog.test.tsx, wo der Anmeldezustand
-  // ohne echten Keycloak herstellbar ist.
+  // The test checks the two keyboard shortcuts, not the upload. It used to claim as well
+  // that a configured endpoint makes "Sichern & hochladen" active -- that no longer holds:
+  // the endpoint demands a sign-in, and without one the upload would run into a 401. The
+  // dialog then offers the sign-in instead of a button that would fail. That the upload
+  // really does fire once signed in is a unit test in
+  // packages/client/src/modules/history/SnapshotDialog.test.tsx, where the signed-in state
+  // can be produced without a real Keycloak.
   await openBlankWorld(page, "Testwelt", "https://backup.example.com/shortcut-test");
   await page.keyboard.press("Control+Shift+S");
   const dialog = page.getByRole("dialog", { name: /Arbeitsstand sichern/ });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Was hat sich geändert?").fill("Zwischenstand aus dem Test");
-  // Lokal sichern braucht keinen Endpunkt und keine Anmeldung -- das ist der Weg,
-  // der immer offensteht, und deshalb der belastbare Beleg, dass der Dialog lebt.
+  // Saving locally needs neither an endpoint nor a sign-in -- it is the path that is always
+  // open, and therefore the dependable evidence that the dialog is alive.
   await expect(dialog.getByRole("button", { name: "Nur lokal sichern" })).toBeEnabled();
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+S");
@@ -1893,8 +1895,8 @@ test("Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
   await expect(drawer).toContainText("7 Quellen indexiert");
   const assistantPanel =
     (page.viewportSize()?.width || 0) < 720 ? drawer.locator(".assistant-drawer") : drawer;
-  // Unter 720px fährt der Assistent als Bottom-Sheet ein. Eine einmalige Messung trifft sonst die
-  // laufende Animation, deshalb wird bis zum Stillstand gepollt statt einmal abgefragt.
+  // Below 720px the assistant slides in as a bottom sheet. A single measurement would
+  // otherwise catch the running animation, so this polls until it rests instead of asking once.
   await expect
     .poll(async () => {
       const drawerBox = await assistantPanel.boundingBox(),
@@ -2504,9 +2506,9 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
       };
     }),
   );
-  // Die Stufe haengt an der Zoomstufe, nicht an der Fensterbreite -- der Einpassvorgang
-  // stellt sie ein, und auf einer 200px schmalen Leinwand landet er weit draussen. Erwartet
-  // wird deshalb die Stufe, die zur gemessenen Zoomstufe gehoert, und zu ihr die Geometrie.
+  // The level hangs on the zoom, not on the window width -- fitting the view sets it, and on
+  // a canvas 200px narrow it lands far out. What is expected is therefore the level belonging
+  // to the measured zoom, and the geometry belonging to that level.
   const zoomTier = await page.evaluate(() => {
     const viewport = document.querySelector(".figure-workspace .react-flow__viewport");
     const transform = viewport instanceof HTMLElement ? viewport.style.transform : "";
@@ -2528,15 +2530,15 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
       expect(node.width).toBe(200);
       expect(node.height).toBe(96);
     } else {
-      // Herausgezoomt bleibt vom Kaertchen ein Kreis mit einem Buchstaben darin.
+      // Zoomed out, all that is left of the little card is a circle with a letter in it.
       expect(node.width).toBeGreaterThanOrEqual(32);
       expect(node.height).toBeGreaterThanOrEqual(32);
       expect(node.visualWidth).toBeGreaterThan(0);
       expect(node.visualHeight).toBeGreaterThan(0);
     }
   }
-  // Herausgezoomt zeichnet die Leinwand kein Raster: die Linien staenden dichter als die
-  // Karten, die darauf sitzen. Dass es dort fehlt, ist die Zusage -- nicht ein Ausfall.
+  // Zoomed out the canvas draws no grid: the lines would stand closer together than the cards
+  // sitting on them. Its absence there is the promise -- not a failure.
   await expect(page.locator(".react-flow__background path")).toHaveCount(
     zoomTier === "overview" ? 0 : 1,
   );
@@ -2551,9 +2553,9 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
 
   const flowArea = page.locator(".figure-workspace .flow-area");
   const minimap = page.locator(".react-flow__minimap");
-  // Unter 720px und auf Fingerbedienung tritt die Übersichtskarte ab: 140x105 sind dort kein
-  // Überblick, sondern ein Hindernis vor dem Zeitstreifen. Wo sie fehlt, gibt es an ihr auch
-  // nichts zu messen -- der Rest dieses Vertrags gilt den breiteren Ansichten.
+  // Below 720px and under touch the minimap steps aside: 140x105 is no overview there but an
+  // obstacle in front of the timeline strip. Where it is absent there is nothing on it to
+  // measure -- the rest of this contract applies to the wider views.
   if (!(await minimap.isVisible())) return;
   await expect(minimap).toBeVisible();
   const flowBox = await flowArea.boundingBox();
@@ -2610,8 +2612,8 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
 });
 
 test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async ({ page }) => {
-  // Der Test umfasst Seed, verzögertes Autosave und einen vollständigen Reload in drei Viewports.
-  // Das zusätzliche Budget ersetzt kein Warten: der Persistenzschritt bleibt an die PUT-Response gebunden.
+  // The test covers seeding, delayed autosave and a full reload across three viewports. The
+  // extra budget replaces no waiting: the persistence step stays tied to the PUT response.
   test.setTimeout(45_000);
   const world = await createTestWorld(page, `Drag Regression ${crypto.randomUUID()}`);
   // Both calls name the world, exactly as the focused platform/http adapters do for every request:
@@ -2683,13 +2685,13 @@ test("Elementtypen sind konsistent erreichbar und Löschen bestätigt ohne Halte
     await expect(page.getByRole("menuitem", { name: label, exact: true })).toBeVisible();
   await page.getByRole("menuitem", { name: "Figur", exact: true }).click();
   await expect(page.locator(".story-node")).toHaveCount(1);
-  // useHistoryState fasst Änderungen innerhalb von 650 ms zu einem Schritt zusammen. Ohne diese
-  // Pause landeten Anlegen und Löschen im selben Schritt und das Undo sprang hinter beide zurück.
+  // useHistoryState folds changes within 650 ms into a single step. Without this pause,
+  // creating and deleting landed in the same step and undo jumped back behind both.
   await page.waitForTimeout(900);
   await page.locator(".story-node").click();
   await page.getByRole("button", { name: "Figur löschen" }).click();
-  // Das Element hängt am Undo-Stack, also genügt hier eine Rückfrage: sie nennt den Rückweg und
-  // bestätigt mit einem Klick. Das Halten bleibt den Aktionen vorbehalten, die niemand zurückholt.
+  // The element hangs on the undo stack, so one question is enough here: it names the way back
+  // and confirms with a click. Press-and-hold stays for the actions nobody can retrieve.
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/rückgängig machen/)).toBeVisible();
@@ -2805,10 +2807,10 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
   const title = page.locator(".chapter-title");
   const initialTitleBox = await title.boundingBox();
   expect(initialTitleBox).not.toBeNull();
-  // Zwei Masse, nicht eins. Der Schalter haengt am Satzspiegel -- `--space-24` davor --, und
-  // `--space-8` ist nur der Boden, den die Regel als `max()` dagegensetzt, damit er in einem
-  // schmalen Fenster nicht aus dem Bild rutscht. Solange hier breit geprueft wird, gilt das
-  // erste Mass; frueher gewann der Boden, weil der Satzspiegel noch schmaler war.
+  // Two measures, not one. The switch hangs on the text block -- `--space-24` in front of it
+  // -- and `--space-8` is only the floor the rule sets against that with `max()`, so it does
+  // not slide out of view in a narrow window. As long as this is checked wide, the first
+  // measure applies; the floor used to win, because the text block was narrower still.
   const [edgeGap, windowGap] = await page
     .locator(".text-layout")
     .evaluate((layout) => [
@@ -2890,9 +2892,9 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
     .getByRole("button", { name: "Kapitelauswahl öffnen" })
     .boundingBox();
   const focusAid = await page.getByRole("button", { name: "Details öffnen" }).boundingBox();
-  // Im Fokusmodus haengen die Reiter am Fensterrand, nicht am Satzspiegel: ihr Abstand
-  // waechst mit dem Fenster. Versprochen ist dort Symmetrie -- beide sitzen auf demselben
-  // Einzug, und das Blatt steht mittig zwischen ihnen.
+  // In focus mode the tabs hang on the window edge, not on the text block: their distance
+  // grows with the window. What is promised there is symmetry -- both sit at the same indent,
+  // and the sheet stands centred between them.
   const focusLeftGap = focusTitle!.x - (focusChapters!.x + focusChapters!.width);
   const focusRightGap = focusAid!.x - (focusTitle!.x + focusTitle!.width);
   expect(focusLeftGap).toBeGreaterThan(edgeGap);
@@ -3018,16 +3020,16 @@ test("Autosave überlebt Reload und meldet konkurrierende Änderungen", async ({
   const initialSave = waitForSuccessfulManuscriptWrite(page);
   await page.getByLabel("Kapiteltext").fill("Nach Reload vorhanden");
   await initialSave;
-  // In jeder Breite an derselben Stelle: der Speicherstand verschmälert sich in der Leiste,
-  // statt unter 400px ins ⋯-Menü zu wandern.
+  // In the same place at every width: the save status narrows itself inside the bar rather
+  // than wandering into the ⋯ menu below 400px.
   await expect(page.getByRole("status").filter({ hasText: "Gespeichert" })).toBeVisible();
   await page.reload();
   await waitForManuscriptReady(page);
   await expect(page.getByLabel("Kapiteltext")).toHaveText("Nach Reload vorhanden");
   revision += 1;
   await page.getByLabel("Kapiteltext").fill("Konkurrierender Stand");
-  // Der Fehler dagegen bleibt in jeder Breite in der Leiste stehen -- ein fehlgeschlagenes
-  // Speichern, das man erst hinter einem Menü fände, wäre schlimmer als ein abgeschnittener Knopf.
+  // The error, by contrast, stays in the bar at every width -- a failed save that could only
+  // be found behind a menu would be worse than a clipped button.
   await expect(page.getByRole("alert").filter({ hasText: "Nicht gespeichert" })).toBeVisible();
 });
 
@@ -3105,9 +3107,10 @@ test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", 
 
       const dock = buttons[0]?.closest(".react-flow__controls");
       return {
-        // Die Flaeche traegt seit dem Werkstatt-Umbau der Dock, nicht mehr jeder Knopf: die
-        // Steuerung ist eine Pille aus einem Stueck. Geprueft wird deshalb der Dock -- und an
-        // den Knoepfen, dass sie durchsichtig darin sitzen und ihre Iconfarbe vom Thema kommt.
+        // Since the Werkstatt rebuild the dock carries the surface, no longer each button:
+        // the control is a pill of one piece. The dock is therefore what gets checked -- and
+        // on the buttons, that they sit transparently in it and take their icon colour from
+        // the theme.
         dockTheme: resolveTheme("var(--material-toolbar)", "var(--ink)"),
         dockBackground: dock ? getComputedStyle(dock).backgroundColor : "kein Dock gefunden",
         inkColor: resolveTheme("var(--paper)", "var(--ink)").color,
@@ -3175,8 +3178,8 @@ test("Welt lässt sich nur durch anhaltendes Halten lokal löschen", async ({ pa
     page.getByText("Bereits hochgeladene Backups bleiben auf dem Endpunkt erhalten."),
   ).toBeVisible();
 
-  // Das Halten schützt hier, weil kein Undo greift: Datenbank, Sicherungen und Verlauf sind danach
-  // fort. Der eigentliche Nachweis ist deshalb, dass ein zu frühes Loslassen nichts löscht.
+  // Press-and-hold protects here because no undo applies: database, backups and history are
+  // gone afterwards. The real proof is therefore that letting go too early deletes nothing.
   const confirm = page.getByRole("button", {
     name: "Welt löschen – gedrückt halten zum Bestätigen",
   });

@@ -24,7 +24,7 @@ function place(id: string, extra: Partial<FigureNode> = {}): FigureNode {
   return { id, name: id, x: 0, y: 0, type: "ort", ...extra } as FigureNode;
 }
 
-/** Weltkarte → Rom → Subura, plus ein Gasthaus, das nirgends drinsteckt. */
+/** World map → Rome → Subura, plus an inn that sits inside nothing. */
 const world: FigureNode[] = [
   place("welt", { mapExpanded: true, mapWidth: 1000, mapHeight: 800 }),
   place("rom", { parentPlaceId: "welt", mapU: 0.5, mapV: 0.25, mapExpanded: true }),
@@ -204,7 +204,7 @@ describe("place levels", () => {
 });
 
 describe("maps as ground for pins", () => {
-  const karte = place("karte", {
+  const map = place("karte", {
     mapExpanded: true,
     mapImageId: "abc",
     mapX: 100,
@@ -214,7 +214,7 @@ describe("maps as ground for pins", () => {
   });
 
   it("reads a map's rectangle from where it was put and how large it was made", () => {
-    expect(mapRect(karte)).toEqual({ x: 100, y: 200, width: 400, height: 300 });
+    expect(mapRect(map)).toEqual({ x: 100, y: 200, width: 400, height: 300 });
   });
 
   it("falls back to a default extent so a map is never a point", () => {
@@ -223,15 +223,15 @@ describe("maps as ground for pins", () => {
   });
 
   it("finds the map a point lands on, and none when it lands beside it", () => {
-    expect(mapUnder({ x: 150, y: 250 }, [karte])?.id).toBe("karte");
-    expect(mapUnder({ x: 100, y: 200 }, [karte])?.id).toBe("karte");
-    expect(mapUnder({ x: 500, y: 500 }, [karte])?.id).toBe("karte");
-    expect(mapUnder({ x: 99, y: 250 }, [karte])).toBeUndefined();
-    expect(mapUnder({ x: 501, y: 250 }, [karte])).toBeUndefined();
+    expect(mapUnder({ x: 150, y: 250 }, [map])?.id).toBe("karte");
+    expect(mapUnder({ x: 100, y: 200 }, [map])?.id).toBe("karte");
+    expect(mapUnder({ x: 500, y: 500 }, [map])?.id).toBe("karte");
+    expect(mapUnder({ x: 99, y: 250 }, [map])).toBeUndefined();
+    expect(mapUnder({ x: 501, y: 250 }, [map])).toBeUndefined();
   });
 
   it("gives an overlap to the map drawn on top", () => {
-    const oben = place("oben", {
+    const above = place("oben", {
       mapExpanded: true,
       mapImageId: "def",
       mapX: 100,
@@ -239,7 +239,7 @@ describe("maps as ground for pins", () => {
       mapWidth: 400,
       mapHeight: 300,
     });
-    expect(mapUnder({ x: 150, y: 250 }, [karte, oben])?.id).toBe("oben");
+    expect(mapUnder({ x: 150, y: 250 }, [map, above])?.id).toBe("oben");
   });
 });
 
@@ -275,7 +275,7 @@ describe("places that carry no anchor yet", () => {
 });
 
 describe("where a drag leaves a place", () => {
-  const karte = place("karte", {
+  const map = place("karte", {
     mapExpanded: true,
     mapImageId: "abc",
     mapX: 0,
@@ -284,7 +284,7 @@ describe("where a drag leaves a place", () => {
     mapHeight: 200,
   });
   const frei = place("frei");
-  const nodes = [karte, frei];
+  const nodes = [map, frei];
   const size = { width: 40, height: 20 };
 
   it("adopts a place that came to rest on a map", () => {
@@ -292,7 +292,7 @@ describe("where a drag leaves a place", () => {
       grid: 0,
       dragged: frei,
       nodes,
-      maps: [karte],
+      maps: [map],
       levelId: undefined,
       position: { x: 180, y: 90 },
       size,
@@ -306,7 +306,7 @@ describe("where a drag leaves a place", () => {
       grid: 0,
       dragged: frei,
       nodes,
-      maps: [karte],
+      maps: [map],
       levelId: undefined,
       position: { x: -10, y: 90 },
       size,
@@ -319,7 +319,7 @@ describe("where a drag leaves a place", () => {
       grid: 0,
       dragged: { ...frei, parentPlaceId: "karte", mapU: 0.2, mapV: 0.2 },
       nodes,
-      maps: [karte],
+      maps: [map],
       levelId: "welt",
       position: { x: 900, y: 900 },
       size,
@@ -337,9 +337,9 @@ describe("where a drag leaves a place", () => {
     expect(
       placementForDrop({
         grid: 0,
-        dragged: karte,
+        dragged: map,
         nodes,
-        maps: [karte],
+        maps: [map],
         levelId: undefined,
         position: { x: 40, y: 60 },
         size,
@@ -372,7 +372,7 @@ describe("where a drag leaves a place", () => {
 });
 
 describe("a level that is itself a picture", () => {
-  const grund = { x: 0, y: 0, width: 400, height: 200 };
+  const ground = { x: 0, y: 0, width: 400, height: 200 };
   const frei = place("frei");
 
   it("holds a place against the picture rather than placing it outright", () => {
@@ -383,7 +383,7 @@ describe("a level that is itself a picture", () => {
         nodes: [frei],
         maps: [],
         levelId: "rom",
-        levelGround: grund,
+        levelGround: ground,
         position: { x: 90, y: 40 },
         size: { width: 20, height: 20 },
       }),

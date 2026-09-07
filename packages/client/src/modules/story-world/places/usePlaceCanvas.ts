@@ -233,8 +233,8 @@ export function usePlaceCanvas({
   const latestFlowNodes = useRef(nodes);
   latestFlowNodes.current = nodes;
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
-  // Karten und die Orte darauf werden aus der Ebene abgeleitet und stehen nicht in
-  // dieser Liste. Ihre Messung haette sonst nirgends hin.
+  // Maps and the places on them are derived from the level and are not in this list.
+  // Their measurement would otherwise have nowhere to go.
   const [measured, setMeasured] = useState<MeasuredSizes>(NO_MEASURED_SIZES);
   // Keyed on what the flow actually renders rather than on what was derived for
   // it: the derived list changes a commit earlier, and fitting then would frame
@@ -406,13 +406,13 @@ export function usePlaceCanvas({
       const dragged = current.nodes.find((item) => item.id === node.id);
       if (!dragged) return;
 
-      // Ein verankerter Ort wird um seine Mitte gezeichnet, also meldet React Flow auch die
-      // Mitte. Alles Weitere hier rechnet mit der linken oberen Ecke -- ein Ort, der gerade
-      // erst auf eine Karte gezogen wird, kommt ja noch von der Ebene und meldet die Ecke.
-      const verankert =
+      // An anchored place is drawn around its centre, so React Flow reports the centre too.
+      // Everything else here works from the top-left corner -- a place only now being
+      // dragged onto a map still comes from the level and reports the corner.
+      const anchored =
         Boolean(latestGround.current) ||
         latestMaps.current.some((map) => map.id === dragged.parentPlaceId);
-      const ecke = verankert
+      const corner = anchored
         ? { x: x - (node.measured?.width ?? 0) / 2, y: y - (node.measured?.height ?? 0) / 2 }
         : { x, y };
 
@@ -422,7 +422,7 @@ export function usePlaceCanvas({
         maps: latestMaps.current,
         levelId,
         levelGround: latestGround.current,
-        position: ecke,
+        position: corner,
         size: node.measured,
         // Only a map is held to the ruling, and only while the ruling is drawn.
         // A place is anchored as a fraction of whatever it stands on, so

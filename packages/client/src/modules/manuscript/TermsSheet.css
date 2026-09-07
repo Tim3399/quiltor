@@ -35,9 +35,9 @@
   flex: none;
 }
 
-/* Diese Liste tragen zwei Blaetter: die eigenen Begriffe hier und die Figuren und Orte in
-   ElementsSheet.tsx. Beide zeigen dieselbe Art Liste -- eine, in der man ein- und ausschaltet
-   oder entfernt -- und sollen sich auch gleich anfuehlen. */
+/* Two sheets carry this list: the author's own terms here, and the figures and places in
+   ElementsSheet.tsx. Both show the same kind of list -- one you switch on and off or remove
+   from -- and should feel the same as well. */
 .editable-chips {
   min-width: 0;
   display: flex;

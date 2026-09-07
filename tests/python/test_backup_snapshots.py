@@ -16,11 +16,11 @@ from quiltor.infrastructure.backup.snapshots import BackupContext
 class SnapshotStoreTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        # Wie im Betrieb: SQLitePaths.from_data_directory ruft .resolve() auf, bevor das
-        # Datenverzeichnis irgendwo ankommt -- ein aufgeloester Pfad hat per Definition
-        # keinen verlinkten Bestandteil mehr. Ohne .resolve() reicht der Test dem
-        # Backup-Vertrag etwas, das die Anwendung ihm nie reicht, und faellt auf macOS
-        # ueber /var/folders, wo /var ein Symlink auf /private/var ist.
+        # As in production: SQLitePaths.from_data_directory calls .resolve() before the
+        # data directory reaches anywhere -- a resolved path has, by definition, no linked
+        # component left. Without .resolve() the test hands the backup contract something
+        # the application never hands it, and trips on macOS over /var/folders, where /var
+        # is a symlink to /private/var.
         self.root = Path(self.temp.name).resolve()
         self.store = SnapshotStore(self.root / "history")
 

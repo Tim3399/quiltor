@@ -5,9 +5,9 @@
 .board-grid-compact {
   opacity: 0.26;
 }
-/* Diesen Rahmen tragen Figuren UND Orte. Die Basis hat zwei Spalten, weil Orte keine
-   Weltuebersicht haben; die dritte Spalte gehoert unter .figure-workspace und nirgends
-   sonst hin. StoryGraphLayout.test.ts haelt genau das fest. */
+/* Figures AND places carry this frame. The base has two columns because places have no
+   world overview; the third column belongs under .figure-workspace and nowhere else.
+   StoryGraphLayout.test.ts holds exactly that. */
 .figure-layout {
   min-height: 0;
   position: relative;
@@ -15,15 +15,15 @@
   grid-template-columns: minmax(0, 1fr) 340px;
 }
 
-/* Struktur links, Leinwand in der Mitte, Steuerung rechts -- dieselbe Regel wie im
-   Manuskript, aber nur dort, wo es die Weltuebersicht ueberhaupt gibt. Orte teilen sich
-   diese Klasse und haben nur zwei Spalten. */
+/* Structure on the left, canvas in the middle, controls on the right -- the same rule as
+   in the manuscript, but only where the world overview exists at all. Places share this
+   class and have two columns only. */
 .figure-workspace .figure-layout {
   grid-template-columns: 232px minmax(0, 1fr) 340px;
 }
 
-/* Ohne Auswahl gibt es nichts zu steuern. Die Spalte verschwindet dann, statt als
-   "Element auswaehlen" 288 Pixel neben der Leinwand stehen zu bleiben. */
+/* With nothing selected there is nothing to control. The column then disappears instead
+   of standing 288 pixels beside the canvas as "Element auswaehlen". */
 .figure-layout.layout-without-inspector {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -307,8 +307,8 @@
   .figure-layout {
     grid-template-columns: 1fr;
   }
-  /* Auf schmalen Flaechen bleibt die Leinwand; die Uebersicht ist dort das Erste,
-     was Platz abgibt. */
+  /* On narrow surfaces the canvas stays; the overview is the first thing there to give
+     up its space. */
   .figure-layout > .world-overview {
     display: none;
   }

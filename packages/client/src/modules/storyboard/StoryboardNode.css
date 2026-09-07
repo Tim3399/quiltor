@@ -96,17 +96,17 @@
   flex: 1;
 }
 
-/* Hielt die Notiz einer Referenz- oder Storyboard-Karte auf ihrer einen Zeile fest, waehrend
-   der Rest der 210px hohen Karte leer blieb. Sie waechst jetzt wie auf einer Notizkarte --
-   was die Karte an Hoehe hergibt, gehoert dem Text. */
+/* Held the note of a reference or storyboard card to its single line while the rest of the
+   210px-tall card stayed empty. It now grows as it does on a note card -- whatever height
+   the card affords belongs to the text. */
 .storyboard-node__note--compact {
   min-height: 0;
   flex: 1;
 }
 
-/* Die Karte ist schon der Rahmen. Ein zweiter darin macht aus einer Notiz ein Formular --
-   Rahmen und Flaeche bleiben deshalb still, bis jemand hineinschreibt. Die Rahmenbreite
-   bleibt stehen, damit sich beim Hineinklicken nichts verschiebt. */
+/* The card is the frame already. A second one inside turns a note into a form -- frame
+   and surface therefore stay quiet until somebody writes in it. The border width remains,
+   so that nothing shifts when it is clicked into. */
 .storyboard-note-control {
   border-color: var(--transparent);
   background: var(--transparent);
@@ -118,13 +118,13 @@
   background: var(--paper);
 }
 
-/* Wie die Kartenbefehle in den Orten: die Leiste meldet sich, wenn die Karte gemeint ist.
-   Eine Flaeche voller Notizen soll nicht aus lauter Knoepfen bestehen.
+/* Like the card commands in places: the bar speaks up once the card is meant. A surface
+   full of notes should not consist of nothing but buttons.
 
-   Sie steht dabei in der Zeile des Kartenkopfs, nicht darunter: der Kopf traegt links seine
-   Art und laesst mit space-between rechts Platz -- genau die Aufteilung, die auch die
-   Kapitelnotiz benutzt. Eine eigene Zeile kostete auf einer 200px-Karte mehr, als die
-   Leiste wert ist. */
+   It stands in the row of the card head, not below it: the head carries its kind on the
+   left and, with space-between, leaves room on the right -- exactly the division the
+   chapter note uses too. A row of its own cost more on a 200px card than the bar is
+   worth. */
 .storyboard-note-format {
   position: absolute;
   z-index: var(--z-local);

@@ -102,7 +102,7 @@ export interface ChapterTreeChapterRowProps {
   selected: boolean;
   label: string;
   number: string;
-  /** Was eine Vorlesesoftware sagt -- die Zeile selbst zeigt Mediaevalziffern und Spalten. */
+  /** What a screen reader says -- the row itself shows old-style figures and columns. */
   spokenLabel: string;
   words: ReactNode;
   storyTime: ReactNode;

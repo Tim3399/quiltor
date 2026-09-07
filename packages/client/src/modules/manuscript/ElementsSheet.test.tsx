@@ -47,7 +47,7 @@ describe("ElementsSheet", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Mara Venn wird angeboten/ }));
 
-    // Nur die eine Id: eine Figur, die spaeter angelegt wird, soll von selbst erscheinen.
+    // Only that one id: a figure created later should appear of its own accord.
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ hiddenElements: ["mara"] }));
   });
 

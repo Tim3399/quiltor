@@ -1,16 +1,16 @@
-/* Die Huelle jeder Leinwand: Weltgraph, Orte und Storyboard sitzen darin. Was hier an
-   Freihalteflaechen entsteht, gilt fuer alle drei -- eine Ecke, die nur im Storyboard
-   passt, gehoert in dessen eigenes Stylesheet. */
+/* The shell of every canvas: world graph, places and storyboard sit inside it. Whatever
+   keep-clear areas arise here apply to all three -- a corner that only fits the storyboard
+   belongs in that one's own stylesheet. */
 .graph-viewport-surface {
   --graph-viewport-inset: var(--space-14);
   --graph-overlay-gap: var(--space-10);
   --graph-controls-inline-size: 28px;
   --graph-controls-gap: var(--spacing-optical-tight);
   --graph-controls-padding: var(--spacing-optical-base);
-  /* Zoom aus, Zoom ein, Einpassen, Sperren, Uebersicht -- der volle Dock. Die Zahl wird
-     bewusst nicht gemessen: Zeitstreifen und Ebenenpfad muessen ihren Platz kennen, bevor
-     der Dock gerendert ist, und ein zu breit reservierter Rand ist harmloser als ein Streifen,
-     der unter den Knoepfen verschwindet. */
+  /* Zoom out, zoom in, fit, lock, overview -- the full dock. The number is deliberately not
+     measured: the timeline strip and the level path have to know their space before the dock
+     is rendered, and a margin reserved too wide is harmless next to a strip that disappears
+     under the buttons. */
   --graph-controls-button-count: 5;
   --graph-controls-inline-total: calc(
     var(--graph-controls-button-count) *
@@ -46,8 +46,8 @@
   bottom: var(--graph-viewport-inset);
   left: var(--graph-viewport-inset);
   display: flex;
-  /* Waagerecht statt als Turm: der Dock steht auf derselben Kante wie die Uebersichtskarte
-     und liest sich mit ihr als ein Werkzeugpaar, nicht als zwei fremde Widgets. */
+  /* Horizontal rather than a tower: the dock stands on the same edge as the minimap and
+     reads with it as one pair of tools, not as two strangers. */
   flex-direction: row;
   align-items: center;
   gap: var(--graph-controls-gap);
@@ -106,8 +106,8 @@
     var(--graph-minimap-block-size) +
     var(--graph-overlay-gap)
   );
-  /* Alles, was am unteren Rand schwebt, teilt sich dort denselben Streifen. Der Zeitstreifen
-     wusste bisher nur vom Dock links und lief deshalb unter der Uebersichtskarte durch. */
+  /* Everything floating at the bottom edge shares the same strip there. The timeline strip
+     knew only about the dock on the left and therefore ran underneath the minimap. */
   --graph-minimap-safe-inline-end: calc(
     var(--graph-viewport-inset) +
     var(--graph-minimap-inline-size) *
@@ -135,8 +135,8 @@
 }
 
 @media (max-width: 719px), (pointer: coarse) {
-  /* Auf einer Handflaeche ist eine Uebersichtskarte von 140x105 kein Ueberblick, sondern
-     ein Hindernis vor dem Zeitstreifen. Sie tritt ab; der Dock bleibt. */
+  /* On a palm-sized surface a 140x105 minimap is no overview but an obstacle in front of
+     the timeline strip. It steps aside; the dock stays. */
   .graph-viewport-surface .react-flow__panel.react-flow__minimap {
     display: none;
   }
@@ -147,11 +147,11 @@
 
   .graph-viewport-surface {
     --graph-controls-inline-size: var(--control-touch);
-    /* Auf schmalen Flaechen steht der Dock wieder als Turm: waagerecht wuerde er den
-       Zeitstreifen daneben auf wenige Zentimeter zusammendruecken. */
+    /* On narrow surfaces the dock stands as a tower again: horizontal, it would squeeze the
+       timeline strip beside it into a couple of centimetres. */
     --graph-controls-button-count: 1;
-    /* Als Turm wandert sein Platzbedarf von der Breite in die Hoehe. Dieselben fuenf
-       Knoepfe wie oben, nur gestapelt -- wer unter ihm liegt, muss wissen, wie hoch. */
+    /* As a tower its footprint moves from width into height. The same five buttons as
+       above, only stacked -- whatever lies beneath it has to know how tall. */
     --graph-controls-block-total: calc(
       5 *
       var(--control-touch) +

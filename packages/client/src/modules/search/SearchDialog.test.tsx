@@ -78,8 +78,8 @@ describe("SearchDialog command rows", () => {
   it("names the shortcut where one exists instead of repeating the word command", () => {
     renderSearch();
 
-    // Neun Zeilen trugen frueher alle dieselbe zweite Zeile. Nur dieser eine Befehl hat
-    // heute wirklich eine Tastenkombination -- erfunden wird hier keine.
+    // Nine rows all used to carry the same second line. Only this one command really has
+    // a keyboard shortcut today -- none is invented here.
     const gesichert = screen.getByRole("option", { name: /Sicherung öffnen/ });
     expect(gesichert.textContent).toMatch(/⇧⌘S|Strg\+Umschalt\+S/);
 

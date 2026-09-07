@@ -47,9 +47,9 @@ export function WorldOverviewPanel({
   onReveal,
 }: WorldOverviewPanelProps) {
   const { t } = useI18n();
-  // Dieselbe Auswahl wie auf der Leinwand daneben: die Uebersicht ist deren Inhaltsverzeichnis
-  // und darf nichts auffuehren, das dort nicht steht -- ein Doppelklick sprang sonst zu einem
-  // Knoten, den es auf diesem Board gar nicht gibt.
+  // The same selection as on the canvas beside it: the overview is that canvas's table of
+  // contents and must list nothing that is not there -- a double click otherwise jumped to a
+  // node this board does not have at all.
   const elemente = useMemo(() => state.nodes.filter(belongsOnFigureBoard), [state.nodes]);
   const groups = useMemo(() => {
     const byKind = new Map<FigureKind, FigureNode[]>();

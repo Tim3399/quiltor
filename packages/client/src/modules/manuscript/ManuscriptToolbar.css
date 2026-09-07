@@ -69,9 +69,9 @@
   }
 }
 
-/* Was die Ansicht schaltet, steht als ein Streifen zusammen: drei unabhaengige Schalter,
-   optisch eine Gruppe. Ein SegmentedControl waere eine Radiogruppe und damit die falsche
-   Zusage -- Kapitel und Details lassen sich beide gleichzeitig oeffnen. */
+/* Whatever switches the view stands together as one strip: three independent switches,
+   one group to the eye. A SegmentedControl would be a radio group and therefore the wrong
+   promise -- chapter and details can both be open at once. */
 .manuscript-toolbar-group.panel-toggles {
   gap: 0;
   padding: var(--space-2);
@@ -88,11 +88,11 @@
   box-shadow: var(--elevation-1) var(--shadow-raised);
 }
 
-/* Der Streifen trennt schon selbst: seine Tonflaeche steht zwischen den Nachbarn wie ein
-   Absatz zwischen zwei Saetzen. Eine Haarlinie unmittelbar daneben sagt dasselbe ein
-   zweites Mal -- und sie kann es nicht einmal mittig sagen: der Streifen braucht seine
-   2px Innenrand, die Nachbargruppen halten 9px, und der Trenner klebte deshalb an der
-   Tonflaeche statt zwischen zwei Knoepfen zu stehen (9,5px vor / 2,5px nach). */
+/* The strip already separates by itself: its tinted surface stands between its
+   neighbours like a paragraph between two sentences. A hairline right beside it says the
+   same thing a second time -- and cannot even say it centred: the strip needs its 2px of
+   inner padding, the neighbouring groups keep 9px, and so the divider clung to the tinted
+   surface instead of standing between two buttons (9.5px before / 2.5px after). */
 .manuscript-toolbar-group.panel-toggles,
 .manuscript-toolbar-group.panel-toggles + * {
   border-inline-start: 0;

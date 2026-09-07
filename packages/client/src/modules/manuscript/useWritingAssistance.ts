@@ -21,12 +21,11 @@ interface WritingAssistanceOptions {
   onUpdateCurrent: (patch: Partial<Chapter>) => void;
   onInspectorOpen: (open: boolean) => void;
   /**
-   * Die Schreibhilfe zeigen -- nicht bloss die Steuerspalte aufklappen.
+   * Show the writing aid -- not merely open the control column.
    *
-   * Seit der Inspector zwei Register hat, reicht `onInspectorOpen(true)` nicht mehr:
-   * er kam mit dem Kapitel-Register hoch, und das Nachschlagen landete hinter einem
-   * Reiter, den niemand umgelegt hatte. Ein Aufruf, der beides bedeutet, laesst die
-   * Luecke nicht wiederkommen.
+   * Since the inspector has two sections, `onInspectorOpen(true)` is no longer enough: it
+   * came up with the chapter section, and the lookup landed behind a tab nobody had
+   * switched. One call that means both keeps the gap from coming back.
    */
   onShowWritingAid: () => void;
   onError: (message: string) => void;

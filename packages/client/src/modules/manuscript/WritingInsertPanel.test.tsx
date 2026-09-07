@@ -118,7 +118,7 @@ describe("WritingInsertPanel und verborgene Elemente", () => {
     expect(screen.getByRole("button", { name: "Mara" })).toBeVisible();
   });
 
-  // Ein Blatt, kein Umbau der Liste an Ort und Stelle: die Auswahl trifft man einmal in Ruhe.
+  // A sheet, not a rebuild of the list in place: the choice is made once, at leisure.
   it("fuehrt zum Blatt", () => {
     const { onManageElements } = zeichne({});
 

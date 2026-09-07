@@ -36,9 +36,9 @@ const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
   error: "notSaved",
 };
 
-// Ein gespeicherter Stand altert waehrend man liest. Die Minute ist die feinste Stufe, die
-// relativeTime ueberhaupt ausgibt, deshalb reicht ein Tick in dieser Aufloesung -- und er laeuft
-// nur, solange ueberhaupt eine Zeitangabe zu sehen ist.
+// A saved status ages while you read. The minute is the finest step relativeTime reports at
+// all, so a tick at that resolution is enough -- and it runs only while there is a time to be
+// seen in the first place.
 function useMinuteTick(active: boolean) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -103,8 +103,9 @@ export function AppShell({
   const { t, locale } = useI18n();
   const keys = useShortcut();
   const [overflowOpen, setOverflowOpen] = useState(false);
-  // "Gespeichert" allein beantwortet nicht, ob der Stand von eben oder von vorhin ist. Erst
-  // nach der ersten Minute gibt es etwas zu sagen; davor bleibt das schlichte Label stehen.
+  // "Gespeichert" on its own does not answer whether the state is from a moment ago or from
+  // earlier. Only after the first minute is there anything to say; until then the plain label
+  // stands.
   const showSavedAgo = phase === "saved" && Boolean(savedAt);
   const now = useMinuteTick(showSavedAgo);
   const savedAgo = showSavedAgo && savedAt ? relativeTime(locale, savedAt, now) : null;

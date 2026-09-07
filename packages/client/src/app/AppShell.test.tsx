@@ -113,7 +113,7 @@ describe("AppShell", () => {
       </I18nProvider>,
     );
 
-    // Unten steht, was offen ist; oben in der Leiste, was die Anwendung damit tut.
+    // Below stands what is open; above in the bar, what the application does with it.
     const bar = screen.getByRole("contentinfo", { name: "Arbeitsstand" });
     expect(bar).toHaveTextContent("4 Kapitel");
     const status = screen.getByRole("status");
@@ -121,7 +121,7 @@ describe("AppShell", () => {
     expect(bar.contains(status)).toBe(false);
     expect(status.closest("header")).not.toBeNull();
 
-    // Er bleibt sichtbar, auch auf dem schmalsten Geraet -- kein Umzug ins Menue mehr.
+    // It stays visible, even on the narrowest device -- no more moving into the menu.
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
     expect(status.closest('[role="menu"]')).toBeNull();
     expect(screen.getAllByRole("status")).toHaveLength(1);

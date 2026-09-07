@@ -7,9 +7,9 @@
 .binder-chapter-row {
   width: 100%;
   min-height: var(--control-regular);
-  /* Der Ziehgriff bekommt keine eigene Spalte mehr: er war auf jeder Zeile jeder Ebene
-     reserviert, obwohl er erst beim Ueberfahren erscheint. Er liegt jetzt ueber dem linken
-     Rand der Zeile, wo ohnehin nur die Fuehrungslinie steht. */
+  /* The drag handle no longer gets a column of its own: it was reserved on every row of
+     every level although it appears only on hover. It now lies over the row's left edge,
+     where nothing but the guide line stands anyway. */
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -47,8 +47,8 @@
   gap: 1px var(--space-6);
   padding-inline-start: var(--space-16);
 }
-/* Kapitel der obersten Ebene richten sich am Ordnernamen daneben aus. Der Einzug war auf
-   die alten, breiteren Ordnerkacheln gerechnet. */
+/* Top-level chapters align with the folder name beside them. The indent was calculated
+   for the old, wider folder tiles. */
 .binder-chapter-row[data-binder-depth="0"] .binder-chapter-content {
   padding-inline-start: var(--space-10);
 }
@@ -71,8 +71,8 @@
 .binder-chapter-row[data-drop-position="after"] {
   box-shadow: inset 0 calc(var(--space-3) * -1) 0 var(--drop-target-border);
 }
-/* Kapitelzahlen sind erzaehlende Zahlen, keine Messwerte: Mediaevalziffern im Satz des
-   Manuskripts, rechtsbuendig in ihrer eigenen schmalen Spalte. */
+/* Chapter numbers are narrative numbers, not measurements: old-style figures set in the
+   manuscript's own type, right-aligned in a narrow column of their own. */
 .chapter-number {
   grid-area: number;
   padding-top: var(--space-2);

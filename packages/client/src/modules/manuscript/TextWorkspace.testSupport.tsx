@@ -40,7 +40,7 @@ export function renderWorkspace(props: React.ComponentProps<typeof TextWorkspace
  */
 export function renderWritingAid(props: React.ComponentProps<typeof TextWorkspace>) {
   const view = renderWorkspace(props);
-  // Nach Position statt nach Beschriftung: die Tests laufen auch auf Englisch.
+  // By position rather than by label: the tests also run in English.
   const registers = view.container.querySelector<HTMLElement>(".manuscript-inspector__registers");
   const writingAid = registers ? within(registers).getAllByRole("radio").at(-1) : undefined;
   if (writingAid) fireEvent.click(writingAid);

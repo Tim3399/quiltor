@@ -45,7 +45,7 @@ describe("relationship timeline", () => {
     ];
     const arranged = alignNodesToGrid(nodes);
 
-    // Der erste behaelt seinen Platz; die anderen weichen auf das naechste freie Rasterfeld aus.
+    // The first keeps its place; the others move aside to the next free grid cell.
     expect(arranged[0]).toMatchObject({ x: 0, y: 0 });
     for (const [left, right] of [
       [arranged[0], arranged[1]],
@@ -56,7 +56,7 @@ describe("relationship timeline", () => {
       expect(apart, `${left.id} und ${right.id} ueberlappen weiterhin`).toBe(true);
     }
     for (const node of arranged) {
-      // Math.abs, weil der Modulo einer negativen Koordinate -0 liefert.
+      // Math.abs, because the modulo of a negative coordinate yields -0.
       expect(Math.abs(node.x % 48)).toBe(0);
       expect(Math.abs(node.y % 48)).toBe(0);
     }

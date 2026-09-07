@@ -1,7 +1,7 @@
-/* Der Rasterrahmen der Zustandswechsel: Liste links, Inspector rechts.
-   Hiess frueher .storyboard-layout und stiess damit mit dem gleichnamigen Rahmen des
-   Storyboards zusammen -- zwei Dateien, dieselbe Basisregel, verschiedene Zusaetze, und
-   die spaeter geladene gewann. Mit einem Storyboard hat diese Ansicht nichts zu tun. */
+/* The grid frame of the state changes: list on the left, inspector on the right.
+   It used to be called .storyboard-layout and so collided with the storyboard's frame of
+   the same name -- two files, the same base rule, different additions, and the one loaded
+   later won. This view has nothing to do with a storyboard. */
 .state-change-layout {
   min-width: 0;
   min-height: 0;

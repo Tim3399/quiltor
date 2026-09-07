@@ -197,10 +197,10 @@ async function expectCompactLabelCard(
       textWidth: textBox?.width ?? 0,
       radius: Number.parseFloat(cardStyle.borderTopLeftRadius),
       borderColor: cardStyle.borderTopColor,
-      // Oben liegen heißt: über der Leinwand. Die Inspektorspalte der gewählten Kante ist
-      // kein Teil der Leinwand, sondern liegt bewusst darüber -- sie steht rechts und deckt
-      // dort, wo sie steht, auch Beschriftungen ab. Alles andere über einer Beschriftung
-      // wäre ein Stapelfehler.
+      // Lying on top means: above the canvas. The inspector column of the selected edge
+      // is not part of the canvas but deliberately lies over it -- it stands on the right
+      // and covers labels where it stands. Anything else above a label would be a stacking
+      // fault.
       isTopmost:
         topmost === element ||
         element.contains(topmost) ||
@@ -331,9 +331,9 @@ async function expectGraphEdgeContract(
   await expect(directedPath).toHaveCSS("stroke", expected.directed);
   await expectCompactLabelCard(surface, edgeIds.directed, expected.directed);
 
-  // Erst ablegen, dann die nächste wählen. Die Inspektorspalte der gewählten Kante steht
-  // oben rechts und kann die Beschriftung einer anderen verdecken -- auf der Leinwand löst
-  // ein Klick ins Leere die Auswahl, und das ist auch der Weg, den ein Mensch hier nimmt.
+  // Put one down before picking the next. The inspector column of the selected edge stands
+  // top right and can hide another's label -- on the canvas a click into empty space clears
+  // the selection, and that is the path a person takes here too.
   await surface.locator(".react-flow__pane").click({ position: { x: 6, y: 6 } });
   await expect(directed).not.toHaveClass(/\bselected\b/);
 

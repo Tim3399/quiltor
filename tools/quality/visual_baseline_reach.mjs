@@ -33,9 +33,9 @@ function runnerLabels(block) {
   if (!value) return [];
   const key = value.match(/^\$\{\{\s*matrix\.([a-z_][a-z0-9_]*)\s*\}\}$/u)?.[1];
   if (!key) return [value];
-  // `runs-on: ${{ matrix.os }}` waere sonst kein lesbarer Runner -- und ein Job, dessen
-  // Plattform diese Pruefung nicht liest, ist ein Job, dessen fehlende Bilder sie nicht
-  // meldet. Genau die Luecke, die es hier zu schliessen gilt.
+  // `runs-on: ${{ matrix.os }}` would otherwise not be a readable runner -- and a job whose
+  // platform this check cannot read is a job whose missing images it does not report. Exactly
+  // the gap this is here to close.
   const list = block.match(new RegExp(`\\n\\s*${key}:\\s*\\[([^\\]]*)\\]`, "u"))?.[1];
   return list ? list.split(",").map((entry) => entry.trim().replace(/^["']|["']$/gu, "")) : [];
 }
@@ -83,10 +83,10 @@ export function checkVisualBaselineReach(repositoryRoot) {
     return violations;
   }
 
-  // Nicht "irgendein Bild", sondern jedes: geloescht wird hier plattformweise, wenn sich ein
-  // Design geaendert hat. Wer nur fragt, ob ueberhaupt ein Satz da ist, sagt "haelt", waehrend
-  // eine Plattform die Haelfte ihrer Ansichten nicht mehr vergleicht -- und der Bootstrap-Lauf,
-  // der genau daran haengt, ueberspringt sich selbst.
+  // Not "some image" but every one: deletion here happens per platform when a design has
+  // changed. Asking only whether a set exists at all says "holds" while a platform stops
+  // comparing half of its views -- and the bootstrap run, which hangs on exactly that, skips
+  // itself.
   const stems = new Map();
   for (const name of images) {
     const platform = platforms.find((candidate) => name.endsWith(`-${candidate}.png`));

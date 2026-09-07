@@ -26,14 +26,14 @@ import {
 const EMPTY_NODES: FigureNode[] = [];
 
 /**
- * Ob ein Element auf das Figurenboard gehoert.
+ * Whether an element belongs on the figure board.
  *
- * Eine Karte ist keins: sie ist der Bogen, auf den Orte gelegt werden, so wie ein
- * Storyboard einer ist. Auf dem Figurenboard stand sie trotzdem, weil dort bisher
- * jeder Knoten der Welt landete -- neben den Figuren also ein Stueck Grund, mit dem
- * sich weder eine Beziehung knuepfen noch eine Reise gehen laesst.
+ * A map does not: it is the sheet places are laid on, the way a storyboard is one. It stood
+ * on the figure board all the same, because every node of the world used to land there --
+ * beside the figures, then, a piece of ground with which no relationship can be tied and no
+ * journey travelled.
  *
- * Das Dokument behaelt sie: gefiltert wird beim Zeichnen, nicht beim Schreiben.
+ * The document keeps it: the filtering happens when drawing, not when writing.
  */
 export function belongsOnFigureBoard(figure: FigureNode): boolean {
   return !figure.mapImageId;

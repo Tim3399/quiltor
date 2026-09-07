@@ -34,10 +34,10 @@ export function SearchDialog({
   const { t, locale } = useI18n();
   const [query, setQuery] = useState("");
   const items = useMemo<CommandPaletteItem[]>(() => {
-    // Die zweite Zeile trug frueher fuer jeden Eintrag dasselbe Wort "Befehl" -- neun Mal
-    // dieselbe Auskunft ist keine. Sie nennt jetzt die Tastenkombination, wo es eine gibt,
-    // und sonst wenigstens, ob der Eintrag die Ansicht wechselt oder etwas tut. Nur
-    // "Arbeitsstand sichern" hat heute eine; erfunden wird hier keine.
+    // The second line used to carry the same word "Befehl" for every entry -- the same
+    // answer nine times over is no answer. It now names the keyboard shortcut where there is
+    // one, and otherwise at least says whether the entry changes the view or does something.
+    // Only "Arbeitsstand sichern" has one today; none is invented here.
     const commands: CommandPaletteItem[] = (
       [
         ["text", t("switchToManuscript"), "view"],

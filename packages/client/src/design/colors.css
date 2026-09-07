@@ -94,8 +94,8 @@
   /*
    * Candlelit charcoal.
    *
-   * Die Oberflächen bleiben auf derselben warm-neutralen Achse.
-   * Höhere Ebenen werden heller, aber nicht zunehmend brauner.
+   * The surfaces stay on the same warm-neutral axis.
+   * Higher levels grow lighter, but not progressively browner.
    */
   --surface-canvas: #151411;
   --surface-chrome: #1c1a17;
@@ -106,8 +106,8 @@
   /*
    * Aged ivory rather than sepia.
    *
-   * Deutlich geringere Gelb-Sättigung und klarere Abstufungen
-   * zwischen Primary, Secondary, Muted und Faint.
+   * Distinctly less yellow saturation and clearer gradations
+   * between primary, secondary, muted and faint.
    */
   --text-primary: #eee8df;
   --text-secondary: #c8c1b7;
@@ -118,7 +118,7 @@
   /*
    * Warm-neutral borders.
    *
-   * Sie definieren Tiefe, ohne als braune Linien hervorzutreten.
+   * They define depth without standing out as brown lines.
    */
   --border-subtle: #3d3933;
   --border-default: #5a544b;

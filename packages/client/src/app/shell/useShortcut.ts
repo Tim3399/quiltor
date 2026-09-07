@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useI18n } from "../../i18n";
 import { shortcut } from "../../shared";
 
-/** Die Schreibweise einer Tastenkombination in der Sprache der Oberflaeche. */
+/** How a keyboard shortcut is spelled in the language of the interface. */
 export function useShortcut() {
   const { locale } = useI18n();
   return useCallback(

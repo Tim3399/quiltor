@@ -126,8 +126,8 @@ export function App() {
       : workspace.workspace === "storyboard"
         ? storyboardSave
         : figureSave;
-  // Was gerade offen ist, gehoert in die Statuszeile. Die Zahlen stehen hier ohnehin schon;
-  // jeder Workspace zaehlt das, worueber er Auskunft geben kann.
+  // What is open belongs in the status line. The numbers are here anyway; every workspace
+  // counts the thing it can give an account of.
   const summary = useMemo(() => {
     if (workspace.workspace === "text") {
       const words = manuscript?.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0);

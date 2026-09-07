@@ -403,7 +403,7 @@ class ManuscriptMarkValidationTests(unittest.TestCase):
     def test_accepts_ranges_inside_the_body_including_overlapping_kinds(self):
         self.assertTrue(valid_manuscript(self.manuscript([])))
         self.assertTrue(valid_manuscript(self.manuscript([{"from": 0, "to": 4, "kind": "bold"}])))
-        # Fett und kursiv sind verschiedene Arten: die dürfen einander überlagern.
+        # Bold and italic are different kinds: those are allowed to overlap.
         self.assertTrue(
             valid_manuscript(
                 self.manuscript(
@@ -414,7 +414,7 @@ class ManuscriptMarkValidationTests(unittest.TestCase):
                 )
             )
         )
-        # Aneinandergrenzend ist erlaubt, wie bei den Erwähnungen.
+        # Adjacent is allowed, as it is for mentions.
         self.assertTrue(
             valid_manuscript(
                 self.manuscript(

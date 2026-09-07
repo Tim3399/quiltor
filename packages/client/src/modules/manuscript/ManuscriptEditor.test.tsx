@@ -49,9 +49,9 @@ const tarek = { id: "t", x: 0, y: 0, type: "person" as const, name: "Tarek", sub
 
 describe("ManuscriptEditor selection", () => {
   it("meldet eine Markierung, ohne dafür das Aktionsmenü zu öffnen", async () => {
-    // Der Bericht ist die Information "das ist markiert". Das Menü mit Wörterbuch,
-    // Synonymen und Übersetzung ist eine eigene Entscheidung des Schreibenden und darf
-    // nicht schon beim Doppelklick aufspringen.
+    // The report is the information "this is selected". The menu with dictionary,
+    // synonyms and translation is the writer's own decision and must not spring open on a
+    // double click already.
     const { editor, onSelection, onSelectionMenu } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
     await waitFor(() =>
@@ -99,15 +99,15 @@ describe("ManuscriptEditor selection", () => {
     });
     expect(container.querySelector(".text-bold")).toHaveTextContent("Hallo");
     expect(container.querySelector(".text-italic")).toHaveTextContent("Welt");
-    // Im Text selbst stehen keine Sternchen -- sonst würden Grammatikprüfung,
-    // Erwähnungssuche und Wortzählung sie mitlesen.
+    // There are no asterisks in the text itself -- grammar checking, mention search and
+    // word counting would otherwise read them along with it.
     expect(container.querySelector(".cm-content")).toHaveTextContent("Hallo Welt");
   });
 
   it("setzt Fett und Kursiv per Tastenkürzel und nimmt sie damit auch wieder weg", () => {
     const { editor, onChange } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
-    // jsdom kennt keinen Mac, dort ist CodeMirrors "Mod" also Strg -- im Programm ⌘.
+    // jsdom knows no Mac, so CodeMirror's "Mod" is Ctrl there -- in the product it is ⌘.
     fireEvent.keyDown(editor.contentDOM, { key: "b", ctrlKey: true });
     expect(onChange).toHaveBeenLastCalledWith(
       "Hallo Welt",
@@ -132,8 +132,8 @@ describe("ManuscriptEditor selection", () => {
   });
 
   it("nimmt eine Auszeichnung mit, wenn davor geschrieben wird", () => {
-    // Der Bereich hängt am Text, nicht an der Zeichenposition: was vorne dazukommt,
-    // schiebt ihn nach hinten, statt ihn liegenzulassen.
+    // The range hangs on the text, not on the character position: what is added in front
+    // pushes it back rather than leaving it where it was.
     const { editor, onChange } = renderEditor({ marks: [{ from: 6, to: 10, kind: "italic" }] });
     editor.dispatch({ changes: { from: 0, insert: "Ach, " }, userEvent: "input" });
     expect(onChange).toHaveBeenLastCalledWith(
@@ -152,7 +152,7 @@ describe("ManuscriptEditor selection", () => {
       "Completion hint missing",
     );
     expect(hint).toHaveTextContent("Tarek");
-    // Kein Leerzeichen im Markup: der Abstand kommt aus .completion-detail.
+    // No space in the markup: the gap comes from .completion-detail.
     expect(hint.querySelector(".completion-detail")).toHaveTextContent("Bäcker");
   });
 
@@ -222,8 +222,8 @@ describe("ManuscriptEditor selection", () => {
   });
 
   it("hält die gemerkte Textstelle sichtbar, während der Fokus woanders ist", () => {
-    // Ohne diese Markierung sieht der Text unmarkiert aus, sobald man in die
-    // Schreibhilfe greift -- der Browser zeichnet ::selection nur mit Fokus.
+    // Without this mark the text looks unselected as soon as someone reaches into the
+    // writing aid -- the browser draws ::selection only while focused.
     const { container } = renderEditor({ held: { from: 6, to: 10 } });
     const held = container.querySelector(".held-selection");
     expect(held).not.toBeNull();

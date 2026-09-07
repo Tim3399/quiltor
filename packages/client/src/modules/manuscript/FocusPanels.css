@@ -1,12 +1,13 @@
 .text-workspace.is-focus {
   grid-template-rows: 1fr;
-  /* Beide Rand-Reiter standen auf eigenen Zahlen -- einer auf 375px, der andere auf 720px --
-     und damit unsymmetrisch neben einem Blatt, das inzwischen --measure-prose folgt. Der
-     Abstand wird einmal aus der Blattkante gerechnet und von beiden Seiten benutzt. */
+  /* Both margin tabs stood on numbers of their own -- one at 375px, the other at 720px --
+     and so sat asymmetrically beside a sheet that now follows --measure-prose. The distance
+     is computed once from the sheet's edge and used by both sides. */
   --focus-rail-width: 30px;
   --focus-sheet-width: min(100vw - var(--space-88), var(--measure-prose));
-  /* Was neben dem Blatt frei bleibt. Daraus folgen der Ort der Rand-Reiter und die Breite
-     der Panels, die von dort aufklappen -- die Formel stand vorher dreimal abgeschrieben da. */
+  /* What stays free beside the sheet. From it follow the position of the margin tabs and
+     the width of the panels opening from them -- the formula used to stand there copied out
+     three times. */
   --focus-margin: calc((100vw - var(--focus-sheet-width)) / 2);
   --focus-rail-inset: calc(var(--focus-margin) - var(--focus-rail-width) - var(--space-12));
   --focus-panel-width: min(254px, max(150px, calc(var(--focus-margin) - var(--space-48))));
@@ -50,8 +51,8 @@
   align-items: flex-start;
   transform: translateY(-50%);
 }
-/* Beschrieben hier, gerendert von WorkspaceLayout. Der Abstand zum Rand kommt aus
-   --focus-margin, damit beide Reiter symmetrisch stehen. */
+/* Described here, rendered by WorkspaceLayout. The distance to the edge comes from
+   --focus-margin, so both tabs stand symmetrically. */
 .focus-helper-toggle {
   width: var(--focus-rail-width, 30px);
   height: 38px;
@@ -77,8 +78,8 @@
   overflow: auto;
   margin-right: var(--space-7);
   padding: var(--space-6);
-  /* Ohne Flaeche standen die Chips auf der Prosa, sobald das Panel ueber den Satz reichte.
-     Es bekommt dieselbe Platte wie die Kapitelliste gegenueber. */
+  /* Without a surface the chips stood on the prose as soon as the panel reached over the
+     type. It gets the same slab as the chapter list opposite. */
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
@@ -127,8 +128,8 @@
   transform: translateY(-50%);
 }
 
-/* Gegenstueck zum Schreibhilfe-Reiter, ebenfalls von WorkspaceLayout gerendert und an
-   dieselbe --focus-margin gebunden. */
+/* Counterpart to the writing-aid tab, likewise rendered by WorkspaceLayout and bound to
+   the same --focus-margin. */
 .focus-side-toggle {
   width: 30px;
   height: 38px;

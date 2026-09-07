@@ -115,9 +115,9 @@
   );
 }
 
-/* Nur solange die Karte auch dort steht. Auf Handbreite ist sie ausgeblendet, und der
-   trotzdem freigehaltene Streifen liess vom Zeitstreifen zweiundzwanzig Pixel uebrig --
-   „Gesamtsicht" schrumpfte darin auf 20, das Datumsfeld auf 18 Pixel. */
+/* Only while the minimap actually stands there. At hand width it is hidden, and the
+   strip kept clear regardless left the timeline twenty-two pixels -- „Gesamtsicht" shrank
+   to 20 inside it, the date field to 18 pixels. */
 @media (max-width: 640px) {
   .figure-workspace .flow-area.has-timeline.has-minimap .timeline-strip {
     right: var(--graph-viewport-inset, var(--space-14));

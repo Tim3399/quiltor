@@ -1,6 +1,6 @@
-/* Kanten-Inspector von Weltgraph und Storyboard. Er schwebt ueber der Leinwand und darf
-   sich mit Minimap und Bedienknoepfen nicht ueberschneiden -- layout-invariants.spec.ts
-   misst das. */
+/* Edge inspector of the world graph and the storyboard. It floats over the canvas and must
+   not overlap the minimap or the control buttons -- layout-invariants.spec.ts measures
+   that. */
 .graph-edge-inspector-panel {
   z-index: var(--z-float-legend);
   bottom: var(--graph-edge-inspector-safe-bottom, auto);

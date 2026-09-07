@@ -95,45 +95,45 @@ const SNAPSHOTS = join(
 );
 
 /**
- * Ob diese Plattform ueberhaupt etwas zu vergleichen hat.
+ * Whether this platform has anything to compare at all.
  *
- * Baselines sind pro Plattform versioniert -- Playwright haengt darwin, linux oder win32 an
- * den Dateinamen, weil Schriftrasterung sich unterscheidet. Frueher lief der Vergleich nur
- * auf macOS, wo ihn kein Job ausfuehrte: ueberall gruen, nirgends geprueft. Er laeuft jetzt
- * ueberall und weicht nur dort aus, wo noch niemand einen Satz erzeugt hat -- welche
- * Plattform das ist, meldet check_visual_baseline_reach.mjs.
+ * Baselines are versioned per platform -- Playwright appends darwin, linux or win32 to the
+ * file names, because font rasterisation differs. The comparison used to run on macOS only,
+ * where no job executed it: green everywhere, checked nowhere. It now runs everywhere and
+ * steps aside only where nobody has produced a set yet -- which platform that is,
+ * check_visual_baseline_reach.mjs reports.
  */
 function hasBaselines() {
   return existsSync(join(SNAPSHOTS, `light-manuscript-wide-${process.platform}.png`));
 }
 
 /**
- * Der Bootstrap-Lauf des Workflows visual-baselines-bootstrap.
+ * The bootstrap run of the visual-baselines-bootstrap workflow.
  *
- * Er laeuft nur von Hand und nur mit --update-snapshots=missing, schreibt also ausschliesslich
- * Bilder, die es noch nicht gibt, und ruehrt vorhandene Referenzen nicht an. Ohne dieses
- * Zugestaendnis wuerde der Ausweich-Skip oben verhindern, dass ueberhaupt je ein erster Satz
- * entsteht -- der Lauf uebersprraenge sich selbst.
+ * It runs by hand only and only with --update-snapshots=missing, so it writes exclusively
+ * images that do not exist yet and leaves existing references alone. Without this concession
+ * the skip above would keep a first set from ever coming into being -- the run would skip
+ * itself.
  */
 const BOOTSTRAP = process.env.QUILTOR_BASELINE_BOOTSTRAP === "1";
 
 /*
- * Ein paar Pixel Nachsicht -- aber nur auf den beiden Leinwänden.
+ * A few pixels of leniency -- but only on the two canvases.
  *
- * Am linken Rand steht eine Karte halb ausserhalb des Ausschnitts. Ihre angeglaettete Kante
- * faellt je nach Lauf ein bis zwei Pixel anders aus; das Warten auf die stehende Leinwand
- * hat das seltener gemacht, aber nicht beseitigt. Eine echte Designabweichung bewegt hier
- * Tausende von Pixeln, keine zwei -- die Grenze trennt beides sicher.
+ * At the left edge a card stands half outside the viewport. Its antialiased edge comes out
+ * one or two pixels differently from run to run; waiting for the canvas to settle made that
+ * rarer but did not remove it. A real design deviation moves thousands of pixels here, not
+ * two -- the threshold separates them safely.
  */
 const LEINWAND_TOLERANZ = { maxDiffPixels: 24 } as const;
 
 /*
- * Warten, bis die Leinwand steht.
+ * Wait until the canvas stands still.
  *
- * React Flow passt den Ausschnitt erst ein, wenn es seine Knoten gemessen hat. Wer sofort
- * fotografiert, erwischt manchmal das Bild davor -- und dann liegt eine Karte am Rand ein
- * Pixel woanders als in der Referenz. Das sah aus wie eine Designabweichung und war eine
- * Momentaufnahme. Gewartet wird auf zwei gleiche Transformationen hintereinander.
+ * React Flow fits the viewport only once it has measured its nodes. Whoever photographs at
+ * once sometimes catches the frame before -- and then a card at the edge lies one pixel
+ * elsewhere than in the reference. That looked like a design deviation and was a snapshot.
+ * What is waited for is two identical transforms in a row.
  */
 async function stillstehendeLeinwand(page: Page) {
   const viewport = page.locator(".flow-area .react-flow__viewport").first();

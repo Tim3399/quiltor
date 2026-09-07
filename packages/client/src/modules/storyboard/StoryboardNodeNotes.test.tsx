@@ -104,9 +104,9 @@ describe("Storyboard node notes", () => {
     const body = textbox.closest(".storyboard-node__body");
     expect(body).toBeInTheDocument();
     expect(body).toHaveClass("scroll-area");
-    // Der Radwert gehoert dem eigenen Scroller der Karte -- aber nur, solange es dort
-    // etwas zu scrollen gibt. Eine kurze Karte gibt ihn an die Leinwand zurueck, sonst
-    // schluckt ein Board voller kurzer Karten jedes Zoomen.
+    // The wheel belongs to the card's own scroller -- but only while there is something
+    // there to scroll. A short card hands it back to the canvas, or a board full of short
+    // cards swallows every zoom.
     expect(body).not.toHaveClass("nowheel");
     // Dragging stays on: the card is still moved by grabbing its padding.
     expect(body).not.toHaveClass("nodrag");
@@ -191,8 +191,8 @@ describe("Storyboard-Karte und das Mausrad", () => {
   });
 
   it("nimmt das Rad erst, wenn die Karte wirklich etwas zu scrollen hat", () => {
-    // Der Ueberlauf existiert in jsdom nicht von selbst; er wird hier gestellt, damit die
-    // Messung dieselbe Antwort bekommt wie im Browser bei einer langen Notiz.
+    // The overflow does not exist in jsdom by itself; it is staged here so the measurement
+    // gets the same answer it would in a browser with a long note.
     const observers: Array<() => void> = [];
     vi.stubGlobal(
       "ResizeObserver",
@@ -255,8 +255,8 @@ describe("Kartenchrome", () => {
     expect(css).toMatch(/\.storyboard-note-format\s*\{[^}]*opacity:\s*0;/s);
   });
 
-  // Unsichtbar bleiben duerfen sie nur, solange sie sich zeigen, sobald jemand hinzeigt oder
-  // hintabbt -- sonst waeren die Knoepfe fuer die Tastatur schlicht verschwunden.
+  // They may stay invisible only as long as they show themselves the moment someone points
+  // or tabs at them -- otherwise the buttons would simply be gone for the keyboard.
   it("zeigt sie bei Hover, Auswahl und Tastaturfokus", () => {
     expect(css).toContain(".storyboard-node:hover .storyboard-note-format");
     expect(css).toContain(".storyboard-node.is-selected .storyboard-note-format");
@@ -289,7 +289,7 @@ describe("Notizhoehe auf Karten ohne eigene Notiz", () => {
     );
 
     expect(css).toMatch(/\.storyboard-node__note--compact\s*\{[^}]*flex:\s*1;/s);
-    // Eine feste Zeilenzahl waere genau das, was hier weg sollte.
+    // A fixed number of lines would be exactly what was meant to go away here.
     expect(tsx).not.toMatch(/rows=\{isNoteCard \? undefined : \d+\}/);
   });
 });

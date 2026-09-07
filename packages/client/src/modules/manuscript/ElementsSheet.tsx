@@ -12,14 +12,14 @@ interface ElementsSheetProps {
 }
 
 /**
- * Welche Figuren und Orte der Einfuegen-Bereich anbietet.
+ * Which figures and places the insert panel offers.
  *
- * Die Liste dort zeigte jedes Element der Welt, und sie waechst mit der Welt: irgendwann
- * sucht man den einen Namen zwischen sechzig. Hier wird abgewaehlt, was nicht gebraucht wird.
+ * The list there showed every element of the world, and it grows with the world: sooner or
+ * later you are hunting one name among sixty. What is not needed gets deselected here.
  *
- * Ausgeblendet heisst nicht geloescht -- in der Welt bleibt alles, wie es war. Deshalb steht
- * hier auch ein Blatt und kein Verwalten-Modus in der Leiste: es ist eine Auswahl, die man
- * einmal in Ruhe trifft, nicht ein Schalter, den man beim Schreiben umlegt.
+ * Hidden does not mean deleted -- in the world everything stays as it was. That is also why
+ * this is a sheet and not a manage mode in the bar: it is a choice made once, at leisure,
+ * not a switch thrown while writing.
  */
 export function ElementsSheet({
   open,

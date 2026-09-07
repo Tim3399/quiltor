@@ -128,9 +128,9 @@ describe("workspace create-action consistency", () => {
     const groups = Array.from(
       actions?.querySelectorAll(":scope > .workspace-toolbar__group") ?? [],
     );
-    // Die Reihenfolge stammt aus den Slots der Action-Strip (create, view, history,
-    // actions) und nicht aus dieser Toolbar. Die kompakte Zweizeilen-Anordnung wird in
-    // TimelineWorkspace.css explizit platziert.
+    // The order comes from the action strip's slots (create, view, history, actions) and
+    // not from this toolbar. The compact two-row arrangement is placed explicitly in
+    // TimelineWorkspace.css.
     expect(groups.map((group) => group.classList.item(1))).toEqual([
       "timeline-create-group",
       "timeline-time-group",

@@ -451,13 +451,13 @@ test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async (
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
   await page.waitForTimeout(900);
 
-  const zahlen = await page.evaluate(() => ({
-    leinwand: document.querySelectorAll(".react-flow__node").length,
-    uebersicht: document.querySelectorAll(".react-flow__minimap-node").length,
+  const counts = await page.evaluate(() => ({
+    canvas: document.querySelectorAll(".react-flow__node").length,
+    overview: document.querySelectorAll(".react-flow__minimap-node").length,
   }));
 
-  expect(zahlen.leinwand).toBeGreaterThan(2);
-  expect(zahlen.uebersicht).toBe(zahlen.leinwand);
+  expect(counts.canvas).toBeGreaterThan(2);
+  expect(counts.overview).toBe(counts.canvas);
 });
 
 /*
@@ -484,49 +484,48 @@ test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
   await page.waitForTimeout(600);
 
-  const stelle = await page.evaluate(() => {
-    const pfad = document.querySelector<SVGPathElement>(".react-flow__edge-interaction");
-    if (!pfad) return null;
-    const punkt = pfad.getPointAtLength(pfad.getTotalLength() / 2);
-    const schirm = pfad.getScreenCTM();
-    if (!schirm) return null;
-    const auf = punkt.matrixTransform(schirm);
-    const hit = document.elementFromPoint(auf.x, auf.y);
+  const spot = await page.evaluate(() => {
+    const path = document.querySelector<SVGPathElement>(".react-flow__edge-interaction");
+    if (!path) return null;
+    const point = path.getPointAtLength(path.getTotalLength() / 2);
+    const screen = path.getScreenCTM();
+    if (!screen) return null;
+    const at = point.matrixTransform(screen);
+    const hit = document.elementFromPoint(at.x, at.y);
     return {
-      x: auf.x,
-      y: auf.y,
-      aufDerKante: Boolean(hit?.closest(".react-flow__edge")),
-      obscuredVon: hit?.closest(".react-flow__node")?.getAttribute("data-id") ?? null,
+      x: at.x,
+      y: at.y,
+      onTheEdge: Boolean(hit?.closest(".react-flow__edge")),
+      obscuredBy: hit?.closest(".react-flow__node")?.getAttribute("data-id") ?? null,
       // When narrow, the library lies over the canvas. The question of group-versus-edge
       // order makes no sense there -- at this point there is no canvas at all. Without this
       // note the test would be red, but for a different reason.
-      ueberDerLeinwand: Boolean(hit?.closest(".react-flow")),
+      overTheCanvas: Boolean(hit?.closest(".react-flow")),
     };
   });
 
-  expect(stelle).not.toBeNull();
+  expect(spot).not.toBeNull();
   test.skip(
-    !stelle?.ueberDerLeinwand,
+    !spot?.overTheCanvas,
     "Schmal deckt die Bibliothek die Leinwand ab; dort liegt an dieser Stelle keine.",
   );
 
-  expect(stelle?.obscuredVon).toBeNull();
-  expect(stelle?.aufDerKante).toBe(true);
+  expect(spot?.obscuredBy).toBeNull();
+  expect(spot?.onTheEdge).toBe(true);
 
   // And the click arrives: selecting opens the controls for the connection.
-  await page.mouse.click(stelle?.x ?? 0, stelle?.y ?? 0);
+  await page.mouse.click(spot?.x ?? 0, spot?.y ?? 0);
   await expect(page.locator(".graph-edge-inspector-panel")).toBeVisible();
 
-  // Die Kante liegt trotzdem hinter den Karten -- sie soll darunter durchlaufen, nicht
-  // darueber hinweg.
-  const aufDerKarte = await page.evaluate(() => {
-    const karte = document.querySelector<HTMLElement>('.react-flow__node[data-id="karte-a"]');
-    if (!karte) return "keine Karte";
-    const box = karte.getBoundingClientRect();
+  // The edge still lies behind the cards -- it should run underneath them, not across.
+  const overTheCard = await page.evaluate(() => {
+    const card = document.querySelector<HTMLElement>('.react-flow__node[data-id="karte-a"]');
+    if (!card) return "keine Karte";
+    const box = card.getBoundingClientRect();
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
     return hit?.closest(".react-flow__edge") ? "Kante liegt ueber der Karte" : "";
   });
-  expect(aufDerKarte).toBe("");
+  expect(overTheCard).toBe("");
 });
 
 /*
@@ -553,7 +552,7 @@ test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
   await page.waitForTimeout(900);
 
-  const stelle = () =>
+  const spot = () =>
     page.evaluate(() => {
       const el = document.querySelector<HTMLElement>('.react-flow__node[data-id="steg"]');
       if (!el) return null;
@@ -563,22 +562,22 @@ test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
 
   // The drag has to stay on the map, or the test measures a reparent to another level
   // rather than the movement. On narrow windows the map is too small for that.
-  const karte = await page.locator(".react-flow__node-placeMap").boundingBox();
+  const map = await page.locator(".react-flow__node-placeMap").boundingBox();
   test.skip(
-    !karte || karte.width < 240 || karte.height < 240,
+    !map || map.width < 240 || map.height < 240,
     "Die aufgeklappte Karte ist hier zu klein, um darauf zu ziehen.",
   );
 
-  const vorher = await stelle();
-  expect(vorher).not.toBeNull();
+  const before = await spot();
+  expect(before).not.toBeNull();
 
   const steg = page.locator('.react-flow__node[data-id="steg"]');
   const box = await steg.boundingBox();
   expect(box).not.toBeNull();
-  const zug = 40;
+  const drag = 40;
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box!.x + box!.width / 2 + zug, box!.y + box!.height / 2 + zug, {
+  await page.mouse.move(box!.x + box!.width / 2 + drag, box!.y + box!.height / 2 + drag, {
     steps: 40,
   });
   await page.mouse.up();
@@ -586,27 +585,27 @@ test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
 
   // The transform is in flow units, the pointer moves in screen pixels. On narrow windows
   // the canvas zooms out, and there those are not the same numbers.
-  const skala = await page.evaluate(() => {
+  const scale = await page.evaluate(() => {
     const v = document.querySelector<HTMLElement>(".react-flow__viewport");
     return v ? new DOMMatrix(getComputedStyle(v).transform).a : 1;
   });
-  const nachher = await stelle();
-  const dx = ((nachher?.x ?? 0) - (vorher?.x ?? 0)) * skala;
-  const dy = ((nachher?.y ?? 0) - (vorher?.y ?? 0)) * skala;
+  const after = await spot();
+  const dx = ((after?.x ?? 0) - (before?.x ?? 0)) * scale;
+  const dy = ((after?.y ?? 0) - (before?.y ?? 0)) * scale;
 
-  const abweichung = `dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} erwartet ${zug}`;
+  const deviation = `dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} erwartet ${drag}`;
   // One step of tolerance, no more: half a card would be 100 in x and 48 in y.
-  expect(Math.abs(dx - zug), abweichung).toBeLessThan(8);
-  expect(Math.abs(dy - zug), abweichung).toBeLessThan(8);
+  expect(Math.abs(dx - drag), deviation).toBeLessThan(8);
+  expect(Math.abs(dy - drag), deviation).toBeLessThan(8);
 });
 
 /*
- * Suchfeld und Suchknopf stehen auf einer Linie.
+ * The search field and the search button stand on one line.
  *
- * Ein Feld traegt den Abstand zum naechsten Formularfeld unter sich. In der Suchzeile der
- * Schreibhilfe steht darunter keins, sondern daneben ein Knopf -- der Abstand machte die
- * Rasterzeile 16px hoeher als die Eingabe, und die mittige Ausrichtung bezog sich auf diese
- * zu hohe Zeile. Der Knopf sass acht Pixel zu tief und sah aus, als haenge er heraus.
+ * A field carries the distance to the next form field below itself. In the writing aid's
+ * search row there is none below but a button beside it -- that distance made the grid row
+ * 16px taller than the input, and the centring referred to this over-tall row. The button
+ * sat eight pixels too low and looked as if it were hanging out.
  */
 test("Text: der Suchknopf der Schreibhilfe sitzt auf der Zeile seines Feldes", async ({ page }) => {
   await page.addInitScript(() => {
@@ -628,14 +627,14 @@ test("Text: der Suchknopf der Schreibhilfe sitzt auf der Zeile seines Feldes", a
   await expect(page.locator(".writing-search")).toBeVisible();
 
   const offset = await page.evaluate(() => {
-    const zeile = document.querySelector(".writing-search");
-    const eingabe = zeile?.querySelector("input");
-    const knopf = zeile?.querySelector(".writing-search__submit");
-    if (!eingabe || !knopf) return "Suchzeile unvollstaendig";
-    const e = eingabe.getBoundingClientRect();
-    const k = knopf.getBoundingClientRect();
-    const abstand = Math.abs(e.top + e.height / 2 - (k.top + k.height / 2));
-    return abstand > 1.5 ? `Knopf ${abstand.toFixed(1)}px neben der Mitte des Feldes` : "";
+    const row = document.querySelector(".writing-search");
+    const input = row?.querySelector("input");
+    const button = row?.querySelector(".writing-search__submit");
+    if (!input || !button) return "Suchzeile unvollstaendig";
+    const e = input.getBoundingClientRect();
+    const k = button.getBoundingClientRect();
+    const distance = Math.abs(e.top + e.height / 2 - (k.top + k.height / 2));
+    return distance > 1.5 ? `Knopf ${distance.toFixed(1)}px neben der Mitte des Feldes` : "";
   });
 
   expect(offset).toBe("");

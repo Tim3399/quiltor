@@ -187,7 +187,7 @@ export function TextWorkspace({
     }
   };
 
-  // Binder und Inspector zeigen dieselben Befehle; die Antwort steht an einer Stelle.
+  // Binder and inspector show the same commands; the answer lives in one place.
   const placement = chapterPlacement(structure, current);
   const exportCurrent = () => {
     if (!current) return;

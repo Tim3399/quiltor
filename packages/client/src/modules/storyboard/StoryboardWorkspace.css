@@ -7,10 +7,10 @@
   overflow: hidden;
 }
 
-/* Das overflow stand hier lange nicht, galt aber trotzdem: eine gleichnamige Regel in
-   story-world/timeline/StateChangePanels.css brachte es mit und wurde spaeter geladen.
-   Jene Regel heisst inzwischen .state-change-layout -- was diese Flaeche zusammenhaelt,
-   steht damit an der Stelle, an der jemand danach sucht. */
+/* The overflow was long absent here and applied all the same: a rule of the same name in
+   story-world/timeline/StateChangePanels.css brought it along and was loaded later. That
+   rule is now called .state-change-layout -- so what holds this surface together stands
+   where somebody would look for it. */
 .storyboard-layout {
   min-width: 0;
   min-height: 0;
@@ -95,11 +95,11 @@
   list-style: none;
 }
 
-/* Kein Nullboden, solange es etwas zu treffen gibt: mit eingeblendeter Bildschirmtastatur
-   blieben von der Trefferliste einunddreissig Pixel -- weniger als eine Zeile, in der nichts
-   mehr zu treffen war. Eine Zeile muss stehen bleiben; gescrollt wird dann eben in ihr.
-   Die leere Liste behaelt ihre Null: sonst reserviert die Bibliothek eine Zeile fuer nichts
-   und laeuft im flachen Querformat ueber. */
+/* No floor of zero while there is something to hit: with the on-screen keyboard showing,
+   thirty-one pixels of the results list were left -- less than one row, and nothing left in
+   it to hit. One row has to remain; the scrolling then happens inside it. The empty list
+   keeps its zero: otherwise the library reserves a row for nothing and overflows in flat
+   landscape. */
 .storyboard-search-results:not(:empty) {
   min-height: var(--control-touch);
 }
@@ -197,9 +197,9 @@
     width: min(var(--sidebar-max), calc(100% - var(--spacing-section-tight)));
     height: min(70vh, calc(100% - var(--spacing-section-tight)));
     max-height: var(--sheet-max);
-    /* Beschneiden ja -- die Ecken sind rund --, aber nicht wegschneiden: im flachen
-       Querformat blieben die letzten Pixel der Trefferliste hinter der Kante liegen,
-       unerreichbar. `auto` schneidet genauso und gibt sie beim Rollen wieder her. */
+    /* Clip, yes -- the corners are round -- but do not cut away: in flat landscape the
+       last pixels of the results list stayed behind the edge, out of reach. `auto` clips
+       just the same and hands them back when scrolled. */
     overflow: auto;
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-lg);

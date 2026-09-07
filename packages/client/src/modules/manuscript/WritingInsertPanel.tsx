@@ -62,8 +62,8 @@ export function WritingInsertPanel({
 }: WritingInsertPanelProps) {
   const { t } = useI18n();
   const projectDictionary = manuscript.words || [];
-  // Verborgen wird gespeichert, nicht Sichtbares: eine Figur, die spaeter angelegt wird,
-  // erscheint von selbst und muss nicht erst freigeschaltet werden.
+  // What is hidden gets stored, not what is visible: a figure created later appears of its
+  // own accord and does not have to be unlocked first.
   const verborgen = new Set(manuscript.hiddenElements ?? []);
   const angeboteneElemente = figures.nodes.filter((node) => !verborgen.has(node.id));
 

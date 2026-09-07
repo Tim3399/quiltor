@@ -92,6 +92,26 @@ A migration step runs against databases that carry only `meta` — ask
 `npm run check` does **not** run the Python suite. Contract breaks in
 `tests/python/test_release.py` only show up when you run it or when CI does.
 
+## The server on :8000 holds the code it was started with
+
+Python loads its modules once. A server started before a change to `src/quiltor/` keeps
+serving the old code, and the product suite then tests that instead — a failure that looks
+like a regression and is not.
+
+Count the processes before believing a restart:
+
+```bash
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name like '%python%'\" | Select-Object ProcessId,CommandLine | Format-List"
+```
+
+Two of them can be listening on `:8000` at once. Stopping one leaves the other answering,
+and the restart appears to have done nothing. This cost a whole debugging session: a `400
+document.invalid_wire` that the current sources accepted when the same payload was handed
+straight to `decode_document_v1`.
+
+That comparison is also the fastest way to tell the two apart. If the server rejects a
+payload the sources accept, the server is stale — nothing else needs investigating.
+
 ## A Windows note
 
 Development happens on Windows with Git Bash. A here-document eats backslashes on the way

@@ -163,10 +163,10 @@ export function ChapterTree({
             selected={chapter.id === current?.id}
             label={title}
             number={romanNumeral(position)}
-            /* Gesprochen wird die gewoehnliche Zahl: das Mediaevalzeichen ist Schrift, kein
-               Wort, und eine Vorlesesoftware sagt sonst "I". Ohne eigene Beschriftung fielen
-               die Spalten der Zeile ausserdem zu "IKapitel im Bogen0 Woerter" zusammen -- der
-               berechnete Name kennt die Luecken nicht, die das Auge sieht. */
+            /* What is spoken is the ordinary number: an old-style figure is type, not a
+               word, and a screen reader otherwise says "I". Without a label of its own the
+               row's columns also collapsed into "IKapitel im Bogen0 Woerter" -- the computed
+               name does not know the gaps the eye sees. */
             spokenLabel={[String(position), title, words, storyTime].filter(Boolean).join(" ")}
             words={words}
             storyTime={storyTime}

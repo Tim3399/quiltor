@@ -134,18 +134,17 @@ function StoryboardWorkspaceInner({
     setSelectedEdgeId(edgeId);
   }, []);
   /*
-   * Ueber jeder Gruppe, unter jeder Karte.
+   * Above every group, below every card.
    *
-   * Eine Gruppe ist keine durchlaessige Rahmung, sondern eine grosse Karte mit eigenem
-   * Koerper -- sie deckt alles ab, was hinter ihr liegt. React Flow legt Kanten ohne eigene
-   * Ebene auf 0, Gruppen liegen ebenfalls dort, und bei gleichem Rang gewinnt der spaeter
-   * gezeichnete Knoten. Eine Verbindung zwischen zwei Karten in derselben Gruppe war damit
-   * nicht nur schwer zu sehen, sondern gar nicht zu treffen: der Klick landete auf der
-   * Gruppe darunter.
+   * A group is not a see-through frame but a large card with a body of its own -- it covers
+   * everything lying behind it. React Flow puts edges without a layer of their own at 0,
+   * groups sit there as well, and at equal rank the node drawn later wins. A connection
+   * between two cards in the same group was therefore not merely hard to see but impossible
+   * to hit: the click landed on the group beneath.
    *
-   * Ohne Gruppen bleibt es bei 0, also beim bisherigen Verhalten. Karten liegen nach der
-   * Verdichtung ueber allen Gruppen und damit weiterhin ueber den Kanten -- eine Kante soll
-   * hinter der Karte durchlaufen, nicht ueber sie hinweg.
+   * Without groups it stays at 0, that is, at the previous behaviour. After compaction cards
+   * lie above all groups and therefore still above the edges -- an edge should run behind
+   * the card, not across it.
    */
   const edgeLayer = useMemo(
     () =>

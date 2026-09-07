@@ -1,11 +1,10 @@
-"""Was der Webserver tut, wenn viele Verbindungen gleichzeitig ankommen.
+"""What the web server does when many connections arrive at once.
 
-Beides hier ist aus einem CI-Lauf entstanden, in dem vier Tests an einem Port
-scheiterten, der offen war: der Server lief weiter und protokollierte, während der
-Aufrufer "Verbindung verweigert" bekam. Die Ursache lag nicht im Server, sondern in
-der Zahl, die er dem Betriebssystem für seine Warteschlange nennt -- und gefunden
-wurde sie später als nötig, weil das Protokoll voller Tracebacks von Browsern stand,
-die einfach weggegangen waren.
+Both tests here came out of a CI run in which four tests failed against a port that was
+open: the server kept running and logging while the caller got "connection refused". The
+cause was not in the server but in the number it gives the operating system for its
+queue -- and it was found later than it needed to be, because the log was full of
+tracebacks from browsers that had simply walked away.
 """
 
 import io
@@ -20,10 +19,10 @@ from quiltor.hosts.web import server
 
 class ServerConnectionTests(unittest.TestCase):
     def test_die_warteschlange_ist_groesser_als_die_vorgabe_von_socketserver(self):
-        """Geprüft wird die Zahl, die wirklich an ``listen()`` geht.
+        """What is checked is the number that really reaches ``listen()``.
 
-        Nicht das Klassenattribut: ``server_activate`` reicht es weiter, und nur was
-        dort ankommt, sagt dem Betriebssystem, wie viele warten dürfen.
+        Not the class attribute: ``server_activate`` passes it on, and only what arrives
+        there tells the operating system how many may wait.
         """
 
         uebergeben: list[int | None] = []
@@ -39,7 +38,7 @@ class ServerConnectionTests(unittest.TestCase):
 
         self.assertEqual(len(uebergeben), 1)
         self.assertIsNotNone(uebergeben[0])
-        # Fünf ist die Vorgabe von socketserver und der Grund, aus dem Windows abwies.
+        # Five is socketserver's default and the reason Windows refused.
         self.assertGreater(uebergeben[0], socketserver.TCPServer.request_queue_size)
         self.assertGreaterEqual(uebergeben[0], 128)
 

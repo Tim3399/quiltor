@@ -110,7 +110,7 @@ describe("figure canvas model", () => {
 });
 
 describe("belongsOnFigureBoard", () => {
-  const welt: FigureState = {
+  const world: FigureState = {
     nodes: [
       { id: "mara", x: 0, y: 0, name: "Mara", type: "person" },
       { id: "hafen", x: 200, y: 0, name: "Hafen", type: "ort" },
@@ -120,20 +120,20 @@ describe("belongsOnFigureBoard", () => {
   };
 
   it("laesst eine Karte weg, denn sie ist der Bogen und kein Element der Welt", () => {
-    expect(belongsOnFigureBoard(welt.nodes[2])).toBe(false);
-    expect(createFigureFlowNodes(welt.nodes, "detail", 1).map((node) => node.id)).toEqual([
+    expect(belongsOnFigureBoard(world.nodes[2])).toBe(false);
+    expect(createFigureFlowNodes(world.nodes, "detail", 1).map((node) => node.id)).toEqual([
       "mara",
       "hafen",
     ]);
   });
 
   it("laesst einen gewoehnlichen Ort stehen", () => {
-    expect(belongsOnFigureBoard(welt.nodes[1])).toBe(true);
+    expect(belongsOnFigureBoard(world.nodes[1])).toBe(true);
   });
 
   it("aendert nichts am Dokument -- gefiltert wird beim Zeichnen", () => {
-    createFigureFlowNodes(welt.nodes, "detail", 1);
+    createFigureFlowNodes(world.nodes, "detail", 1);
 
-    expect(welt.nodes).toHaveLength(3);
+    expect(world.nodes).toHaveLength(3);
   });
 });
