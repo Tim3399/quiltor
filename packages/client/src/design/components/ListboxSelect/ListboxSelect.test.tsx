@@ -92,24 +92,16 @@ describe("ListboxSelect", () => {
     await waitFor(() => expect(gamma).toHaveFocus());
   });
 
-  it("holt einen weitergewanderten Fokus nicht in die gewaehlte Zeile zurueck", () => {
-    // Der Nachlauf des Oeffnens laeuft einen Frame spaeter. Hier wird er angehalten, der Fokus
-    // wandert wie beim Druck auf die Pfeiltaste weiter, und erst dann darf er laufen.
-    const nachlauf: FrameRequestCallback[] = [];
-    vi.stubGlobal("requestAnimationFrame", (rueckruf: FrameRequestCallback) =>
-      nachlauf.push(rueckruf),
-    );
-    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+  it("setzt den Fokus im selben Takt, in dem die Liste erscheint", () => {
+    // Ohne Warten auf einen Frame: nach dem Klick steht der Fokus sofort in der Liste. In der
+    // Luecke davor lief eine Taste ins Leere -- "Ende" traf den Knopf, wo sie nichts bedeutet.
     render(
       <ListboxSelect label="Auswahl" value="a" options={options} onChange={() => undefined} />,
     );
 
     fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
-    const gamma = screen.getByRole("option", { name: "Gamma" });
-    gamma.focus();
-    for (const rueckruf of nachlauf) rueckruf(0);
 
-    expect(gamma).toHaveFocus();
+    expect(screen.getByRole("option", { name: "Alpha" })).toHaveFocus();
   });
 
   it("keeps long labels inside the trigger without displacing its chevron", () => {

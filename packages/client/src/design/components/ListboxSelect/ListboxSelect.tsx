@@ -1,5 +1,12 @@
 import { ChevronDown } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Popover } from "../Popover";
 import "./ListboxSelect.css";
 
@@ -40,21 +47,24 @@ export function ListboxSelect<T extends string>({
     options.find((option) => option.value === value && !option.disabled) ??
     options.find((option) => !option.disabled);
 
-  useEffect(() => {
+  // Im selben Takt, in dem die Liste im Dokument steht -- nicht einen Frame spaeter.
+  //
+  // Der Frame war eine Luecke nach beiden Seiten. Wer darin eine Pfeiltaste drueckte, wurde
+  // anschliessend wieder auf die gewaehlte Zeile zurueckgeholt; und wer "Ende" drueckte,
+  // bevor ueberhaupt eine Zeile den Fokus hatte, drueckte gegen den Knopf, wo die Taste
+  // nichts bedeutet. Beides ist auf einem ausgelasteten Rechner passiert, nicht in der
+  // Theorie. Ein Layout-Effekt laeuft, sobald das DOM steht, und schliesst die Luecke.
+  //
+  // Einen Wachposten gegen das Einsammeln eines schon weitergewanderten Fokus braucht es
+  // damit nicht mehr: der Effekt haengt an `open`, und wenn das von falsch auf wahr springt,
+  // gab es die Liste eben noch nicht -- der Fokus kann gar nicht schon drin sein.
+  useLayoutEffect(() => {
     if (!open) return;
-    const frame = requestAnimationFrame(() => {
-      // Nur, wenn der Fokus noch nicht drin ist. Als Sheet setzt useOverlayFocus ihn schon im
-      // selben Takt wie den Klick; dieser Nachlauf kam einen Frame spaeter -- und wer in dieser
-      // Luecke die Pfeiltaste gedrueckt hatte, wurde wieder auf die gewaehlte Zeile zurueck-
-      // geholt. Auf einem ausgelasteten Rechner ist die Luecke breit genug dafuer.
-      if (listRef.current?.contains(document.activeElement)) return;
-      const current = listRef.current?.querySelector<HTMLElement>(
-        '[aria-selected="true"]:not(:disabled)',
-      );
-      const first = listRef.current?.querySelector<HTMLElement>('[role="option"]:not(:disabled)');
-      (current ?? first)?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
+    const current = listRef.current?.querySelector<HTMLElement>(
+      '[aria-selected="true"]:not(:disabled)',
+    );
+    const first = listRef.current?.querySelector<HTMLElement>('[role="option"]:not(:disabled)');
+    (current ?? first)?.focus();
   }, [open]);
 
   const choose = (option: ListboxSelectOption<T>) => {
