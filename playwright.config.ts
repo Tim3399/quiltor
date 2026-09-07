@@ -12,26 +12,26 @@ export default defineConfig({
   // Two isolated browser contexts keep local/release runs moving without overwhelming the
   // shared application server. CI shards override this to one worker per runner.
   workers: resolvePlaywrightWorkers(2),
-  // Auf dem Windows-Runner hat das Anlegen und Oeffnen einer Welt zweimal laenger als
-  // dreissig Sekunden gebraucht; dort greifen Dateisperren, wo Linux nur schreibt -- dieselbe
-  // Ecke, aus der im Backend ein nicht raeumbares Temp-Verzeichnis kam. Der groessere Wert ist
-  // ein Puffer, keine Erklaerung: ein wirklich haengender Test faellt weiterhin, nur spaeter.
-  // Lokal bleibt es bei dreissig Sekunden, damit ein langsam gewordener Test hier auffaellt.
+  // On the Windows runner, creating and opening a world took longer than thirty seconds
+  // twice; file locks bite there where Linux merely writes -- the same corner the backend's
+  // undeletable temp directory came from. The larger value is a buffer, not an explanation:
+  // a test that really hangs still fails, only later. Locally it stays at thirty seconds, so
+  // that a test which has grown slow is noticed here.
   timeout: process.env.CI ? 60_000 : 30_000,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8000",
-    // Wie in playwright.design.config.ts, und aus demselben Grund: ein Datumsfeld zeichnet
-    // sein Format nach der Sprache des Rechners. Der Zeitstreifen zeigte auf dem Windows-Runner
-    // "mm/dd/yyyy", auf meinem Rechner "dd.mm.yyyy" -- 136 Pixel Unterschied im selben
-    // Baseline-Bild derselben Plattform. Eine Referenz, die von der Regionaleinstellung des
-    // Rechners abhaengt, vergleicht nicht die Anwendung.
+    // As in playwright.design.config.ts, and for the same reason: a date field draws its
+    // format from the machine's language. The timeline strip showed "mm/dd/yyyy" on the
+    // Windows runner and "dd.mm.yyyy" on this desk -- 136 pixels of difference in the same
+    // baseline image of the same platform. A reference that depends on a machine's regional
+    // settings is not comparing the application.
     locale: "de-DE",
     timezoneId: "Europe/Berlin",
     launchOptions: {
-      // Und noch eine Ebene tiefer: den Platzhalter eines Datumsfelds zeichnet Chromium nicht
-      // nach `locale`, sondern nach der Sprache seiner eigenen Oberflaeche. Mit `locale`
-      // allein stand im Zeitstreifen auf dem Runner weiterhin "mm/dd/yyyy" und hier
-      // "dd.mm.yyyy" -- immer dieselben 136 Pixel Unterschied im selben Bild.
+      // And one layer deeper: Chromium draws a date field's placeholder from the language
+      // of its own interface, not from `locale`. With `locale` alone the runner still
+      // showed "mm/dd/yyyy" in the timeline strip and this desk "dd.mm.yyyy" -- always the
+      // same 136 pixels of difference in the same image.
       args: ["--lang=de-DE"],
     },
     trace: "retain-on-failure",

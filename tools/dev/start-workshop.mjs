@@ -4,13 +4,12 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /*
- * Die Werkstatt lokal starten -- beide Haelften, in einem Befehl.
+ * Start the workshop locally -- both halves, in one command.
  *
- * Vite allein reicht nicht: es liefert nur den Client aus und leitet /api an den
- * Python-Server auf 8000 weiter. Fehlt der, laedt die Seite und sagt "Quiltor ist
- * voruebergehend nicht erreichbar" -- was aussieht wie ein Fehler in der Anwendung und
- * keiner ist. Genau deshalb gibt es dieses Skript: wer es startet, bekommt beide Haelften
- * oder eine Erklaerung, warum nicht.
+ * Vite alone is not enough: it serves the client and forwards /api to the Python server on
+ * 8000. Without that server the page loads and says "Quiltor ist vorübergehend nicht
+ * erreichbar" -- which looks like a fault in the application and is none. That is what this
+ * script is for: whoever starts it gets both halves, or an explanation why not.
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -19,18 +18,17 @@ const API_PORT = Number(process.env.QUILTOR_API_PORT ?? 8000);
 const WINDOWS = process.platform === "win32";
 
 /**
- * Ein Python, das wirklich startet.
+ * A Python that actually starts.
  *
- * Nicht nur eines, das im Launcher steht: ein Release-Lauf kann sein Python aus einem
- * Temp-Verzeichnis als Systemversion eintragen, und wenn das Verzeichnis spaeter aufgeraeumt
- * wird, bleibt ein Eintrag zurueck, der beim Aufruf abbricht. Deshalb wird jeder Kandidat
- * einmal ausgefuehrt, statt ihm zu glauben.
+ * Not merely one the launcher lists: a release run can register its Python from a temp
+ * directory as the system version, and once that directory is cleaned up an entry stays
+ * behind that dies when called. So every candidate is run once instead of believed.
  */
-function findePython() {
-  // 3.12 zuerst: das ist die Reihe, mit der gebaut, geprueft und ausgeliefert wird. Neuere
-  // laufen auch -- wer 3.13 oder 3.14 installiert hat, soll damit arbeiten koennen --, aber
-  // die Reihe, in der ein Fehler auch in der CI auftaucht, kommt zuerst.
-  const kandidaten = WINDOWS
+function findPython() {
+  // 3.12 first: that is the series everything is built, checked and shipped with. Newer ones
+  // work too -- anyone with 3.13 or 3.14 installed should be able to use it -- but the
+  // series in which a failure also shows up in CI comes first.
+  const candidates = WINDOWS
     ? [
         ["py", ["-3.12"]],
         ["py", ["-3.13"]],
@@ -44,83 +42,84 @@ function findePython() {
         ["python3", []],
       ];
 
-  const abgelehnt = [];
-  for (const [befehl, vorgabe] of kandidaten) {
+  const rejected = [];
+  for (const [command, prefix] of candidates) {
     const probe = spawnSync(
-      befehl,
-      [...vorgabe, "-c", "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)"],
+      command,
+      [...prefix, "-c", "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)"],
       { encoding: "utf8" },
     );
-    if (probe.status === 0) return [befehl, vorgabe];
-    const grund =
+    if (probe.status === 0) return [command, prefix];
+    const reason =
       probe.error?.code === "ENOENT"
         ? "nicht vorhanden"
         : probe.status === 1
           ? "aelter als 3.12"
           : (probe.stderr || "").split("\n")[0] || "startet nicht";
-    abgelehnt.push(`  ${[befehl, ...vorgabe].join(" ")}: ${grund}`);
+    rejected.push(`  ${[command, ...prefix].join(" ")}: ${reason}`);
   }
 
   console.error("Kein brauchbares Python gefunden. Das Projekt braucht 3.12 oder neuer.");
-  console.error(abgelehnt.join("\n"));
+  console.error(rejected.join("\n"));
   process.exit(1);
 }
 
-function starte(name, befehl, argumente, umgebung) {
-  const kind = spawn(befehl, argumente, {
+function start(name, command, args, environment) {
+  const child = spawn(command, args, {
     cwd: ROOT,
-    env: { ...process.env, ...umgebung },
+    env: { ...process.env, ...environment },
     stdio: ["ignore", "pipe", "pipe"],
     shell: WINDOWS,
   });
-  const zeigen = (daten) => {
-    for (const zeile of String(daten).split("\n")) {
-      if (zeile.trim()) console.log(`[${name}] ${zeile.trimEnd()}`);
+  const show = (data) => {
+    for (const line of String(data).split("\n")) {
+      if (line.trim()) console.log(`[${name}] ${line.trimEnd()}`);
     }
   };
-  kind.stdout.on("data", zeigen);
-  kind.stderr.on("data", zeigen);
-  kind.on("exit", (code) => {
-    if (!beendet) {
+  child.stdout.on("data", show);
+  child.stderr.on("data", show);
+  child.on("exit", (code) => {
+    if (!stopping) {
       console.error(`\n[${name}] hat sich mit Code ${code} beendet. Alles wird gestoppt.`);
-      aufraeumen(1);
+      shutDown(1);
     }
   });
-  return kind;
+  return child;
 }
 
-async function wartetAuf(url, name, sekunden = 60) {
-  for (let versuch = 0; versuch < sekunden; versuch += 1) {
+async function waitFor(url, name, seconds = 60) {
+  for (let attempt = 0; attempt < seconds; attempt += 1) {
     try {
-      const antwort = await fetch(url, { signal: AbortSignal.timeout(1500) });
-      if (antwort.ok) return true;
+      const answer = await fetch(url, { signal: AbortSignal.timeout(1500) });
+      if (answer.ok) return true;
     } catch {
-      // Noch nicht da; gleich noch einmal.
+      // Not there yet; try again in a moment.
     }
-    await new Promise((weiter) => setTimeout(weiter, 1000));
+    await new Promise((next) => setTimeout(next, 1000));
   }
-  console.error(`${name} antwortet nach ${sekunden}s nicht auf ${url}.`);
+  console.error(`${name} antwortet nach ${seconds}s nicht auf ${url}.`);
   return false;
 }
 
-const kinder = [];
-let beendet = false;
+const children = [];
+let stopping = false;
 
-function aufraeumen(code) {
-  if (beendet) return;
-  beendet = true;
-  for (const kind of kinder) {
-    if (kind.exitCode !== null || kind.pid === undefined) continue;
-    // Vite und der Server starten ihrerseits Prozesse; unter Windows braucht es den Baum,
-    // sonst bleibt der Port belegt und der naechste Start scheitert an --strictPort.
-    if (WINDOWS) spawnSync("taskkill", ["/pid", String(kind.pid), "/T", "/F"], { stdio: "ignore" });
-    else kind.kill("SIGTERM");
+function shutDown(code) {
+  if (stopping) return;
+  stopping = true;
+  for (const child of children) {
+    if (child.exitCode !== null || child.pid === undefined) continue;
+    // Vite and the server start processes of their own; on Windows the whole tree has to go,
+    // or the port stays taken and the next start fails on --strictPort.
+    if (WINDOWS)
+      spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    else child.kill("SIGTERM");
   }
   process.exit(code);
 }
 
-process.on("SIGINT", () => aufraeumen(0));
-process.on("SIGTERM", () => aufraeumen(0));
+process.on("SIGINT", () => shutDown(0));
+process.on("SIGTERM", () => shutDown(0));
 
 const server = resolve(ROOT, "apps/web/server.py");
 if (!existsSync(server)) {
@@ -128,26 +127,26 @@ if (!existsSync(server)) {
   process.exit(1);
 }
 
-const [python, vorgabe] = findePython();
-console.log(`Python: ${[python, ...vorgabe].join(" ")}`);
+const [python, prefix] = findPython();
+console.log(`Python: ${[python, ...prefix].join(" ")}`);
 
-kinder.push(
-  starte(
+children.push(
+  start(
     "api",
     python,
-    [...vorgabe, "apps/web/server.py", String(API_PORT), "--no-open"],
-    // Ohne src im Pfad findet der Server das Paket nicht, solange es nicht installiert ist.
+    [...prefix, "apps/web/server.py", String(API_PORT), "--no-open"],
+    // Without src on the path the server cannot find the package unless it is installed.
     { PYTHONPATH: "src", PYTHONIOENCODING: "utf-8" },
   ),
 );
 
-if (!(await wartetAuf(`http://127.0.0.1:${API_PORT}/api/version`, "Der API-Server"))) {
-  aufraeumen(1);
+if (!(await waitFor(`http://127.0.0.1:${API_PORT}/api/version`, "Der API-Server"))) {
+  shutDown(1);
 }
 console.log(`API bereit auf http://127.0.0.1:${API_PORT}`);
 
-kinder.push(
-  starte("web", WINDOWS ? "npx.cmd" : "npx", [
+children.push(
+  start("web", WINDOWS ? "npx.cmd" : "npx", [
     "vite",
     "--port",
     String(CLIENT_PORT),
@@ -157,7 +156,7 @@ kinder.push(
   ]),
 );
 
-if (!(await wartetAuf(`http://127.0.0.1:${CLIENT_PORT}/`, "Vite"))) aufraeumen(1);
+if (!(await waitFor(`http://127.0.0.1:${CLIENT_PORT}/`, "Vite"))) shutDown(1);
 
 console.log("");
 console.log(`  Die Werkstatt läuft: http://127.0.0.1:${CLIENT_PORT}`);

@@ -572,15 +572,14 @@ class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    # Wie viele Verbindungen warten duerfen, bevor das Betriebssystem die naechste abweist.
+    # How many connections may wait before the operating system refuses the next one.
     #
-    # Die Vorgabe von socketserver ist fuenf. Eine einzige Seite oeffnet mehr als das: das
-    # Blatt, seine Schriften, die Bilder einer Karte und die API-Aufrufe daneben gehen
-    # gleichzeitig hinaus, und der annehmende Faden kommt kurz nicht hinterher. Linux laesst
-    # das SYN dann fallen und der Browser wiederholt es; Windows weist aktiv ab, und der
-    # Aufrufer sieht "Verbindung verweigert" von einem Server, der laeuft und weiter
-    # protokolliert. Genau so ist es in der CI passiert -- vier Tests, ein toter Port,
-    # ein Server, dem nichts fehlte.
+    # socketserver defaults to five. A single page opens more than that: the sheet, its
+    # fonts, a map's images and the API calls beside them all go out at once, and the
+    # accepting thread falls behind for a moment. Linux then drops the SYN and the browser
+    # retries; Windows refuses actively, and the caller sees "connection refused" from a
+    # server that is running and still logging. That is exactly what happened in CI --
+    # four tests, a dead port, and a server with nothing wrong with it.
     request_queue_size = 128
 
     def __init__(self, server_address, handler_class, application: WebApplication):
@@ -588,12 +587,11 @@ class Server(socketserver.ThreadingTCPServer):
         super().__init__(server_address, handler_class)
 
     def handle_error(self, request, client_address) -> None:
-        """Einen weggegangenen Browser nicht als Serverfehler ausgeben.
+        """Do not report a browser that walked away as a server error.
 
-        Wer einen Reiter schliesst, waehrend ein Bild laedt, bricht die Verbindung ab.
-        socketserver schreibt dafuer einen vollen Traceback ins Protokoll -- in dem
-        Protokoll, in dem man spaeter nach einem echten Fehler sucht. Alles andere
-        bleibt sichtbar.
+        Closing a tab while an image loads aborts the connection. socketserver writes a
+        full traceback for that into the log -- the same log somebody later searches for a
+        real failure. Everything else stays visible.
         """
 
         if isinstance(

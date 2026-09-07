@@ -47,17 +47,16 @@ export function ListboxSelect<T extends string>({
     options.find((option) => option.value === value && !option.disabled) ??
     options.find((option) => !option.disabled);
 
-  // Im selben Takt, in dem die Liste im Dokument steht -- nicht einen Frame spaeter.
+  // In the same tick the list enters the document -- not one frame later.
   //
-  // Der Frame war eine Luecke nach beiden Seiten. Wer darin eine Pfeiltaste drueckte, wurde
-  // anschliessend wieder auf die gewaehlte Zeile zurueckgeholt; und wer "Ende" drueckte,
-  // bevor ueberhaupt eine Zeile den Fokus hatte, drueckte gegen den Knopf, wo die Taste
-  // nichts bedeutet. Beides ist auf einem ausgelasteten Rechner passiert, nicht in der
-  // Theorie. Ein Layout-Effekt laeuft, sobald das DOM steht, und schliesst die Luecke.
+  // That frame was a gap in both directions. Press an arrow key inside it and focus was
+  // pulled back to the selected row afterwards; press "End" before any row had focus at all
+  // and the key went to the button, where it means nothing. Both happened on a loaded
+  // machine, not in theory. A layout effect runs as soon as the DOM stands and closes it.
   //
-  // Einen Wachposten gegen das Einsammeln eines schon weitergewanderten Fokus braucht es
-  // damit nicht mehr: der Effekt haengt an `open`, und wenn das von falsch auf wahr springt,
-  // gab es die Liste eben noch nicht -- der Fokus kann gar nicht schon drin sein.
+  // No guard against collecting an already-moved focus is needed for that: the effect hangs
+  // on `open`, and when that flips from false to true the list did not exist a moment ago --
+  // focus cannot already be inside it.
   useLayoutEffect(() => {
     if (!open) return;
     const current = listRef.current?.querySelector<HTMLElement>(

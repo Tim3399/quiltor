@@ -31,14 +31,14 @@ function StoryboardNodeBody({ children }: { children: ReactNode }) {
     const body = bodyRef.current;
     if (!body) return;
     const overflows = (element: HTMLElement) => element.scrollHeight - element.clientHeight > 1;
-    // Eine Notiz bringt mit CodeMirror ihren eigenen Scroller mit. Der Koerper meldet dann
-    // null Ueberlauf, waehrend drinnen vierzig Zeilen stehen -- die Karte trug kein
-    // `nowheel`, und das Mausrad zoomte die Leinwand, statt die Notiz zu scrollen.
+    // A note brings its own scroller along, inside CodeMirror. The body then reports no
+    // overflow at all while forty lines sit inside it -- the card wore no `nowheel`, and
+    // the wheel zoomed the canvas instead of scrolling the note.
     //
-    // Die Klasse bekommt dabei der Scroller selbst, nicht der Koerper um ihn herum. Der
-    // Koerper reicht weiter als sein Inhalt: die Formatleiste einer Notiz haengt ueber den
-    // Kartenrand hinaus, und ueber ihr gaebe es nichts zu scrollen -- ein `nowheel` am
-    // Koerper haette dort das Zoomen der Leinwand verschluckt.
+    // The class goes on that scroller, not on the body around it. The body reaches further
+    // than its content: a note's format bar hangs out over the card's edge, and there is
+    // nothing to scroll above it -- a `nowheel` on the body would have swallowed the
+    // canvas zoom there.
     for (const element of body.querySelectorAll<HTMLElement>(".nowheel")) {
       element.classList.remove("nowheel");
     }
@@ -61,8 +61,8 @@ function StoryboardNodeBody({ children }: { children: ReactNode }) {
       for (const child of body.children) observer.observe(child);
       observers.push(observer);
     }
-    // Ein fremder Scroller waechst, ohne dass sich irgendeine Groesse aendert: getippte Zeilen
-    // erhoehen nur seinen scrollHeight. Ein ResizeObserver sieht das nicht.
+    // A foreign scroller grows without any size changing: typed lines only raise its
+    // scrollHeight. A ResizeObserver does not see that.
     if (typeof MutationObserver === "function") {
       const observer = new MutationObserver(measure);
       observer.observe(body, { subtree: true, childList: true, characterData: true });
@@ -219,10 +219,10 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
           isNoteCard ? t("storyboardNotePlaceholder") : t("storyboardNodeNotePlaceholder")
         }
         size="compact"
-        // Auch auf einer Referenz- oder Storyboard-Karte ist die Notiz eine Notiz und keine
-        // Zeile: die Karte ist 210px hoch und laesst sich ziehen, also fuellt der Text, was
-        // da ist. Eine feste Zeilenzahl liess den Rest der Karte leer und zwang zum Scrollen
-        // im Feld, obwohl daneben Platz stand.
+        // On a reference or storyboard card the note is still a note, not a single line:
+        // the card is 210px tall and resizable, so the text fills what is there. A fixed
+        // row count left the rest of the card empty and forced scrolling inside the field
+        // while space sat next to it.
         fill
         labelHidden
         fieldClassName="storyboard-node-note-field nodrag nopan"
