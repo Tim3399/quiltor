@@ -86,7 +86,7 @@ Geschichten sind nicht statisch. Eine Freundschaft kann zerbrechen, eine Figur k
 
 Quiltor modelliert solche Änderungen entlang der Timeline, statt nur den letzten Zustand zu speichern.
 
-![Animierte Timeline im Figurenboard](docs/screenshots/timeline-playback.png)
+![Figurenboard am ausgewählten Zeitpunkt der Geschichte](docs/screenshots/timeline-playback.png)
 
 Die eigenständige Timeline-Seite ist für die Pflege optimiert: Zeitpunkte sortieren, Notizen hinterlegen, Beziehungszustände verändern und Lebensereignisse markieren.
 
@@ -102,9 +102,13 @@ Die integrierte Weltsuche findet Figuren, Orte, Zeitpunkte, Kapitel und andere B
 
 **Planung bleibt Planung:** Eine Verbindung auf dem Storyboard erzeugt keine Beziehung in der erzählten Welt. Ideen und Notizen werden nicht automatisch zu gesicherten Weltfakten.
 
+![Quiltor Storyboard mit Notizen, Referenzkarten und Gruppen](docs/screenshots/storyboard.png)
+
 ### Gemeinsame Notizen, Referenzen und Backlinks
 
 Kapitel, Weltelemente, Zeitpunkte und Storyboard-Karten verwenden denselben Notizeditor mit Formatierung und Fokusmodus. Mit `@` lassen sich bestehende Inhalte suchen und verlinken. Die Referenzen speichern stabile IDs und überstehen Umbenennungen; Backlinks zeigen, wo ein Inhalt bereits verwendet wird.
+
+![Formatierte Notizen mit verknüpften Figuren und Orten](docs/screenshots/shared-notes.png)
 
 ---
 
@@ -897,11 +901,13 @@ Für beispielsweise Spanisch kommt zum neuen Ordner genau ein gut sichtbarer Imp
 UI-Codeänderungen sind nicht nötig; der i18n-Check erzwingt automatisch die Übereinstimmung von
 Ordnern und Registry. Die genaue Anleitung steht in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-README-Screenshots reproduzierbar erzeugen:
+Die sieben README-Screenshots gegen einen frisch gebauten Client und einen laufenden, isolierten Server erzeugen:
 
 ```bash
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readme.mjs
 ```
+
+Das Skript legt eine fiktive Demo-Welt an, prüft die API-Antworten und nimmt die echte Oberfläche in 1440 × 900 Pixeln auf. Es verwendet die deutschen Texte und löscht die Demo-Welt anschließend wieder. Die Demo-Daten liegen unter [`tools/documentation/`](tools/documentation/).
 
 ---
 

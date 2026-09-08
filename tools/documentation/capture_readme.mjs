@@ -1,232 +1,176 @@
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { figures, manuscript, storyboards } from "./readme_fixture.mjs";
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8125";
 const output = resolve("docs/screenshots");
 await mkdir(output, { recursive: true });
 
-const browser = await chromium.launch();
-const page = await browser.newPage({
-  viewport: { width: 1440, height: 900 },
-  deviceScaleFactor: 1,
-});
+async function checkedJson(response, operation) {
+  if (!response.ok()) {
+    throw new Error(`${operation}: HTTP ${response.status()} ${await response.text()}`);
+  }
+  return response.json();
+}
 
-const created = await page.request.post(`${baseUrl}/api/worlds/create`, {
-  data: { title: "Der gläserne Atlas", gitUrl: "" },
-});
-const { world } = await created.json();
-await page.request.post(`${baseUrl}/api/worlds/open`, { data: { id: world.id } });
+const browser = await chromium.launch({ args: ["--lang=de-DE"] });
+let context;
+let worldId;
+const failures = [];
+const captures = [];
+try {
+  context = await browser.newContext({
+    baseURL: baseUrl,
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1,
+    locale: "de-DE",
+    timezoneId: "Europe/Berlin",
+    colorScheme: "light",
+    reducedMotion: "reduce",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(15_000);
+  page.on("pageerror", (error) => failures.push(`Browser: ${error.message}`));
+  page.on("response", (response) => {
+    if (response.url().includes("/api/") && response.status() >= 400) {
+      failures.push(`API: HTTP ${response.status()} ${response.url()}`);
+    }
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
 
-const manuscript = {
-  chapters: [
-    {
-      id: "c-arrival",
-      title: "Die Ankunft",
-      body: "Der Morgen lag still über dem Hafen. Zwischen den Masten schimmerte das Archiv wie eine Erinnerung aus Glas.\n\nMara blieb am Ende des Stegs stehen. Heute würde sie erfahren, weshalb die Karten seit drei Nächten ihre Linien veränderten.",
-      note: "Die Unruhe der Stadt nur andeuten. Das Archiv als stillen Gegenpol etablieren.",
-    },
-    {
-      id: "c-archive",
-      title: "Das Archiv",
-      body: "Im Lesesaal wartete bereits der Hüter der Karten.",
-      note: "Erstes Zusammentreffen mit der Kartographengilde.",
-    },
-    {
-      id: "c-storm",
-      title: "Vor dem Sturm",
-      body: "",
-      note: "Konflikt zwischen Gilde und Hafenrat zuspitzen.",
-    },
-    { id: "c-crossing", title: "Die Überfahrt", body: "", note: "" },
-  ],
-  words: [
-    { w: "Lichtsaum", d: "Schimmernde Grenze auf alten Karten" },
-    { w: "Gezeitenarchiv", d: "Zentrales Archiv der Stadt" },
-  ],
-  zeichenAktiv: ["…", "—", "»", "«"],
-};
-const figures = {
-  nodes: [
-    {
-      id: "mara",
-      x: 80,
-      y: 90,
-      type: "person",
-      name: "Mara Venn",
-      label: "Kartographin",
-      sub: "Liest Veränderungen in lebenden Karten.",
-      accent: "gold",
-      important: true,
-      profile: { rolle: "Protagonistin", herkunft: "Nordhafen", extra: [] },
-    },
-    {
-      id: "iven",
-      x: 430,
-      y: 90,
-      type: "person",
-      name: "Iven Rook",
-      label: "Archivar",
-      sub: "Bewahrt die verbotenen Küstenkarten.",
-      accent: "rose",
-      profile: { rolle: "Mentor", extra: [] },
-    },
-    {
-      id: "gilde",
-      x: 780,
-      y: 90,
-      type: "organisation",
-      name: "Kartographengilde",
-      label: "Organisation",
-      sub: "Kontrolliert die offiziellen Seewege.",
-      accent: "ink",
-      profile: { extra: [] },
-    },
-    {
-      id: "archiv",
-      x: 250,
-      y: 330,
-      type: "ort",
-      name: "Gezeitenarchiv",
-      label: "Ort",
-      sub: "Ein gläserner Bau direkt über dem Wasser.",
-      accent: "moss",
-      profile: { extra: [] },
-      mapX: 220,
-      mapY: 260,
-    },
-    {
-      id: "leuchtturm",
-      x: 1120,
-      y: 330,
-      type: "ort",
-      name: "Leuchtturmklippe",
-      label: "Ort",
-      sub: "Letzter fester Punkt vor dem Kartennebel.",
-      accent: "ink",
-      profile: { extra: [] },
-      mapX: 860,
-      mapY: 520,
-    },
-    {
-      id: "atlas",
-      x: 620,
-      y: 330,
-      type: "objekt",
-      name: "Der gläserne Atlas",
-      label: "Artefakt",
-      sub: "Seine Linien reagieren auf kommende Entscheidungen.",
-      accent: "gold",
-      important: true,
-      profile: { extra: [] },
-    },
-    {
-      id: "lumen",
-      x: 970,
-      y: 330,
-      type: "tier",
-      name: "Lumen",
-      label: "Küstenvogel",
-      sub: "Findet Wege durch den Kartennebel.",
-      accent: "moss",
-      profile: { extra: [] },
-    },
-  ],
-  edges: [
-    {
-      id: "e1",
-      from: "mara",
-      to: "iven",
-      label: "misstraut",
-      directed: true,
-      style: "solid",
-      versions: [
-        { momentId: "t2", label: "arbeitet mit", active: true },
-        { momentId: "t3", label: "vertraut", active: true },
-      ],
-    },
-    { id: "e2", from: "mara", to: "atlas", label: "trägt", directed: true, style: "gold" },
-    { id: "e3", from: "iven", to: "archiv", label: "hütet", directed: true, style: "solid" },
-    {
-      id: "e4",
-      from: "gilde",
-      to: "iven",
-      label: "beauftragt",
-      directed: true,
-      style: "dashed",
-      versions: [{ momentId: "t3", label: "verfolgt", active: true, style: "blood" }],
-    },
-    { id: "e5", from: "mara", to: "lumen", label: "verbunden", directed: false, style: "solid" },
-    {
-      id: "e6",
-      from: "atlas",
-      to: "gilde",
-      label: "beansprucht",
-      directed: true,
-      style: "dashed",
-    },
-  ],
-  timeline: [
-    {
-      id: "t1",
-      title: "Ankunft im Nordhafen",
-      date: "1847-09-03",
-      note: "Mara erreicht die Stadt und sucht das Archiv.",
-    },
-    {
-      id: "t2",
-      title: "Öffnung des Atlas",
-      date: "1847-09-06",
-      note: "Die erste verborgene Route erscheint.",
-    },
-    {
-      id: "t3",
-      title: "Bruch mit der Gilde",
-      date: "1847-09-11",
-      note: "Die Gilde erklärt Iven und Mara zu Verrätern.",
-    },
-    {
-      id: "t4",
-      title: "Die Überfahrt",
-      date: "1847-09-14",
-      note: "Aufbruch durch den Kartennebel.",
-    },
-  ],
-};
+  const created = await checkedJson(
+    await context.request.post("/api/worlds/create", {
+      data: { title: "Der gläserne Atlas", backupUrl: "" },
+      timeout: 10_000,
+    }),
+    "Create screenshot world",
+  );
+  if (typeof created.world?.id !== "string" || !/^[0-9a-f]{32}$/.test(created.world.id)) {
+    throw new Error("World creation returned an invalid world ID.");
+  }
+  worldId = created.world.id;
+  console.log(`Created screenshot world ${worldId}.`);
 
-await page.request.post(`${baseUrl}/api/manuscript`, {
-  data: manuscript,
-  headers: { "If-Match": '"0"' },
-});
-await page.request.post(`${baseUrl}/api/state`, { data: figures, headers: { "If-Match": '"0"' } });
+  for (const [endpoint, contract, payload] of [
+    ["state", "quiltor.story-world", figures],
+    ["manuscript", "quiltor.manuscript", manuscript],
+    ["storyboards", "quiltor.storyboards", storyboards],
+  ]) {
+    const url = `/api/${endpoint}?world=${encodeURIComponent(worldId)}`;
+    const initialResponse = await context.request.get(url, { timeout: 10_000 });
+    const initial = await checkedJson(initialResponse, `Read ${endpoint}`);
+    const etag = initialResponse.headers().etag;
+    if (initial.contract !== contract || initial.version !== 1 || !/^"\d+"$/.test(etag || "")) {
+      throw new Error(`Read ${endpoint}: invalid document envelope or ETag.`);
+    }
+    const revision = Number(etag.slice(1, -1));
+    if (!Number.isSafeInteger(revision) || initial.revision !== revision) {
+      throw new Error(`Read ${endpoint}: inconsistent document revision.`);
+    }
+    const saved = await checkedJson(
+      await context.request.put(url, {
+        data: { contract, version: 1, revision, payload },
+        headers: { "If-Match": etag },
+        timeout: 10_000,
+      }),
+      `Seed ${endpoint}`,
+    );
+    if (saved.ok !== true || !Number.isSafeInteger(saved.revision) || saved.revision <= revision) {
+      throw new Error(`Seed ${endpoint}: invalid save acknowledgement.`);
+    }
+  }
 
-await page.goto(`${baseUrl}/?world=${world.id}`);
-await page.getByLabel("Kapiteltext").waitFor();
-await page.screenshot({ path: `${output}/manuscript.png` });
+  async function capture(name) {
+    await page.evaluate(() => document.fonts.ready);
+    await page.mouse.move(1435, 895);
+    await page.waitForTimeout(600);
+    if (failures.length) throw new Error(failures.join("\n"));
+    await page.screenshot({
+      path: resolve(output, `${name}.png`),
+      animations: "disabled",
+      caret: "hide",
+    });
+    captures.push(name);
+    console.log(`Captured ${name}.png`);
+  }
 
-await page.getByRole("button", { name: "Figuren", exact: true }).click();
-await page.getByLabel("Figuren und Beziehungen").waitFor();
-const viewMenuButton = page.getByRole("button", { name: "Ansicht", exact: true });
-await viewMenuButton.click();
-await page.getByRole("menuitem", { name: "Zeit ausblenden" }).click();
-await page.waitForTimeout(400);
-await page.screenshot({ path: `${output}/world-graph.png` });
+  await page.goto(`/?world=${encodeURIComponent(worldId)}`);
+  await page.getByRole("toolbar", { name: "Manuskript", exact: true }).waitFor();
+  await expect(page.getByLabel("Kapiteltext", { exact: true })).toContainText("Mara");
+  await capture("manuscript");
 
-await viewMenuButton.click();
-await page.getByRole("menuitem", { name: "Zeit einblenden" }).click();
-await page.getByRole("button", { name: "Öffnung des Atlas" }).click();
-await page.screenshot({ path: `${output}/timeline-playback.png` });
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await page.getByLabel("Figuren und Beziehungen", { exact: true }).waitFor();
+  await expect(page.locator(".story-node")).toHaveCount(figures.nodes.length);
+  const viewMenu = page.getByRole("button", { name: "Ansicht", exact: true });
+  await viewMenu.click();
+  const hideTime = page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true });
+  if (await hideTime.isVisible()) await hideTime.click();
+  else await page.keyboard.press("Escape");
+  await page.locator(".react-flow__controls-fitview").click();
+  await capture("world-graph");
 
-await page.getByRole("button", { name: "Timeline", exact: true }).click();
-await page.locator(".story-moment").filter({ hasText: "Bruch mit der Gilde" }).click();
-await page.screenshot({ path: `${output}/timeline-manager.png` });
+  await viewMenu.click();
+  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
+  await page.getByRole("button", { name: "Öffnung des Atlas", exact: true }).click();
+  await page.mouse.move(1030, 650);
+  await page.mouse.down();
+  await page.mouse.move(1030, 590, { steps: 12 });
+  await page.mouse.up();
+  await capture("timeline-playback");
 
-await page.getByRole("button", { name: "Orte", exact: true }).click();
-await page.getByLabel("Orte verwalten").waitFor();
-await page.getByRole("button", { name: "Distanz messen" }).click();
-await page.locator(".story-node").filter({ hasText: "Gezeitenarchiv" }).click();
-await page.locator(".story-node").filter({ hasText: "Leuchtturmklippe" }).click();
-await page.waitForTimeout(200);
-await page.screenshot({ path: `${output}/places.png` });
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.locator(".story-moment").filter({ hasText: "Bruch mit der Gilde" }).click();
+  await capture("timeline-manager");
 
-await browser.close();
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+  await page.getByLabel("Orte verwalten", { exact: true }).waitFor();
+  await page.locator(".react-flow__controls-fitview").click();
+  await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
+  await page.locator('.react-flow__node[data-id="archiv"] .story-node').click();
+  await page.locator('.react-flow__node[data-id="leuchtturm"] .story-node').click();
+  await page.getByRole("complementary", { name: "Orte-Inspector" }).waitFor();
+  await page.locator(".react-flow__controls-fitview").click();
+  await capture("places");
+
+  await page.getByRole("button", { name: "Storyboard", exact: true }).click();
+  await page.getByLabel("Storyboard-Fläche", { exact: true }).waitFor();
+  await expect(page.locator("[data-storyboard-node-kind]")).toHaveCount(
+    storyboards.nodes.filter((node) => node.boardId === "main-storyboard").length,
+  );
+  await page.locator(".react-flow__controls-fitview").click();
+  await page.getByRole("button", { name: "Übersichtskarte ausblenden", exact: true }).click();
+  await capture("storyboard");
+
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await page.locator('.react-flow__node[data-id="mara"] .story-node').click();
+  const inspector = page.getByRole("complementary", { name: "Figuren-Inspector" });
+  await inspector.getByRole("tab", { name: "Steckbrief", exact: true }).click();
+  await inspector.getByRole("button", { name: "Notiz im Fokus öffnen", exact: true }).click();
+  await page.getByRole("textbox", { name: "Notiz für Mara Venn", exact: true }).waitFor();
+  await capture("shared-notes");
+  if (captures.length !== 7 || failures.length)
+    throw new Error(`Incomplete capture: ${failures.join("\n")}`);
+  console.log(`Captured all ${captures.length} README screenshots.`);
+} finally {
+  try {
+    if (context && worldId) {
+      for (const page of context.pages()) await page.close();
+      const deleted = await checkedJson(
+        await context.request.post("/api/worlds/delete", {
+          data: { id: worldId },
+          timeout: 10_000,
+        }),
+        "Delete screenshot world",
+      );
+      if (deleted.ok !== true) throw new Error("Screenshot world deletion was not acknowledged.");
+      console.log(`Deleted screenshot world ${worldId}.`);
+    }
+  } finally {
+    await browser.close();
+  }
+}

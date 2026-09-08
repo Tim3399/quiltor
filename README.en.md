@@ -85,7 +85,7 @@ Stories are not static. A friendship can break, a character can move, an object 
 
 Quiltor models those changes along the timeline instead of storing only the latest state.
 
-![Animated timeline in the world graph](docs/screenshots/timeline-playback.png)
+![World graph at a selected story-time moment](docs/screenshots/timeline-playback.png)
 
 The dedicated timeline workspace is built for maintenance: order moments, add notes, change relationship states, and mark life events. Signed relative time supports events before and after a chosen origin, including simultaneous events. Gregorian and custom calendar projections give the same timeline readable dates without making chapter order its clock.
 
@@ -99,11 +99,15 @@ Search for a figure, place, timeline moment, chapter, or board and drag the resu
 
 Storyboard text and connections are planning material. Saving an idea does not create a canonical relationship, presence assignment, or timeline fact.
 
+![Quiltor storyboard with notes, reference cards, and groups](docs/screenshots/storyboard.png)
+
 ### Shared notes and references
 
 Chapter notes, world notes, and storyboard notes share bold, italic, headings, and a focused editing view. Type `@` to link an existing project object. References use stable IDs, so navigation and backlinks can still find the source after an object is renamed or a chapter moves to another folder.
 
 Profiles and other reference targets show where they are mentioned, including the exact storyboard card. Search and assistant retrieval retain the underlying plain text alongside formatting and reference metadata.
+
+![Formatted notes with linked characters and places](docs/screenshots/shared-notes.png)
 
 ---
 
@@ -923,11 +927,13 @@ entry in [`locales/index.ts`](locales/index.ts). No other registry or UI code ch
 the i18n check automatically enforces directory-to-registry parity. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Reproduce README screenshots against a running isolated server:
+Reproduce the seven README screenshots against a freshly built client and a running isolated server:
 
 ```bash
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readme.mjs
 ```
+
+The script creates a fictional demo world, checks API responses, and captures the real interface at 1440 × 900 pixels using German text. It deletes the demo world afterward. The demo data lives under [`tools/documentation/`](tools/documentation/).
 
 ---
 
