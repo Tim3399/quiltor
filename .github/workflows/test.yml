@@ -148,10 +148,10 @@ jobs:
       - name: Start the application
         if: matrix.product_shard != ''
         run: |
-          python apps/web/server.py 8000 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
+          python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/quiltor-server.pid"
           for attempt in $(seq 1 60); do
-            curl --fail --silent http://127.0.0.1:8000/ >/dev/null && exit 0
+            curl --fail --silent http://127.0.0.1:8010/ >/dev/null && exit 0
             sleep 1
           done
           cat "$RUNNER_TEMP/quiltor-server.log"
@@ -303,9 +303,9 @@ jobs:
       - name: Start the application
         shell: bash
         run: |
-          python apps/web/server.py 8000 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
+          python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           for attempt in $(seq 1 60); do
-            curl --fail --silent http://127.0.0.1:8000/ >/dev/null && exit 0
+            curl --fail --silent http://127.0.0.1:8010/ >/dev/null && exit 0
             sleep 1
           done
           cat "$RUNNER_TEMP/quiltor-server.log"

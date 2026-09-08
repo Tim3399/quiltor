@@ -115,7 +115,7 @@ export const test = base.extend<WorldCleanupFixtures, WorldCleanupWorkerFixtures
       const baseURL =
         typeof configuredBaseUrl === "string"
           ? configuredBaseUrl
-          : process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8000";
+          : process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8010";
       const request = await playwrightRequest.newContext({ baseURL });
       try {
         const failures = await deleteRegisteredWorlds(request, pendingWorldIds);

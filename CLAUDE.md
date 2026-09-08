@@ -48,11 +48,20 @@ Docker image serve it. The `frontend` CI job rebuilds and compares; a source cha
 without a rebuild fails it, and every browser job depends on that one, so they never
 start.
 
-The product Playwright suite talks to the Python server on `:8000`, which serves the
+The product Playwright suite talks to the Python server on `:8010`, which serves the
 built `dist/` — not the sources. **After any change under `packages/client/src`, run
 `npm run build` before the product suite, or you are testing the previous build.** The
 unit tests (jsdom) and the design suite (its own Vite server) do not use `dist/`, so a
 green run from those proves nothing about it.
+
+`:8010` and not the `:8000` the product ships with: 8000 is one of the most contested ports
+there is -- Django, `python -m http.server`, an Unreal editor's MCP server -- and a port
+already taken does not announce itself. The page loads, the suite waits sixty seconds for a
+toolbar, and it reads as a broken application. The Dockerfile, the proxies, the CLI and the
+README keep 8000, because that is the port Quiltor's own users open.
+
+Start it with `py -3.12 apps/web/server.py 8010 --no-open`, or `npm start`, which starts
+both halves. `PLAYWRIGHT_BASE_URL` overrides the suite's end of it.
 
 ## Proving a fix
 
@@ -117,14 +126,14 @@ A migration step runs against databases that carry only `meta` — ask
 - `npm run check` — contracts, architecture, design, design system, i18n, platform
   boundaries, formatting. Fast, and it catches most things before CI.
 - `npx vitest run` — client unit tests.
-- `npx playwright test` — product suite; needs the server on `:8000` and a fresh `dist/`.
+- `npx playwright test` — product suite; needs the server on `:8010` and a fresh `dist/`.
 - `npx playwright test --config playwright.design.config.ts` — design suite.
 - `py -3.12 -m unittest discover -s tests/python -t tests/python` — backend.
 
 `npm run check` does **not** run the Python suite. Contract breaks in
 `tests/python/test_release.py` only show up when you run it or when CI does.
 
-## The server on :8000 holds the code it was started with
+## The server on :8010 holds the code it was started with
 
 Python loads its modules once. A server started before a change to `src/quiltor/` keeps
 serving the old code, and the product suite then tests that instead — a failure that looks
@@ -136,7 +145,7 @@ Count the processes before believing a restart:
 powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name like '%python%'\" | Select-Object ProcessId,CommandLine | Format-List"
 ```
 
-Two of them can be listening on `:8000` at once. Stopping one leaves the other answering,
+Two of them can be listening on `:8010` at once. Stopping one leaves the other answering,
 and the restart appears to have done nothing. This cost a whole debugging session: a `400
 document.invalid_wire` that the current sources accepted when the same payload was handed
 straight to `decode_document_v1`.

@@ -19,7 +19,8 @@ export default defineConfig({
   // that a test which has grown slow is noticed here.
   timeout: process.env.CI ? 60_000 : 30_000,
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8000",
+    // 8010, not 8000: the dev and test API; the product itself keeps 8000. See tools/dev/start-workshop.mjs.
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8010",
     // As in playwright.design.config.ts, and for the same reason: a date field draws its
     // format from the machine's language. The timeline strip showed "mm/dd/yyyy" on the
     // Windows runner and "dd.mm.yyyy" on this desk -- 136 pixels of difference in the same

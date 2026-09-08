@@ -6,15 +6,20 @@ import { fileURLToPath } from "node:url";
 /*
  * Start the workshop locally -- both halves, in one command.
  *
- * Vite alone is not enough: it serves the client and forwards /api to the Python server on
- * 8000. Without that server the page loads and says "Quiltor ist vorübergehend nicht
- * erreichbar" -- which looks like a fault in the application and is none. That is what this
- * script is for: whoever starts it gets both halves, or an explanation why not.
+ * Vite alone is not enough: it serves the client and forwards /api to the Python server.
+ * Without that server the page loads and says "Quiltor ist vorübergehend nicht erreichbar"
+ * -- which looks like a fault in the application and is none. That is what this script is
+ * for: whoever starts it gets both halves, or an explanation why not.
+ *
+ * That server listens on 8010 here, not on the 8000 the product ships with. 8000 is one of
+ * the most contested ports there is -- Django, `python -m http.server`, an Unreal editor's
+ * MCP server -- and a taken port does not announce itself: the page loads, the suite waits
+ * sixty seconds for a toolbar, and it reads as a broken application.
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CLIENT_PORT = Number(process.env.QUILTOR_DEV_PORT ?? 5173);
-const API_PORT = Number(process.env.QUILTOR_API_PORT ?? 8000);
+const API_PORT = Number(process.env.QUILTOR_API_PORT ?? 8010);
 const WINDOWS = process.platform === "win32";
 
 /**
