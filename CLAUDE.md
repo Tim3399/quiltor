@@ -74,6 +74,19 @@ too. `npm run doctor` shows all deviations at once with the install line for eac
 On Windows, ask the launcher for the series rather than a bare `python`:
 `py -3.12 -m unittest discover -s tests/python -t tests/python`.
 
+npm scripts must not call a bare `python` either — it is whatever stands first on PATH, and
+on one machine that was Inkscape's bundled 3.12.12, which has neither ruff nor the project.
+A version check would have waved it through. Go through the launcher instead, naming what
+the command depends on:
+
+```
+node tools/dev/python.mjs --needs ruff -m ruff format --check .
+```
+
+The first interpreter that can import the module wins, which is the true property in every
+case. In CI a bare `python` is the right answer and still gets chosen, because that is the
+one pip installed into.
+
 ## Visual baselines
 
 `tests/e2e/visual-baseline.spec.ts-snapshots/` holds one set per platform
