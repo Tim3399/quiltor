@@ -46,7 +46,16 @@ const RUNTIMES = [
     name: "node",
     ask: ["node", ["--version"]],
     clean: (text) => text.replace(/^v/u, ""),
-    hint: (expected) => `nvm install ${expected}   (oder volta pin node@${expected})`,
+    // On Windows this used to name `nvm` alone, and sent somebody to a command that is not
+    // there: a version manager is a separate install, and winget is no way out either --
+    // its Node package carries no 22.x at all, the list starts at 24. nodejs.org keeps
+    // every release, and the pinned installer brings the pinned npm with it, so one
+    // download settles both lines. A manager, where there is one, still does it in place.
+    hint: (expected) =>
+      WINDOWS
+        ? `https://nodejs.org/dist/v${expected}/node-v${expected}-${process.arch === "arm64" ? "arm64" : "x64"}.msi` +
+          `   (oder nvm install ${expected}, falls installiert)`
+        : `nvm install ${expected}   (oder volta pin node@${expected})`,
   },
   {
     name: "npm",
