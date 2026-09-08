@@ -156,7 +156,7 @@ async function markerColor(page: Page, edgePath: Locator) {
       (candidate) => candidate.id === id,
     );
     const shape = marker?.querySelector<SVGElement>("path, polygon, polyline");
-    if (!shape) throw new Error(`Marker ${id} hat keine sichtbare Form`);
+    if (!shape) throw new Error(`Marker ${id} has no visible shape`);
     const style = getComputedStyle(shape);
     return style.fill === "none" ? style.stroke : style.fill;
   }, markerId ?? "");
@@ -176,7 +176,7 @@ async function expectCompactLabelCard(
 
   const geometry = await label.evaluate((element) => {
     const card = element.querySelector<HTMLElement>(".graph-edge-label__card");
-    if (!card) throw new Error("Sichtbare Kantenlabel-Card fehlt");
+    if (!card) throw new Error("Visible edge-label card is missing");
     const cardStyle = getComputedStyle(card);
     const cardBox = card.getBoundingClientRect();
     const hitTargetBox = element.getBoundingClientRect();
@@ -269,9 +269,9 @@ async function expectLabelsOnTheirRenderedEdges(surface: Locator, edgeIds: reado
       const path = element.querySelector<SVGPathElement>(
         `.react-flow__edge[data-id="${CSS.escape(id)}"] .react-flow__edge-path`,
       );
-      if (!labelCard || !path) throw new Error(`Kante oder Portal-Label fehlt: ${id}`);
+      if (!labelCard || !path) throw new Error(`Edge or portal label is missing: ${id}`);
       const matrix = path.getScreenCTM();
-      if (!matrix) throw new Error(`Kante hat keine Bildschirmtransformation: ${id}`);
+      if (!matrix) throw new Error(`Edge has no screen transformation: ${id}`);
 
       const labelBox = labelCard.getBoundingClientRect();
       const labelCenter = {
@@ -294,10 +294,10 @@ async function expectLabelsOnTheirRenderedEdges(surface: Locator, edgeIds: reado
       return { closestDistance, pathLength };
     }, edgeId);
 
-    expect(geometry.pathLength, `Kante ${edgeId} hat keine sichtbare Geometrie`).toBeGreaterThan(0);
+    expect(geometry.pathLength, `Edge ${edgeId} has no visible geometry`).toBeGreaterThan(0);
     expect(
       geometry.closestDistance,
-      `Kantenlabel ${edgeId} liegt nicht auf seiner eigenen gerenderten Smooth-Step-Kante`,
+      `Edge label ${edgeId} is not on its own rendered smooth-step edge`,
     ).toBeLessThanOrEqual(1.5);
   }
 }
@@ -350,7 +350,7 @@ test("Figures and storyboard share direction colours, markers and compact edge l
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Graph-Geometrie und Pointer-Auswahl werden einmal im stabilen Desktop-Viewport geprüft.",
+    "Graph geometry and pointer selection use one run in a stable desktop viewport.",
   );
 
   const world = await createTestWorld(page, `Kantenstil ${crypto.randomUUID()}`);

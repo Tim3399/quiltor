@@ -115,7 +115,7 @@ async function expectNoDocumentOverflow(page: Page, label: string) {
       scrollWidth: Math.max(root.scrollWidth, document.body?.scrollWidth ?? 0),
     };
   });
-  expect(geometry.scrollWidth, `${label} verbreitert das Dokument`).toBeLessThanOrEqual(
+  expect(geometry.scrollWidth, `${label} widens the document`).toBeLessThanOrEqual(
     geometry.clientWidth + 1,
   );
 }
@@ -156,7 +156,7 @@ async function expectTouchTargets(page: Page, label: string) {
       ];
     }),
   );
-  expect(undersized, `${label} enthält sichtbare Touchziele unter 44px`).toEqual([]);
+  expect(undersized, `${label} contains visible touch targets smaller than 44px`).toEqual([]);
 }
 
 async function expectWorkspaceContract(
@@ -166,10 +166,10 @@ async function expectWorkspaceContract(
   pageErrors: Error[],
   touch: boolean,
 ) {
-  await expect(marker, `${label}: Kerninhalt ist nicht sichtbar`).toBeVisible();
+  await expect(marker, `${label}: core content is not visible`).toBeVisible();
   await expect(
     page.locator("main.app-workspace"),
-    `${label}: App-Main ist nicht sichtbar`,
+    `${label}: app main region is not visible`,
   ).toBeVisible();
   await expectNoDocumentOverflow(page, label);
   const results = await new AxeBuilder({ page }).withTags(axeTags).analyze();
@@ -186,7 +186,7 @@ test("The product matrix holds the theme, viewport, layout, touch and a11y contr
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Die Produktmatrix setzt alle Audit-Viewports selbst und läuft deshalb nur einmal.",
+    "The product matrix sets every audit viewport itself and only needs one run.",
   );
   test.setTimeout(180_000);
 
@@ -208,22 +208,22 @@ test("The product matrix holds the theme, viewport, layout, touch and a11y contr
         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
 
         const touch = viewport.name === "touch";
-        await test.step("Manuskript", async () => {
+        await test.step("Manuscript", async () => {
           await expectWorkspaceContract(
             page,
             page.getByLabel("Kapiteltext"),
-            `${scenario} / Manuskript`,
+            `${scenario} / Manuscript`,
             pageErrors,
             touch,
           );
         });
 
-        await test.step("Figuren", async () => {
+        await test.step("Figures", async () => {
           await page.getByRole("button", { name: "Figuren", exact: true }).click();
           await expectWorkspaceContract(
             page,
             page.getByLabel("Figuren und Beziehungen"),
-            `${scenario} / Figuren`,
+            `${scenario} / Figures`,
             pageErrors,
             touch,
           );
@@ -240,12 +240,12 @@ test("The product matrix holds the theme, viewport, layout, touch and a11y contr
           );
         });
 
-        await test.step("Orte", async () => {
+        await test.step("Places", async () => {
           await page.getByRole("button", { name: "Orte", exact: true }).click();
           await expectWorkspaceContract(
             page,
             page.locator(".places-workspace"),
-            `${scenario} / Orte`,
+            `${scenario} / Places`,
             pageErrors,
             touch,
           );

@@ -5,7 +5,7 @@
 > ## You write the story. Quiltor keeps the world straight.
 >
 > **A local-first writing workspace for people who actually want to write.**  
-> Manuscript, characters, relationships, places, and timeline in one place — with local AI for the work **around** writing, never for the writing itself.
+> Manuscript, characters, relationships, places, timeline, and storyboards in one place — with local AI for the work **around** writing, never for the writing itself.
 
 ![Quiltor manuscript workspace](docs/screenshots/manuscript.png)
 
@@ -32,7 +32,10 @@ You write every sentence. Quiltor helps reduce the bookkeeping around it:
 - track where characters are and how they move through the world
 - arrange places on a dedicated map and measure distances
 - maintain a real story timeline and life events
-- search manuscript, chapter notes, and world knowledge together
+- organize chapters in nested folders and keep reading order separate from story time
+- plan visually on storyboards with notes, references, groups, and connections
+- link formatted notes with `@` references and follow backlinks to their source
+- search manuscript, notes, world knowledge, and storyboard cards together
 - use local spelling, grammar, synonym, and word-translation tools
 - let the assistant prepare structured changes and **decide yourself what gets applied**
 
@@ -46,7 +49,11 @@ Quiltor does not treat worldbuilding as a pile of unrelated text fields. Charact
 
 ### Manuscript: write without the interface getting in the way
 
-The chapter editor stays quiet and gives the prose room. Focus mode, undo/redo, chapter notes, local history, discreet writing aids, and one-word autocomplete support the writing process without taking it over.
+The chapter editor stays quiet and gives the prose room. Focus mode, undo/redo, formatted chapter notes, local history, discreet writing aids, and one-word autocomplete support the writing process without taking it over.
+
+Chapters and folders form a nested binder. Drag chapters or whole folders to change their reading order, collapse branches, and follow folder breadcrumbs in search results. Continued scrolling at a chapter boundary reveals the previous or next chapter; an explicit navigation action is available as well.
+
+Each chapter can refer to a story-time moment or range independently of its position in the book. Flashbacks and parallel scenes keep their place in the manuscript without changing the world's chronology.
 
 A readable 6 × 9 inch book PDF can be exported from the manuscript.
 
@@ -80,9 +87,23 @@ Quiltor models those changes along the timeline instead of storing only the late
 
 ![Animated timeline in the world graph](docs/screenshots/timeline-playback.png)
 
-The dedicated timeline workspace is built for maintenance: order moments, add notes, change relationship states, and mark life events.
+The dedicated timeline workspace is built for maintenance: order moments, add notes, change relationship states, and mark life events. Signed relative time supports events before and after a chosen origin, including simultaneous events. Gregorian and custom calendar projections give the same timeline readable dates without making chapter order its clock.
 
 ![Timeline manager](docs/screenshots/timeline-manager.png)
+
+### Storyboard: room for unfinished ideas
+
+Storyboard is the fifth workspace. Create multiple boards, pan and zoom, and arrange resizable **note**, **reference**, **board**, and **group** cards. Connect cards, control their front-to-back order, and navigate linked boards through breadcrumbs.
+
+Search for a figure, place, timeline moment, chapter, or board and drag the result onto the canvas. The card links to the original object; opening it returns to the corresponding workspace. Notes can be edited directly on the canvas or in the shared notes focus mode. Autosave and undo/redo cover storyboard changes independently.
+
+Storyboard text and connections are planning material. Saving an idea does not create a canonical relationship, presence assignment, or timeline fact.
+
+### Shared notes and references
+
+Chapter notes, world notes, and storyboard notes share bold, italic, headings, and a focused editing view. Type `@` to link an existing project object. References use stable IDs, so navigation and backlinks can still find the source after an object is renamed or a chapter moves to another folder.
+
+Profiles and other reference targets show where they are mentioned, including the exact storyboard card. Search and assistant retrieval retain the underlying plain text alongside formatting and reference metadata.
 
 ---
 
@@ -98,6 +119,8 @@ It can:
 - analyse characters, places, relationships, and timeline state
 - prepare structured changes as proposals
 - process broad tasks chapter by chapter in batches
+- discover world elements from selected manuscript chapters, resolve names and aliases against existing objects, and propose additions or updates
+- retrieve storyboard notes for read-only questions, explicitly labelled as planning context
 
 It cannot:
 
@@ -109,6 +132,8 @@ It cannot:
 World changes are returned as reviewable proposals. Only explicit confirmation applies them to the project, as one undoable history step.
 
 The manuscript is readable context for the assistant — never a writing surface for it.
+
+Planning context is kept out of mutation and extraction requests. Automatic promotion of storyboard ideas into canon, dedicated AI planning workflows, and persistent continuity findings remain roadmap work; see [`docs/TODO.md`](docs/TODO.md).
 
 ---
 
@@ -131,14 +156,19 @@ The assistant remains local as well:
 
 ## What is included today
 
-| Writing             | World knowledge                  | Places             | Time                         | Assistance           |
-| ------------------- | -------------------------------- | ------------------ | ---------------------------- | -------------------- |
-| Chapter editor      | Characters & other element types | Dedicated map      | Dedicated timeline           | Local LLM            |
-| Focus mode          | Profiles & custom fields         | Free placement     | Time-dependent relationships | Project citations    |
-| Chapter notes       | Visual relationship graph        | Distance measuring | Presence / stays             | Structured proposals |
-| Undo/redo & history | Directed relationships           | Journey chronicles | Death moments                | Batch processing     |
-| Book PDF            | Minimap & semantic zoom          | Custom map scale   | Graph playback               | Proposal-only MCP    |
-| German writing aids | Important / pinned elements      |                    |                              | No prose generation  |
+Current repository version: **3.16.3**.
+
+| Area                 | Capabilities                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Manuscript           | Chapter editor, nested folders, drag-and-drop ordering, boundary-scroll navigation, focus mode, story-time anchors, book PDF                     |
+| Figures and world    | Profiles and custom fields, aliases, relationship graph, directed and temporal relationships, minimap, important/pinned elements                 |
+| Places               | Dedicated map, imported map images, free placement, configurable distance scale, stays and journey chronicles                                    |
+| Timeline             | Signed relative time, simultaneous events, Gregorian/custom calendars, presence, relationship states, life events, graph playback                |
+| Storyboard           | Multiple linked boards, notes/references/groups, connections, drag-and-drop search results, resizing, layer ordering                             |
+| Notes and navigation | Shared formatting and focus mode, stable `@` references, backlinks, cross-workspace search                                                       |
+| Assistance           | Local LLM, citations, world discovery from manuscripts, name/alias resolution, proposals, batches, read-only planning context, proposal-only MCP |
+| Writing tools        | Local German dictionary, synonyms, word translation, spelling and grammar tools                                                                  |
+| Storage              | Per-world SQLite, autosave, revision checks, undo/redo, local history, snapshots, optional authenticated remote backup                           |
 
 ---
 
@@ -167,11 +197,11 @@ cd quiltor
 python3 apps/web/server.py
 ```
 
-On Windows the Python command is commonly `python` instead of `python3`.
+On Windows, use `py -3.12 apps/web/server.py` to select the supported Python series explicitly.
 
 Quiltor opens `http://localhost:8000` by default and creates an empty world on first launch. If no local assistant is installed, Quiltor asks before downloading anything; the rest of the application works without the assistant.
 
-CLI/Python packages, desktop builds, and Docker deployment are also supported. Details follow below.
+CLI/Python packaging, local desktop builds, and Docker deployment are also implemented. See the platform status below for the distinction between build support and available release artifacts.
 
 ---
 
@@ -182,6 +212,7 @@ The following sections cover installation, the local runtime, authentication, ba
 ## Contents
 
 - [Installation options](#installation-options)
+- [Platform and distribution status](#platform-and-distribution-status)
 - [Local assistant and runtime contract](#local-assistant-and-runtime-contract)
 - [MCP](#mcp)
 - [German writing tools](#german-writing-tools)
@@ -220,14 +251,14 @@ python3 apps/web/server.py --print-token   # show this run's access token
 
 ### Python wheel / pip / pipx
 
-Every [GitHub release](https://github.com/Tim3399/quiltor/releases) ships a Python wheel.
+The release pipeline builds a Python wheel and source distribution for GitHub Releases. Install the wheel attached to the release you choose; the repository does not currently configure publication to PyPI.
 
 ```bash
 pip install quiltor-<version>-py3-none-any.whl
 quiltor
 ```
 
-The package requires Python 3.12 or newer. The normal server path intentionally stays lightweight; the packaged CLI uses `typer`.
+The package requires Python 3.12 or newer. Its core dependencies include `typer` for the CLI and `PyJWT[crypto]` for OIDC verification.
 
 The base wheel deliberately reports PDF export as unavailable instead of
 silently downloading a browser runtime. For PDF export from the **installed
@@ -258,14 +289,20 @@ renderer. Frontend development and this PDF path require Node.js, the project
 dependencies and the verified Chromium:
 
 ```bash
-npm install
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e . ruff==0.16.4
+npm ci
 npx playwright install chromium
 npm start
 ```
 
-`npm start` brings up both halves -- the API server on 8000 and Vite on 5173 --, waits
-until both answer, and stops both together on Ctrl+C. Vite proxies API requests to port
-8000; without the server the page loads and only reports that it is unreachable.
+On Windows, create the environment with `py -3.12 -m venv .venv`, activate it with
+`.\.venv\Scripts\Activate.ps1`, then run the same `python -m pip install` and npm commands.
+The editable install provides dependencies used by the backend tests and the CLI/MCP entry points.
+
+`npm start` brings up the API server on **8010** and Vite on **5173**, waits
+until both answer, and stops both together on Ctrl+C. Vite proxies API requests to port 8010. The normal application and Docker port remains **8000**.
 
 To run the halves separately:
 
@@ -276,16 +313,38 @@ npm run dev
 Run alongside:
 
 ```bash
-python3 apps/web/server.py --no-open
+python3 apps/web/server.py 8010 --no-open
 ```
 
-Vite forwards API requests to port 8000.
+On Windows, use `py -3.12 apps/web/server.py 8010 --no-open`.
+`QUILTOR_API_PORT` and `QUILTOR_DEV_PORT` override the development launcher ports;
+`PLAYWRIGHT_BASE_URL` overrides the product test target.
+
+### Platform and distribution status
+
+Build profiles describe implementation status, not a promise that an artifact exists for every release.
+
+| Target                            | Current status                                                                                              |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Browser / self-hosted web         | Implemented Python HTTP host, committed web client, Docker/OCI build, optional OIDC                         |
+| Python package                    | Implemented wheel/sdist and CLI; base package has no PDF renderer, with `browser-pdf` available as an extra |
+| macOS direct, Apple Silicon       | Implemented local desktop and DMG build; hosted release job is currently inactive                           |
+| Windows direct, x86_64            | Implemented local desktop and installer build; hosted release job is currently inactive                     |
+| Linux AppImage                    | Distribution scaffold; no completed AppImage pipeline                                                       |
+| macOS App Store / Microsoft Store | Distribution and metadata scaffolds; no completed store builds                                              |
+| iOS / Android                     | Native host and distribution scaffolds; no completed mobile application                                     |
+
+The macOS and Windows hosted jobs require separate activation markers under
+[`distribution/release-targets/`](distribution/release-targets/). Both markers are currently absent.
+The Python web host can run on Linux; that is separate from the unfinished native AppImage target.
 
 ---
 
 ## Local assistant and runtime contract
 
-The assistant searches chapters, notes, profiles, elements, relationships, and timeline states as one local knowledge corpus. Answers may cite clickable project sources.
+The assistant searches chapters, notes, profiles, elements, relationships, and timeline states. Read-only questions may also retrieve storyboard notes, with planning provenance kept separate from manuscript and canonical world context. Answers may cite clickable project sources.
+
+World discovery processes selected chapters as source material, resolves names and aliases before creating objects, and presents changes for review. Ambiguous matches can require clarification; author confirmation remains the point at which proposals change the world.
 
 The model runtime uses:
 
@@ -444,7 +503,7 @@ An instance bound to `0.0.0.0` without OIDC cannot rely on the local loopback id
 
 | Symptom                                     | Fix                                                                                                  |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `python3: command not found`                | On Windows, use `python` in most installations.                                                      |
+| `python3: command not found`                | On Windows, use `py -3.12`; inside an activated virtual environment, use `python`.                   |
 | Assistant reports "Local model unavailable" | Run `PYTHONPATH=src python3 -m quiltor.infrastructure.inference.installer`, then restart the server. |
 | Download is interrupted                     | Run the installer again; complete files are reused.                                                  |
 | Firewall/antivirus flags `llama-server.exe` | The binary comes from the official llama.cpp release and listens locally.                            |
@@ -455,15 +514,34 @@ An instance bound to `0.0.0.0` without OIDC cannot rely on the local loopback id
 
 ## Desktop app
 
-Quiltor can be built as a standalone macOS or Windows desktop application — a native window instead of a browser tab, with no separate Python installation required on the target machine.
+Quiltor can be built as a standalone macOS or Windows desktop application, with a native window and no separate Python installation required on the target machine. Direct build profiles currently target macOS arm64 and Windows x86_64.
+
+To run the desktop host from source in a development environment:
 
 ```bash
-python -m venv .venv-desktop
-source .venv-desktop/bin/activate  # Windows: .venv-desktop\Scripts\activate
-pip install -e ".[desktop]" pyinstaller
+python3.12 -m venv .venv-desktop
+source .venv-desktop/bin/activate
+python -m pip install -e ".[desktop]"
+quiltor-desktop
 ```
 
-Build:
+On Windows use `py -3.12` to create the environment and
+`.\.venv-desktop\Scripts\Activate.ps1` to activate it.
+
+Installer builds use a **separate clean environment** with the exact CPython and build tools from
+[`distribution/toolchains.json`](distribution/toolchains.json), the hash-locked bootstrap,
+and the target-specific requirements. Install those locks instead of an editable project;
+the packaging scripts analyze `src/` directly:
+
+```bash
+python -m pip install --require-hashes -r distribution/python-build-bootstrap.lock
+# macOS arm64:
+python -m pip install --require-hashes --no-build-isolation -r distribution/desktop/macos/direct/requirements.lock
+# Windows x86_64: use this target lock instead of the macOS lock.
+python -m pip install --require-hashes --no-build-isolation -r distribution/desktop/windows/direct/requirements.lock
+```
+
+After `npm ci`, run the build command for the target operating system:
 
 ```bash
 ./distribution/desktop/macos/direct/build.sh
@@ -477,7 +555,10 @@ macOS   distribution/artifacts/macos-direct/Quiltor-<version>.dmg
 Windows distribution/artifacts/windows-direct/Quiltor-Setup-<version>.exe
 ```
 
-Local builds are unsigned by default.
+Local builds are unsigned by default. Windows requires Inno Setup for the installer;
+without it the script produces the unpackaged application directory. Hosted macOS and
+Windows release jobs are currently inactive until their release-target markers and signing
+setup are provided.
 
 The macOS build signs and notarizes automatically when these are configured:
 
@@ -550,12 +631,14 @@ Sessions live in process memory. Restarting the container therefore signs web us
 
 ### Prebuilt container images
 
-A version bump in `VERSION` on `main` triggers the release pipeline. Images are published as:
+A version bump in `VERSION` on `main` triggers the release pipeline. Its configured image tags are:
 
 ```text
 ghcr.io/tim3399/quiltor:<version>
 ghcr.io/tim3399/quiltor:latest
 ```
+
+Use the release assets and completed workflow runs to check which version is available.
 
 ---
 
@@ -742,24 +825,88 @@ The server no longer has one process-wide "open world" state, so restoring a wor
 
 ## Development and quality
 
+Set up the editable Python environment and npm dependencies described under
+[Development](#development). Exact release toolchains are recorded in
+[`distribution/toolchains.json`](distribution/toolchains.json): currently Node 22.23.2,
+npm 10.9.8, CPython 3.12.10, and Rust 1.98.0. `npm run doctor` reports deviations and
+installation hints; release preflight and version bumps require the pinned versions.
+
+Run the independent gates from the repository root:
+
 ```bash
+npm run doctor
+npm run check
 npm test
 npm run build
-python3 -m unittest discover -s tests/python -t . -v
+PYTHONPATH=src python -m unittest discover -s tests/python -t tests/python -v
+cargo test --locked --workspace --all-targets
+npm run check:distribution
+```
+
+For the backend suite inside the activated environment on Windows PowerShell:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m unittest discover -s tests/python -t tests/python -v
+```
+
+Use the interpreter from the environment in which you installed the project dependencies.
+Inside an activated virtual environment, `python` refers to that environment. For a
+launcher-based installation outside a virtual environment, use `py -3.12` for both
+dependency installation and the test command.
+
+`npm run check` validates contracts, architecture, design rules, i18n, platform boundaries,
+and formatting. It runs the quality tools' own tests, but **does not run the client unit,
+Python backend, or browser suites**. `npm run build` additionally checks TypeScript and
+produces the web client; `npm test` runs the client unit tests.
+
+The product browser suite needs a Python server on **8010**:
+
+```bash
+python3 apps/web/server.py 8010 --no-open
+```
+
+Then, in a second terminal:
+
+```bash
 npm run test:e2e
 ```
 
-The build checks, among other things:
+`npm run test:e2e` runs the product suite followed by the design suite. The design suite
+can also run independently with `npm run test:design`; it starts its own Vite server.
 
-- TypeScript
-- design-token rules
-- i18n key parity
-- hardcoded visible UI text
-- the built client
+**`dist/` is committed and the product suite tests those built files.** After a change
+under `packages/client/src`, run `npm run build` before product E2E tests and include the
+updated `dist/` in the change. Restart the Python server after backend changes because
+an existing process keeps its imported modules. Unit tests and the design suite use source
+files, so passing them does not verify the built application.
 
 Browser/E2E tests cover core workspaces, desktop/compact layouts, light/dark mode, autosave, conflicts, and accessibility.
 
-Internationalization check:
+### Developer tools
+
+```bash
+# Inspect the actual browser layout with an isolated fixture world; requires npm start.
+npm run probe -- --places --compact "document.querySelectorAll('.react-flow__node').length"
+
+# Verify that a regression test fails when the fix is temporarily undone.
+node tools/dev/mutate.mjs <file> --from "<fixed text>" --to "<previous text>" -- <test command>
+
+# Compare committed Windows, Linux, and macOS visual baselines.
+node tools/dev/baseline-sheet.mjs
+```
+
+The mutation helper restores the file afterwards and succeeds only if the test command
+fails. The baseline contact sheet serves on port 4180. Platform-specific screenshots are
+kept separately because font rasterisation differs; changed baselines need visual review.
+
+### Language and internationalization
+
+Developer-facing code, identifiers, comments, docstrings, logs, errors, test titles, and
+diagnostics should be **English**, as specified in [`CLAUDE.md`](CLAUDE.md). German UI
+strings, assertions that quote that UI, and German manuscript fixtures are intentional.
+The repository still contains some developer-facing German text; the i18n check validates
+UI localization and is **not** a general audit of comments, logs, or test titles.
 
 ```bash
 npm run check:i18n
@@ -776,7 +923,7 @@ entry in [`locales/index.ts`](locales/index.ts). No other registry or UI code ch
 the i18n check automatically enforces directory-to-registry parity. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Reproduce README screenshots:
+Reproduce README screenshots against a running isolated server:
 
 ```bash
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readme.mjs
@@ -789,7 +936,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readm
 ```text
 apps/                        visible shells and native project roots
 ├── web/server.py            source-checkout bootstrap
-└── mobile/{ios,android}/     native mobile hosts
+└── mobile/{ios,android}/     future native mobile host scaffolds
 
 src/quiltor/
 ├── domain/story_world/      pure world logic, chronology, and validation
@@ -803,7 +950,7 @@ src/quiltor/
 
 services/backup-server/      independently deployable backup service
 contracts/                   versioned application and native-bridge contracts
-crates/                      portable Rust core and FFI
+crates/                      pure Rust timeline kernel and FFI foundation
 distribution/                target profiles, builds, installers, stores, signing
 tools/                       quality, evaluation, and documentation tooling
 
@@ -815,6 +962,8 @@ packages/client/src/
 ├── modules/
 │   ├── manuscript/          editor and writing aids
 │   ├── story-world/         figures, places, timeline, and world management
+│   ├── storyboard/          independent visual planning workspace
+│   ├── graph/               shared graph interaction and presentation
 │   ├── assistant/           local assistant
 │   ├── identity/            sign-in and identity
 │   ├── backup/              local backup restoration
@@ -843,11 +992,20 @@ in [`docs/architecture/implementation-plan.md`](docs/architecture/implementation
 
 The normal server path stays small and local; additional capabilities are added through clearly separated modules and distribution extras.
 
+Python application services and SQLite remain the authoritative implementation and storage
+path. The Rust crates currently provide a small pure timeline kernel and its ABI/FFI
+foundation; they do not yet replace Python persistence or provide complete native mobile
+hosts. Manuscript, Story World, and Storyboard are independently revisioned documents.
+Figures, Places, and Timeline project the same Story World; Storyboard remains separate
+author-owned planning data.
+
 ---
 
 ## Status and license
 
-Quiltor is under active development.
+Quiltor **3.16.3** is under active development. The current five-workspace workflow is
+implemented; deeper evidence/provenance, persistent findings, incremental analysis, and
+dedicated AI storyboard workflows are tracked in [`docs/TODO.md`](docs/TODO.md).
 
 Quiltor is **source-available, not open source**. The source is public, modifiable, and redistributable, while commercial use by larger organizations is restricted.
 

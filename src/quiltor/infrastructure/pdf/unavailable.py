@@ -6,8 +6,8 @@ from quiltor.application.errors import PdfExportUnavailable
 
 
 MESSAGE = (
-    "Der PDF-Export ist in dieser Python-Installation nicht enthalten. "
-    "Nutze die Desktop-App oder das selbst gehostete Container-Image."
+    "PDF export is unavailable in this Python installation. "
+    "Use the desktop app or the self-hosted container image."
 )
 
 

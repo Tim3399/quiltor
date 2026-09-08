@@ -6,6 +6,7 @@ import type { Chapter } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { AssistantDrawer } from "./AssistantDrawer";
 import type { AssistantJobState, AssistantReply } from "./model";
+import { type AssistantProposalApplyResult, applyAssistantProposalsWithResult } from "./proposals";
 
 export const api = quiltorClient.application.assistant;
 export const preferences = quiltorClient.platform.preferences;
@@ -80,7 +81,12 @@ export function setup(
   open = true,
   onBeforeSend = vi.fn().mockResolvedValue(undefined),
 ) {
-  const onApply = vi.fn();
+  const onApply = vi.fn(
+    (
+      proposals: Parameters<typeof applyAssistantProposalsWithResult>[1],
+    ): AssistantProposalApplyResult =>
+      applyAssistantProposalsWithResult(FIGURES, proposals, (key) => key),
+  );
   const onNavigate = vi.fn();
   const onClose = vi.fn();
   const { unmount, rerender } = render(

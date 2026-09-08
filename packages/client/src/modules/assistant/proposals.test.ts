@@ -2,11 +2,77 @@ import { describe, expect, it } from "vitest";
 import { de } from "../../../../../locales/de";
 import type { MessageKey } from "../../i18n";
 import type { FigureState } from "../story-world";
-import { applyAssistantProposals } from "./proposals";
+import {
+  applyAssistantProposals,
+  applyAssistantProposalsWithResult,
+  scopeAssistantProposals,
+} from "./proposals";
 
 const t = (key: MessageKey) => de[key];
 
 describe("assistant proposals", () => {
+  it("retains scoped element and moment references across separately accepted groups", () => {
+    const proposals = scopeAssistantProposals(
+      [
+        { kind: "create_element", tempId: "new:a", element: { name: "Ada" } },
+        { kind: "create_timeline_moment", tempId: "new:m", moment: { title: "Ende" } },
+        { kind: "mark_deceased", elementId: "new:a", momentId: "new:m" },
+        { kind: "update_element", elementId: "new:a", patch: { label: "Erinnerung" } },
+      ],
+      "reply",
+    );
+    const initial = applyAssistantProposals({ nodes: [], edges: [] }, proposals.slice(0, 2), t);
+    const result = applyAssistantProposalsWithResult(initial, proposals.slice(2), t);
+    expect(result.appliedIndices).toEqual([0, 1]);
+    expect(result.skipped).toEqual([]);
+    expect(result.state.nodes[0].diedMomentId).toBe(initial.timeline?.[0].id);
+    expect(result.state.nodes[0].label).toBe("Erinnerung");
+  });
+
+  it("reports missing targets and invalid relationships without marking them applied", () => {
+    const state: FigureState = { nodes: [{ id: "a", name: "Ada", x: 0, y: 0 }], edges: [] };
+    const result = applyAssistantProposalsWithResult(
+      state,
+      [
+        { kind: "update_element", elementId: "missing", patch: { name: "Bela" } },
+        { kind: "mark_deceased", elementId: "a", momentId: "missing" },
+        {
+          kind: "set_relationship_at_moment",
+          relationshipId: "missing",
+          momentId: "missing",
+          patch: {},
+        },
+        { kind: "set_presence", elementId: "a", placeId: "a" },
+        { kind: "create_relationship", relationship: { from: "a", to: "a" } },
+      ],
+      t,
+    );
+    expect(result.appliedIndices).toEqual([]);
+    expect(result.skipped).toEqual([
+      { index: 0, reason: "missing_element" },
+      { index: 1, reason: "missing_moment" },
+      { index: 2, reason: "missing_relationship" },
+      { index: 3, reason: "missing_place" },
+      { index: 4, reason: "invalid_relationship" },
+    ]);
+    expect(result.state.nodes).toEqual(state.nodes);
+    expect(result.state.edges).toEqual([]);
+  });
+  it("resolves selected dependencies before their dependent proposals regardless of response order", () => {
+    const result = applyAssistantProposals(
+      { nodes: [], edges: [] },
+      [
+        { kind: "create_relationship", relationship: { from: "new:a", to: "new:b" } },
+        { kind: "mark_deceased", elementId: "new:b", momentId: "new:moment:end" },
+        { kind: "create_element", tempId: "new:a", element: { name: "Ada" } },
+        { kind: "create_element", tempId: "new:b", element: { name: "Bela" } },
+        { kind: "create_timeline_moment", tempId: "new:moment:end", moment: { title: "Ende" } },
+      ],
+      t,
+    );
+    expect(result.edges).toHaveLength(1);
+    expect(result.nodes[1].diedMomentId).toBe(result.timeline?.[0].id);
+  });
   it("creates linked elements, a moment and a temporal relationship without touching manuscript data", () => {
     const result = applyAssistantProposals(
       { nodes: [], edges: [] },

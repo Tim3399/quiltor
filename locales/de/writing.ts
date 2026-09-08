@@ -1,12 +1,12 @@
 export const writing = {
   writingLanguageGerman: "Deutsch (Deutschland)",
   writingSelectionActions: "Aktionen für die Textauswahl",
-  // Auszeichnungen liegen als Bereiche über dem Text, nie als Zeichen darin -- im Manuskript
-  // steht Prosa, keine Sternchen. Erst der Export schreibt Markdown-Marker.
+  // Marks are ranges over the text, never characters in it -- the manuscript holds prose,
+  // not asterisks. Only the export writes Markdown markers.
   formatBold: "Fett",
   formatItalic: "Kursiv",
-  // Die Schreibhilfe zeigt genau einen Bereich auf einmal: Nachschlagen, Prüfen, Einfügen.
-  // Was markiert ist, steht im Suchfeld -- eine eigene Markierungskarte sagte dasselbe zweimal.
+  // The writing aid shows exactly one section at a time: look up, check, insert.
+  // The selection appears in the search field; a separate card would repeat it.
   helperLookup: "Nachschlagen",
   helperCheck: "Prüfen",
   helperInsert: "Einfügen",

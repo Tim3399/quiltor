@@ -59,7 +59,7 @@ describe("Storyboard autosave lane", () => {
   it("retries the latest dirty value after an earlier save rejected", async () => {
     const save = vi
       .fn<(value: StoryboardState) => Promise<unknown>>()
-      .mockRejectedValueOnce(new Error("Vorübergehend nicht erreichbar"))
+      .mockRejectedValueOnce(new Error("Temporarily unavailable"))
       .mockResolvedValueOnce({ ok: true });
     const initial = createDefaultStoryboardState();
     const changed: StoryboardState = {
@@ -85,7 +85,7 @@ describe("Storyboard autosave lane", () => {
 
     expect(save).toHaveBeenCalledTimes(1);
     expect(result.current.phase).toBe("error");
-    expect(result.current.error).toBe("Vorübergehend nicht erreichbar");
+    expect(result.current.error).toBe("Temporarily unavailable");
 
     await act(async () => result.current.retry());
 

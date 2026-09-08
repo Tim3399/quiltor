@@ -1,5 +1,17 @@
-// Der Assistent spricht durchgehend in der ersten Person und nennt sich nie selbst „Quiltor“.
+// The assistant always speaks in the first person and never refers to itself as "Quiltor".
 export const assistant = {
+  proposalApplyMissingElement:
+    "Übernimm zuerst die benötigten Elemente. Danach kannst du diesen Vorschlag erneut übernehmen.",
+  proposalApplyMissingMoment:
+    "Übernimm zuerst den benötigten Zeitpunkt. Danach kannst du diesen Vorschlag erneut übernehmen.",
+  proposalApplyMissingRelationship:
+    "Die benötigte Beziehung fehlt. Lege sie zuerst an oder passe den Vorschlag an.",
+  proposalApplyMissingPlace:
+    "Der benötigte Ort fehlt. Übernimm ihn zuerst oder wähle einen vorhandenen Ort.",
+  proposalApplyInvalidRelationship:
+    "Eine Beziehung benötigt zwei verschiedene Elemente. Passe den Vorschlag an.",
+  proposalApplyRelationshipExists:
+    "Diese Beziehung besteht bereits. Prüfe die vorhandene Beziehung oder passe den Vorschlag an.",
   localOnlySuggestions: "Lokal · nur Vorschläge",
   newChat: "Neuer Chat",
   closeAssistant: "Assistent schließen",
@@ -109,9 +121,9 @@ export const assistant = {
   setDeathMomentLabel: "Todeszeitpunkt setzen · {name}",
   newPrefix: "Neu",
   defaultElementName: "Neues Element",
-  // Vom Backend erzeugter, deterministischer Antworttext (siehe src/quiltor/modules/assistant/*.py) -- das
-  // Backend schickt ein Tripel aus messageKey/messageParams/messageItems statt fertigem Text,
-  // damit diese Datei für jede Sprache die einzige Quelle bleibt, nicht nur für LLM-Antworten.
+  // Backend-generated deterministic replies (see src/quiltor/modules/assistant/*.py).
+  // The backend sends messageKey/messageParams/messageItems instead of literal text so
+  // locale files remain the source of wording for all replies, including deterministic ones.
   whichElementDoYouMean: "Welches Element meinst du?",
   duplicateElementExists:
     "„{name}“ existiert bereits. Deshalb habe ich kein doppeltes Element vorgeschlagen. Du kannst stattdessen den vorhandenen Steckbrief oder seine Beziehungen ergänzen.",

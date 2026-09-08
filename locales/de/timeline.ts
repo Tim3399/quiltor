@@ -1,5 +1,5 @@
-// Nur timeline-eigene Formulierungen. „Timeline“, „Zeitpunkt“, „Beziehung“, „Gerichtet“ und
-// die Zeitpunkt-Aktionen stehen in shared.ts, weil Figuren- und Ortsbereich sie mitbenutzen.
+// Timeline-only wording. "Timeline", "Zeitpunkt", "Beziehung", "Gerichtet", and the moment
+// actions live in shared.ts because the figures and places areas also use them.
 export const timeline = {
   timelineUndo: "Timeline rückgängig",
   timelineRedo: "Timeline wiederholen",

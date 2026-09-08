@@ -99,7 +99,7 @@ def create_world(
 ) -> dict[str, str]:
     clean = " ".join(title.split()).strip()
     if not clean or len(clean) > 100:
-        raise ValueError("Der Welttitel muss zwischen 1 und 100 Zeichen lang sein.")
+        raise ValueError("The world title must contain between 1 and 100 characters.")
     repository = normalize_backup_url(backup_url)
     paths.worlds.mkdir(parents=True, exist_ok=True)
     world_id = uuid.uuid4().hex

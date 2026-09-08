@@ -119,7 +119,7 @@ async function storyboardViewportZoom(page: Page) {
 test("storyboard boards and notes survive a reload", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Persistenzpfad ist viewport-unabhängig und muss nur einmal laufen.",
+    "The persistence path is viewport-independent and only needs one run.",
   );
 
   const world = await createTestWorld(page, `Storyboard E2E ${crypto.randomUUID()}`);
@@ -171,7 +171,7 @@ test("uncritical storyboard cards can be deleted and restored from the keyboard"
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Tastaturlöschung, Undo und Persistenz sind viewport-unabhängig und müssen nur einmal laufen.",
+    "Keyboard deletion, undo, and persistence are viewport-independent and only need one run.",
   );
 
   const world = await createTestWorld(page, `Storyboard Delete Keys ${crypto.randomUUID()}`);
@@ -277,7 +277,7 @@ test("a world reference can be dragged onto the empty storyboard centre", async 
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der native Drag-and-drop-Pfad muss nur einmal in einem stabilen Desktop-Viewport laufen.",
+    "Native drag and drop only needs one run in a stable desktop viewport.",
   );
 
   const world = await createTestWorld(page, `Storyboard Drag E2E ${crypto.randomUUID()}`);
@@ -328,7 +328,7 @@ test("an empty note can be placed freely on the storyboard from the library", as
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der native Palette-Drag muss nur einmal in einem stabilen Desktop-Viewport laufen.",
+    "Native palette dragging only needs one run in a stable desktop viewport.",
   );
 
   const world = await createTestWorld(page, `Storyboard Note Drag E2E ${crypto.randomUUID()}`);
@@ -433,7 +433,7 @@ test("an empty note can be placed freely on the storyboard from the library", as
 test("the compact element library places a note from the keyboard", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "compact",
-    "Der Tastatur-Fallback wird gezielt im kompakten 390-Pixel-Viewport geprüft.",
+    "The keyboard fallback is checked in the compact 390px viewport.",
   );
 
   const world = await createTestWorld(page, `Storyboard Note Keyboard ${crypto.randomUUID()}`);
@@ -576,7 +576,7 @@ test("the focused world search stays usable with the on-screen keyboard showing"
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "compact",
-    "Der Bildschirmtastatur-Fall wird gezielt im 390-mal-390-Pixel-Viewport geprüft.",
+    "The on-screen keyboard case is checked in the 390-by-390px viewport.",
   );
   await page.setViewportSize({ width: 390, height: 390 });
 
@@ -675,7 +675,7 @@ test("the focused world search stays usable with the on-screen keyboard showing"
 test("a figure backlink opens the exact storyboard card", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Die Zielnavigation ist viewport-unabhängig und muss nur einmal laufen.",
+    "Target navigation is viewport-independent and only needs one run.",
   );
 
   const world = await createTestWorld(page, `Storyboard Backlink E2E ${crypto.randomUUID()}`);
@@ -757,7 +757,7 @@ test("storyboard cards are dragged by the head; the note content stays a working
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Pointer-Drag-Pfad muss nur einmal in einem stabilen Desktop-Viewport laufen.",
+    "Pointer dragging only needs one run in a stable desktop viewport.",
   );
 
   const world = await createTestWorld(page, `Storyboard Card Drag E2E ${crypto.randomUUID()}`);
@@ -808,7 +808,7 @@ test("storyboard cards are dragged by the head; the note content stays a working
   // hold of the card.
   const freeHeader = await referenceCard.evaluate((card) => {
     const header = card.querySelector(".storyboard-node__header")?.getBoundingClientRect();
-    if (!header) throw new Error("Kartenkopf fehlt");
+    if (!header) throw new Error("Card header is missing");
     const format = card.querySelector(".storyboard-note-format")?.getBoundingClientRect();
     return format ? format.left - header.left : header.width;
   });
@@ -849,7 +849,7 @@ test("the mouse wheel scrolls a storyboard card's content instead of zooming", a
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Mausradpfad muss nur einmal in einem stabilen Desktop-Viewport laufen.",
+    "Mouse wheel interaction only needs one run in a stable desktop viewport.",
   );
 
   const world = await createTestWorld(page, `Storyboard Wheel Scroll E2E ${crypto.randomUUID()}`);
@@ -901,7 +901,7 @@ test("the mouse wheel scrolls a storyboard card's content instead of zooming", a
           ),
         ),
       {
-        message: "Das Mausrad über dem Karteninhalt soll die Karte scrollen.",
+        message: "The mouse wheel over card content should scroll the card.",
       },
     )
     .toBeGreaterThan(0);
@@ -931,7 +931,7 @@ test("the mouse wheel scrolls a storyboard card's content instead of zooming", a
   await page.mouse.wheel(0, 480);
   await expect
     .poll(() => storyboardViewportZoom(page), {
-      message: "Über der freien Fläche muss das Rad weiterhin den Canvas zoomen.",
+      message: "The mouse wheel over empty space should still zoom the canvas.",
     })
     .toBeLessThan(zoomBefore - 0.01);
 });
@@ -939,7 +939,7 @@ test("the mouse wheel scrolls a storyboard card's content instead of zooming", a
 test("overlapping storyboard cards keep their front-to-back order", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Die Ebenenreihenfolge ist viewport-unabhängig und muss nur einmal laufen.",
+    "Layer ordering is viewport-independent and only needs one run.",
   );
 
   const world = await createTestWorld(page, `Storyboard Layers E2E ${crypto.randomUUID()}`);
@@ -1055,7 +1055,7 @@ test("overlapping storyboard cards keep their front-to-back order", async ({ pag
 test("the layer controls stay reachable in the compact storyboard", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "compact",
-    "Dieser Vertrag prüft gezielt den kompakten 390-Pixel-Viewport.",
+    "This contract checks the compact 390px viewport.",
   );
 
   const world = await createTestWorld(page, `Storyboard Layers Compact ${crypto.randomUUID()}`);
@@ -1087,7 +1087,7 @@ test("storyboard edges can be labelled, directed, reversed and reloaded", async 
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der native Kantenpfad muss nur einmal in einem stabilen Desktop-Viewport laufen.",
+    "Native edge interaction only needs one run in a stable desktop viewport.",
   );
 
   const world = await createTestWorld(page, `Storyboard Edge E2E ${crypto.randomUUID()}`);

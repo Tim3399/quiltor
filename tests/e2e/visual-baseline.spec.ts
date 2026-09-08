@@ -156,9 +156,9 @@ for (const theme of ["light", "dark"] as const) {
   test(`${theme}: the core views stay visually reproducible`, async ({ page }) => {
     test.skip(
       !BOOTSTRAP && !hasBaselines(),
-      `Fuer ${process.platform} liegt noch kein Baseline-Satz vor. Einmal mit ` +
+      `No baseline set exists for ${process.platform}. Run once with ` +
         "`npx playwright test tests/e2e/visual-baseline.spec.ts --update-snapshots` " +
-        "erzeugen und einchecken; danach vergleicht dieser Lauf.",
+        "and commit the generated baselines; subsequent runs compare against them.",
     );
     await page.addInitScript((selected) => {
       localStorage.setItem("quiltor-theme", selected);
@@ -213,7 +213,7 @@ test("Performance baseline for start, workspace switch and a large chapter", asy
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Die Performance-Baseline wird im festen Wide-Viewport gemessen.",
+    "The performance baseline uses the fixed wide viewport.",
   );
   const large = {
     ...manuscript,

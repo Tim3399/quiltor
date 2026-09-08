@@ -11,6 +11,7 @@ from quiltor.modules.assistant.ports import (
     IncompleteInferenceResponse,
     InferenceTimeoutError,
     InferenceUnavailableError,
+    InferenceValidationError,
 )
 
 
@@ -103,9 +104,7 @@ def invoke_chat(
 
         detail = body[:1000] if body else str(exc.reason)
 
-        raise RuntimeError(
-            f"Das lokale Modell hat mit HTTP {exc.code} geantwortet: {detail}"
-        ) from exc
+        raise RuntimeError(f"The local model responded with HTTP {exc.code}: {detail}") from exc
 
     except TimeoutError as exc:
         raise InferenceTimeoutError(effective_timeout) from exc
@@ -115,13 +114,11 @@ def invoke_chat(
         if isinstance(exc.reason, TimeoutError):
             raise InferenceTimeoutError(effective_timeout) from exc
 
-        raise InferenceUnavailableError(
-            f"Das lokale Modell ist nicht erreichbar: {exc.reason}"
-        ) from exc
+        raise InferenceUnavailableError(f"The local model is unreachable: {exc.reason}") from exc
 
     except (KeyError, ValueError, TypeError) as exc:
-        raise RuntimeError(
-            "Das lokale Modell hat keine gültige strukturierte Antwort geliefert."
+        raise InferenceValidationError(
+            "The local model did not return a valid structured response."
         ) from exc
 
     try:
@@ -147,8 +144,8 @@ def invoke_chat(
                 finish_reason,
             ) from exc
 
-        raise RuntimeError(
-            "Das lokale Modell hat keine gültige strukturierte Antwort geliefert."
+        raise InferenceValidationError(
+            "The local model did not return a valid structured response."
         ) from exc
 
 
@@ -205,7 +202,7 @@ def count_tokens(
         detail = body[:1000] if body else str(exc.reason)
 
         raise RuntimeError(
-            f"Der lokale Modell-Tokenizer hat mit HTTP {exc.code} geantwortet: {detail}"
+            f"The local model tokenizer responded with HTTP {exc.code}: {detail}"
         ) from exc
 
     except TimeoutError as exc:
@@ -215,9 +212,9 @@ def count_tokens(
         if isinstance(exc.reason, TimeoutError):
             raise InferenceTimeoutError(timeout) from exc
 
-        raise InferenceUnavailableError(
-            f"Das lokale Modell ist nicht erreichbar: {exc.reason}"
-        ) from exc
+        raise InferenceUnavailableError(f"The local model is unreachable: {exc.reason}") from exc
 
     except (KeyError, ValueError, TypeError) as exc:
-        raise RuntimeError("Das lokale Modell hat keine gültige Token-Antwort geliefert.") from exc
+        raise InferenceValidationError(
+            "The local model did not return a valid token response."
+        ) from exc

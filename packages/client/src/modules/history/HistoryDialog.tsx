@@ -101,11 +101,19 @@ export function HistoryDialog({
     [all, setAll] = useState(false);
   const [result, setResult] = useState<{ diff: string; empty: string } | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [ready, setReady] = useState(false);
 
-  useFlushedEffect(flush, () =>
-    quiltorClient.application.history.log().then((value) => setCommits(value.commits)),
+  useFlushedEffect(
+    flush,
+    () =>
+      quiltorClient.application.history.log().then((value) => {
+        setCommits(value.commits);
+        setReady(true);
+      }),
+    (error) => setResult({ diff: "", empty: applicationErrorMessage(error) }),
   );
   useEffect(() => {
+    if (!ready) return;
     setResult(null);
     void quiltorClient.application.history
       .diff(selected, word, all)
@@ -120,7 +128,7 @@ export function HistoryDialog({
         }),
       )
       .catch((error) => setResult({ diff: "", empty: applicationErrorMessage(error) }));
-  }, [selected, word, all, t]);
+  }, [selected, word, all, t, ready]);
 
   const segments = useMemo(
     () => (result?.diff ? parseDiff(result.diff, word) : []),

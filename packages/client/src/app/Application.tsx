@@ -120,12 +120,15 @@ export function App() {
   const manuscriptSave = useAutosave(manuscript, saveManuscript);
   const figureSave = useAutosave(figures, saveFigures);
   const storyboardSave = useAutosave(storyboards, saveStoryboards);
-  const activeSave =
+  const workspaceSave =
     workspace.workspace === "text"
       ? manuscriptSave
       : workspace.workspace === "storyboard"
         ? storyboardSave
         : figureSave;
+  const activeSave =
+    [manuscriptSave, figureSave, storyboardSave].find((save) => save.phase === "error") ??
+    workspaceSave;
   // What is open belongs in the status line. The numbers are here anyway; every workspace
   // counts the thing it can give an account of.
   const summary = useMemo(() => {
@@ -158,14 +161,37 @@ export function App() {
     );
   }, [workspace.workspace, manuscript, figures, storyboards, t]);
   const flushAll = useCallback(async () => {
-    await Promise.all([manuscriptSave.flush(), figureSave.flush(), storyboardSave.flush()]);
-  }, [manuscriptSave.flush, figureSave.flush, storyboardSave.flush]);
+    do {
+      await Promise.all([manuscriptSave.flush(), figureSave.flush(), storyboardSave.flush()]);
+      // A stream that finished first may have changed while another one was still saving.
+    } while (manuscriptSave.isDirty() || figureSave.isDirty() || storyboardSave.isDirty());
+  }, [
+    manuscriptSave.flush,
+    manuscriptSave.isDirty,
+    figureSave.flush,
+    figureSave.isDirty,
+    storyboardSave.flush,
+    storyboardSave.isDirty,
+  ]);
   const returnToWorldSelection = useCallback(async () => {
-    await flushAll();
+    try {
+      await flushAll();
+    } catch {
+      // Keep the drafts and their histories open; SaveStatus exposes the failed stream.
+      return;
+    }
     overlays.close();
     overlays.closeAssistant();
     session.close();
   }, [flushAll, overlays.close, overlays.closeAssistant, session.close]);
+  const logout = useCallback(async () => {
+    try {
+      await flushAll();
+    } catch {
+      return;
+    }
+    shell.logout();
+  }, [flushAll, shell.logout]);
 
   const changeFigures = useCallback(
     (next: FigureState) => {
@@ -246,7 +272,7 @@ export function App() {
             onAssistant={overlays.toggleAssistant}
             onExitWorld={returnToWorldSelection}
             whoami={shell.account}
-            onLogout={shell.logout}
+            onLogout={logout}
             version={shell.version}
             summary={summary}
           >

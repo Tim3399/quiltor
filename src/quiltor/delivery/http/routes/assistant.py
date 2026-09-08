@@ -107,7 +107,7 @@ def _prepare_request(
 
     mode = str(payload.get("mode") or "chat")
     if mode not in {"chat", "world_extraction"}:
-        raise ValueError("Unbekannter Assistant-Modus.")
+        raise ValueError("Unknown assistant mode.")
     history = payload.get("history") if isinstance(payload.get("history"), list) else []
     chapter_ids = [str(item) for item in payload.get("chapterIds") or [] if isinstance(item, str)][
         :50
@@ -126,7 +126,7 @@ def _prepare_request(
         history = []
 
     if not question or len(question) > 4000:
-        raise ValueError("Die Nachricht muss zwischen 1 und 4000 Zeichen lang sein.")
+        raise ValueError("The message must contain between 1 and 4000 characters.")
 
     with app.lock:
         manuscript_document = app.documents.load("manuscript", world.db_path)
@@ -143,7 +143,7 @@ def _prepare_request(
             if isinstance(chapter, dict) and chapter.get("id")
         }
         if any(chapter_id not in available_ids for chapter_id in chapter_ids):
-            raise ValueError("Mindestens ein ausgewähltes Kapitel existiert nicht mehr.")
+            raise ValueError("At least one selected chapter no longer exists.")
 
     # `intent` defines equality for one idempotency key. progressId is UI
     # correlation and therefore deliberately excluded from the hash.
@@ -240,7 +240,7 @@ def cancel_job(handler, request: Request, app) -> None:
             return
         job_id = str(payload.get("id") or "")
         if not job_id:
-            raise ValueError("Assistant-Job fehlt.")
+            raise ValueError("Assistant job is missing.")
         job = app.assistant_jobs.cancel(job_id, request.session.sub, world.id)
         if job is None:
             return handler.send_api_error(404, error_code="assistant.job_not_found")

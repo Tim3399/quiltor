@@ -26,7 +26,7 @@ function contrastRatio(first: string, second: string) {
       .match(/[\d.]+/g)
       ?.slice(0, 3)
       .map(Number);
-    if (channels?.length !== 3) throw new Error(`Ungültige RGB-Farbe: ${color}`);
+    if (channels?.length !== 3) throw new Error(`Invalid RGB color: ${color}`);
     return (
       0.2126 * channel(channels[0]) + 0.7152 * channel(channels[1]) + 0.0722 * channel(channels[2])
     );
@@ -38,7 +38,7 @@ function contrastRatio(first: string, second: string) {
 test("The chapter title stays document-like and keeps a clear keyboard focus", async ({
   page,
 }, testInfo) => {
-  test.skip(testInfo.project.name !== "wide", "Der CSS-Vertrag ist viewport-unabhängig.");
+  test.skip(testInfo.project.name !== "wide", "The CSS contract is viewport-independent.");
   await openChapter(page);
 
   const title = page.getByRole("textbox", { name: "Kapiteltitel" });

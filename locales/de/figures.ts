@@ -1,5 +1,5 @@
-// Die Fläche mit den Figuren heißt durchgehend „Figurenboard“ -- nicht Diagramm, nicht
-// Figurendiagramm. Kanten heißen „Beziehung“ (in shared.ts), nie „Verbindung“.
+// The figures surface is always "Figurenboard", never "Diagramm" or "Figurendiagramm".
+// Edges are called "Beziehung" (in shared.ts), never "Verbindung".
 export const figures = {
   figuresWorld: "Figuren & Welt",
   figure: "Figur",

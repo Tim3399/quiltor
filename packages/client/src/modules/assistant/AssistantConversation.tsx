@@ -10,7 +10,7 @@ import {
   ListboxSelect,
   ProgressBar,
 } from "../../design";
-import { useI18n } from "../../i18n";
+import { type MessageKey, useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
 import type { FigureState } from "../story-world";
 import { AssistantProposalEditor } from "./AssistantProposalEditor";
@@ -22,8 +22,17 @@ import type {
   AssistantReply,
   AssistantSource,
 } from "./model";
-import { proposalLabel } from "./proposals";
+import { type AssistantProposalSkipReason, proposalLabel } from "./proposals";
 import "./AssistantConversation.css";
+
+const PROPOSAL_FAILURE_MESSAGES: Record<AssistantProposalSkipReason, MessageKey> = {
+  missing_element: "proposalApplyMissingElement",
+  missing_moment: "proposalApplyMissingMoment",
+  missing_relationship: "proposalApplyMissingRelationship",
+  missing_place: "proposalApplyMissingPlace",
+  invalid_relationship: "proposalApplyInvalidRelationship",
+  relationship_exists: "proposalApplyRelationshipExists",
+};
 
 export function AssistantConversation({
   entries,
@@ -248,6 +257,7 @@ function AssistantExchange({
               dismissedIndices={entry.dismissed || []}
               proposalEdits={entry.proposalEdits || {}}
               claimStatuses={entry.claimStatuses || {}}
+              proposalErrors={entry.proposalErrors || {}}
               onNavigate={onNavigate}
               onApply={onApply}
               onDismiss={onDismiss}
@@ -322,6 +332,7 @@ function ProposalList({
   dismissedIndices,
   proposalEdits,
   claimStatuses,
+  proposalErrors,
   onNavigate,
   onApply,
   onDismiss,
@@ -335,6 +346,7 @@ function ProposalList({
   dismissedIndices: number[];
   proposalEdits: Record<number, AssistantProposal>;
   claimStatuses: Record<number, AssistantClaimStatus>;
+  proposalErrors: Record<number, AssistantProposalSkipReason>;
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onApply: (entryId: string, proposals: AssistantProposal[], indices: number[]) => void;
   onDismiss: (entryId: string, index: number) => void;
@@ -412,6 +424,11 @@ function ProposalList({
                 >
                   <div className="assistant-proposal-content">
                     <span>{proposalLabel(proposal, figures, t)}</span>
+                    {!applied && !dismissed && proposalErrors[index] && (
+                      <small role="status">
+                        {t(PROPOSAL_FAILURE_MESSAGES[proposalErrors[index]])}
+                      </small>
+                    )}
                     {envelope?.resolution && (
                       <small>
                         {t("proposalResolution", { outcome: envelope.resolution.outcome })}

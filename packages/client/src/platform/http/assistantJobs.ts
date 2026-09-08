@@ -128,7 +128,7 @@ function terminalReply(job: AssistantJobState): AssistantReply {
   if (job.status === "cancelled") throw abortError();
   if (job.status === "failed") {
     throw new ApplicationGatewayError(
-      job.error || "Assistant-Anfrage fehlgeschlagen.",
+      job.error || "Assistant request failed.",
       job.failureCode || "unavailable",
     );
   }

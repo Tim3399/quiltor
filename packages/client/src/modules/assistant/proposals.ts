@@ -19,6 +19,19 @@ import type { AssistantProposal } from "./model";
 const GRID_X = 288,
   GRID_Y = 192;
 
+export type AssistantProposalSkipReason =
+  | "missing_element"
+  | "missing_moment"
+  | "missing_relationship"
+  | "missing_place"
+  | "invalid_relationship"
+  | "relationship_exists";
+
+export type AssistantProposalApplyResult = {
+  appliedIndices: number[];
+  skipped: Array<{ index: number; reason: AssistantProposalSkipReason }>;
+};
+
 function gridPosition(index: number): { x: number; y: number } {
   return { x: 96 + (index % 4) * GRID_X, y: 96 + Math.floor(index / 4) * GRID_Y };
 }
@@ -28,22 +41,46 @@ export function applyAssistantProposals(
   proposals: AssistantProposal[],
   t: (key: MessageKey) => string,
 ): FigureState {
+  return applyAssistantProposalsWithResult(state, proposals, t).state;
+}
+
+export function applyAssistantProposalsWithResult(
+  state: FigureState,
+  proposals: AssistantProposal[],
+  t: (key: MessageKey) => string,
+): AssistantProposalApplyResult & { state: FigureState } {
   const next: FigureState = structuredClone(state);
+  const appliedIndices: number[] = [];
+  const skipped: AssistantProposalApplyResult["skipped"] = [];
   next.timeline ||= [];
   const references = new Map<string, string>();
-  const resolve = (value: string) =>
-    references.get(value) ||
-    (value.startsWith("new:") ? proposalId(value, value.includes(":moment:") ? "t" : "n") : value);
-  for (const proposal of proposals) {
+  const resolve = (value: string, prefix: "n" | "t" = "n") =>
+    references.get(value) || (value.startsWith("new:") ? proposalId(value, prefix) : value);
+  // Only reorder proposals the author selected. Unselected dependencies must remain
+  // suggestions; accepting a relationship never implicitly creates its endpoints.
+  const creationRank = (proposal: AssistantProposal) =>
+    proposal.kind === "create_element" || proposal.kind === "create_timeline_moment" ? 0 : 1;
+  const ordered = proposals
+    .map((proposal, index) => ({ proposal, index }))
+    .sort((left, right) => creationRank(left.proposal) - creationRank(right.proposal));
+  for (const { proposal, index } of ordered) {
+    const missing = missingProposalDependency(next, proposal, resolve);
+    if (missing) {
+      skipped.push({ index, reason: missing });
+      continue;
+    }
     if (proposal.kind === "create_element") {
       const id = proposalId(proposal.tempId, "n");
       references.set(proposal.tempId, id);
-      if (next.nodes.some((node) => node.id === id)) continue;
-      const index = next.nodes.length;
+      if (next.nodes.some((node) => node.id === id)) {
+        appliedIndices.push(index);
+        continue;
+      }
+      const nodeIndex = next.nodes.length;
       const element = proposal.element;
       const node: FigureNode = {
         id,
-        ...gridPosition(index),
+        ...gridPosition(nodeIndex),
         type: ["ort", "konzept", "tier", "organisation", "objekt"].includes(element.type || "")
           ? element.type
           : "person",
@@ -83,7 +120,10 @@ export function applyAssistantProposals(
     } else if (proposal.kind === "create_timeline_moment") {
       const id = proposalId(proposal.tempId, "t");
       references.set(proposal.tempId, id);
-      if (next.timeline.some((moment) => moment.id === id)) continue;
+      if (next.timeline.some((moment) => moment.id === id)) {
+        appliedIndices.push(index);
+        continue;
+      }
       const moment: TimelineMoment = {
         id,
         title: String(proposal.moment.title || t("newMoment")).slice(0, 160),
@@ -94,12 +134,10 @@ export function applyAssistantProposals(
     } else if (proposal.kind === "create_relationship") {
       const from = resolve(proposal.relationship.from),
         to = resolve(proposal.relationship.to);
-      if (
-        !next.nodes.some((node) => node.id === from) ||
-        !next.nodes.some((node) => node.id === to) ||
-        from === to
-      )
+      if (from === to) {
+        skipped.push({ index, reason: "invalid_relationship" });
         continue;
+      }
       const directed = !!proposal.relationship.directed;
       const duplicate = next.edges.some((edge) =>
         directed
@@ -108,7 +146,10 @@ export function applyAssistantProposals(
             new Set([edge.from, edge.to]).has(from) &&
             new Set([edge.from, edge.to]).has(to),
       );
-      if (duplicate) continue;
+      if (duplicate) {
+        skipped.push({ index, reason: "relationship_exists" });
+        continue;
+      }
       next.edges.push({
         id: uid("e"),
         from,
@@ -119,8 +160,7 @@ export function applyAssistantProposals(
       });
     } else if (proposal.kind === "set_relationship_at_moment") {
       const relationshipId = resolve(proposal.relationshipId),
-        momentId = resolve(proposal.momentId);
-      if (!next.timeline.some((moment) => moment.id === momentId)) continue;
+        momentId = resolve(proposal.momentId, "t");
       next.edges = next.edges.map((edge) => {
         if (edge.id !== relationshipId) return edge;
         const current = relationshipStateAtMoment(edge, next.timeline || [], momentId);
@@ -142,21 +182,14 @@ export function applyAssistantProposals(
       });
     } else if (proposal.kind === "mark_deceased") {
       const elementId = resolve(proposal.elementId),
-        momentId = resolve(proposal.momentId);
-      if (next.timeline.some((moment) => moment.id === momentId))
-        next.nodes = next.nodes.map((node) =>
-          node.id === elementId ? { ...node, diedMomentId: momentId } : node,
-        );
+        momentId = resolve(proposal.momentId, "t");
+      next.nodes = next.nodes.map((node) =>
+        node.id === elementId ? { ...node, diedMomentId: momentId } : node,
+      );
     } else if (proposal.kind === "set_presence") {
       const elementId = resolve(proposal.elementId),
         placeId = resolve(proposal.placeId),
-        momentId = proposal.momentId ? resolve(proposal.momentId) : undefined;
-      if (
-        !next.nodes.some((node) => node.id === elementId) ||
-        !next.nodes.some((node) => node.id === placeId && node.type === "ort") ||
-        (momentId && !next.timeline.some((moment) => moment.id === momentId))
-      )
-        continue;
+        momentId = proposal.momentId ? resolve(proposal.momentId, "t") : undefined;
       next.presence ||= [];
       next.presence = [
         ...next.presence.filter(
@@ -167,8 +200,51 @@ export function applyAssistantProposals(
     } else if (proposal.kind === "arrange_elements") {
       next.nodes = arrangeNodes(next.nodes, next.edges, proposal.strategy);
     }
+    appliedIndices.push(index);
   }
-  return next;
+  return {
+    state: next,
+    appliedIndices: appliedIndices.sort((left, right) => left - right),
+    skipped,
+  };
+}
+
+function missingProposalDependency(
+  state: FigureState,
+  proposal: AssistantProposal,
+  resolve: (id: string, prefix?: "n" | "t") => string,
+): AssistantProposalSkipReason | null {
+  const hasElement = (id: string) => state.nodes.some((node) => node.id === resolve(id));
+  const hasMoment = (id: string) =>
+    state.timeline?.some((moment) => moment.id === resolve(id, "t"));
+  if (proposal.kind === "create_relationship") {
+    if (!hasElement(proposal.relationship.from) || !hasElement(proposal.relationship.to))
+      return "missing_element";
+  }
+  if (
+    proposal.kind === "update_element" ||
+    proposal.kind === "mark_deceased" ||
+    proposal.kind === "set_presence"
+  ) {
+    if (!hasElement(proposal.elementId)) return "missing_element";
+  }
+  if (proposal.kind === "set_relationship_at_moment") {
+    if (!state.edges.some((edge) => edge.id === resolve(proposal.relationshipId)))
+      return "missing_relationship";
+  }
+  if (
+    proposal.kind === "mark_deceased" ||
+    proposal.kind === "set_relationship_at_moment" ||
+    proposal.kind === "set_presence"
+  ) {
+    if (proposal.momentId && !hasMoment(proposal.momentId)) return "missing_moment";
+  }
+  if (
+    proposal.kind === "set_presence" &&
+    !state.nodes.some((node) => node.id === resolve(proposal.placeId) && node.type === "ort")
+  )
+    return "missing_place";
+  return null;
 }
 
 function proposalId(value: string, prefix: "n" | "t") {
@@ -188,6 +264,8 @@ export function scopeAssistantProposals(
   return proposals.map((proposal) => {
     if (proposal.kind === "create_element" || proposal.kind === "create_timeline_moment")
       return { ...proposal, tempId: scoped(proposal.tempId) };
+    if (proposal.kind === "update_element")
+      return { ...proposal, elementId: scoped(proposal.elementId) };
     if (proposal.kind === "create_relationship")
       return {
         ...proposal,

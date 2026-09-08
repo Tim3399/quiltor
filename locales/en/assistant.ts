@@ -1,5 +1,16 @@
 // The assistant speaks in the first person throughout and never refers to itself as “Quiltor”.
 export const assistant = {
+  proposalApplyMissingElement:
+    "Apply the required elements first. You can then retry this proposal.",
+  proposalApplyMissingMoment: "Apply the required moment first. You can then retry this proposal.",
+  proposalApplyMissingRelationship:
+    "The required relationship is missing. Create it first or edit the proposal.",
+  proposalApplyMissingPlace:
+    "The required place is missing. Apply it first or choose an existing place.",
+  proposalApplyInvalidRelationship:
+    "A relationship needs two different elements. Edit the proposal.",
+  proposalApplyRelationshipExists:
+    "This relationship already exists. Review the existing relationship or edit the proposal.",
   localOnlySuggestions: "Local · suggestions only",
   newChat: "New chat",
   closeAssistant: "Close assistant",

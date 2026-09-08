@@ -15,34 +15,37 @@ export function useAutosave<T>(
   const [error, setError] = useState("");
   const timer = useRef<number | undefined>(undefined);
   const latest = useRef(value);
-  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const pending = useRef<Promise<void> | null>(null);
   const dirty = useRef(false);
   const initialized = useRef(false);
-  const inFlightSnapshot = useRef<T | null>(null);
   latest.current = value;
 
-  const flush = useCallback(async () => {
-    if (!latest.current || !dirty.current) return;
-    if (inFlightSnapshot.current === latest.current) return chain.current;
+  const flush = useCallback((): Promise<void> => {
     clearTimeout(timer.current);
-    const snapshot = latest.current;
-    inFlightSnapshot.current = snapshot;
-    setPhase("saving");
-    setError("");
-    chain.current = chain.current.catch(() => undefined).then(() => save(snapshot));
-    try {
-      await chain.current;
-      if (latest.current === snapshot) {
-        dirty.current = false;
+    if (pending.current) return pending.current;
+    if (!latest.current || !dirty.current) return Promise.resolve();
+    // All explicit callers await the same drain, including edits made while a save is out.
+    // Defer execution until the promise is registered, even if save throws synchronously.
+    pending.current = Promise.resolve().then(async () => {
+      try {
+        while (latest.current && dirty.current) {
+          const snapshot = latest.current;
+          setPhase("saving");
+          setError("");
+          await save(snapshot);
+          if (latest.current === snapshot) dirty.current = false;
+        }
         setSavedAt(Date.now());
         setPhase("saved");
-      } else setPhase("dirty");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("saveFailed"));
-      setPhase("error");
-    } finally {
-      if (inFlightSnapshot.current === snapshot) inFlightSnapshot.current = null;
-    }
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : t("saveFailed"));
+        setPhase("error");
+        throw reason;
+      } finally {
+        pending.current = null;
+      }
+    });
+    return pending.current;
   }, [save, t]);
   const flushRef = useRef(flush);
   flushRef.current = flush;
@@ -56,7 +59,7 @@ export function useAutosave<T>(
     dirty.current = true;
     setPhase("dirty");
     clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void flushRef.current(), delay);
+    timer.current = window.setTimeout(() => void flushRef.current().catch(() => undefined), delay);
     return () => clearTimeout(timer.current);
   }, [value, delay]);
 
@@ -68,5 +71,8 @@ export function useAutosave<T>(
     return () => window.removeEventListener("beforeunload", warn);
   }, [phase]);
 
-  return { phase, error, savedAt, flush, retry: flush };
+  // UI retries report failure through SaveStatus; dependent operations use rejecting flush.
+  const retry = useCallback(() => flush().catch(() => undefined), [flush]);
+  const isDirty = useCallback(() => dirty.current, []);
+  return { phase, error, savedAt, flush, retry, isDirty };
 }

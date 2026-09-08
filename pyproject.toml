@@ -7,9 +7,9 @@ name = "quiltor"
 dynamic = ["version"]
 description = "Local-first writing workshop with a private, on-device assistant"
 readme = "README.md"
-# Eine Minor-Reihe fuer alles: gebaut wird mit 3.12.10 (distribution/toolchains.json), das
-# ausgelieferte Web-Image bringt von Ubuntu 24.04 die 3.12.3 mit. Beide sind 3.12, und die
-# Zusage nennt genau das -- nicht den Patchstand, den keiner von beiden teilt.
+# One minor series across hosts: builds use 3.12.10 (distribution/toolchains.json), while
+# the shipped web image inherits 3.12.3 from Ubuntu 24.04. Both use 3.12, so the requirement
+# names that series rather than a patch version the two hosts do not share.
 requires-python = ">=3.12"
 license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0" }
 
@@ -102,9 +102,9 @@ only-include = [
 # ---------------------------------------------------------------- Formatting
 
 [tool.ruff]
-# Die kleinste Version, die laufen muss -- nicht die, mit der gebaut wird. Mit "py314"
-# schrieb Ruff `except (A, B):` in die klammerlose Form aus PEP 758 um; die gibt es erst
-# ab 3.14, und auf dem ausgelieferten 3.12 waere der Code damit nicht mehr lauffaehig.
+# Target the oldest supported interpreter, not the build interpreter. With "py314",
+# Ruff rewrote `except (A, B):` into the unparenthesized PEP 758 form, which requires
+# Python 3.14 and would prevent the shipped Python 3.12 runtime from loading the code.
 target-version = "py312"
 line-length = 100
 

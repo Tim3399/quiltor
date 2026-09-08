@@ -11,7 +11,7 @@ class IdempotencyConflict(RuntimeError):
 
 class IncompleteInferenceResponse(RuntimeError):
     def __init__(self, raw_content: str, finish_reason: str):
-        super().__init__("Das lokale Modell hat die Antwort nicht rechtzeitig fertiggestellt.")
+        super().__init__("The local model did not finish the response before its output limit.")
         self.raw_content = raw_content
         self.finish_reason = finish_reason
 
@@ -20,13 +20,20 @@ class InferenceTimeoutError(RuntimeError):
     def __init__(self, timeout_seconds: float):
         self.timeout_seconds = timeout_seconds
         super().__init__(
-            "Das lokale Modell hat die Anfrage nicht innerhalb von "
-            f"{timeout_seconds:g} Sekunden abgeschlossen."
+            f"The local model did not complete the request within {timeout_seconds:g} seconds."
         )
 
 
 class InferenceUnavailableError(RuntimeError):
     pass
+
+
+class InferenceValidationError(RuntimeError):
+    """The runtime returned a response outside the required inference contract."""
+
+
+class InferenceContextTooLargeError(RuntimeError):
+    """The request cannot fit inside the runtime's context window."""
 
 
 @runtime_checkable

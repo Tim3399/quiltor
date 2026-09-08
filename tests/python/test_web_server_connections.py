@@ -18,59 +18,59 @@ from quiltor.hosts.web import server
 
 
 class ServerConnectionTests(unittest.TestCase):
-    def test_die_warteschlange_ist_groesser_als_die_vorgabe_von_socketserver(self):
+    def test_connection_backlog_exceeds_the_socketserver_default(self):
         """What is checked is the number that really reaches ``listen()``.
 
         Not the class attribute: ``server_activate`` passes it on, and only what arrives
         there tells the operating system how many may wait.
         """
 
-        uebergeben: list[int | None] = []
-        echtes_listen = socket.socket.listen
+        passed_backlogs: list[int | None] = []
+        original_listen = socket.socket.listen
 
-        def spion(self, backlog=None):
-            uebergeben.append(backlog)
-            return echtes_listen(self) if backlog is None else echtes_listen(self, backlog)
+        def listen_spy(self, backlog=None):
+            passed_backlogs.append(backlog)
+            return original_listen(self) if backlog is None else original_listen(self, backlog)
 
-        with patch.object(socket.socket, "listen", spion):
+        with patch.object(socket.socket, "listen", listen_spy):
             httpd = server.Server(("127.0.0.1", 0), server.Handler, None)
             httpd.server_close()
 
-        self.assertEqual(len(uebergeben), 1)
-        self.assertIsNotNone(uebergeben[0])
+        self.assertEqual(len(passed_backlogs), 1)
+        self.assertIsNotNone(passed_backlogs[0])
         # Five is socketserver's default and the reason Windows refused.
-        self.assertGreater(uebergeben[0], socketserver.TCPServer.request_queue_size)
-        self.assertGreaterEqual(uebergeben[0], 128)
+        self.assertGreater(passed_backlogs[0], socketserver.TCPServer.request_queue_size)
+        self.assertGreaterEqual(passed_backlogs[0], 128)
 
-    def test_ein_weggegangener_browser_erzeugt_keinen_traceback(self):
+    def test_a_disconnected_browser_does_not_produce_a_traceback(self):
         httpd = server.Server(("127.0.0.1", 0), server.Handler, None)
         self.addCleanup(httpd.server_close)
 
-        for fehler in (
-            BrokenPipeError("weg"),
-            ConnectionAbortedError("weg"),
-            ConnectionResetError("weg"),
+        for error in (
+            BrokenPipeError("disconnected"),
+            ConnectionAbortedError("disconnected"),
+            ConnectionResetError("disconnected"),
         ):
-            with self.subTest(fehler=type(fehler).__name__):
-                self.assertEqual(self._protokoll_von(httpd, fehler), "")
+            with self.subTest(error=type(error).__name__):
+                self.assertEqual(self._error_log(httpd, error), "")
 
-    def test_ein_echter_fehler_bleibt_sichtbar(self):
+    def test_an_unexpected_error_remains_visible(self):
         httpd = server.Server(("127.0.0.1", 0), server.Handler, None)
         self.addCleanup(httpd.server_close)
 
-        self.assertIn("ValueError", self._protokoll_von(httpd, ValueError("kaputt")))
+        self.assertIn("ValueError", self._error_log(httpd, ValueError("broken")))
 
     @staticmethod
-    def _protokoll_von(httpd: server.Server, fehler: Exception) -> str:
-        puffer = io.StringIO()
-        vorher, sys.stderr = sys.stderr, puffer
+    def _error_log(httpd: server.Server, error: Exception) -> str:
+        buffer = io.StringIO()
+        previous, sys.stderr = sys.stderr, buffer
         try:
-            raise fehler
+            raise error
         except Exception:
             httpd.handle_error(None, ("127.0.0.1", 0))
         finally:
-            sys.stderr = vorher
-        return puffer.getvalue()
+            sys.stderr = previous
+        return buffer.getvalue()
 
 
 if __name__ == "__main__":

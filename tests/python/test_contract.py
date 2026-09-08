@@ -3,6 +3,8 @@ import unittest
 from unittest.mock import patch
 
 from quiltor.infrastructure.inference.shared.contract import count_tokens, invoke_chat
+from quiltor.modules.assistant.jobs import classify_assistant_error
+from quiltor.modules.assistant.ports import InferenceValidationError
 
 
 class FakeResponse:
@@ -46,11 +48,32 @@ class CountTokensTests(unittest.TestCase):
             "quiltor.infrastructure.inference.shared.contract.urllib.request.urlopen",
             return_value=FakeResponse({"unexpected": "shape"}),
         ):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(InferenceValidationError) as caught:
                 count_tokens("http://mock", "hallo")
+        self.assertEqual(classify_assistant_error(caught.exception), "validation_error")
+
+    def test_validation_classification_does_not_depend_on_diagnostic_wording(self):
+        self.assertEqual(
+            classify_assistant_error(InferenceValidationError("Unexpected payload shape")),
+            "validation_error",
+        )
 
 
 class InvokeChatTests(unittest.TestCase):
+    def test_invalid_runtime_payload_preserves_the_validation_failure_code(self):
+        for body in (
+            {"unexpected": "shape"},
+            {"choices": [{"message": {"content": "not JSON"}, "finish_reason": "stop"}]},
+        ):
+            with self.subTest(body=body):
+                with patch(
+                    "quiltor.infrastructure.inference.shared.contract.urllib.request.urlopen",
+                    return_value=FakeResponse(body),
+                ):
+                    with self.assertRaises(InferenceValidationError) as caught:
+                        invoke_chat("http://mock", {"messages": []})
+                self.assertEqual(classify_assistant_error(caught.exception), "validation_error")
+
     def test_parses_the_structured_json_content_from_the_chat_completion(self):
         body = {
             "choices": [

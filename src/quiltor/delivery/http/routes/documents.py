@@ -100,18 +100,15 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
     if kind == "manuscript":
         chapters = payload["chapters"]
         words = sum(len((c.get("body") or "").split()) for c in chapters)
-        print(f"  · {now}  Text gespeichert — {len(chapters)} Kapitel, {words} Wörter")
+        print(f"  · {now}  Manuscript saved — {len(chapters)} chapters, {words} words")
     elif kind == "figures":
         print(
-            f"  · {now}  Figuren gespeichert — "
-            f"{len(payload['nodes'])} Figuren, {len(payload['edges'])} Verbindungen"
+            f"  · {now}  Story world saved — "
+            f"{len(payload['nodes'])} elements, {len(payload['edges'])} relationships"
         )
     else:
         boards = payload["boards"]
-        print(
-            f"  · {now}  Storyboards gespeichert — "
-            f"{len(boards)} Boards, {len(payload['nodes'])} Karten"
-        )
+        print(f"  · {now}  Storyboards saved — {len(boards)} boards, {len(payload['nodes'])} cards")
     handler.send_json(
         {"ok": True, "zeit": now, "revision": updated_revision},
         headers={"ETag": f'"{updated_revision}"'},

@@ -15,7 +15,7 @@ class ConflictError(RuntimeError):
     def __init__(self, expected: int, actual: int) -> None:
         self.expected = expected
         self.actual = actual
-        super().__init__(f"Stand wurde zwischenzeitlich geändert ({expected} → {actual}).")
+        super().__init__(f"The document revision has changed ({expected} → {actual}).")
 
 
 def revision(
@@ -52,7 +52,7 @@ def save_with_revision(
         elif kind == "storyboards":
             storyboards.save(state, database)
         else:
-            raise ValueError("Unbekannter Dokumenttyp")
+            raise ValueError("Unknown document type")
         updated = current + 1
         database.execute(
             "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",

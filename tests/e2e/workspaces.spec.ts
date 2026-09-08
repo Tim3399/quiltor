@@ -76,12 +76,12 @@ async function expectOverlayInsideViewport(overlay: Locator, page: Page, label: 
             settledBox.y + settledBox.height <= settledViewport.height + 1,
         );
       },
-      { message: `${label} liegt nach der Öffnungsanimation vollständig im Viewport` },
+      { message: `${label} is fully inside the viewport after the opening animation` },
     )
     .toBe(true);
   const box = await overlay.boundingBox();
   const viewport = page.viewportSize();
-  expect(box, `${label} hat keine messbare Geometrie`).not.toBeNull();
+  expect(box, `${label} has no measurable geometry`).not.toBeNull();
   expect(viewport, `${label} hat keinen Viewport`).not.toBeNull();
   if (!box || !viewport) return;
   expect(box.x, `${label} ragt links heraus`).toBeGreaterThanOrEqual(0);
@@ -93,7 +93,7 @@ async function expectOverlayInsideViewport(overlay: Locator, page: Page, label: 
 test("Mobile core workspaces hold their layout and touch contracts", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test setzt die kompakte Breite selbst und muss nur einmal laufen.",
+    "The test sets the compact width itself and only needs one run.",
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/state*", (route) =>
@@ -118,7 +118,7 @@ test("Mobile core workspaces hold their layout and touch contracts", async ({ pa
       client: element.clientWidth,
       scroll: element.scrollWidth,
     }));
-    expect(geometry.scroll, `${label} verbreitert das Dokument`).toBeLessThanOrEqual(
+    expect(geometry.scroll, `${label} widens the document`).toBeLessThanOrEqual(
       geometry.client + 1,
     );
   };
@@ -136,7 +136,7 @@ test("Mobile core workspaces hold their layout and touch contracts", async ({ pa
           ];
         }),
       );
-    expect(undersized, `${label} enthält Touchziele unter 44px`).toEqual([]);
+    expect(undersized, `${label} contains touch targets smaller than 44px`).toEqual([]);
   };
 
   // One row means a shared centre, not a shared top edge: the segment strip carries its own
@@ -236,7 +236,7 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test durchläuft Desktop und Mobile selbst und muss deshalb nur einmal laufen.",
+    "The test covers desktop and mobile itself and only needs one run.",
   );
   test.setTimeout(90_000);
 
@@ -309,7 +309,7 @@ test("Deep writing-aid states hold the mobile layout and interaction contract", 
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test setzt den mobilen Viewport selbst und muss deshalb nur einmal laufen.",
+    "The test sets the mobile viewport itself and only needs one run.",
   );
   test.setTimeout(45_000);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -353,20 +353,22 @@ test("Deep writing-aid states hold the mobile layout and interaction contract", 
   }));
   expect(
     symbolGeometry.scrollWidth,
-    "Sonderzeichenraster läuft horizontal über",
+    "Special-character grid overflows horizontally",
   ).toBeLessThanOrEqual(symbolGeometry.clientWidth + 1);
   for (const symbol of symbolGeometry.buttons) {
-    expect(symbol.width, `${symbol.label} ist als Touchziel zu schmal`).toBeGreaterThanOrEqual(44);
+    expect(symbol.width, `${symbol.label} is too narrow as a touch target`).toBeGreaterThanOrEqual(
+      44,
+    );
     expect(symbol.height, `${symbol.label} ist als Touchziel zu niedrig`).toBeGreaterThanOrEqual(
       44,
     );
     expect(
       Math.abs(symbol.centerOffsetX),
-      `${symbol.label} ist horizontal nicht zentriert`,
+      `${symbol.label} is not horizontally centered`,
     ).toBeLessThanOrEqual(0.75);
     expect(
       Math.abs(symbol.centerOffsetY),
-      `${symbol.label} ist vertikal nicht zentriert`,
+      `${symbol.label} is not vertically centered`,
     ).toBeLessThanOrEqual(0.75);
   }
 
@@ -382,8 +384,7 @@ test("Deep writing-aid states hold the mobile layout and interaction contract", 
     const form = sheet.querySelector<HTMLElement>(".add-term");
     const input = form?.querySelector<HTMLInputElement>("input");
     const add = form?.querySelector<HTMLButtonElement>("button[type='submit']");
-    if (!body || !form || !input || !add)
-      throw new Error("Standardisiertes Begriffsformular fehlt");
+    if (!body || !form || !input || !add) throw new Error("Standardized terms form is missing");
     const sheetBounds = sheet.getBoundingClientRect();
     const bodyBounds = body.getBoundingClientRect();
     const bodyStyle = getComputedStyle(body);
@@ -402,10 +403,9 @@ test("Deep writing-aid states hold the mobile layout and interaction contract", 
         inputBounds.top + inputBounds.height / 2 - (addBounds.top + addBounds.height / 2),
     };
   });
-  expect(
-    termsGeometry.sheetScrollWidth,
-    "Begriffs-Sheet läuft horizontal über",
-  ).toBeLessThanOrEqual(termsGeometry.sheetClientWidth + 1);
+  expect(termsGeometry.sheetScrollWidth, "Terms sheet overflows horizontally").toBeLessThanOrEqual(
+    termsGeometry.sheetClientWidth + 1,
+  );
   expect(termsGeometry.bodyPaddingLeft).toBeGreaterThanOrEqual(12);
   expect(termsGeometry.bodyPaddingRight).toBeGreaterThanOrEqual(12);
   expect(termsGeometry.inputInsetLeft).toBeGreaterThanOrEqual(termsGeometry.bodyPaddingLeft - 0.5);
@@ -467,7 +467,7 @@ test("Deep writing-aid states hold the mobile layout and interaction contract", 
 test("Places keep the full card height at the 820px transition", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test setzt die kritische Zwischenbreite selbst und muss nur einmal laufen.",
+    "The test sets the critical intermediate width itself and only needs one run.",
   );
   await page.setViewportSize({ width: 815, height: 760 });
   await page.route("**/api/state*", (route) =>
@@ -519,7 +519,7 @@ test("At overview LOD, places share markers and priority pills with figures", as
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der LOD-Vertrag ist breitenunabhängig und muss nur einmal laufen.",
+    "The LOD contract is width-independent and only needs one run.",
   );
   await page.route("**/api/state*", (route) =>
     route.request().method() === "GET"
@@ -600,7 +600,7 @@ test("At overview LOD, places share markers and priority pills with figures", as
 test("The context bar stays inside the window from 320 to 1440px", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test stellt die Fensterbreite selbst; er darf nur einmal laufen.",
+    "The test sets the window width itself and must only run once.",
   );
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
@@ -678,7 +678,7 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
     expect(containment.summaryTitleFlexBasis).toBe("auto");
     expect(
       containment.summaryTitleEmptyBlockSpace,
-      `Titel reserviert bei ${width}px unsichtbare Blockhöhe`,
+      `Title reserves invisible block height at ${width}px`,
     ).toBeLessThanOrEqual(1);
     if (containment.summaryDirection === "column") {
       expect(
@@ -740,7 +740,7 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
     toolbarActions.boundingBox(),
     exportAction.boundingBox(),
   ]);
-  if (!actionsBox || !exportBox) throw new Error("Fokussierte Toolbar-Aktion hat keine Geometrie");
+  if (!actionsBox || !exportBox) throw new Error("Focused toolbar action has no geometry");
   expect(exportBox.x).toBeGreaterThanOrEqual(actionsBox.x - 0.5);
   expect(exportBox.x + exportBox.width).toBeLessThanOrEqual(actionsBox.x + actionsBox.width + 0.5);
 
@@ -761,7 +761,7 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
   await page.setViewportSize({ width: 719, height: 900 });
   for (const action of [chapters, aid]) {
     const box = await action.boundingBox();
-    if (!box) throw new Error("Responsive Toolbar-Aktion hat keine Geometrie");
+    if (!box) throw new Error("Responsive toolbar action has no geometry");
     expect(box.width).toBeGreaterThanOrEqual(44);
     expect(box.height).toBeGreaterThanOrEqual(44);
   }
@@ -773,7 +773,7 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
 test("Narrow bars keep the same visual order as the wide view", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test stellt die problematische Zwischenbreite selbst ein.",
+    "The test sets the problematic intermediate width itself.",
   );
   await openBlankWorld(page);
   await page.setViewportSize({ width: 717, height: 912 });
@@ -797,7 +797,7 @@ test("Narrow bars keep the same visual order as the wide view", async ({ page },
             const icon = button.querySelector<HTMLElement>(
               ":scope > .ui-button__icon, :scope > .icon-button__icon",
             );
-            if (!icon) throw new Error(`${button.getAttribute("aria-label")} hat kein Icon`);
+            if (!icon) throw new Error(`${button.getAttribute("aria-label")} has no icon`);
             const buttonBox = button.getBoundingClientRect();
             const iconBox = icon.getBoundingClientRect();
             return {
@@ -811,10 +811,10 @@ test("Narrow bars keep the same visual order as the wide view", async ({ page },
     )
   ).flat();
   for (const offset of iconCenterOffsets) {
-    expect(Math.abs(offset.x), `${offset.label} ist horizontal nicht mittig`).toBeLessThanOrEqual(
+    expect(Math.abs(offset.x), `${offset.label} is not horizontally centered`).toBeLessThanOrEqual(
       0.5,
     );
-    expect(Math.abs(offset.y), `${offset.label} ist vertikal nicht mittig`).toBeLessThanOrEqual(
+    expect(Math.abs(offset.y), `${offset.label} is not vertically centered`).toBeLessThanOrEqual(
       0.5,
     );
   }
@@ -843,7 +843,7 @@ test("Between 720 and 1100px the chapter column indents the text instead of cove
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test stellt die Fensterbreite selbst; er darf nur einmal laufen.",
+    "The test sets the window width itself and must only run once.",
   );
   await openBlankWorld(page);
   const editor = page.getByLabel("Kapiteltext");
@@ -860,7 +860,7 @@ test("Between 720 and 1100px the chapter column indents the text instead of cove
     // lay over it and cut off the left edge of every line.
     expect(
       binderBox!.x + binderBox!.width,
-      `Spalte überlappt den Text bei ${width}px`,
+      `Column overlaps text at ${width}px`,
     ).toBeLessThanOrEqual(pageBox!.x + 0.5);
     // And the writing surface must not have to scroll sideways for it.
     const scrollsX = await editorScroller.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
@@ -883,7 +883,7 @@ test("The save status stays in the bar instead of retreating into the menu when 
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test stellt die Fensterbreite selbst; er darf nur einmal laufen.",
+    "The test sets the window width itself and must only run once.",
   );
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
@@ -894,7 +894,7 @@ test("The save status stays in the bar instead of retreating into the menu when 
     await expect(status).toHaveCount(1);
     await expect(status).toBeVisible();
     const box = await status.boundingBox();
-    expect(box, `Kein Speicherstand bei ${width}px`).not.toBeNull();
+    expect(box, `No save status at ${width}px`).not.toBeNull();
     expect(box!.x, `Speicherstand ragt bei ${width}px links hinaus`).toBeGreaterThanOrEqual(0);
     expect(
       box!.x + box!.width,
@@ -916,7 +916,7 @@ test("The world picker stays fully scrollable even with many worlds", async ({
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test stellt beide relevanten Fensterhöhen selbst ein und muss nur einmal laufen.",
+    "The test sets both relevant window heights itself and only needs one run.",
   );
   const worlds = Array.from({ length: 30 }, (_, index) => ({
     id: `world-${index + 1}`,
@@ -936,7 +936,7 @@ test("The world picker stays fully scrollable even with many worlds", async ({
     page.evaluate(() => {
       const read = (selector: string) => {
         const element = document.querySelector<HTMLElement>(selector);
-        if (!element) throw new Error(`Scrollfläche fehlt: ${selector}`);
+        if (!element) throw new Error(`Scroll surface is missing: ${selector}`);
         const style = getComputedStyle(element);
         const thumbStyle = getComputedStyle(element, "::-webkit-scrollbar-thumb");
         const colorProbe = document.createElement("span");
@@ -1074,7 +1074,7 @@ test("Bold and italic live as ranges on the chapter and survive a reload", async
   page,
 }, testInfo) => {
   test.setTimeout(40_000);
-  test.skip(testInfo.project.name !== "wide", "Die Auszeichnung hängt nicht an der Fensterbreite.");
+  test.skip(testInfo.project.name !== "wide", "Text formatting is independent of window width.");
   await openBlankWorld(page);
   const editor = page.getByLabel("Kapiteltext");
   const textSave = waitForSuccessfulManuscriptWrite(page);
@@ -1197,7 +1197,7 @@ test("The writing aid shows every tab title in full in the 294px column", async 
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test stellt die gemeldete 1329px-Ansicht selbst her und muss nur einmal laufen.",
+    "The test sets the reported 1329px viewport itself and only needs one run.",
   );
   await page.setViewportSize({ width: 1329, height: 912 });
   await openBlankWorld(page);
@@ -1229,7 +1229,7 @@ test("The writing aid shows every tab title in full in the 294px column", async 
     await expect(list).toBeVisible();
     const geometry = await list.evaluate((tabList) => {
       const scroller = tabList.parentElement;
-      if (!(scroller instanceof HTMLElement)) throw new Error("Tab-Scrollbereich fehlt");
+      if (!(scroller instanceof HTMLElement)) throw new Error("Tab scroll area is missing");
       const scrollerBounds = scroller.getBoundingClientRect();
       return {
         scrollerClientWidth: scroller.clientWidth,
@@ -1255,9 +1255,7 @@ test("The writing aid shows every tab title in full in the 294px column", async 
       expect(tab.scrollWidth, `${tab.label} ist horizontal abgeschnitten`).toBeLessThanOrEqual(
         tab.clientWidth + 1,
       );
-      expect(tab.insideScroller, `${tab.label} ist in der gemeldeten Ansicht nicht sichtbar`).toBe(
-        true,
-      );
+      expect(tab.insideScroller, `${tab.label} is not visible in the reported viewport`).toBe(true);
     }
   }
 
@@ -1280,7 +1278,7 @@ test("Chapter properties live in the details column's chapter section", async ({
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Weg zu den Kapiteleigenschaften ist in einer Breite geprüft; die Spaltenlogik hat einen eigenen Test.",
+    "Chapter properties navigation uses one width; column behavior has its own test.",
   );
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
@@ -1324,7 +1322,7 @@ test("Chapter properties live in the details column's chapter section", async ({
   await expect(actionTrigger).toBeVisible();
   const actionGeometry = await activeChapter.evaluate((row) => {
     const trigger = row.querySelector<HTMLButtonElement>(".binder-chapter-action-trigger");
-    if (!trigger) throw new Error("Kontextueller Kapitelaktionstrigger fehlt");
+    if (!trigger) throw new Error("Contextual chapter action trigger is missing");
     const rowBounds = row.getBoundingClientRect();
     const triggerBounds = trigger.getBoundingClientRect();
     const expectedTarget = Number.parseFloat(
@@ -1369,7 +1367,7 @@ test("Nested chapter folders survive drag-and-drop and a reload", async ({ page 
   test.setTimeout(60_000);
   test.skip(
     testInfo.project.name !== "wide",
-    "Die Ordnersemantik ist viewport-unabhängig und wird in der breiten Binder-Ansicht geprüft.",
+    "Folder semantics are viewport-independent and checked in the wide binder layout.",
   );
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
@@ -1611,7 +1609,7 @@ test("Chapter folders stay hierarchical and usable at compact width", async ({
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "compact",
-    "Die kompakte Binder-Geometrie wird nur im 390px-Projekt geprüft.",
+    "Compact binder geometry is checked only in the 390px project.",
   );
   const compactManuscript = {
     chapters: [
@@ -1675,7 +1673,7 @@ test("Chapter folders stay hierarchical and usable at compact width", async ({
   const chapterActionGeometry = await chapterActionTrigger.evaluate((trigger) => {
     const dialog = trigger.closest<HTMLElement>('[role="dialog"]');
     const row = trigger.closest<HTMLElement>(".binder-chapter-row");
-    if (!dialog || !row) throw new Error("Kontextuelle Kapitelaktion fehlt");
+    if (!dialog || !row) throw new Error("Contextual chapter action is missing");
     const dialogBounds = dialog.getBoundingClientRect();
     const rowBounds = row.getBoundingClientRect();
     const bounds = trigger.getBoundingClientRect();
@@ -1712,7 +1710,7 @@ test("Chapter folders stay hierarchical and usable at compact width", async ({
   expect(chapterActionGeometry.insideDialog).toBe(true);
   expect(
     chapterActionGeometry.hit,
-    `Kapitelaktion wird nach abgeschlossener Sheet-Animation von ${chapterActionGeometry.hitElement} überlagert`,
+    `Chapter action is covered by ${chapterActionGeometry.hitElement} after the sheet animation finishes`,
   ).toBe(true);
 
   await chapterActionTrigger.click();
@@ -1726,7 +1724,7 @@ test("Chapter folders stay hierarchical and usable at compact width", async ({
     // still fails -- 43.9 does not round to 44.
     expect(
       Math.round(itemHeight * 100) / 100,
-      `${item} ist kompakt kein 44px-Touchziel`,
+      `${item} is not a 44px touch target in the compact layout`,
     ).toBeGreaterThanOrEqual(44);
   }
   await compactChapterMenu.press("Escape");
@@ -1992,7 +1990,7 @@ test("Note references and flexible profile fields stay stable across a rename", 
   test.setTimeout(40_000);
   test.skip(
     testInfo.project.name !== "wide",
-    "Referenzpersistenz und Zielnavigation hängen nicht an der Fensterbreite.",
+    "Reference persistence and target navigation are independent of window width.",
   );
 
   const world = await createTestWorld(page, `Notizreferenz ${crypto.randomUUID()}`);
@@ -2108,7 +2106,7 @@ test("a real figure relationship uses the shared edge editor and is preserved", 
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Kantenauswahl und Persistenz müssen nur in einem stabilen Desktop-Viewport laufen.",
+    "Edge selection and persistence only need a stable desktop viewport.",
   );
 
   const world = await createTestWorld(page, `Figuren-Kanteneditor ${crypto.randomUUID()}`);
@@ -2305,7 +2303,7 @@ test("While a figure connection is dragged, a visible preview follows the pointe
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Pointer- und LOD-Regressionstest hängt nicht an der Fensterbreite.",
+    "The pointer and LOD regression test is independent of window width.",
   );
   await page.route("**/api/manuscript*", (route) =>
     fulfillManuscript(route, {
@@ -2331,7 +2329,7 @@ test("While a figure connection is dragged, a visible preview follows the pointe
 
   const source = page.locator('.react-flow__node[data-id="n1"] .outgoing-handle');
   const sourceBox = await source.boundingBox();
-  if (!sourceBox) throw new Error("Ausgangs-Handle hat keine messbare Geometrie");
+  if (!sourceBox) throw new Error("Source handle has no measurable geometry");
   const sourcePoint = {
     x: sourceBox.x + sourceBox.width / 2,
     y: sourceBox.y + sourceBox.height / 2,
@@ -2354,10 +2352,10 @@ test("While a figure connection is dragged, a visible preview follows the pointe
     preview.evaluate(
       (path, points) => {
         if (!(path instanceof SVGPathElement)) {
-          throw new Error("Verbindungsvorschau ist kein SVG-Pfad");
+          throw new Error("Connection preview is not an SVG path");
         }
         const matrix = path.getScreenCTM();
-        if (!matrix) throw new Error("Verbindungsvorschau hat keine Screen-Transformation");
+        if (!matrix) throw new Error("Connection preview has no screen transformation");
         const totalLength = path.getTotalLength();
         const toScreen = (point: DOMPoint) => point.matrixTransform(matrix);
         const start = toScreen(path.getPointAtLength(0));
@@ -2663,10 +2661,7 @@ test("Moving preserves every element across autosave and a reload", async ({ pag
 test("Element types are consistently reachable and deleting confirms without a hold", async ({
   page,
 }, testInfo) => {
-  test.skip(
-    testInfo.project.name !== "wide",
-    "Der Löschweg muss nur in einer Breite geprüft werden.",
-  );
+  test.skip(testInfo.project.name !== "wide", "Deletion only needs to be checked at one width.");
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
   await expect(page.getByRole("button", { name: "Element", exact: true })).toBeVisible();
@@ -2699,7 +2694,7 @@ test("Element types are consistently reachable and deleting confirms without a h
 test("The timeline strip plays back relationship states and times of death", async ({
   page,
 }, testInfo) => {
-  test.skip(testInfo.project.name !== "wide", "Die Timeline wird im breiten Figurenboard geprüft.");
+  test.skip(testInfo.project.name !== "wide", "The timeline is checked in the wide figures board.");
   await page.route("**/api/manuscript*", (route) =>
     fulfillManuscript(route, {
       chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
@@ -2798,7 +2793,7 @@ test("The text margin switches stay centred and close to the text block", async 
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Die Satzspiegel-Geometrie wird in der breiten Desktopansicht geprüft.",
+    "Page text-area geometry is checked in the wide desktop layout.",
   );
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Neues Kapitel" }).click();
@@ -2983,8 +2978,8 @@ test("Chapter versions appear right beside the writing surface", async ({ page }
   await page.screenshot({ path: testInfo.outputPath("chapter-history.png"), fullPage: true });
 });
 
-test("Buchausgabe rendert als echtes 6×9-Zoll-PDF", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "wide", "PDF-Geometrie muss nur einmal geprüft werden.");
+test("Book export renders a real 6-by-9-inch PDF", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "wide", "PDF geometry only needs one run.");
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   await expect(page.locator(".print-document")).toBeAttached();
@@ -3112,7 +3107,7 @@ test("The dark theme is preserved and accessible across the core views", async (
         // on the buttons, that they sit transparently in it and take their icon colour from
         // the theme.
         dockTheme: resolveTheme("var(--material-toolbar)", "var(--ink)"),
-        dockBackground: dock ? getComputedStyle(dock).backgroundColor : "kein Dock gefunden",
+        dockBackground: dock ? getComputedStyle(dock).backgroundColor : "no dock found",
         inkColor: resolveTheme("var(--paper)", "var(--ink)").color,
         transparent: resolveTheme("var(--transparent)", "var(--ink)").background,
         activeMinimapTheme: resolveTheme("var(--selection-surface)", "var(--accent-primary)"),
@@ -3124,19 +3119,17 @@ test("The dark theme is preserved and accessible across the core views", async (
         })),
       };
     });
-  expect(graphControlTheme.dockBackground, "Die Kartensteuerung hat keine Darkmode-Fläche").toBe(
+  expect(graphControlTheme.dockBackground, "Map controls have no dark-mode surface").toBe(
     graphControlTheme.dockTheme.background,
   );
   for (const control of graphControlTheme.buttons) {
     const expectedTheme = control.activeMinimap
       ? graphControlTheme.activeMinimapTheme
       : { background: graphControlTheme.transparent, color: graphControlTheme.inkColor };
-    expect(control.background, `${control.label} sitzt nicht durchsichtig im Dock`).toBe(
+    expect(control.background, `${control.label} is not transparent inside the dock`).toBe(
       expectedTheme.background,
     );
-    expect(control.color, `${control.label} hat keine Darkmode-Iconfarbe`).toBe(
-      expectedTheme.color,
-    );
+    expect(control.color, `${control.label} has no dark-mode icon color`).toBe(expectedTheme.color);
   }
   results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])

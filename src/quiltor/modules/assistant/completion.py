@@ -28,6 +28,7 @@ from quiltor.modules.assistant.planner import needs_planner
 from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 from quiltor.modules.assistant.ports import (
     AssistantReadToolExecutor,
+    InferenceContextTooLargeError,
     InferenceEngine,
     TokenCountCache,
 )
@@ -551,10 +552,9 @@ def complete_request(
             }
         )
     if headroom < RUNTIME_CONFIG.minimum_output_tokens:
-        raise RuntimeError(
-            "Die Anfrage ist zu umfangreich für das Kontextfenster des lokalen Modells "
-            "(bereits der Prompt allein überschreitet das Limit). Bitte die Anfrage eingrenzen, "
-            "z. B. auf weniger Kapitel."
+        raise InferenceContextTooLargeError(
+            "The request exceeds the local model's context window before any response tokens "
+            "can be generated. Narrow the request, for example to fewer chapters."
         )
     max_tokens = min(
         RUNTIME_CONFIG.base_output_tokens

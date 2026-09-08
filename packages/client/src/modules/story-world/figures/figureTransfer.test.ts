@@ -20,6 +20,34 @@ const state: FigureState = {
 const t = ((key: string) => (key === "untitled" ? "Ohne Titel" : key)) as Translate;
 
 describe("figure transfer", () => {
+  it.each([
+    { nodes: [{ id: "broken" }], edges: [] },
+    { nodes: [{ id: "broken", name: 12, x: 0, y: 0 }], edges: [] },
+    { nodes: [state.nodes[0], state.nodes[0]], edges: [] },
+    { ...state, edges: [{ id: "edge", from: "ada", to: "missing" }] },
+    { ...state, presence: [{ id: "presence", elementId: "ada", placeId: "ada" }] },
+    { ...state, nodes: [{ ...state.nodes[0], diedMomentId: "missing" }] },
+    { ...state, nodes: [{ ...state.nodes[0], aliases: [{ alias: 42 }] }] },
+    { ...state, timeline: [{ id: "moment", title: 42 }] },
+    { ...state, timeSystem: { kind: "invalid" } },
+    { ...state, nodes: [{ ...state.nodes[0], type: "ort", parentPlaceId: "ada" }] },
+    {
+      ...state,
+      nodes: [
+        {
+          ...state.nodes[0],
+          profile: {
+            notes: "Ada",
+            noteReferences: [
+              { id: "ref", from: 0, to: 10, surface: "Ada", target: { kind: "entity", id: "ada" } },
+            ],
+          },
+        },
+      ],
+    },
+  ])("rejects invalid document fields and references before import: %j", (invalid) => {
+    expect(() => parseFigureState(JSON.stringify(invalid))).toThrow();
+  });
   it("round-trips the complete diagram JSON", () => {
     expect(parseFigureState(serializeFigureState(state))).toEqual({
       ...state,

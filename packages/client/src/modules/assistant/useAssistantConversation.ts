@@ -4,7 +4,7 @@ import { applicationErrorMessage, quiltorClient } from "../../platform";
 import type { AssistantEntry, AssistantSendOptions } from "./conversationTypes";
 import { replyReferences, resolveAssistantMessage } from "./formatting";
 import type { AssistantClaimStatus, AssistantProposal, AssistantReply } from "./model";
-import { scopeAssistantProposals } from "./proposals";
+import { type AssistantProposalApplyResult, scopeAssistantProposals } from "./proposals";
 import { useBatchProgress } from "./useBatchProgress";
 
 function readEntries(storageKey: string): AssistantEntry[] {
@@ -25,7 +25,7 @@ export function useAssistantConversation({
 }: {
   worldId: string;
   forcedChapterIds: string[];
-  onApply: (proposals: AssistantProposal[]) => void;
+  onApply: (proposals: AssistantProposal[]) => AssistantProposalApplyResult;
   onBeforeSend: () => Promise<void>;
   t: Translate;
 }) {
@@ -299,18 +299,28 @@ export function useAssistantConversation({
         .filter(
           ({ index }) =>
             index !== undefined &&
+            entry !== undefined &&
+            !entry.applied.includes(index) &&
+            !entry.dismissed?.includes(index) &&
             (entry?.mode !== "world_extraction" ||
               entry.claimStatuses?.[index] === "objective_fact"),
         );
       if (!accepted.length) return;
-      onApply(accepted.map(({ proposal }) => proposal));
-      const acceptedIndices = accepted.map(({ index }) => index);
+      const result = onApply(accepted.map(({ proposal }) => proposal));
+      const acceptedIndices = result.appliedIndices.map((offset) => accepted[offset].index);
       persistEntries((current) =>
-        current.map((entry) =>
-          entry.id === entryId
-            ? { ...entry, applied: [...new Set([...entry.applied, ...acceptedIndices])] }
-            : entry,
-        ),
+        current.map((entry) => {
+          if (entry.id !== entryId) return entry;
+          const proposalErrors = { ...entry.proposalErrors };
+          for (const { index } of accepted) delete proposalErrors[index];
+          for (const { index, reason } of result.skipped)
+            proposalErrors[accepted[index].index] = reason;
+          return {
+            ...entry,
+            applied: [...new Set([...entry.applied, ...acceptedIndices])],
+            proposalErrors,
+          };
+        }),
       );
     },
     [onApply, persistEntries],

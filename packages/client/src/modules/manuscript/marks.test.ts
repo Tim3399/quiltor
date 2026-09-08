@@ -15,7 +15,7 @@ import type { TextMark } from "./model";
 const bold = (from: number, to: number): TextMark => ({ from, to, kind: "bold" });
 const italic = (from: number, to: number): TextMark => ({ from, to, kind: "italic" });
 
-describe("Auszeichnungen als Bereiche", () => {
+describe("Formatting as ranges", () => {
   it("merges overlapping and adjacent ranges of the same kind", () => {
     expect(normalizeMarks([bold(0, 4), bold(2, 9)])).toEqual([bold(0, 9)]);
     expect(normalizeMarks([bold(0, 4), bold(4, 9)])).toEqual([bold(0, 9)]);

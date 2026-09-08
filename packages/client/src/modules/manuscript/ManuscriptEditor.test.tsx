@@ -171,7 +171,7 @@ describe("ManuscriptEditor selection", () => {
   });
 
   it.each(["Serafine", "Seraphine", "Serapgi"])(
-    "übernimmt die tolerante Schreibweise %s als kanonische Figuren-Erwähnung",
+    "resolves the approximate spelling %s to a canonical character mention",
     async (typed) => {
       const seraphine = {
         ...tarek,

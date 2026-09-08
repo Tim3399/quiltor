@@ -10,6 +10,44 @@ import {
 } from "./AssistantDrawer.testSupport";
 
 describe("assistant conversation content", () => {
+  it("does not start an assistant job after a failed flush and permits retry", async () => {
+    const flush = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Draft could not be saved"))
+      .mockResolvedValue(undefined);
+    vi.mocked(api.chat).mockResolvedValue(reply());
+    setup("world-1", CHAPTERS, true, flush);
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Prüfe die neue Planung.");
+    expect(await screen.findByText("Draft could not be saved")).toBeVisible();
+    expect(api.chat).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    await waitFor(() => expect(api.chat).toHaveBeenCalledOnce());
+  });
+  it("shows a missing-dependency reason and leaves a skipped proposal available for retry", async () => {
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        proposals: [
+          { kind: "create_relationship", relationship: { from: "tarek", to: "new:missing" } },
+        ],
+      }),
+    );
+    const { onApply } = setup();
+    onApply.mockReturnValue({
+      appliedIndices: [],
+      skipped: [{ index: 0, reason: "missing_element" }],
+    });
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Verbinde die Figuren.");
+    fireEvent.click(await screen.findByRole("button", { name: "Übernehmen" }));
+    expect(
+      await screen.findByText(
+        "Übernimm zuerst die benötigten Elemente. Danach kannst du diesen Vorschlag erneut übernehmen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Übernehmen" })).toBeEnabled();
+    expect(screen.queryByText("Übernommen")).not.toBeInTheDocument();
+  });
   it("applies one proposal and records its applied state", async () => {
     const proposals = [
       { kind: "create_element" as const, tempId: "new:igor", element: { name: "Igor" } },

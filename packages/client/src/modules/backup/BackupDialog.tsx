@@ -27,15 +27,19 @@ export function BackupDialog({
     [selected, setSelected] = useState<string | null>(null),
     [restoreTarget, setRestoreTarget] = useState<string | null>(null),
     [error, setError] = useState("");
-  useFlushedEffect(flush, () =>
-    quiltorClient.application.backup
-      .list()
-      .then((result) => setItems(result.backups))
-      .catch((reason) => setError(applicationErrorMessage(reason))),
+  useFlushedEffect(
+    flush,
+    () =>
+      quiltorClient.application.backup
+        .list()
+        .then((result) => setItems(result.backups))
+        .catch((reason) => setError(applicationErrorMessage(reason))),
+    (reason) => setError(applicationErrorMessage(reason)),
   );
   const restore = async () => {
     if (!restoreTarget) return;
     try {
+      await flush();
       await quiltorClient.application.backup.restore(restoreTarget);
       location.reload();
     } catch (reason) {

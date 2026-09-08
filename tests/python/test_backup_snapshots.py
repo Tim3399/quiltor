@@ -7,8 +7,15 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from quiltor.application.backups import BackupEndpointNotConfigured
+from quiltor.application.backup_manifest import BackupContractError
+from quiltor.application.backups import (
+    BackupAuthorization,
+    BackupEndpointNotConfigured,
+    BackupGatewayError,
+    BackupSnapshotNotFound,
+)
 from quiltor.infrastructure.backup import SnapshotStore
 from quiltor.infrastructure.backup.snapshots import BackupContext
 
@@ -297,6 +304,67 @@ class SnapshotStoreTest(unittest.TestCase):
             )
         self.assertEqual(len(self.store.entries(ctx)), 1)
 
+    def test_index_line_endings_do_not_count_toward_the_manifest_size_limit(self):
+        ctx = self._world("world-a")
+        self._write(ctx, "Text")
+        self.store.commit(ctx, "Snapshot", push=False)
+        payload = (ctx.root / "index.jsonl").read_bytes().rstrip(b"\r\n")
+        with patch("quiltor.infrastructure.backup.snapshots.MAX_MANIFEST_BYTES", len(payload)):
+            self.assertEqual(len(self.store.entries(ctx)), 1)
+
+    def test_commits_recover_a_torn_tail_and_separate_a_complete_final_line(self):
+        for tail in (b'{"id":"torn', b'{"message":"\xc3', b""):
+            with self.subTest(tail=tail):
+                ctx = self._world(f"world-{tail.hex() or 'complete'}")
+                self._write(ctx, "First text")
+                self.store.commit(ctx, "First", push=False)
+                first = self.store.entries(ctx)[0]
+                index = ctx.root / "index.jsonl"
+                original = index.read_bytes()
+                index.write_bytes(original + tail if tail else original.rstrip(b"\r\n"))
+
+                for message in ("Second", "Third"):
+                    self._write(ctx, message)
+                    self.assertTrue(self.store.commit(ctx, message, push=False)["ok"])
+
+                entries = self.store.entries(ctx)
+                self.assertEqual(
+                    [entry["message"] for entry in entries], ["First", "Second", "Third"]
+                )
+                self.assertEqual(entries[0], first)
+                self.assertEqual(entries[1]["parent"], first["id"])
+                self.assertEqual(entries[2]["parent"], entries[1]["id"])
+
+    def test_restore_repairs_the_index_before_recording_the_restored_snapshot(self):
+        for tail in (b'{"id":"torn', b""):
+            with self.subTest(tail=tail):
+                ctx = self._world(f"restore-{tail.hex() or 'complete'}")
+                self._write_chapter_row(ctx, "c1", "Chapter", "Original", 0)
+                self.store.commit(ctx, "First", push=False)
+                first = self.store.entries(ctx)[0]
+                self._write_chapter_row(ctx, "c1", "Chapter", "Later", 0)
+                self.store.commit(ctx, "Second", push=False)
+                second = self.store.entries(ctx)[1]
+                index = ctx.root / "index.jsonl"
+                original = json.dumps(first, ensure_ascii=False).encode("utf-8")
+                index.write_bytes(original + b"\n" + tail if tail else original)
+
+                self.assertTrue(self.store.restore(ctx, second)["ok"])
+
+                self.assertEqual(self.store.entries(ctx), [first, second])
+
+    def test_a_complete_invalid_index_entry_is_never_discarded_as_a_torn_tail(self):
+        ctx = self._world("world-a")
+        self._write(ctx, "First")
+        self.store.commit(ctx, "First", push=False)
+        index = ctx.root / "index.jsonl"
+        index.write_bytes(index.read_bytes() + b'{"id":"one","id":"two"}')
+        before = index.read_bytes()
+        self._write(ctx, "Second")
+        with self.assertRaises(BackupContractError):
+            self.store.commit(ctx, "Second", push=False)
+        self.assertEqual(index.read_bytes(), before)
+
     def test_two_worlds_never_cross_talk(self):
         ctx_a, ctx_b = self._world("world-a"), self._world("world-b")
         self._write(ctx_a, "# Kapitel\n\nWelt A.\n")
@@ -309,6 +377,60 @@ class SnapshotStoreTest(unittest.TestCase):
         self.assertNotEqual(ctx_a.root, ctx_b.root)
 
     # ---------------------------------------------------------------- upload
+
+    def test_upload_fails_when_there_is_no_world_or_local_snapshot(self):
+        ctx = self.store.context(
+            "missing-world",
+            "https://backup.example.com",
+            self.root / "missing.sqlite3",
+            self.root / "missing-manuscripts",
+            self.root / "missing-profiles",
+        )
+        with self.assertRaises(BackupSnapshotNotFound):
+            self.store.commit(ctx, "Upload", push=True)
+
+    def test_an_unchanged_local_snapshot_can_be_uploaded_later(self):
+        gateway = Mock()
+        self.store = SnapshotStore(self.root / "history", gateway)
+        ctx = self._world("world-a", "https://backup.example.com")
+        authorization = BackupAuthorization(ctx.endpoint_url, "synthetic-token")
+        self._write(ctx, "Local text")
+        self.store.commit(ctx, "Local snapshot", push=False)
+        original = self.store.entries(ctx)[0]
+
+        result = self.store.commit(ctx, "Upload", push=True, authorization=authorization)
+
+        self.assertTrue(result["ok"])
+        self.assertIn("Snapshot uploaded to the backup endpoint.", result["log"])
+        gateway.push.assert_called_once()
+        self.assertEqual(gateway.push.call_args.args[1], original)
+        self.assertEqual(self.store.entries(ctx), [original])
+
+    def test_a_failed_upload_is_retried_without_creating_a_duplicate_snapshot(self):
+        gateway = Mock()
+        self.store = SnapshotStore(self.root / "history", gateway)
+        ctx = self._world("world-a", "https://backup.example.com")
+        authorization = BackupAuthorization(ctx.endpoint_url, "synthetic-token")
+        self._write(ctx, "Local text")
+        gateway.push.side_effect = RuntimeError("Simulated network failure")
+        with self.assertRaises(BackupGatewayError):
+            self.store.commit(ctx, "First attempt", push=True, authorization=authorization)
+        original = self.store.entries(ctx)[0]
+        gateway.push.side_effect = None
+
+        result = self.store.commit(ctx, "Retry", push=True, authorization=authorization)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(gateway.push.call_count, 2)
+        self.assertEqual(gateway.push.call_args.args[1], original)
+        self.assertEqual(self.store.entries(ctx), [original])
+
+    def test_an_unchanged_upload_without_an_endpoint_still_reports_failure(self):
+        ctx = self._world("world-a")
+        self._write(ctx, "Local text")
+        self.store.commit(ctx, "Local snapshot", push=False)
+        with self.assertRaises(BackupEndpointNotConfigured):
+            self.store.commit(ctx, "Upload", push=True)
 
     def test_push_without_a_configured_endpoint_fails_clearly(self):
         ctx = self._world("world-a")  # no endpoint URL

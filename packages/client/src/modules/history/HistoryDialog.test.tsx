@@ -22,9 +22,11 @@ afterEach(() => {
 function renderDialog({
   diff = "",
   onClose = vi.fn(),
+  flush = () => Promise.resolve(),
 }: {
   diff?: string;
   onClose?: () => void;
+  flush?: () => Promise<void>;
 } = {}) {
   const log = vi.spyOn(quiltorClient.application.history, "log").mockResolvedValue({
     ok: true,
@@ -50,13 +52,21 @@ function renderDialog({
     onClose,
     ...render(
       <I18nProvider>
-        <HistoryDialog flush={() => Promise.resolve()} onClose={onClose} />
+        <HistoryDialog flush={flush} onClose={onClose} />
       </I18nProvider>,
     ),
   };
 }
 
 describe("HistoryDialog", () => {
+  it("shows a failed flush without reading an outdated history or diff", async () => {
+    const { log, loadDiff } = renderDialog({
+      flush: vi.fn().mockRejectedValue(new Error("Draft could not be saved")),
+    });
+    expect(await screen.findByText("Draft could not be saved")).toBeVisible();
+    expect(log).not.toHaveBeenCalled();
+    expect(loadDiff).not.toHaveBeenCalled();
+  });
   it("selects history states and keeps comparison toggles semantic", async () => {
     const { loadDiff } = renderDialog();
     const states = screen.getByRole("navigation", { name: "Stände" });

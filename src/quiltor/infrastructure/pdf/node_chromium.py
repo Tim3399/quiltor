@@ -40,7 +40,7 @@ def renderer(script: Path, base: Path):
             )
             if result.returncode != 0:
                 raise RuntimeError(
-                    (result.stderr or result.stdout or "PDF-Renderer fehlgeschlagen.").strip()
+                    (result.stderr or result.stdout or "PDF renderer failed.").strip()
                 )
             return Path(target_name).read_bytes()
         finally:

@@ -12,8 +12,11 @@ from quiltor.modules.assistant.ports import (
     AssistantJobStore,
     AssistantWorldAccess,
     IdempotencyConflict,
+    IncompleteInferenceResponse,
+    InferenceContextTooLargeError,
     InferenceTimeoutError,
     InferenceUnavailableError,
+    InferenceValidationError,
     JobStoreFactory,
 )
 
@@ -118,14 +121,25 @@ def classify_assistant_error(exc: Exception) -> str:
         return "timeout"
     if isinstance(exc, InferenceUnavailableError):
         return "runtime_unavailable"
-    message = str(exc)
-    if "Kontextfenster" in message:
+    if isinstance(exc, InferenceContextTooLargeError):
         return "context_too_large"
-    if "nicht installiert" in message:
-        return "runtime_unavailable"
-    if "nicht rechtzeitig" in message:
+    if isinstance(exc, IncompleteInferenceResponse):
         return "response_truncated"
-    if "strukturiert" in message or "gültig" in message:
+    if isinstance(exc, InferenceValidationError):
+        return "validation_error"
+    # Preserve classification for adapters still returning untyped legacy errors.
+    # Current runtime failures use types so diagnostic wording cannot change the code.
+    message = str(exc).casefold()
+    if "context window" in message or "kontextfenster" in message:
+        return "context_too_large"
+    if "not installed" in message or "nicht installiert" in message:
+        return "runtime_unavailable"
+    if "output limit" in message or "nicht rechtzeitig" in message:
+        return "response_truncated"
+    if any(
+        term in message
+        for term in ("structured response", "token response", "strukturiert", "gültig")
+    ):
         return "validation_error"
     return "assistant_error"
 
@@ -266,7 +280,7 @@ class AssistantJobRunner:
         world_id = str(job.get("_worldId") or payload.get("worldId") or "")
         try:
             if not self.world_access.exists(owner_sub, world_id):
-                raise FileNotFoundError("Die Welt für diesen Assistant-Job existiert nicht mehr.")
+                raise FileNotFoundError("The world for this assistant job no longer exists.")
             self.assistant.reload()
             result = self.assistant.complete(
                 question,
@@ -287,7 +301,7 @@ class AssistantJobRunner:
                 self.store.finish_success(job_id, {}, "")
                 return
             if not self.world_access.exists(owner_sub, world_id):
-                raise FileNotFoundError("Die Welt für diesen Assistant-Job existiert nicht mehr.")
+                raise FileNotFoundError("The world for this assistant job no longer exists.")
             expected_checkpoint = payload.get("documentRevisions")
             if isinstance(expected_checkpoint, dict):
                 expected_revisions = {

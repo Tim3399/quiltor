@@ -204,14 +204,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # the top of this file. Every in-tree client already sets it.
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0 or length > MAX_BODY:
-            raise ValueError("ungültige Größe")
+            raise ValueError("invalid size")
         body = self.rfile.read(length)
         media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
         if media_type != "application/json":
             # Drain the already bounded request body before sending the error response.
             # Closing a Windows socket with unread request bytes can reset the connection
             # and discard the JSON error response before the client receives it.
-            raise ValueError("ungültiger Content-Type")
+            raise ValueError("invalid Content-Type")
         return json.loads(body.decode("utf-8"))
 
     def reject_foreign_request(self) -> bool:
@@ -615,12 +615,12 @@ def run(
     url = f"http://localhost:{port}/"
 
     print()
-    print(f"  Quiltor · Autorenwerkstatt · v{app.version}")
+    print(f"  Quiltor · Writing workspace · v{app.version}")
     print("  " + "─" * 52)
-    print(f"  Adresse    {url}")
+    print(f"  Address    {url}")
     # The worlds directory, not a single database file: there is no process-wide
     # open world any more, so "the" database is not a thing this process has.
-    print(f"  Welten      {app.application.worlds.worlds_directory}")
+    print(f"  Worlds      {app.application.worlds.worlds_directory}")
     print(f"  Backups     {app.backups_directory}")
     # Always printed: there is always an identity, and which one is in force is
     # the single most useful thing to know about a running instance. Never the
@@ -628,7 +628,7 @@ def run(
     if app.identity.multi_user:
         print(f"  Identity    Keycloak ({app.identity.auth.issuer})")
     else:
-        print("  Identity    lokal (ein Nutzer)")
+        print("  Identity    local (one user)")
     if print_token:
         # Only ever on request (--print-token), and only for this process: the
         # token dies with it, so a copied line is not a lasting credential.
@@ -636,7 +636,7 @@ def run(
         print(
             f"  Token       {token}"
             if token
-            else "  Token       — diese Instanz hat keine lokale Identität"
+            else "  Token       — this instance has no local identity"
         )
     print("  Stop        Ctrl+C")
     print("  " + "─" * 52)
@@ -653,8 +653,8 @@ def run(
         with Server((os.environ.get("QUILTOR_HOST", "127.0.0.1"), port), Handler, app) as httpd:
             httpd.serve_forever()
     except OSError as exc:
-        print(f"  ! Port {port} ist belegt ({exc}).")
-        print(f"  ! Versuch es mit:  python3 apps/web/server.py {port + 1}")
+        print(f"  ! Port {port} is unavailable ({exc}).")
+        print(f"  ! Try:  python3 apps/web/server.py {port + 1}")
         sys.exit(1)
     except KeyboardInterrupt:
         print("\n  Stopped. Your work is stored in data/\n")

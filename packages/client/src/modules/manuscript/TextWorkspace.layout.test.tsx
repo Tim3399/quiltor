@@ -178,7 +178,7 @@ describe("TextWorkspace layout and panels", () => {
     expect(screen.getByRole("button", { name: /Fokusmodus verlassen/ })).toBeVisible();
   });
 
-  it("wechselt im Fokusmodus subtil zwischen Kapiteln", () => {
+  it("switches subtly between chapters in focus mode", () => {
     const twoChapters = {
       chapters: [
         ...manuscript.chapters,

@@ -44,7 +44,7 @@ def printable_window(url: str, timeout: int):
     try:
         import webview
     except ImportError as exc:  # pragma: no cover - desktop extra only
-        raise RuntimeError("Der PDF-Export benötigt die Desktop-Komponenten (pywebview).") from exc
+        raise RuntimeError("PDF export requires the desktop components (pywebview).") from exc
 
     window = webview.create_window(
         "Quiltor PDF",
@@ -78,4 +78,4 @@ def _wait_until_rendered(window, timeout: int) -> None:
         except Exception:  # noqa: BLE001 - the page may not be loaded yet
             pass
         time.sleep(POLL_INTERVAL_SECONDS)
-    raise RuntimeError(f"Die Buchansicht war nach {timeout}s nicht fertig aufgebaut.")
+    raise RuntimeError(f"The book view was not ready after {timeout}s.")

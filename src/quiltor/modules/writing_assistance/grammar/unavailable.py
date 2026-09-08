@@ -29,6 +29,11 @@ _REASON = (
     "weder herunterladen noch starten darf."
 )
 
+_ERROR = (
+    "Grammar checking is unavailable in this Quiltor build: it requires LanguageTool "
+    "and Java, which this build cannot download or start."
+)
+
 
 class UnavailableGrammar:
     def __init__(self, data_dir: Path):
@@ -56,10 +61,10 @@ class UnavailableGrammar:
         }
 
     def install(self) -> dict:
-        raise PermissionError(_REASON)
+        raise PermissionError(_ERROR)
 
     def check(self, language: str, text: str, custom_words: list[str]) -> dict:
-        raise PermissionError(_REASON)
+        raise PermissionError(_ERROR)
 
     def close(self) -> None:
         """Nothing was ever started."""

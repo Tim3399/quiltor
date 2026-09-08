@@ -40,7 +40,7 @@ def render(url: str, timeout: int = 90) -> bytes:
         finally:
             target.unlink(missing_ok=True)
     if not data:
-        raise RuntimeError("Der PDF-Export hat eine leere Datei erzeugt.")
+        raise RuntimeError("PDF export produced an empty file.")
     return page_numbers.stamp(data)
 
 
@@ -58,7 +58,7 @@ def _print(window, target: Path, timeout: int) -> None:
     """Drive CoreWebView2.PrintToPdfAsync on the widget pywebview built."""
     control = getattr(window.native, "webview", None)
     if control is None or getattr(control, "CoreWebView2", None) is None:
-        raise RuntimeError("Die WebView2-Komponente war nicht bereit.")
+        raise RuntimeError("The WebView2 component was not ready.")
     core = control.CoreWebView2
 
     settings = core.Environment.CreatePrintSettings()
@@ -75,9 +75,9 @@ def _print(window, target: Path, timeout: int) -> None:
     deadline = time.monotonic() + timeout
     while not task.IsCompleted:
         if time.monotonic() > deadline:
-            raise RuntimeError(f"PrintToPdfAsync hat nach {timeout}s nicht geantwortet.")
+            raise RuntimeError(f"PrintToPdfAsync did not respond within {timeout}s.")
         time.sleep(0.05)
     if task.IsFaulted:
-        raise RuntimeError(f"PrintToPdfAsync ist fehlgeschlagen: {task.Exception}")
+        raise RuntimeError(f"PrintToPdfAsync failed: {task.Exception}")
     if task.Result is False:
-        raise RuntimeError("WebView2 hat kein PDF erzeugt.")
+        raise RuntimeError("WebView2 did not produce a PDF.")

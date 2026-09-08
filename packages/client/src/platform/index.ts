@@ -40,3 +40,4 @@ export type {
 } from "./application";
 export { ApplicationGatewayError, applicationErrorMessage } from "./application";
 export { validateNoteMarks } from "./contracts/v1/noteMark";
+export { decodeStoryWorldV1 } from "./contracts/v1/storyWorld";

@@ -41,7 +41,7 @@ export function useApplicationShortcuts({
       }
       if (modifier && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        void flushAll();
+        void flushAll().catch(() => undefined);
         return;
       }
       if (modifier && (event.key.toLowerCase() === "f" || event.key.toLowerCase() === "k")) {

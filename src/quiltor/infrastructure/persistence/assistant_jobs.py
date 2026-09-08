@@ -173,7 +173,7 @@ class AssistantJobStore:
             if existing is not None:
                 if existing["request_hash"] != digest:
                     raise IdempotencyConflict(
-                        "Dieser Idempotency-Key wurde bereits für eine andere Anfrage verwendet."
+                        "This idempotency key has already been used for another request."
                     )
                 conn.commit()
                 public = self._public(existing)

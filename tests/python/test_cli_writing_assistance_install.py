@@ -52,7 +52,7 @@ class CliWritingAssistanceInstallTests(unittest.TestCase):
         ):
             cli._install_writing_assistance_step()
         confirm.assert_called_once_with(
-            "Deutsche Schreibwerkzeuge einrichten (Wörterbuch, Synonyme, Übersetzung und LanguageTool)?",
+            "Set up German writing tools (dictionary, synonyms, translation, and LanguageTool)?",
             default=True,
         )
         service.install.assert_called_once_with()

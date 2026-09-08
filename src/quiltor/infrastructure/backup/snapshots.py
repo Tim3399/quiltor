@@ -57,6 +57,7 @@ from quiltor.application.backups import (
     BackupAuthorizationUnavailable,
     BackupEndpointNotConfigured,
     BackupGatewayError,
+    BackupSnapshotNotFound,
     RemoteBackupGateway,
 )
 from quiltor.application.backups import WorldBackupContext as BackupContext
@@ -432,13 +433,21 @@ class SnapshotStore:
         path = self._index_path(ctx)
         if not path.exists():
             return []
-        lines = path.read_text(encoding="utf-8").splitlines()
+        found, _ = self._parse_index(ctx, path.read_bytes())
+        return found
+
+    def _parse_index(self, ctx: BackupContext, payload: bytes) -> tuple[list[dict[str, Any]], int]:
+        """Return validated entries and the byte boundary before any torn tail."""
+
+        lines = payload.splitlines(keepends=True)
         found: list[dict[str, Any]] = []
+        retained_bytes = 0
         for position, line in enumerate(lines):
             if not line.strip():
+                retained_bytes += len(line)
                 continue
             try:
-                parsed = strict_json_loads(line, maximum_bytes=MAX_MANIFEST_BYTES)
+                parsed = strict_json_loads(line.rstrip(b"\r\n"), maximum_bytes=MAX_MANIFEST_BYTES)
             except BackupContractError:
                 # Preserve the established append-crash recovery, but only for
                 # syntactically torn JSON at the final physical line. A complete
@@ -447,11 +456,30 @@ class SnapshotStore:
                     json.loads(line)
                 except ValueError:
                     if position == len(lines) - 1:
-                        continue
+                        return found, retained_bytes
                 raise
             validated = validate_manifest(parsed, expected_world=ctx.root.name)
             found.append(validated.document)
-        return found
+            retained_bytes += len(line)
+        return found, retained_bytes
+
+    def _append_entry(self, ctx: BackupContext, entry: dict[str, Any]) -> None:
+        """Repair an interrupted final append before durably recording another entry."""
+
+        path = self._index_path(ctx)
+        with path.open("r+b" if path.exists() else "w+b") as index:
+            payload = index.read()
+            _, retained_bytes = self._parse_index(ctx, payload)
+            index.seek(retained_bytes)
+            index.truncate()
+            if retained_bytes and payload[retained_bytes - 1 : retained_bytes] not in {
+                b"\n",
+                b"\r",
+            }:
+                index.write(b"\n")
+            index.write((json.dumps(entry, ensure_ascii=False) + "\n").encode("utf-8"))
+            index.flush()
+            os.fsync(index.fileno())
 
     def _resolve(self, ctx: BackupContext, ref: str) -> dict[str, Any] | None:
         entries = self.entries(ctx)
@@ -537,9 +565,14 @@ class SnapshotStore:
         changes = self._changes(current, self._manifest_of(previous_entry))
         log: list[str] = []
         if not changes:
+            if push:
+                if previous_entry is None:
+                    raise BackupSnapshotNotFound(params={"operation": "upload"})
+                self._push(ctx, previous_entry, authorization, snapshot_created=False)
+                log.append("Snapshot uploaded to the backup endpoint.")
             return {
                 "ok": True,
-                "log": ["Everything is already backed up."],
+                "log": log or ["Everything is already backed up."],
                 "status": self.status(ctx),
             }
 
@@ -570,32 +603,36 @@ class SnapshotStore:
         # identical content taken at different times stay distinct entries.
         entry["id"] = manifest_identifier(entry, FORMAT_VERSION)
         entry = validate_manifest(entry, expected_world=ctx.root.name).document
-        with self._index_path(ctx).open("a", encoding="utf-8") as index:
-            index.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        self._append_entry(ctx, entry)
         log.append("Snapshot created.")
 
         if push:
-            if not ctx.endpoint_url:
-                raise BackupEndpointNotConfigured(
-                    params={"operation": "upload", "snapshotCreated": True}
-                )
-            if self._remote_gateway is None or authorization is None:
-                raise BackupAuthorizationUnavailable(
-                    params={"operation": "upload", "snapshotCreated": True}
-                )
-            try:
-                self._remote_gateway.push(
-                    ctx,
-                    entry,
-                    lambda digest: self._read_blob(ctx, digest),
-                    authorization,
-                )
-            except Exception as exc:
-                raise BackupGatewayError(
-                    params={"operation": "upload", "snapshotCreated": True}
-                ) from exc
+            self._push(ctx, entry, authorization, snapshot_created=True)
             log.append("Snapshot uploaded to the backup endpoint.")
         return {"ok": True, "log": log, "status": self.status(ctx)}
+
+    def _push(
+        self,
+        ctx: BackupContext,
+        entry: dict[str, Any],
+        authorization: BackupAuthorization | None,
+        *,
+        snapshot_created: bool,
+    ) -> None:
+        params = {"operation": "upload", "snapshotCreated": snapshot_created}
+        if not ctx.endpoint_url:
+            raise BackupEndpointNotConfigured(params=params)
+        if self._remote_gateway is None or authorization is None:
+            raise BackupAuthorizationUnavailable(params=params)
+        try:
+            self._remote_gateway.push(
+                ctx,
+                entry,
+                lambda digest: self._read_blob(ctx, digest),
+                authorization,
+            )
+        except Exception as exc:
+            raise BackupGatewayError(params=params) from exc
 
     def history(self, ctx: BackupContext, limit: int = 40) -> list[dict[str, str]]:
         entries = self.entries(ctx)[-limit:]
@@ -713,8 +750,7 @@ class SnapshotStore:
 
         # Record it locally only after the world swap committed successfully.
         if not any(existing["id"] == validated.identifier for existing in self.entries(ctx)):
-            with self._index_path(ctx).open("a", encoding="utf-8") as index:
-                index.write(json.dumps(validated.document, ensure_ascii=False) + "\n")
+            self._append_entry(ctx, validated.document)
         return {
             "ok": True,
             "restored": validated.identifier,

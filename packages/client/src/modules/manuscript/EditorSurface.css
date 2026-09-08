@@ -1,4 +1,4 @@
-/* Das Blatt. The manuscript page is an object lying on the desk, not a flush-filled
+/* The manuscript page is an object lying on the desk, not a flush-filled
    region: the paper material, its edge and its shadow belong to the page, while the
    scrolling and the desk underneath stay with the ScrollArea. */
 .editor-page {

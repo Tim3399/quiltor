@@ -9,6 +9,7 @@ import { AssistantComposer } from "./AssistantComposer";
 import { AssistantConversation } from "./AssistantConversation";
 import { AssistantStatusPanel } from "./AssistantStatusPanel";
 import type { AssistantProposal } from "./model";
+import type { AssistantProposalApplyResult } from "./proposals";
 import { useAssistantAvailability } from "./useAssistantAvailability";
 import { useAssistantConversation } from "./useAssistantConversation";
 import "./AssistantDrawer.css";
@@ -29,7 +30,7 @@ export function AssistantDrawer({
   chapters: Chapter[];
   currentChapterId: string;
   open: boolean;
-  onApply: (proposals: AssistantProposal[]) => void;
+  onApply: (proposals: AssistantProposal[]) => AssistantProposalApplyResult;
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onBeforeSend: () => Promise<void>;
   onClose: () => void;

@@ -5,7 +5,7 @@
 > ## Du schreibst die Geschichte. Quiltor hält die Welt zusammen.
 >
 > **Eine local-first Autorenwerkstatt für Menschen, die selbst schreiben wollen.**  
-> Manuskript, Figuren, Beziehungen, Orte und Timeline an einem Ort – mit lokaler KI für die Arbeit **rund um** das Schreiben, niemals für das Schreiben selbst.
+> Manuskript, Figuren, Beziehungen, Orte, Timeline und Storyboard an einem Ort – mit lokaler KI für die Arbeit **rund um** das Schreiben, niemals für das Schreiben selbst.
 
 ![Quiltor Manuskriptansicht](docs/screenshots/manuscript.png)
 
@@ -32,6 +32,8 @@ Du schreibst jeden Satz. Quiltor hilft dabei, dass du dich weniger mit Verwaltun
 - Aufenthalte und Reisen von Figuren nachvollziehen
 - Orte auf einer eigenen Karte anordnen und Distanzen messen
 - Timeline und Lebensereignisse verwalten
+- Ideen auf mehreren Storyboards mit Notizen, Gruppen und Verweisen planen
+- Kapitel in verschachtelten Ordnern organisieren und unabhängig von ihrer Erzählreihenfolge zeitlich einordnen
 - Manuskript, Kapitelnotizen und Weltwissen gemeinsam durchsuchen
 - Rechtschreibung, Grammatik, Synonyme und Wortübersetzungen lokal nutzen
 - vom Assistenten strukturierte Änderungen vorbereiten lassen und **selbst bestätigen**
@@ -48,8 +50,11 @@ Quiltor behandelt Weltwissen nicht als lose Sammlung von Textfeldern. Figuren, O
 
 Der Kapitel-Editor hält sich zurück und gibt dem Text Platz. Fokusmodus, Undo/Redo, Kapitelnotizen, Versionsverlauf, diskrete Schreibhilfen und Ein-Wort-Autocomplete unterstützen den Schreibprozess, ohne ihn zu übernehmen.
 
+Kapitel und verschachtelte Ordner lassen sich per Drag-and-drop ordnen. Die daraus entstehende Lesereihenfolge gilt auch für Suche, Export und Assistentenanalysen. Am Kapitelanfang oder -ende führt bewusstes Weiterscrollen zum vorherigen oder nächsten Kapitel; die Übergänge sind auch anklickbar.
+
+Kapitel können einen Zeitpunkt oder Zeitraum der Geschichte referenzieren. Rückblenden verändern dadurch nicht die Reihenfolge der Welt-Timeline. Verknüpfte Erwähnungen führen zu den zugehörigen Weltelementen; nach einer Umbenennung kann der Autor ihre Aktualisierung im Manuskript ausdrücklich bestätigen.
+
 Das fertige Manuskript kann als lesbares Buch-PDF im 6 × 9-Zoll-Format ausgegeben werden.
-#ToDo Bild einfügen
 
 ### Figuren und Beziehungen: sehen, was zusammengehört
 
@@ -58,6 +63,8 @@ Figuren und andere Weltelemente leben in einem visuellen Graphen. Beziehungen k�
 ![Quiltor Weltgraph](docs/screenshots/world-graph.png)
 
 Der Graph ist keine separate Kopie deiner Daten: Timeline, Beziehungen und Elemente greifen auf denselben Zustand zu.
+
+Profile beginnen mit einer frei bearbeitbaren Notiz. Empfohlene und selbst benannte Felder sind optional; Aliasse helfen dabei, unterschiedliche Namen derselben Figur zuzuordnen.
 
 ### Orte: die Welt räumlich verstehen
 
@@ -83,7 +90,21 @@ Quiltor modelliert solche Änderungen entlang der Timeline, statt nur den letzte
 
 Die eigenständige Timeline-Seite ist für die Pflege optimiert: Zeitpunkte sortieren, Notizen hinterlegen, Beziehungszustände verändern und Lebensereignisse markieren.
 
+Zeitpunkte liegen auf einer gemeinsamen relativen Zeitachse, auch vor dem Ursprung und gleichzeitig mit anderen Ereignissen. Die Anzeige unterstützt relative Zeit, gregorianische Daten und eigene Kalender mit benannten Monaten und Wochentagen. Ein Kalenderwechsel verändert die zugrunde liegende Chronologie nicht. Der Weltzustand zu einem Zeitpunkt wird deterministisch aus den hinterlegten Fakten berechnet.
+
 ![Timeline-Verwaltung](docs/screenshots/timeline-manager.png)
+
+### Storyboard: Ideen planen und miteinander verbinden
+
+Das Storyboard ist der fünfte Arbeitsbereich. Mehrere Boards bieten Platz für frei verschiebbare und skalierbare Notizkarten, Referenzkarten, Verbindungen und Gruppenrahmen. Über die Ebenensteuerung lässt sich die Überlagerung der Karten ändern.
+
+Die integrierte Weltsuche findet Figuren, Orte, Zeitpunkte, Kapitel und andere Boards. Suchtreffer lassen sich auf die Fläche ziehen und von dort im ursprünglichen Arbeitsbereich öffnen. Boards können auf weitere Boards verweisen; eine Breadcrumb-Navigation zeigt den Weg. Storyboards besitzen eigenes Undo/Redo und Autosave.
+
+**Planung bleibt Planung:** Eine Verbindung auf dem Storyboard erzeugt keine Beziehung in der erzählten Welt. Ideen und Notizen werden nicht automatisch zu gesicherten Weltfakten.
+
+### Gemeinsame Notizen, Referenzen und Backlinks
+
+Kapitel, Weltelemente, Zeitpunkte und Storyboard-Karten verwenden denselben Notizeditor mit Formatierung und Fokusmodus. Mit `@` lassen sich bestehende Inhalte suchen und verlinken. Die Referenzen speichern stabile IDs und überstehen Umbenennungen; Backlinks zeigen, wo ein Inhalt bereits verwendet wird.
 
 ---
 
@@ -99,6 +120,8 @@ Er kann:
 - Figuren, Orte, Beziehungen und Timeline-Zustände analysieren
 - strukturierte Änderungen als Vorschläge vorbereiten
 - breite Aufgaben kapitelweise in Gruppen verarbeiten
+- die Welt aus einem Kapitel, einer Kapitelauswahl oder dem gesamten Manuskript aktualisieren helfen
+- Namen und Aliasse vor dem Anlegen neuer Elemente auflösen und mehrdeutige Treffer zur Entscheidung vorlegen
 
 Er kann **nicht**:
 
@@ -110,6 +133,8 @@ Er kann **nicht**:
 Änderungen an Weltwissen erscheinen als prüfbare Vorschläge. Erst eine ausdrückliche Bestätigung übernimmt sie in den Projektzustand und macht sie als einen Undo-Schritt rückgängig.
 
 Das Manuskript bleibt dabei lesbarer Kontext – nie Schreibfläche für den Assistenten.
+
+Bei der Weltanalyse werden Vorschläge nach Fachgebiet gruppiert und mit Projektquellen zur Prüfung vorgelegt. Unsichere Aussagen und Figurenbehauptungen sollen nicht ungeprüft als objektive Weltfakten übernommen werden. Storyboard-Inhalte können bereits als ausdrücklich gekennzeichneter Planungskontext gelesen werden. KI-Werkzeuge zum Bearbeiten der Planung und ein persistenter Arbeitsbereich für Kontinuitätsbefunde gehören weiterhin zur [Roadmap](docs/TODO.md).
 
 ---
 
@@ -132,14 +157,31 @@ Auch der lokale Assistent bleibt lokal:
 
 ## Was heute enthalten ist
 
-| Schreiben              | Weltwissen                     | Orte                 | Zeit                      | Assistenz                |
-| ---------------------- | ------------------------------ | -------------------- | ------------------------- | ------------------------ |
-| Kapitel-Editor         | Figuren & weitere Elementtypen | Eigene Kartenansicht | Eigene Timeline-Seite     | Lokales LLM              |
-| Fokusmodus             | Profile & eigene Felder        | Freie Positionierung | Zeitabhängige Beziehungen | Quellen im Projekt       |
-| Kapitelnotizen         | Visueller Beziehungsgraph      | Distanzmessung       | Presence / Aufenthalte    | Strukturierte Vorschläge |
-| Undo/Redo & Verlauf    | Gerichtete Beziehungen         | Reisechroniken       | Todeszeitpunkte           | Batch-Verarbeitung       |
-| Buch-PDF               | Minimap & semantischer Zoom    | Eigener Maßstab      | Playback im Graphen       | Proposal-only MCP        |
-| Deutsche Schreibhilfen | Wichtige / gepinnte Elemente   |                      |                           | Keine Prosa-Generation   |
+Stand dieser Übersicht: **3.16.3**; die Versionsquelle ist [`VERSION`](VERSION).
+
+| Bereich              | Enthalten                                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Manuskript           | Kapitelordner, Drag-and-drop, Fokusmodus, Kapitelwechsel durch Weiterscrollen, Zeitanker, Buch-PDF je nach Host |
+| Figuren und Welt     | Elementtypen, Aliasse, optionale Profilfelder, Beziehungsgraph, zeitabhängige Zustände                          |
+| Orte                 | Eigene Kartenansicht, Kartenbilder, Maßstab, Distanzmessung, Aufenthalts- und Reisechroniken                    |
+| Timeline             | Relative Zeit, gleichzeitige Ereignisse, Kalender, Anwesenheit, Lebensereignisse, Playback                      |
+| Storyboard           | Mehrere Boards, Notiz- und Referenzkarten, Gruppen, Verbindungen, Ebenenreihenfolge                             |
+| Gemeinsame Werkzeuge | Formatierte Notizen, `@`-Referenzen, Backlinks, Suche, Undo/Redo, Autosave und Verlauf                          |
+| Assistenz            | Lokale Weltanalyse, Quellen, Namensauflösung, prüfbare Vorschläge, Batch-Verarbeitung, MCP                      |
+
+Die Oberfläche enthält deutsche und englische Sprachpakete. Die installierbaren Wörterbuch-, Grammatik- und Übersetzungshilfen sind derzeit auf die Schreibsprache `de-DE` ausgerichtet.
+
+### Plattformstand
+
+| Ziel                                             | Stand im Repository                                                                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Browser / selbst gehostetes Web                  | Implementiert; direkter Python-Start und Docker/OCI                                                                               |
+| Python-Paket / CLI / MCP                         | Implementiert; Wheel und Source-Archiv über die Release-Pipeline                                                                  |
+| macOS und Windows direkt                         | Desktop-Host und lokale Builds implementiert; signierte Release-Jobs benötigen die jeweiligen Aktivierungsmarker und Zugangsdaten |
+| Linux AppImage, macOS App Store, Microsoft Store | Vorbereitete Distributionsprofile (`scaffold`)                                                                                    |
+| iOS und Android                                  | Host- und Bridge-Verträge vorbereitet; noch keine ausführbaren nativen Apps                                                       |
+
+Ein Distributionsprofil allein bedeutet keine veröffentlichte App. Maßgeblich sind die [Zielmatrix](distribution/README.md), die [Release-Aktivierung](distribution/release-targets/README.md) und die tatsächlich vorhandenen Release-Artefakte.
 
 ---
 
@@ -168,7 +210,7 @@ cd quiltor
 python3 apps/web/server.py
 ```
 
-Unter Windows heißt der Python-Befehl häufig `python` statt `python3`.
+Unter Windows mit installiertem Python-Launcher: `py -3.12 apps/web/server.py`.
 
 Quiltor öffnet standardmäßig `http://localhost:8000` und legt beim ersten Start eine leere Welt an. Wenn noch kein lokaler Assistent eingerichtet ist, fragt Quiltor vor einem Download nach; ohne Assistent funktioniert der Rest der Anwendung weiterhin.
 
@@ -221,14 +263,14 @@ python3 apps/web/server.py --print-token   # Zugriffstoken dieses Starts anzeige
 
 ### Python-Wheel / pip / pipx
 
-Jedes [GitHub Release](https://github.com/Tim3399/quiltor/releases) enthält ein Python-Wheel.
+Die Release-Pipeline baut ein Python-Wheel und ein Source-Archiv für [GitHub Releases](https://github.com/Tim3399/quiltor/releases). Das gewünschte Paket aus den tatsächlich vorhandenen Release-Artefakten installieren; eine Veröffentlichung auf PyPI ist derzeit nicht eingerichtet.
 
 ```bash
 pip install quiltor-<version>-py3-none-any.whl
 quiltor
 ```
 
-Das Paket benötigt Python 3.12 oder neuer. Der eigentliche Serverpfad bleibt bewusst leichtgewichtig; für das gepackte CLI wird `typer` verwendet.
+Das Paket benötigt Python 3.12 oder neuer. Die Kernabhängigkeiten enthalten `typer` für die CLI und `PyJWT[crypto]` für die OIDC-Prüfung.
 
 Der Basis-Wheel meldet PDF-Export bewusst als nicht verfügbar, statt heimlich
 eine Browser-Runtime nachzuladen. Für PDF-Export aus dem **installierten Wheel**
@@ -259,14 +301,19 @@ JavaScript-Render-Skript. Für Frontend-Entwicklung und diesen PDF-Pfad werden
 Node.js, die Projektabhängigkeiten und der geprüfte Chromium benötigt:
 
 ```bash
-npm install
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e . ruff==0.16.4
+npm ci
 npx playwright install chromium
 npm start
 ```
 
-`npm start` fährt beide Hälften hoch -- den API-Server auf 8000 und Vite auf 5173 --,
+Unter Windows die Umgebung mit `py -3.12 -m venv .venv` anlegen und mit `.\.venv\Scripts\Activate.ps1` aktivieren. Danach dieselben Installations- und npm-Befehle verwenden. Die editable Installation stellt auch die CLI-/MCP-Einstiegspunkte und die Abhängigkeiten der Backend-Tests bereit.
+
+`npm start` fährt beide Hälften hoch – den API-Server auf 8010 und Vite auf 5173 –,
 wartet, bis beide antworten, und beendet beide gemeinsam mit Strg+C. Vite leitet
-API-Anfragen an Port 8000 weiter; ohne den Server lädt die Seite und meldet nur, sie sei
+API-Anfragen an Port 8010 weiter; ohne den Server lädt die Seite und meldet nur, sie sei
 nicht erreichbar.
 
 Wer die Hälften einzeln braucht, startet sie weiterhin selbst:
@@ -276,18 +323,18 @@ npm run dev
 ```
 
 ```bash
-python3 apps/web/server.py --no-open
+python3 apps/web/server.py 8010 --no-open
 ```
 
 ### Werkzeuge für den Alltag
 
-| Befehl                                                   | Wofür                                                                                                                                                 |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm start`                                              | Beide Hälften hochfahren -- API auf 8000, Vite auf 5173 -- und gemeinsam beenden.                                                                     |
-| `npm run check`                                          | Alle Gates hintereinander, ohne zu bauen.                                                                                                             |
-| `npm run doctor`                                         | Zeigt, welche der vier gepinnten Laufzeiten von `distribution/toolchains.json` abweicht. Ohne sie lehnt `npm run set-version` den Versionswechsel ab. |
-| `npm run probe -- "<ausdruck>"`                          | Wertet einen Ausdruck in der laufenden Anwendung aus und gibt das Ergebnis als JSON zurück. Optional `--orte`, `--storyboard`, `--schmal` …           |
-| `npm run mutate -- <datei> --von X --nach Y -- <befehl>` | Dreht eine Korrektur zurück und prüft, ob der Test es merkt. Erfolg heißt: der Befehl schlägt fehl.                                                   |
+| Befehl                                                  | Wofür                                                                                                                                                 |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm start`                                             | Beide Hälften hochfahren – API auf 8010, Vite auf 5173 – und gemeinsam beenden.                                                                       |
+| `npm run check`                                         | Alle Gates hintereinander, ohne zu bauen.                                                                                                             |
+| `npm run doctor`                                        | Zeigt, welche der vier gepinnten Laufzeiten von `distribution/toolchains.json` abweicht. Ohne sie lehnt `npm run set-version` den Versionswechsel ab. |
+| `npm run probe -- "<expression>"`                       | Wertet einen Ausdruck in der laufenden Anwendung aus und gibt das Ergebnis als JSON zurück. Optional `--places`, `--storyboard`, `--compact` …        |
+| `npm run mutate -- <file> --from X --to Y -- <command>` | Dreht eine Korrektur zurück und prüft, ob der Test es merkt. Erfolg heißt: der Befehl schlägt fehl.                                                   |
 
 `probe` misst bewusst über Playwright und nicht im eingebetteten Browser-Fenster: ein
 ausgeblendetes Fenster zeichnet nicht, dort feuert kein `ResizeObserver`, und Messungen von
@@ -456,7 +503,7 @@ Eine Instanz auf `0.0.0.0` ohne OIDC kann sich nicht auf die lokale Loopback-Ide
 
 | Symptom                                           | Lösung                                                                                                   |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `python3: command not found`                      | Unter Windows meist `python` verwenden.                                                                  |
+| `python3: command not found`                      | Unter Windows den installierten Python-Launcher mit `py -3.12` verwenden.                                |
 | Assistent meldet „Lokales Modell nicht verfügbar“ | `PYTHONPATH=src python3 -m quiltor.infrastructure.inference.installer` ausführen und Server neu starten. |
 | Download bricht ab                                | Installer erneut starten; vorhandene vollständige Dateien werden wiederverwendet.                        |
 | Firewall/Virenscanner meldet `llama-server.exe`   | Die Binärdatei stammt aus dem offiziellen llama.cpp-Release und lauscht lokal.                           |
@@ -467,15 +514,38 @@ Eine Instanz auf `0.0.0.0` ohne OIDC kann sich nicht auf die lokale Loopback-Ide
 
 ## Desktop-App
 
-Quiltor kann unter macOS und Windows als eigenständige Fensteranwendung gebaut werden – ohne Browser-Tab und ohne separate Python-Installation auf dem Zielsystem.
+Quiltor kann unter macOS und Windows als eigenständige Fensteranwendung gebaut werden – ohne Browser-Tab und ohne separate Python-Installation auf dem Zielsystem. Die direkten Profile unterstützen derzeit macOS auf Apple Silicon und Windows x86_64.
+
+Den Desktop-Host für die Entwicklung direkt aus den Quellen starten:
 
 ```bash
-python -m venv .venv-desktop
-source .venv-desktop/bin/activate  # Windows: .venv-desktop\Scripts\activate
-pip install -e ".[desktop]" pyinstaller
+python3.12 -m venv .venv-desktop
+source .venv-desktop/bin/activate
+python -m pip install -e ".[desktop]"
+quiltor-desktop
 ```
 
-Builds:
+Unter Windows die Umgebung mit `py -3.12` erstellen und mit `.\.venv-desktop\Scripts\Activate.ps1` aktivieren. Für PDF-Export dort zusätzlich `python -m pip install -e ".[desktop,browser-pdf]"` ausführen.
+
+Installer-Builds benötigen eine separate saubere Umgebung mit der exakten CPython-Version und den Build-Werkzeugen aus [`distribution/toolchains.json`](distribution/toolchains.json). Den Bootstrap-Lock und anschließend genau den Lock für das jeweilige Ziel installieren; die Paketierung verarbeitet `src/` direkt und benötigt keine editable Installation:
+
+```bash
+python -m pip install --require-hashes -r distribution/python-build-bootstrap.lock
+```
+
+Für macOS arm64:
+
+```bash
+python -m pip install --require-hashes --no-build-isolation -r distribution/desktop/macos/direct/requirements.lock
+```
+
+Für Windows x86_64:
+
+```powershell
+python -m pip install --require-hashes --no-build-isolation -r distribution/desktop/windows/direct/requirements.lock
+```
+
+Nach `npm ci` den passenden Build ausführen:
 
 ```bash
 ./distribution/desktop/macos/direct/build.sh
@@ -489,7 +559,9 @@ macOS   distribution/artifacts/macos-direct/Quiltor-<version>.dmg
 Windows distribution/artifacts/windows-direct/Quiltor-Setup-<version>.exe
 ```
 
-Standardmäßig sind lokale Builds unsigniert.
+Standardmäßig sind lokale Builds unsigniert. Der Windows-Installer benötigt Inno Setup; ohne dieses Werkzeug erzeugt das Skript nur das unverpackte Anwendungsverzeichnis.
+
+Die direkten Desktop-Jobs sind in der gehosteten Release-Pipeline erst nach der jeweiligen [Aktivierung](distribution/release-targets/README.md) verfügbar. Die beiden Aktivierungsmarker fehlen derzeit.
 
 macOS signiert und notarisiert automatisch, wenn gesetzt:
 
@@ -763,22 +835,50 @@ Der Server besitzt keinen globalen Zustand „diese Welt ist gerade geöffnet“
 
 ## Entwicklung und Qualität
 
+Die exakten Release-Versionen für Node.js, npm, Python und Rust sowie die Build-Werkzeuge stehen in [`distribution/toolchains.json`](distribution/toolchains.json). `npm run doctor` zeigt Abweichungen. Für Python-Tests die deklarierten Abhängigkeiten in einer virtuellen Umgebung installieren: `python -m pip install -e .`. Der Python-Formatter wird separat in der dort gepinnten Ruff-Version benötigt.
+
 ```bash
+npm ci
+npm run check
 npm test
 npm run build
-python3 -m unittest discover -s tests/python -t . -v
-npm run test:e2e
+PYTHONPATH=src python -m unittest discover -s tests/python -t tests/python
+cargo test --locked --workspace --all-targets
+npm run check:distribution
 ```
 
-Der Build prüft unter anderem:
+Unter Windows den Python-Testbefehl in PowerShell innerhalb der aktivierten Umgebung ausführen:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m unittest discover -s tests/python -t tests/python
+```
+
+Innerhalb der aktivierten Umgebung deren `python` verwenden. Bei einer Installation über den Launcher außerhalb einer virtuellen Umgebung sowohl die Abhängigkeiten als auch die Tests mit `py -3.12` ausführen.
+
+Die Gates prüfen unter anderem:
 
 - TypeScript
 - Design-Token-Regeln
 - i18n-Schlüsselparität
 - hardcodierte sichtbare UI-Texte
 - gebauten Client
+- versionierte API-, Speicher- und Native-Bridge-Verträge
+- Architektur- und Plattformgrenzen sowie die öffentliche Design-System-API
+
+`npm run check` prüft zusätzlich die Formatierung und führt die eigenen Tests der Qualitätswerkzeuge aus. Die Client-Unit-, Python- und Browser-Suiten laufen separat. `dist/` ist versioniert und wird vom Python-Server ausgeliefert. Änderungen am Client benötigen deshalb einen neuen Build; CI prüft, dass Quellcode und `dist/` übereinstimmen.
+
+Für Produkttests nach `npm run build` einen frischen Server in einem zweiten Terminal starten:
+
+```bash
+python3 apps/web/server.py 8010 --no-open
+```
+
+Danach `npm run test:e2e` ausführen. Der Befehl startet die Produkt- und anschließend die Design-Suite. `npm run test:design` lässt die Design-Galerie eigenständig testen. `PLAYWRIGHT_BASE_URL` überschreibt das Produkt-Testziel. Ein bereits laufender Python-Server muss nach Backend-Änderungen neu gestartet werden. Der normale Start ohne Portargument verwendet weiterhin **8000**.
 
 Browser-/E2E-Tests decken Kernworkspaces, Desktop-/Compact-Layouts, Light/Dark Mode, Autosave, Konflikte und Accessibility ab.
+
+Die Sprachkonvention steht in [`CLAUDE.md`](CLAUDE.md): Entwicklertexte, Kommentare, Docstrings, Logs und Testtitel sind Englisch; deutsche UI-Texte und Manuskript-Fixtures bleiben Deutsch. Der i18n-Check prüft die UI-Kataloge und ersetzt keine Sprachprüfung der Entwicklertexte.
 
 Internationalisierungsprüfung:
 
@@ -810,7 +910,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readm
 ```text
 apps/                        sichtbare Shells und native Projektwurzeln
 ├── web/server.py            Source-Checkout-Bootstrap
-└── mobile/{ios,android}/     native Mobile-Hosts
+└── mobile/{ios,android}/     Verträge für künftige native Mobile-Hosts
 
 src/quiltor/
 ├── domain/story_world/      reine Weltlogik, Timeline und Validierung
@@ -836,6 +936,8 @@ packages/client/src/
 ├── modules/
 │   ├── manuscript/          Editor und Schreibhilfen
 │   ├── story-world/         Figuren, Orte, Timeline und Weltverwaltung
+│   ├── storyboard/          eigene Planungsdokumente und Canvas
+│   ├── graph/               gemeinsame Graph-Interaktionen und Ansichten
 │   ├── assistant/           lokaler Assistent
 │   ├── identity/            Anmeldung und Identität
 │   ├── backup/              Wiederherstellung lokaler Sicherungen
@@ -864,6 +966,8 @@ stehen im
 [`docs/architecture/implementation-plan.md`](docs/architecture/implementation-plan.md).
 
 Der normale Serverpfad bleibt möglichst klein und lokal; zusätzliche Fähigkeiten werden über klar getrennte Module und Distribution-Extras ergänzt.
+
+Aktuell bleibt Python/SQLite die maßgebliche Speicherimplementierung. Manuskript, Story World und Storyboard besitzen getrennte Dokumentrevisionen und Autosave-Abläufe. Der Rust-Core enthält bisher deterministische Timeline-Funktionen und eine FFI-Vertragsversion; er ist noch kein vollständiger mobiler Speicher- oder Anwendungs-Core. Die im Architekturplan beschriebenen Session-, Transaktions- und Inferenzumbauten sind Zielbilder und dürfen nicht als bereits implementiert gelesen werden.
 
 ---
 

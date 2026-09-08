@@ -222,7 +222,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
         const width = box(child).width;
         if (Math.abs(width - track) > tol) {
           found.push(
-            `${name(child)} ist ${width.toFixed(0)}px breit, seine Rasterspalte ${track.toFixed(0)}px`,
+            `${name(child)} is ${width.toFixed(0)}px wide; its grid column is ${track.toFixed(0)}px`,
           );
         }
       });
@@ -242,7 +242,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
           inner.right > outer.right + tol ||
           inner.top < outer.top - tol ||
           inner.bottom > outer.bottom + tol;
-        if (escapes) found.push(`${name(control)} liegt ausserhalb von ${name(card)}`);
+        if (escapes) found.push(`${name(control)} is outside ${name(card)}`);
       }
     }
 
@@ -262,7 +262,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
           a.top < b.bottom - tol &&
           a.bottom > b.top + tol;
         if (overlaps) {
-          found.push(`${name(floating[left])} liegt über ${name(floating[right])}`);
+          found.push(`${name(floating[left])} overlaps ${name(floating[right])}`);
         }
       }
     }
@@ -279,7 +279,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
       if (overflowX === "hidden" || overflowX === "clip") continue;
       if (region.scrollWidth > region.clientWidth + tol) {
         found.push(
-          `${name(region)} scrollt seitwärts: ${region.scrollWidth}px Inhalt in ${region.clientWidth}px`,
+          `${name(region)} scrolls horizontally: ${region.scrollWidth}px of content in ${region.clientWidth}px`,
         );
       }
     }
@@ -358,15 +358,13 @@ test("Menus lie above the opened drawer", async ({ page }) => {
 
   const obscured = await page.evaluate(() => {
     const popover = document.querySelector(".ui-popover");
-    if (!popover) return "kein Menue im Baum";
+    if (!popover) return "no menu in the tree";
     const box = popover.getBoundingClientRect();
     // Not the middle: a gap between two entries can sit there. A point just below the top
     // edge always lands on the first entry.
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 12);
-    if (!hit) return "an dieser Stelle liegt nichts";
-    return popover.contains(hit)
-      ? ""
-      : `obscured von ${hit.tagName.toLowerCase()}.${hit.className}`;
+    if (!hit) return "nothing occupies this position";
+    return popover.contains(hit) ? "" : `obscured by ${hit.tagName.toLowerCase()}.${hit.className}`;
   });
 
   expect(obscured).toBe("");
@@ -444,7 +442,7 @@ test("Places: the minimap also shows what stands on a map", async ({ page }) => 
 
   // Below the column width the canvas hides its minimap; there is then
   // nichts zu vergleichen.
-  test.skip((page.viewportSize()?.width ?? 0) <= 719, "Schmal gibt es keine Uebersichtskarte.");
+  test.skip((page.viewportSize()?.width ?? 0) <= 719, "The compact layout has no minimap.");
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
 
   // Only once it is opened out are there any places standing on a map.
@@ -507,7 +505,7 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
   expect(spot).not.toBeNull();
   test.skip(
     !spot?.overTheCanvas,
-    "Schmal deckt die Bibliothek die Leinwand ab; dort liegt an dieser Stelle keine.",
+    "The compact library covers the canvas, leaving no canvas at this position.",
   );
 
   expect(spot?.obscuredBy).toBeNull();
@@ -520,10 +518,10 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
   // The edge still lies behind the cards -- it should run underneath them, not across.
   const overTheCard = await page.evaluate(() => {
     const card = document.querySelector<HTMLElement>('.react-flow__node[data-id="karte-a"]');
-    if (!card) return "keine Karte";
+    if (!card) return "no card";
     const box = card.getBoundingClientRect();
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-    return hit?.closest(".react-flow__edge") ? "Kante liegt ueber der Karte" : "";
+    return hit?.closest(".react-flow__edge") ? "edge overlaps the card" : "";
   });
   expect(overTheCard).toBe("");
 });
@@ -621,7 +619,7 @@ test("Text: the writing aid's search button sits on the line of its field", asyn
   const schreibhilfe = page.getByRole("radio", { name: "Schreibhilfe" });
   test.skip(
     !(await schreibhilfe.isVisible()),
-    "Ohne Steuerspalte gibt es hier keine Schreibhilfe.",
+    "No writing aid is present without the controls column.",
   );
   await schreibhilfe.click();
   await expect(page.locator(".writing-search")).toBeVisible();

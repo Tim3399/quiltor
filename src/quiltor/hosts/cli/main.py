@@ -228,36 +228,36 @@ def install() -> None:
 
 def _install_keycloak_step() -> None:
     current = _read_config()
-    if not typer.confirm("Mehrbenutzer-Modus mit Keycloak-Login einrichten?", default=False):
+    if not typer.confirm("Set up multi-user mode with Keycloak sign-in?", default=False):
         typer.echo(
-            "Übersprungen — Quiltor läuft mit der lokalen Identität: ein Nutzer, kein Login, "
-            "aber sehr wohl authentifiziert. Erkannt wirst du über die Loopback-Verbindung; "
-            "von außerhalb braucht es den Token aus `quiltor run --print-token`."
+            "Skipped — Quiltor uses the local identity: one user, no sign-in, "
+            "with authentication through the loopback connection. "
+            "Remote access requires the token from `quiltor run --print-token`."
         )
         return
     issuer = typer.prompt(
-        "Realm-Issuer-URL (QUILTOR_OIDC_ISSUER)",
+        "Realm issuer URL (QUILTOR_OIDC_ISSUER)",
         default=current.get("QUILTOR_OIDC_ISSUER", ""),
         show_default=False,
     )
     client_id = typer.prompt(
-        "Client-ID (QUILTOR_OIDC_CLIENT_ID)",
+        "Client ID (QUILTOR_OIDC_CLIENT_ID)",
         default=current.get("QUILTOR_OIDC_CLIENT_ID", ""),
         show_default=False,
     )
     client_secret = typer.prompt(
-        "Client-Secret (QUILTOR_OIDC_CLIENT_SECRET)",
+        "Client secret (QUILTOR_OIDC_CLIENT_SECRET)",
         default=current.get("QUILTOR_OIDC_CLIENT_SECRET", ""),
         show_default=False,
         hide_input=True,
     )
     public_url = typer.prompt(
-        "Öffentliche Basis-URL, z. B. https://quiltor.example.com (QUILTOR_PUBLIC_URL)",
+        "Public base URL, e.g. https://quiltor.example.com (QUILTOR_PUBLIC_URL)",
         default=current.get("QUILTOR_PUBLIC_URL", ""),
         show_default=False,
     )
     cookie_secure = typer.prompt(
-        "Cookie-Secure-Flag: auto/0/1 (QUILTOR_COOKIE_SECURE)",
+        "Cookie secure flag: auto/0/1 (QUILTOR_COOKIE_SECURE)",
         default=current.get("QUILTOR_COOKIE_SECURE", "auto"),
     )
     values = dict(current)
@@ -271,16 +271,16 @@ def _install_keycloak_step() -> None:
         }
     )
     _write_config(values)
-    typer.echo("Gespeichert — Keycloak-Login ist ab dem nächsten `quiltor run` aktiv.")
+    typer.echo("Saved — Keycloak sign-in is enabled on the next `quiltor run`.")
 
 
 def _install_llm_step() -> None:
     if not typer.confirm(
-        "Lokalen KI-Assistenten einrichten (lädt Runtime + Modell herunter, ~2,5 GB)?", default=True
+        "Set up the local AI assistant (downloads runtime and model, ~2.5 GB)?", default=True
     ):
         typer.echo(
-            "Übersprungen. Extern anbindbar per `quiltor config set QUILTOR_AI_URL <url>`, "
-            "oder später erneut mit `quiltor install`."
+            "Skipped. Connect an existing runtime with `quiltor config set QUILTOR_AI_URL <url>`, "
+            "or run `quiltor install` again later."
         )
         return
     from quiltor.bootstrap import (
@@ -297,19 +297,17 @@ def _install_llm_step() -> None:
     except (SystemExit, Exception) as exc:
         # Also catches network/subprocess failures the installer surfaces as
         # SystemExit (e.g. an unsupported platform) -- see ensure_installed().
-        typer.echo(f"! Einrichtung fehlgeschlagen: {exc}", err=True)
-        typer.echo(
-            "Quiltor läuft trotzdem, nur ohne Assistenten. Erneut versuchen mit: quiltor install"
-        )
+        typer.echo(f"! Setup failed: {exc}", err=True)
+        typer.echo("Quiltor will run without the assistant. Retry with: quiltor install")
 
 
 def _install_writing_assistance_step() -> None:
     if not typer.confirm(
-        "Deutsche Schreibwerkzeuge einrichten (Wörterbuch, Synonyme, Übersetzung und LanguageTool)?",
+        "Set up German writing tools (dictionary, synonyms, translation, and LanguageTool)?",
         default=True,
     ):
         typer.echo(
-            "Übersprungen. Die Browser-Rechtschreibprüfung bleibt verfügbar. Später erneut mit: quiltor install"
+            "Skipped. Browser spellchecking remains available. Retry later with: quiltor install"
         )
         return
     from quiltor.bootstrap import (
@@ -327,24 +325,20 @@ def _install_writing_assistance_step() -> None:
     try:
         status = service.status()
         if status["installed"]:
-            typer.echo("✓ Wörterbuch, Synonyme und Übersetzungen sind bereits installiert.")
+            typer.echo("✓ Dictionary, synonyms, and translations are already installed.")
         else:
             result = service.install()
-            typer.echo(f"✓ Deutsche Referenzdaten installiert ({result['entries']} Basiseinträge).")
+            typer.echo(f"✓ German reference data installed ({result['entries']} starter entries).")
         grammar = service.status()["grammar"]
         if grammar["available"]:
-            typer.echo(f"✓ LanguageTool {grammar['version']} ist bereits einsatzbereit.")
+            typer.echo(f"✓ LanguageTool {grammar['version']} is already ready.")
         else:
-            typer.echo(
-                f"LanguageTool {grammar['version']} wird heruntergeladen und lokal eingerichtet …"
-            )
+            typer.echo(f"Downloading and setting up LanguageTool {grammar['version']} locally …")
             installed = service.install_grammar()
-            typer.echo(f"✓ LanguageTool {installed['version']} installiert.")
+            typer.echo(f"✓ LanguageTool {installed['version']} installed.")
     except (SystemExit, Exception) as exc:
-        typer.echo(f"! Einrichtung der Schreibwerkzeuge fehlgeschlagen: {exc}", err=True)
-        typer.echo(
-            "Quiltor läuft mit der Browser-Rechtschreibprüfung weiter. Erneut versuchen mit: quiltor install"
-        )
+        typer.echo(f"! Writing tools setup failed: {exc}", err=True)
+        typer.echo("Quiltor will continue with browser spellchecking. Retry with: quiltor install")
     finally:
         service.close()
 

@@ -78,8 +78,8 @@ READY_JS = """
 """
 
 UNAVAILABLE = (
-    "Der PDF-Export benötigt die macOS-Systemkomponenten dieser Ausgabe "
-    "(pyobjc). Bitte exportiere das Manuskript vorerst als Markdown."
+    "PDF export requires this build's macOS system components "
+    "(pyobjc). Export the manuscript as Markdown until they are available."
 )
 
 #: Objects AppKit will call back into but does not retain. Cleared per render.
@@ -100,7 +100,7 @@ def render(url: str, timeout: int = 90) -> bytes:
     try:
         kind, payload = results.get(timeout=timeout)
     except queue.Empty:
-        raise RuntimeError(f"PDF-Export hat nach {timeout}s nicht geantwortet.") from None
+        raise RuntimeError(f"PDF export did not respond within {timeout}s.") from None
     finally:
         _alive.clear()
 
@@ -109,7 +109,7 @@ def render(url: str, timeout: int = 90) -> bytes:
     data = Path(payload).read_bytes()
     Path(payload).unlink(missing_ok=True)
     if not data:
-        raise RuntimeError("Der PDF-Export hat eine leere Datei erzeugt.")
+        raise RuntimeError("PDF export produced an empty file.")
     return page_numbers.stamp(data)
 
 
@@ -163,22 +163,22 @@ def _navigation_delegate():
             self.check(view)
 
         def webView_didFailNavigation_withError_(self, view, navigation, error):
-            self.results.put(("error", f"Seite konnte nicht geladen werden: {error}"))
+            self.results.put(("error", f"Could not load the page: {error}"))
 
         def webView_didFailProvisionalNavigation_withError_(self, view, navigation, error):
-            self.results.put(("error", f"Seite konnte nicht geladen werden: {error}"))
+            self.results.put(("error", f"Could not load the page: {error}"))
 
         @objc.python_method
         def check(self, view):
             def handler(ready, error):
                 if error is not None:
-                    self.results.put(("error", f"Leseprüfung fehlgeschlagen: {error}"))
+                    self.results.put(("error", f"Readiness check failed: {error}"))
                 elif ready:
                     self.print_(view)
                 else:
                     self.waited += POLL_INTERVAL_SECONDS
                     if self.waited > 60:
-                        self.results.put(("error", "Die Buchansicht wurde nicht fertig aufgebaut."))
+                        self.results.put(("error", "The book view did not finish rendering."))
                         return
                     Foundation.NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
                         POLL_INTERVAL_SECONDS, False, lambda timer: self.check(view)
@@ -240,7 +240,7 @@ def _print_sink():
             if success and self.target.exists() and self.target.stat().st_size:
                 self.results.put(("ok", str(self.target)))
             else:
-                self.results.put(("error", "Der Druckvorgang hat kein PDF erzeugt."))
+                self.results.put(("error", "The print operation did not produce a PDF."))
 
         printOperationDidRun_success_contextInfo_ = objc.selector(
             printOperationDidRun_success_contextInfo_, signature=b"v@:@Z^v"

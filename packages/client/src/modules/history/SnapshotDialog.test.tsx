@@ -59,6 +59,28 @@ afterEach(() => {
 });
 
 describe("SnapshotDialog", () => {
+  it("shows a flush failure and does not load stale status or create a snapshot", async () => {
+    show(vi.fn().mockRejectedValue(new Error("Draft could not be saved")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Draft could not be saved");
+    expect(backupStatus).not.toHaveBeenCalled();
+    expect(saveSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("stops snapshot creation if a later flush fails and permits retry", async () => {
+    backupLoginStatus.mockResolvedValue(loginStatus({ signedIn: true }));
+    const flush = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Draft could not be saved"))
+      .mockResolvedValue(undefined);
+    show(flush);
+    const save = await screen.findByRole("button", { name: "Nur lokal sichern" });
+    fireEvent.click(save);
+    expect(await screen.findByText("Draft could not be saved")).toBeInTheDocument();
+    expect(saveSnapshot).not.toHaveBeenCalled();
+    fireEvent.click(save);
+    await waitFor(() => expect(saveSnapshot).toHaveBeenCalledOnce());
+  });
   it("uses labelled design controls with unchanged saving semantics", async () => {
     backupLoginStatus.mockResolvedValue(
       loginStatus({ signedIn: true, email: "autorin@example.org" }),
@@ -146,7 +168,7 @@ describe("SnapshotDialog", () => {
     expect(screen.getByRole("button", { name: /Sichern & hochladen/ })).toBeDisabled();
   });
 
-  it('sagt "wird geprüft", solange der Anmeldedienst noch keine Antwort gegeben hat', async () => {
+  it("reports checking while the sign-in service has not answered yet", async () => {
     // null does not mean "unreachable" but "not answered yet". The difference counts: a
     // slow but living sign-in service must not make the button disappear and stand there
     // as a failure.

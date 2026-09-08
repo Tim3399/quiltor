@@ -33,7 +33,7 @@ function renderSheet(manuscript: Manuscript, onChange = vi.fn()) {
 const leer: Manuscript = { chapters: [] };
 
 describe("ElementsSheet", () => {
-  it("bietet zunaechst jedes Element an", () => {
+  it("initially offers every element", () => {
     renderSheet(leer);
 
     expect(screen.getByRole("button", { name: /Mara Venn wird angeboten/ })).toHaveAttribute(

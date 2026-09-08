@@ -41,7 +41,7 @@ def render(url: str, timeout: int = 90) -> bytes:
         finally:
             target.unlink(missing_ok=True)
     if not data:
-        raise RuntimeError("Der PDF-Export hat eine leere Datei erzeugt.")
+        raise RuntimeError("PDF export produced an empty file.")
     return page_numbers.stamp(data)
 
 
@@ -75,7 +75,7 @@ def _print(window, target: Path, timeout: int) -> None:
 
     view = _find_webview(window.native)
     if view is None:
-        raise RuntimeError("Die WebKitGTK-Komponente wurde nicht gefunden.")
+        raise RuntimeError("The WebKitGTK component was not found.")
 
     settings = Gtk.PrintSettings()
     settings.set(Gtk.PRINT_SETTINGS_OUTPUT_URI, target.resolve().as_uri())
@@ -110,6 +110,6 @@ def _print(window, target: Path, timeout: int) -> None:
     try:
         kind, payload = outcome.get(timeout=timeout)
     except queue.Empty:
-        raise RuntimeError(f"Der Druckvorgang hat nach {timeout}s nicht geantwortet.") from None
+        raise RuntimeError(f"The print operation did not respond within {timeout}s.") from None
     if kind == "error":
-        raise RuntimeError(f"Der Druckvorgang ist fehlgeschlagen: {payload}")
+        raise RuntimeError(f"The print operation failed: {payload}")

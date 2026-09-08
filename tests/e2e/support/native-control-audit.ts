@@ -94,11 +94,8 @@ export async function expectVisibleScrollbarsToUseQuiltorTheme(root: Locator) {
     return { audited, unstyled };
   });
 
-  expect(
-    result.audited,
-    "keine tatsächlich scrollbare Fläche im Testzustand gefunden",
-  ).toBeGreaterThan(0);
-  expect(result.unstyled, "sichtbare native Scrollbars ohne Quiltor-Theming").toEqual([]);
+  expect(result.audited, "no scrollable surface found in the test state").toBeGreaterThan(0);
+  expect(result.unstyled, "visible native scrollbars without Quiltor theming").toEqual([]);
 }
 
 /**
@@ -201,6 +198,6 @@ export async function expectVisibleNativeControlsToUseQuiltorTheme(root: Locator
     return { audited: controls.length, unstyled };
   });
 
-  expect(result.audited, "keine sichtbaren nativen Formularelemente gefunden").toBeGreaterThan(0);
+  expect(result.audited, "no visible native form controls found").toBeGreaterThan(0);
   expect(result.unstyled, "sichtbare native Formularelemente ohne Quiltor-Theming").toEqual([]);
 }

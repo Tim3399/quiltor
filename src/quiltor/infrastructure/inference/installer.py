@@ -136,12 +136,12 @@ def ensure_installed(home: Path | None = None) -> None:
     if sys.stdin is None or not sys.stdin.isatty():
         return  # non-interactive context (piped, a service, CI, a windowed desktop build) -- stay silent
     runtime = resolve_runtime("auto")
-    size = "~2,4 GB" if runtime == "mlx" else "~2,5 GB"
+    size = "~2.4 GB" if runtime == "mlx" else "~2.5 GB"
     print()
-    print("  Kein lokaler KI-Assistent gefunden.")
+    print("  No local AI assistant found.")
     try:
         answer = (
-            input(f"  Jetzt einrichten ({runtime}-Runtime, {size} Download)? [j/N] ")
+            input(f"  Set it up now ({runtime} runtime, {size} download)? [y/N] ")
             .strip()
             .casefold()
         )
@@ -150,7 +150,7 @@ def ensure_installed(home: Path | None = None) -> None:
         answer = ""
     if answer not in ("j", "ja", "y", "yes"):
         print(
-            "  Übersprungen. Quiltor läuft ohne Assistenten. Später jederzeit mit: python3 -m quiltor.infrastructure.inference.installer"
+            "  Skipped. Quiltor will run without the assistant. Set it up later with: python3 -m quiltor.infrastructure.inference.installer"
         )
         print()
         return
@@ -160,10 +160,8 @@ def ensure_installed(home: Path | None = None) -> None:
         # Also catches network/subprocess failures (URLError, OSError,
         # CalledProcessError, ...) from download()/install_mlx_runtime() -- a
         # flaky connection during setup must not take the whole server down.
-        print(f"  ! Einrichtung fehlgeschlagen: {exc}")
-        print(
-            "  Quiltor startet trotzdem; der Assistent bleibt bis zur nächsten Einrichtung inaktiv."
-        )
+        print(f"  ! Setup failed: {exc}")
+        print("  Quiltor will start; the assistant remains inactive until setup succeeds.")
     print()
 
 

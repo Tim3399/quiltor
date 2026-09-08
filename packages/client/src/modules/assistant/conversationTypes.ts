@@ -1,4 +1,5 @@
 import type { MessageKey } from "../../i18n";
+import type { AssistantProposalSkipReason } from "./proposals";
 import type {
   AssistantClaimStatus,
   AssistantHistoryMessage,
@@ -24,6 +25,7 @@ export type AssistantEntry = {
   dismissed?: number[];
   proposalEdits?: Record<number, AssistantProposal>;
   claimStatuses?: Record<number, AssistantClaimStatus>;
+  proposalErrors?: Record<number, AssistantProposalSkipReason>;
 };
 
 export type AssistantBatchProgress = {

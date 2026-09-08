@@ -1,5 +1,5 @@
-// Generische Aktionsverben. Was hier steht, wird auch benutzt -- ungenutzte Vorratsvokabeln
-// gehören nicht in den Katalog.
+// Generic action verbs. Every entry must be used; unused stock vocabulary does not
+// belong in the catalog.
 export const menus = {
   menuMore: "Mehr",
   menuActions: "Aktionen",

@@ -28,6 +28,13 @@ function renderDialog({
 }
 
 describe("BackupDialog", () => {
+  it("shows a failed flush without offering backups based on unsaved state", async () => {
+    const list = vi.spyOn(quiltorClient.application.backup, "list");
+    renderDialog({ flush: vi.fn().mockRejectedValue(new Error("Draft could not be saved")) });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Draft could not be saved");
+    expect(list).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Wiederherstellen" })).not.toBeInTheDocument();
+  });
   it("flushes before loading, selects a backup and opens the restore confirmation", async () => {
     const order: string[] = [];
     const flush = vi.fn(async () => {

@@ -95,7 +95,7 @@ class LanguageToolManager:
     def install(self) -> dict:
         java_version = _java_version(self.java)
         if java_version is None or java_version < JAVA_MINIMUM:
-            raise RuntimeError(f"Java {JAVA_MINIMUM} oder neuer ist erforderlich")
+            raise RuntimeError(f"Java {JAVA_MINIMUM} or newer is required")
         request = urllib.request.Request(
             LANGUAGETOOL_URL, headers={"User-Agent": "Quiltor local installer"}
         )
@@ -129,7 +129,7 @@ class LanguageToolManager:
                 return f"http://127.0.0.1:{self.port}/v2/check"
             status = self.status()
             if not status["available"]:
-                raise FileNotFoundError("LanguageTool ist nicht installiert oder Java fehlt")
+                raise FileNotFoundError("LanguageTool is not installed or Java is missing")
             with socket.socket() as candidate:
                 candidate.bind(("127.0.0.1", 0))
                 self.port = candidate.getsockname()[1]
@@ -158,7 +158,7 @@ class LanguageToolManager:
                 except OSError:
                     time.sleep(0.1)
             self.close()
-            raise RuntimeError("LanguageTool konnte nicht gestartet werden")
+            raise RuntimeError("LanguageTool could not be started")
 
     def check(self, language: str, text: str, custom_words: list[str]) -> dict:
         if language != "de-DE" or not text or len(text) > 200_000:
@@ -166,7 +166,7 @@ class LanguageToolManager:
         external_url = os.environ.get("QUILTOR_LANGUAGETOOL_URL", "").strip()
         if external_url:
             if os.environ.get("QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN") != "1":
-                raise PermissionError("Externe Grammatikprüfung ist nicht freigegeben")
+                raise PermissionError("External grammar checking is not enabled")
             url = external_url.rstrip("/") + "/v2/check"
         else:
             url = self._local_url()

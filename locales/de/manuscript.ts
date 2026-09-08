@@ -1,5 +1,5 @@
-// Ein gespeicherter Textstand heißt durchgehend „Fassung“ -- nicht Version, nicht Stand.
-// Das Hilfspanel heißt überall „Schreibhilfe“, egal ob im Inspector oder im Fokusmodus.
+// A stored text state is always called "Fassung", never "Version" or "Stand".
+// The helper panel is always "Schreibhilfe", both in the inspector and in focus mode.
 export const manuscript = {
   manuscript: "Manuskript",
   chapter: "Kapitel",

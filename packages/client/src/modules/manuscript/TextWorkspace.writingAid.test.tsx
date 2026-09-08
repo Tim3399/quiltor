@@ -188,7 +188,7 @@ describe("TextWorkspace writing aid", () => {
     expect(rendered.queryByRole("button", { name: "Text prüfen" })).toBeNull();
   });
 
-  it("nennt jede benutzte Quelle genau einmal", async () => {
+  it("lists every used source exactly once", async () => {
     vi.spyOn(writingAssistanceApi, "status").mockResolvedValue({
       ok: true,
       installed: true,

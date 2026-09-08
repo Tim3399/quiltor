@@ -1,15 +1,15 @@
-// Formulierungen, die mehrere Bereiche teilen. Generische Substantive und Zustände stehen in
-// common.ts, generische Aktionsverben in menus.ts. Alles, was nur ein Bereich braucht, bleibt
-// in dessen eigener Datei -- hier landet nur, was sonst doppelt gepflegt werden müsste.
+// Wording shared by several areas. Generic nouns and states live in common.ts; generic
+// action verbs live in menus.ts. Wording needed by only one area stays in that area's file.
+// Only text that would otherwise need duplicate maintenance belongs here.
 export const shared = {
   closeDialog: "Dialog schließen",
   themeChoice: "Darstellung",
   themeSystem: "System",
   themeLight: "Hell",
   themeDark: "Dunkel",
-  // Das Halten schützt nur noch die zwei Aktionen, die keine Rückholmöglichkeit haben. Es steht
-  // deshalb keine Sekundenzahl mehr im Text: der Fortschrittsbalken zeigt die kurze Dauer, und eine
-  // genannte Zahl war bei anderthalb Sekunden ohnehin nur auf- oder abgerundet.
+  // Holding guards only the two actions that cannot be undone. The copy omits a duration:
+  // the progress bar shows it, and a number of seconds would have rounded the actual
+  // one-and-a-half-second duration up or down.
   holdAriaLabel: "{label} – gedrückt halten zum Bestätigen",
   holdToConfirm: "{label} · gedrückt halten",
   keepHolding: "Weiter halten …",
@@ -20,8 +20,8 @@ export const shared = {
   savedAgo: "Gespeichert · {ago}",
   notSaved: "Nicht gespeichert",
   saveFailed: "Speichern fehlgeschlagen",
-  // Fällt an, wenn ein Export den Speicherort nicht erreicht -- im Browser praktisch nie, in der
-  // Desktop-App immer dann, wenn die native Speichern-Brücke die Datei nicht schreiben konnte.
+  // Shown when an export does not reach its destination: rarely in the browser, but in
+  // the desktop app whenever the native save bridge cannot write the file.
   exportFailed: "Der Export konnte nicht gespeichert werden.",
   saveConflict:
     "Die Seite wurde in einem anderen Tab geändert. Lade sie neu, bevor du weiterschreibst.",
@@ -67,8 +67,8 @@ export const shared = {
   noteHeading2: "Überschrift 2",
   noteHeading3: "Überschrift 3",
   searchTerm: "Suchbegriff",
-  // Zähler stehen als ganze Formulierung im Katalog, damit die Komponente Zahl und Wort nicht
-  // selbst zusammensetzen muss -- im Englischen ist die Kleinschreibung sonst nicht steuerbar.
+  // Count phrases stay together in the catalog rather than being assembled by components,
+  // so each language controls the wording and capitalization.
   nWordsTotal: "{n} Wörter gesamt",
   nChapters: "{n} Kapitel",
   nStandardPages: "{n} Normseiten",

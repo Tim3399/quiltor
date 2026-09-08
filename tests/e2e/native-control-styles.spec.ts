@@ -147,7 +147,7 @@ async function expectCalendarEditorActionsAligned(settings: Locator, minimumSize
       (row) => {
         const count = row.querySelector("input");
         const action = row.querySelector(".calendar-definition-add");
-        if (!count || !action) throw new Error("Kalender-Add-Zeile ist unvollständig");
+        if (!count || !action) throw new Error("Calendar add row is incomplete");
         return { count: box(count), action: box(action) };
       },
     );
@@ -155,8 +155,7 @@ async function expectCalendarEditorActionsAligned(settings: Locator, minimumSize
       (row) => {
         const fields = [...row.querySelectorAll("input")].map(box);
         const action = row.querySelector(".calendar-definition-remove");
-        if (!fields.length || !action)
-          throw new Error("Kalender-Definitionszeile ist unvollständig");
+        if (!fields.length || !action) throw new Error("Calendar definition row is incomplete");
         return { fields, action: box(action) };
       },
     );
@@ -272,7 +271,7 @@ test("a long calendar configuration stays responsive and scrolls vertically only
   ).toBeLessThanOrEqual(verticalScrollOwners[0].client + 1);
   expect(
     verticalScrollOwners[1].scroll,
-    "Inhalt ist nicht der alleinige vertikale Scroll-Owner",
+    "Content is not the sole vertical scroll owner",
   ).toBeGreaterThan(verticalScrollOwners[1].client + 1);
 
   for (const [label, surface] of [
@@ -305,7 +304,7 @@ test("a long calendar configuration stays responsive and scrolls vertically only
     await expect(settings).toBeVisible();
     const smallestViewportGeometry = await settings.evaluate((dialog) => {
       const content = dialog.querySelector<HTMLElement>(".timeline-time-settings-panel");
-      if (!content) throw new Error("Kalenderinhalt fehlt");
+      if (!content) throw new Error("Calendar content is missing");
       const dialogBox = dialog.getBoundingClientRect();
       return {
         dialogClientHeight: dialog.clientHeight,
@@ -346,7 +345,7 @@ test("a long calendar configuration stays responsive and scrolls vertically only
 test("the time-system select has a Quiltor popup when open too", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Popup-Stile und Tastatursteuerung müssen nur einmal in Chromium geprüft werden.",
+    "Popup styles and keyboard interaction only need one Chromium run.",
   );
   await mockWorldWithLongCustomCalendar(page);
   await page.goto("/?world=native-control-audit");
@@ -393,7 +392,7 @@ test("the time-system select has a Quiltor popup when open too", async ({ page }
 test("figures use Quiltor controls for every visible dropdown", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Computed Styles und Popup-Struktur müssen nur in Chromium geprüft werden.",
+    "Computed styles and popup structure only need a Chromium run.",
   );
   await mockWorldWithStoryWorldUiAudit(page);
   await page.goto("/?world=story-world-ui-audit");
@@ -434,7 +433,7 @@ test("figures use Quiltor controls for every visible dropdown", async ({ page },
       const copy = heading.firstElementChild;
       const trigger = heading.querySelector(".figure-profile-field-add");
       if (!(copy instanceof HTMLElement) || !(trigger instanceof HTMLElement)) {
-        throw new Error("Steckbrief-Überschrift oder Feldaktion fehlt");
+        throw new Error("Profile heading or field action is missing");
       }
       const box = heading.getBoundingClientRect();
       const copyBox = copy.getBoundingClientRect();
@@ -461,7 +460,7 @@ test("figures use Quiltor controls for every visible dropdown", async ({ page },
   const recommendedFieldsGeometry = await recommendedFieldsHeader.evaluate((header) => {
     const surface = header.closest(".ui-dropdown-menu__surface");
     if (!(surface instanceof HTMLElement)) {
-      throw new Error("Empfohlene Felder liegen nicht in der Dropdown-Oberfläche");
+      throw new Error("Suggested fields are outside the dropdown surface");
     }
     const style = getComputedStyle(header);
     const box = header.getBoundingClientRect();
@@ -506,7 +505,7 @@ test("the timeline styles the horizontal scroller that is actually visible", asy
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Computed Scrollbar-Styles müssen nur in Chromium geprüft werden.",
+    "Computed scrollbar styles only need a Chromium run.",
   );
   await mockWorldWithStoryWorldUiAudit(page);
   await page.goto("/?world=story-world-ui-audit");
@@ -525,7 +524,7 @@ test("the places history keeps headings and long content inside its cards", asyn
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Layout-Geometrie muss nur einmal im breiten Chromium-Projekt geprüft werden.",
+    "Layout geometry only needs one run in the wide Chromium project.",
   );
   await mockWorldWithStoryWorldUiAudit(page);
   await page.goto("/?world=story-world-ui-audit");

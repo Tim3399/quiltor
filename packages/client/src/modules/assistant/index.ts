@@ -11,7 +11,7 @@ export type {
   AssistantReply,
   AssistantSource,
 } from "./model";
-export { applyAssistantProposals } from "./proposals";
+export { applyAssistantProposals, applyAssistantProposalsWithResult } from "./proposals";
 
 export const loadAssistantDrawer = () =>
   import("./AssistantDrawer").then(({ AssistantDrawer }) => ({ default: AssistantDrawer }));

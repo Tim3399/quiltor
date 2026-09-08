@@ -122,7 +122,7 @@ const storyboards = {
   ],
 };
 
-test("Sonde", async ({ page }) => {
+test("Browser probe", async ({ page }) => {
   test.skip(!EXPRESSION, "Only with QUILTOR_PROBE; see npm run probe.");
 
   await page.addInitScript(() => {

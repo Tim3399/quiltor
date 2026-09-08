@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import tempfile
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from quiltor.infrastructure.persistence.sqlite import config, revisions
 from quiltor.infrastructure.persistence.sqlite.connection import connect
-from quiltor.infrastructure.persistence.sqlite.schema import initialize
-
+from quiltor.infrastructure.persistence.sqlite.schema import SCHEMA_VERSION, initialize
 
 MAX_BACKUPS = 40
 BACKUP_INTERVAL = 300
@@ -66,27 +67,52 @@ def restore_backup(
 ) -> None:
     source_dir = backups_dir or config.BACKUPS
     if Path(name).name != name or not name.startswith("backup-") or not name.endswith(".sqlite3"):
-        raise ValueError("Ungültiger Sicherungsname")
+        raise ValueError("Invalid backup name.")
     source_path = source_dir / name
-    if not source_path.exists():
-        raise FileNotFoundError(name)
-    if previous_revisions is None:
-        initialize(db_path)
-        previous_revisions = {
-            kind: revisions.revision(kind, db_path=db_path)
-            for kind in ("manuscript", "figures", "storyboards")
-        }
-    backup_if_due(force=True, db_path=db_path, backups_dir=source_dir)
-    source = sqlite3.connect(source_path)
-    destination = connect(db_path)
-    try:
-        source.backup(destination)
-    finally:
-        source.close()
-        destination.close()
-    # Upgrade older snapshots before any current load or revision bookkeeping.
-    initialize(db_path)
-    revisions.advance_restore_revisions(previous_revisions, db_path=db_path)
+    with source_path.open("rb") as handle:
+        if handle.read(16) != b"SQLite format 3\x00":
+            raise ValueError("Backup is not a valid SQLite database.")
+
+    # Stage the selected snapshot before the safety backup rotates old files.
+    # Keeping the source open through rotation would also prevent deletion on Windows.
+    # Read-only mode must never recreate a source that disappears before it is opened.
+    with tempfile.TemporaryDirectory(prefix="quiltor-local-restore-") as directory:
+        staged = Path(directory) / "world.sqlite3"
+        # Safety snapshots are complete standalone databases. Immutable mode also
+        # prevents SQLite from creating WAL/SHM sidecars beside a read-only source.
+        source_uri = f"{source_path.resolve().as_uri()}?mode=ro&immutable=1"
+        with (
+            closing(sqlite3.connect(source_uri, uri=True)) as source,
+            closing(sqlite3.connect(staged)) as destination,
+        ):
+            if source.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
+                raise ValueError("Backup database failed its integrity check.")
+            version = source.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
+            if version is None or not 0 <= int(version[0]) <= SCHEMA_VERSION:
+                raise ValueError("Backup database schema version is not supported.")
+            # Legacy snapshots may contain only one document family, but metadata
+            # alone must not be turned into a newly initialized, empty world.
+            if (
+                source.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('chapters','figures')"
+                ).fetchone()
+                is None
+            ):
+                raise ValueError("Backup database contains no world document tables.")
+            source.backup(destination)
+
+        # Migration failures affect only the staged copy, never the active world.
+        initialize(staged)
+        if previous_revisions is None:
+            initialize(db_path)
+            previous_revisions = {
+                kind: revisions.revision(kind, db_path=db_path)
+                for kind in ("manuscript", "figures", "storyboards")
+            }
+        revisions.advance_restore_revisions(previous_revisions, db_path=staged)
+        backup_if_due(force=True, db_path=db_path, backups_dir=source_dir)
+        with closing(connect(staged)) as source, closing(connect(db_path)) as destination:
+            source.backup(destination)
 
 
 __all__ = ["backup_if_due", "list_backups", "restore_backup"]

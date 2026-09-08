@@ -14,6 +14,7 @@ from quiltor.modules.assistant.ports import (
     AssistantReadToolExecutor,
     IncompleteInferenceResponse,
     InferenceEngine,
+    InferenceValidationError,
     TokenCountCache,
 )
 from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, MODEL_CONTEXT_TOKENS
@@ -56,15 +57,15 @@ class AssistantRuntime:
         except IncompleteInferenceResponse:
             headroom = MODEL_CONTEXT_TOKENS - prompt_tokens - RUNTIME_CONFIG.template_reserve
             if headroom <= payload["max_tokens"]:
-                raise RuntimeError(
-                    "Das lokale Modell hat keine gültige strukturierte Antwort geliefert."
+                raise InferenceValidationError(
+                    "The local model did not return a valid structured response."
                 ) from None
             grown = {**payload, "max_tokens": min(headroom, payload["max_tokens"] * 2)}
             try:
                 return self._invoke(grown)
             except IncompleteInferenceResponse as exc:
-                raise RuntimeError(
-                    "Das lokale Modell hat keine gültige strukturierte Antwort geliefert."
+                raise InferenceValidationError(
+                    "The local model did not return a valid structured response."
                 ) from exc
 
     def complete(

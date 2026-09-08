@@ -237,7 +237,7 @@ describe("Storyboard card and the mouse wheel", () => {
   });
 });
 
-describe("Kartenchrome", () => {
+describe("Card chrome", () => {
   const css = readFileSync(
     join(process.cwd(), "packages/client/src/modules/storyboard/StoryboardNode.css"),
     "utf8",

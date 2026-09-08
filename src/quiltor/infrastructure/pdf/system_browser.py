@@ -48,6 +48,6 @@ def render(url: str, timeout: int = 90) -> bytes:
             finally:
                 browser.close()
     raise RuntimeError(
-        "Für den PDF-Export wurde weder Google Chrome noch Microsoft Edge gefunden. "
-        f"Bitte einen der beiden Browser installieren und erneut versuchen ({last_error})."
+        "Neither Google Chrome nor Microsoft Edge was found for PDF export. "
+        f"Install one of these browsers and try again ({last_error})."
     )

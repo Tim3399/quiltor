@@ -64,7 +64,7 @@ class DocumentUseCases:
             }
             validator = validators[kind]
             if not validator(state):
-                raise InvalidDocumentState("kein gültiger Zustand")
+                raise InvalidDocumentState("invalid document state")
             if kind != "storyboards":
                 counterpart = self._documents.load(
                     "figures" if kind == "manuscript" else "manuscript",

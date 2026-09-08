@@ -71,7 +71,7 @@ def stamp(pdf: bytes) -> bytes:
     try:
         return _stamp(pdf)
     except Exception as exc:  # noqa: BLE001 - the export matters more than the numbers
-        print(f"  ! Seitenzahlen konnten nicht gesetzt werden: {exc}")
+        print(f"  ! Could not add page numbers: {exc}")
         return pdf
 
 
@@ -88,7 +88,7 @@ def _stamp(pdf: bytes) -> bytes:
         Quartz.CGDataProviderCreateWithCFData(CoreFoundation.CFDataCreate(None, pdf, len(pdf)))
     )
     if source is None:
-        raise ValueError("Die gedruckte Datei ist kein lesbares PDF.")
+        raise ValueError("The printed file is not a readable PDF.")
 
     page_count = Quartz.CGPDFDocumentGetNumberOfPages(source)
     labels = numbers_for(page_count)

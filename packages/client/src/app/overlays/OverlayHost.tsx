@@ -1,7 +1,7 @@
 import { lazy } from "react";
 import { ConfirmDialog } from "../../design";
 import { useI18n } from "../../i18n";
-import { applyAssistantProposals, loadAssistantDrawer } from "../../modules/assistant";
+import { applyAssistantProposalsWithResult, loadAssistantDrawer } from "../../modules/assistant";
 import { loadBackupDialog } from "../../modules/backup";
 import { loadHistoryDialog, loadSnapshotDialog } from "../../modules/history";
 import { type Manuscript, orderedChapters, replaceEntityMentions } from "../../modules/manuscript";
@@ -78,8 +78,12 @@ export function OverlayHost({
           open={assistantOpen}
           onClose={onCloseAssistant}
           onApply={(proposals) => {
-            onAssistantFiguresChange(applyAssistantProposals(figures, proposals, t));
-            onShowFigures();
+            const result = applyAssistantProposalsWithResult(figures, proposals, t);
+            if (result.appliedIndices.length) {
+              onAssistantFiguresChange(result.state);
+              onShowFigures();
+            }
+            return result;
           }}
           onNavigate={onNavigate}
           onBeforeSend={flushAll}

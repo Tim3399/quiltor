@@ -29,7 +29,7 @@ test("On touch devices the chapter switches stand visibly in the text flow", asy
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
-    "Der Test setzt sein Gerät selbst und hängt nicht an der Projektbreite.",
+    "The test sets its own device and does not depend on the project width.",
   );
   const world = await createTestWorld(page, "Kapitelwechsel");
   await page.goto(`/?world=${world.id}`);

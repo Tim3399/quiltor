@@ -1,5 +1,10 @@
 import type { Translate } from "../../../i18n";
-import { quiltorClient, saveTextFile, validateNoteMarks } from "../../../platform";
+import {
+  decodeStoryWorldV1,
+  quiltorClient,
+  saveTextFile,
+  validateNoteMarks,
+} from "../../../platform";
 import { noteMarkdown } from "../../notes";
 import type { FigureState } from "../model";
 import { normalizeProfile, normalizeProfileFields } from "../profile";
@@ -78,14 +83,10 @@ export function parseFigureState(text: string): FigureState {
       canonicalizeImportedNoteMarks(moment, "note", `timeline[${index}]`);
     });
   }
-  const state = value as unknown as FigureState;
-  return {
-    ...state,
-    nodes: state.nodes.map((node) => ({
-      ...node,
-      ...(node.profile ? { profile: normalizeProfile(node.profile, node.id) } : {}),
-    })),
-  };
+  // Exports use the legacy bare payload. Reuse the persistence contract for every
+  // field and reference before the document can enter live React state.
+  return decodeStoryWorldV1({ contract: "quiltor.story-world", version: 1, payload: value })
+    .document;
 }
 
 export function serializeFigureState(state: FigureState): string {

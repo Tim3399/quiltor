@@ -61,17 +61,21 @@ export function SnapshotDialog({
   const checking =
     needsSignIn && !staleSession && login.issuerReachable == null && rechecks < RECHECK_TRIES;
   const canSignIn = needsSignIn && !staleSession && login.issuerReachable === true;
-  useFlushedEffect(flush, () => {
-    void loadLogin();
-    return quiltorClient.application.backup
-      .status()
-      .then((value) => {
-        setStatusError("");
-        setStatus(value);
-        setMessage(value.suggestedMessage);
-      })
-      .catch((error) => setStatusError(applicationErrorMessage(error)));
-  });
+  useFlushedEffect(
+    flush,
+    () => {
+      void loadLogin();
+      return quiltorClient.application.backup
+        .status()
+        .then((value) => {
+          setStatusError("");
+          setStatus(value);
+          setMessage(value.suggestedMessage);
+        })
+        .catch((error) => setStatusError(applicationErrorMessage(error)));
+    },
+    (error) => setStatusError(applicationErrorMessage(error)),
+  );
   useEffect(() => {
     if (!waiting) return;
     const poll = setInterval(
