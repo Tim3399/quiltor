@@ -116,9 +116,7 @@ async function storyboardViewportZoom(page: Page) {
   });
 }
 
-test("Storyboard-Boards und Notizen bleiben nach einem Reload erhalten", async ({
-  page,
-}, testInfo) => {
+test("storyboard boards and notes survive a reload", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Der Persistenzpfad ist viewport-unabhängig und muss nur einmal laufen.",
@@ -168,7 +166,7 @@ test("Storyboard-Boards und Notizen bleiben nach einem Reload erhalten", async (
   );
 });
 
-test("unkritische Storyboard-Karten lassen sich per Tastatur löschen und wiederherstellen", async ({
+test("uncritical storyboard cards can be deleted and restored from the keyboard", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -274,7 +272,7 @@ test("unkritische Storyboard-Karten lassen sich per Tastatur löschen und wieder
   ]);
 });
 
-test("eine Weltreferenz lässt sich auf den leeren Storyboard-Mittelpunkt ziehen", async ({
+test("a world reference can be dragged onto the empty storyboard centre", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -325,7 +323,7 @@ test("eine Weltreferenz lässt sich auf den leeren Storyboard-Mittelpunkt ziehen
   );
 });
 
-test("eine leere Notiz lässt sich aus der Bibliothek frei auf dem Storyboard platzieren", async ({
+test("an empty note can be placed freely on the storyboard from the library", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -432,9 +430,7 @@ test("eine leere Notiz lässt sich aus der Bibliothek frei auf dem Storyboard pl
   });
 });
 
-test("die kompakte Elementbibliothek platziert eine Notiz per Tastatur", async ({
-  page,
-}, testInfo) => {
+test("the compact element library places a note from the keyboard", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "compact",
     "Der Tastatur-Fallback wird gezielt im kompakten 390-Pixel-Viewport geprüft.",
@@ -498,7 +494,7 @@ test("die kompakte Elementbibliothek platziert eine Notiz per Tastatur", async (
   ]);
 });
 
-test("die Elementbibliothek bleibt im kompakten Landscape-Viewport vollständig bedienbar", async ({
+test("the element library stays fully usable in the compact landscape viewport", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -575,7 +571,7 @@ test("die Elementbibliothek bleibt im kompakten Landscape-Viewport vollständig 
   await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 });
 
-test("die fokussierte Weltsuche bleibt bei eingeblendeter Bildschirmtastatur bedienbar", async ({
+test("the focused world search stays usable with the on-screen keyboard showing", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -676,7 +672,7 @@ test("die fokussierte Weltsuche bleibt bei eingeblendeter Bildschirmtastatur bed
   );
 });
 
-test("ein Figuren-Backlink öffnet die exakte Storyboard-Karte", async ({ page }, testInfo) => {
+test("a figure backlink opens the exact storyboard card", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Die Zielnavigation ist viewport-unabhängig und muss nur einmal laufen.",
@@ -756,7 +752,7 @@ test("ein Figuren-Backlink öffnet die exakte Storyboard-Karte", async ({ page }
   await expect(selectedCard).toContainText("Ada im Garten");
 });
 
-test("Storyboard-Karten werden am Kopf gezogen, der Notizinhalt bleibt Bedienfläche", async ({
+test("storyboard cards are dragged by the head; the note content stays a working surface", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -848,7 +844,7 @@ test("Storyboard-Karten werden am Kopf gezogen, der Notizinhalt bleibt Bedienfl�
   });
 });
 
-test("das Mausrad scrollt den Inhalt einer Storyboard-Karte, statt zu zoomen", async ({
+test("the mouse wheel scrolls a storyboard card's content instead of zooming", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -940,9 +936,7 @@ test("das Mausrad scrollt den Inhalt einer Storyboard-Karte, statt zu zoomen", a
     .toBeLessThan(zoomBefore - 0.01);
 });
 
-test("überlappende Storyboard-Karten behalten ihre Vorder- und Hintergrundreihenfolge", async ({
-  page,
-}, testInfo) => {
+test("overlapping storyboard cards keep their front-to-back order", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Die Ebenenreihenfolge ist viewport-unabhängig und muss nur einmal laufen.",
@@ -1058,9 +1052,7 @@ test("überlappende Storyboard-Karten behalten ihre Vorder- und Hintergrundreihe
   expect(persisted.payload.nodes.find(({ id }) => id === "layer-front")?.zIndex).toBe(0);
 });
 
-test("die Ebenensteuerung bleibt im kompakten Storyboard erreichbar", async ({
-  page,
-}, testInfo) => {
+test("the layer controls stay reachable in the compact storyboard", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "compact",
     "Dieser Vertrag prüft gezielt den kompakten 390-Pixel-Viewport.",
@@ -1090,7 +1082,7 @@ test("die Ebenensteuerung bleibt im kompakten Storyboard erreichbar", async ({
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 });
 
-test("Storyboard-Kanten lassen sich beschriften, richten, umkehren und neu laden", async ({
+test("storyboard edges can be labelled, directed, reversed and reloaded", async ({
   page,
 }, testInfo) => {
   test.skip(

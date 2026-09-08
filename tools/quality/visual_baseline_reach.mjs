@@ -103,13 +103,13 @@ export function checkVisualBaselineReach(repositoryRoot) {
     if (!images.some((name) => name.endsWith(`-${platform}.png`))) {
       violations.push(
         `${platform}: a job compares there, but ${SNAPSHOTS} holds no set. ` +
-          'Run the "Visual-Baselines erzeugen" workflow once; it only fills what is missing.',
+          'Run the "Generate visual baselines" workflow once; it only fills what is missing.',
       );
     } else if (missing.length) {
       violations.push(
         `${platform}: ${missing.length} image(s) missing next to the other platforms ` +
           `(${missing.slice(0, 4).join(", ")}${missing.length > 4 ? ", ..." : ""}). ` +
-          'The "Visual-Baselines erzeugen" workflow adds them.',
+          'The "Generate visual baselines" workflow adds them.',
       );
     }
   }

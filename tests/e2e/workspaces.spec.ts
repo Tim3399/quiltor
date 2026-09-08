@@ -90,9 +90,7 @@ async function expectOverlayInsideViewport(overlay: Locator, page: Page, label: 
   expect(box.y + box.height, `${label} ragt unten heraus`).toBeLessThanOrEqual(viewport.height + 1);
 }
 
-test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async ({
-  page,
-}, testInfo) => {
+test("Mobile core workspaces hold their layout and touch contracts", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Der Test setzt die kompakte Breite selbst und muss nur einmal laufen.",
@@ -233,7 +231,7 @@ test("Mobile Kernarbeitsbereiche halten ihre Layout- und Touch-Verträge", async
   await expectNoDocumentOverflow("Orte");
 });
 
-test("Menüs und Untermenüs halten den gemeinsamen Tastatur-, Fokus- und Viewport-Vertrag", async ({
+test("Menus and submenus hold the shared keyboard, focus and viewport contract", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -306,7 +304,7 @@ test("Menüs und Untermenüs halten den gemeinsamen Tastatur-, Fokus- und Viewpo
   }
 });
 
-test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag", async ({
+test("Deep writing-aid states hold the mobile layout and interaction contract", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -466,7 +464,7 @@ test("Tiefe Schreibhilfe-Zustände halten den mobilen Layout- und Bedienvertrag"
   ).toHaveCount(0);
 });
 
-test("Orte behalten am 820px-Übergang die volle Kartenhöhe", async ({ page }, testInfo) => {
+test("Places keep the full card height at the 820px transition", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Der Test setzt die kritische Zwischenbreite selbst und muss nur einmal laufen.",
@@ -516,7 +514,7 @@ test("Orte behalten am 820px-Übergang die volle Kartenhöhe", async ({ page }, 
   await expect(page.locator(".places-inspector")).toHaveCount(0);
 });
 
-test("Orte teilen im Overview-LOD Marker und Prioritätspillen mit Figuren", async ({
+test("At overview LOD, places share markers and priority pills with figures", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -599,9 +597,7 @@ test("Orte teilen im Overview-LOD Marker und Prioritätspillen mit Figuren", asy
 // 998px. Rather than adding a fourth project for each (running the whole suite one more time
 // and demanding fourteen further comparison images), one test walks the bar across the entire
 // span. It needs no image, only geometry.
-test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async ({
-  page,
-}, testInfo) => {
+test("The context bar stays inside the window from 320 to 1440px", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Der Test stellt die Fensterbreite selbst; er darf nur einmal laufen.",
@@ -774,9 +770,7 @@ test("Die Kontextleiste bleibt von 320 bis 1440px innerhalb des Fensters", async
   await expect(aid).toHaveAttribute("aria-label", "Details");
 });
 
-test("Schmale Leisten behalten dieselbe visuelle Reihenfolge wie die breite Ansicht", async ({
-  page,
-}, testInfo) => {
+test("Narrow bars keep the same visual order as the wide view", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Der Test stellt die problematische Zwischenbreite selbst ein.",
@@ -844,7 +838,7 @@ test("Schmale Leisten behalten dieselbe visuelle Reihenfolge wie die breite Ansi
   );
 });
 
-test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn zu verdecken", async ({
+test("Between 720 and 1100px the chapter column indents the text instead of covering it", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -884,7 +878,7 @@ test("Zwischen 720 und 1100px rückt die Kapitelspalte den Text ein, statt ihn z
  *
  * Both are checked: that it stays, and that it stays inside the window while doing so.
  */
-test("Der Speicherstand bleibt in der Leiste, statt schmal ins Menü auszuweichen", async ({
+test("The save status stays in the bar instead of retreating into the menu when narrow", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -917,7 +911,7 @@ test("Der Speicherstand bleibt in der Leiste, statt schmal ins Menü auszuweiche
   await page.keyboard.press("Escape");
 });
 
-test("Weltenauswahl bleibt auch mit vielen Welten vollständig scrollbar", async ({
+test("The world picker stays fully scrollable even with many worlds", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -1013,7 +1007,9 @@ test("Weltenauswahl bleibt auch mit vielen Welten vollständig scrollbar", async
   expect(await worldList.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
-test("Text, Suche und Figurenboard laden ohne Laufzeitfehler", async ({ page }, testInfo) => {
+test("Text, search and the figure board load without runtime errors", async ({
+  page,
+}, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await openBlankWorld(page);
@@ -1043,7 +1039,9 @@ test("Text, Suche und Figurenboard laden ohne Laufzeitfehler", async ({ page }, 
   expect(errors).toEqual([]);
 });
 
-test("CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil", async ({ page }) => {
+test("CodeMirror keeps the text selection stable for contextual writing tools", async ({
+  page,
+}) => {
   await openBlankWorld(page);
   const editor = page.getByLabel("Kapiteltext");
   await editor.fill("Der Morgen lag still über dem Hafen.");
@@ -1072,7 +1070,7 @@ test("CodeMirror hält Textauswahl für kontextuelle Schreibwerkzeuge stabil", a
   ).toBeVisible();
 });
 
-test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen", async ({
+test("Bold and italic live as ranges on the chapter and survive a reload", async ({
   page,
 }, testInfo) => {
   test.setTimeout(40_000);
@@ -1124,9 +1122,7 @@ test("Fett und Kursiv liegen als Bereiche am Kapitel und überleben das Neuladen
  * writing aid. The toolbar therefore switches it as one piece, and moving between chapter and
  * writing aid happens inside, at the column's own section switch.
  */
-test("Kapitel- und Detailspalte lassen sich aus der Werkzeugleiste umschalten", async ({
-  page,
-}) => {
+test("The chapter and details columns can be switched from the toolbar", async ({ page }) => {
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
@@ -1196,7 +1192,7 @@ test("Kapitel- und Detailspalte lassen sich aus der Werkzeugleiste umschalten", 
   }
 });
 
-test("Schreibhilfe zeigt alle Tabtitel in der 294px-Spalte vollständig", async ({
+test("The writing aid shows every tab title in full in the 294px column", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -1279,7 +1275,7 @@ test("Schreibhilfe zeigt alle Tabtitel in der 294px-Spalte vollständig", async 
  * chapter section. The list on the left only lists now -- it used to carry the note as well,
  * and the counts stood in the toolbar as a definition list.
  */
-test("Kapiteleigenschaften stehen im Kapitel-Register der Detailspalte", async ({
+test("Chapter properties live in the details column's chapter section", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -1367,9 +1363,7 @@ test("Kapiteleigenschaften stehen im Kapitel-Register der Detailspalte", async (
   await expect(actionTrigger).toBeFocused();
 });
 
-test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async ({
-  page,
-}, testInfo) => {
+test("Nested chapter folders survive drag-and-drop and a reload", async ({ page }, testInfo) => {
   // The contract confirms eight real manuscript writes that build on each other, reloads
   // included. The extra budget is not waiting: every step stays tied to its own API response.
   test.setTimeout(60_000);
@@ -1612,7 +1606,7 @@ test("Verschachtelte Kapitelordner überleben Drag-and-drop und Neuladen", async
   expect(await isRootTreeItem(persistedFolderB)).toBe(true);
 });
 
-test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", async ({
+test("Chapter folders stay hierarchical and usable at compact width", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -1809,7 +1803,7 @@ test("Kapitelordner bleiben auf kompakter Breite hierarchisch und bedienbar", as
   expect(chapterGeometry.handleWidth).toBe(0);
 });
 
-test("Shortcuts unterscheiden Speichern und Sicherung", async ({ page }) => {
+test("Shortcuts tell saving and backing up apart", async ({ page }) => {
   // The test checks the two keyboard shortcuts, not the upload. It used to claim as well
   // that a configured endpoint makes "Sichern & hochladen" active -- that no longer holds:
   // the endpoint demands a sign-in, and without one the upload would run into a 401. The
@@ -1830,7 +1824,7 @@ test("Shortcuts unterscheiden Speichern und Sicherung", async ({ page }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-test("Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-Schritt", async ({
+test("The local assistant applies world edits only once confirmed, and as one undo step", async ({
   page,
 }) => {
   await page.route("**/api/assistant/status*", (route) =>
@@ -1918,7 +1912,7 @@ test("Lokaler Assistent übernimmt Weltpflege nur bestätigt und als einen Undo-
   await expect(page.locator(".story-node")).toHaveCount(0);
 });
 
-test("Befehlspalette führt alle sichtbaren Aktionen atomar aus", async ({ page }) => {
+test("The command palette runs every visible action atomically", async ({ page }) => {
   await openBlankWorld(page);
   const open = async () => {
     await page.keyboard.press("Control+KeyK");
@@ -1964,7 +1958,7 @@ test("Befehlspalette führt alle sichtbaren Aktionen atomar aus", async ({ page 
   }
 });
 
-test("Inhaltssuche und Befehle teilen eine Palette", async ({ page }) => {
+test("Content search and commands share one palette", async ({ page }) => {
   await openBlankWorld(page);
   await page.keyboard.press("Control+KeyF");
   await expect(page.getByRole("heading", { name: "Suchen & Befehle" })).toBeVisible();
@@ -1992,7 +1986,7 @@ test("Inhaltssuche und Befehle teilen eine Palette", async ({ page }) => {
   await expect(page.getByText("Nur Änderungen")).toBeVisible();
 });
 
-test("Notizreferenzen und flexible Profilfelder bleiben nach Umbenennung stabil", async ({
+test("Note references and flexible profile fields stay stable across a rename", async ({
   page,
 }, testInfo) => {
   test.setTimeout(40_000);
@@ -2109,7 +2103,7 @@ test("Notizreferenzen und flexible Profilfelder bleiben nach Umbenennung stabil"
   ).toHaveValue("Nordhafen");
 });
 
-test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleibt erhalten", async ({
+test("a real figure relationship uses the shared edge editor and is preserved", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -2279,7 +2273,7 @@ test("eine echte Figuren-Beziehung nutzt den gemeinsamen Kanten-Editor und bleib
   expect(persistedEdge).toMatchObject(reversedEdge ?? {});
 });
 
-test("Figuren folgen dem Zeiger bereits während des Ziehens", async ({ page }) => {
+test("Figures follow the pointer while still being dragged", async ({ page }) => {
   await page.route("**/api/manuscript*", (route) =>
     fulfillManuscript(route, {
       chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
@@ -2306,7 +2300,7 @@ test("Figuren folgen dem Zeiger bereits während des Ziehens", async ({ page }) 
   await page.mouse.up();
 });
 
-test("Beim Ziehen einer Figuren-Verbindung folgt eine sichtbare Vorschau dem Zeiger", async ({
+test("While a figure connection is dragged, a visible preview follows the pointer", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -2441,7 +2435,7 @@ test("Beim Ziehen einer Figuren-Verbindung folgt eine sichtbare Vorschau dem Zei
   await expect(preview).toHaveCount(0);
 });
 
-test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", async ({ page }) => {
+test("The minimap tells element kinds apart and the grid can be released", async ({ page }) => {
   await page.route("**/api/manuscript*", (route) =>
     fulfillManuscript(route, {
       chapters: [{ id: "c1", title: "Test", body: "", note: "" }],
@@ -2611,7 +2605,7 @@ test("Minimap unterscheidet Elementarten und das Raster lässt sich lösen", asy
   expect(timeline && controls && overlaps(timeline, controls)).toBeFalsy();
 });
 
-test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async ({ page }) => {
+test("Moving preserves every element across autosave and a reload", async ({ page }) => {
   // The test covers seeding, delayed autosave and a full reload across three viewports. The
   // extra budget replaces no waiting: the persistence step stays tied to the PUT response.
   test.setTimeout(45_000);
@@ -2666,7 +2660,7 @@ test("Verschieben erhält alle Elemente auch nach Autosave und Neuladen", async 
   await expect(page.locator(".story-node")).toHaveCount(12);
 });
 
-test("Elementtypen sind konsistent erreichbar und Löschen bestätigt ohne Halten", async ({
+test("Element types are consistently reachable and deleting confirms without a hold", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -2702,7 +2696,9 @@ test("Elementtypen sind konsistent erreichbar und Löschen bestätigt ohne Halte
   await expect(page.locator(".story-node")).toHaveCount(1);
 });
 
-test("Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab", async ({ page }, testInfo) => {
+test("The timeline strip plays back relationship states and times of death", async ({
+  page,
+}, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "Die Timeline wird im breiten Figurenboard geprüft.");
   await page.route("**/api/manuscript*", (route) =>
     fulfillManuscript(route, {
@@ -2786,7 +2782,7 @@ test("Zeitstreifen spielt Beziehungsstände und Todeszeitpunkte ab", async ({ pa
   expect(await stableGeometry()).toEqual(geometryBeforeTimeline);
 });
 
-test("Fokusmodus bietet eine diskrete Schreibhilfe", async ({ page }, testInfo) => {
+test("Focus mode offers a discreet writing aid", async ({ page }, testInfo) => {
   await openBlankWorld(page);
   await page.getByRole("button", { name: "Fokus", exact: true }).click();
   const helper = page.getByRole("complementary", { name: "Schreibhilfe im Fokusmodus" });
@@ -2797,7 +2793,9 @@ test("Fokusmodus bietet eine diskrete Schreibhilfe", async ({ page }, testInfo) 
   await page.screenshot({ path: testInfo.outputPath("focus-helper.png"), fullPage: true });
 });
 
-test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page }, testInfo) => {
+test("The text margin switches stay centred and close to the text block", async ({
+  page,
+}, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Die Satzspiegel-Geometrie wird in der breiten Desktopansicht geprüft.",
@@ -2901,7 +2899,9 @@ test("Text-Randschalter bleiben mittig und nah am Satzspiegel", async ({ page },
   expect(focusLeftGap).toBeCloseTo(focusRightGap, 0);
 });
 
-test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async ({ page }) => {
+test("Focus margin panels change neither the writing surface nor the line breaks", async ({
+  page,
+}) => {
   await page.route("**/api/manuscript*", (route) =>
     route.request().method() === "GET"
       ? fulfillManuscript(route, {
@@ -2945,7 +2945,7 @@ test("Fokus-Randpanels verändern Schreibfläche und Zeilenumbruch nicht", async
   expect(await editor.boundingBox()).toEqual(initial);
 });
 
-test("Kapitelversionen erscheinen direkt neben der Schreibfläche", async ({ page }, testInfo) => {
+test("Chapter versions appear right beside the writing surface", async ({ page }, testInfo) => {
   await page.route("**/api/history*", (route) =>
     route.fulfill({
       json: {
@@ -2996,7 +2996,7 @@ test("Buchausgabe rendert als echtes 6×9-Zoll-PDF", async ({ page }, testInfo) 
   expect(pdf.toString("latin1")).toMatch(/\/MediaBox\s*\[\s*0\s+0\s+432\s+648\s*\]/);
 });
 
-test("Autosave überlebt Reload und meldet konkurrierende Änderungen", async ({ page }) => {
+test("Autosave survives a reload and reports competing changes", async ({ page }) => {
   let revision = 0;
   let manuscript = {
     chapters: [{ id: "c1", title: "Test", body: "Anfang", note: "" }],
@@ -3033,7 +3033,7 @@ test("Autosave überlebt Reload und meldet konkurrierende Änderungen", async ({
   await expect(page.getByRole("alert").filter({ hasText: "Nicht gespeichert" })).toBeVisible();
 });
 
-test("Kernansichten haben keine automatisiert erkennbaren WCAG-A/AA-Verstöße", async ({ page }) => {
+test("The core views have no automatically detectable WCAG A/AA violations", async ({ page }) => {
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   const textResults = await new AxeBuilder({ page })
@@ -3052,7 +3052,7 @@ test("Kernansichten haben keine automatisiert erkennbaren WCAG-A/AA-Verstöße",
   expect(timelineResults.violations).toEqual([]);
 });
 
-test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", async ({
+test("The dark theme is preserved and accessible across the core views", async ({
   page,
 }, testInfo) => {
   await openBlankWorld(page);
@@ -3145,7 +3145,7 @@ test("Dunkles Design bleibt erhalten und ist in den Kernansichten zugänglich", 
   await page.screenshot({ path: testInfo.outputPath("dark-figures.png"), fullPage: true });
 });
 
-test("Startseite lädt eine Welt und übernimmt ihren variablen Titel", async ({ page }) => {
+test("The start page loads a world and takes on its variable title", async ({ page }) => {
   const title = `Öffentliche Testwelt ${crypto.randomUUID()}`;
   await createTestWorld(page, title);
   await page.goto("/");
@@ -3156,7 +3156,7 @@ test("Startseite lädt eine Welt und übernimmt ihren variablen Titel", async ({
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 });
 
-test("Eine geöffnete Welt lässt sich über das globale Menü wieder verlassen", async ({ page }) => {
+test("An open world can be left again from the global menu", async ({ page }) => {
   await openBlankWorld(page, "Weltwechseltest");
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
 
@@ -3167,7 +3167,7 @@ test("Eine geöffnete Welt lässt sich über das globale Menü wieder verlassen"
   await expect(page.getByLabel("Kapiteltext")).toHaveCount(0);
 });
 
-test("Welt lässt sich nur durch anhaltendes Halten lokal löschen", async ({ page }) => {
+test("A world can only be deleted locally by a sustained press", async ({ page }) => {
   const title = `Löschtest ${crypto.randomUUID()}`;
   await createTestWorld(page, title, "https://backup.example.com/remote-remains");
   await createTestWorld(page, `Aktive Testwelt ${crypto.randomUUID()}`);
@@ -3195,7 +3195,7 @@ test("Welt lässt sich nur durch anhaltendes Halten lokal löschen", async ({ pa
   await expect(page.getByRole("button", { name: new RegExp(title) })).toHaveCount(0);
 });
 
-test("Sprachwahl erfolgt ausschließlich in der Welt-Auswahl", async ({ page }) => {
+test("The language is chosen in the world picker and nowhere else", async ({ page }) => {
   test.setTimeout(30_000);
   const title = `Language Test World ${crypto.randomUUID()}`;
   await createTestWorld(page, title, "https://backup.example.com/language-test");

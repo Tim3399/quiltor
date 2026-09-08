@@ -181,7 +181,7 @@ async function expectWorkspaceContract(
   ).toEqual([]);
 }
 
-test("Produktmatrix hält Theme-, Viewport-, Layout-, Touch- und A11y-Verträge", async ({
+test("The product matrix holds the theme, viewport, layout, touch and a11y contracts", async ({
   page,
 }, testInfo) => {
   test.skip(

@@ -35,7 +35,7 @@ function contrastRatio(first: string, second: string) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-test("Kapiteltitel bleibt dokumentartig und behält einen klaren Tastaturfokus", async ({
+test("The chapter title stays document-like and keeps a clear keyboard focus", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "Der CSS-Vertrag ist viewport-unabhängig.");

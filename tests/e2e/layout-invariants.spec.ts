@@ -291,7 +291,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
 const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as const;
 
 for (const workspace of workspaces) {
-  test(`${workspace}: nichts liegt ausserhalb seines Platzes`, async ({ page }) => {
+  test(`${workspace}: nothing lies outside its place`, async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("quiltor-theme", "light");
       localStorage.setItem("quiltor-interface-language", "de");
@@ -335,7 +335,7 @@ for (const workspace of workspaces) {
  * and there was nothing to see. Any check that only reads state calls that correct; only the
  * question "what is actually at this point?" finds it.
  */
-test("Menues liegen ueber der geoeffneten Schublade", async ({ page }) => {
+test("Menus lie above the opened drawer", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("quiltor-theme", "light");
     localStorage.setItem("quiltor-interface-language", "de");
@@ -380,7 +380,7 @@ test("Menues liegen ueber der geoeffneten Schublade", async ({ page }) => {
  * does not exist at all at that size. Ten pixels off the centre of a circle is obvious at a
  * glance, and yet there was nowhere to measure it.
  */
-test("Orte: Monogramme sitzen mittig im Kreis", async ({ page }) => {
+test("Places: monograms sit centred in the circle", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("quiltor-theme", "light");
     localStorage.setItem("quiltor-interface-language", "de");
@@ -431,7 +431,7 @@ test("Orte: Monogramme sitzen mittig im Kreis", async ({ page }) => {
  * Counting therefore happens against the canvas rather than against a fixed number: what
  * stands there belongs in the overview too.
  */
-test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async ({ page }) => {
+test("Places: the minimap also shows what stands on a map", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("quiltor-theme", "light");
     localStorage.setItem("quiltor-interface-language", "de");
@@ -471,7 +471,7 @@ test("Orte: die Uebersichtskarte zeigt auch, was auf einer Karte steht", async (
  * does not, for a curved edge, and would have fallen in the middle of a card here: the test
  * would have been red, but for the wrong reason.
  */
-test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page }) => {
+test("Storyboard: a connection inside a group can be reached", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("quiltor-theme", "light");
     localStorage.setItem("quiltor-interface-language", "de");
@@ -539,7 +539,7 @@ test("Storyboard: eine Verbindung in einer Gruppe ist erreichbar", async ({ page
  * The test deliberately drags by an odd amount and in many steps: d3-drag spends the first
  * movement on the grab point, so exactly one step is always missing.
  */
-test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
+test("Places: a place on a map follows the pointer", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("quiltor-theme", "light");
     localStorage.setItem("quiltor-interface-language", "de");
@@ -607,7 +607,7 @@ test("Orte: ein Ort auf einer Karte folgt dem Zeiger", async ({ page }) => {
  * 16px taller than the input, and the centring referred to this over-tall row. The button
  * sat eight pixels too low and looked as if it were hanging out.
  */
-test("Text: der Suchknopf der Schreibhilfe sitzt auf der Zeile seines Feldes", async ({ page }) => {
+test("Text: the writing aid's search button sits on the line of its field", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("quiltor-theme", "light");
     localStorage.setItem("quiltor-interface-language", "de");

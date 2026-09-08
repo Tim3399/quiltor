@@ -22,8 +22,11 @@ The German half, in full:
 - Fixture prose (`"Der Morgen lag still über dem Hafen."`), fixture ids, and the German
   manuscripts in `tools/documentation/` and `tools/evaluation/` — those are a German
   author's material, used as input.
-- The product suite's test titles (`tests/e2e/`, 70 of 74). They read as acceptance
-  statements about a German interface, and that suite is consistent in itself.
+- Skip reasons and assertion strings that quote a German view by name.
+
+Test titles are English in all three suites — unit, design and product. The product suite
+was the last holdout at 70 of 74; a title is read by whoever is debugging a red run, so it
+belongs on the developer's side however German the interface it describes.
 
 An English comment may quote a German product string — a macOS menu item, an error message,
 a prompt. That is a quotation, not a leftover.
@@ -102,7 +105,7 @@ one pip installed into.
 
 `tests/e2e/visual-baseline.spec.ts-snapshots/` holds one set per platform
 (`-win32`, `-linux`, `-darwin`), because font rasterisation differs. The
-"Visual-Baselines erzeugen" workflow only fills in **missing** images, so:
+"Generate visual baselines" workflow only fills in **missing** images, so:
 
 - to accept a deliberate design change, delete the affected images for the platforms you
   cannot photograph yourself and let the workflow refill them;

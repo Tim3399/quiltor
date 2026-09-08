@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12.10" # letzter 3.12-Patch mit setup-python-Bauten fuer alle drei Systeme
+          python-version: "3.12.10" # last 3.12 patch with setup-python builds for all three systems
 
       # Install the declared core dependencies. OIDC signature verification is
       # a supported web/desktop path and must never be skipped accidentally.
@@ -216,14 +216,14 @@ jobs:
         with:
           package-manager-cache: false # runs a script out of tools/, never npm ci
           node-version: "22.23.2"
-      - name: Jede vergleichende Plattform hat Bilder
+      - name: Every comparing platform has images
         run: node tools/quality/check_visual_baseline_reach.mjs
 
   # Linux runs above, sharded and as the required check. These jobs add macOS and Windows:
   # the same suites, so a failure that only happens there becomes visible here instead of
   # landing during a release build.
   cross-platform-native:
-    name: Kern auf ${{ matrix.os }}
+    name: Core on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -268,7 +268,7 @@ jobs:
   # gallery, which its own config starts. Split off, it also skips Python, the install and
   # the server start.
   cross-platform-product:
-    name: Produkt auf ${{ matrix.os }}
+    name: Product on ${{ matrix.os }}
     needs: frontend
     runs-on: ${{ matrix.os }}
     strategy:
@@ -331,7 +331,7 @@ jobs:
             ${{ runner.temp }}/quiltor-server.log
 
   cross-platform-design:
-    name: Design auf ${{ matrix.os }}
+    name: Design on ${{ matrix.os }}
     needs: frontend
     runs-on: ${{ matrix.os }}
     strategy:

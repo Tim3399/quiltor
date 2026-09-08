@@ -24,7 +24,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/manuscript*", (route) => fulfillManuscript(route, manuscript));
 });
 
-test("Auf Touchgeräten stehen die Kapitelwechsel sichtbar im Textfluss", async ({
+test("On touch devices the chapter switches stand visibly in the text flow", async ({
   page,
 }, testInfo) => {
   test.skip(

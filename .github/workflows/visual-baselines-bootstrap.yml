@@ -1,4 +1,4 @@
-name: Visual-Baselines erzeugen
+name: Generate visual baselines
 
 # Fills in missing pixel baselines and pushes them back to the branch.
 #
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: "Branch, in den die Bilder geschrieben werden"
+        description: "Branch the images are written to"
         required: false
         default: ""
 
@@ -27,35 +27,35 @@ permissions:
   contents: read
 
 env:
-  ZIELBRANCH: ${{ inputs.branch || github.ref_name }}
+  TARGET_BRANCH: ${{ inputs.branch || github.ref_name }}
 
 jobs:
   # Without this precheck every push would pay three runners just to learn nothing is missing.
-  luecke:
+  gap:
     runs-on: ubuntu-24.04
     outputs:
-      fehlt: ${{ steps.pruefen.outputs.fehlt }}
+      missing: ${{ steps.check.outputs.missing }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ env.ZIELBRANCH }}
+          ref: ${{ env.TARGET_BRANCH }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           package-manager-cache: false # runs a script out of tools/, never npm ci
           node-version: "22.23.2"
-      - name: Fehlt einer Plattform ihr Satz?
-        id: pruefen
+      - name: Is any platform missing its set?
+        id: check
         shell: bash
         run: |
           if node tools/quality/check_visual_baseline_reach.mjs; then
-            echo "fehlt=nein" >> "$GITHUB_OUTPUT"
+            echo "missing=no" >> "$GITHUB_OUTPUT"
           else
-            echo "fehlt=ja" >> "$GITHUB_OUTPUT"
+            echo "missing=yes" >> "$GITHUB_OUTPUT"
           fi
 
   bootstrap:
-    needs: luecke
-    if: needs.luecke.outputs.fehlt == 'ja'
+    needs: gap
+    if: needs.gap.outputs.missing == 'yes'
     permissions:
       contents: write
     runs-on: ${{ matrix.os }}
@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ env.ZIELBRANCH }}
+          ref: ${{ env.TARGET_BRANCH }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.23.2"
@@ -77,7 +77,7 @@ jobs:
       - run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Fehlende Baselines erzeugen
+      - name: Generate the missing baselines
         shell: bash
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
@@ -93,22 +93,22 @@ jobs:
           # the next step, from the files.
           npx playwright test tests/e2e/visual-baseline.spec.ts \
             --update-snapshots=missing --reporter=line || true
-      - name: Neue Bilder einchecken
+      - name: Check the new images in
         shell: bash
         run: |
           snapshots=tests/e2e/visual-baseline.spec.ts-snapshots
           if [ -z "$(git status --porcelain -- "$snapshots")" ]; then
-            echo "Fuer ${{ matrix.os }} war bereits ein vollstaendiger Satz vorhanden."
+            echo "${{ matrix.os }} already had a complete set."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$snapshots"
-          git commit -m "test(e2e): Baselines für ${{ matrix.os }} erzeugt"
+          git commit -m "test(e2e): generate baselines for ${{ matrix.os }}"
           # Between the run and the push another matrix job may have written.
-          git pull --rebase origin "$ZIELBRANCH"
-          git push origin "HEAD:$ZIELBRANCH"
-      - name: Diagnose hochladen
+          git pull --rebase origin "$TARGET_BRANCH"
+          git push origin "HEAD:$TARGET_BRANCH"
+      - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

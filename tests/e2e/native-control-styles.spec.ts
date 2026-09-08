@@ -179,7 +179,7 @@ async function expectCalendarEditorActionsAligned(settings: Locator, minimumSize
   }
 }
 
-test("lange Kalenderkonfiguration bleibt responsiv und scrollt ausschließlich vertikal", async ({
+test("a long calendar configuration stays responsive and scrolls vertically only", async ({
   page,
 }, testInfo) => {
   if (testInfo.project.name === "compact") {
@@ -343,7 +343,7 @@ test("lange Kalenderkonfiguration bleibt responsiv und scrollt ausschließlich v
   }
 });
 
-test("Zeitsystem-Auswahl besitzt auch geöffnet ein Quiltor-Popup", async ({ page }, testInfo) => {
+test("the time-system select has a Quiltor popup when open too", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Popup-Stile und Tastatursteuerung müssen nur einmal in Chromium geprüft werden.",
@@ -390,9 +390,7 @@ test("Zeitsystem-Auswahl besitzt auch geöffnet ein Quiltor-Popup", async ({ pag
   await expect(control).toBeFocused();
 });
 
-test("Figuren verwenden für alle sichtbaren Dropdowns Quiltor-Controls", async ({
-  page,
-}, testInfo) => {
+test("figures use Quiltor controls for every visible dropdown", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "wide",
     "Computed Styles und Popup-Struktur müssen nur in Chromium geprüft werden.",
@@ -503,7 +501,7 @@ test("Figuren verwenden für alle sichtbaren Dropdowns Quiltor-Controls", async 
   await expectVisibleScrollbarsToUseQuiltorTheme(figureTimeline);
 });
 
-test("Timeline gestaltet den tatsächlich sichtbaren horizontalen Scroller", async ({
+test("the timeline styles the horizontal scroller that is actually visible", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -522,7 +520,7 @@ test("Timeline gestaltet den tatsächlich sichtbaren horizontalen Scroller", asy
   await expectVisibleScrollbarsToUseQuiltorTheme(timeline);
 });
 
-test("Orte-Historie hält Überschriften und lange Inhalte innerhalb ihrer Karten", async ({
+test("the places history keeps headings and long content inside its cards", async ({
   page,
 }, testInfo) => {
   test.skip(

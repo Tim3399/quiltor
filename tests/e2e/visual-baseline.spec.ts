@@ -153,7 +153,7 @@ async function stillstehendeLeinwand(page: Page) {
 }
 
 for (const theme of ["light", "dark"] as const) {
-  test(`${theme}: Kernansichten bleiben visuell reproduzierbar`, async ({ page }) => {
+  test(`${theme}: the core views stay visually reproducible`, async ({ page }) => {
     test.skip(
       !BOOTSTRAP && !hasBaselines(),
       `Fuer ${process.platform} liegt noch kein Baseline-Satz vor. Einmal mit ` +
@@ -208,7 +208,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-test("Performance-Baseline für Start, Workspace-Wechsel und großes Kapitel", async ({
+test("Performance baseline for start, workspace switch and a large chapter", async ({
   page,
 }, testInfo) => {
   test.skip(

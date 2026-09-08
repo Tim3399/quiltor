@@ -345,7 +345,7 @@ async function expectGraphEdgeContract(
   await expectLabelsOnTheirRenderedEdges(surface, [edgeIds.directed, edgeIds.undirected]);
 }
 
-test("Figuren und Storyboard teilen Richtungsfarben, Marker und kompakte Kantenlabels", async ({
+test("Figures and storyboard share direction colours, markers and compact edge labels", async ({
   page,
 }, testInfo) => {
   test.skip(
