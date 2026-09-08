@@ -53,7 +53,7 @@ const data = [...subjects.entries()]
 
 const html = `<!doctype html>
 <meta charset="utf-8">
-<title>Baseline-Kontaktbogen</title>
+<title>Baseline contact sheet</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; padding: 24px; font: 14px/1.55 system-ui, sans-serif; }
@@ -70,14 +70,14 @@ const html = `<!doctype html>
   figcaption { font-size: 12px; color: #666; margin: 0 0 4px; }
   img { width: 100%; height: auto; border: 1px solid #d4d4d4; background: #fff; display: block; }
 </style>
-<h1>Baseline-Kontaktbogen</h1>
+<h1>Baseline contact sheet</h1>
 <p class="intro">
-  Dieselben ${data.length} Motive auf drei Plattformen, verglichen gegen Windows. Zwischen
-  ihnen darf sich nur die Schriftrasterung unterscheiden, und ein Umbruch, der anderswo
-  fällt, verschiebt den Inhalt um ganze Zeilen. Was auch nach der besten Verschiebung übrig
-  bleibt, ist etwas anderes -- und wäre ohne diesen Blick zur Referenz geworden.
+  The same ${data.length} subjects on three platforms, compared against Windows. Only font
+  rasterisation may differ between them, and a line break that falls elsewhere shifts the
+  content by whole rows. Whatever is left after the best shift is something else -- and
+  would have become the reference without anyone looking.
 </p>
-<div id="status">Wird verglichen …</div>
+<div id="status">Comparing …</div>
 <div id="sheet"></div>
 <script>
 const DATA = ${JSON.stringify(data)};
@@ -167,19 +167,19 @@ function compare(a, b) {
         .filter((p) => entry.against[p])
         .map((p) => {
           const w = entry.against[p];
-          if (w.sizesDiffer) return NAMES[p] + ": <b>Maße weichen ab</b>";
+          if (w.sizesDiffer) return NAMES[p] + ": <b>sizes differ</b>";
           const notable = w.remainder > 0.12;
           const shifted = w.shift
-            ? " (" + w.shift + " Zeilen verschoben, dann " + percent(w.remainder) + ")"
+            ? " (" + w.shift + " rows shifted, then " + percent(w.remainder) + ")"
             : "";
-          const text = NAMES[p] + ": " + percent(w.share) + " abweichend" + shifted;
+          const text = NAMES[p] + ": " + percent(w.share) + " differing" + shifted;
           return notable ? "<b>" + text + "</b>" : text;
         })
         .join(" &nbsp;·&nbsp; ");
       const columns = ["win32", "linux", "darwin"]
         .map((p) => {
           const image = entry.images[p];
-          if (!image) return "<div>" + NAMES[p] + ": fehlt</div>";
+          if (!image) return "<div>" + NAMES[p] + ": missing</div>";
           return (
             '<figure><figcaption>' + NAMES[p] + " — " + image.kb + " kB</figcaption>" +
             '<img loading="lazy" src="' + image.file + '" alt=""></figure>'
@@ -197,8 +197,8 @@ function compare(a, b) {
   const open = results.filter((e) => worst(e) > 0.12);
   document.getElementById("status").textContent = open.length
     ? open.length +
-      " Motive weichen mehr ab, als eine Verschiebung erklärt. Sie stehen oben."
-    : "Bei jedem Motiv bleibt unter 12% übrig, sobald eine Verschiebung zugelassen wird.";
+      " subjects differ by more than a shift explains. They are listed first."
+    : "Under 12% is left on every subject once a shift is allowed.";
 })();
 </script>
 `;
@@ -229,7 +229,7 @@ const server = createServer((request, response) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`${data.length} Motive, ${data.length * PLATFORMS.length} Bilder.`);
+  console.log(`${data.length} subjects, ${data.length * PLATFORMS.length} images.`);
   console.log(`\n  http://127.0.0.1:${PORT}/\n`);
-  console.log("Beenden mit Strg+C.");
+  console.log("Stop with Ctrl+C.");
 });

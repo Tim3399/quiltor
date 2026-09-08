@@ -79,7 +79,7 @@ export function checkVisualBaselineReach(repositoryRoot) {
     : [];
 
   if (!platforms.length) {
-    violations.push(`Kein Job fuehrt ${SPEC} aus; die Baselines werden nirgends verglichen.`);
+    violations.push(`No job runs ${SPEC}; the baselines are compared nowhere.`);
     return violations;
   }
 
@@ -96,20 +96,20 @@ export function checkVisualBaselineReach(repositoryRoot) {
   }
 
   for (const platform of platforms) {
-    const fehlend = [...stems]
+    const missing = [...stems]
       .filter(([, owners]) => !owners.has(platform))
       .map(([stem]) => stem)
       .sort();
     if (!images.some((name) => name.endsWith(`-${platform}.png`))) {
       violations.push(
-        `${platform}: ein Job vergleicht dort, aber ${SNAPSHOTS} enthaelt keinen Satz. ` +
-          'Den Workflow "Visual-Baselines erzeugen" einmal starten; er fuellt nur, was fehlt.',
+        `${platform}: a job compares there, but ${SNAPSHOTS} holds no set. ` +
+          'Run the "Visual-Baselines erzeugen" workflow once; it only fills what is missing.',
       );
-    } else if (fehlend.length) {
+    } else if (missing.length) {
       violations.push(
-        `${platform}: ${fehlend.length} Bild(er) fehlen gegenueber den anderen Plattformen ` +
-          `(${fehlend.slice(0, 4).join(", ")}${fehlend.length > 4 ? ", ..." : ""}). ` +
-          'Der Workflow "Visual-Baselines erzeugen" traegt sie nach.',
+        `${platform}: ${missing.length} image(s) missing next to the other platforms ` +
+          `(${missing.slice(0, 4).join(", ")}${missing.length > 4 ? ", ..." : ""}). ` +
+          'The "Visual-Baselines erzeugen" workflow adds them.',
       );
     }
   }
@@ -119,8 +119,6 @@ export function checkVisualBaselineReach(repositoryRoot) {
 
 export function formatVisualBaselineReport(violations) {
   return violations.length
-    ? ["Visual-Baseline-Reichweite fehlgeschlagen:", ...violations.map((line) => `- ${line}`)].join(
-        NEWLINE,
-      )
-    : "Visual-Baseline-Reichweite haelt.";
+    ? ["Visual-baseline reach failed:", ...violations.map((line) => `- ${line}`)].join(NEWLINE)
+    : "Visual-baseline reach holds.";
 }

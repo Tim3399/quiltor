@@ -36,7 +36,7 @@ function world(name, { runner, runsSuite, images = ["a-darwin.png"] }) {
   return root;
 }
 
-test("zaehlt nur Jobs, die die Suite auch ausfuehren", () => {
+test("counts only jobs that actually run the suite", () => {
   const workflow = [
     "jobs:",
     "  package:",
@@ -53,16 +53,16 @@ test("zaehlt nur Jobs, die die Suite auch ausfuehren", () => {
   assert.deepEqual([...suitePlatforms([workflow])], ["linux"]);
 });
 
-test("nennt die Plattform, die noch keinen Satz mitbringt", () => {
-  const root = world("ohne-linux", { runner: "ubuntu-24.04", runsSuite: true });
+test("names the platform that brings no set yet", () => {
+  const root = world("without-linux", { runner: "ubuntu-24.04", runsSuite: true });
   const violations = checkVisualBaselineReach(root);
 
   assert.equal(violations.length, 1);
-  assert.match(violations[0], /^linux: ein Job vergleicht dort/);
+  assert.match(violations[0], /^linux: a job compares there/);
 });
 
-test("schweigt, wenn jede vergleichende Plattform ihren Satz hat", () => {
-  const root = world("vollstaendig", {
+test("stays silent when every comparing platform has its set", () => {
+  const root = world("complete", {
     runner: "macos-15",
     runsSuite: true,
     images: ["a-darwin.png"],
@@ -71,11 +71,11 @@ test("schweigt, wenn jede vergleichende Plattform ihren Satz hat", () => {
   assert.deepEqual(checkVisualBaselineReach(root), []);
 });
 
-test("nennt die Bilder, die einer Plattform gegenueber den anderen fehlen", () => {
+test("names the images a platform is missing next to the others", () => {
   // The case the bootstrap run exists for: a design has changed and the affected images
   // were deleted per platform. "Some image is there" would have stayed silent here -- and
   // the run meant to fill the gap would have skipped itself.
-  const root = world("halber-satz", {
+  const root = world("half-a-set", {
     runner: "${{ matrix.os }}",
     runsSuite: true,
     images: ["a-darwin.png", "b-darwin.png", "a-win32.png"],
@@ -98,19 +98,19 @@ test("nennt die Bilder, die einer Plattform gegenueber den anderen fehlen", () =
   const violations = checkVisualBaselineReach(root);
 
   assert.equal(violations.length, 1);
-  assert.match(violations[0], /^win32: 1 Bild\(er\) fehlen/);
+  assert.match(violations[0], /^win32: 1 image\(s\) missing/);
   assert.ok(violations[0].includes("(b)"), violations[0]);
 });
 
-test("meldet, wenn ueberhaupt kein Job die Suite ausfuehrt", () => {
+test("reports when no job runs the suite at all", () => {
   const root = world("niemand", { runner: "macos-15", runsSuite: false });
   const violations = checkVisualBaselineReach(root);
 
   assert.equal(violations.length, 1);
-  assert.match(violations[0], /Kein Job fuehrt/);
+  assert.match(violations[0], /No job runs/);
 });
 
-test("loest eine Runner-Matrix auf, statt sie zu uebersehen", () => {
+test("resolves a runner matrix instead of overlooking it", () => {
   const workflow = [
     "jobs:",
     "  browser:",
@@ -126,7 +126,7 @@ test("loest eine Runner-Matrix auf, statt sie zu uebersehen", () => {
   assert.deepEqual([...suitePlatforms([workflow])].sort(), ["darwin", "win32"]);
 });
 
-test("zaehlt eine Matrix nicht mit, wenn der Job die Suite gar nicht startet", () => {
+test("does not count a matrix when the job never starts the suite", () => {
   const workflow = [
     "jobs:",
     "  package:",

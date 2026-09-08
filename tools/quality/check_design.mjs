@@ -49,14 +49,14 @@ const numberToken = /-?\d+(?:\.\d+)?(?:px|em)\b/g;
 
 const propertyChecks = [
   [
-    "Abstand",
+    "Spacing",
     /\b(?:padding|margin)(?:-(?:top|bottom|left|right|inline|block))?\s*:\s*([^;{}]+)/gi,
     true,
   ],
-  ["Abstand", /\b(?:gap|row-gap|column-gap)\s*:\s*([^;{}]+)/gi, true],
-  ["Rundung", /\bborder-radius\s*:\s*([^;{}]+)/gi, false],
-  ["Schatten", /\bbox-shadow\s*:\s*([^;{}]+)/gi, false],
-  ["Schriftgröße", /\bfont(?:-size)?\s*:\s*([^;{}]+)/gi, false],
+  ["Spacing", /\b(?:gap|row-gap|column-gap)\s*:\s*([^;{}]+)/gi, true],
+  ["Radius", /\bborder-radius\s*:\s*([^;{}]+)/gi, false],
+  ["Shadow", /\bbox-shadow\s*:\s*([^;{}]+)/gi, false],
+  ["Font size", /\bfont(?:-size)?\s*:\s*([^;{}]+)/gi, false],
 ];
 
 const zIndex = /\bz-index\s*:\s*(-?\d+)\b/gi;
@@ -164,7 +164,7 @@ function visit(path) {
     const colorMatches = line.match(color);
 
     if (colorMatches) {
-      violations.push(`${relative(root, path)}:${index + 1}: [Farbe] ${colorMatches.join(", ")}`);
+      violations.push(`${relative(root, path)}:${index + 1}: [Colour] ${colorMatches.join(", ")}`);
     }
 
     for (const [label, regex, exemptHairline] of propertyChecks) {
@@ -202,7 +202,7 @@ function visit(path) {
     blur.lastIndex = 0;
 
     if (blur.test(line) && /blur\(\s*\d/.test(line)) {
-      violations.push(`${relative(root, path)}:${index + 1}: [Blur] roher Blur-Wert`);
+      violations.push(`${relative(root, path)}:${index + 1}: [Blur] raw blur value`);
     }
   });
 }
@@ -224,7 +224,7 @@ try {
   }
 } catch (error) {
   violations.push(
-    `[Semantische Farbrolle] ${error instanceof Error ? error.message : String(error)}`,
+    `[Semantic colour role] ${error instanceof Error ? error.message : String(error)}`,
   );
 }
 
@@ -236,7 +236,7 @@ for (const [path, line, name] of customPropertyUses) {
     continue;
   }
 
-  violations.push(`${path}:${line}: [Undefinierte Variable] var(${name})`);
+  violations.push(`${path}:${line}: [Undefined variable] var(${name})`);
 }
 
 const tokens = readFileSync(join(designRoot, "tokens.css"), "utf8");
@@ -266,9 +266,9 @@ function colorDeclarationsBySelector(source) {
 const colorThemes = colorDeclarationsBySelector(colors);
 
 function resolveThemeColor(theme, name, seen = new Set()) {
-  if (seen.has(name)) return { error: `zyklischer Alias bei ${name}` };
+  if (seen.has(name)) return { error: `cyclic alias at ${name}` };
   const value = colorThemes[theme].get(name) ?? colorThemes.shared.get(name);
-  if (!value) return { error: `${name} ist nicht definiert` };
+  if (!value) return { error: `${name} is not defined` };
   const alias = /^var\(\s*(--[\w-]+)\s*\)$/u.exec(value)?.[1];
   if (!alias) return { value };
   return resolveThemeColor(theme, alias, new Set([...seen, name]));
@@ -358,7 +358,7 @@ const semanticColorRoles = {
 
 for (const name of requiredTokens) {
   if (!tokens.includes(`--${name}:`)) {
-    violations.push(`${designPath}/tokens.css: [Pflicht-Token] --${name}`);
+    violations.push(`${designPath}/tokens.css: [Required token] --${name}`);
   }
 }
 
@@ -371,7 +371,7 @@ for (const name of requiredColors) {
     const resolved = resolveThemeColor(theme, `--${name}`);
     if (resolved.error) {
       violations.push(
-        `${designPath}/colors.css: [Theme-Parität] ${theme} --${name}: ${resolved.error}`,
+        `${designPath}/colors.css: [Theme parity] ${theme} --${name}: ${resolved.error}`,
       );
     }
   }
@@ -381,7 +381,7 @@ for (const [role, expectedFamilyRole] of Object.entries(semanticColorRoles)) {
   const actual = colorThemes.shared.get(role);
   if (actual !== `var(${expectedFamilyRole})`) {
     violations.push(
-      `${designPath}/colors.css: [Semantische Farbrolle] ${role} muss var(${expectedFamilyRole}) sein, ist aber ${actual ?? "nicht definiert"}`,
+      `${designPath}/colors.css: [Semantic colour role] ${role} must be var(${expectedFamilyRole}), but is ${actual ?? "not defined"}`,
     );
   }
 }
@@ -389,14 +389,12 @@ for (const [role, expectedFamilyRole] of Object.entries(semanticColorRoles)) {
 const touchSize = tokens.match(/--control-touch:\s*(\d+)px/);
 
 if (!touchSize || Number(touchSize[1]) < 44) {
-  violations.push(
-    `${designPath}/tokens.css: [Touchziel] --control-touch muss mindestens 44px betragen`,
-  );
+  violations.push(`${designPath}/tokens.css: [Touch target] --control-touch must be at least 44px`);
 }
 
 if (violations.length) {
   console.error(
-    `Farb- und Gestaltungswerte gehören ausschließlich in ${designPath}/colors.css bzw. ${designPath}/tokens.css:\n${violations.join("\n")}`,
+    `Colour and design values belong in ${designPath}/colors.css and ${designPath}/tokens.css alone:\n${violations.join("\n")}`,
   );
 
   process.exit(1);

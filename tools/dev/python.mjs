@@ -61,8 +61,8 @@ const chosen = CANDIDATES.find((candidate) => canImport(candidate, module));
 if (!chosen) {
   const tried = CANDIDATES.map(([command, prefix]) => [command, ...prefix].join(" ")).join(", ");
   console.error(
-    `Kein Python gefunden, das \`${module}\` importieren kann. Versucht: ${tried}.\n` +
-      "`npm run doctor` zeigt, welche Laufzeiten hier stehen und wie sie zu bekommen sind.",
+    `No Python found that can import \`${module}\`. Tried: ${tried}.\n` +
+      "`npm run doctor` shows which runtimes are here and how to get the ones that are not.",
   );
   process.exit(1);
 }

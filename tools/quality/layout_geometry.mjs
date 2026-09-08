@@ -25,10 +25,10 @@ export const BREAKPOINTS = Object.freeze([359, 480, 640, 719, 720, 820, 900, 105
  * that somebody has seen them -- new numbers outside the ladder still stand out.
  */
 export const BREAKPOINT_EXCEPTIONS = Object.freeze({
-  380: "ToolbarButton: eigene Schwelle, ab der das Label auch im Kompaktmodus weicht",
-  399: "WorldGate: die schmalste Geraeteklasse, auf der die Weltliste noch zweispaltig waere",
-  520: "Storyboard: Breite und Hoehe derselben Schwelle, damit flache Fenster gleich brechen",
-  760: "NoteEditor: folgt der Satzbreite, nicht der Fensterleiter",
+  380: "ToolbarButton: its own threshold, below which the label gives way in compact mode too",
+  399: "WorldGate: the narrowest device class on which the world list would still be two columns",
+  520: "Storyboard: width and height of the same threshold, so flat windows break alike",
+  760: "NoteEditor: follows the measure of the text, not the window ladder",
 });
 
 /** Raw geometry below this is an icon, a hairline or an optical nudge -- not a decision. */
@@ -93,9 +93,9 @@ export function analyzeLayoutGeometry(source) {
       if (BREAKPOINTS.includes(value)) continue;
       if (Object.hasOwn(BREAKPOINT_EXCEPTIONS, value)) continue;
       violations.push(
-        `${match[1]}-width: ${value}px steht nicht auf der Breakpoint-Leiter ` +
-          `(${BREAKPOINTS.join(", ")}). Entweder eine vorhandene Kante nehmen oder die neue ` +
-          "in BREAKPOINT_EXCEPTIONS begruenden.",
+        `${match[1]}-width: ${value}px is not on the breakpoint ladder ` +
+          `(${BREAKPOINTS.join(", ")}). Either take an existing edge, or give the new one a ` +
+          "reason in BREAKPOINT_EXCEPTIONS.",
       );
     }
   }
@@ -107,9 +107,9 @@ export function analyzeLayoutGeometry(source) {
       .filter((value) => value >= MEANINGFUL_PX);
     if (!raw.length) continue;
     violations.push(
-      `calc() mischt benannte und unbenannte Geometrie (${raw.join("px, ")}px): ` +
+      `calc() mixes named and unnamed geometry (${raw.join("px, ")}px): ` +
         `${expression.replace(/\s+/gu, " ").slice(0, 90)}. ` +
-        "Eine halb benannte Rechnung driftet, sobald sich einer der Teile bewegt.",
+        "A half-named calculation drifts as soon as one of its parts moves.",
     );
   }
 
@@ -128,6 +128,6 @@ export function scanLayoutGeometry(repositoryRoot) {
 
 export function formatLayoutGeometryReport(violations) {
   return violations.length
-    ? ["Layout-Geometrie fehlgeschlagen:", ...violations.map((line) => `- ${line}`)].join(NEWLINE)
-    : "Layout-Geometrie haelt.";
+    ? ["Layout geometry failed:", ...violations.map((line) => `- ${line}`)].join(NEWLINE)
+    : "Layout geometry holds.";
 }

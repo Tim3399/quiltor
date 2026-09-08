@@ -16,35 +16,34 @@ const MODULES = "packages/client/src/modules";
  */
 export const SHARED_FEATURE_CLASSES = Object.freeze({
   "editable-chips":
-    "Chip-Liste zum Bearbeiten, die sich das Begriffe- und das Elemente-Blatt teilen: beide zeigen dieselbe Art Liste, in der man ein- und ausschaltet oder entfernt.",
+    "Editable chip list shared by the terms sheet and the elements sheet: both show the same kind of list, one you switch on and off or remove from.",
   "figure-layout":
-    "Rasterrahmen von Figuren UND Orten. Spaltenzahl nur unter .figure-workspace aendern -- siehe StoryGraphLayout.test.ts.",
-  "layout-without-inspector": "Derselbe Rahmen ohne Steuerspalte, in beiden Ansichten.",
-  "has-selection": "Auswahlzustand des Inspectors in Figuren und Orten.",
-  "is-connecting": "Verbindungsmodus der Leinwand, in Figuren und Orten.",
-  "importance-mark": "Der Stern auf einer Karte, in Figuren und Orten derselbe.",
-  "story-world-toast": "Meldungsflaeche der Weltansichten, in Figuren und Orten derselbe Ort.",
-  "graph-viewport-surface": "Leinwandhuelle aus dem graph-Modul; Weltgraph und Storyboard.",
-  "has-minimap": "Zustand derselben Huelle; steuert die Freihalteflaechen am unteren Rand.",
-  "graph-edge-surface": "Kantenflaeche aus dem graph-Modul; Weltgraph und Storyboard.",
-  "graph-edge-inspector-panel": "Kanten-Inspector aus dem graph-Modul; Weltgraph und Storyboard.",
-  "graph-edge-appearance-select": "Gemeinsame Huelle der drei Kanten-Auswahlfelder.",
-  "graph-edge-appearance-select__label": "Teil derselben Huelle.",
-  "graph-edge-appearance-select__control": "Teil derselben Huelle.",
-  "directed-handle": "Verbindungspunkt aus dem Figurenboard; das Storyboard benutzt denselben.",
-  "neutral-handle": "Ungerichteter Verbindungspunkt, ebenfalls aus dem Figurenboard.",
-  "focus-side-toggle": "In FocusPanels.css beschrieben, von WorkspaceLayout gerendert.",
-  "focus-helper-toggle": "Zweiter Reiter derselben Fokusleiste, gleiche Aufteilung.",
-  "writing-data-state": "Ergebnisdarstellung der Schreibhilfe, von Nachschlagen und Pruefen.",
-  "writing-values": "Liste der Treffer in derselben Ergebnisdarstellung.",
-  "writing-value": "Einzelner Treffer in derselben Ergebnisdarstellung.",
-  "writing-attribution": "Quellenangabe unter derselben Ergebnisdarstellung.",
-  "is-visible": "Zustand im Kapitelbaum, von Baum und Zeilen gesetzt.",
-  "is-active": "Aktiver Eintrag im Kapitelbaum, von Baum und Zeilen gesetzt.",
+    "Grid frame of figures AND places. Change the column count only under .figure-workspace -- see StoryGraphLayout.test.ts.",
+  "layout-without-inspector": "The same frame without the control column, in both views.",
+  "has-selection": "Selection state of the inspector in figures and places.",
+  "is-connecting": "The canvas connecting mode, in figures and places.",
+  "importance-mark": "The star on a card, the same one in figures and places.",
+  "story-world-toast": "Message surface of the world views, the same place in figures and places.",
+  "graph-viewport-surface": "Canvas shell from the graph module; world graph and storyboard.",
+  "has-minimap": "State of that same shell; it drives the keep-clear areas along the bottom edge.",
+  "graph-edge-surface": "Edge surface from the graph module; world graph and storyboard.",
+  "graph-edge-inspector-panel": "Edge inspector from the graph module; world graph and storyboard.",
+  "graph-edge-appearance-select": "Shared shell of the three edge selects.",
+  "graph-edge-appearance-select__label": "Part of that same shell.",
+  "graph-edge-appearance-select__control": "Part of that same shell.",
+  "directed-handle": "Connection handle from the figure board; the storyboard uses the same one.",
+  "neutral-handle": "Undirected connection handle, likewise from the figure board.",
+  "focus-side-toggle": "Described in FocusPanels.css, rendered by WorkspaceLayout.",
+  "focus-helper-toggle": "Second tab of that same focus strip, the same division.",
+  "writing-data-state": "Result display of the writing aid, shared by lookup and checking.",
+  "writing-values": "List of hits inside that same result display.",
+  "writing-value": "A single hit inside that same result display.",
+  "writing-attribution": "Source note beneath that same result display.",
+  "is-visible": "State in the chapter tree, set by the tree and by the rows.",
+  "is-active": "Active entry in the chapter tree, set by the tree and by the rows.",
   selected:
-    "Allgemeines Zustandswort, das mehrere Stylesheets fuer sich definieren. Keine gemeinsame Entscheidung -- eher ein Kandidat zum Entflechten.",
-  active:
-    "Ebenfalls ein allgemeines Zustandswort mit mehreren Definitionen -- dieselbe offene Flanke.",
+    "A general state word that several stylesheets define for themselves. Not a shared decision -- more a candidate for untangling.",
+  active: "Likewise a general state word with several definitions -- the same open flank.",
 });
 
 function normalized(path) {
@@ -165,17 +164,17 @@ export function scanSharedFeatureClasses(repositoryRoot) {
     shared.add(name);
     if (Object.hasOwn(SHARED_FEATURE_CLASSES, name)) continue;
     violations.push(
-      `.${name} (aus ${owners.get(name)}) wird von ${[...features].sort().join(" und ")} ` +
-        "benutzt, steht aber nicht in SHARED_FEATURE_CLASSES. Eintragen und in einem Satz " +
-        "sagen, wer sich hier worauf verlaesst.",
+      `.${name} (from ${owners.get(name)}) is used by ${[...features].sort().join(" and ")} ` +
+        "but is not in SHARED_FEATURE_CLASSES. Add it, and say in one sentence who is " +
+        "relying on what here.",
     );
   }
 
   for (const name of Object.keys(SHARED_FEATURE_CLASSES)) {
     if (!shared.has(name)) {
       violations.push(
-        `.${name} steht in SHARED_FEATURE_CLASSES, wird aber nur noch von einer Stelle ` +
-          "benutzt. Eintrag entfernen, damit die Liste weiter etwas bedeutet.",
+        `.${name} is in SHARED_FEATURE_CLASSES but is used from one place only now. ` +
+          "Remove the entry, so the list keeps meaning something.",
       );
     }
   }
@@ -186,9 +185,9 @@ export function scanSharedFeatureClasses(repositoryRoot) {
     for (const file of stylesheets) {
       for (const line of missingGeometryNotes(readFileSync(file, "utf8"), name)) {
         violations.push(
-          `${normalized(file).split("/modules/")[1]}: .${name} legt geteilte Geometrie fest, ` +
-            `aber ueber Zeile ${line} steht kein Hinweis darauf, welche Ansichten sie noch ` +
-            "tragen. Einen Satz darueber setzen.",
+          `${normalized(file).split("/modules/")[1]}: .${name} sets shared geometry, but ` +
+            `above line ${line} there is no note saying which other views carry it. Put a ` +
+            "sentence above it.",
         );
       }
     }
@@ -199,6 +198,6 @@ export function scanSharedFeatureClasses(repositoryRoot) {
 
 export function formatSharedFeatureClassReport(violations) {
   return violations.length
-    ? ["Geteilte Feature-Klassen:", ...violations.map((line) => `- ${line}`)].join(NEWLINE)
-    : "Geteilte Feature-Klassen sind angemeldet.";
+    ? ["Shared feature classes:", ...violations.map((line) => `- ${line}`)].join(NEWLINE)
+    : "Shared feature classes are all registered.";
 }

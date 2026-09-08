@@ -453,30 +453,30 @@ export function compareDesignSystemDebt({ baseline, current }) {
 
 function debtLabel(change) {
   return change.category === "controls"
-    ? `rohes JSX-Control <${change.name}>`
-    : `direkte Legacy-Klasse .${change.name}`;
+    ? `raw JSX control <${change.name}>`
+    : `direct legacy class .${change.name}`;
 }
 
 export function formatDesignSystemDebtReport(result) {
   if (result.ok) return "Design-system debt matches the checked-in baseline.";
   const lines = ["Design-system debt ratchet failed."];
   if (result.increases.length) {
-    lines.push("", "Neue oder erhöhte Design-Debt:");
+    lines.push("", "New or increased design debt:");
     for (const change of result.increases) {
-      const newFile = change.newFile ? " (neue Datei mit Debt)" : "";
+      const newFile = change.newFile ? " (new file carrying debt)" : "";
       lines.push(
-        `- [Neue Design-Debt] ${change.file}: ${debtLabel(change)} ${change.allowed} -> ${change.actual}${newFile}`,
+        `- [New design debt] ${change.file}: ${debtLabel(change)} ${change.allowed} -> ${change.actual}${newFile}`,
       );
     }
   }
   if (result.reductions.length) {
-    lines.push("", "Debt wurde reduziert; die niedrigere Obergrenze muss eingecheckt werden:");
+    lines.push("", "Debt went down; the lower ceiling has to be checked in:");
     for (const change of result.reductions) {
       lines.push(
-        `- [Baseline aktualisieren] ${change.file}: ${debtLabel(change)} ${change.allowed} -> ${change.actual}`,
+        `- [Update the baseline] ${change.file}: ${debtLabel(change)} ${change.allowed} -> ${change.actual}`,
       );
     }
-    lines.push("", `Baseline aktualisieren: ${designSystemDebtBaselineUpdateCommand}`);
+    lines.push("", `Update the baseline: ${designSystemDebtBaselineUpdateCommand}`);
   }
   return lines.join("\n");
 }

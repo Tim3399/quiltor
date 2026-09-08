@@ -40,7 +40,7 @@ const RUNTIMES = [
     hint: (expected) =>
       WINDOWS
         ? `winget install Python.Python.3.12 --version ${expected}`
-        : `pyenv install ${expected}   (oder das Paket der Distribution)`,
+        : `pyenv install ${expected}   (or the distribution's own package)`,
   },
   {
     name: "node",
@@ -54,8 +54,8 @@ const RUNTIMES = [
     hint: (expected) =>
       WINDOWS
         ? `https://nodejs.org/dist/v${expected}/node-v${expected}-${process.arch === "arm64" ? "arm64" : "x64"}.msi` +
-          `   (oder nvm install ${expected}, falls installiert)`
-        : `nvm install ${expected}   (oder volta pin node@${expected})`,
+          `   (or nvm install ${expected}, if one is installed)`
+        : `nvm install ${expected}   (or volta pin node@${expected})`,
   },
   {
     name: "npm",
@@ -73,7 +73,7 @@ const RUNTIMES = [
 function measure({ ask: [command, args], clean }) {
   const run = spawnSync(command, args, { encoding: "utf8", shell: WINDOWS });
   if (run.status !== 0) {
-    const reason = run.error?.code === "ENOENT" ? "nicht gefunden" : "startet nicht";
+    const reason = run.error?.code === "ENOENT" ? "not found" : "does not start";
     return { missing: true, text: reason };
   }
   const raw = (run.stdout || run.stderr).trim().split("\n").pop().trim();
@@ -97,22 +97,22 @@ for (const runtime of RUNTIMES) {
   });
 }
 
-console.log("Laufzeiten für den Release-Preflight (distribution/toolchains.json):\n");
+console.log("Runtimes the release preflight expects (distribution/toolchains.json):\n");
 for (const row of rows) {
-  console.log(`${row.mark}${row.name} soll ${row.expected} ist ${row.found}`);
+  console.log(`${row.mark}${row.name} wants ${row.expected} has ${row.found}`);
   if (row.hint) console.log(`         ${row.hint}`);
 }
 
 console.log("");
 if (mismatches === 0) {
-  console.log("Alle vier passen. `npm run set-version` kann laufen.");
+  console.log("All four match. `npm run set-version` can run.");
 } else {
   console.log(
-    `${mismatches} von ${RUNTIMES.length} weichen ab. Solange das so ist, lehnt ` +
-      "`npm run set-version` den Versionswechsel ab -- und zwar zu Recht: ein Release, das " +
-      "lokal mit anderen Werkzeugen gebaut wird als in der CI, ist nicht nachvollziehbar.",
+    `${mismatches} of ${RUNTIMES.length} differ. While that holds, \`npm run set-version\` ` +
+      "refuses the version change -- and rightly so: a release built locally with other " +
+      "tools than CI uses cannot be retraced.",
   );
-  console.log("Der Alltag -- npm start, npm test, die check-Gates -- läuft davon unberührt.");
+  console.log("Everyday work -- npm start, npm test, the check gates -- is untouched by it.");
 }
 
 process.exitCode = mismatches === 0 ? 0 : 1;

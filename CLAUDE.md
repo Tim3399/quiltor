@@ -1,43 +1,45 @@
 # Working in this repository
 
-## Language: English in the code, German in the product
+## Language: German for the user, English for the developer
 
-The codebase is English. Comments, docstrings, identifiers, CLI flags, commit messages —
-all English. This is the repository's own convention, visible in its first 319 commits and
-in the comments at the top of `.github/workflows/test.yml`.
+One rule, and it is decided by the reader, not by the file:
 
-It drifted in September 2026: 48 commits and roughly 500 comment blocks were written in
-German. That was a break with the convention, not a new one. If you find German in code,
-it is a leftover to fix, not a pattern to follow.
+- **German** — everything a person reads while writing in Quiltor. The product is built
+  for a German-speaking author first, and that comes before consistency of any other kind.
+- **English** — everything a person reads while working _on_ Quiltor. Code, comments,
+  docstrings, identifiers, CLI flags, commit messages, log lines, error messages, tool
+  output, violation reports, test titles, assertion messages.
 
-What stays German, because it is the product and not the code:
+Ask who is meant to read it. An author sees the German half; a developer sees the English
+half. A `console.error` in `tools/` is developer-facing even though it looks like prose,
+and a `getByRole("button", { name: "Kapitel" })` is product-facing even though it sits in a
+test.
+
+The German half, in full:
 
 - `locales/de/*` — the interface itself.
-- Strings that assert German interface text, such as
-  `getByRole("button", { name: "Kapitel" })`.
-- Fixture prose (`"Der Morgen lag still über dem Hafen."`) and fixture ids.
-- Everything a person reads while writing in Quiltor.
+- Strings that assert German interface text.
+- Fixture prose (`"Der Morgen lag still über dem Hafen."`), fixture ids, and the German
+  manuscripts in `tools/documentation/` and `tools/evaluation/` — those are a German
+  author's material, used as input.
+- The product suite's test titles (`tests/e2e/`, 70 of 74). They read as acceptance
+  statements about a German interface, and that suite is consistent in itself.
 
-A comment written in English may quote a German product string — a macOS menu item, an
-error message, a prompt. That is a quotation, not a leftover.
+An English comment may quote a German product string — a macOS menu item, an error message,
+a prompt. That is a quotation, not a leftover.
 
 Persisted field names are code, not product. Four of them (`zeichenAktiv`,
 `elementeVerborgen`, `gerichtet`, `notizen`) were German and had to be renamed through
 schema migrations, which is much more expensive than getting them right the first time.
 
-### Test titles
+### The word list is not the tool
 
-Not settled the same way everywhere, and deliberately left that way:
-
-- The **product suite** (`tests/e2e/`) names its tests in German — 70 of 74. They read as
-  acceptance statements about a German interface. Follow that suite's convention there.
-- The **unit tests** and the **design suite** are English. German titles there are drift.
-
-## Assertion messages are code
-
-A message a `page.evaluate` returns for a failing expectation is read by whoever is
-debugging, not by an author. English, like the rest of the code — the German interface
-names inside it stay quoted.
+Three sweeps missed things, each time because a German phrase happened to contain no umlaut
+and no word from whatever list was in use — `Baseline aktualisieren`, `liest verschachtelte
+calc-Klammern`, `mischt benannte und unbenannte Geometrie`. Grep for umlauts, for the
+`ae`/`oe`/`ue` transliterations, for German suffixes (`-ung`, `-keit`, `-lich`, `-ieren`),
+and read every `test(` title and every `assert.match` regex by eye. A message and the
+assertion that matches it must move together, or the suite goes red for the wrong reason.
 
 ## dist/ is committed, and the product suite runs against it
 

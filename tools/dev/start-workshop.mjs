@@ -52,14 +52,14 @@ function findPython() {
     if (probe.status === 0) return [command, prefix];
     const reason =
       probe.error?.code === "ENOENT"
-        ? "nicht vorhanden"
+        ? "not present"
         : probe.status === 1
-          ? "aelter als 3.12"
-          : (probe.stderr || "").split("\n")[0] || "startet nicht";
+          ? "older than 3.12"
+          : (probe.stderr || "").split("\n")[0] || "does not start";
     rejected.push(`  ${[command, ...prefix].join(" ")}: ${reason}`);
   }
 
-  console.error("Kein brauchbares Python gefunden. Das Projekt braucht 3.12 oder neuer.");
+  console.error("No usable Python found. The project needs 3.12 or newer.");
   console.error(rejected.join("\n"));
   process.exit(1);
 }
@@ -80,7 +80,7 @@ function start(name, command, args, environment) {
   child.stderr.on("data", show);
   child.on("exit", (code) => {
     if (!stopping) {
-      console.error(`\n[${name}] hat sich mit Code ${code} beendet. Alles wird gestoppt.`);
+      console.error(`\n[${name}] exited with code ${code}. Stopping everything.`);
       shutDown(1);
     }
   });
@@ -97,7 +97,7 @@ async function waitFor(url, name, seconds = 60) {
     }
     await new Promise((next) => setTimeout(next, 1000));
   }
-  console.error(`${name} antwortet nach ${seconds}s nicht auf ${url}.`);
+  console.error(`${name} did not answer on ${url} within ${seconds}s.`);
   return false;
 }
 
@@ -123,7 +123,7 @@ process.on("SIGTERM", () => shutDown(0));
 
 const server = resolve(ROOT, "apps/web/server.py");
 if (!existsSync(server)) {
-  console.error(`Nicht gefunden: ${server}. Läuft das Skript im richtigen Verzeichnis?`);
+  console.error(`Not found: ${server}. Is the script running in the right directory?`);
   process.exit(1);
 }
 
@@ -140,10 +140,10 @@ children.push(
   ),
 );
 
-if (!(await waitFor(`http://127.0.0.1:${API_PORT}/api/version`, "Der API-Server"))) {
+if (!(await waitFor(`http://127.0.0.1:${API_PORT}/api/version`, "The API server"))) {
   shutDown(1);
 }
-console.log(`API bereit auf http://127.0.0.1:${API_PORT}`);
+console.log(`API ready on http://127.0.0.1:${API_PORT}`);
 
 children.push(
   start("web", WINDOWS ? "npx.cmd" : "npx", [
@@ -159,6 +159,6 @@ children.push(
 if (!(await waitFor(`http://127.0.0.1:${CLIENT_PORT}/`, "Vite"))) shutDown(1);
 
 console.log("");
-console.log(`  Die Werkstatt läuft: http://127.0.0.1:${CLIENT_PORT}`);
-console.log("  Beenden mit Strg+C.");
+console.log(`  The workshop is running: http://127.0.0.1:${CLIENT_PORT}`);
+console.log("  Stop with Ctrl+C.");
 console.log("");

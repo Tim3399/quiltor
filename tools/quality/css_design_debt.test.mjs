@@ -341,7 +341,7 @@ test("requires an explicit baseline update for reductions and removed CSS debt f
     ],
   );
   const report = formatCssDesignDebtReport(result);
-  assert.match(report, /\[Baseline aktualisieren\]/u);
+  assert.match(report, /\[Update the baseline\]/u);
   assert.match(report, new RegExp(cssDesignDebtBaselineUpdateCommand.replaceAll(".", "\\.")));
 });
 

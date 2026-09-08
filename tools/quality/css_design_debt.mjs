@@ -949,30 +949,30 @@ export function compareCssDesignDebt({ baseline, current }) {
 
 function debtLabel(change) {
   return change.category === "nativeTypeSelectors"
-    ? `nativer Type-Selektor ${change.name}`
-    : `direkter Design-Owner-Override .${change.name}`;
+    ? `native type selector ${change.name}`
+    : `direct design-owner override .${change.name}`;
 }
 
 export function formatCssDesignDebtReport(result) {
   if (result.ok) return "CSS design debt matches the checked-in baseline.";
   const lines = ["CSS design-debt ratchet failed."];
   if (result.increases.length) {
-    lines.push("", "Neue oder erhöhte CSS-Design-Debt:");
+    lines.push("", "New or increased CSS design debt:");
     for (const change of result.increases) {
-      const newFile = change.newFile ? " (neue Datei mit Debt)" : "";
+      const newFile = change.newFile ? " (new file carrying debt)" : "";
       lines.push(
-        `- [Neue CSS-Design-Debt] ${change.file}: ${debtLabel(change)} ${change.allowed} -> ${change.actual}${newFile}`,
+        `- [New CSS design debt] ${change.file}: ${debtLabel(change)} ${change.allowed} -> ${change.actual}${newFile}`,
       );
     }
   }
   if (result.reductions.length) {
-    lines.push("", "CSS-Debt wurde reduziert; die niedrigere Obergrenze muss eingecheckt werden:");
+    lines.push("", "CSS debt went down; the lower ceiling has to be checked in:");
     for (const change of result.reductions) {
       lines.push(
-        `- [Baseline aktualisieren] ${change.file}: ${debtLabel(change)} ${change.allowed} -> ${change.actual}`,
+        `- [Update the baseline] ${change.file}: ${debtLabel(change)} ${change.allowed} -> ${change.actual}`,
       );
     }
-    lines.push("", `Baseline aktualisieren: ${cssDesignDebtBaselineUpdateCommand}`);
+    lines.push("", `Update the baseline: ${cssDesignDebtBaselineUpdateCommand}`);
   }
   return lines.join("\n");
 }

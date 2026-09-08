@@ -188,5 +188,5 @@ export function scanSemanticColorRoles(root) {
 }
 
 export function formatSemanticColorRoleViolation({ path, line, selector, variable }) {
-  return `${path}:${line}: [Semantische Farbrolle] ${variable} in ${selector}`;
+  return `${path}:${line}: [Semantic colour role] ${variable} in ${selector}`;
 }

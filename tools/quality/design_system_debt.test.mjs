@@ -255,7 +255,7 @@ test("requires a baseline update for reductions so removed debt cannot grow back
     ],
   );
   const report = formatDesignSystemDebtReport(result);
-  assert.match(report, /\[Baseline aktualisieren\]/);
+  assert.match(report, /\[Update the baseline\]/);
   assert.match(report, new RegExp(designSystemDebtBaselineUpdateCommand.replaceAll(".", "\\.")));
 });
 
