@@ -48,6 +48,19 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEdito
 const tarek = { id: "t", x: 0, y: 0, type: "person" as const, name: "Tarek", sub: "Bäcker" };
 
 describe("ManuscriptEditor selection", () => {
+  it("captures and restores the cursor position and focus", () => {
+    const { editor, handle } = renderEditor();
+    editor.dispatch({ selection: EditorSelection.range(6, 10) });
+    editor.focus();
+    const position = handle.current?.getPosition();
+    expect(position).toEqual({ anchor: 6, head: 10, focused: true });
+
+    editor.dispatch({ selection: EditorSelection.cursor(0) });
+    handle.current?.restorePosition(requireValue(position));
+    expect(editor.state.selection.main).toMatchObject({ anchor: 6, head: 10 });
+    expect(editor.hasFocus).toBe(true);
+  });
+
   it("reports a selection without opening the action menu for it", async () => {
     // The report is the information "this is selected". The menu with dictionary,
     // synonyms and translation is the writer's own decision and must not spring open on a

@@ -92,6 +92,50 @@ def at_pointer(value, path: str):
 
 
 class DocumentWireV1Tests(unittest.TestCase):
+    def test_book_layout_round_trips_extensions_and_rejects_invalid_geometry(self):
+        fixture = registered_fixture("application.manuscript-wire")
+        decoded = decode_document_v1("manuscript", fixture)
+        self.assertEqual(decoded.payload["bookLayout"]["sceneSymbol"], "⁂")
+        self.assertEqual(decoded.payload["bookLayout"]["extensionTypography"], {"kept": True})
+        self.assertEqual(
+            encode_document_v1("manuscript", decoded.payload, decoded.revision), fixture
+        )
+        decoded.payload["bookLayout"]["extensionTypography"]["kept"] = False
+        self.assertTrue(fixture["payload"]["bookLayout"]["extensionTypography"]["kept"])
+
+        invalid_values = (
+            ("mirrorMargins", "yes"),
+            ("fontFamily", "times"),
+            ("pageFormat", []),
+            ("widows", 0),
+            ("sceneSymbol", "   "),
+        )
+        for key, value in invalid_values:
+            candidate = registered_fixture("application.manuscript-wire")
+            candidate["payload"]["bookLayout"][key] = value
+            with self.subTest(key=key), self.assertRaises(InvalidDocumentWireV1):
+                decode_document_v1("manuscript", candidate)
+
+        for dimensions in (
+            {
+                "pageWidthMm": 80,
+                "marginInnerMm": 25,
+                "marginOuterMm": 25,
+                "gutterMm": 1,
+            },
+            {"pageHeightMm": 80, "marginTopMm": 26, "marginBottomMm": 25},
+        ):
+            candidate = registered_fixture("application.manuscript-wire")
+            candidate["payload"]["bookLayout"].update(dimensions)
+            with self.subTest(dimensions=dimensions), self.assertRaises(InvalidDocumentWireV1):
+                decode_document_v1("manuscript", candidate)
+
+    def test_book_layout_is_optional_for_older_manuscripts(self):
+        fixture = registered_fixture("application.manuscript-wire")
+        del fixture["payload"]["bookLayout"]
+        decoded = decode_document_v1("manuscript", fixture)
+        self.assertNotIn("bookLayout", decoded.payload)
+
     def test_frozen_alias_rules_and_vectors_match_the_registered_contract(self):
         rules = json.loads(
             (

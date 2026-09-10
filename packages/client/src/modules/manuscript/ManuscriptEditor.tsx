@@ -37,6 +37,8 @@ export type EditorTextSelection = {
 
 export type ManuscriptEditorHandle = {
   focus: () => void;
+  getPosition: () => ManuscriptEditorPosition;
+  restorePosition: (position: ManuscriptEditorPosition) => void;
   insert: (text: string) => void;
   insertEntity: (entity: FigureNode) => void;
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
@@ -44,6 +46,12 @@ export type ManuscriptEditorHandle = {
   toggleMark: (kind: TextMarkKind, range?: { from: number; to: number }) => boolean;
   cut: (from: number, to: number) => void;
   reveal: (from: number, to: number) => void;
+};
+
+export type ManuscriptEditorPosition = {
+  anchor: number;
+  head: number;
+  focused: boolean;
 };
 
 export function ManuscriptEditor({
@@ -352,6 +360,18 @@ export function ManuscriptEditor({
     view.current = instance;
     editorRef.current = {
       focus: () => instance.focus(),
+      getPosition: () => ({
+        anchor: instance.state.selection.main.anchor,
+        head: instance.state.selection.main.head,
+        focused: instance.hasFocus,
+      }),
+      restorePosition: ({ anchor, head, focused }) => {
+        const length = instance.state.doc.length;
+        const safeAnchor = Math.max(0, Math.min(anchor, length));
+        const safeHead = Math.max(0, Math.min(head, length));
+        instance.dispatch({ selection: EditorSelection.range(safeAnchor, safeHead) });
+        if (focused) instance.focus();
+      },
       insert: (text) => {
         const range = instance.state.selection.main;
         instance.dispatch({

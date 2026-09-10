@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog, Toast, ToastRegion } from "../../design";
 import { useI18n } from "../../i18n";
 import { applicationErrorMessage, quiltorClient, saveTextFile } from "../../platform";
 import { uid } from "../../shared/id";
+import { BookDocument } from "./BookDocument";
+import { BookLayoutInspector } from "./BookLayoutInspector";
 import {
   addChapterItem,
   flattenChapterIds,
@@ -10,19 +12,21 @@ import {
   orderedChapters,
   removeChapterItem,
 } from "./binder/manuscriptTree";
-import { chapterPlacement } from "./chapterPlacement";
+import { resolveBookLayout } from "./bookLayout";
 import { ChapterBinder } from "./ChapterBinder";
 import { ChapterInspector } from "./ChapterInspector";
+import { chapterPlacement } from "./chapterPlacement";
 import { EditorSurface } from "./EditorSurface";
+import { ElementsSheet } from "./ElementsSheet";
 import { FocusPanels } from "./FocusPanels";
+import type { ManuscriptEditorPosition } from "./ManuscriptEditor";
 import { ManuscriptInspector, type ManuscriptInspectorRegister } from "./ManuscriptInspector";
 import { ManuscriptToolbar } from "./ManuscriptToolbar";
 import { markdownBody } from "./marks";
 import type { Chapter } from "./model";
-import { PrintDocument } from "./PrintDocument";
+import { PrintPreviewWorkspace } from "./PrintPreviewWorkspace";
 import { SelectionActions } from "./SelectionActions";
 import { manuscriptShortcut } from "./shortcuts";
-import { ElementsSheet } from "./ElementsSheet";
 import { TermsSheet } from "./TermsSheet";
 import { useChapterHistory } from "./useChapterHistory";
 import { useManuscriptSearch } from "./useManuscriptSearch";
@@ -72,6 +76,14 @@ export function TextWorkspace({
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
   const [exportError, setExportError] = useState("");
+  const [preview, setPreview] = useState(false);
+  const [previewChapterId, setPreviewChapterId] = useState("");
+  const [previewTargetChapterId, setPreviewTargetChapterId] = useState("");
+  const [previewTargetRequestId, setPreviewTargetRequestId] = useState(0);
+  const editorRestoreRef = useRef<{
+    position?: ManuscriptEditorPosition;
+    scrollTop: number;
+  } | null>(null);
   const binderOpen = controlledBinderOpen ?? localBinderOpen;
   const inspectorOpen = controlledInspectorOpen ?? localInspectorOpen;
   const setBinderOpen = onBinderOpen ?? setLocalBinderOpen;
@@ -139,6 +151,40 @@ export function TextWorkspace({
     sidebarWidth,
     inspectorWidth,
   });
+
+  if (new URLSearchParams(window.location.search).get("bookRender") === "1") {
+    return <BookDocument worldTitle={worldTitle} manuscript={manuscript} />;
+  }
+
+  const setPrintPreview = (next: boolean) => {
+    if (next) {
+      const scroller = layoutRef.current?.querySelector<HTMLElement>(".editor-scroll");
+      editorRestoreRef.current = {
+        position: writing.editor.current
+          ? { ...writing.editor.current.getPosition(), focused: true }
+          : undefined,
+        scrollTop: scroller?.scrollTop ?? 0,
+      };
+      setPreviewChapterId(current?.id ?? "");
+      setPreviewTargetChapterId(current?.id ?? "");
+      setPreviewTargetRequestId((requestId) => requestId + 1);
+      if (focus) onFocus(false);
+      writing.setSelectionMenuOpen(false);
+      setPreview(true);
+      return;
+    }
+    setPreview(false);
+    requestAnimationFrame(() => {
+      const restore = editorRestoreRef.current;
+      if (!restore) return;
+      if (restore.position) writing.editor.current?.restorePosition(restore.position);
+      requestAnimationFrame(() => {
+        const scroller = layoutRef.current?.querySelector<HTMLElement>(".editor-scroll");
+        if (scroller) scroller.scrollTop = restore.scrollTop;
+        editorRestoreRef.current = null;
+      });
+    });
+  };
 
   const addChapter = () => {
     const chapter = {
@@ -221,16 +267,25 @@ ${markdownBody(current.body, current.marks)}
       }
     : undefined;
 
+  const previewCurrent = chapters.find((chapter) => chapter.id === previewChapterId) ?? current;
   const binder = (
     <ChapterBinder
       manuscript={manuscript}
-      current={current}
+      current={preview ? previewCurrent : current}
       timeline={figures.timeline}
       timeSystem={figures.timeSystem}
       viewportMode={viewportMode}
-      chapterActions={chapterActions}
+      chapterActions={preview ? undefined : chapterActions}
       onClose={() => setBinderOpen(false)}
-      onSelect={setCurrentId}
+      onSelect={
+        preview
+          ? (chapterId) => {
+              setPreviewChapterId(chapterId);
+              setPreviewTargetChapterId(chapterId);
+              setPreviewTargetRequestId((requestId) => requestId + 1);
+            }
+          : setCurrentId
+      }
       onStructureChange={(nextStructure) => commitManuscript(chapters, nextStructure)}
     />
   );
@@ -283,25 +338,30 @@ ${markdownBody(current.body, current.marks)}
       }
     />
   ) : null;
-  const inspector =
-    current && chapterActions ? (
-      <ManuscriptInspector
-        title={current.title || t("chapter")}
-        register={inspectorRegister}
-        onRegisterChange={setInspectorRegister}
-        onClose={() => setInspectorOpen(false)}
-        chapter={
-          <ChapterInspector
-            current={current}
-            timeline={figures.timeline}
-            timeSystem={figures.timeSystem}
-            actions={chapterActions}
-            onUpdateCurrent={updateCurrent}
-          />
-        }
-        writingAid={writingAid}
-      />
-    ) : null;
+  const inspector = preview ? (
+    <BookLayoutInspector
+      settings={resolveBookLayout(manuscript.bookLayout)}
+      onChange={(bookLayout) => onChange({ ...manuscript, bookLayout })}
+      onClose={() => setInspectorOpen(false)}
+    />
+  ) : current && chapterActions ? (
+    <ManuscriptInspector
+      title={current.title || t("chapter")}
+      register={inspectorRegister}
+      onRegisterChange={setInspectorRegister}
+      onClose={() => setInspectorOpen(false)}
+      chapter={
+        <ChapterInspector
+          current={current}
+          timeline={figures.timeline}
+          timeSystem={figures.timeSystem}
+          actions={chapterActions}
+          onUpdateCurrent={updateCurrent}
+        />
+      }
+      writingAid={writingAid}
+    />
+  ) : null;
 
   return (
     <section className={`text-workspace ${focus ? "is-focus" : ""}`} aria-label={t("manuscript")}>
@@ -314,6 +374,7 @@ ${markdownBody(current.body, current.marks)}
         canUndo={canUndo}
         canRedo={canRedo}
         pdfState={pdfState}
+        preview={preview}
         onAddChapter={addChapter}
         onBinderOpen={setBinderOpen}
         onInspectorOpen={setInspectorOpen}
@@ -323,14 +384,16 @@ ${markdownBody(current.body, current.marks)}
         onHistoryOpen={history.setOpen}
         onExport={exportAll}
         onPrint={() => void printBook()}
+        onPreview={setPrintPreview}
+        onInsertSceneBreak={() => writing.insert("\n\n⁂\n\n")}
       />
       <WorkspaceLayout
         layoutRef={layoutRef}
         viewportMode={viewportMode}
-        focus={focus}
+        focus={focus && !preview}
         binderOpen={binderOpen}
         inspectorOpen={inspectorOpen}
-        hasCurrent={Boolean(current)}
+        hasCurrent={preview || Boolean(current)}
         sidebarWidth={sidebarWidth}
         inspectorWidth={inspectorWidth}
         editorBalance={editorBalance}
@@ -341,77 +404,94 @@ ${markdownBody(current.body, current.marks)}
         onSidebarWidth={onSidebarWidth}
         onInspectorWidth={onInspectorWidth}
         editor={
-          <EditorSurface
-            current={current}
-            editorRef={writing.editor}
-            figures={figures}
-            vocabulary={writing.vocabulary}
-            grammarIssues={writing.grammarIssues}
-            held={
-              writing.heldSelection
-                ? { from: writing.heldSelection.from, to: writing.heldSelection.to }
-                : writing.liveSelection
-                  ? { from: writing.liveSelection.from, to: writing.liveSelection.to }
-                  : null
-            }
-            searchQuery={search.query}
-            searchMatches={search.matches}
-            currentSearchMatches={search.currentMatches}
-            activeSearchIndex={search.activeIndex}
-            activeSearchMatch={search.activeMatch}
-            historyOpen={history.open}
-            historyCommits={history.commits}
-            historyRef={history.selectedRef}
-            historicalText={history.historicalText}
-            historicalExists={history.historicalExists}
-            previousHistoricalText={history.previousHistoricalText}
-            historyComparisonAvailable={history.comparisonAvailable}
-            historyState={history.state}
-            previousChapter={
-              previousChapter
-                ? {
-                    id: previousChapter.id,
-                    number: currentPosition,
-                    title: previousChapter.title,
-                  }
-                : undefined
-            }
-            nextChapter={
-              nextChapter
-                ? {
-                    id: nextChapter.id,
-                    number: currentPosition + 2,
-                    title: nextChapter.title,
-                  }
-                : undefined
-            }
-            onCreateChapter={addChapter}
-            onNavigateChapter={setCurrentId}
-            onUpdateTitle={(title) => updateCurrent({ title })}
-            onEditorChange={writing.onEditorChange}
-            onSelection={writing.onSelection}
-            onSelectionMenu={writing.onSelectionMenu}
-            onIssue={writing.onIssue}
-            onOpenEntity={onOpenEntity}
-            onNavigateSearch={search.navigate}
-            onCloseSearch={search.close}
-            onCloseHistory={() => history.setOpen(false)}
-            onHistoryRef={history.setSelectedRef}
-          />
+          <>
+            <div
+              className={`text-editor-preserved ${preview ? "is-preview-hidden" : ""}`}
+              aria-hidden={preview || undefined}
+              inert={preview || undefined}
+            >
+              <EditorSurface
+                current={current}
+                editorRef={writing.editor}
+                figures={figures}
+                vocabulary={writing.vocabulary}
+                grammarIssues={writing.grammarIssues}
+                held={
+                  writing.heldSelection
+                    ? { from: writing.heldSelection.from, to: writing.heldSelection.to }
+                    : writing.liveSelection
+                      ? { from: writing.liveSelection.from, to: writing.liveSelection.to }
+                      : null
+                }
+                searchQuery={search.query}
+                searchMatches={search.matches}
+                currentSearchMatches={search.currentMatches}
+                activeSearchIndex={search.activeIndex}
+                activeSearchMatch={search.activeMatch}
+                historyOpen={history.open}
+                historyCommits={history.commits}
+                historyRef={history.selectedRef}
+                historicalText={history.historicalText}
+                historicalExists={history.historicalExists}
+                previousHistoricalText={history.previousHistoricalText}
+                historyComparisonAvailable={history.comparisonAvailable}
+                historyState={history.state}
+                previousChapter={
+                  previousChapter
+                    ? {
+                        id: previousChapter.id,
+                        number: currentPosition,
+                        title: previousChapter.title,
+                      }
+                    : undefined
+                }
+                nextChapter={
+                  nextChapter
+                    ? {
+                        id: nextChapter.id,
+                        number: currentPosition + 2,
+                        title: nextChapter.title,
+                      }
+                    : undefined
+                }
+                onCreateChapter={addChapter}
+                onNavigateChapter={setCurrentId}
+                onUpdateTitle={(title) => updateCurrent({ title })}
+                onEditorChange={writing.onEditorChange}
+                onSelection={writing.onSelection}
+                onSelectionMenu={writing.onSelectionMenu}
+                onIssue={writing.onIssue}
+                onOpenEntity={onOpenEntity}
+                onNavigateSearch={search.navigate}
+                onCloseSearch={search.close}
+                onCloseHistory={() => history.setOpen(false)}
+                onHistoryRef={history.setSelectedRef}
+              />
+            </div>
+            {preview && (
+              <PrintPreviewWorkspace
+                manuscript={manuscript}
+                worldTitle={worldTitle}
+                requestedChapterId={previewTargetChapterId}
+                requestedChapterRequestId={previewTargetRequestId}
+                onCurrentChapterId={setPreviewChapterId}
+              />
+            )}
+          </>
         }
       />
       <SelectionActions
         editorRef={writing.editor}
         selection={writing.selection}
         liveSelection={writing.liveSelection}
-        open={writing.selectionMenuOpen}
+        open={!preview && writing.selectionMenuOpen}
         selectionTool={writing.selectionTool}
         onClose={() => writing.setSelectionMenuOpen(false)}
         onCopy={writing.copyToClipboard}
         onOpenWritingTool={writing.openTool}
       />
       <FocusPanels
-        focus={focus}
+        focus={focus && !preview}
         manuscript={manuscript}
         figures={figures}
         current={current}
@@ -421,7 +501,6 @@ ${markdownBody(current.body, current.marks)}
         onFocusEditor={() => writing.editor.current?.focus()}
         onLeave={() => onFocus(false)}
       />
-      <PrintDocument worldTitle={worldTitle} manuscript={manuscript} />
       <ElementsSheet
         open={writing.elementsOpen}
         manuscript={manuscript}

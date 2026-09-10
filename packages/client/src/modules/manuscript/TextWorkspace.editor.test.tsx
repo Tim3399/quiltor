@@ -120,36 +120,23 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(rendered.getByRole("status")).toHaveTextContent("3 von 3");
   });
 
-  it("sets marks as <strong> and <em> in the book version", () => {
-    const formatted = {
-      chapters: [
-        {
-          id: "c1",
-          title: "Prolog",
-          body: "Hallo Welt\n\n*\n\nZweiter Absatz",
-          note: "",
-          marks: [
-            { from: 6, to: 10, kind: "italic" as const },
-            { from: 15, to: 22, kind: "bold" as const },
-          ],
-        },
-      ],
-    };
-    const view = renderWorkspace({
-      manuscript: formatted,
+  it("inserts an explicit scene break at the editor cursor", async () => {
+    const onChange = vi.fn();
+    renderWorkspace({
+      manuscript,
       figures,
-      onChange: vi.fn(),
+      onChange,
       focus: false,
       onFocus: vi.fn(),
     });
-    const book = requireValue(
-      view.container.querySelector(".print-document"),
-      "Print document missing",
+    fireEvent.click(screen.getByRole("button", { name: "Szenenwechsel einfügen" }));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chapters: [expect.objectContaining({ body: "\n\n⁂\n\nHallo Welt" })],
+        }),
+      ),
     );
-    expect(book.querySelector("em")).toHaveTextContent("Welt");
-    expect(book.querySelector("strong")).toHaveTextContent("Zweiter");
-    expect(book.querySelector(".scene-break")).toHaveTextContent("⁂");
-    expect(book.querySelectorAll(".book-chapter p")[0]).toHaveTextContent("Hallo Welt");
   });
 
   it("offers cut, copy, bold and italic in the selection menu", async () => {

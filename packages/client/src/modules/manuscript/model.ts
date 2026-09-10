@@ -1,4 +1,5 @@
 import type { NoteMark, NoteReference } from "../../shared";
+import type { BookLayoutSettings } from "./bookLayout";
 
 export type WritingLocale = "de-DE";
 
@@ -82,6 +83,7 @@ export type WritingIssue = {
 
 export interface Manuscript {
   chapters: Chapter[];
+  bookLayout?: BookLayoutSettings;
   structure?: ManuscriptStructure;
   language?: WritingLocale;
   grammarMode?: GrammarMode;

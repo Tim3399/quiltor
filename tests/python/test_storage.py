@@ -361,6 +361,12 @@ class StorageTest(unittest.TestCase):
                 }
             ],
             "words": [{"w": "Arcène", "d": "Ort"}],
+            "bookLayout": {
+                "version": 1,
+                "preset": "quiltor-novel",
+                "pageFormat": "6x9",
+                "futureTypography": {"kept": True},
+            },
             "zeichenAktiv": ["…"],
             "future": True,
         }
@@ -436,6 +442,15 @@ class StorageTest(unittest.TestCase):
         manuscript = manuscript_store.load()
         figures = story_world.load()
         self.assertEqual(manuscript["chapters"][0]["mood"], "still")
+        self.assertEqual(
+            manuscript["bookLayout"],
+            {
+                "version": 1,
+                "preset": "quiltor-novel",
+                "pageFormat": "6x9",
+                "futureTypography": {"kept": True},
+            },
+        )
         self.assertEqual(manuscript["chapters"][0]["mentions"][0]["elementId"], "n1")
         self.assertEqual(
             manuscript["chapters"][0]["noteReferences"][0]["target"],

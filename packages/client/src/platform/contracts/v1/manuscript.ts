@@ -1,4 +1,5 @@
 import type { Manuscript } from "../../../modules/manuscript";
+import { type BookLayoutWireV1, cloneBookLayoutV1, validateBookLayoutV1 } from "./bookLayout";
 import {
   type DecodedDocumentV1,
   type DocumentEnvelopeWireV1,
@@ -83,6 +84,7 @@ export interface ManuscriptStructureWireV1 {
 
 export interface ManuscriptPayloadWireV1 {
   chapters: ChapterWireV1[];
+  bookLayout?: BookLayoutWireV1;
   structure?: ManuscriptStructureWireV1;
   language?: "de-DE";
   grammarMode?: "manual" | "automatic";
@@ -343,6 +345,7 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
     (item, itemPath) => wireEnum(item, ["de-DE"] as const, itemPath),
     path,
   );
+  optional(payload, "bookLayout", validateBookLayoutV1, path);
   optional(
     payload,
     "grammarMode",
@@ -410,6 +413,7 @@ export function decodeManuscriptV1(value: unknown): DecodedDocumentV1<Manuscript
   return {
     document: {
       ...wire.payload,
+      bookLayout: cloneBookLayoutV1(wire.payload.bookLayout),
       structure: {
         ...structure,
         folders: structure.folders.map((folder) => ({ ...folder })),
@@ -433,6 +437,7 @@ export function decodeManuscriptV1(value: unknown): DecodedDocumentV1<Manuscript
 export function encodeManuscriptV1(model: Manuscript, revision?: number): ManuscriptWireV1 {
   const payload = {
     ...model,
+    bookLayout: cloneBookLayoutV1(model.bookLayout),
     chapters: model.chapters.map(encodeChapter),
   } as ManuscriptPayloadWireV1;
   return encodeDocumentEnvelopeV1("quiltor.manuscript", payload, revision, manuscriptPayload);

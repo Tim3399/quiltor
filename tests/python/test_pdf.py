@@ -10,10 +10,13 @@ import importlib.util
 import os
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from quiltor.infrastructure import pdf
 from quiltor.infrastructure.pdf import (
+    book_document,
+    hidden_window,
     node_chromium,
     page_numbers,
     system_browser,
@@ -22,6 +25,8 @@ from quiltor.infrastructure.pdf import (
     wkwebview,
 )
 from quiltor.application.errors import PdfExportUnavailable
+from quiltor.delivery.http.routes import Request
+from quiltor.delivery.http.routes.documents import book_pdf
 
 
 class DesktopRendererSelectionTests(unittest.TestCase):
@@ -89,11 +94,6 @@ class DesktopRendererSelectionTests(unittest.TestCase):
             with self.subTest(framework=framework):
                 self.assertNotIn(f"\n{framework}", header)
 
-    def test_the_paper_size_matches_the_books_css(self):
-        """@page { size: 6in 9in } in src/styles.css. A mismatch here silently
-        rescales every page."""
-        self.assertEqual((wkwebview.PAPER_WIDTH_POINTS, wkwebview.PAPER_HEIGHT_POINTS), (432, 648))
-
     def test_the_objective_c_classes_are_built_once_per_process(self):
         """An Objective-C class name can be registered only once. Rebuilding the
         delegates per render raised
@@ -115,9 +115,10 @@ class DesktopRendererSelectionTests(unittest.TestCase):
         """evaluateJavaScript evaluates an expression, so the check has to be an
         IIFE. And it must not wait on the German aria-label the Chromium path
         uses -- that only works while the UI defaults to German."""
-        self.assertTrue(wkwebview.READY_JS.strip().startswith("(function"))
-        self.assertIn(".print-document", wkwebview.READY_JS)
-        self.assertNotIn("Kapiteltext", wkwebview.READY_JS)
+        self.assertTrue(book_document.RENDER_STATE_JS.strip().startswith("(function"))
+        self.assertIn("data-book-ready", book_document.RENDER_STATE_JS)
+        self.assertIn(".pagedjs_page", book_document.RENDER_STATE_JS)
+        self.assertNotIn("Kapiteltext", book_document.RENDER_STATE_JS)
 
     def test_a_server_process_always_gets_the_node_renderer(self):
         """Docker and a source checkout are always `direct`, and a store build is
@@ -200,6 +201,82 @@ class PageNumberTests(unittest.TestCase):
         something that is not a PDF, stamp() has to hand back what it was
         given rather than raise into the request."""
         self.assertEqual(page_numbers.stamp(b"not a pdf at all"), b"not a pdf at all")
+
+
+class BookDocumentContractTests(unittest.TestCase):
+    def test_hidden_window_waits_for_explicit_pagination_readiness(self):
+        window = SimpleNamespace(
+            evaluate_js=lambda script: (
+                {"state": "ready"} if script == book_document.RENDER_STATE_JS else None
+            )
+        )
+        hidden_window._wait_until_rendered(window, 1)
+
+    def test_hidden_window_fails_immediately_on_pagination_error(self):
+        window = SimpleNamespace(evaluate_js=lambda _script: {"state": "error"})
+        with self.assertRaisesRegex(RuntimeError, "pagination error"):
+            hidden_window._wait_until_rendered(window, 1)
+
+    def test_paper_geometry_rejects_missing_non_finite_and_implausible_dimensions(self):
+        invalid = (
+            None,
+            {"widthMm": "wide", "heightMm": 210},
+            {"widthMm": float("nan"), "heightMm": 210},
+            {"widthMm": 20, "heightMm": 210},
+            {"widthMm": 148, "heightMm": 2000},
+        )
+        for geometry in invalid:
+            with self.subTest(geometry=geometry):
+                with self.assertRaisesRegex(RuntimeError, "paper dimensions"):
+                    book_document.validate_paper_mm(geometry)
+
+    def test_webview2_uses_the_rendered_books_dynamic_paper_size(self):
+        settings = SimpleNamespace()
+        environment = SimpleNamespace(CreatePrintSettings=lambda: settings)
+        task = SimpleNamespace(IsCompleted=True, IsFaulted=False, Result=True)
+        core = SimpleNamespace(
+            Environment=environment,
+            PrintToPdfAsync=lambda _target, configured: task,
+        )
+        window = SimpleNamespace(native=SimpleNamespace(webview=SimpleNamespace(CoreWebView2=core)))
+
+        webview2._print(window, Path("unused.pdf"), 1, (148.0, 210.0))
+
+        self.assertAlmostEqual(settings.PageWidth, 148.0 / 25.4)
+        self.assertAlmostEqual(settings.PageHeight, 210.0 / 25.4)
+        self.assertNotEqual((settings.PageWidth, settings.PageHeight), (6.0, 9.0))
+
+    def test_book_pdf_render_target_selects_the_shared_book_document(self):
+        captured = {}
+
+        def render_pdf(url):
+            captured["url"] = url
+            return b"pdf"
+
+        class Handler:
+            server = SimpleNamespace(server_address=("127.0.0.1", 8010))
+
+            def _read_json_body(self):
+                return {"worldId": "world-1"}
+
+            def world_from_body(self, session, payload):
+                return SimpleNamespace(id=payload["worldId"])
+
+            def send_pdf(self, data):
+                captured["data"] = data
+
+        app = SimpleNamespace(
+            issue_render_token=lambda sub: f"token-for-{sub}",
+            render_pdf=render_pdf,
+        )
+        request = Request("/api/book.pdf", session=SimpleNamespace(sub="author"))
+
+        book_pdf(Handler(), request, app)
+
+        self.assertIn("world=world-1", captured["url"])
+        self.assertIn("renderToken=token-for-author", captured["url"])
+        self.assertIn("bookRender=1", captured["url"])
+        self.assertEqual(captured["data"], b"pdf")
 
 
 class RenderTokenTests(unittest.TestCase):

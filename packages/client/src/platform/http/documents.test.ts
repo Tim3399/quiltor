@@ -30,6 +30,77 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("document HTTP v1 boundary", () => {
+  it("renders and saves a book PDF as separate operations", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("pdf-data", { status: 200, headers: { "Content-Type": "application/pdf" } }),
+      );
+    const save = vi.fn().mockResolvedValue({ status: "saved" });
+    application = createHttpApplicationGateway(createPlatformGateway({ files: { save } }));
+    application.worlds.select(WORLD_ID);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const rendered = await application.documents.renderBookPdf();
+    expect(await rendered.text()).toBe("pdf-data");
+    expect(save).not.toHaveBeenCalled();
+
+    await application.documents.saveBookPdf(rendered);
+    expect(save).toHaveBeenCalledWith(
+      expect.stringMatching(/^Quiltor-Buchfassung-.*\.pdf$/),
+      rendered,
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("keeps render and save failures attributable to their operation", async () => {
+    const save = vi.fn().mockResolvedValue({ status: "failed", error: "disk full" });
+    application = createHttpApplicationGateway(createPlatformGateway({ files: { save } }));
+    application.worlds.select(WORLD_ID);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ok: false, error: { code: "pdf.unavailable" } }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response("pdf", {
+            status: 200,
+            headers: { "Content-Type": "application/pdf" },
+          }),
+        ),
+    );
+
+    await expect(application.documents.renderBookPdf()).rejects.toMatchObject({
+      code: "pdf.unavailable",
+    });
+    const rendered = await application.documents.renderBookPdf();
+    await expect(application.documents.saveBookPdf(rendered)).rejects.toThrow("disk full");
+  });
+
+  it("keeps bookPdf as a render-then-save compatibility wrapper", async () => {
+    const save = vi.fn().mockResolvedValue({ status: "saved" });
+    application = createHttpApplicationGateway(createPlatformGateway({ files: { save } }));
+    application.worlds.select(WORLD_ID);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("pdf", {
+          status: 200,
+          headers: { "Content-Type": "application/pdf" },
+        }),
+      ),
+    );
+
+    await application.documents.bookPdf();
+
+    expect(save).toHaveBeenCalledOnce();
+  });
+
   it("loads the envelope, verifies its revision and exposes only the domain document", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(manuscriptFixture, { ETag: '"7"' }));
     vi.stubGlobal("fetch", fetchMock);

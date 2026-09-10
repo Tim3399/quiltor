@@ -130,5 +130,5 @@ def book_pdf(handler, request: Request, app) -> None:
     # -- so it gets a short-lived token that redeems into a real session cookie
     # on its first request (see redeem_render_token).
     token = app.issue_render_token(request.session.sub)
-    target = f"http://127.0.0.1:{port}/?world={world.id}&renderToken={token}"
+    target = f"http://127.0.0.1:{port}/?world={world.id}&renderToken={token}&bookRender=1"
     handler.send_pdf(app.render_pdf(target))

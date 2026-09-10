@@ -4,3 +4,11 @@
   display: grid;
   grid-template-rows: minmax(var(--context), auto) minmax(0, 1fr);
 }
+
+.text-editor-preserved {
+  display: contents;
+}
+
+.text-editor-preserved.is-preview-hidden {
+  display: none;
+}

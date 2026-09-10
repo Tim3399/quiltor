@@ -17,6 +17,7 @@ it("links manuscript export actions and restores focus after selection", async (
         canUndo={false}
         canRedo={false}
         pdfState="idle"
+        preview={false}
         onAddChapter={vi.fn()}
         onBinderOpen={vi.fn()}
         onInspectorOpen={vi.fn()}
@@ -24,6 +25,8 @@ it("links manuscript export actions and restores focus after selection", async (
         onHistoryOpen={vi.fn()}
         onExport={onExport}
         onPrint={vi.fn()}
+        onPreview={vi.fn()}
+        onInsertSceneBreak={vi.fn()}
       />
     </I18nProvider>,
   );
@@ -65,4 +68,38 @@ it("links manuscript export actions and restores focus after selection", async (
   expect(onExport).toHaveBeenCalledOnce();
   await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
   await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+it("exposes print preview and scene-break actions", () => {
+  const onPreview = vi.fn();
+  const onInsertSceneBreak = vi.fn();
+  render(
+    <I18nProvider>
+      <ManuscriptToolbar
+        current={{ id: "c1", title: "Prolog", body: "", note: "" }}
+        focus={false}
+        binderOpen={false}
+        inspectorOpen={false}
+        historyOpen={false}
+        canUndo={false}
+        canRedo={false}
+        pdfState="idle"
+        preview={false}
+        onAddChapter={vi.fn()}
+        onBinderOpen={vi.fn()}
+        onInspectorOpen={vi.fn()}
+        onFocus={vi.fn()}
+        onHistoryOpen={vi.fn()}
+        onExport={vi.fn()}
+        onPrint={vi.fn()}
+        onPreview={onPreview}
+        onInsertSceneBreak={onInsertSceneBreak}
+      />
+    </I18nProvider>,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Druckansicht" }));
+  fireEvent.click(screen.getByRole("button", { name: "Szenenwechsel einfügen" }));
+  expect(onPreview).toHaveBeenCalledWith(true);
+  expect(onInsertSceneBreak).toHaveBeenCalledOnce();
 });
