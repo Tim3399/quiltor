@@ -124,9 +124,10 @@ At the initial feature commit, `node tools/quality/check_visual_baseline_reach.m
 failed with exactly those twelve missing images. They were subsequently generated
 and checked during the integration for 3.18.0; the reach check now passes.
 
-The complete `npm run test:e2e`/design-gallery suites, branded Google Chrome,
-native WKWebView/WebView2/WebKitGTK printing and packaged release checks were
-not run. Chromium and installed Microsoft Edge cover the available browser
+At the initial feature commit, the complete `npm run test:e2e`/design-gallery
+suites and packaged release checks had not run. Branded Google Chrome and native
+WKWebView/WebView2/WebKitGTK printing remain unverified. Chromium and installed
+Microsoft Edge cover the available browser
 paths; native cross-engine equivalence remains a host verification task.
 
 ### Integration for 3.18.0
@@ -147,6 +148,14 @@ with every action accessible, the editor has a bounded grid item, and the PDF
 test waits for the explicit render route. Targeted regressions cover these
 corrections without relaxing the layout or PDF geometry requirements. The version
 updater runs the complete release preflight again before writing any version file.
+
+The next preflight passed all 212 executed product browser tests (151 skipped),
+but a worker's test-world cleanup returned `PermissionError`. The shared fixture
+now closes its page before deleting world storage, preventing further requests
+from that page during cleanup. A close failure retains the world IDs for mandatory
+worker cleanup and adds diagnostics. The affected Storyboard case passes twice;
+removing the page close makes the lifecycle contract fail. The precise original
+filesystem error was not exposed by the HTTP response.
 
 Release preparation uses process-local Git `safe.directory` configuration for
 this isolated worktree. The first updater invocation without that configuration
