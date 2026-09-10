@@ -157,6 +157,15 @@ worker cleanup and adds diagnostics. The affected Storyboard case passes twice;
 removing the page close makes the lifecycle contract fail. The precise original
 filesystem error was not exposed by the HTTP response.
 
+The complete local updater subsequently passed every gate, including 212 product
+and 136 design browser tests, and set version 3.18.0. The first release CI exposed
+two test portability assumptions: Linux pagination inserts Paged.js hyphen glyphs
+at page breaks, and macOS uses a different document-start shortcut. The long-book
+comparison now excludes only the appended final glyph of a marked hyphenated
+fragment, preserving authored hyphens and the full source-text comparison. The
+editor tests use platform-specific navigation and verify their initial caret
+before testing preview restoration.
+
 Release preparation uses process-local Git `safe.directory` configuration for
 this isolated worktree. The first updater invocation without that configuration
 stopped at `git status`; no version files changed.

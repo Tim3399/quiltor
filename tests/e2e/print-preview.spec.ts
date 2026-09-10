@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { DEFAULT_BOOK_LAYOUT, type Manuscript } from "../../packages/client/src/modules/manuscript";
 import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
 import { createTestWorld, expect, test } from "./support/world-fixture";
@@ -47,6 +47,33 @@ async function seed(page: Page, book = manuscript) {
   return world;
 }
 
+const documentStartKey = process.platform === "darwin" ? "Meta+ArrowUp" : "Control+Home";
+
+async function placeCaretAtDocumentOffset(page: Page, editor: Locator, offset: number) {
+  await editor.click();
+  await page.keyboard.press(documentStartKey);
+  await expect(editor.locator(".cm-line").first()).toHaveText("Startpunkt am Hafen.");
+  for (let index = 0; index < offset; index += 1) await page.keyboard.press("ArrowRight");
+  await expect
+    .poll(() =>
+      editor.evaluate((root) => {
+        const selection = document.getSelection();
+        if (
+          !selection?.isCollapsed ||
+          !selection.anchorNode ||
+          !root.contains(selection.anchorNode)
+        ) {
+          return null;
+        }
+        const range = document.createRange();
+        range.selectNodeContents(root);
+        range.setEnd(selection.anchorNode, selection.anchorOffset);
+        return range.toString().length;
+      }),
+    )
+    .toBe(offset);
+}
+
 test("Print preview preserves editor position and shares physical pages with the PDF", async ({
   page,
 }, testInfo) => {
@@ -55,9 +82,7 @@ test("Print preview preserves editor position and shares physical pages with the
   page.on("pageerror", (error) => errors.push(error.message));
   await seed(page);
   const editor = page.getByRole("textbox", { name: "Kapiteltext", exact: true });
-  await editor.click();
-  await page.keyboard.press("Control+Home");
-  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+  await placeCaretAtDocumentOffset(page, editor, 4);
   await page.locator(".editor-scroll").evaluate((element) => {
     element.scrollTop = 460;
   });
@@ -135,9 +160,7 @@ test("Leaving Text from print preview preserves the editor session", async ({ pa
   await seed(page);
   const editor = page.getByRole("textbox", { name: "Kapiteltext", exact: true });
   const scroller = page.locator(".editor-scroll");
-  await editor.click();
-  await page.keyboard.press("Control+Home");
-  for (let index = 0; index < 4; index += 1) await page.keyboard.press("ArrowRight");
+  await placeCaretAtDocumentOffset(page, editor, 4);
   const scrollTop = await scroller.evaluate((element) => {
     element.scrollTop = 460;
     element.dispatchEvent(new Event("scroll"));

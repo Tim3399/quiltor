@@ -79,7 +79,16 @@ test("Long book pagination preserves every paragraph and right-page chapter star
   expect(chapterStartPages).toHaveLength(CHAPTER_COUNT);
   expect(chapterStartPages.every((number) => number % 2 === 1)).toBe(true);
 
-  const renderedText = await root.locator(".book-paragraph").allTextContents();
+  const renderedText = await root.locator(".book-paragraph").evaluateAll((paragraphs) =>
+    paragraphs.map((paragraph) => {
+      const text = paragraph.textContent ?? "";
+      // Paged.js appends this glyph only to a text fragment hyphenated at a page break.
+      // Preserve authored hyphens; only the marked fragment's added final glyph is layout.
+      return paragraph.classList.contains("pagedjs_hyphen") && text.endsWith("\u2011")
+        ? text.slice(0, -1)
+        : text;
+    }),
+  );
   expect(normalizeParagraphText(renderedText.join(""))).toBe(
     normalizeParagraphText(expectedParagraphs.join("")),
   );
