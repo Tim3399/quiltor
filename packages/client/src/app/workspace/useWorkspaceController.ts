@@ -12,6 +12,7 @@ export function useWorkspaceController() {
   const selectWorkspace = useCallback((next: Workspace) => {
     setWorkspace(next);
     setFocus(false);
+    setNavigationTarget(null);
   }, []);
   const setTarget = useCallback((next: WorkspaceTarget) => {
     nextRequestId.current += 1;
@@ -34,11 +35,13 @@ export function useWorkspaceController() {
     ) {
       setWorkspace(command);
       setFocus(false);
+      setNavigationTarget(null);
       return true;
     }
     if (command === "focus") {
       setWorkspace("text");
       setFocus((value) => !value);
+      setNavigationTarget(null);
       return true;
     }
     return false;

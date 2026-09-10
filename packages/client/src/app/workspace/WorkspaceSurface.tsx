@@ -1,5 +1,9 @@
-import { lazy } from "react";
-import { loadTextWorkspace, type Manuscript } from "../../modules/manuscript";
+import { lazy, useCallback, useRef } from "react";
+import {
+  loadTextWorkspace,
+  type Manuscript,
+  type ManuscriptEditorSessionState,
+} from "../../modules/manuscript";
 import {
   type FigureState,
   loadFigureWorkspace,
@@ -48,6 +52,7 @@ export function WorkspaceSurface({
   focus,
   onFocus,
   onSave,
+  currentChapterId,
   onCurrentChapterId,
 }: {
   worldId: string;
@@ -67,9 +72,20 @@ export function WorkspaceSurface({
   focus: boolean;
   onFocus: (focus: boolean) => void;
   onSave: () => Promise<void>;
+  currentChapterId: string;
   onCurrentChapterId: (chapterId: string) => void;
 }) {
   const layout = useWorkspaceLayout(worldId, workspace);
+  const manuscriptSession = useRef<{
+    worldId: string;
+    state: ManuscriptEditorSessionState;
+  } | null>(null);
+  const captureManuscriptSession = useCallback(
+    (state: ManuscriptEditorSessionState) => {
+      manuscriptSession.current = { worldId, state };
+    },
+    [worldId],
+  );
   const openStoryboardReference = (reference: WorldReferenceTarget) => {
     const destination = workspaceTargetForReference(reference);
     if (destination) onNavigate(destination);
@@ -77,13 +93,19 @@ export function WorkspaceSurface({
   if (workspace === "text")
     return (
       <TextWorkspace
+        key={worldId}
         worldTitle={worldTitle}
         manuscript={manuscript}
         figures={figures}
         orphanedMentions={orphanedMentions}
         onChange={manuscriptHistory.change}
         onOpenEntity={onNavigate}
+        currentChapterId={currentChapterId}
         onCurrentChapterId={onCurrentChapterId}
+        sessionState={
+          manuscriptSession.current?.worldId === worldId ? manuscriptSession.current.state : null
+        }
+        onSessionStateChange={captureManuscriptSession}
         focus={focus}
         onFocus={onFocus}
         targetId={target?.workspace === "text" ? target.id : undefined}

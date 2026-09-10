@@ -283,6 +283,7 @@ export function App() {
               onOpenBacklink={openNoteBacklink}
             >
               <WorkspaceSurface
+                key={session.world.id}
                 worldId={session.world.id}
                 worldTitle={session.world.title}
                 workspace={workspace.workspace}
@@ -300,6 +301,7 @@ export function App() {
                 focus={workspace.focus}
                 onFocus={workspace.setFocus}
                 onSave={flushAll}
+                currentChapterId={currentChapterId}
                 onCurrentChapterId={setCurrentChapterId}
               />
             </NoteReferenceProvider>

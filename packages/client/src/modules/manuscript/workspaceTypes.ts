@@ -1,7 +1,14 @@
 import type { TextSearchTarget, ViewportMode, Workspace } from "../../shared";
 import type { FigureState } from "../story-world";
-import type { EditorTextSelection } from "./ManuscriptEditor";
+import type { EditorTextSelection, EditorViewSelection } from "./ManuscriptEditor";
 import type { Manuscript } from "./model";
+
+/** Volatile view data only; owned by the active world workspace, never persisted. */
+export interface ManuscriptEditorSessionState {
+  chapterId: string;
+  selection: EditorViewSelection;
+  scrollTop: number;
+}
 
 export interface TextWorkspaceProps {
   worldTitle?: string;
@@ -10,7 +17,10 @@ export interface TextWorkspaceProps {
   orphanedMentions?: number;
   onChange: (value: Manuscript) => void;
   onOpenEntity?: (target: { workspace: Workspace; id: string }) => void;
+  currentChapterId?: string;
   onCurrentChapterId?: (chapterId: string) => void;
+  sessionState?: ManuscriptEditorSessionState | null;
+  onSessionStateChange?: (state: ManuscriptEditorSessionState) => void;
   focus: boolean;
   onFocus: (value: boolean) => void;
   targetId?: string;
