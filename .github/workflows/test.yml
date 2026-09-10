@@ -311,12 +311,13 @@ jobs:
           cat "$RUNNER_TEMP/quiltor-server.log"
           exit 1
 
-      # Without PLAYWRIGHT_WORKERS the config's own default applies: two workers, the same
-      # number the suite runs with on any desk. The single worker here was caution from a
-      # time before the per-worker world registry; the application server is a
-      # ThreadingTCPServer and serves them side by side.
+      # Two Windows runs exhausted Chromium's network buffers while fetching different
+      # workspace chunks (ERR_NO_BUFFER_SPACE). Serialize that runner's browser contexts
+      # to bound concurrent connections; keep every product test and assertion enabled.
       # visual-baseline.spec.ts lives in this suite and compares this system's images.
       - name: Product suite
+        env:
+          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
         shell: bash
         run: npx playwright test --output=test-results/product --reporter=line
 

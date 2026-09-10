@@ -166,6 +166,11 @@ fragment, preserving authored hyphens and the full source-text comparison. The
 editor tests use platform-specific navigation and verify their initial caret
 before testing preview restoration.
 
+Two Windows CI runs exhausted Chromium's network buffers while loading different
+workspace chunks (`ERR_NO_BUFFER_SPACE`), despite passing the feature tests.
+The Windows product CI job now uses one browser worker to bound simultaneous
+connections; macOS keeps two. No product tests or assertions are disabled.
+
 Release preparation uses process-local Git `safe.directory` configuration for
 this isolated worktree. The first updater invocation without that configuration
 stopped at `git status`; no version files changed.
