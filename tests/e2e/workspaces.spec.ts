@@ -734,15 +734,31 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
   expect(compactFit.scrollWidth).toBeLessThanOrEqual(compactFit.clientWidth + 1);
   expect(compactFit.overflowX).toBe("auto");
 
+  const versionsAction = manuscriptToolbar.getByRole("button", { name: "Fassungen" });
+  const sceneBreakAction = manuscriptToolbar.getByRole("button", {
+    name: "Szenenwechsel einfügen",
+  });
   const exportAction = manuscriptToolbar.getByRole("button", { name: "Exportieren" });
-  await exportAction.focus();
-  const [actionsBox, exportBox] = await Promise.all([
-    toolbarActions.boundingBox(),
-    exportAction.boundingBox(),
-  ]);
-  if (!actionsBox || !exportBox) throw new Error("Focused toolbar action has no geometry");
-  expect(exportBox.x).toBeGreaterThanOrEqual(actionsBox.x - 0.5);
-  expect(exportBox.x + exportBox.width).toBeLessThanOrEqual(actionsBox.x + actionsBox.width + 0.5);
+  for (const action of [versionsAction, sceneBreakAction, exportAction]) {
+    await expect(action).toBeVisible();
+    await action.focus();
+    await expect(action).toBeFocused();
+    const [actionsBox, actionBox] = await Promise.all([
+      toolbarActions.boundingBox(),
+      action.boundingBox(),
+    ]);
+    if (!actionsBox || !actionBox) throw new Error("Focused toolbar action has no geometry");
+    expect(actionBox.x).toBeGreaterThanOrEqual(actionsBox.x - 0.5);
+    expect(actionBox.x + actionBox.width).toBeLessThanOrEqual(
+      actionsBox.x + actionsBox.width + 0.5,
+    );
+    expect(actionBox.y).toBeGreaterThanOrEqual(actionsBox.y - 0.5);
+    expect(actionBox.y + actionBox.height).toBeLessThanOrEqual(
+      actionsBox.y + actionsBox.height + 0.5,
+    );
+    expect(actionBox.width).toBeGreaterThanOrEqual(44);
+    expect(actionBox.height).toBeGreaterThanOrEqual(44);
+  }
 
   // The full manuscript bar folds its labels away slightly earlier than small toolbars do, so
   // that intermediate widths never have to be scrolled sideways first.
@@ -2982,7 +2998,11 @@ test("Book export renders a real 6-by-9-inch PDF", async ({ page }, testInfo) =>
   test.skip(testInfo.project.name !== "wide", "PDF geometry only needs one run.");
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
-  await expect(page.locator(".print-document")).toBeAttached();
+  await expect(page.locator(".print-document")).toHaveCount(0);
+  await page.goto(`${page.url()}&bookRender=1`);
+  await expect(page.locator(".print-document")).toHaveAttribute("data-book-ready", "true", {
+    timeout: 30_000,
+  });
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".print-document")).toHaveCSS("display", "block");
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });

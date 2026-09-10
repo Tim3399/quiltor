@@ -120,10 +120,34 @@ The first visual-baseline run failed on the six deliberately changed manuscript
 toolbar images. After reviewing and accepting the Windows images, all six core
 view cases passed. Per `CLAUDE.md`, the corresponding six Linux and six macOS
 images were removed for the **Generate visual baselines** workflow to refill.
-`node tools/quality/check_visual_baseline_reach.mjs` currently fails with exactly
-those twelve missing images until that workflow runs.
+At the initial feature commit, `node tools/quality/check_visual_baseline_reach.mjs`
+failed with exactly those twelve missing images. They were subsequently generated
+and checked during the integration for 3.18.0; the reach check now passes.
 
 The complete `npm run test:e2e`/design-gallery suites, branded Google Chrome,
 native WKWebView/WebView2/WebKitGTK printing and packaged release checks were
 not run. Chromium and installed Microsoft Edge cover the available browser
 paths; native cross-engine equivalence remains a host verification task.
+
+### Integration for 3.18.0
+
+The feature was integrated with main `81bed76` (3.17.0), retaining the editor's
+session selection and post-measurement scroll restoration. A browser regression
+opens print preview, selects another preview chapter, switches to Figures and
+back to Text, then checks the original chapter, nonzero scroll and typing at the
+saved caret.
+
+The initial full `npm run set-version -- minor` preflight passed 1,298 frontend
+tests, 922 Python tests (five skipped), Rust gates, wheel/sdist checks and both
+container builds. Its product browser suite found four failures: the expanded
+toolbar exceeded its 320px action strip, the display-contents editor wrapper
+confused the grid containment invariant at wide/regular sizes, and the old PDF
+test expected an eager hidden print document. The toolbar now wraps below 380px
+with every action accessible, the editor has a bounded grid item, and the PDF
+test waits for the explicit render route. Targeted regressions cover these
+corrections without relaxing the layout or PDF geometry requirements. The version
+updater runs the complete release preflight again before writing any version file.
+
+Release preparation uses process-local Git `safe.directory` configuration for
+this isolated worktree. The first updater invocation without that configuration
+stopped at `git status`; no version files changed.

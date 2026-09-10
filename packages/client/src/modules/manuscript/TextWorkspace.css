@@ -6,7 +6,14 @@
 }
 
 .text-editor-preserved {
-  display: contents;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.text-editor-preserved > .editor-scroll {
+  width: 100%;
+  height: 100%;
 }
 
 .text-editor-preserved.is-preview-hidden {
