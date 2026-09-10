@@ -622,6 +622,23 @@ class DocumentWireV1Tests(unittest.TestCase):
                     self.assertGreaterEqual(node["minimum"], -MAX_SAFE_REVISION)
                     self.assertLessEqual(node["maximum"], MAX_SAFE_REVISION)
 
+    def test_place_display_round_trips_card_pin_and_legacy_omission(self):
+        fixture = registered_fixture("application.story-world-wire")
+        fixture["payload"]["nodes"][1]["placeDisplay"] = "card"
+        pinned_place = deepcopy(fixture["payload"]["nodes"][1])
+        pinned_place.update({"id": "lookout", "name": "Ausguck", "placeDisplay": "pin"})
+        fixture["payload"]["nodes"].append(pinned_place)
+
+        decoded = decode_document_v1("figures", fixture)
+        self.assertNotIn("placeDisplay", decoded.payload["nodes"][0])
+        self.assertEqual(decoded.payload["nodes"][1]["placeDisplay"], "card")
+        self.assertEqual(decoded.payload["nodes"][2]["placeDisplay"], "pin")
+
+        encoded = encode_document_v1("figures", decoded.payload, decoded.revision)
+        self.assertNotIn("placeDisplay", encoded["payload"]["nodes"][0])
+        self.assertEqual(encoded["payload"]["nodes"][1]["placeDisplay"], "card")
+        self.assertEqual(encoded["payload"]["nodes"][2]["placeDisplay"], "pin")
+
     def test_malformed_payload_is_rejected_before_persistence(self):
         fixture = registered_fixture("application.story-world-wire")
         fixture["payload"]["nodes"][0]["x"] = "not-a-coordinate"
@@ -632,6 +649,13 @@ class DocumentWireV1Tests(unittest.TestCase):
         non_finite["payload"]["nodes"][0]["x"] = float("nan")
         with self.assertRaises(InvalidDocumentWireV1):
             decode_document_v1("figures", non_finite)
+
+        for place_display in ("marker", None, False, 1, [], {}):
+            malformed_place = registered_fixture("application.story-world-wire")
+            malformed_place["payload"]["nodes"][1]["placeDisplay"] = place_display
+            with self.subTest(place_display=place_display):
+                with self.assertRaises(InvalidDocumentWireV1):
+                    decode_document_v1("figures", malformed_place)
 
         malformed_edges = []
         wrong_directed = registered_fixture("application.story-world-wire")

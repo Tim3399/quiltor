@@ -51,6 +51,21 @@ class FigureTemporalValidationTests(unittest.TestCase):
     def test_accepts_signed_and_simultaneous_moments_with_valid_temporal_references(self):
         self.assertTrue(valid_figures(self.state()))
 
+    def test_place_display_accepts_enum_and_legacy_omission(self):
+        for place_display in (None, "card", "pin"):
+            state = self.state()
+            if place_display is not None:
+                state["nodes"][1]["placeDisplay"] = place_display
+            with self.subTest(place_display=place_display):
+                self.assertTrue(valid_figures(state))
+
+    def test_place_display_rejects_malformed_values(self):
+        for place_display in ("marker", None, False, 1, [], {}):
+            state = self.state()
+            state["nodes"][1]["placeDisplay"] = place_display
+            with self.subTest(place_display=place_display):
+                self.assertFalse(valid_figures(state))
+
     def test_rejects_duplicate_or_malformed_moments(self):
         duplicate = self.state()
         duplicate["timeline"][2]["id"] = "storm"

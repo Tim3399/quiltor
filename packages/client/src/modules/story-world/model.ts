@@ -81,6 +81,8 @@ export interface FigureNode {
   mapV?: number;
   /** Drawn as an area on the parent level rather than as a card. */
   mapExpanded?: boolean;
+  /** Permanent presentation on the containing level; omission keeps the legacy card. */
+  placeDisplay?: "card" | "pin";
   mapWidth?: number;
   mapHeight?: number;
   /** Optional backdrop for this place's own level. */

@@ -7,6 +7,11 @@ import {
   fulfillManuscript,
   mockRequiredWorldDocuments,
 } from "./support/application-api";
+import {
+  mockExpandedMapWorld,
+  openExpandedMapWorld,
+  selectMapChild,
+} from "./support/expanded-map-fixture";
 
 const manuscript = {
   chapters: [
@@ -153,6 +158,24 @@ async function stillstehendeLeinwand(page: Page) {
 }
 
 for (const theme of ["light", "dark"] as const) {
+  test(`${theme}: expanded map chrome remains attached while editing places`, async ({ page }) => {
+    test.skip(!BOOTSTRAP && !hasBaselines(), `No baseline set exists for ${process.platform}.`);
+    await page.addInitScript((selected) => {
+      localStorage.setItem("quiltor-theme", selected);
+      localStorage.setItem("quiltor-interface-language", "de");
+    }, theme);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await mockExpandedMapWorld(page);
+    await openExpandedMapWorld(page);
+    await selectMapChild(page);
+    await expect(page.locator('.place-map-chrome[data-map-id="weltkarte"]')).toBeVisible();
+    await expect(page.locator(".place-map-chrome__footer")).toContainText("25 km");
+    await expect(page).toHaveScreenshot(`${theme}-expanded-map.png`, {
+      animations: "disabled",
+      ...LEINWAND_TOLERANZ,
+    });
+  });
+
   test(`${theme}: the core views stay visually reproducible`, async ({ page }) => {
     test.skip(
       !BOOTSTRAP && !hasBaselines(),

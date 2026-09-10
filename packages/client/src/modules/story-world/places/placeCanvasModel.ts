@@ -23,6 +23,7 @@ export function createPlaceFlowNodes({
   measureSelection,
   onOpenLevel,
   onExpandMap,
+  onPlaceDisplayChange,
   sourceUrl,
   host,
   livePosition,
@@ -55,6 +56,7 @@ export function createPlaceFlowNodes({
   measureSelection: string[];
   onOpenLevel: (place: FigureNode) => void;
   onExpandMap: (place: FigureNode) => void;
+  onPlaceDisplayChange?: (place: FigureNode, display: "card" | "pin") => void;
   sourceUrl: (imageId: string) => string;
   zoomTier: SemanticZoomTier;
   viewportZoom: number;
@@ -66,43 +68,81 @@ export function createPlaceFlowNodes({
   const guesses = new Map(
     standing.map((place, index) => [place.id, spreadAnchor(index, standing.length)]),
   );
-  return standing.map((place) => ({
-    id: place.id,
-    type: "place",
-    // The anchor says where the place stands -- not where the corner of its card lies. It
-    // has always been stored from the card's centre but drawn as its top-left corner: every
-    // drag therefore moved the place an extra half card down and to the right. With this
-    // origin `position` means the same centre the anchor does, and React Flow adds the card
-    // size itself -- the right one at every zoom level.
-    ...(host ? { origin: [0.5, 0.5] as [number, number] } : {}),
-    position:
-      livePosition?.id === place.id
-        ? { x: livePosition.x, y: livePosition.y }
+  return standing.map((place) => {
+    const pin = isPlaceDisplayPin(place);
+    const pinSize = placePinSize(zoomTier, viewportZoom);
+    return {
+      id: place.id,
+      type: "place",
+      // The anchor says where the place stands -- not where the corner of its card lies. It
+      // has always been stored from the card's centre but drawn as its top-left corner: every
+      // drag therefore moved the place an extra half card down and to the right. With this
+      // origin `position` means the same centre the anchor does, and React Flow adds the card
+      // size itself -- the right one at every zoom level.
+      ...(pin
+        ? { origin: [0.5, 1] as [number, number], width: pinSize.width, height: pinSize.height }
         : host
-          ? anchoredPoint(place, host, guesses.get(place.id))
-          : placePosition(place),
-    // Only ever spelled out when it is false. A node saying it is
-    // draggable overrides the surface's own interactivity switch, which
-    // is why the dock's lock left everything as movable as before.
-    ...(place.pinned ? { draggable: false } : {}),
-    ariaLabel: t("placeNodeLabel", { name: place.name }),
-    // A group, not a button: the card carries its own controls now, and a
-    // button holding buttons is a control nested in a control -- announced
-    // wrongly by screen readers and a focus trap for anything assistive.
-    // Focus still lands here, and Enter still picks the place up.
-    ariaRole: "group",
-    data: {
-      place,
-      measuring,
-      measureStart: measuring && measureSelection.length === 1 && measureSelection[0] === place.id,
-      filled: hasLevelContents(nodes, place.id),
-      ...(place.mapImageId ? { mapPreview: sourceUrl(place.mapImageId) } : {}),
-      onOpenLevel,
-      onExpandMap,
-      zoomTier,
-      zoom: viewportZoom,
-    },
-  }));
+          ? { origin: [0.5, 0.5] as [number, number] }
+          : {}),
+      position:
+        livePosition?.id === place.id
+          ? { x: livePosition.x, y: livePosition.y }
+          : host
+            ? anchoredPoint(place, host, guesses.get(place.id))
+            : placePosition(place),
+      // Only ever spelled out when it is false. A node saying it is
+      // draggable overrides the surface's own interactivity switch, which
+      // is why the dock's lock left everything as movable as before.
+      ...(place.pinned ? { draggable: false } : {}),
+      ariaLabel: t("placeNodeLabel", { name: place.name }),
+      // A group, not a button: the card carries its own controls now, and a
+      // button holding buttons is a control nested in a control -- announced
+      // wrongly by screen readers and a focus trap for anything assistive.
+      // Focus still lands here, and Enter still picks the place up.
+      ariaRole: "group",
+      data: {
+        place,
+        measuring,
+        measureStart:
+          measuring && measureSelection.length === 1 && measureSelection[0] === place.id,
+        filled: hasLevelContents(nodes, place.id),
+        ...(place.mapImageId ? { mapPreview: sourceUrl(place.mapImageId) } : {}),
+        onOpenLevel,
+        onExpandMap,
+        onPlaceDisplayChange: onPlaceDisplayChange ?? ignorePlaceDisplayChange,
+        zoomTier,
+        zoom: viewportZoom,
+        pin,
+      },
+    };
+  });
+}
+
+const ignorePlaceDisplayChange = () => {};
+
+export function isPlaceDisplayPin(place: FigureNode): boolean {
+  return place.placeDisplay === "pin" && !place.mapImageId;
+}
+
+export const PLACE_PIN_SCREEN_SIZE = { width: 156, height: 58 } as const;
+
+export const PLACE_PIN_SCREEN_SIZES = {
+  detail: PLACE_PIN_SCREEN_SIZE,
+  compact: { width: 112, height: 54 },
+  overview: { width: 32, height: 36 },
+} as const satisfies Record<SemanticZoomTier, { width: number; height: number }>;
+
+/** Persistent pins keep a deliberate screen footprint at each semantic zoom tier. */
+export function placePinSize(
+  zoomTier: SemanticZoomTier,
+  zoom: number,
+): { width: number; height: number } {
+  const safeZoom = Number.isFinite(zoom) && zoom > 0 ? Math.max(0.08, zoom) : 1;
+  const screenSize = PLACE_PIN_SCREEN_SIZES[zoomTier];
+  return {
+    width: screenSize.width / safeZoom,
+    height: screenSize.height / safeZoom,
+  };
 }
 
 /**
@@ -258,6 +298,7 @@ export function createPinNodes({
   measureSelection,
   onOpenLevel,
   onExpandMap,
+  onPlaceDisplayChange,
   sourceUrl,
   livePosition,
   zoomTier,
@@ -270,6 +311,7 @@ export function createPinNodes({
   measureSelection: string[];
   onOpenLevel: (place: FigureNode) => void;
   onExpandMap: (place: FigureNode) => void;
+  onPlaceDisplayChange?: (place: FigureNode, display: "card" | "pin") => void;
   sourceUrl: (imageId: string) => string;
   livePosition?: { id: string; x: number; y: number } | null;
   zoomTier: SemanticZoomTier;
@@ -284,6 +326,7 @@ export function createPinNodes({
       measureSelection,
       onOpenLevel,
       onExpandMap,
+      onPlaceDisplayChange,
       sourceUrl,
       host: mapRect(map),
       livePosition,

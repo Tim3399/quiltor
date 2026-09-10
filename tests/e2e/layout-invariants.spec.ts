@@ -1,5 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { mockRequiredWorldDocuments } from "./support/application-api";
+import {
+  closePlaceSheet,
+  mockExpandedMapWorld,
+  openExpandedMapWorld,
+  selectMapChild,
+  waitForMapViewport,
+} from "./support/expanded-map-fixture";
 
 /*
  * Geometry invariants.
@@ -249,7 +256,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
     // 3. Floating tools share an edge, not the same spot.
     const floating = [
       ...document.querySelectorAll(
-        ".react-flow__panel.react-flow__controls, .react-flow__panel.react-flow__minimap, .timeline-strip, .place-level-trail, .graph-edge-inspector",
+        ".react-flow__panel.react-flow__controls, .react-flow__panel.react-flow__minimap, .timeline-strip, .place-level-trail, .graph-edge-inspector, .place-map-chrome__header, .place-map-chrome__footer, .places-measure-overlays .mode-banner, .places-measure-overlays .places-scale-legend",
       ),
     ].filter(visible);
     for (let left = 0; left < floating.length; left += 1) {
@@ -272,7 +279,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
     //    a panel's resize grip, say, which has to be grabbable from both sides -- and nobody
     //    can ever lay eyes on it.
     for (const region of document.querySelectorAll(
-      ".side-panel, .workspace-toolbar, .status-bar, .app-bar",
+      ".side-panel, .workspace-toolbar, .status-bar, .app-bar, .place-map-chrome__header, .place-map-chrome__footer",
     )) {
       if (!visible(region)) continue;
       const overflowX = getComputedStyle(region).overflowX;
@@ -284,11 +291,167 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
       }
     }
 
+    // 5. Map chrome stays in the canvas and every action fits in its own bar.
+    //    Checking the button hit target also catches clipping that bounding boxes miss.
+    for (const bar of document.querySelectorAll(
+      ".place-map-chrome__header, .place-map-chrome__footer",
+    )) {
+      if (!visible(bar)) continue;
+      const canvas = bar.closest(".places-flow-area");
+      if (!canvas) {
+        found.push(`${name(bar)} has no Places canvas`);
+        continue;
+      }
+      const outer = box(canvas);
+      const bounds = box(bar);
+      if (
+        bounds.left < outer.left - tol ||
+        bounds.right > outer.right + tol ||
+        bounds.top < outer.top - tol ||
+        bounds.bottom > outer.bottom + tol
+      ) {
+        found.push(`${name(bar)} escapes the canvas`);
+      }
+      const controls = [...bar.querySelectorAll("button")].filter(visible);
+      for (const control of controls) {
+        const rect = box(control);
+        if (
+          rect.left < bounds.left - tol ||
+          rect.right > bounds.right + tol ||
+          rect.top < bounds.top - tol ||
+          rect.bottom > bounds.bottom + tol
+        ) {
+          found.push(`${name(control)} escapes ${name(bar)}`);
+        }
+        const hit = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        );
+        if (!hit || !control.contains(hit)) found.push(`${name(control)} is obscured`);
+      }
+      for (let first = 0; first < controls.length; first += 1) {
+        for (let second = first + 1; second < controls.length; second += 1) {
+          const a = box(controls[first]);
+          const b = box(controls[second]);
+          if (
+            a.left < b.right - tol &&
+            a.right > b.left + tol &&
+            a.top < b.bottom - tol &&
+            a.bottom > b.top + tol
+          ) {
+            found.push(`${name(controls[first])} overlaps ${name(controls[second])}`);
+          }
+        }
+      }
+    }
+
     return found;
   }, tolerance);
 }
 
 const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as const;
+
+for (const viewport of [
+  { name: "inspector sheet boundary", width: 820, height: 800, coarse: false },
+  { name: "compact controls boundary", width: 719, height: 800, coarse: false },
+  { name: "medium chrome boundary", width: 500, height: 844, coarse: false },
+  { name: "phone", width: 390, height: 844, coarse: false },
+  { name: "coarse pointer", width: 1440, height: 900, coarse: true },
+] as const) {
+  test(`Expanded map chrome: reachable actions at the ${viewport.name}`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "wide",
+      "This test owns its explicit viewport and pointer matrix.",
+    );
+    const context = await browser.newContext({
+      baseURL: testInfo.project.use.baseURL,
+      viewport: { width: viewport.width, height: viewport.height },
+      hasTouch: viewport.coarse,
+      locale: "de-DE",
+      reducedMotion: "reduce",
+    });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("quiltor-interface-language", "de"));
+      await mockExpandedMapWorld(page);
+      await openExpandedMapWorld(page);
+      expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(
+        viewport.coarse,
+      );
+      await expect(page.locator(".place-map-chrome")).toBeVisible();
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      await selectMapChild(page);
+      await expect(page.locator(".place-map-chrome")).toBeVisible();
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      if (viewport.width === 500) {
+        await page
+          .locator(".place-map-chrome")
+          .getByRole("button", { name: "Maßstab von Weltkarte" })
+          .click();
+        await page
+          .getByRole("dialog", { name: "Maßstab von Weltkarte" })
+          .getByRole("textbox", { name: "Einheit" })
+          .fill("Seemeilen der Nordküste");
+        await page.keyboard.press("Escape");
+        expect(await violations(page, TOLERANCE)).toEqual([]);
+        await page.screenshot({
+          path: testInfo.outputPath("expanded-map-500-long-unit.png"),
+          animations: "disabled",
+        });
+      }
+
+      await page.locator('.react-flow__node[data-id="graufurth"]').click();
+      if (viewport.width <= 820) {
+        const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
+        await expect(sheet).toBeVisible();
+        await expect
+          .poll(
+            async () => {
+              const rect = await sheet.boundingBox();
+              if (!rect) return null;
+              return {
+                leftIsInsideViewport: rect.x >= -TOLERANCE,
+                rightIsInsideViewport: rect.x + rect.width <= viewport.width + TOLERANCE,
+              };
+            },
+            { message: "The inspector sheet has not finished entering the viewport." },
+          )
+          .toEqual({ leftIsInsideViewport: true, rightIsInsideViewport: true });
+        await closePlaceSheet(page);
+      } else {
+        await page.getByRole("button", { name: "Auswahl schließen" }).click();
+      }
+      await waitForMapViewport(page);
+      await page
+        .locator(".place-map-chrome")
+        .getByRole("button", { name: "Bild in Weltkarte anpassen" })
+        .click();
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      await page
+        .locator(".place-map-chrome")
+        .getByRole("button", { name: "Bild in Weltkarte fertig anpassen" })
+        .click();
+      await page.locator(".react-flow__controls-zoomin").click();
+      await waitForMapViewport(page);
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      const minimapToggle = page.locator(".graph-minimap-toggle");
+      await minimapToggle.click();
+      await expect(page.locator(".react-flow__minimap")).toHaveCount(0);
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      await minimapToggle.click();
+      await expect(page.locator(".react-flow__minimap")).toHaveCount(1);
+      await expect.poll(() => violations(page, TOLERANCE)).toEqual([]);
+      await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
+      await expect(page.locator(".places-measure-overlays")).toBeVisible();
+      await expect(page.locator(".place-map-chrome")).toBeVisible();
+      await expect.poll(() => violations(page, TOLERANCE)).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
+}
 
 for (const workspace of workspaces) {
   test(`${workspace}: nothing lies outside its place`, async ({ page }) => {

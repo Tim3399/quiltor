@@ -1,6 +1,7 @@
-import { MapPin, X } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, MapPin, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
+  Button,
   IconButton,
   SidePanelBody,
   SidePanelEmpty,
@@ -26,6 +27,7 @@ export function PlaceInspector({
   mapImageUrl,
   onChooseMapImage,
   onRemoveMapImage,
+  onPlaceDisplayChange,
 }: {
   selected: FigureNode | null;
   state: FigureState;
@@ -36,6 +38,7 @@ export function PlaceInspector({
   mapImageUrl: (imageId: string) => string;
   onChooseMapImage: (place: FigureNode) => void;
   onRemoveMapImage: (place: FigureNode) => void;
+  onPlaceDisplayChange?: (place: FigureNode, display: "card" | "pin") => void;
 }) {
   const { t } = useI18n();
   const [nameDraft, setNameDraft] = useState(selected?.name ?? "");
@@ -125,6 +128,23 @@ export function PlaceInspector({
               onChoose={() => onChooseMapImage(selected)}
               onRemove={() => onRemoveMapImage(selected)}
             />
+            {isMap ? null : (
+              <Button
+                className="places-display-action"
+                appearance="secondary"
+                icon={selected.placeDisplay === "pin" ? <ChevronsUpDown /> : <ChevronsDownUp />}
+                onClick={() =>
+                  (onPlaceDisplayChange ?? ((_, display) => onPatch({ placeDisplay: display })))(
+                    selected,
+                    selected.placeDisplay === "pin" ? "card" : "pin",
+                  )
+                }
+              >
+                {selected.placeDisplay === "pin"
+                  ? t("placeShowAsCard", { name: selected.name })
+                  : t("placeShowAsPin", { name: selected.name })}
+              </Button>
+            )}
             <NoteEditor
               owner={{ kind: "place", id: selected.id }}
               label={t("profileNotes")}
