@@ -42,6 +42,8 @@ export type EditorViewSelection = {
 
 export type ManuscriptEditorHandle = {
   focus: () => void;
+  /** Run after CodeMirror has completed its pending geometry measurement and scroll anchoring. */
+  afterMeasure?: (callback: (hasFocus: boolean) => void) => () => void;
   insert: (text: string) => void;
   insertEntity: (entity: FigureNode) => void;
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
@@ -375,6 +377,27 @@ export function ManuscriptEditor({
     view.current = instance;
     editorRef.current = {
       focus: () => instance.focus(),
+      afterMeasure: (callback) => {
+        let cancelled = false;
+        let frame: number | null = null;
+        instance.requestMeasure({
+          read: () => undefined,
+          write: () => {
+            if (cancelled) return;
+            const editorWindow = instance.dom.ownerDocument.defaultView ?? window;
+            frame = editorWindow.requestAnimationFrame(() => {
+              frame = null;
+              if (!cancelled) callback(instance.hasFocus);
+            });
+          },
+        });
+        return () => {
+          cancelled = true;
+          if (frame !== null) {
+            (instance.dom.ownerDocument.defaultView ?? window).cancelAnimationFrame(frame);
+          }
+        };
+      },
       insert: (text) => {
         const range = instance.state.selection.main;
         instance.dispatch({

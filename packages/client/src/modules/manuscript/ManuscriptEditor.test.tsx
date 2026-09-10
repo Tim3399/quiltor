@@ -209,6 +209,25 @@ describe("ManuscriptEditor selection", () => {
     expect(second).toHaveBeenLastCalledWith({ anchor: 7, head: 7 });
   });
 
+  it("cancels an after-measure callback before it schedules follow-up work", () => {
+    const { editor, handle } = renderEditor();
+    const requestMeasure = vi.spyOn(editor, "requestMeasure").mockImplementation(() => {});
+    const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+    const callback = vi.fn();
+    try {
+      const cancel = requireValue(handle.current?.afterMeasure?.(callback));
+      const request = requireValue(requestMeasure.mock.calls[0]?.[0]);
+      cancel();
+      request.write?.(request.read(editor), editor);
+
+      expect(requestFrame).not.toHaveBeenCalled();
+      expect(callback).not.toHaveBeenCalled();
+    } finally {
+      requestMeasure.mockRestore();
+      requestFrame.mockRestore();
+    }
+  });
+
   it("draws bold and italic as ranges over the text", () => {
     const { container } = renderEditor({
       marks: [

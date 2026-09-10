@@ -19,6 +19,34 @@ const saved: ManuscriptEditorSessionState = {
 };
 const defaults = { manuscript, figures, onChange: vi.fn(), focus: false, onFocus: vi.fn() };
 
+function queueAnimationFrames() {
+  let nextId = 1;
+  const callbacks = new Map<number, FrameRequestCallback>();
+  const request = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    const id = nextId++;
+    callbacks.set(id, callback);
+    return id;
+  });
+  const cancel = vi
+    .spyOn(window, "cancelAnimationFrame")
+    .mockImplementation((id) => callbacks.delete(id));
+  return {
+    runFrame: () => {
+      const pending = [...callbacks.values()];
+      callbacks.clear();
+      act(() =>
+        pending.forEach((callback) => {
+          callback(performance.now());
+        }),
+      );
+    },
+    restore: () => {
+      request.mockRestore();
+      cancel.mockRestore();
+    },
+  };
+}
+
 function editor() {
   return requireValue(
     EditorView.findFromDOM(
@@ -89,6 +117,44 @@ describe("TextWorkspace session", () => {
       selection: { anchor: 5, head: 5 },
       scrollTop: 123,
     });
+  });
+
+  it("reapplies the saved scroll after CodeMirror finishes a late geometry adjustment", () => {
+    const frames = queueAnimationFrames();
+    try {
+      const view = renderWorkspace({ ...defaults, sessionState: saved });
+      const scroller = requireValue(view.container.querySelector<HTMLElement>(".editor-scroll"));
+      expect(scroller.scrollTop).toBe(saved.scrollTop);
+
+      // CodeMirror runs custom measure writes before its own scroll-anchor correction.
+      // The editor schedules the exact restore for the following frame.
+      frames.runFrame();
+      scroller.scrollTop = saved.scrollTop - 18;
+      frames.runFrame();
+
+      expect(scroller.scrollTop).toBe(saved.scrollTop);
+      expect(editor().state.selection.main).toMatchObject(saved.selection);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it("does not apply the late scroll restore after focus moved elsewhere", () => {
+    const frames = queueAnimationFrames();
+    try {
+      const view = renderWorkspace({ ...defaults, sessionState: saved });
+      const scroller = requireValue(view.container.querySelector<HTMLElement>(".editor-scroll"));
+      frames.runFrame();
+      scroller.scrollTop = saved.scrollTop - 18;
+      const title = screen.getByLabelText("Kapiteltitel");
+      title.focus();
+      frames.runFrame();
+
+      expect(scroller.scrollTop).toBe(saved.scrollTop - 18);
+      expect(title).toHaveFocus();
+    } finally {
+      frames.restore();
+    }
   });
 
   it("does not replay the saved selection after an internal chapter round trip", async () => {
