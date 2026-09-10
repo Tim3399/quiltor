@@ -167,21 +167,18 @@ for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await mockExpandedMapWorld(page);
     await openExpandedMapWorld(page);
-    // Linux and macOS baselines were bootstrapped through Vite, where StrictMode replays the
-    // initial world load; Windows baselines came from the production build. Reopen deliberately
-    // on the bootstrap platforms so every comparison reaches the save state its existing baseline
-    // records instead of racing that environment-only lifecycle difference.
-    if (process.platform === "win32") {
-      await expect(page.getByRole("status")).toContainText("Bereit");
-    } else {
-      await page.getByRole("button", { name: "Mehr", exact: true }).click();
-      await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
-      await page
-        .getByRole("button", { name: "Die nördlichen Küsten – Welt öffnen", exact: true })
-        .click();
-      await expect(page.locator(".places-workspace")).toBeVisible();
-      await expect(page.getByRole("status")).toContainText("Gespeichert");
-    }
+    // Reopening establishes the same completed save state in development and production.
+    // Await it before arranging the compact navigation, whose width depends on this label.
+    await page.getByRole("button", { name: "Mehr", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Die nördlichen Küsten – Welt öffnen", exact: true })
+      .click();
+    await expect(page.locator(".places-workspace")).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Gespeichert");
+    await page
+      .getByRole("button", { name: "Orte", exact: true })
+      .evaluate((element) => element.scrollIntoView({ block: "nearest", inline: "center" }));
     await selectMapChild(page);
     await expect(page.locator('.place-map-chrome[data-map-id="weltkarte"]')).toBeVisible();
     await expect(page.locator(".place-map-chrome__footer")).toContainText("25 km");

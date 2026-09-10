@@ -75,6 +75,25 @@ async function selectionOffsets(editor: Locator) {
   });
 }
 
+async function establishKeyboardSelection(
+  root: Locator,
+  expected: { anchor: number; head: number; text: string },
+  setup: () => Promise<void>,
+) {
+  await setup();
+  await expect.poll(() => selectionOffsets(root)).toEqual(expected);
+  return expected;
+}
+
+async function pressRepeatedly(page: Page, key: string, count: number) {
+  for (let index = 0; index < count; index += 1) {
+    await page.keyboard.press(key, { delay: 20 });
+  }
+}
+
+const lineStartKey = process.platform === "darwin" ? "Meta+ArrowLeft" : "Home";
+const lineEndKey = process.platform === "darwin" ? "Meta+ArrowRight" : "End";
+
 async function switchWorkspace(page: Page, name: "Text" | "Figuren") {
   await page.getByRole("button", { name, exact: true }).click();
   if (name === "Text") {
@@ -106,11 +125,17 @@ test("Returning to Text restores the edited chapter, cursor, scroll and input fo
     element.scrollTop = element.scrollHeight;
   });
   const lastLine = editor.locator(".cm-line").filter({ hasText: "Am Ende wartet der Zielpunkt." });
-  await lastLine.click();
-  await page.keyboard.press("End");
-  for (let index = 0; index < "punkt.".length; index += 1) {
-    await page.keyboard.press("ArrowLeft");
-  }
+  const caretOffset = "Am Ende wartet der Zielpunkt.".length - "punkt.".length;
+  const caret = await establishKeyboardSelection(
+    lastLine,
+    { anchor: caretOffset, head: caretOffset, text: "" },
+    async () => {
+      await lastLine.click();
+      await page.keyboard.press(lineEndKey);
+      await pressRepeatedly(page, "ArrowLeft", "punkt.".length);
+    },
+  );
+  expect(caret).toEqual({ anchor: caretOffset, head: caretOffset, text: "" });
   await page.keyboard.type("X");
   await expect.poll(() => editorText(editor)).toContain("Am Ende wartet der ZielXpunkt.");
 
@@ -147,15 +172,17 @@ test("Returning to Text restores a reversed selection for exact replacement", as
   await selectChapter(page, 1, "Erstes Kapitel");
 
   const editor = page.getByLabel("Kapiteltext");
-  await editor.click();
-  await page.keyboard.press("Control+Home");
-  for (let index = 0; index < "Der Anfang".length; index += 1) {
-    await page.keyboard.press("ArrowRight");
-  }
-  for (let index = 0; index < "Anfang".length; index += 1) {
-    await page.keyboard.press("Shift+ArrowLeft");
-  }
-  const reversed = await selectionOffsets(editor);
+  const firstLine = editor.locator(".cm-line").first();
+  const reversed = await establishKeyboardSelection(
+    editor,
+    { anchor: 10, head: 4, text: "Anfang" },
+    async () => {
+      await firstLine.click();
+      await page.keyboard.press(lineStartKey);
+      await pressRepeatedly(page, "ArrowRight", "Der Anfang".length);
+      await pressRepeatedly(page, "Shift+ArrowLeft", "Anfang".length);
+    },
+  );
   expect(reversed).toEqual({ anchor: 10, head: 4, text: "Anfang" });
 
   await switchWorkspace(page, "Figuren");
@@ -209,8 +236,9 @@ test("Editor session state does not cross worlds with matching chapter IDs", asy
     testInfo.project.name !== "wide",
     "World-keyed in-memory state is viewport-independent and covered in the wide editor.",
   );
-  const firstWorld = await createTestWorld(page, "Editor-Sitzung Welt A");
-  await createTestWorld(page, "Editor-Sitzung Welt B");
+  const firstWorld = await createTestWorld(page, `Editor-Sitzung Welt A ${crypto.randomUUID()}`);
+  const secondWorldTitle = `Editor-Sitzung Welt B ${crypto.randomUUID()}`;
+  await createTestWorld(page, secondWorldTitle);
   await page.goto(`/?world=${firstWorld.id}`);
   await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
   await selectChapter(page, 2, "Zweites Kapitel");
@@ -221,10 +249,10 @@ test("Editor session state does not cross worlds with matching chapter IDs", asy
 
   await returnToWorldSelection(page);
   await page
-    .getByRole("button", { name: "Editor-Sitzung Welt B – Welt öffnen", exact: true })
+    .getByRole("button", { name: `${secondWorldTitle} – Welt öffnen`, exact: true })
     .click();
   await switchWorkspace(page, "Text");
-  await expect(page.getByRole("banner")).toContainText("Editor-Sitzung Welt B");
+  await expect(page.getByRole("banner")).toContainText(secondWorldTitle);
   await expect(page.getByLabel("Kapiteltitel")).toHaveValue("Erstes Kapitel");
 });
 
