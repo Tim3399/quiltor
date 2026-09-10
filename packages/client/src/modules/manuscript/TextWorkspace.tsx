@@ -44,7 +44,10 @@ export function TextWorkspace({
   orphanedMentions = 0,
   onChange,
   onOpenEntity,
+  currentChapterId,
   onCurrentChapterId,
+  sessionState,
+  onSessionStateChange,
   focus,
   onFocus,
   targetId,
@@ -70,7 +73,18 @@ export function TextWorkspace({
   onInspectorWidth,
 }: TextWorkspaceProps) {
   const { t, locale } = useI18n();
-  const [currentId, setCurrentId] = useState(manuscript.chapters[0]?.id ?? "");
+  const [localCurrentId, setLocalCurrentId] = useState(
+    () => targetId ?? currentChapterId ?? sessionState?.chapterId ?? "",
+  );
+  // Application owns the chapter in the app; standalone workspaces keep their local fallback.
+  const currentId = currentChapterId ?? localCurrentId;
+  const setCurrentId = (id: string) => {
+    if (currentChapterId === undefined) setLocalCurrentId(id);
+    else onCurrentChapterId?.(id);
+  };
+  const [initialSessionState] = useState(() =>
+    targetId || textSearch ? null : (sessionState ?? null),
+  );
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [localBinderOpen, setLocalBinderOpen] = useState(() => window.innerWidth >= 720);
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
@@ -412,6 +426,9 @@ ${markdownBody(current.body, current.marks)}
             >
               <EditorSurface
                 current={current}
+                initialSessionState={initialSessionState}
+                allowSessionRestore={!targetId && !textSearch}
+                onSessionStateChange={onSessionStateChange}
                 editorRef={writing.editor}
                 figures={figures}
                 vocabulary={writing.vocabulary}

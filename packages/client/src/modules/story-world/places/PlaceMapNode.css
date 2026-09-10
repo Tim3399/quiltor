@@ -13,7 +13,7 @@
      as a card. Nothing is clipped here -- the resize grips sit astride the edge
      and the corner blocks straddle it, and clipping halved both. */
   border-radius: var(--radius-xs);
-  background: var(--canvas);
+  background: var(--transparent);
 }
 
 /* The picture fills its whole extent, whatever proportions the frame has been
@@ -35,6 +35,7 @@
   height: 100%;
   overflow: hidden;
   border-radius: inherit;
+  background: var(--canvas);
 }
 
 /* Adjusting the picture inside its frame is a drag, and saying so with the

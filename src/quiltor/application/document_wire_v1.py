@@ -80,6 +80,10 @@ def _valid_place_level(node: dict) -> bool:
         return False
     if "mapExpanded" in node and type(node["mapExpanded"]) is not bool:
         return False
+    if "placeDisplay" in node and (
+        not isinstance(node["placeDisplay"], str) or node["placeDisplay"] not in {"card", "pin"}
+    ):
+        return False
     for key in ("mapWidth", "mapHeight"):
         if key in node and (not _number(node[key]) or node[key] <= 0):
             return False

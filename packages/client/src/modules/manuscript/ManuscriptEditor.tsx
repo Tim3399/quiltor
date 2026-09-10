@@ -35,10 +35,17 @@ export type EditorTextSelection = {
   rect: { left: number; top: number; width: number; height: number };
 };
 
+export type EditorViewSelection = {
+  anchor: number;
+  head: number;
+};
+
 export type ManuscriptEditorHandle = {
   focus: () => void;
   getPosition: () => ManuscriptEditorPosition;
   restorePosition: (position: ManuscriptEditorPosition) => void;
+  /** Run after CodeMirror has completed its pending geometry measurement and scroll anchoring. */
+  afterMeasure?: (callback: (hasFocus: boolean) => void) => () => void;
   insert: (text: string) => void;
   insertEntity: (entity: FigureNode) => void;
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
@@ -67,8 +74,10 @@ export function ManuscriptEditor({
   searchMatches = [],
   activeSearchMatch = null,
   editorRef,
+  initialSelection,
   onChange,
   onSelection,
+  onViewSelectionChange,
   onSelectionMenu,
   onIssue,
   onOpenEntity,
@@ -88,9 +97,11 @@ export function ManuscriptEditor({
   searchMatches?: Array<{ from: number; to: number }>;
   activeSearchMatch?: { from: number; to: number } | null;
   editorRef: React.MutableRefObject<ManuscriptEditorHandle | null>;
+  initialSelection?: EditorViewSelection;
   onChange: (value: string, mentions: EntityMention[], marks: TextMark[]) => void;
   /** Every change of the marked range. Reports what is selected -- nothing more. */
   onSelection: (selection: EditorTextSelection | null) => void;
+  onViewSelectionChange?: (selection: EditorViewSelection) => void;
   /** Only when the writer asks for the actions: right-click, or Shift+F10. */
   onSelectionMenu?: (selection: EditorTextSelection) => void;
   onIssue?: (issue: WritingIssue) => void;
@@ -103,6 +114,7 @@ export function ManuscriptEditor({
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange),
     selectionRef = useRef(onSelection),
+    viewSelectionRef = useRef(onViewSelectionChange),
     selectionMenuRef = useRef(onSelectionMenu),
     issueRef = useRef(onIssue),
     openEntityRef = useRef(onOpenEntity),
@@ -115,6 +127,7 @@ export function ManuscriptEditor({
   const [completion, setCompletion] = useState<EditorCompletion | null>(null);
   changeRef.current = onChange;
   selectionRef.current = onSelection;
+  viewSelectionRef.current = onViewSelectionChange;
   selectionMenuRef.current = onSelectionMenu;
   issueRef.current = onIssue;
   openEntityRef.current = onOpenEntity;
@@ -166,6 +179,10 @@ export function ManuscriptEditor({
       selectionRef.current(selection);
       if (asked) selectionMenuRef.current?.(selection);
     };
+    const reportViewSelection = (instance: EditorView) => {
+      const { anchor, head } = instance.state.selection.main;
+      viewSelectionRef.current?.({ anchor, head });
+    };
     // Toggling changes no character, so it is not a document change: the new ranges go
     // straight to whoever owns the text and come back as the `marks` prop. The decoration
     // effect is dispatched here as well so the passage changes weight under the cursor
@@ -183,10 +200,17 @@ export function ManuscriptEditor({
       changeRef.current(instance.state.doc.toString(), mentionsRef.current, next);
       return true;
     };
+    const clampPosition = (position: number) => Math.max(0, Math.min(position, value.length));
     const instance = new EditorView({
       parent: host.current,
       state: EditorState.create({
         doc: value,
+        selection: initialSelection
+          ? EditorSelection.single(
+              clampPosition(initialSelection.anchor),
+              clampPosition(initialSelection.head),
+            )
+          : undefined,
         extensions: [
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
@@ -299,6 +323,7 @@ export function ManuscriptEditor({
             },
           }),
           EditorView.updateListener.of((update) => {
+            if (update.docChanged || update.selectionSet) reportViewSelection(update.view);
             if (update.docChanged) {
               const range = update.state.selection.main;
               setCompletion(
@@ -372,6 +397,27 @@ export function ManuscriptEditor({
         instance.dispatch({ selection: EditorSelection.range(safeAnchor, safeHead) });
         if (focused) instance.focus();
       },
+      afterMeasure: (callback) => {
+        let cancelled = false;
+        let frame: number | null = null;
+        instance.requestMeasure({
+          read: () => undefined,
+          write: () => {
+            if (cancelled) return;
+            const editorWindow = instance.dom.ownerDocument.defaultView ?? window;
+            frame = editorWindow.requestAnimationFrame(() => {
+              frame = null;
+              if (!cancelled) callback(instance.hasFocus);
+            });
+          },
+        });
+        return () => {
+          cancelled = true;
+          if (frame !== null) {
+            (instance.dom.ownerDocument.defaultView ?? window).cancelAnimationFrame(frame);
+          }
+        };
+      },
       insert: (text) => {
         const range = instance.state.selection.main;
         instance.dispatch({
@@ -435,6 +481,7 @@ export function ManuscriptEditor({
         instance.focus();
       },
     };
+    reportViewSelection(instance);
     return () => {
       selectionRef.current(null);
       editorRef.current = null;
@@ -446,10 +493,11 @@ export function ManuscriptEditor({
   useEffect(() => {
     const instance = view.current;
     if (!instance || instance.state.doc.toString() === value) return;
-    const head = Math.min(instance.state.selection.main.head, value.length);
+    const { anchor, head } = instance.state.selection.main;
+    const clampPosition = (position: number) => Math.max(0, Math.min(position, value.length));
     instance.dispatch({
       changes: { from: 0, to: instance.state.doc.length, insert: value },
-      selection: EditorSelection.cursor(head),
+      selection: EditorSelection.single(clampPosition(anchor), clampPosition(head)),
       annotations: controlledUpdate.of(true),
     });
   }, [value]);

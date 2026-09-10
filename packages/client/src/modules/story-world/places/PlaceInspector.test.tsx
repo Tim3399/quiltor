@@ -32,6 +32,28 @@ function noteView(textbox: HTMLElement) {
 }
 
 describe("PlaceInspector", () => {
+  it("offers the same persistent display toggle through the inspector", () => {
+    const onPlaceDisplayChange = vi.fn();
+    render(
+      <I18nProvider>
+        <PlaceInspector
+          selected={state.nodes[0]}
+          state={state}
+          onPatch={vi.fn()}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
+          onPlaceDisplayChange={onPlaceDisplayChange}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ort Hafen als Stecknadel anzeigen" }));
+    expect(onPlaceDisplayChange).toHaveBeenCalledWith(state.nodes[0], "pin");
+  });
+
   it("keeps history rows inside their cards with compact, wrapping layout contracts", () => {
     const { container } = render(
       <I18nProvider>

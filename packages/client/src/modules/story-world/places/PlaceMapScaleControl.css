@@ -1,0 +1,21 @@
+.place-map-scale-control__trigger {
+  max-width: 100%;
+}
+
+.place-map-scale-control {
+  display: grid;
+  grid-template-columns: minmax(0, 7ch) auto;
+  gap: var(--spacing-compact-wide);
+  align-items: end;
+  padding: var(--spacing-regular-tight);
+}
+
+.place-map-scale-control__per {
+  padding-bottom: var(--spacing-compact-tight);
+  color: var(--text-muted);
+  font-size: var(--font-size-2);
+}
+
+.place-map-scale-control__unit {
+  grid-column: 1 / -1;
+}

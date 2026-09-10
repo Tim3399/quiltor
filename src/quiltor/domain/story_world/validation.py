@@ -121,6 +121,10 @@ def _valid_place_level(node: dict) -> bool:
     expanded = node.get("mapExpanded")
     if expanded is not None and type(expanded) is not bool:
         return False
+    if "placeDisplay" in node and (
+        not isinstance(node["placeDisplay"], str) or node["placeDisplay"] not in {"card", "pin"}
+    ):
+        return False
     for key in ("mapWidth", "mapHeight"):
         value = node.get(key)
         if value is not None and (

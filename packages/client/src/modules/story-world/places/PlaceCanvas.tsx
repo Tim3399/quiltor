@@ -8,10 +8,12 @@ import { cardKindColor } from "../../graph";
 import { GRID_SIZE } from "../figures/relationships";
 import type { FigureNode, FigureState } from "../model";
 import { StoryGraphCanvas } from "../StoryGraphCanvas";
-import { PlaceLevelTrail } from "./PlaceLevelTrail";
-import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
 import { PlaceGround } from "./PlaceGround";
+import { PlaceLevelTrail } from "./PlaceLevelTrail";
+import { type ActivePlaceMapChromeProps, PlaceMapChromeOverlay } from "./PlaceMapChromeOverlay";
+import { PlaceMapFrameProvider } from "./PlaceMapFrameContext";
 import { PlaceMapNode } from "./PlaceMapNode";
+import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
 import { type PlaceCardData, type PlaceFlowNode, placeNodeTypes } from "./PlaceNode";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
 import "./PlaceCanvas.css";
@@ -31,6 +33,7 @@ export function PlaceCanvas({
   onStopMeasuring,
   onScale,
   mapTools,
+  mapChrome,
 }: {
   controller: PlaceCanvasController;
   placesCount: number;
@@ -48,6 +51,7 @@ export function PlaceCanvas({
   onScale: (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => void;
   /** What the selected map offers, shown over the canvas rather than on the map. */
   mapTools?: ReactNode;
+  mapChrome?: ActivePlaceMapChromeProps;
 }) {
   const { t } = useI18n();
   const selectPlaceFromKeyboard = useCallback(
@@ -57,7 +61,7 @@ export function PlaceCanvas({
       if (!(target instanceof Element)) return;
       const node = target.closest<HTMLElement>(".react-flow__node[data-id]");
       const id = node?.dataset.id;
-      if (!id || !event.currentTarget.contains(node)) return;
+      if (!id || target !== node || !event.currentTarget.contains(node)) return;
       event.preventDefault();
       onSelectPlace(id);
     },
@@ -65,80 +69,107 @@ export function PlaceCanvas({
   );
 
   return (
-    <StoryGraphCanvas
-      nodes={controller.nodes as PlaceFlowNode[]}
-      edges={controller.edges as Edge[]}
-      zoomTier={controller.zoomTier}
-      className={`places-flow-area ${measuring ? "is-connecting" : ""} ${
-        controller.hasGround && controller.boundToGround ? "is-bound-to-ground" : ""
-      }`}
-      gridSize={GRID_SIZE}
-      showGrid={controller.snapToGrid}
-      minZoom={controller.minZoom}
-      onSurfaceResize={controller.onSurfaceResize}
-      overlay={
-        <>
-          <PlaceLevelTrail trail={trail} scale={trailScale} onGoToLevel={onGoToLevel} />
-          {mapTools}
-          {measuring ? (
-            <PlaceMeasurementOverlay
-              measureSelection={measureSelection}
-              scale={scale}
-              onScale={onScale}
-              onStop={onStopMeasuring}
-            />
-          ) : null}
-        </>
-      }
-      flowProps={{
-        nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode, placeGround: PlaceGround },
-        nodesConnectable: true,
-        fitViewOptions: controller.fitViewOptions,
-        translateExtent: controller.translateExtent,
-        onKeyDown: selectPlaceFromKeyboard,
-        onInit: controller.onInit,
-        onMove: (_, viewport) => controller.onMove(viewport),
-        onNodeClick: (_, node) => onSelectPlace(node.id),
-        // The ordinary gesture for one level down, so a level can be reached
-        // without first selecting something to find out that it has one. The
-        // canvas has to give the gesture up for it: React Flow's zoom claims
-        // every double click and stops it dead before it reaches a node, and on
-        // a surface built out of levels going down beats zooming in.
-        onNodeDoubleClick: (_, node) => onEnterPlace(node.id),
-        zoomOnDoubleClick: false,
-        onPaneClick: onClearSelection,
-        onNodesChange: controller.onNodesChange,
-        onNodeDragStop: (_, node) => controller.onNodeDragStop(node),
-      }}
-      minimapProps={{
-        // A laid-out map is the ground, and everything worth finding in the
-        // minimap is standing on it. Drawn at full strength it would swallow
-        // the very pins the minimap exists to show, so it recedes to a wash.
-        nodeColor: (node) => {
-          // Held to the ground, the minimap's frame and the sheet are the same
-          // rectangle: drawing the sheet inside it says nothing and covers the
-          // things the minimap exists to show.
-          if (node.type === "placeGround")
-            return controller.boundToGround ? "var(--transparent)" : cardKindColor("storyboard");
-          if (node.type === "placeMap")
-            return `color-mix(in srgb, ${cardKindColor("storyboard")} 18%, transparent)`;
-          // Collapsed maps keep their own hue down here as well, so the minimap
-          // reads as the surface does rather than as one undifferentiated green.
-          return isMapCard(node) ? cardKindColor("storyboard") : cardKindColor("ort");
-        },
-        nodeStrokeWidth: 0,
-      }}
-    >
-      {!placesCount && (
-        <EmptyState
-          className="places-manager-empty"
-          icon={<MapPin className="places-empty-icon" />}
-          title={t("noPlacesYet")}
-        >
-          <p>{t("noPlacesYetBody")}</p>
-        </EmptyState>
-      )}
-    </StoryGraphCanvas>
+    <PlaceMapFrameProvider>
+      <StoryGraphCanvas
+        nodes={controller.nodes as PlaceFlowNode[]}
+        edges={controller.edges as Edge[]}
+        zoomTier={controller.zoomTier}
+        className={`places-flow-area ${measuring ? "is-connecting" : ""} ${
+          controller.hasGround && controller.boundToGround ? "is-bound-to-ground" : ""
+        }`}
+        gridSize={GRID_SIZE}
+        showGrid={controller.snapToGrid}
+        minZoom={controller.minZoom}
+        onSurfaceResize={controller.onSurfaceResize}
+        overlay={
+          <>
+            <PlaceLevelTrail trail={trail} scale={trailScale} onGoToLevel={onGoToLevel} />
+            {mapTools}
+            {controller.dragPreview ? (
+              <div
+                className="place-drag-preview"
+                data-testid="place-drag-preview"
+                data-place-id={controller.dragPreview.id}
+                style={{
+                  left: controller.dragPreview.clientX,
+                  top: controller.dragPreview.clientY,
+                }}
+                aria-hidden="true"
+              >
+                <span className="place-drag-preview__tip" />
+                <MapPin className="place-drag-preview__pin" />
+                <span className="place-drag-preview__name">{controller.dragPreview.name}</span>
+              </div>
+            ) : null}
+            {mapChrome ? (
+              <PlaceMapChromeOverlay
+                controller={controller}
+                chrome={mapChrome}
+                measuring={measuring}
+              />
+            ) : null}
+            {measuring ? (
+              <PlaceMeasurementOverlay
+                measureSelection={measureSelection}
+                scale={scale}
+                onScale={onScale}
+                onStop={onStopMeasuring}
+              />
+            ) : null}
+          </>
+        }
+        flowProps={{
+          nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode, placeGround: PlaceGround },
+          nodesConnectable: true,
+          fitViewOptions: controller.fitViewOptions,
+          translateExtent: controller.translateExtent,
+          onKeyDown: selectPlaceFromKeyboard,
+          onInit: controller.onInit,
+          onMove: (_, viewport) => controller.onMove(viewport),
+          onNodeClick: (_, node) => onSelectPlace(node.id),
+          // The ordinary gesture for one level down, so a level can be reached
+          // without first selecting something to find out that it has one. The
+          // canvas has to give the gesture up for it: React Flow's zoom claims
+          // every double click and stops it dead before it reaches a node, and on
+          // a surface built out of levels going down beats zooming in.
+          onNodeDoubleClick: (_, node) => onEnterPlace(node.id),
+          zoomOnDoubleClick: false,
+          onPaneClick: onClearSelection,
+          onNodesChange: controller.onNodesChange,
+          onNodeDragStart: (event, node) => controller.onNodeDragStart(event, node),
+          onNodeDrag: (event, node) => controller.onNodeDrag(event, node),
+          onNodeDragStop: (event, node) => controller.onNodeDragStop(event, node),
+        }}
+        minimapProps={{
+          // A laid-out map is the ground, and everything worth finding in the
+          // minimap is standing on it. Drawn at full strength it would swallow
+          // the very pins the minimap exists to show, so it recedes to a wash.
+          nodeColor: (node) => {
+            // Held to the ground, the minimap's frame and the sheet are the same
+            // rectangle: drawing the sheet inside it says nothing and covers the
+            // things the minimap exists to show.
+            if (node.type === "placeGround")
+              return controller.boundToGround ? "var(--transparent)" : cardKindColor("storyboard");
+            if (node.type === "placeMap")
+              return `color-mix(in srgb, ${cardKindColor("storyboard")} 18%, transparent)`;
+            // Collapsed maps keep their own hue down here as well, so the minimap
+            // reads as the surface does rather than as one undifferentiated green.
+            return isMapCard(node) ? cardKindColor("storyboard") : cardKindColor("ort");
+          },
+          nodeStrokeWidth: 0,
+        }}
+      >
+        {!placesCount && (
+          <EmptyState
+            className="places-manager-empty"
+            icon={<MapPin className="places-empty-icon" />}
+            title={t("noPlacesYet")}
+          >
+            <p>{t("noPlacesYetBody")}</p>
+          </EmptyState>
+        )}
+      </StoryGraphCanvas>
+    </PlaceMapFrameProvider>
   );
 }
 

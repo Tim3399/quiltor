@@ -2,6 +2,65 @@
   position: relative;
 }
 
+.place-map-chrome-boundary {
+  position: absolute;
+  inset: var(--graph-viewport-inset);
+  pointer-events: none;
+}
+
+/* Its zero-sized origin is the pointer. The target dot is the exact persisted
+   anchor; the familiar pin and short label sit above it without moving it. */
+.place-drag-preview {
+  width: 0;
+  height: 0;
+  position: fixed;
+  z-index: var(--z-float-strip);
+  color: var(--text-primary);
+  pointer-events: none;
+}
+
+.place-drag-preview__tip {
+  width: var(--space-6);
+  height: var(--space-6);
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px solid var(--paper);
+  border-radius: var(--radius-pill);
+  background: var(--card-kind-ort);
+  box-shadow: var(--elevation-1) var(--node-shadow);
+  transform: translate(-50%, -50%);
+}
+
+.place-drag-preview__pin {
+  width: var(--space-28);
+  height: var(--space-28);
+  position: absolute;
+  bottom: var(--space-2);
+  left: 0;
+  fill: var(--card-kind-ort-surface);
+  filter: drop-shadow(var(--elevation-1) var(--node-shadow));
+  stroke: var(--card-kind-ort);
+  transform: translateX(-50%);
+}
+
+.place-drag-preview__name {
+  max-width: 24ch;
+  position: absolute;
+  bottom: var(--space-8);
+  left: var(--space-18);
+  overflow: hidden;
+  padding: var(--spacing-optical-tight) var(--spacing-compact-wide);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--card-kind-ort);
+  border-radius: var(--radius) var(--radius-pill) var(--radius) var(--radius-pill);
+  background: color-mix(in srgb, var(--card-kind-ort-surface) 22%, var(--paper));
+  box-shadow: var(--elevation-2) var(--node-shadow);
+  font: 600 var(--font-size-4) / 1.2 var(--prose);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Held to the ground, what lies outside the sheet is not somewhere to go -- it
    is the edge of the world down here. The surround deepens a shade to say so:
    not a border drawn round the map, which the map already has, but a change in

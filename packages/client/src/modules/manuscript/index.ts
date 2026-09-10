@@ -34,6 +34,7 @@ export type {
 } from "./model";
 export { textSearchRanges } from "./search";
 export { wordCount } from "./wordCount";
+export type { ManuscriptEditorSessionState } from "./workspaceTypes";
 
 export const loadTextWorkspace = () =>
   import("./TextWorkspace").then(({ TextWorkspace }) => ({ default: TextWorkspace }));

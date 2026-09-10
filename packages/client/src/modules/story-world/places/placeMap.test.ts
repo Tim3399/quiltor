@@ -7,9 +7,43 @@ import {
   mapDistance,
   mapDistancePair,
   nearestMapDistances,
+  mapScaleBar,
+  physicalGridDistance,
 } from "./placeMap";
 
 const t = (key: MessageKey) => de[key];
+
+describe("map scale instruments", () => {
+  const scale = { unitsPer100px: 25, unitLabel: "km" };
+
+  it("calculates physical grid distance from the authoritative map scale", () => {
+    expect(physicalGridDistance(scale, 48)).toBe(12);
+    expect(physicalGridDistance({ unitsPer100px: 0.5, unitLabel: "m" }, 48)).toBe(0.24);
+    expect(physicalGridDistance(undefined, 48)).toBeUndefined();
+    expect(physicalGridDistance({ ...scale, unitsPer100px: 0 }, 48)).toBeUndefined();
+    expect(physicalGridDistance(scale, Number.NaN)).toBeUndefined();
+  });
+
+  it("uses nice distances and changes their screen length with zoom", () => {
+    expect(mapScaleBar(scale, 1)).toEqual({ distance: 20, width: 80 });
+    expect(mapScaleBar(scale, 0.5)).toEqual({ distance: 50, width: 100 });
+    expect(mapScaleBar(scale, 2)).toEqual({ distance: 10, width: 80 });
+    for (const zoom of [0.08, 0.2, 0.75, 1.3, 2.2]) {
+      const bar = mapScaleBar(scale, zoom)!;
+      expect(bar.width).toBeCloseTo((bar.distance / 25) * 100 * zoom);
+      expect(bar.width).toBeGreaterThan(60);
+      expect(bar.width).toBeLessThan(175);
+    }
+  });
+
+  it("does not invent a physical bar without a valid scale or zoom", () => {
+    expect(mapScaleBar(undefined, 1)).toBeUndefined();
+    expect(mapScaleBar({ ...scale, unitsPer100px: -1 }, 1)).toBeUndefined();
+    expect(mapScaleBar({ ...scale, unitsPer100px: Number.POSITIVE_INFINITY }, 1)).toBeUndefined();
+    expect(mapScaleBar(scale, 0)).toBeUndefined();
+    expect(mapScaleBar(scale, Number.NaN)).toBeUndefined();
+  });
+});
 
 describe("mapDistance", () => {
   it("computes the straight-line distance for a known 3-4-5 triangle", () => {

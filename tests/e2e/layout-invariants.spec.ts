@@ -1,5 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { mockRequiredWorldDocuments } from "./support/application-api";
+import {
+  closePlaceSheet,
+  mockExpandedMapWorld,
+  openExpandedMapWorld,
+  selectMapChild,
+  waitForMapViewport,
+} from "./support/expanded-map-fixture";
 
 /*
  * Geometry invariants.
@@ -249,7 +256,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
     // 3. Floating tools share an edge, not the same spot.
     const floating = [
       ...document.querySelectorAll(
-        ".react-flow__panel.react-flow__controls, .react-flow__panel.react-flow__minimap, .timeline-strip, .place-level-trail, .graph-edge-inspector",
+        ".react-flow__panel.react-flow__controls, .react-flow__panel.react-flow__minimap, .timeline-strip, .place-level-trail, .graph-edge-inspector, .place-map-chrome__header, .place-map-chrome__footer, .places-measure-overlays .mode-banner, .places-measure-overlays .places-scale-legend",
       ),
     ].filter(visible);
     for (let left = 0; left < floating.length; left += 1) {
@@ -272,7 +279,7 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
     //    a panel's resize grip, say, which has to be grabbable from both sides -- and nobody
     //    can ever lay eyes on it.
     for (const region of document.querySelectorAll(
-      ".side-panel, .workspace-toolbar, .status-bar, .app-bar",
+      ".side-panel, .workspace-toolbar, .status-bar, .app-bar, .place-map-chrome__header, .place-map-chrome__footer",
     )) {
       if (!visible(region)) continue;
       const overflowX = getComputedStyle(region).overflowX;
@@ -284,11 +291,167 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
       }
     }
 
+    // 5. Map chrome stays in the canvas and every action fits in its own bar.
+    //    Checking the button hit target also catches clipping that bounding boxes miss.
+    for (const bar of document.querySelectorAll(
+      ".place-map-chrome__header, .place-map-chrome__footer",
+    )) {
+      if (!visible(bar)) continue;
+      const canvas = bar.closest(".places-flow-area");
+      if (!canvas) {
+        found.push(`${name(bar)} has no Places canvas`);
+        continue;
+      }
+      const outer = box(canvas);
+      const bounds = box(bar);
+      if (
+        bounds.left < outer.left - tol ||
+        bounds.right > outer.right + tol ||
+        bounds.top < outer.top - tol ||
+        bounds.bottom > outer.bottom + tol
+      ) {
+        found.push(`${name(bar)} escapes the canvas`);
+      }
+      const controls = [...bar.querySelectorAll("button")].filter(visible);
+      for (const control of controls) {
+        const rect = box(control);
+        if (
+          rect.left < bounds.left - tol ||
+          rect.right > bounds.right + tol ||
+          rect.top < bounds.top - tol ||
+          rect.bottom > bounds.bottom + tol
+        ) {
+          found.push(`${name(control)} escapes ${name(bar)}`);
+        }
+        const hit = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        );
+        if (!hit || !control.contains(hit)) found.push(`${name(control)} is obscured`);
+      }
+      for (let first = 0; first < controls.length; first += 1) {
+        for (let second = first + 1; second < controls.length; second += 1) {
+          const a = box(controls[first]);
+          const b = box(controls[second]);
+          if (
+            a.left < b.right - tol &&
+            a.right > b.left + tol &&
+            a.top < b.bottom - tol &&
+            a.bottom > b.top + tol
+          ) {
+            found.push(`${name(controls[first])} overlaps ${name(controls[second])}`);
+          }
+        }
+      }
+    }
+
     return found;
   }, tolerance);
 }
 
 const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as const;
+
+for (const viewport of [
+  { name: "inspector sheet boundary", width: 820, height: 800, coarse: false },
+  { name: "compact controls boundary", width: 719, height: 800, coarse: false },
+  { name: "medium chrome boundary", width: 500, height: 844, coarse: false },
+  { name: "phone", width: 390, height: 844, coarse: false },
+  { name: "coarse pointer", width: 1440, height: 900, coarse: true },
+] as const) {
+  test(`Expanded map chrome: reachable actions at the ${viewport.name}`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "wide",
+      "This test owns its explicit viewport and pointer matrix.",
+    );
+    const context = await browser.newContext({
+      baseURL: testInfo.project.use.baseURL,
+      viewport: { width: viewport.width, height: viewport.height },
+      hasTouch: viewport.coarse,
+      locale: "de-DE",
+      reducedMotion: "reduce",
+    });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("quiltor-interface-language", "de"));
+      await mockExpandedMapWorld(page);
+      await openExpandedMapWorld(page);
+      expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(
+        viewport.coarse,
+      );
+      await expect(page.locator(".place-map-chrome")).toBeVisible();
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      await selectMapChild(page);
+      await expect(page.locator(".place-map-chrome")).toBeVisible();
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      if (viewport.width === 500) {
+        await page
+          .locator(".place-map-chrome")
+          .getByRole("button", { name: "Maßstab von Weltkarte" })
+          .click();
+        await page
+          .getByRole("dialog", { name: "Maßstab von Weltkarte" })
+          .getByRole("textbox", { name: "Einheit" })
+          .fill("Seemeilen der Nordküste");
+        await page.keyboard.press("Escape");
+        expect(await violations(page, TOLERANCE)).toEqual([]);
+        await page.screenshot({
+          path: testInfo.outputPath("expanded-map-500-long-unit.png"),
+          animations: "disabled",
+        });
+      }
+
+      await page.locator('.react-flow__node[data-id="graufurth"]').click();
+      if (viewport.width <= 820) {
+        const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
+        await expect(sheet).toBeVisible();
+        await expect
+          .poll(
+            async () => {
+              const rect = await sheet.boundingBox();
+              if (!rect) return null;
+              return {
+                leftIsInsideViewport: rect.x >= -TOLERANCE,
+                rightIsInsideViewport: rect.x + rect.width <= viewport.width + TOLERANCE,
+              };
+            },
+            { message: "The inspector sheet has not finished entering the viewport." },
+          )
+          .toEqual({ leftIsInsideViewport: true, rightIsInsideViewport: true });
+        await closePlaceSheet(page);
+      } else {
+        await page.getByRole("button", { name: "Auswahl schließen" }).click();
+      }
+      await waitForMapViewport(page);
+      await page
+        .locator(".place-map-chrome")
+        .getByRole("button", { name: "Bild in Weltkarte anpassen" })
+        .click();
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      await page
+        .locator(".place-map-chrome")
+        .getByRole("button", { name: "Bild in Weltkarte fertig anpassen" })
+        .click();
+      await page.locator(".react-flow__controls-zoomin").click();
+      await waitForMapViewport(page);
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      const minimapToggle = page.locator(".graph-minimap-toggle");
+      await minimapToggle.click();
+      await expect(page.locator(".react-flow__minimap")).toHaveCount(0);
+      expect(await violations(page, TOLERANCE)).toEqual([]);
+      await minimapToggle.click();
+      await expect(page.locator(".react-flow__minimap")).toHaveCount(1);
+      await expect.poll(() => violations(page, TOLERANCE)).toEqual([]);
+      await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
+      await expect(page.locator(".places-measure-overlays")).toBeVisible();
+      await expect(page.locator(".place-map-chrome")).toBeVisible();
+      await expect.poll(() => violations(page, TOLERANCE)).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
+}
 
 for (const workspace of workspaces) {
   test(`${workspace}: nothing lies outside its place`, async ({ page }) => {
@@ -534,8 +697,8 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
  * right. Measured: a 100px drag moved it 188 in x and 135 in y, half a card's width and
  * height too far.
  *
- * The test deliberately drags by an odd amount and in many steps: d3-drag spends the first
- * movement on the grab point, so exactly one step is always missing.
+ * The framed map can clip part of a card while its anchor is still on the visible sheet. The
+ * test starts on that visible part and requires the card's centre to land on the release point.
  */
 test("Places: a place on a map follows the pointer", async ({ page }) => {
   await page.addInitScript(() => {
@@ -550,13 +713,10 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
   await page.waitForTimeout(900);
 
-  const spot = () =>
-    page.evaluate(() => {
-      const el = document.querySelector<HTMLElement>('.react-flow__node[data-id="steg"]');
-      if (!el) return null;
-      const m = new DOMMatrix(getComputedStyle(el).transform);
-      return { x: m.e, y: m.f };
-    });
+  // The map frame clips the part of the sheet that falls below the canvas. At the initial
+  // fit, Steg's centre is behind the frame footer, so a pointer aimed there correctly hits
+  // the chrome instead of the card. One zoom step reveals the card before testing its drag.
+  await page.locator(".react-flow__controls-zoomout").click();
 
   // The drag has to stay on the map, or the test measures a reparent to another level
   // rather than the movement. On narrow windows the map is too small for that.
@@ -566,35 +726,40 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
     "Die aufgeklappte Karte ist hier zu klein, um darauf zu ziehen.",
   );
 
-  const before = await spot();
-  expect(before).not.toBeNull();
-
   const steg = page.locator('.react-flow__node[data-id="steg"]');
+  // This waits for the zoom animation and proves that the exact grab point is not covered by
+  // either the map or its frame. Capture screen geometry only after that stable point exists.
+  const grab = { x: 100, y: 4 };
+  await steg.click({ position: grab, trial: true });
   const box = await steg.boundingBox();
   expect(box).not.toBeNull();
-  const drag = 40;
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box!.x + box!.width / 2 + drag, box!.y + box!.height / 2 + drag, {
-    steps: 40,
+  const border = await steg.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      left: Number.parseFloat(style.borderLeftWidth) || 0,
+      top: Number.parseFloat(style.borderTopWidth) || 0,
+    };
   });
+  const drag = 40;
+  const start = {
+    x: box!.x + border.left + grab.x,
+    y: box!.y + border.top + grab.y,
+  };
+  const target = { x: start.x + drag, y: start.y + drag };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(target.x, target.y, { steps: 40 });
   await page.mouse.up();
   await page.waitForTimeout(900);
 
-  // The transform is in flow units, the pointer moves in screen pixels. On narrow windows
-  // the canvas zooms out, and there those are not the same numbers.
-  const scale = await page.evaluate(() => {
-    const v = document.querySelector<HTMLElement>(".react-flow__viewport");
-    return v ? new DOMMatrix(getComputedStyle(v).transform).a : 1;
-  });
-  const after = await spot();
-  const dx = ((after?.x ?? 0) - (before?.x ?? 0)) * scale;
-  const dy = ((after?.y ?? 0) - (before?.y ?? 0)) * scale;
-
-  const deviation = `dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} erwartet ${drag}`;
-  // One step of tolerance, no more: half a card would be 100 in x and 48 in y.
-  expect(Math.abs(dx - drag), deviation).toBeLessThan(8);
-  expect(Math.abs(dy - drag), deviation).toBeLessThan(8);
+  const after = await steg.boundingBox();
+  expect(after).not.toBeNull();
+  const dx = after!.x + after!.width / 2 - target.x;
+  const dy = after!.y + after!.height / 2 - target.y;
+  const deviation = `x=${dx.toFixed(1)} y=${dy.toFixed(1)} from the pointer`;
+  // Keep the margin below 8px: half a card would be 100 in x and 48 in y.
+  expect(Math.abs(dx), deviation).toBeLessThan(8);
+  expect(Math.abs(dy), deviation).toBeLessThan(8);
 });
 
 /*

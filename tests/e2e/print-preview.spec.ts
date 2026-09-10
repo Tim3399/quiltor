@@ -126,6 +126,44 @@ test("Print preview preserves editor position and shares physical pages with the
   expect(errors).toEqual([]);
 });
 
+test("Leaving Text from print preview preserves the editor session", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Editor session persistence is independent of viewport width.",
+  );
+  test.setTimeout(120_000);
+  await seed(page);
+  const editor = page.getByRole("textbox", { name: "Kapiteltext", exact: true });
+  const scroller = page.locator(".editor-scroll");
+  await editor.click();
+  await page.keyboard.press("Control+Home");
+  for (let index = 0; index < 4; index += 1) await page.keyboard.press("ArrowRight");
+  const scrollTop = await scroller.evaluate((element) => {
+    element.scrollTop = 460;
+    element.dispatchEvent(new Event("scroll"));
+    return element.scrollTop;
+  });
+  expect(scrollTop).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Druckansicht", exact: true }).click();
+  await expect(page.locator(".print-document")).toHaveAttribute("data-book-ready", "true", {
+    timeout: 60_000,
+  });
+  const binder = page.getByRole("complementary", { name: "Kapitel" });
+  await binder.getByText("Das Versprechen", { exact: true }).click();
+
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await expect(page.getByLabel("Figuren und Beziehungen")).toBeVisible();
+  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+
+  await expect(page.getByLabel("Kapiteltitel")).toHaveValue("Ankunft");
+  await expect(editor).toBeFocused();
+  await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(scrollTop);
+  await page.keyboard.type("@");
+  await expect.poll(() => editor.textContent()).toContain("Star@tpunkt");
+});
+
 test("Book settings survive reload and the PDF endpoint uses A5 pages", async ({
   page,
 }, testInfo) => {

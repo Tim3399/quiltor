@@ -44,6 +44,7 @@ it("keeps the editor mounted and its chapter frozen while preview binder navigat
     value: scrollIntoView,
   });
   const onFocus = vi.fn();
+  const onSessionStateChange = vi.fn();
   renderWorkspace({
     manuscript: {
       chapters: [
@@ -53,6 +54,12 @@ it("keeps the editor mounted and its chapter frozen while preview binder navigat
     },
     figures,
     onChange: vi.fn(),
+    sessionState: {
+      chapterId: "c1",
+      selection: { anchor: 4, head: 4 },
+      scrollTop: 0,
+    },
+    onSessionStateChange,
     focus: true,
     onFocus,
     viewportMode: "wide",
@@ -78,4 +85,11 @@ it("keeps the editor mounted and its chapter frozen while preview binder navigat
   fireEvent.click(screen.getByRole("button", { name: "Druckansicht" }));
   expect(editor.closest(".text-editor-preserved")).not.toHaveAttribute("inert");
   await waitFor(() => expect(editor).toHaveFocus());
+  expect(onSessionStateChange).toHaveBeenCalled();
+  expect(onSessionStateChange.mock.calls.every(([state]) => state.chapterId === "c1")).toBe(true);
+  expect(onSessionStateChange).toHaveBeenLastCalledWith({
+    chapterId: "c1",
+    selection: { anchor: 4, head: 4 },
+    scrollTop: 0,
+  });
 });

@@ -7,6 +7,8 @@ import {
   createPinNodes,
   createPlaceFlowNodes,
   createPlaceMapNodes,
+  PLACE_PIN_SCREEN_SIZES,
+  placePinSize,
 } from "./placeCanvasModel";
 
 const t = ((key: keyof typeof de, variables?: Record<string, string | number>) => {
@@ -68,6 +70,81 @@ describe("place canvas model", () => {
     });
 
     expect(nodes.map((node) => node.data.measureStart)).toEqual([false, true]);
+  });
+
+  it("keeps a persistent pin's tip at the place anchor with fixed screen dimensions", () => {
+    const place: FigureNode = {
+      id: "pin",
+      x: 0,
+      y: 0,
+      mapU: 0.25,
+      mapV: 0.75,
+      parentPlaceId: "map",
+      name: "Nordtor",
+      type: "ort",
+      placeDisplay: "pin",
+    };
+    const nodes = createPlaceFlowNodes({
+      nodes: [place],
+      places: [place],
+      host: { x: 100, y: 200, width: 800, height: 400 },
+      onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
+      measuring: false,
+      measureSelection: [],
+      zoomTier: "detail",
+      viewportZoom: 0.5,
+      t,
+    });
+
+    expect(nodes[0]).toMatchObject({
+      position: { x: 300, y: 500 },
+      origin: [0.5, 1],
+      width: 312,
+      height: 116,
+      data: { pin: true },
+    });
+    expect(place).toMatchObject({ mapU: 0.25, mapV: 0.75, parentPlaceId: "map" });
+  });
+
+  it("gives every persistent-pin LOD an explicit smaller screen footprint", () => {
+    expect(PLACE_PIN_SCREEN_SIZES).toEqual({
+      detail: { width: 156, height: 58 },
+      compact: { width: 112, height: 54 },
+      overview: { width: 32, height: 36 },
+    });
+    expect(placePinSize("detail", 0.5)).toEqual({ width: 312, height: 116 });
+    expect(placePinSize("compact", 0.5)).toEqual({ width: 224, height: 108 });
+    expect(placePinSize("overview", 0.5)).toEqual({ width: 64, height: 72 });
+  });
+
+  it("renders a stored pin preference as a card while the place has a map image", () => {
+    const place: FigureNode = {
+      id: "map-card",
+      x: 10,
+      y: 20,
+      name: "Atlas",
+      type: "ort",
+      placeDisplay: "pin",
+      mapImageId: "image",
+    };
+    const [node] = createPlaceFlowNodes({
+      nodes: [place],
+      places: [place],
+      onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
+      measuring: false,
+      measureSelection: [],
+      zoomTier: "detail",
+      viewportZoom: 1,
+      t,
+    });
+
+    expect(node.data.pin).toBe(false);
+    expect(node.width).toBeUndefined();
+    expect(node.height).toBeUndefined();
   });
 });
 
