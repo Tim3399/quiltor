@@ -10,10 +10,11 @@ import {
   orderedChapters,
   removeChapterItem,
 } from "./binder/manuscriptTree";
-import { chapterPlacement } from "./chapterPlacement";
 import { ChapterBinder } from "./ChapterBinder";
 import { ChapterInspector } from "./ChapterInspector";
+import { chapterPlacement } from "./chapterPlacement";
 import { EditorSurface } from "./EditorSurface";
+import { ElementsSheet } from "./ElementsSheet";
 import { FocusPanels } from "./FocusPanels";
 import { ManuscriptInspector, type ManuscriptInspectorRegister } from "./ManuscriptInspector";
 import { ManuscriptToolbar } from "./ManuscriptToolbar";
@@ -22,7 +23,6 @@ import type { Chapter } from "./model";
 import { PrintDocument } from "./PrintDocument";
 import { SelectionActions } from "./SelectionActions";
 import { manuscriptShortcut } from "./shortcuts";
-import { ElementsSheet } from "./ElementsSheet";
 import { TermsSheet } from "./TermsSheet";
 import { useChapterHistory } from "./useChapterHistory";
 import { useManuscriptSearch } from "./useManuscriptSearch";
@@ -81,6 +81,7 @@ export function TextWorkspace({
     useState<ManuscriptInspectorRegister>("chapter");
   const chapters = useMemo(() => orderedChapters(manuscript), [manuscript]);
   const current = chapters.find((chapter) => chapter.id === currentId) ?? chapters[0];
+  const history = useChapterHistory(current);
   const currentPosition = current ? chapters.indexOf(current) : -1;
   const previousChapter = currentPosition > 0 ? chapters[currentPosition - 1] : undefined;
   const nextChapter =
@@ -102,6 +103,7 @@ export function TextWorkspace({
   const setChapters = (nextChapters: Chapter[]) => commitManuscript(nextChapters);
   const updateCurrent = (patch: Partial<Chapter>) =>
     current &&
+    !history.open &&
     setChapters(
       chapters.map((chapter) => (chapter.id === current.id ? { ...chapter, ...patch } : chapter)),
     );
@@ -119,7 +121,6 @@ export function TextWorkspace({
     },
     onError: setExportError,
   });
-  const history = useChapterHistory(current);
   const search = useManuscriptSearch({
     chapters,
     current,
@@ -139,6 +140,18 @@ export function TextWorkspace({
     sidebarWidth,
     inspectorWidth,
   });
+
+  useEffect(() => {
+    if (!history.open) return;
+    const blockHistoryMutation = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener("keydown", blockHistoryMutation, true);
+    return () => window.removeEventListener("keydown", blockHistoryMutation, true);
+  }, [history.open]);
 
   const addChapter = () => {
     const chapter = {
@@ -311,14 +324,14 @@ ${markdownBody(current.body, current.marks)}
         binderOpen={binderOpen}
         inspectorOpen={inspectorOpen}
         historyOpen={history.open}
-        canUndo={canUndo}
-        canRedo={canRedo}
+        canUndo={!history.open && canUndo}
+        canRedo={!history.open && canRedo}
         pdfState={pdfState}
         onAddChapter={addChapter}
         onBinderOpen={setBinderOpen}
         onInspectorOpen={setInspectorOpen}
-        onUndo={onUndo}
-        onRedo={onRedo}
+        onUndo={history.open ? undefined : onUndo}
+        onRedo={history.open ? undefined : onRedo}
         onFocus={onFocus}
         onHistoryOpen={history.setOpen}
         onExport={exportAll}
@@ -362,10 +375,10 @@ ${markdownBody(current.body, current.marks)}
             historyOpen={history.open}
             historyCommits={history.commits}
             historyRef={history.selectedRef}
-            historicalText={history.historicalText}
-            historicalExists={history.historicalExists}
-            previousHistoricalText={history.previousHistoricalText}
-            historyComparisonAvailable={history.comparisonAvailable}
+            historicalChapter={history.selected}
+            previousHistoricalChapter={history.previous}
+            historyProjection={history.projection}
+            historySnapshotReady={history.snapshotReady}
             historyState={history.state}
             previousChapter={
               previousChapter

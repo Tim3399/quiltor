@@ -88,7 +88,10 @@ export const manuscript = {
   versionDiff: "Changes in this version",
   versionDiffLegend: "Version changes legend",
   versionAdded: "Added",
+  versionAddedLineBreak: "Added line break",
   versionRemoved: "Removed",
+  versionFormattingAdded: "Formatting added",
+  versionFormattingRemoved: "Formatting removed",
   versionComparisonUnavailable:
     "The directly preceding version is not available locally. The selected version is shown unchanged.",
   emptyChapterVersion: "The chapter is empty in this version.",

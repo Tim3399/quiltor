@@ -2940,7 +2940,7 @@ test("Focus margin panels change neither the writing surface nor the line breaks
   expect(await editor.boundingBox()).toEqual(initial);
 });
 
-test("Chapter versions appear right beside the writing surface", async ({ page }, testInfo) => {
+test("Chapter versions appear inline in the writing surface", async ({ page }, testInfo) => {
   await page.route("**/api/history*", (route) =>
     route.fulfill({
       json: {
@@ -2961,8 +2961,18 @@ test("Chapter versions appear right beside the writing surface", async ({ page }
     route.fulfill({
       json: {
         ok: true,
-        selected: { available: true, exists: true, text: "Historischer neuer Kapiteltext" },
-        previous: { available: true, exists: true, text: "Historischer alter Kapiteltext" },
+        selected: {
+          available: true,
+          exists: true,
+          text: "Historischer neuer Kapiteltext",
+          marks: [],
+        },
+        previous: {
+          available: true,
+          exists: true,
+          text: "Historischer alter Kapiteltext",
+          marks: [],
+        },
       },
     }),
   );
@@ -2970,11 +2980,13 @@ test("Chapter versions appear right beside the writing surface", async ({ page }
   await page.getByRole("button", { name: "Fassungen" }).click();
   const history = page.getByRole("complementary", { name: "Fassungen" });
   await expect(history).toBeVisible();
-  await expect(history).toContainText("Historischer");
-  await expect(history).toContainText("Kapiteltext");
-  await expect(history.locator("ins")).toContainText("neuer");
-  await expect(history.locator("del")).toContainText("alter");
-  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const editor = page.getByLabel("Kapiteltext");
+  await expect(editor).toContainText("Historischer");
+  await expect(editor).toContainText("Kapiteltext");
+  await expect(editor.locator(".version-diff-added")).toContainText("neuer");
+  await expect(editor.locator(".version-diff-removed")).toContainText("alter");
+  await expect(editor).toHaveAttribute("aria-readonly", "true");
+  await expect(history).not.toContainText("Historischer");
   await page.screenshot({ path: testInfo.outputPath("chapter-history.png"), fullPage: true });
 });
 

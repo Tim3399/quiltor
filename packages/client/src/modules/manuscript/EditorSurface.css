@@ -227,6 +227,37 @@
 .prose-editor .text-italic {
   font-style: italic;
 }
+.prose-editor[data-readonly="true"] .cm-content {
+  caret-color: var(--transparent);
+}
+.prose-editor .version-diff-added {
+  border-bottom: 2px solid var(--diff-word-add);
+  border-radius: var(--radius-xs);
+  background: var(--diff-add);
+  color: var(--diff-add-text);
+}
+.prose-editor .version-diff-removed {
+  white-space: pre-wrap;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--diff-delete);
+  color: var(--diff-delete-text);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+.prose-editor .version-diff-line-break {
+  padding-inline: var(--space-2);
+  font-family: var(--ui);
+  font-size: var(--font-size-2);
+}
+.prose-editor .version-diff-format-added {
+  text-decoration: underline double var(--diff-word-add);
+  text-underline-offset: var(--space-3);
+}
+.prose-editor .version-diff-format-removed {
+  text-decoration: underline dashed var(--diff-word-delete);
+  text-underline-offset: var(--space-3);
+}
 .prose-editor .entity-mention:hover {
   border-bottom-color: var(--accent-primary);
   background: var(--annotation-bg);

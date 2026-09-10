@@ -90,7 +90,10 @@ export const manuscript = {
   versionDiff: "Änderungen dieser Fassung",
   versionDiffLegend: "Legende der Fassungsänderungen",
   versionAdded: "Hinzugefügt",
+  versionAddedLineBreak: "Hinzugefügter Zeilenumbruch",
   versionRemoved: "Entfernt",
+  versionFormattingAdded: "Formatierung hinzugefügt",
+  versionFormattingRemoved: "Formatierung entfernt",
   versionComparisonUnavailable:
     "Die direkt vorherige Fassung ist lokal nicht verfügbar. Die ausgewählte Fassung wird unverändert gezeigt.",
   emptyChapterVersion: "Das Kapitel ist in dieser Fassung leer.",

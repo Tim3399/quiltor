@@ -65,9 +65,103 @@ describe("TextWorkspace editor, search and versions", () => {
     });
     const chapterComparison = vi.spyOn(historyApi, "chapterComparison").mockResolvedValue({
       ok: true,
-      selected: { available: true, exists: true, text: "Der neue Weg." },
-      previous: { available: true, exists: true, text: "Der alte Weg." },
+      selected: {
+        available: true,
+        exists: true,
+        text: "Der neue Weg.",
+        marks: [{ from: 9, to: 12, kind: "bold" }],
+      },
+      previous: {
+        available: true,
+        exists: true,
+        text: "Der alte Weg.",
+        marks: [{ from: 9, to: 12, kind: "italic" }],
+      },
     });
+    const onChange = vi.fn();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const view = renderWorkspace({
+      manuscript,
+      figures,
+      onChange,
+      onSave,
+      focus: false,
+      onFocus: vi.fn(),
+    });
+    const context = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
+    const versions = context.getByRole("button", { name: "Fassungen" });
+    const editor = codeMirrorView(view.container);
+    const editorScroll = requireValue(
+      view.container.querySelector<HTMLElement>(".editor-scroll"),
+      "Editor scroll area missing",
+    );
+    editorScroll.scrollTop = 83;
+    editor.dispatch({ selection: EditorSelection.range(6, 10) });
+    expect(versions).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(versions);
+    expect(versions).toHaveAttribute("aria-pressed", "true");
+    expect(within(view.container).getByRole("complementary", { name: "Fassungen" })).toBeVisible();
+    expect(onSave).not.toHaveBeenCalled();
+    expect(editor.contentDOM).toHaveAttribute("aria-readonly", "true");
+    expect(editor.state.doc.toString()).toBe("Hallo Welt");
+    expect(within(view.container).getByLabelText("Kapiteltitel")).toBeDisabled();
+    editor.dispatch({ changes: { from: 0, insert: "Verboten " }, userEvent: "input" });
+    expect(editor.state.doc.toString()).toBe("Hallo Welt");
+    expect(onChange).not.toHaveBeenCalled();
+    await waitFor(() => expect(historyApi.log).toHaveBeenCalled());
+    await waitFor(() => expect(chapterComparison).toHaveBeenCalledTimes(1));
+    expect(chapterComparison).toHaveBeenCalledWith("new", "c1");
+    await waitFor(() => expect(editor.state.doc.toString()).toBe("Der neue Weg."));
+    expect(view.container.querySelector(".version-diff-added")).toHaveTextContent("neue");
+    expect(view.container.querySelector(".version-diff-removed")).toHaveTextContent("alte");
+    expect(view.container.querySelector(".text-bold")).toHaveTextContent("Weg");
+    expect(view.container.querySelector(".version-diff-format-added")).toHaveTextContent("Weg");
+    expect(view.container.querySelector(".version-diff-format-removed")).toHaveTextContent("Weg");
+    const historyPanel = within(view.container).getByRole("complementary", { name: "Fassungen" });
+    expect(within(historyPanel).queryByText("Der neue Weg.")).not.toBeInTheDocument();
+
+    const escapedUndo = vi.fn();
+    window.addEventListener("keydown", escapedUndo);
+    fireEvent.keyDown(historyPanel, { key: "z", ctrlKey: true });
+    window.removeEventListener("keydown", escapedUndo);
+    expect(escapedUndo).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "Kapitelfassungen schließen" }),
+    );
+    await waitFor(() => expect(editor.state.doc.toString()).toBe("Hallo Welt"));
+    expect(editor.contentDOM).not.toHaveAttribute("aria-readonly", "true");
+    expect(editor.state.selection.main.from).toBe(6);
+    expect(editor.state.selection.main.to).toBe(10);
+    await waitFor(() => expect(editorScroll.scrollTop).toBe(83));
+    expect(view.container.querySelector(".version-diff-added, .version-diff-removed")).toBeNull();
+  });
+
+  it("keeps the displayed snapshot stable while another version loads", async () => {
+    vi.spyOn(historyApi, "log").mockResolvedValue({
+      ok: true,
+      commits: [
+        { hash: "new", shortHash: "new", date: "2026-02-02", subject: "Neu" },
+        { hash: "old", shortHash: "old", date: "2026-02-01", subject: "Alt" },
+      ],
+    });
+    let resolveOld:
+      | ((value: Awaited<ReturnType<typeof historyApi.chapterComparison>>) => void)
+      | undefined;
+    const oldResult = new Promise<Awaited<ReturnType<typeof historyApi.chapterComparison>>>(
+      (resolve) => {
+        resolveOld = resolve;
+      },
+    );
+    const comparison = vi.spyOn(historyApi, "chapterComparison").mockImplementation((ref) =>
+      ref === "new"
+        ? Promise.resolve({
+            ok: true,
+            selected: { available: true, exists: true, text: "Neue Fassung", marks: [] },
+            previous: { available: true, exists: true, text: "Davor", marks: [] },
+          })
+        : oldResult,
+    );
     const view = renderWorkspace({
       manuscript,
       figures,
@@ -75,17 +169,26 @@ describe("TextWorkspace editor, search and versions", () => {
       focus: false,
       onFocus: vi.fn(),
     });
-    const context = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
-    const versions = context.getByRole("button", { name: "Fassungen" });
-    expect(versions).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(versions);
-    expect(versions).toHaveAttribute("aria-pressed", "true");
-    expect(within(view.container).getByRole("complementary", { name: "Fassungen" })).toBeVisible();
-    await waitFor(() => expect(historyApi.log).toHaveBeenCalled());
-    await waitFor(() => expect(chapterComparison).toHaveBeenCalledTimes(1));
-    expect(chapterComparison).toHaveBeenCalledWith("new", "c1");
-    expect(view.container.querySelector("ins")).toHaveTextContent("neue");
-    expect(view.container.querySelector("del")).toHaveTextContent("alte");
+    fireEvent.click(within(view.container).getByRole("button", { name: "Fassungen" }));
+    const editor = codeMirrorView(view.container);
+    await waitFor(() => expect(editor.state.doc.toString()).toBe("Neue Fassung"));
+
+    fireEvent.change(within(view.container).getByRole("combobox", { name: "Fassung" }), {
+      target: { value: "old" },
+    });
+    await waitFor(() => expect(comparison).toHaveBeenCalledWith("old", "c1"));
+    expect(editor.state.doc.toString()).toBe("Neue Fassung");
+    await waitFor(() =>
+      expect(view.container.querySelector(".version-diff-added, .version-diff-removed")).toBeNull(),
+    );
+
+    resolveOld?.({
+      ok: true,
+      selected: { available: true, exists: true, text: "Alte Fassung", marks: [] },
+      previous: { available: false, exists: false, text: "", marks: [] },
+    });
+    await waitFor(() => expect(editor.state.doc.toString()).toBe("Alte Fassung"));
+    expect(view.container.querySelector(".version-diff-added, .version-diff-removed")).toBeNull();
   });
 
   it("marks a search hit and rotates on across chapters", async () => {

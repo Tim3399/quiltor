@@ -64,6 +64,24 @@ class SnapshotStoreTest(unittest.TestCase):
                 (chapter_id, position, title, body),
             )
 
+    def _write_marked_chapter_row(
+        self,
+        ctx: BackupContext,
+        chapter_id: str,
+        body: str,
+        marks: object,
+    ) -> None:
+        with closing(sqlite3.connect(ctx.database)) as database, database:
+            database.execute(
+                "CREATE TABLE IF NOT EXISTS chapters("
+                "id TEXT PRIMARY KEY, position INTEGER, title TEXT, body TEXT, extra_json TEXT)"
+            )
+            database.execute(
+                "INSERT OR REPLACE INTO chapters(id,position,title,body,extra_json) "
+                "VALUES(?,?,?,?,?)",
+                (chapter_id, 0, "Kapitel", body, json.dumps({"marks": marks})),
+            )
+
     # ------------------------------------------------------------ basic flow
 
     def test_status_reports_the_configured_endpoint(self):
@@ -226,12 +244,37 @@ class SnapshotStoreTest(unittest.TestCase):
 
         self.assertEqual(
             comparison["selected"],
-            {"available": True, "exists": True, "text": "Neuer Text."},
+            {"available": True, "exists": True, "text": "Neuer Text.", "marks": []},
         )
         self.assertEqual(
             comparison["previous"],
-            {"available": True, "exists": True, "text": "Alter Text."},
+            {"available": True, "exists": True, "text": "Alter Text.", "marks": []},
         )
+
+    def test_chapter_comparison_keeps_historical_marks_when_only_formatting_changed(self):
+        ctx = self._world("world-a")
+        body = "😀Mara bleibt."
+        self._write_marked_chapter_row(
+            ctx,
+            "chapter-stable",
+            body,
+            [{"from": 2, "to": 6, "kind": "italic"}],
+        )
+        self.store.commit(ctx, "Italic", push=False)
+        self._write_marked_chapter_row(
+            ctx,
+            "chapter-stable",
+            body,
+            [{"from": 2, "to": 6, "kind": "bold"}],
+        )
+        self.store.commit(ctx, "Bold", push=False)
+
+        comparison = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")
+
+        self.assertEqual(comparison["selected"]["text"], body)
+        self.assertEqual(comparison["selected"]["marks"], [{"from": 2, "to": 6, "kind": "bold"}])
+        self.assertEqual(comparison["previous"]["text"], body)
+        self.assertEqual(comparison["previous"]["marks"], [{"from": 2, "to": 6, "kind": "italic"}])
 
     def test_chapter_comparison_keeps_selected_text_when_parent_is_missing_locally(self):
         ctx = self._world("world-a")
@@ -249,7 +292,7 @@ class SnapshotStoreTest(unittest.TestCase):
         self.assertEqual(comparison["selected"]["text"], "Neu.")
         self.assertEqual(
             comparison["previous"],
-            {"available": False, "exists": False, "text": ""},
+            {"available": False, "exists": False, "text": "", "marks": []},
         )
 
     def test_chapter_comparison_marks_a_snapshot_without_chapter_schema_unavailable(self):
@@ -261,7 +304,101 @@ class SnapshotStoreTest(unittest.TestCase):
 
         self.assertEqual(
             comparison["selected"],
-            {"available": False, "exists": False, "text": ""},
+            {"available": False, "exists": False, "text": "", "marks": []},
+        )
+
+    def test_chapter_comparison_treats_legacy_chapter_rows_as_unformatted(self):
+        ctx = self._world("world-a")
+        self._write_chapter_row(ctx, "chapter-stable", "Kapitel", "Legacy.", 0)
+        self.store.commit(ctx, "Legacy", push=False)
+
+        record = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")["selected"]
+
+        self.assertEqual(
+            record,
+            {"available": True, "exists": True, "text": "Legacy.", "marks": []},
+        )
+
+    def test_chapter_comparison_defaults_missing_persisted_marks_to_empty(self):
+        ctx = self._world("world-a")
+        with closing(sqlite3.connect(ctx.database)) as database, database:
+            database.execute(
+                "CREATE TABLE chapters("
+                "id TEXT PRIMARY KEY, position INTEGER, title TEXT, body TEXT, extra_json TEXT)"
+            )
+            database.execute(
+                "INSERT INTO chapters VALUES(?,?,?,?,?)",
+                ("chapter-stable", 0, "Kapitel", "Text.", json.dumps({"future": True})),
+            )
+        self.store.commit(ctx, "Snapshot", push=False)
+
+        record = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")["selected"]
+
+        self.assertEqual(record["marks"], [])
+        self.assertTrue(record["available"])
+
+    def test_chapter_comparison_rejects_malformed_or_unsafe_historical_marks(self):
+        invalid_marks = (
+            "not-json",
+            json.dumps({"marks": [{"from": 1, "to": 2, "kind": "underline"}]}),
+            json.dumps({"marks": [{"from": 0, "to": 1, "kind": []}]}),
+            "[" * 1100 + "0" + "]" * 1100,
+            json.dumps({"marks": [{"from": 1, "to": 2, "kind": "bold"}]}),
+            json.dumps(
+                {
+                    "marks": [
+                        {"from": 0, "to": 3, "kind": "bold"},
+                        {"from": 2, "to": 4, "kind": "bold"},
+                    ]
+                }
+            ),
+        )
+        bodies = ("Text", "Text", "Text", "Text", "😀Text", "Text")
+        for index, (extra_json, body) in enumerate(zip(invalid_marks, bodies)):
+            with self.subTest(index=index):
+                ctx = self._world(f"world-invalid-{index}")
+                with closing(sqlite3.connect(ctx.database)) as database, database:
+                    database.execute(
+                        "CREATE TABLE chapters("
+                        "id TEXT PRIMARY KEY, position INTEGER, title TEXT, body TEXT, "
+                        "extra_json TEXT)"
+                    )
+                    database.execute(
+                        "INSERT INTO chapters VALUES(?,?,?,?,?)",
+                        ("chapter-stable", 0, "Kapitel", body, extra_json),
+                    )
+                self.store.commit(ctx, "Invalid", push=False)
+
+                record = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")["selected"]
+
+                self.assertEqual(
+                    record,
+                    {"available": False, "exists": False, "text": "", "marks": []},
+                )
+
+    def test_chapter_comparison_bounds_historical_extension_reads(self):
+        ctx = self._world("world-a")
+        self._write_marked_chapter_row(ctx, "chapter-stable", "Text", [])
+        self.store.commit(ctx, "Snapshot", push=False)
+
+        with patch("quiltor.infrastructure.backup.snapshots._MAX_CHAPTER_EXTRA_BYTES", 1):
+            record = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")["selected"]
+
+        self.assertEqual(
+            record,
+            {"available": False, "exists": False, "text": "", "marks": []},
+        )
+
+    def test_chapter_comparison_reports_a_missing_chapter_with_empty_marks(self):
+        ctx = self._world("world-a")
+        self._write_chapter_row(ctx, "chapter-other", "Kapitel", "Text.", 0)
+        self.store.commit(ctx, "Snapshot", push=False)
+
+        record = self.store.chapter_comparison(ctx, "HEAD", "chapter-missing")["selected"]
+
+        self.assertEqual(
+            record,
+            {"available": True, "exists": False, "text": "", "marks": []},
         )
 
     # --------------------------------------------------------------- storage

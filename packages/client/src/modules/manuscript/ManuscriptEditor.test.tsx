@@ -48,6 +48,89 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEdito
 const tarek = { id: "t", x: 0, y: 0, type: "person" as const, name: "Tarek", sub: "Bäcker" };
 
 describe("ManuscriptEditor selection", () => {
+  it("selects only the historical document by shortcut and lets Tab move focus", () => {
+    const { editor, onChange } = renderEditor({ readOnly: true });
+    fireEvent.keyDown(editor.contentDOM, { key: "a", ctrlKey: true });
+    expect(editor.state.selection.main.from).toBe(0);
+    expect(editor.state.selection.main.to).toBe(10);
+    expect(fireEvent.keyDown(editor.contentDOM, { key: "Tab" })).toBe(true);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("preserves CRLF offsets for snapshot marks and diff ranges", () => {
+    const { container, editor } = renderEditor({
+      value: "Erste\r\nZweite neu",
+      readOnly: true,
+      marks: [{ from: 7, to: 13, kind: "bold" }],
+      versionDiff: {
+        changes: [{ kind: "added", from: 14, to: 17, text: "neu" }],
+        equalSpans: [],
+        formattingChanges: [],
+      },
+    });
+    expect(editor.state.doc.toString()).toBe("Erste\r\nZweite neu");
+    expect(container.querySelector(".text-bold")).toHaveTextContent("Zweite");
+    expect(container.querySelector(".version-diff-added")).toHaveTextContent("neu");
+  });
+
+  it("blocks every editor mutation path while preserving the live selection across a same-text version", () => {
+    const onSelection = vi.fn();
+    const onChange = vi.fn();
+    const handle =
+      createRef<ManuscriptEditorHandle>() as React.MutableRefObject<ManuscriptEditorHandle | null>;
+    const props = {
+      value: "Hallo Welt",
+      label: "Kapiteltext",
+      placeholder: "",
+      vocabulary: [] as string[],
+      editorRef: handle,
+      onChange,
+      onSelection,
+    };
+    const rendered = render(<ManuscriptEditor {...props} />);
+    const editorRoot = requireValue(
+      rendered.container.querySelector<HTMLElement>(".cm-editor"),
+      "CodeMirror root missing",
+    );
+    const editor = requireValue(EditorView.findFromDOM(editorRoot), "CodeMirror view missing");
+    editor.dispatch({ selection: EditorSelection.range(6, 10) });
+    editor.scrollDOM.scrollTop = 37;
+
+    rendered.rerender(
+      <ManuscriptEditor
+        {...props}
+        readOnly
+        marks={[{ from: 0, to: 5, kind: "bold" }]}
+        versionDiff={{
+          changes: [],
+          equalSpans: [{ previousFrom: 0, previousTo: 11, selectedFrom: 0, selectedTo: 11 }],
+          formattingChanges: [{ kind: "format-added", markKind: "bold", from: 0, to: 5 }],
+        }}
+      />,
+    );
+    expect(editor.contentDOM).toHaveAttribute("aria-readonly", "true");
+    editor.dispatch({ selection: EditorSelection.range(0, 5) });
+    editor.dispatch({ changes: { from: 0, insert: "Nein " }, userEvent: "input" });
+    handle.current?.insert("Nein");
+    handle.current?.insertEntity(tarek);
+    handle.current?.cut(0, 5);
+    expect(handle.current?.replaceSelection(0, 5, "Hallo", "Nein")).toBe(false);
+    expect(handle.current?.toggleMark("italic", { from: 0, to: 5 })).toBe(false);
+    expect(editor.state.doc.toString()).toBe("Hallo Welt");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(rendered.container.querySelector(".text-bold")).toHaveTextContent("Hallo");
+    expect(rendered.container.querySelector(".version-diff-format-added")).toHaveTextContent(
+      "Hallo",
+    );
+
+    rendered.rerender(<ManuscriptEditor {...props} />);
+    expect(editor.contentDOM).not.toHaveAttribute("aria-readonly", "true");
+    expect(editor.state.selection.main.from).toBe(6);
+    expect(editor.state.selection.main.to).toBe(10);
+    expect(editor.scrollDOM.scrollTop).toBe(37);
+    expect(rendered.container.querySelector(".version-diff-format-added")).toBeNull();
+  });
+
   it("reports a selection without opening the action menu for it", async () => {
     // The report is the information "this is selected". The menu with dictionary,
     // synonyms and translation is the writer's own decision and must not spring open on a

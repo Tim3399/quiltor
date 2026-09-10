@@ -1,4 +1,4 @@
-import type { HistoryGateway } from "../application";
+import type { ChapterComparisonResult, HistoryGateway } from "../application";
 import { type HttpApplicationState, requestJson, withWorldQuery } from "./request";
 
 export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGateway {
@@ -28,11 +28,7 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
         ),
       ),
     chapterComparison: (ref: string, chapterId: string) =>
-      requestJson<{
-        ok: boolean;
-        selected: { available: boolean; exists: boolean; text: string };
-        previous: { available: boolean; exists: boolean; text: string };
-      }>(
+      requestJson<ChapterComparisonResult>(
         withWorldQuery(
           state,
           `/api/history/chapter-comparison?ref=${encodeURIComponent(ref)}&chapterId=${encodeURIComponent(chapterId)}`,

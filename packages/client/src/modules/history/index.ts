@@ -1,5 +1,14 @@
 export type { SnapshotInfo } from "./model";
-export { diffVersionText, type VersionDiffKind, type VersionDiffSegment } from "./versionDiff";
+export {
+  diffVersion,
+  diffVersionText,
+  type VersionDiffKind,
+  type VersionDiffProjection,
+  type VersionDiffSegment,
+  type VersionEqualSpan,
+  type VersionFormattingChange,
+  type VersionTextChange,
+} from "./versionDiff";
 
 export const loadHistoryDialog = () =>
   import("./HistoryDialog").then(({ HistoryDialog }) => ({ default: HistoryDialog }));

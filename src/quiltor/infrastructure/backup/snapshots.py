@@ -62,6 +62,7 @@ from quiltor.application.backups import (
 )
 from quiltor.application.backups import WorldBackupContext as BackupContext
 from quiltor.application.history import HistoryRevisionNotFound
+from quiltor.domain.text_offsets import utf16_offsets_to_indices
 
 FORMAT_VERSION = CURRENT_FORMAT_VERSION
 TEXT_DIRS = ("manuscripts", "profiles")
@@ -73,6 +74,45 @@ _MIRROR_TITLE_RE = re.compile(r"^\d{2,} - (.+)\.md$")
 # Word-diff tokens: runs of non-space, single newlines, and runs of blanks kept
 # separate so rewrapping a paragraph does not read as every word having changed.
 _TOKEN_RE = re.compile(r"\S+|\n|[^\S\n]+")
+
+# Historical extension data is read from an untrusted snapshot database. Bound a
+# single value to the maximum size of its already-validated database blob before
+# asking SQLite to materialize it. A tighter limit would reject valid v1 extension
+# fields, whose target IDs and future keys are intentionally unbounded.
+_MAX_CHAPTER_EXTRA_BYTES = MAX_BLOB_BYTES
+_MAX_TEXT_MARKS = 10_000
+
+
+def _historical_text_marks(extra_json: str, body: str) -> list[dict[str, Any]] | None:
+    try:
+        extra = json.loads(extra_json)
+    except (RecursionError, TypeError, ValueError):
+        return None
+    if not isinstance(extra, dict):
+        return None
+    marks = extra.get("marks", [])
+    if not isinstance(marks, list) or len(marks) > _MAX_TEXT_MARKS:
+        return None
+
+    offsets: list[int] = []
+    for mark in marks:
+        if not isinstance(mark, dict) or not isinstance(mark.get("kind"), str):
+            return None
+        if mark["kind"] not in {"bold", "italic"}:
+            return None
+        start, end = mark.get("from"), mark.get("to")
+        if type(start) is not int or type(end) is not int or start < 0 or end <= start:
+            return None
+        offsets.extend((start, end))
+    if utf16_offsets_to_indices(body, offsets) is None:
+        return None
+
+    previous_end: dict[str, int] = {}
+    for mark in sorted(marks, key=lambda item: item["from"]):
+        if mark["from"] < previous_end.get(mark["kind"], -1):
+            return None
+        previous_end[mark["kind"]] = mark["to"]
+    return marks
 
 
 def _is_link_or_reparse(path: Path) -> bool:
@@ -779,10 +819,10 @@ class SnapshotStore:
         chapter_id: str,
     ) -> dict[str, Any]:
         if entry is None:
-            return {"available": False, "exists": False, "text": ""}
+            return {"available": False, "exists": False, "text": "", "marks": []}
         digest = _manifest_digests(entry, ctx.root.name).get(DATABASE_NAME)
         if digest is None:
-            return {"available": False, "exists": False, "text": ""}
+            return {"available": False, "exists": False, "text": "", "marks": []}
         payload = self._read_blob(ctx, digest)
         try:
             with tempfile.TemporaryDirectory() as folder:
@@ -794,23 +834,44 @@ class SnapshotStore:
                         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='chapters'"
                     ).fetchone()
                     if table is None:
-                        return {"available": False, "exists": False, "text": ""}
+                        return {"available": False, "exists": False, "text": "", "marks": []}
+                    columns = {
+                        column[1] for column in database.execute("PRAGMA table_info(chapters)")
+                    }
+                    has_extra_json = "extra_json" in columns
+                    extra_metadata = (
+                        ",typeof(extra_json),length(CAST(extra_json AS BLOB))"
+                        if has_extra_json
+                        else ""
+                    )
                     metadata = database.execute(
-                        "SELECT typeof(body),length(CAST(body AS BLOB)) FROM chapters WHERE id=?",
+                        "SELECT typeof(body),length(CAST(body AS BLOB))"
+                        + extra_metadata
+                        + " FROM chapters WHERE id=?",
                         (chapter_id,),
                     ).fetchone()
                     if metadata is None:
-                        return {"available": True, "exists": False, "text": ""}
+                        return {"available": True, "exists": False, "text": "", "marks": []}
                     if metadata[0] != "text" or metadata[1] > MAX_TEXT_FILE_BYTES:
-                        return {"available": False, "exists": False, "text": ""}
+                        return {"available": False, "exists": False, "text": "", "marks": []}
+                    if has_extra_json and (
+                        metadata[2] != "text" or metadata[3] > _MAX_CHAPTER_EXTRA_BYTES
+                    ):
+                        return {"available": False, "exists": False, "text": "", "marks": []}
                     row = database.execute(
-                        "SELECT body FROM chapters WHERE id=?", (chapter_id,)
+                        "SELECT body"
+                        + (",extra_json" if has_extra_json else "")
+                        + " FROM chapters WHERE id=?",
+                        (chapter_id,),
                     ).fetchone()
         except sqlite3.DatabaseError:
-            return {"available": False, "exists": False, "text": ""}
+            return {"available": False, "exists": False, "text": "", "marks": []}
         if row is None:
-            return {"available": False, "exists": False, "text": ""}
-        return {"available": True, "exists": True, "text": row[0]}
+            return {"available": False, "exists": False, "text": "", "marks": []}
+        marks = _historical_text_marks(row[1], row[0]) if has_extra_json else []
+        if marks is None:
+            return {"available": False, "exists": False, "text": "", "marks": []}
+        return {"available": True, "exists": True, "text": row[0], "marks": marks}
 
     def chapter_comparison(
         self,
@@ -824,7 +885,7 @@ class SnapshotStore:
         selected = self._chapter_record(ctx, entry, chapter_id)
         parent_ref = entry.get("parent", "")
         if not parent_ref:
-            previous = {"available": True, "exists": False, "text": ""}
+            previous = {"available": True, "exists": False, "text": "", "marks": []}
         else:
             previous = self._chapter_record(ctx, self._resolve(ctx, parent_ref), chapter_id)
         return {"ok": True, "selected": selected, "previous": previous}

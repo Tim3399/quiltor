@@ -1,3 +1,18 @@
+import type { TextMarkWireV1 } from "../contracts/v1/manuscript";
+
+export interface SnapshotChapterRecord {
+  available: boolean;
+  exists: boolean;
+  text: string;
+  marks: TextMarkWireV1[];
+}
+
+export interface ChapterComparisonResult {
+  ok: boolean;
+  selected: SnapshotChapterRecord;
+  previous: SnapshotChapterRecord;
+}
+
 export interface HistoryGateway {
   log(): Promise<{
     ok: boolean;
@@ -18,12 +33,5 @@ export interface HistoryGateway {
     chapter: number,
     title: string,
   ): Promise<{ ok: boolean; isNew: boolean; text: string }>;
-  chapterComparison(
-    ref: string,
-    chapterId: string,
-  ): Promise<{
-    ok: boolean;
-    selected: { available: boolean; exists: boolean; text: string };
-    previous: { available: boolean; exists: boolean; text: string };
-  }>;
+  chapterComparison(ref: string, chapterId: string): Promise<ChapterComparisonResult>;
 }
