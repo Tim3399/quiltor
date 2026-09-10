@@ -697,8 +697,8 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
  * right. Measured: a 100px drag moved it 188 in x and 135 in y, half a card's width and
  * height too far.
  *
- * The test deliberately drags by an odd amount and in many steps: d3-drag spends the first
- * movement on the grab point, so exactly one step is always missing.
+ * The framed map can clip part of a card while its anchor is still on the visible sheet. The
+ * test starts on that visible part and requires the card's centre to land on the release point.
  */
 test("Places: a place on a map follows the pointer", async ({ page }) => {
   await page.addInitScript(() => {
@@ -713,13 +713,10 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
   await page.waitForTimeout(900);
 
-  const spot = () =>
-    page.evaluate(() => {
-      const el = document.querySelector<HTMLElement>('.react-flow__node[data-id="steg"]');
-      if (!el) return null;
-      const m = new DOMMatrix(getComputedStyle(el).transform);
-      return { x: m.e, y: m.f };
-    });
+  // The map frame clips the part of the sheet that falls below the canvas. At the initial
+  // fit, Steg's centre is behind the frame footer, so a pointer aimed there correctly hits
+  // the chrome instead of the card. One zoom step reveals the card before testing its drag.
+  await page.locator(".react-flow__controls-zoomout").click();
 
   // The drag has to stay on the map, or the test measures a reparent to another level
   // rather than the movement. On narrow windows the map is too small for that.
@@ -729,35 +726,40 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
     "Die aufgeklappte Karte ist hier zu klein, um darauf zu ziehen.",
   );
 
-  const before = await spot();
-  expect(before).not.toBeNull();
-
   const steg = page.locator('.react-flow__node[data-id="steg"]');
+  // This waits for the zoom animation and proves that the exact grab point is not covered by
+  // either the map or its frame. Capture screen geometry only after that stable point exists.
+  const grab = { x: 100, y: 4 };
+  await steg.click({ position: grab, trial: true });
   const box = await steg.boundingBox();
   expect(box).not.toBeNull();
-  const drag = 40;
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box!.x + box!.width / 2 + drag, box!.y + box!.height / 2 + drag, {
-    steps: 40,
+  const border = await steg.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      left: Number.parseFloat(style.borderLeftWidth) || 0,
+      top: Number.parseFloat(style.borderTopWidth) || 0,
+    };
   });
+  const drag = 40;
+  const start = {
+    x: box!.x + border.left + grab.x,
+    y: box!.y + border.top + grab.y,
+  };
+  const target = { x: start.x + drag, y: start.y + drag };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(target.x, target.y, { steps: 40 });
   await page.mouse.up();
   await page.waitForTimeout(900);
 
-  // The transform is in flow units, the pointer moves in screen pixels. On narrow windows
-  // the canvas zooms out, and there those are not the same numbers.
-  const scale = await page.evaluate(() => {
-    const v = document.querySelector<HTMLElement>(".react-flow__viewport");
-    return v ? new DOMMatrix(getComputedStyle(v).transform).a : 1;
-  });
-  const after = await spot();
-  const dx = ((after?.x ?? 0) - (before?.x ?? 0)) * scale;
-  const dy = ((after?.y ?? 0) - (before?.y ?? 0)) * scale;
-
-  const deviation = `dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} erwartet ${drag}`;
-  // One step of tolerance, no more: half a card would be 100 in x and 48 in y.
-  expect(Math.abs(dx - drag), deviation).toBeLessThan(8);
-  expect(Math.abs(dy - drag), deviation).toBeLessThan(8);
+  const after = await steg.boundingBox();
+  expect(after).not.toBeNull();
+  const dx = after!.x + after!.width / 2 - target.x;
+  const dy = after!.y + after!.height / 2 - target.y;
+  const deviation = `x=${dx.toFixed(1)} y=${dy.toFixed(1)} from the pointer`;
+  // Keep the margin below 8px: half a card would be 100 in x and 48 in y.
+  expect(Math.abs(dx), deviation).toBeLessThan(8);
+  expect(Math.abs(dy), deviation).toBeLessThan(8);
 });
 
 /*
