@@ -136,12 +136,22 @@ export const test = base.extend<WorldCleanupFixtures, WorldCleanupWorkerFixtures
       try {
         await use(true);
       } finally {
-        const failures = await deleteRegisteredWorlds(page.request, testIds);
+        const failures: string[] = [];
+        let pageClosed = page.isClosed();
+        if (!pageClosed) {
+          try {
+            await page.close();
+            pageClosed = true;
+          } catch (error) {
+            failures.push(`page: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+        failures.push(...(await deleteRegisteredWorlds(page.request, testIds)));
         const failedIds = new Set(
           failures.map((failure) => failure.slice(0, failure.indexOf(":"))),
         );
         for (const id of testIds) {
-          if (!failedIds.has(id)) pendingWorldIds.delete(id);
+          if (pageClosed && !failedIds.has(id)) pendingWorldIds.delete(id);
         }
         registries.delete(page);
 

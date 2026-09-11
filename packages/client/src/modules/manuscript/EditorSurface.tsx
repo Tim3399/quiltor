@@ -32,6 +32,7 @@ import {
 } from "./chapterTouchTurn";
 import {
   type EditorTextSelection,
+  type EditorViewSelection,
   ManuscriptEditor,
   type ManuscriptEditorHandle,
 } from "./ManuscriptEditor";
@@ -39,11 +40,14 @@ import type { Chapter, EntityMention, TextMark, WritingIssue } from "./model";
 import { SearchNavigation } from "./SearchNavigation";
 import type { ManuscriptSearchMatch } from "./search";
 import type { ChapterHistoryState } from "./useChapterHistory";
-import type { WorkspaceSelection } from "./workspaceTypes";
+import type { ManuscriptEditorSessionState, WorkspaceSelection } from "./workspaceTypes";
 import "./EditorSurface.css";
 
 interface EditorSurfaceProps {
   current?: Chapter;
+  initialSessionState?: ManuscriptEditorSessionState | null;
+  allowSessionRestore?: boolean;
+  onSessionStateChange?: (state: ManuscriptEditorSessionState) => void;
   editorRef: MutableRefObject<ManuscriptEditorHandle | null>;
   figures: FigureState;
   vocabulary: string[];
@@ -80,6 +84,9 @@ interface EditorSurfaceProps {
 
 export function EditorSurface({
   current,
+  initialSessionState,
+  allowSessionRestore = true,
+  onSessionStateChange,
   editorRef,
   figures,
   vocabulary,
@@ -115,6 +122,38 @@ export function EditorSurface({
 }: EditorSurfaceProps) {
   const { t } = useI18n();
   const scrollRef = useRef<HTMLElement | null>(null);
+  const restoreRef = useRef(
+    allowSessionRestore && initialSessionState?.chapterId === current?.id
+      ? initialSessionState
+      : null,
+  );
+  const viewSelectionRef = useRef<{ chapterId: string; selection: EditorViewSelection } | null>(
+    null,
+  );
+  const sessionCallbackRef = useRef(onSessionStateChange);
+  const pendingRestoreCancelRef = useRef<(() => void) | null>(null);
+  sessionCallbackRef.current = onSessionStateChange;
+  const stopScheduledRestore = () => {
+    pendingRestoreCancelRef.current?.();
+    pendingRestoreCancelRef.current = null;
+  };
+  const abandonSessionRestore = () => {
+    stopScheduledRestore();
+    restoreRef.current = null;
+  };
+  const captureSession = () => {
+    const view = viewSelectionRef.current;
+    const scroller = scrollRef.current;
+    if (historyOpen || !view || !scroller || view.chapterId !== current?.id) return;
+    sessionCallbackRef.current?.({
+      chapterId: view.chapterId,
+      selection: view.selection,
+      scrollTop:
+        historyScroll.current?.chapterId === view.chapterId
+          ? historyScroll.current.top
+          : (restoreRef.current?.scrollTop ?? scroller.scrollTop),
+    });
+  };
   const pendingLandingRef = useRef<{
     chapterId: string;
     edge: "top" | "bottom";
@@ -141,6 +180,7 @@ export function EditorSurface({
     previousHistoryOpen.current = historyOpen;
     const saved = historyScroll.current;
     if (historyOpen && currentChapterId) {
+      abandonSessionRestore();
       historyScroll.current = {
         chapterId: currentChapterId,
         top: scroller.scrollTop,
@@ -150,8 +190,9 @@ export function EditorSurface({
       const frame = requestAnimationFrame(() => {
         scroller.scrollTop = saved.top;
         scroller.scrollLeft = saved.left;
+        historyScroll.current = null;
+        captureSession();
       });
-      historyScroll.current = null;
       return () => cancelAnimationFrame(frame);
     }
   }, [currentChapterId, historyOpen]);
@@ -200,6 +241,57 @@ export function EditorSurface({
   };
 
   useLayoutEffect(() => {
+    if (historyOpen) return;
+    const saved = restoreRef.current;
+    if (!saved) {
+      captureSession();
+      return;
+    }
+    if (!allowSessionRestore || saved.chapterId !== currentChapterId || pendingLandingRef.current) {
+      restoreRef.current = null;
+      return;
+    }
+    const restoreViewport = () => {
+      const scroller = scrollRef.current;
+      if (!scroller) return;
+      editorRef.current?.focus();
+      scroller.scrollTop = Math.max(0, saved.scrollTop);
+    };
+    // Set the viewport before paint, then write the exact position after CodeMirror has
+    // measured its virtual document and applied scroll anchoring. This is a one-time return,
+    // never a chapter landing rule.
+    restoreViewport();
+    const finishRestore = (hasFocus: boolean) => {
+      pendingRestoreCancelRef.current = null;
+      if (restoreRef.current !== saved) return;
+      const scroller = scrollRef.current;
+      if (!scroller || !hasFocus) {
+        restoreRef.current = null;
+        return;
+      }
+      scroller.scrollTop = Math.max(0, saved.scrollTop);
+      restoreRef.current = null;
+      const view = viewSelectionRef.current;
+      if (view) {
+        sessionCallbackRef.current?.({ ...view, scrollTop: scroller.scrollTop });
+      }
+    };
+    const afterMeasure = editorRef.current?.afterMeasure;
+    let cancel: () => void;
+    if (afterMeasure) {
+      cancel = afterMeasure(finishRestore);
+    } else {
+      const frame = requestAnimationFrame(() => finishRestore(Boolean(editorRef.current)));
+      cancel = () => cancelAnimationFrame(frame);
+    }
+    pendingRestoreCancelRef.current = cancel;
+    return () => {
+      if (pendingRestoreCancelRef.current === cancel) pendingRestoreCancelRef.current = null;
+      cancel();
+    };
+  }, [allowSessionRestore, currentChapterId, editorRef, historyOpen]);
+
+  useLayoutEffect(() => {
     const pending = pendingLandingRef.current;
     if (!pending || !currentChapterId) return;
     if (pending.chapterId !== currentChapterId) {
@@ -242,6 +334,7 @@ export function EditorSurface({
   );
 
   const onChapterWheel = (event: ReactWheelEvent<HTMLElement>) => {
+    abandonSessionRestore();
     if (event.ctrlKey || event.deltaY === 0 || Math.abs(event.deltaX) > Math.abs(event.deltaY))
       return;
     const scroller = event.currentTarget;
@@ -318,6 +411,7 @@ export function EditorSurface({
   };
 
   const onChapterTouchStart = (event: ReactTouchEvent<HTMLElement>) => {
+    abandonSessionRestore();
     // Two fingers are a pinch or a zoom, never a page turn.
     if (event.touches.length !== 1) {
       abandonChapterTouch();
@@ -355,6 +449,7 @@ export function EditorSurface({
   };
 
   const onChapterScroll = () => {
+    captureSession();
     const scroller = scrollRef.current;
     const direction = chapterOverscrollRef.current.direction;
     if (!scroller || direction === null) return;
@@ -388,6 +483,8 @@ export function EditorSurface({
       }
       onWheel={onChapterWheel}
       onScroll={onChapterScroll}
+      onPointerDownCapture={abandonSessionRestore}
+      onKeyDownCapture={abandonSessionRestore}
       onTouchStart={onChapterTouchStart}
       onTouchMove={onChapterTouchMove}
       onTouchEnd={onChapterTouchEnd}
@@ -432,6 +529,16 @@ export function EditorSurface({
               marks={historyOpen && historicalChapter ? historicalChapter.marks : current.marks}
               issues={historyOpen ? [] : grammarIssues}
               searchMatches={historyOpen ? [] : currentSearchMatches}
+              initialSelection={
+                allowSessionRestore && restoreRef.current?.chapterId === current.id
+                  ? restoreRef.current.selection
+                  : undefined
+              }
+              onViewSelectionChange={(selection) => {
+                if (historyOpen) return;
+                viewSelectionRef.current = { chapterId: current.id, selection };
+                captureSession();
+              }}
               activeSearchMatch={
                 !historyOpen && activeSearchMatch?.chapterId === current.id
                   ? activeSearchMatch

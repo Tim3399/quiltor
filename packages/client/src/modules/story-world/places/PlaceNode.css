@@ -2,6 +2,241 @@
   position: relative;
 }
 
+/* React Flow still needs this box to keep the drag's measured geometry stable.
+   The screen-space pin carries the visual gesture until the ordinary card returns. */
+.place-node-shell[data-drag-preview="true"],
+.place-node-pin[data-drag-preview="true"] {
+  visibility: hidden;
+}
+
+/* React Flow's wrapper keeps the node's complete measured rectangle and sets
+   pointer-events inline. Once a host map clips the renderer, that transparent
+   remainder must not cover the canvas; the clipped child remains the
+   drag/selection hit target. */
+.places-flow-area
+.react-flow__node-place:has(
+  .place-node-shell[data-map-clipped="true"],
+  .place-node-pin[data-map-clipped="true"]
+) {
+  pointer-events: none !important;
+}
+
+.place-node-shell[data-map-clipped="true"],
+.place-node-pin[data-map-clipped="true"] {
+  pointer-events: auto;
+}
+
+.place-node-pin {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  color: var(--text-primary);
+}
+
+.place-node-pin__mark {
+  width: var(--place-pin-mark);
+  height: var(--place-pin-mark);
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--place-pin-tip) / 2);
+  transform: translateX(-50%);
+  color: var(--card-kind-ort);
+  fill: var(--card-kind-ort-surface);
+  filter: drop-shadow(
+    0 var(--space-1) var(--space-2) color-mix(in srgb, var(--node-shadow) 76%, transparent)
+  );
+  transform-origin: 50% 100%;
+}
+
+.place-node-pin__tip {
+  width: var(--place-pin-tip);
+  height: var(--place-pin-tip);
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: var(--z-local);
+  transform: translate(-50%, 50%);
+  border: max(1px, calc(var(--place-pin-tip) / 4)) solid var(--paper);
+  border-radius: 50%;
+  background: var(--card-kind-ort);
+}
+
+.place-node-pin__label {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--place-pin-control);
+  position: absolute;
+  left: 50%;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--place-pin-gap);
+  padding: 0 var(--place-pin-padding);
+  transform: translateX(-50%);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--card-kind-ort);
+  border-radius: var(--radius) var(--radius-pill) var(--radius) var(--radius-pill);
+  background: color-mix(in srgb, var(--card-kind-ort-surface) 22%, var(--paper));
+  box-shadow: var(--elevation-2) var(--node-shadow);
+  transform-origin: 50% 100%;
+}
+
+.place-node-pin.zoom-overview .place-node-pin__label {
+  width: var(--place-pin-label-width);
+  top: auto;
+  bottom: calc(var(--place-pin-mark) + var(--place-pin-gap));
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    visibility 0ms linear var(--motion-fast);
+}
+
+.place-node-pin.zoom-overview:hover .place-node-pin__label,
+.place-node-pin.zoom-overview.is-selected .place-node-pin__label,
+.place-node-pin.zoom-overview.is-measuring .place-node-pin__label,
+.react-flow__node:focus-within .place-node-pin.zoom-overview .place-node-pin__label {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0ms;
+}
+
+.place-node-pin.zoom-overview:is(.is-selected, .is-measuring) .place-node-pin__mark {
+  color: var(--selection-border);
+  filter: drop-shadow(0 0 var(--space-2) var(--selection-border))
+    drop-shadow(
+      0 var(--space-1) var(--space-2) color-mix(in srgb, var(--node-shadow) 76%, transparent)
+    );
+}
+
+.place-node-pin.zoom-overview.is-measure-start .place-node-pin__mark {
+  color: var(--accent-primary);
+  filter: drop-shadow(0 0 var(--space-2) var(--accent-primary));
+}
+
+.place-node-pin__name {
+  min-width: 0;
+  overflow: hidden;
+  font: 600 var(--place-pin-font) / 1.2 var(--prose);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-node-pin__action {
+  width: var(--place-pin-control);
+  height: var(--place-pin-control);
+  min-width: var(--place-pin-control);
+  min-height: var(--place-pin-control);
+  padding: 0;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+
+.place-node-pin .place-node-pin__action svg {
+  width: var(--place-pin-icon);
+  height: var(--place-pin-icon);
+  flex: none;
+}
+
+.place-node-pin:hover .place-node-pin__action,
+.place-node-pin.is-selected .place-node-pin__action,
+.place-node-pin:focus-within .place-node-pin__action {
+  opacity: 1;
+}
+
+.place-node-pin:hover .place-node-pin__action + .place-node-pin__action {
+  transition-delay: var(--motion-instant);
+}
+
+.place-node-pin:hover:focus-within .place-node-pin__action + .place-node-pin__action {
+  transition-delay: 0ms;
+}
+
+.place-node-pin.is-selected .place-node-pin__label,
+.place-node-pin.is-measuring .place-node-pin__label {
+  border-color: var(--selection-border);
+  border-left-color: var(--card-kind-ort);
+  box-shadow:
+    var(--ring-2) var(--selection-border),
+    var(--elevation-2) var(--node-shadow);
+}
+
+.place-node-pin.is-measure-start .place-node-pin__label {
+  box-shadow:
+    var(--ring-2) var(--accent-primary),
+    var(--elevation-2) var(--node-shadow);
+}
+
+.place-node-pin.is-display-transition .place-node-pin__label {
+  animation: place-pin-label-in var(--motion-regular) var(--ease-standard) both;
+}
+
+.place-node-pin.is-display-transition .place-node-pin__mark {
+  animation: place-pin-mark-in var(--motion-gentle) var(--ease-standard) both;
+}
+
+.place-node-shell.is-display-transition .story-node {
+  animation: place-card-in var(--motion-regular) var(--ease-standard) both;
+}
+
+@keyframes place-pin-label-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.96);
+  }
+}
+
+@keyframes place-pin-mark-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.88);
+  }
+}
+
+@keyframes place-card-in {
+  from {
+    opacity: 0;
+    clip-path: inset(8% 4% 8% 4% round var(--radius));
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0 round var(--radius));
+  }
+}
+
+.place-node-pin__handle {
+  left: 50% !important;
+  top: auto !important;
+  bottom: 0 !important;
+  transform: translate(-50%, 50%) !important;
+}
+
+@media (pointer: coarse) {
+  .place-node-pin__action {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .place-node-pin.is-display-transition .place-node-pin__label,
+  .place-node-pin.is-display-transition .place-node-pin__mark,
+  .place-node-shell.is-display-transition .story-node {
+    animation: none;
+  }
+
+  .place-node-pin .place-node-pin__action,
+  .place-node-pin:hover .place-node-pin__action + .place-node-pin__action {
+    transition: none;
+    transition-delay: 0ms;
+  }
+
+  .place-node-pin.zoom-overview .place-node-pin__label {
+    transition: none;
+  }
+}
+
 .place-coordinate-handle {
   width: 1px;
   height: 1px;
@@ -116,7 +351,7 @@
 }
 
 .place-node-shell .story-node:hover .place-node__enter,
-.place-node-shell .story-node.is-selected .place-node__enter,
+.place-node-shell .story-node.selected .place-node__enter,
 .place-node-shell .story-node:focus-within .place-node__enter {
   opacity: 1;
 }

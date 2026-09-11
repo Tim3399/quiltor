@@ -1,0 +1,101 @@
+.print-preview {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--canvas);
+}
+
+.print-preview__toolbar {
+  min-height: var(--control-touch);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-14);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.print-preview__zoom-presets {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.print-preview__zoom-select {
+  width: 88px;
+  margin: 0;
+}
+
+.print-preview__page-status {
+  min-width: 86px;
+  color: var(--muted);
+  font-size: var(--font-size-3);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.print-preview__viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--canvas);
+}
+
+.print-preview__document-space {
+  width: calc(var(--preview-document-width) * var(--preview-scale));
+  height: calc(var(--preview-document-height) * var(--preview-scale));
+  margin: var(--space-28) auto;
+}
+
+.print-preview__scaled-document {
+  width: var(--preview-document-width);
+  transform: scale(var(--preview-scale));
+  transform-origin: top left;
+}
+
+.print-preview .print-document {
+  display: block;
+}
+
+.print-preview .pagedjs_pages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-32);
+}
+
+.print-preview .pagedjs_page {
+  background: var(--print-paper);
+  box-shadow: var(--elevation-3) var(--shadow-color);
+}
+
+.print-preview__state {
+  position: sticky;
+  left: 50%;
+  bottom: var(--space-20);
+  width: max-content;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-14);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--muted);
+  box-shadow: var(--elevation-2) var(--shadow-raised);
+}
+
+.print-preview__state.is-refreshing svg {
+  animation: print-preview-spin var(--motion-spin) linear infinite;
+}
+
+@keyframes print-preview-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

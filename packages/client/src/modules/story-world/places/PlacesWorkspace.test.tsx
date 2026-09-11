@@ -7,6 +7,28 @@ import { quiltorClient } from "../../../platform";
 import { DEFAULT_MAP_WIDTH } from "./placeCanvasModel";
 import * as placeMapUpload from "./placeMapUpload";
 import { PLACE_COMPACT_MEDIA_QUERY, PlacesWorkspace } from "./PlacesWorkspace";
+import { PlaceMapChrome } from "./PlaceMapChrome";
+import type { ActivePlaceMapChromeProps } from "./PlaceMapChromeOverlay";
+
+// World/viewport projection has its own pure tests; this suite exercises the
+// workspace's selection and persistence paths with an available screen area.
+vi.mock("./PlaceMapChromeOverlay", () => ({
+  PlaceMapChromeOverlay: ({ chrome }: { chrome: ActivePlaceMapChromeProps }) => (
+    <PlaceMapChrome
+      {...chrome}
+      zoom={1}
+      layout={{
+        left: 10,
+        width: 800,
+        headerTop: 10,
+        footerTop: 500,
+        imageTop: 56,
+        imageHeight: 444,
+        frameHeight: 532,
+      }}
+    />
+  ),
+}));
 
 vi.mock("@xyflow/react", () => ({
   ReactFlowProvider: ({ children }: { children: ReactNode }) => children,
@@ -18,6 +40,7 @@ vi.mock("@xyflow/react", () => ({
     onMove,
     onNodeClick,
     onNodeDragStop,
+    onPaneClick,
   }: {
     edges: Array<{
       id: string;
@@ -40,35 +63,38 @@ vi.mock("@xyflow/react", () => ({
     onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
     onMove: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void;
     onNodeClick: (event: unknown, node: { id: string }) => void;
+    onPaneClick: () => void;
     onNodeDragStop: (
       event: unknown,
       node: { id: string; position: { x: number; y: number } },
     ) => void;
   }) => (
     <div role="application" data-testid="places-flow" data-min-zoom={minZoom} onKeyDown={onKeyDown}>
-      {nodes.map((node) => (
-        <div key={node.id}>
-          <button
-            type="button"
-            className="react-flow__node"
-            data-id={node.id}
-            aria-label={node.ariaLabel}
-            data-testid={`place-node-${node.id}`}
-            data-draggable={String(node.draggable !== false)}
-            data-important={String(!!node.data.place.important)}
-            onClick={() => onNodeClick({}, node)}
-          >
-            {node.data.place.name}
-          </button>
-          <span data-testid="place-zoom-tier">{node.data.zoomTier}</span>
-          <button
-            type="button"
-            onClick={() => onNodeDragStop({}, { ...node, position: { x: 75, y: 85 } })}
-          >
-            Testziehen {node.data.place.name}
-          </button>
-        </div>
-      ))}
+      {nodes
+        .filter((node) => node.data.place)
+        .map((node) => (
+          <div key={node.id}>
+            <button
+              type="button"
+              className="react-flow__node"
+              data-id={node.id}
+              aria-label={node.ariaLabel}
+              data-testid={`place-node-${node.id}`}
+              data-draggable={String(node.draggable !== false)}
+              data-important={String(!!node.data.place.important)}
+              onClick={() => onNodeClick({}, node)}
+            >
+              {node.data.place.name}
+            </button>
+            <span data-testid="place-zoom-tier">{node.data.zoomTier}</span>
+            <button
+              type="button"
+              onClick={() => onNodeDragStop({}, { ...node, position: { x: 75, y: 85 } })}
+            >
+              Testziehen {node.data.place.name}
+            </button>
+          </div>
+        ))}
       {edges.map((edge) => (
         <span
           role="img"
@@ -84,6 +110,9 @@ vi.mock("@xyflow/react", () => ({
       ))}
       <button type="button" onClick={() => onMove({}, { x: 0, y: 0, zoom: 0.2 })}>
         Testübersicht
+      </button>
+      <button type="button" onClick={onPaneClick}>
+        Testfläche
       </button>
     </div>
   ),
@@ -431,5 +460,148 @@ describe("adding a map", () => {
 
     // A danger toast announces assertively, so it is an alert rather than a status.
     expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+});
+
+describe("active expanded map chrome", () => {
+  const map = {
+    id: "weltkarte",
+    type: "ort" as const,
+    name: "Weltkarte",
+    x: 0,
+    y: 0,
+    mapImageId: "bild",
+    mapExpanded: true,
+    mapWidth: 1600,
+    mapHeight: 900,
+    mapScale: { unitsPer100px: 25, unitLabel: "km" },
+  };
+  const child = {
+    id: "hafen",
+    type: "ort" as const,
+    name: "Hafen",
+    x: 0,
+    y: 0,
+    parentPlaceId: map.id,
+    mapU: 0.4,
+    mapV: 0.5,
+  };
+  const second = { ...map, id: "seekarte", name: "Seekarte", mapX: 1800 };
+
+  it("keeps map identity while selecting a child and clearing canvas selection", () => {
+    const { container } = render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
+    );
+    const chrome = () => container.querySelector(".place-map-chrome");
+    expect(chrome()).toHaveAttribute("data-map-id", map.id);
+    fireEvent.click(screen.getByTestId("place-node-hafen"));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Hafen");
+    expect(chrome()).toHaveAttribute("data-map-id", map.id);
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }));
+    expect(screen.queryByRole("textbox", { name: "Name" })).not.toBeInTheDocument();
+    expect(chrome()).toHaveAttribute("data-map-id", map.id);
+  });
+
+  it("switches one chrome between expanded maps and their direct children", () => {
+    const { container } = render(
+      <ControlledPlaces
+        initialState={{ nodes: [map, second, child], edges: [] }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".place-map-chrome")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"));
+    expect(container.querySelector(".place-map-chrome")).toHaveAttribute("data-map-id", map.id);
+    fireEvent.click(screen.getByTestId("place-node-seekarte"));
+    expect(container.querySelectorAll(".place-map-chrome")).toHaveLength(1);
+    expect(container.querySelector(".place-map-chrome")).toHaveAttribute("data-map-id", second.id);
+    fireEvent.click(screen.getByTestId("place-node-hafen"));
+    expect(container.querySelector(".place-map-chrome")).toHaveAttribute("data-map-id", map.id);
+  });
+
+  it("keeps crop on the active surface and reuses the map persistence paths", () => {
+    const changes: FigureState[] = [];
+    const { container } = render(
+      <ControlledPlaces
+        initialState={{ nodes: [map, child], edges: [] }}
+        onChange={(next) => changes.push(next)}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Bild in Weltkarte anpassen" }));
+    fireEvent.click(screen.getByTestId("place-node-hafen"));
+    expect(
+      screen.getByRole("button", { name: "Bild in Weltkarte fertig anpassen" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Bild vergrößern" }));
+    expect(changes.at(-1)?.nodes[0].mapImageZoom).toBeGreaterThan(1);
+    fireEvent.click(screen.getByRole("button", { name: "Bild in Weltkarte fertig anpassen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weltkarte feststellen" }));
+    expect(changes.at(-1)?.nodes[0].pinned).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Maßstab von Weltkarte" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Maßstab" }), {
+      target: { value: "50" },
+    });
+    expect(changes.at(-1)?.nodes[0].mapScale).toEqual({ unitsPer100px: 50, unitLabel: "km" });
+    expect(changes.at(-1)?.nodes[0]).toMatchObject({ mapWidth: 1600, mapHeight: 900 });
+    expect(container.querySelector(".place-map-chrome")).toHaveAttribute("data-map-id", map.id);
+  });
+
+  it("collapses to card controls and activates the map when expanded again", () => {
+    const changes: FigureState[] = [];
+    const { container } = render(
+      <ControlledPlaces
+        initialState={{ nodes: [map, child], edges: [] }}
+        onChange={(next) => changes.push(next)}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("place-node-hafen"));
+    fireEvent.click(screen.getByRole("button", { name: "Weltkarte einklappen" }));
+    expect(container.querySelector(".place-map-chrome")).not.toBeInTheDocument();
+    expect(changes.at(-1)?.nodes[0].mapExpanded).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Weltkarte aufklappen" }));
+    expect(container.querySelector(".place-map-chrome")).toHaveAttribute("data-map-id", map.id);
+    expect(changes.at(-1)?.nodes[0].mapExpanded).toBe(true);
+  });
+
+  it("ends crop with Escape even without a visible done action and respects consumed Escape", () => {
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Bild in Weltkarte anpassen" }));
+    const consumed = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    consumed.preventDefault();
+    fireEvent(document, consumed);
+    expect(
+      screen.getByRole("button", { name: "Bild in Weltkarte fertig anpassen" }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Bild in Weltkarte anpassen" })).toBeInTheDocument();
+  });
+
+  it("clears removed identities before undo restores multiple maps", () => {
+    const content = (nodes: FigureState["nodes"]) => (
+      <I18nProvider>
+        <PlacesWorkspace state={{ nodes, edges: [] }} onChange={vi.fn()} onOpen={vi.fn()} />
+      </I18nProvider>
+    );
+    const view = render(content([map, second, child]));
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"));
+    view.rerender(content([]));
+    expect(view.container.querySelector(".place-map-chrome")).not.toBeInTheDocument();
+    view.rerender(content([map, second, child]));
+    expect(view.container.querySelector(".place-map-chrome")).not.toBeInTheDocument();
+  });
+
+  it("removes the previous level's chrome when entering its map", () => {
+    const { container } = render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weltkarte öffnen" }));
+    expect(container.querySelector(".place-map-chrome")).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Pfad durch die Orte" })).toBeInTheDocument();
   });
 });

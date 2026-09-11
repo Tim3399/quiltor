@@ -280,6 +280,33 @@ describe("story-world wire v1", () => {
       });
     });
 
+    it("round-trips explicit card and pin displays while leaving legacy cards absent", () => {
+      const source = withPlaces(
+        { id: "legacy", name: "Legacy" },
+        { id: "card", name: "Card", placeDisplay: "card" },
+        { id: "pin", name: "Pin", placeDisplay: "pin" },
+      );
+
+      const decoded = decodeStoryWorldV1(source);
+      expect(decoded.document.nodes[0]).not.toHaveProperty("placeDisplay");
+      expect(decoded.document.nodes[1].placeDisplay).toBe("card");
+      expect(decoded.document.nodes[2].placeDisplay).toBe("pin");
+
+      const encoded = encodeStoryWorldV1(decoded.document, decoded.revision);
+      expect(encoded.payload.nodes[0]).not.toHaveProperty("placeDisplay");
+      expect(encoded.payload.nodes[1].placeDisplay).toBe("card");
+      expect(encoded.payload.nodes[2].placeDisplay).toBe("pin");
+      expect(storyWorldSchema.$defs.node.properties.placeDisplay.enum).toEqual(["card", "pin"]);
+    });
+
+    it("refuses malformed place displays", () => {
+      for (const placeDisplay of ["marker", null, false, 1, {}]) {
+        expect(() =>
+          decodeStoryWorldV1(withPlaces({ id: "rom", name: "Rom", placeDisplay })),
+        ).toThrow();
+      }
+    });
+
     it("refuses a level that contains itself", () => {
       expect(() =>
         decodeStoryWorldV1(withPlaces({ id: "rom", name: "Rom", parentPlaceId: "rom" })),

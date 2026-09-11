@@ -9,6 +9,11 @@
   margin-top: var(--space-12);
 }
 
+.places-display-action {
+  width: 100%;
+  justify-content: flex-start;
+}
+
 .places-priority-action {
   justify-content: flex-start;
 }

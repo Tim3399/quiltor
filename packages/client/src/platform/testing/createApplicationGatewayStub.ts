@@ -107,6 +107,8 @@ export function createApplicationGatewayStub(
       ...overrides.writingAssistance,
     },
     documents: {
+      renderBookPdf: () => notStubbed("documents.renderBookPdf"),
+      saveBookPdf: () => notStubbed("documents.saveBookPdf"),
       bookPdf: () => notStubbed("documents.bookPdf"),
       ...overrides.documents,
     },

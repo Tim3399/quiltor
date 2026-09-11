@@ -12,6 +12,11 @@ import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels
 import { DEFAULT_MAP_WIDTH, isExpandedMap } from "./placeCanvasModel";
 import { formatDistance, formatScale } from "./placeMap";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
+import {
+  activePlaceMapForSelection,
+  resolveActivePlaceMap,
+  type ActivePlaceMap,
+} from "./placeMapChromeModel";
 import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
 import { askForMapImage, prepareMapImage } from "./placeMapUpload";
 import { PlaceToolbar } from "./PlaceToolbar";
@@ -58,6 +63,8 @@ function PlacesWorkspaceInner({
   // rather than remembered while descending, so arriving from a search result or
   // a backlink still shows where a place really sits.
   const [levelId, setLevelId] = useState<string | undefined>(undefined);
+  const [activeMapState, setActiveMapState] = useState<ActivePlaceMap>();
+  const [expandRequest, setExpandRequest] = useState<{ id: string; sequence: number }>();
   const [mapError, setMapError] = useState("");
   // Which map is having its picture adjusted. A mode rather than a gesture
   // the canvas has to guess at: inside it a drag moves the picture.
@@ -72,6 +79,16 @@ function PlacesWorkspaceInner({
   latestState.current = state;
 
   const places = useMemo(() => placesOnLevel(state.nodes, levelId), [state.nodes, levelId]);
+  const activeMap = resolveActivePlaceMap(state.nodes, levelId, activeMapState);
+  useEffect(() => {
+    // Clear invalid identities as state changes, so undo cannot resurrect a
+    // stale activation when several maps later reappear on this level.
+    setActiveMapState((current) => {
+      if (!activeMap) return undefined;
+      if (current && current.levelId === levelId && current.mapId === activeMap.id) return current;
+      return { levelId, mapId: activeMap.id };
+    });
+  }, [activeMap, levelId]);
   // With nothing selected there is nothing to control; the column then belongs to the map.
   const trail = useMemo(() => levelTrail(state.nodes, levelId), [state.nodes, levelId]);
   const levelScale = useMemo(
@@ -80,11 +97,15 @@ function PlacesWorkspaceInner({
   );
   const openLevel = useCallback((place: FigureNode) => {
     setLevelId(place.id);
+    setActiveMapState(undefined);
+    setExpandRequest(undefined);
     setSelectedId(null);
     setMeasureSelection([]);
   }, []);
   const goToLevel = useCallback((nextLevelId: string | undefined) => {
     setLevelId(nextLevelId);
+    setActiveMapState(undefined);
+    setExpandRequest(undefined);
     setSelectedId(null);
     setMeasureSelection([]);
   }, []);
@@ -104,19 +125,21 @@ function PlacesWorkspaceInner({
   const placesInspectorOpen = !compact && !!places.length && !!selected;
   // Either state: a card still needs somewhere to be opened out from.
   const selectedMap = selected?.mapImageId ? selected : null;
-  // Adjusting is a mode on one map; picking another map leaves it behind.
+  // Crop belongs to the active surface, including while a child is selected.
   useEffect(() => {
-    if (adjustingId && adjustingId !== selectedMap?.id) setAdjustingId(undefined);
-  }, [adjustingId, selectedMap]);
+    if (adjustingId && adjustingId !== activeMap?.id) setAdjustingId(undefined);
+  }, [adjustingId, activeMap]);
   const selectPlace = useCallback(
     (id: string) => {
       setSelectedId(id);
+      const map = activePlaceMapForSelection(latestState.current.nodes, levelId, id);
+      if (map) setActiveMapState({ levelId, mapId: map.id });
       if (!measuring) return;
       setMeasureSelection((current) =>
         current.length === 1 && current[0] !== id ? [current[0], id] : [id],
       );
     },
-    [measuring],
+    [levelId, measuring],
   );
   const mapImageUrl = useCallback(
     (imageId: string) => quiltorClient.application.placeMaps.sourceUrl(imageId),
@@ -134,14 +157,27 @@ function PlacesWorkspaceInner({
     },
     [onChange],
   );
+  const setPlaceDisplay = useCallback(
+    (place: FigureNode, display: "card" | "pin") => patchPlace(place.id, { placeDisplay: display }),
+    [patchPlace],
+  );
 
   const collapseMap = useCallback(
-    (place: FigureNode) => patchPlace(place.id, { mapExpanded: false }),
+    (place: FigureNode) => {
+      patchPlace(place.id, { mapExpanded: false });
+      setSelectedId(place.id);
+      setExpandRequest(undefined);
+    },
     [patchPlace],
   );
   const expandMap = useCallback(
-    (place: FigureNode) => patchPlace(place.id, { mapExpanded: true }),
-    [patchPlace],
+    (place: FigureNode) => {
+      patchPlace(place.id, { mapExpanded: true });
+      setSelectedId(place.id);
+      setActiveMapState({ levelId, mapId: place.id });
+      setExpandRequest((current) => ({ id: place.id, sequence: (current?.sequence ?? 0) + 1 }));
+    },
+    [levelId, patchPlace],
   );
   const toggleMapLock = useCallback(
     (place: FigureNode) => patchPlace(place.id, { pinned: !place.pinned }),
@@ -166,10 +202,12 @@ function PlacesWorkspaceInner({
     onOpenLevel: openLevel,
     mapImageUrl,
     onExpandMap: expandMap,
+    onPlaceDisplayChange: setPlaceDisplay,
     onResizeMap: resizeMap,
     onCropMap: cropMap,
     adjustingId,
     levelScale,
+    expandRequest,
     onChange,
   });
 
@@ -263,7 +301,8 @@ function PlacesWorkspaceInner({
       ...mapFrame(stored),
     });
     setSelectedId(created.id);
-  }, [canvas, pickStoredImage, t]);
+    setActiveMapState({ levelId, mapId: created.id });
+  }, [canvas, levelId, pickStoredImage, t]);
 
   const centerOnPlace = useRef(canvas.centerOnPlace);
   centerOnPlace.current = canvas.centerOnPlace;
@@ -279,6 +318,8 @@ function PlacesWorkspaceInner({
     if (!item) return;
     // The target may sit on another level; showing it means going there first.
     setLevelId(item.parentPlaceId);
+    setActiveMapState(undefined);
+    setExpandRequest(undefined);
     setSelectedId(targetId);
     centerOnPlace.current(item);
   }, [targetId, targetRequestId]);
@@ -300,6 +341,17 @@ function PlacesWorkspaceInner({
     document.addEventListener("keydown", closeMeasurement);
     return () => document.removeEventListener("keydown", closeMeasurement);
   }, [measuring]);
+  useEffect(() => {
+    if (!adjustingId) return;
+    const finishCrop = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      setAdjustingId(undefined);
+    };
+    // Modal overlays consume Escape at document level. Window bubbling lets
+    // those handlers finish first, regardless of when the crop was entered.
+    window.addEventListener("keydown", finishCrop);
+    return () => window.removeEventListener("keydown", finishCrop);
+  }, [adjustingId]);
 
   const stopMeasuring = () => {
     setMeasuring(false);
@@ -341,6 +393,7 @@ function PlacesWorkspaceInner({
       mapImageUrl={mapImageUrl}
       onChooseMapImage={chooseMapImage}
       onRemoveMapImage={removeMapImage}
+      onPlaceDisplayChange={setPlaceDisplay}
     />
   );
 
@@ -388,8 +441,39 @@ function PlacesWorkspaceInner({
         )}
         <PlaceCanvas
           controller={canvas}
+          mapChrome={
+            activeMap
+              ? {
+                  map: activeMap,
+                  crop: cropOf(activeMap),
+                  adjusting: adjustingId === activeMap.id,
+                  levelLabel: trail.at(-1)?.name ?? t("placeRootLevel"),
+                  placeCount: state.nodes.filter(
+                    (node) => isPlace(node) && node.parentPlaceId === activeMap.id,
+                  ).length,
+                  gridVisible: canvas.snapToGrid,
+                  onToggleAdjusting: () =>
+                    setAdjustingId((current) =>
+                      current === activeMap.id ? undefined : activeMap.id,
+                    ),
+                  onCrop: (next) => cropMap(activeMap, next),
+                  onToggleLock: () => toggleMapLock(activeMap),
+                  onCollapse: () => collapseMap(activeMap),
+                  onEnter: () => openLevel(activeMap),
+                  scale: activeMap.mapScale,
+                  onScale: (patch) =>
+                    patchPlace(activeMap.id, {
+                      mapScale: {
+                        unitsPer100px: activeMap.mapScale?.unitsPer100px ?? 1,
+                        unitLabel: activeMap.mapScale?.unitLabel ?? t("unitsDefault"),
+                        ...patch,
+                      },
+                    }),
+                }
+              : undefined
+          }
           mapTools={
-            selectedMap ? (
+            selectedMap && !isExpandedMap(selectedMap) ? (
               <PlaceMapToolbar
                 map={selectedMap}
                 crop={cropOf(selectedMap)}

@@ -21,6 +21,7 @@ beforeEach(() => {
 function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEditor>> = {}) {
   const onSelection = vi.fn(),
     onSelectionMenu = vi.fn(),
+    onViewSelectionChange = vi.fn(),
     onChange = vi.fn();
   const handle =
     createRef<ManuscriptEditorHandle>() as React.MutableRefObject<ManuscriptEditorHandle | null>;
@@ -34,6 +35,7 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEdito
       onChange={onChange}
       onSelection={onSelection}
       onSelectionMenu={onSelectionMenu}
+      onViewSelectionChange={onViewSelectionChange}
       {...props}
     />,
   );
@@ -42,7 +44,15 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ManuscriptEdito
     "CodeMirror root missing",
   );
   const editor = requireValue(EditorView.findFromDOM(editorRoot), "CodeMirror view missing");
-  return { ...view, editor, handle, onSelection, onSelectionMenu, onChange };
+  return {
+    ...view,
+    editor,
+    handle,
+    onSelection,
+    onSelectionMenu,
+    onViewSelectionChange,
+    onChange,
+  };
 }
 
 const tarek = { id: "t", x: 0, y: 0, type: "person" as const, name: "Tarek", sub: "Bäcker" };
@@ -131,6 +141,112 @@ describe("ManuscriptEditor selection", () => {
     expect(rendered.container.querySelector(".version-diff-format-added")).toBeNull();
   });
 
+  it("keeps historical selection and snapshot loads out of the live session", () => {
+    const rendered = renderEditor({ initialSelection: { anchor: 8, head: 2 } });
+    rendered.editor.scrollDOM.scrollTop = 37;
+    rendered.onViewSelectionChange.mockClear();
+
+    rendered.rerender(
+      <ManuscriptEditor
+        value="Früher"
+        readOnly
+        label="Kapiteltext"
+        placeholder=""
+        vocabulary={[]}
+        editorRef={rendered.handle}
+        onChange={rendered.onChange}
+        onSelection={rendered.onSelection}
+        onViewSelectionChange={rendered.onViewSelectionChange}
+      />,
+    );
+    expect(rendered.editor.state.doc.toString()).toBe("Früher");
+    rendered.editor.dispatch({ selection: EditorSelection.cursor(1) });
+
+    rendered.rerender(
+      <ManuscriptEditor
+        value="Noch älter"
+        readOnly
+        label="Kapiteltext"
+        placeholder=""
+        vocabulary={[]}
+        editorRef={rendered.handle}
+        onChange={rendered.onChange}
+        onSelection={rendered.onSelection}
+        onViewSelectionChange={rendered.onViewSelectionChange}
+      />,
+    );
+    expect(rendered.editor.state.doc.toString()).toBe("Noch älter");
+    expect(rendered.onViewSelectionChange).not.toHaveBeenCalled();
+    expect(rendered.onChange).not.toHaveBeenCalled();
+
+    rendered.rerender(
+      <ManuscriptEditor
+        value="Hallo Welt"
+        label="Kapiteltext"
+        placeholder=""
+        vocabulary={[]}
+        editorRef={rendered.handle}
+        onChange={rendered.onChange}
+        onSelection={rendered.onSelection}
+        onViewSelectionChange={rendered.onViewSelectionChange}
+      />,
+    );
+    expect(rendered.editor.state.doc.toString()).toBe("Hallo Welt");
+    expect(rendered.editor.state.selection.main).toMatchObject({ anchor: 8, head: 2 });
+    expect(rendered.editor.scrollDOM.scrollTop).toBe(37);
+    expect(rendered.onViewSelectionChange).toHaveBeenCalledTimes(1);
+    expect(rendered.onViewSelectionChange).toHaveBeenLastCalledWith({ anchor: 8, head: 2 });
+  });
+
+  it("captures and restores the cursor position and focus", () => {
+    const { editor, handle } = renderEditor();
+    editor.dispatch({ selection: EditorSelection.range(6, 10) });
+    editor.focus();
+    const position = handle.current?.getPosition();
+    expect(position).toEqual({ anchor: 6, head: 10, focused: true });
+
+    editor.dispatch({ selection: EditorSelection.cursor(0) });
+    handle.current?.restorePosition(requireValue(position));
+    expect(editor.state.selection.main).toMatchObject({ anchor: 6, head: 10 });
+    expect(editor.hasFocus).toBe(true);
+  });
+
+  it("creates the editor with its initial cursor and reports it", () => {
+    const { editor, onSelection, onViewSelectionChange } = renderEditor({
+      initialSelection: { anchor: 3, head: 3 },
+    });
+
+    expect(editor.state.selection.main).toMatchObject({ anchor: 3, head: 3 });
+    expect(onViewSelectionChange).toHaveBeenCalledWith({ anchor: 3, head: 3 });
+    expect(onSelection).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["forward", { anchor: 2, head: 8 }],
+    ["backward", { anchor: 8, head: 2 }],
+  ])("preserves an initial %s selection", (_direction, initialSelection) => {
+    const { editor, onViewSelectionChange } = renderEditor({ initialSelection });
+
+    expect(editor.state.selection.main).toMatchObject(initialSelection);
+    expect(onViewSelectionChange).toHaveBeenCalledWith(initialSelection);
+  });
+
+  it.each([
+    [
+      { anchor: -4, head: 40 },
+      { anchor: 0, head: 10 },
+    ],
+    [
+      { anchor: 40, head: -4 },
+      { anchor: 10, head: 0 },
+    ],
+  ])("clamps the initial selection to the document", (initialSelection, expected) => {
+    const { editor, onViewSelectionChange } = renderEditor({ initialSelection });
+
+    expect(editor.state.selection.main).toMatchObject(expected);
+    expect(onViewSelectionChange).toHaveBeenCalledWith(expected);
+  });
+
   it("reports a selection without opening the action menu for it", async () => {
     // The report is the information "this is selected". The menu with dictionary,
     // synonyms and translation is the writer's own decision and must not spring open on a
@@ -164,13 +280,105 @@ describe("ManuscriptEditor selection", () => {
   });
 
   it("reports the end of the selection when the cursor merely stands", async () => {
-    const { editor, onSelection } = renderEditor();
+    const { editor, onSelection, onViewSelectionChange } = renderEditor();
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
     await waitFor(() =>
       expect(onSelection).toHaveBeenCalledWith(expect.objectContaining({ text: "Welt" })),
     );
     editor.dispatch({ selection: EditorSelection.cursor(3) });
     await waitFor(() => expect(onSelection).toHaveBeenLastCalledWith(null));
+    expect(onViewSelectionChange).toHaveBeenLastCalledWith({ anchor: 3, head: 3 });
+  });
+
+  it("reports the selection produced by typing", () => {
+    const { editor, onViewSelectionChange } = renderEditor({
+      initialSelection: { anchor: 5, head: 5 },
+    });
+
+    editor.dispatch({
+      changes: { from: 5, insert: "!" },
+      selection: EditorSelection.cursor(6),
+      userEvent: "input",
+    });
+
+    expect(onViewSelectionChange).toHaveBeenLastCalledWith({ anchor: 6, head: 6 });
+  });
+
+  it("reports a document change even when it does not set the selection", () => {
+    const { editor, onViewSelectionChange } = renderEditor({
+      initialSelection: { anchor: 5, head: 5 },
+    });
+    const reportsBeforeChange = onViewSelectionChange.mock.calls.length;
+
+    editor.dispatch({ changes: { from: 10, insert: "!" }, userEvent: "input" });
+
+    expect(onViewSelectionChange).toHaveBeenCalledTimes(reportsBeforeChange + 1);
+    expect(onViewSelectionChange).toHaveBeenLastCalledWith({ anchor: 5, head: 5 });
+  });
+
+  it("keeps a bounded selection when an external document update shortens the text", () => {
+    const rendered = renderEditor({
+      initialSelection: { anchor: 8, head: 1 },
+    });
+
+    rendered.rerender(
+      <ManuscriptEditor
+        value="Kurz"
+        label="Kapiteltext"
+        placeholder=""
+        vocabulary={[]}
+        editorRef={rendered.handle}
+        onChange={rendered.onChange}
+        onSelection={rendered.onSelection}
+        onViewSelectionChange={rendered.onViewSelectionChange}
+      />,
+    );
+
+    expect(rendered.editor.state.selection.main).toMatchObject({ anchor: 4, head: 1 });
+    expect(rendered.onViewSelectionChange).toHaveBeenLastCalledWith({ anchor: 4, head: 1 });
+  });
+
+  it("uses the latest view-selection callback without recreating the editor", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const rendered = renderEditor({ onViewSelectionChange: first });
+    const originalEditor = rendered.editor;
+
+    rendered.rerender(
+      <ManuscriptEditor
+        value="Hallo Welt"
+        label="Kapiteltext"
+        placeholder=""
+        vocabulary={[]}
+        editorRef={rendered.handle}
+        onChange={rendered.onChange}
+        onSelection={rendered.onSelection}
+        onViewSelectionChange={second}
+      />,
+    );
+    originalEditor.dispatch({ selection: EditorSelection.cursor(7) });
+
+    expect(EditorView.findFromDOM(originalEditor.dom)).toBe(originalEditor);
+    expect(second).toHaveBeenLastCalledWith({ anchor: 7, head: 7 });
+  });
+
+  it("cancels an after-measure callback before it schedules follow-up work", () => {
+    const { editor, handle } = renderEditor();
+    const requestMeasure = vi.spyOn(editor, "requestMeasure").mockImplementation(() => {});
+    const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+    const callback = vi.fn();
+    try {
+      const cancel = requireValue(handle.current?.afterMeasure?.(callback));
+      const request = requireValue(requestMeasure.mock.calls[0]?.[0]);
+      cancel();
+      request.write?.(request.read(editor), editor);
+
+      expect(requestFrame).not.toHaveBeenCalled();
+      expect(callback).not.toHaveBeenCalled();
+    } finally {
+      requestMeasure.mockRestore();
+      requestFrame.mockRestore();
+    }
   });
 
   it("draws bold and italic as ranges over the text", () => {

@@ -21,28 +21,22 @@ import queue
 import tempfile
 from pathlib import Path
 
-from quiltor.infrastructure.pdf import page_numbers
-from quiltor.infrastructure.pdf.hidden_window import (
-    PAPER_HEIGHT_INCHES,
-    PAPER_WIDTH_INCHES,
-    printable_window,
-)
-
-#: GTK measures custom paper in points at 72/inch.
-POINTS_PER_INCH = 72
+from quiltor.infrastructure.pdf.book_document import PAPER_GEOMETRY_JS, validate_paper_mm
+from quiltor.infrastructure.pdf.hidden_window import printable_window
 
 
 def render(url: str, timeout: int = 90) -> bytes:
     with printable_window(url, timeout) as window:
+        paper_mm = validate_paper_mm(window.evaluate_js(PAPER_GEOMETRY_JS))
         target = Path(tempfile.mkstemp(suffix=".pdf")[1])
         try:
-            _print(window, target, timeout)
+            _print(window, target, timeout, paper_mm)
             data = target.read_bytes()
         finally:
             target.unlink(missing_ok=True)
     if not data:
         raise RuntimeError("PDF export produced an empty file.")
-    return page_numbers.stamp(data)
+    return data
 
 
 def _find_webview(widget):
@@ -66,7 +60,7 @@ def _find_webview(widget):
     return None
 
 
-def _print(window, target: Path, timeout: int) -> None:
+def _print(window, target: Path, timeout: int, paper_mm: tuple[float, float]) -> None:
     import gi
 
     gi.require_version("Gtk", "3.0")
@@ -81,19 +75,17 @@ def _print(window, target: Path, timeout: int) -> None:
     settings.set(Gtk.PRINT_SETTINGS_OUTPUT_URI, target.resolve().as_uri())
     settings.set(Gtk.PRINT_SETTINGS_OUTPUT_FILE_FORMAT, "pdf")
 
-    # Custom 6 x 9 inch paper with no printer margins; the page's own @page rule
-    # owns the margins, exactly as on the other two platforms.
     paper = Gtk.PaperSize.new_custom(
         "quiltor-book",
         "Quiltor book",
-        PAPER_WIDTH_INCHES * POINTS_PER_INCH,
-        PAPER_HEIGHT_INCHES * POINTS_PER_INCH,
-        Gtk.Unit.POINTS,
+        paper_mm[0],
+        paper_mm[1],
+        Gtk.Unit.MM,
     )
     setup = Gtk.PageSetup()
     setup.set_paper_size(paper)
     for edge in ("top", "bottom", "left", "right"):
-        getattr(setup, f"set_{edge}_margin")(0, Gtk.Unit.POINTS)
+        getattr(setup, f"set_{edge}_margin")(0, Gtk.Unit.MM)
 
     operation = WebKit2.PrintOperation.new(view)
     operation.set_print_settings(settings)

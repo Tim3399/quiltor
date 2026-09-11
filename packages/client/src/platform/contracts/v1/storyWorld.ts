@@ -74,6 +74,7 @@ export interface FigureNodeWireV1 {
   mapU?: number;
   mapV?: number;
   mapExpanded?: boolean;
+  placeDisplay?: "card" | "pin";
   mapWidth?: number;
   mapHeight?: number;
   mapImageId?: string;
@@ -187,6 +188,7 @@ export type StoryWorldWireV1 = DocumentEnvelopeWireV1<StoryWorldPayloadWireV1>;
 const FIGURE_KINDS = ["person", "tier", "ort", "organisation", "objekt", "konzept"] as const;
 const ACCENTS = ["ink", "gold", "rose", "moss"] as const;
 const EDGE_STYLES = ["solid", "dashed", "blood", "gold"] as const;
+const PLACE_DISPLAYS = ["card", "pin"] as const;
 
 export { ENTITY_ALIAS_NORMALIZATION_V1, normalizeEntityAliasV1 };
 
@@ -266,6 +268,12 @@ function validateNode(value: unknown, path: string): FigureNodeWireV1 {
     optional(node, key, (item, itemPath) => wireNumber(item, itemPath, { min: 0, max: 1 }), path);
   }
   optionalBoolean(node, "mapExpanded", path);
+  optional(
+    node,
+    "placeDisplay",
+    (item, itemPath) => wireEnum(item, PLACE_DISPLAYS, itemPath),
+    path,
+  );
   for (const key of ["mapWidth", "mapHeight"]) {
     optional(node, key, (item, itemPath) => wireNumber(item, itemPath, { exclusiveMin: 0 }), path);
   }

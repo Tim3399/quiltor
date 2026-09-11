@@ -50,6 +50,7 @@
         "mapU": { "type": "number", "minimum": 0, "maximum": 1 },
         "mapV": { "type": "number", "minimum": 0, "maximum": 1 },
         "mapExpanded": { "type": "boolean" },
+        "placeDisplay": { "enum": ["card", "pin"] },
         "mapWidth": { "type": "number", "exclusiveMinimum": 0 },
         "mapHeight": { "type": "number", "exclusiveMinimum": 0 },
         "mapImageId": { "type": "string", "minLength": 1 },

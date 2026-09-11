@@ -361,6 +361,12 @@ class StorageTest(unittest.TestCase):
                 }
             ],
             "words": [{"w": "Arcène", "d": "Ort"}],
+            "bookLayout": {
+                "version": 1,
+                "preset": "quiltor-novel",
+                "pageFormat": "6x9",
+                "futureTypography": {"kept": True},
+            },
             "zeichenAktiv": ["…"],
             "future": True,
         }
@@ -436,6 +442,15 @@ class StorageTest(unittest.TestCase):
         manuscript = manuscript_store.load()
         figures = story_world.load()
         self.assertEqual(manuscript["chapters"][0]["mood"], "still")
+        self.assertEqual(
+            manuscript["bookLayout"],
+            {
+                "version": 1,
+                "preset": "quiltor-novel",
+                "pageFormat": "6x9",
+                "futureTypography": {"kept": True},
+            },
+        )
         self.assertEqual(manuscript["chapters"][0]["mentions"][0]["elementId"], "n1")
         self.assertEqual(
             manuscript["chapters"][0]["noteReferences"][0]["target"],
@@ -490,6 +505,48 @@ class StorageTest(unittest.TestCase):
         self.assertNotIn("momentId", presence_by_id["p0"])
         with sqlite_connection() as conn:
             self.assertEqual(conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+
+    def test_sqlite_round_trips_place_display_and_keeps_legacy_omission(self):
+        schema.initialize()
+        state = {
+            "nodes": [
+                {"id": "legacy", "x": 0, "y": 0, "type": "ort", "name": "Legacy"},
+                {
+                    "id": "card",
+                    "x": 1,
+                    "y": 1,
+                    "type": "ort",
+                    "name": "Card",
+                    "placeDisplay": "card",
+                },
+                {
+                    "id": "pin",
+                    "x": 2,
+                    "y": 2,
+                    "type": "ort",
+                    "name": "Pin",
+                    "placeDisplay": "pin",
+                },
+            ],
+            "edges": [],
+        }
+
+        story_world.save(state)
+        loaded = {node["id"]: node for node in story_world.load()["nodes"]}
+
+        self.assertNotIn("placeDisplay", loaded["legacy"])
+        self.assertEqual(loaded["card"]["placeDisplay"], "card")
+        self.assertEqual(loaded["pin"]["placeDisplay"], "pin")
+        with sqlite_connection() as conn:
+            extras = {
+                row["id"]: json.loads(row["extra_json"])
+                for row in conn.execute(
+                    "SELECT id, extra_json FROM figures WHERE id IN ('legacy', 'card', 'pin')"
+                )
+            }
+        self.assertNotIn("placeDisplay", extras["legacy"])
+        self.assertEqual(extras["card"]["placeDisplay"], "card")
+        self.assertEqual(extras["pin"]["placeDisplay"], "pin")
 
     def test_rejecting_orphan_is_enforced_by_database(self):
         schema.initialize()

@@ -80,11 +80,13 @@ describe("TextWorkspace editor, search and versions", () => {
     });
     const onChange = vi.fn();
     const onSave = vi.fn().mockResolvedValue(undefined);
+    const onSessionStateChange = vi.fn();
     const view = renderWorkspace({
       manuscript,
       figures,
       onChange,
       onSave,
+      onSessionStateChange,
       focus: false,
       onFocus: vi.fn(),
     });
@@ -97,6 +99,12 @@ describe("TextWorkspace editor, search and versions", () => {
     );
     editorScroll.scrollTop = 83;
     editor.dispatch({ selection: EditorSelection.range(6, 10) });
+    expect(onSessionStateChange).toHaveBeenLastCalledWith({
+      chapterId: "c1",
+      selection: { anchor: 6, head: 10 },
+      scrollTop: 83,
+    });
+    onSessionStateChange.mockClear();
     expect(versions).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(versions);
     expect(versions).toHaveAttribute("aria-pressed", "true");
@@ -119,6 +127,10 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(view.container.querySelector(".version-diff-format-removed")).toHaveTextContent("Weg");
     const historyPanel = within(view.container).getByRole("complementary", { name: "Fassungen" });
     expect(within(historyPanel).queryByText("Der neue Weg.")).not.toBeInTheDocument();
+    editor.dispatch({ selection: EditorSelection.range(0, 4) });
+    editorScroll.scrollTop = 456;
+    fireEvent.scroll(editorScroll);
+    expect(onSessionStateChange).not.toHaveBeenCalled();
 
     const escapedUndo = vi.fn();
     window.addEventListener("keydown", escapedUndo);
@@ -134,6 +146,11 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(editor.state.selection.main.from).toBe(6);
     expect(editor.state.selection.main.to).toBe(10);
     await waitFor(() => expect(editorScroll.scrollTop).toBe(83));
+    expect(onSessionStateChange).toHaveBeenLastCalledWith({
+      chapterId: "c1",
+      selection: { anchor: 6, head: 10 },
+      scrollTop: 83,
+    });
     expect(view.container.querySelector(".version-diff-added, .version-diff-removed")).toBeNull();
   });
 
@@ -223,36 +240,23 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(rendered.getByRole("status")).toHaveTextContent("3 von 3");
   });
 
-  it("sets marks as <strong> and <em> in the book version", () => {
-    const formatted = {
-      chapters: [
-        {
-          id: "c1",
-          title: "Prolog",
-          body: "Hallo Welt\n\n*\n\nZweiter Absatz",
-          note: "",
-          marks: [
-            { from: 6, to: 10, kind: "italic" as const },
-            { from: 15, to: 22, kind: "bold" as const },
-          ],
-        },
-      ],
-    };
-    const view = renderWorkspace({
-      manuscript: formatted,
+  it("inserts an explicit scene break at the editor cursor", async () => {
+    const onChange = vi.fn();
+    renderWorkspace({
+      manuscript,
       figures,
-      onChange: vi.fn(),
+      onChange,
       focus: false,
       onFocus: vi.fn(),
     });
-    const book = requireValue(
-      view.container.querySelector(".print-document"),
-      "Print document missing",
+    fireEvent.click(screen.getByRole("button", { name: "Szenenwechsel einfügen" }));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chapters: [expect.objectContaining({ body: "\n\n⁂\n\nHallo Welt" })],
+        }),
+      ),
     );
-    expect(book.querySelector("em")).toHaveTextContent("Welt");
-    expect(book.querySelector("strong")).toHaveTextContent("Zweiter");
-    expect(book.querySelector(".scene-break")).toHaveTextContent("⁂");
-    expect(book.querySelectorAll(".book-chapter p")[0]).toHaveTextContent("Hallo Welt");
   });
 
   it("offers cut, copy, bold and italic in the selection menu", async () => {

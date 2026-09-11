@@ -1,6 +1,7 @@
 import { Handle, type Node, type NodeProps, NodeResizer, Position } from "@xyflow/react";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useRef } from "react";
 import type { FigureNode } from "../model";
+import { usePlaceMapVisualClip } from "./PlaceMapFrameContext";
 import { type ImageCrop, movedCrop, zoomedCrop } from "./placeImageCrop";
 import "./PlacePlate.css";
 import "./PlaceMapNode.css";
@@ -48,6 +49,12 @@ export type PlaceMapFlowNode = Node<PlaceMapNodeData>;
 export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
   const place = data.place;
   const crop = data.crop;
+  const visualClip = usePlaceMapVisualClip(place.id);
+  const visualClipStyle = visualClip
+    ? ({
+        clipPath: `inset(${visualClip.top}px ${visualClip.right}px ${visualClip.bottom}px ${visualClip.left}px)`,
+      } satisfies CSSProperties)
+    : undefined;
   const dragFrom = useRef<{ x: number; y: number; crop: ImageCrop } | null>(null);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -141,12 +148,10 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
         className="place-coordinate-handle"
         style={placeMapAnchorStyle}
       />
-      <span className="place-plate__rule" aria-hidden="true" />
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: this is a surface
-          being dragged, not a control; every adjustment it makes is also
-          reachable from the buttons beside the canvas. */}
+      <span className="place-plate__rule" style={visualClipStyle} aria-hidden="true" />
       <div
         className={`place-map-node__frame ${data.adjusting ? "nodrag nopan nowheel" : ""}`}
+        style={visualClipStyle}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -171,7 +176,9 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
           />
         ) : null}
       </div>
-      {data.gridVisible ? <span className="place-plate__grid" aria-hidden="true" /> : null}
+      {data.gridVisible ? (
+        <span className="place-plate__grid" style={visualClipStyle} aria-hidden="true" />
+      ) : null}
     </figure>
   );
 }
