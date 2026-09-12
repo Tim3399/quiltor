@@ -86,8 +86,23 @@ test("Print preview preserves editor position and shares physical pages with the
   await page.locator(".editor-scroll").evaluate((element) => {
     element.scrollTop = 460;
   });
-  const scrollTop = await page.locator(".editor-scroll").evaluate((element) => element.scrollTop);
-  await page.getByRole("button", { name: "Druckansicht", exact: true }).click();
+  const previewToggle = page.getByRole("button", { name: "Druckansicht", exact: true });
+  // CodeMirror can finish caret anchoring between the direct scroll and the click.
+  // Capture the position actually left at activation, before React opens the preview.
+  await previewToggle.evaluate((button) => {
+    button.addEventListener(
+      "click",
+      () => {
+        const scroller = document.querySelector<HTMLElement>(".editor-scroll");
+        if (!scroller) throw new Error("Expected a mounted editor scroller");
+        button.setAttribute("data-test-scroll-at-open", String(scroller.scrollTop));
+      },
+      { capture: true, once: true },
+    );
+  });
+  await previewToggle.click();
+  const scrollTop = Number(await previewToggle.getAttribute("data-test-scroll-at-open"));
+  expect(scrollTop).toBeGreaterThan(0);
   const root = page.locator(".print-document");
   await expect(root).toHaveAttribute("data-book-ready", "true", { timeout: 60_000 });
   const sheets = root.locator(".pagedjs_page");
