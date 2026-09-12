@@ -38,12 +38,8 @@ async function dragPlaceToPointer({
 }) {
   const before = await node.boundingBox();
   if (!before) throw new Error("The dragged place has no screen geometry.");
-  const start = {
-    x: before.x + before.width * grab.u,
-    y: before.y + before.height * grab.v,
-  };
-
-  await page.mouse.move(start.x, start.y);
+  // Wait for the card itself to settle and receive the pointer before starting the drag.
+  await node.hover({ position: { x: before.width * grab.u, y: before.height * grab.v } });
   await page.mouse.down();
   await page.mouse.move(target.x, target.y, { steps: 12 });
 
