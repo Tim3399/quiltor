@@ -10,14 +10,14 @@
 .timeline-calendar-date > legend {
   padding: 0 var(--space-4);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font: var(--font-field-label);
 }
 .calendar-coordinate-field {
   min-width: 0;
   display: grid;
   gap: var(--space-4);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-legacy-compact);
 }
 .calendar-coordinate-control {
   width: 100%;
@@ -51,14 +51,14 @@
   grid-column: 1 / -1;
   margin: 0;
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 .timeline-relative-position > .timeline-relative-field {
   min-width: 0;
   display: grid;
   gap: var(--space-4);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-legacy-compact);
 }
 .timeline-relative-control {
   width: 100%;

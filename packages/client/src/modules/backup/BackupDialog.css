@@ -50,7 +50,7 @@
 }
 .backup-preview h3 {
   margin: var(--space-12) 0 var(--space-5);
-  font: 600 var(--font-size-6) var(--prose);
+  font: 600 var(--font-size-section-title) var(--prose);
 }
 .backup-preview p {
   color: var(--muted);

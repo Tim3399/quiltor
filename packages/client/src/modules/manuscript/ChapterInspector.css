@@ -29,7 +29,7 @@
 
 .chapter-inspector__stats dt {
   color: var(--muted);
-  font: var(--font-size-3) var(--prose);
+  font: var(--font-size-label-compact) var(--prose);
   font-variant: small-caps;
   letter-spacing: 0.05em;
   text-transform: lowercase;
@@ -37,7 +37,7 @@
 
 .chapter-inspector__stats dd {
   margin: 0;
-  font-size: var(--font-size-4);
+  font-size: var(--font-size-numeric);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
 }

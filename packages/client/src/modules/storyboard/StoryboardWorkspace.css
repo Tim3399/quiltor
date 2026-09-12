@@ -67,12 +67,12 @@
 
 .storyboard-library__heading strong {
   color: var(--ink);
-  font-size: var(--font-size-4);
+  font-size: var(--font-size-section-title-small);
 }
 
 .storyboard-library__heading small {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata);
   line-height: 1.35;
 }
 
@@ -82,7 +82,7 @@
 }
 
 .storyboard-library__heading--section strong {
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-section-title-compact);
 }
 
 .storyboard-search-results {
@@ -128,7 +128,7 @@
 .storyboard-search-result__copy small,
 .storyboard-search-empty {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 
 .storyboard-search-result__grip {

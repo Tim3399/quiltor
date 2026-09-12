@@ -13,7 +13,7 @@
 .place-map-scale-control__per {
   padding-bottom: var(--spacing-compact-tight);
   color: var(--text-muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-numeric-legacy-compact);
 }
 
 .place-map-scale-control__unit {

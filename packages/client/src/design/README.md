@@ -3,6 +3,9 @@
 Dieser Ordner ist die verbindliche Quelle für Quiltors wiederverwendbare visuelle Sprache,
 UI-Komponenten und deren Qualitätsvertrag.
 
+Produktidentität: [`DESIGN.md`](../../../../DESIGN.md). Übergreifende Qualitätsregeln:
+[`Frontend Styleguide`](../../../../docs/design/FRONTEND_STYLEGUIDE.md).
+
 ## Öffentliche Einstiege
 
 Produktcode importiert React-APIs ausschließlich aus dem öffentlichen Barrel:
@@ -92,9 +95,36 @@ gelöscht; neue Einträge dürfen den Ratchet nicht als bequemen Ersatz für ein
 verwenden. Größen-, Border- oder Transform-Geometrie außerhalb von Layoutabständen bleibt weiterhin
 bei ihrem jeweils zuständigen Größenvertrag.
 
+## Typografie-Rollen
+
+Die numerische `--font-size-1..8`-Skala bleibt die Größenquelle in `tokens.css`.
+Öffentliche Owner und Produkt-CSS wählen daraus benannte Größenrollen für Seitentitel,
+Abschnittstitel, Arbeitsinhalt, Bedienung, Beschriftung, Metadaten und Zahlen. Der
+[Typografie-Audit](../../../../docs/design/typography-audit.md) begründet die Zuordnung.
+Arbeitsinhalte und Abschnittsüberschriften beginnen nach der geprüften Nacharbeit bei 12 px.
+
+`legacy-micro` und `legacy-compact` kennzeichnen bestehende 9-/10-px-Verwendungen,
+keine Empfehlung für neue Arbeitsinhalte. Für wiederkehrende Beziehungen stehen vollständige
+Schriftrezepte aus Gewicht, Größe, Zeilenhöhe und Familie bereit:
+
+| Rezept                 | Vertrag                  | Verwendung                               |
+| ---------------------- | ------------------------ | ---------------------------------------- |
+| `--font-work-body`     | 400 · 14 px / 1,55 · UI  | längere Assistentenvorschläge und Fragen |
+| `--font-code`          | 400 · 12 px / 1,5 · Mono | technische Listen und Protokolle         |
+| `--font-field-label`   | 500 · 12 px / 1,4 · UI   | Feld- und Bearbeitungslabels             |
+| `--font-section-label` | 600 · 12 px / 1,35 · UI  | Panelköpfe und kleine Abschnittstitel    |
+
+`--tracking-label` (0,04 em) und `--tracking-section-label` (0,06 em) ergänzen Labels und
+Abschnittstitel. Großschreibung wird beim Owner gewählt, damit eingegebene Namen ihre Schreibweise
+behalten. Kontextuelle Hervorhebung darf das Gewicht ändern. Seitentitel, Manuskriptsatz,
+Steuerelemente mit geerbter Schrift und kompakte Statusangaben behalten ihre optische Abstimmung.
+`--ui`, `--prose` und `--mono` benennen die Schriftstapel. Druck- und Zoomgeometrie bleibt beim Owner.
+`testing/typographyRoles.test.ts` prüft Rollenauflösung, Mindestlesegröße und semantische Größen in
+öffentlichen Komponenten; Galerie- und Produkttests prüfen die gerenderte Hierarchie und Umbruch.
+
 ## Öffentlicher Katalog
 
-Der öffentliche Barrel umfasst 34 vollständig colocated APIs. Ihre Architektur ist stabil; ihre
+Der öffentliche Barrel umfasst 35 vollständig colocated APIs. Ihre Architektur ist stabil; ihre
 visuellen Zustände werden zusätzlich durch die maschinenlesbare Auditmatrix unter
 `testing/gallery/auditProfiles.ts` geratet.
 
@@ -113,28 +143,29 @@ visuellen Zustände werden zusätzlich durch die maschinenlesbare Auditmatrix un
 
 ### Components
 
-| API                | Zweck                                                 |
-| ------------------ | ----------------------------------------------------- |
-| `AdaptivePanel`    | Responsiver Panel-Container für verfügbare Flächen    |
-| `Alert`            | Semantische Status- und Fehlermeldung                 |
-| `Chip`             | Kompaktes Label beziehungsweise filterbarer Zustand   |
-| `Dialog`           | Modaler Dialog mit Fokus- und Größenvertrag           |
-| `Disclosure`       | Ein- und ausklappbarer Inhaltsbereich                 |
-| `EmptyState`       | Konsistenter leerer Zustand mit optionaler Aktion     |
-| `ListboxSelect`    | Tastaturbedienbare Listbox-Auswahl                    |
-| `Menu`             | Menü, Eintrag, Separator, Unter- und Kontextmenü      |
-| `PageState`        | Seitenfüllender Loading-, Error- oder Empty-State     |
-| `Popover`          | Nicht modales, positioniertes Overlay                 |
-| `ProgressBar`      | Semantischer bestimmter oder unbestimmter Fortschritt |
-| `SaveStatus`       | Kompakter Speicher- und Synchronisationszustand       |
-| `ScrollArea`       | Semantikerhaltende, gestaltete Scrollfläche           |
-| `Sheet`            | Modale Seitenfläche mit Fokusvertrag                  |
-| `SidePanel`        | Binder-/Inspector-Fläche mit Default- und Fill-Breite |
-| `Tabs`             | Zugängliche Tab-Navigation und Panels                 |
-| `Toast`            | Flüchtige Statusmeldung und Toast-Region              |
-| `ToolbarButton`    | Einheitliche Toolbar-Aktion mit responsivem Label     |
-| `UndoRedoControls` | Gekoppelte Undo-/Redo-Aktionen                        |
-| `WorkspaceToolbar` | Struktur und Gruppierung eines Workspace-Kontexts     |
+| API                | Zweck                                                     |
+| ------------------ | --------------------------------------------------------- |
+| `AdaptivePanel`    | Responsiver Panel-Container für verfügbare Flächen        |
+| `Alert`            | Semantische Status- und Fehlermeldung                     |
+| `Chip`             | Kompaktes Label beziehungsweise filterbarer Zustand       |
+| `Dialog`           | Modaler Dialog mit Fokus- und Größenvertrag               |
+| `Disclosure`       | Ein- und ausklappbarer Inhaltsbereich                     |
+| `EmptyState`       | Konsistenter leerer Zustand mit optionaler Aktion         |
+| `ListboxSelect`    | Tastaturbedienbare Listbox-Auswahl                        |
+| `Menu`             | Menü, Eintrag, Separator, Unter- und Kontextmenü          |
+| `PageState`        | Seitenfüllender Loading-, Error- oder Empty-State         |
+| `Popover`          | Nicht modales, positioniertes Overlay                     |
+| `ProgressBar`      | Semantischer bestimmter oder unbestimmter Fortschritt     |
+| `SaveStatus`       | Kompakter Speicher- und Synchronisationszustand           |
+| `ScrollArea`       | Semantikerhaltende, gestaltete Scrollfläche               |
+| `Sheet`            | Modale Seitenfläche mit Fokusvertrag                      |
+| `SidePanel`        | Binder-/Inspector-Fläche mit Default- und Fill-Breite     |
+| `StatusBar`        | Gemeinsame Statuszeile für Arbeitskontext und Rückmeldung |
+| `Tabs`             | Zugängliche Tab-Navigation und Panels                     |
+| `Toast`            | Flüchtige Statusmeldung und Toast-Region                  |
+| `ToolbarButton`    | Einheitliche Toolbar-Aktion mit responsivem Label         |
+| `UndoRedoControls` | Gekoppelte Undo-/Redo-Aktionen                            |
+| `WorkspaceToolbar` | Struktur und Gruppierung eines Workspace-Kontexts         |
 
 ### Patterns
 
@@ -179,7 +210,7 @@ Variante, wird sie zuerst als typisierte Design-API modelliert.
 Im produktiven TSX gelten absolute Nullverbote für rohe `button`-, `input`-, `select`- und
 `textarea`-Controls sowie für retired Recipe-Klassen. Produkt-CSS darf weder native Control-Typen
 selektieren noch colocated Design-Owner-Klassen überschreiben. Ein explizites Manifest schützt die
-Owner aller 34 Folder inklusive BEM-Elementen, Modifiern und Portal-/Listen-Unterowner. Diese Regeln
+Owner aller 35 Folder inklusive BEM-Elementen, Modifiern und Portal-/Listen-Unterowner. Diese Regeln
 besitzen keine produktive Ausnahme- oder Übergangsschicht.
 
 ## Menü- und Auswahlvertrag
@@ -270,7 +301,7 @@ frühere Aussage „alle Gallery-Tests sind grün“.
 
 Historischer Architektur-Nachweis vom 25. August 2026:
 
-- 34 öffentliche Ordner mit jeweils fünf Contract-Dateien, also 170 colocated Vertragsdateien;
+- damals 34 öffentliche Ordner mit jeweils fünf Contract-Dateien, also 170 colocated Vertragsdateien;
 - 132 Vitest-Dateien mit 547 bestandenen Tests;
 - 24 von 24 bestandene Gallery-Browserverträge über Desktop, Intermediate, Compact und Touch,
   jeweils in Light und Dark inklusive Axe und Overflow;

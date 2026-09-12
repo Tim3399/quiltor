@@ -19,7 +19,7 @@
   align-items: center;
   gap: var(--space-6);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-numeric-legacy-compact);
 }
 
 .places-scale-value {

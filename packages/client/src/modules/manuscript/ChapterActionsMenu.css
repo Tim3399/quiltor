@@ -20,7 +20,7 @@
 
 .binder-chapter-menu-header > span {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-label-legacy-micro);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -29,7 +29,7 @@
 .binder-chapter-menu-header > strong {
   overflow: hidden;
   font-family: var(--prose);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

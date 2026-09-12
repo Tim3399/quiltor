@@ -33,7 +33,7 @@
 .ui-sheet__header h2 {
   min-width: 0;
   margin: 0;
-  font: 600 var(--font-size-6) var(--prose);
+  font: 600 var(--font-size-section-title) var(--prose);
   overflow-wrap: anywhere;
 }
 
@@ -67,7 +67,7 @@
 
 .utility-sheet > header h2 {
   margin: 0;
-  font: 600 var(--font-size-6) var(--prose);
+  font: 600 var(--font-size-section-title) var(--prose);
 }
 
 .utility-sheet-content {

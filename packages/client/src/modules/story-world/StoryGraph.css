@@ -57,7 +57,7 @@
   background: var(--warning-bg);
   box-shadow: var(--elevation-3) var(--warning-shadow);
   color: var(--warning-text);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
 }
 .mode-banner svg {
   width: 15px;
@@ -111,7 +111,7 @@
   display: block;
   margin-bottom: var(--space-5);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-label-legacy-micro);
   text-transform: uppercase;
   letter-spacing: 0.11em;
 }
@@ -124,7 +124,7 @@
   align-items: center;
   gap: var(--space-6);
   overflow: hidden;
-  font: 600 var(--font-size-5) var(--prose);
+  font: 600 var(--font-size-body-emphasis) var(--prose);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -137,7 +137,7 @@
   overflow: hidden;
   margin-top: var(--space-4);
   color: var(--soft);
-  font: 400 var(--font-size-3) / 1.3 var(--prose);
+  font: 400 var(--font-size-metadata) / 1.3 var(--prose);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -152,7 +152,7 @@
   stroke-width: 1.3;
 }
 .react-flow__edge-text {
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-body-compact);
 }
 .story-node.is-important {
   width: 240px;
@@ -204,7 +204,7 @@
   display: grid;
   place-items: center;
   color: var(--paper);
-  font: 700 var(--font-size-3) var(--ui);
+  font: 700 var(--font-size-label-compact) var(--ui);
   line-height: 1;
 }
 .story-node.zoom-overview:not(.is-important) .node-kind,
@@ -228,7 +228,7 @@
   display: none;
 }
 .story-node.zoom-overview.is-important strong {
-  font: 600 var(--font-size-3) var(--ui);
+  font: 600 var(--font-size-body-compact) var(--ui);
 }
 .story-node.zoom-overview .node-guests {
   display: none;
@@ -250,7 +250,7 @@
   }
 
   .story-node.zoom-overview .node-monogram {
-    font-size: var(--font-size-5);
+    font-size: var(--font-size-label-emphasis);
   }
 
   .story-node.zoom-overview.is-important {

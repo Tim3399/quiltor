@@ -144,7 +144,7 @@
 }
 .binder-folder-name {
   overflow: hidden;
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -155,7 +155,7 @@
   border-radius: var(--radius-pill);
   background: var(--active-surface);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-numeric-legacy-compact);
   font-variant-numeric: tabular-nums;
   line-height: 1.4;
   text-align: center;
@@ -238,7 +238,7 @@
   margin: 0;
   padding-inline: var(--space-20) var(--space-8);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
   font-style: italic;
 }
 .binder-folder-empty::before {
@@ -264,7 +264,7 @@
   border: 1px dashed var(--transparent);
   border-radius: var(--radius-sm);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-legacy-compact);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--motion-fast) var(--ease-standard);

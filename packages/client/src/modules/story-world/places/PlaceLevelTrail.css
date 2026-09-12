@@ -22,7 +22,7 @@
   border-radius: var(--radius-sm);
   background: var(--transparent);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-legacy-compact);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -59,7 +59,7 @@
   padding: 0 var(--space-8) 0 var(--space-6);
   border-left: 1px solid var(--line);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-numeric-legacy-micro);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

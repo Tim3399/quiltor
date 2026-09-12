@@ -6,7 +6,7 @@
   align-items: center;
   gap: var(--spacing-compact-tight);
   color: var(--muted);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-metadata);
 }
 
 .save-status-component__state {

@@ -8,12 +8,13 @@
 .assistant-chapter-picker {
   grid-column: 1 / -1;
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font: var(--font-field-label);
+  letter-spacing: var(--tracking-label);
 }
 .assistant-chapter-picker-trigger {
   justify-content: flex-start;
   padding-inline: var(--space-4);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-compact);
 }
 .assistant-chapter-picker-chevron {
   width: 12px;
@@ -31,7 +32,7 @@
 .assistant-chapter-option {
   padding: var(--space-4) var(--space-2);
   color: var(--soft);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-compact);
 }
 .assistant-chapter-reset {
   width: 100%;
@@ -51,7 +52,7 @@
   align-items: center;
   gap: var(--space-5);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata);
 }
 .assistant-drawer > footer > small svg {
   width: 11px;

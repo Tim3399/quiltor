@@ -33,7 +33,7 @@
 .print-preview__page-status {
   min-width: 86px;
   color: var(--muted);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-numeric-compact);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }

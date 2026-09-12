@@ -4,7 +4,7 @@
   gap: var(--space-6);
   margin-bottom: var(--space-10);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-label-legacy-micro);
 }
 
 .chapter-version-diff__legend > span {
@@ -44,5 +44,5 @@
 .chapter-version-diff__status {
   margin: 0 0 var(--space-10);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata-legacy-micro);
 }

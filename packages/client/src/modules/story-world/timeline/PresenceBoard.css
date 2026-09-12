@@ -36,7 +36,7 @@
 }
 .presence-chip small {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata-legacy-micro);
 }
 .presence-board-lanes {
   display: grid;
@@ -67,7 +67,7 @@
 }
 .presence-lane-heading {
   display: block;
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-section-title-compact);
   font-weight: 600;
   color: var(--soft);
   margin-bottom: var(--space-6);
@@ -82,12 +82,12 @@
   border: 1px solid var(--graph-card-kind-color, var(--line));
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--graph-card-kind-surface, var(--panel)) 28%, var(--panel));
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
   color: var(--soft);
 }
 .presence-lane-empty {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 @media (max-width: 640px) {
   .presence-board-lanes {

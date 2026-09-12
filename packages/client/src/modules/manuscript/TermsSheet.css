@@ -9,7 +9,7 @@
 
 .terms-sheet > p {
   margin: 0;
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
 }
 
 .add-term {

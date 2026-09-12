@@ -43,14 +43,14 @@
 
 .design-gallery__header p {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-label-legacy-compact);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .design-gallery__header h1 {
-  font: 600 var(--font-size-8) var(--prose);
+  font: 600 var(--font-size-page-title) var(--prose);
 }
 
 .design-gallery__header nav {
@@ -77,7 +77,7 @@
 
 .design-gallery__group h2 {
   margin-bottom: var(--space-12);
-  font-size: var(--font-size-5);
+  font-size: var(--font-size-section-title-medium);
 }
 
 .design-gallery__stories {
@@ -107,7 +107,7 @@
 .design-gallery__stories code {
   overflow: hidden;
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
   text-overflow: ellipsis;
 }
 

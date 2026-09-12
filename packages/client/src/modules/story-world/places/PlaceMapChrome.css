@@ -59,14 +59,14 @@
 }
 
 .place-map-chrome__name {
-  font: 600 var(--font-size-5) / 1.1 var(--prose);
+  font: 600 var(--font-size-body-emphasis) / 1.1 var(--prose);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .place-map-chrome__context {
   color: var(--text-muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 
 .place-map-chrome__actions {
@@ -79,7 +79,7 @@
 .place-map-chrome__crop-zoom {
   padding-inline: var(--spacing-compact-tight);
   color: var(--text-muted);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -109,7 +109,7 @@
 .place-map-chrome__label {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-label-legacy-micro);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-overflow: ellipsis;
@@ -124,7 +124,7 @@
   align-items: center;
   overflow: hidden;
   margin: 0;
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-numeric-compact);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -157,7 +157,7 @@
 .place-map-chrome__scale-distance {
   max-width: 100%;
   overflow: hidden;
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-numeric-legacy-compact);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;

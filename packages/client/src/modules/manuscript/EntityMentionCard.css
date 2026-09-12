@@ -24,7 +24,7 @@
 .entity-mention-card__kind {
   grid-column: 1;
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-label-legacy-micro);
   font-weight: 650;
   letter-spacing: 0.11em;
   text-transform: uppercase;
@@ -36,7 +36,7 @@
   overflow: hidden;
   color: var(--ink);
   font-family: var(--prose);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -46,7 +46,7 @@
   grid-column: 1;
   margin-top: var(--space-2);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 
 /* Beside the words rather than under them: the card is read left to right and

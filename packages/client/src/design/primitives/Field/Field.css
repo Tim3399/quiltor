@@ -5,7 +5,9 @@
 }
 .ui-field__label {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font: var(--font-field-label);
+  letter-spacing: var(--tracking-label);
+  overflow-wrap: anywhere;
   text-transform: uppercase;
 }
 .ui-field__header,
@@ -15,6 +17,7 @@
   align-items: center;
 }
 .ui-field__header {
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--spacing-compact-base);
 }
@@ -23,10 +26,13 @@
   gap: var(--spacing-optical-wide);
 }
 .ui-field__description,
-.ui-field__hint,
+.ui-field__hint {
+  margin: 0;
+  font-size: var(--font-size-metadata);
+}
 .ui-field__error {
   margin: 0;
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
 }
 .ui-field__description,
 .ui-field__hint {
@@ -78,5 +84,5 @@
   min-height: var(--space-88);
   resize: vertical;
   font-family: var(--prose);
-  font-size: var(--font-size-4);
+  font-size: var(--font-size-control);
 }

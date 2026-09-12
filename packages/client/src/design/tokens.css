@@ -2,6 +2,7 @@
   /* font stacks + structural sizing, moved from styles.css */
   --ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --prose: "EB Garamond", "Iowan Old Style", Georgia, serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   /* The bars carry one row each: brand and tabs above, title and tools below. 54/52 date
      from the time when the context bar carried the counts as well. */
   --bar: 44px;
@@ -155,6 +156,55 @@
   --font-size-prose-heading-1: 1.35em;
   --font-size-prose-heading-2: 1.2em;
   --font-size-prose-heading-3: 1.08em;
+
+  /* Semantic type-size roles. Numeric sizes remain the source of truth; role owners choose by
+     meaning. Legacy variants are reserved for secondary metadata, badges and dense controls.
+     Reading content and section headings start at the compact 12px tier. */
+  --font-size-page-title-compact: var(--font-size-7);
+  --font-size-page-title: var(--font-size-8);
+
+  --font-size-section-title-compact: var(--font-size-3);
+  --font-size-section-title-small: var(--font-size-4);
+  --font-size-section-title-medium: var(--font-size-5);
+  --font-size-section-title: var(--font-size-6);
+  --font-size-section-title-large: var(--font-size-7);
+
+  --font-size-body-compact: var(--font-size-3);
+  --font-size-body: var(--font-size-4);
+  --font-size-body-emphasis: var(--font-size-5);
+  --font-size-body-reading: var(--font-size-6);
+
+  /* Complete recipes for recurring reading and form relationships. Contextual page titles,
+     manuscript prose and compact status items keep their own size roles and optical treatment. */
+  --font-work-body: 400 var(--font-size-body) / 1.55 var(--ui);
+  --font-code: 400 var(--font-size-body-compact) / 1.5 var(--mono);
+  --font-field-label: 500 var(--font-size-label-compact) / 1.4 var(--ui);
+  --font-section-label: 600 var(--font-size-section-title-compact) / 1.35 var(--ui);
+  --tracking-label: 0.04em;
+  --tracking-section-label: 0.06em;
+
+  --font-size-control-legacy-micro: var(--font-size-1);
+  --font-size-control-legacy-compact: var(--font-size-2);
+  --font-size-control-compact: var(--font-size-3);
+  --font-size-control: var(--font-size-4);
+
+  --font-size-label-legacy-micro: var(--font-size-1);
+  --font-size-label-legacy-compact: var(--font-size-2);
+  --font-size-label-compact: var(--font-size-3);
+  --font-size-label: var(--font-size-4);
+  --font-size-label-emphasis: var(--font-size-5);
+  --font-size-label-large: var(--font-size-6);
+  --font-size-label-display: var(--font-size-7);
+  --font-size-label-hero: var(--font-size-8);
+
+  --font-size-metadata-legacy-micro: var(--font-size-1);
+  --font-size-metadata-legacy-compact: var(--font-size-2);
+  --font-size-metadata: var(--font-size-3);
+
+  --font-size-numeric-legacy-micro: var(--font-size-1);
+  --font-size-numeric-legacy-compact: var(--font-size-2);
+  --font-size-numeric-compact: var(--font-size-3);
+  --font-size-numeric: var(--font-size-4);
 
   /* elevation — shape-only tokens; compose with the *-shadow color tokens from colors.css */
   --ring-1: 0 0 0 1px;

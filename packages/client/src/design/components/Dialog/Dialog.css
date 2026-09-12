@@ -51,7 +51,7 @@
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
-  font: 600 var(--font-size-6) var(--prose);
+  font: 600 var(--font-size-section-title) var(--prose);
 }
 
 .ui-dialog__close {

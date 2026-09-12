@@ -31,7 +31,7 @@
 }
 .state-change-mode-row > span {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font: var(--font-field-label);
 }
 .state-change-mode {
   display: flex;
@@ -97,12 +97,12 @@
 }
 .timeline-manager-section h2 {
   margin: 0;
-  font: 600 var(--font-size-6) var(--prose);
+  font: 600 var(--font-size-section-title) var(--prose);
 }
 .timeline-manager-section header p {
   margin: var(--space-3) 0 0;
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 .section-count {
   min-width: 27px;
@@ -112,7 +112,7 @@
   border-radius: var(--radius-pill);
   background: var(--accent-primary-soft);
   color: var(--accent-primary-text);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-numeric-compact);
   font-weight: 700;
 }
 .timeline-section-chevron {
@@ -185,7 +185,7 @@
 .change-badge {
   width: max-content;
   color: var(--accent-primary-text);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-label-legacy-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -214,7 +214,7 @@
 }
 .state-change-inspector > header span {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata-legacy-micro);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
@@ -222,7 +222,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 600 var(--font-size-5) var(--prose);
+  font: 600 var(--font-size-body-emphasis) var(--prose);
 }
 .state-change-inspector-body {
   min-height: 0;
@@ -276,7 +276,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--muted);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
   line-height: 1.5;
 }
 .life-event-board {
@@ -303,7 +303,7 @@
 }
 .life-event-roster small {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata-legacy-micro);
 }
 .life-event-person-copy {
   display: flex;
@@ -338,7 +338,7 @@
   overflow-wrap: break-word;
 }
 .death-dropzone small {
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-legacy-compact);
 }
 .life-change-list {
   display: flex;
@@ -372,7 +372,7 @@
 }
 .life-change-list small {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata-legacy-micro);
 }
 .timeline-section-empty {
   grid-column: 1 / -1;
