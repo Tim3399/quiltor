@@ -161,6 +161,7 @@ test("Print preview preserves editor position and shares physical pages with the
   await expect
     .poll(() => page.locator(".editor-scroll").evaluate((element) => element.scrollTop))
     .toBeCloseTo(scrollTop, 0);
+  await expect(editor).toBeFocused();
   await page.keyboard.type("@");
   await expect.poll(() => editor.textContent()).toContain("Star@tpunkt");
   expect(errors).toEqual([]);
