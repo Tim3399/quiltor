@@ -23,6 +23,30 @@ Wenn kein passendes Desktop-Paket vorliegt, beschreibt der
 Diese Anleitung verspricht keine Store-, Mobil- oder Linux-Desktop-Ausgabe.
 Bei einer gehosteten Webseite liegen die Projektdaten auf deren Server.
 
+## Ein Projekt mit der Cloud abgleichen
+
+Wenn ein kompatibles Cloud-Ziel eingerichtet ist, öffne in deinem Projekt
+**Mehr → Cloud-Synchronisation**. Melde dich bei Bedarf beim Ziel an und wähle anschließend
+**Status aktualisieren**. **Jetzt synchronisieren** startet einen einzelnen Abgleich.
+Im Hintergrund werden keine Änderungen automatisch übertragen.
+
+Auf einem weiteren Gerät kannst du ein vorhandenes Cloud-Projekt über die Wiederherstellung
+aus dem Backup-Dienst öffnen. Beim ersten Abgleich prüfst du beide Fassungen und wählst
+ausdrücklich aus, welche übernommen werden soll. Dasselbe gilt, wenn sich beide Gerätefassungen
+geändert haben, etwa wenn auf einem Gerät ein Kapitel gelöscht und auf dem anderen offline
+weiterbearbeitet wurde. Frühere Stände bleiben als Sicherungen erhalten. Nach Übernahme einer
+Cloud-Fassung fordert Quiltor zum Neuladen auf.
+
+Der Dialog zeigt den letzten bestätigten Abgleich und das gemeldete Speicherkontingent.
+Ein nur lesbares Konto erlaubt weiter den Abruf vorhandener Cloud-Stände. Einen angezeigten
+Löschtermin solltest du nutzen, um benötigte Cloud-Kopien vorher lokal zu sichern. Verbindliche
+Fristen und Leistungen legt der Betreiber fest. Das lokale Schreiben, der Papierkorb und
+der Projektexport bleiben auch ohne Cloud-Zugang verfügbar.
+
+Kapitelpapierkorb und zurückgestellte Kapitel werden mit übertragen. Das Löschen eines
+ganzen lokalen Projekts löscht keine Cloud-Sicherungen. Mehrere Texte werden nicht automatisch
+zusammengeführt; prüfe vor der Auswahl den vollständigen Projektstand.
+
 ## Mit einer Aufgabe beginnen
 
 | Aufgabe                     | Einstieg                                                                                                                                                                                                                         |

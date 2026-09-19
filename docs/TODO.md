@@ -7,6 +7,9 @@ The owner-requested safety and workflow delivery was completed on 2026-09-19 in 
 [competition findings sprint plan](plans/competition-findings-sprints.md). That plan
 maps all 54 QF-01–QF-09 requirements to bounded tasks and records verification,
 including the explicitly closed release gates for an unoffered managed cloud service.
+The subsequently authorized [integration and cloud delivery](plans/cloud-integration-sprints.md)
+adds manual synchronization with explicit conflict resolution and configurable server policy.
+Its verification and original-workspace handoff are tracked separately from commercial launch.
 
 ---
 

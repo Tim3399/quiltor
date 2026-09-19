@@ -797,6 +797,16 @@ class SnapshotStore:
             return "backup.transfer_status_failed"
         return None
 
+    def upload(
+        self,
+        ctx: BackupContext,
+        entry: dict[str, Any],
+        authorization: BackupAuthorization,
+    ) -> str | None:
+        """Upload an already durable local snapshot without holding a save lock."""
+
+        return self._push(ctx, entry, authorization, snapshot_created=False)
+
     def history(self, ctx: BackupContext, limit: int = 40) -> list[dict[str, str]]:
         entries = self.entries(ctx)[-limit:]
         return [

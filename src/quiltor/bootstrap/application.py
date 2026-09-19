@@ -17,6 +17,7 @@ from quiltor.application.history import HistoryUseCases
 from quiltor.application.place_maps import PlaceMapUseCases
 from quiltor.application.project_transfer import ProjectTransferUseCases
 from quiltor.application.story_world import StoryWorldReadTools, StoryWorldUseCases
+from quiltor.application.synchronization import SynchronizationUseCases
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.application.worlds import WorldUseCases
 from quiltor.infrastructure.backup import SnapshotStore
@@ -26,6 +27,7 @@ from quiltor.infrastructure.backup.adapters import (
 )
 from quiltor.infrastructure.backup.authorization import EndpointBoundBackupAuthorizer
 from quiltor.infrastructure.backup.login import BackupLoginRuntime
+from quiltor.infrastructure.backup.sync_state import JsonSyncStateStore
 from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
 from quiltor.infrastructure.identity import (
     InMemoryRenderTokenStore,
@@ -101,6 +103,7 @@ class ApplicationServices:
     history: HistoryUseCases
     assistant: AssistantAuditUseCases
     story_world: StoryWorldUseCases
+    synchronization: SynchronizationUseCases
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +154,13 @@ def build_application_services(
         ),
     )
     history = SnapshotStore(lambda: worlds.data_directory / "history", remote_backups)
+    synchronization = SynchronizationUseCases(
+        worlds,
+        documents,
+        history,
+        remote_backups,
+        JsonSyncStateStore(lambda: worlds.data_directory / "synchronization"),
+    )
     return ApplicationServices(
         worlds=WorldUseCases(worlds, observer),
         documents=DocumentUseCases(documents, local_backups, observer),
@@ -170,6 +180,7 @@ def build_application_services(
         history=HistoryUseCases(history, local_backups.safe_name),
         assistant=AssistantAuditUseCases(worlds, documents),
         story_world=StoryWorldUseCases(),
+        synchronization=synchronization,
     )
 
 

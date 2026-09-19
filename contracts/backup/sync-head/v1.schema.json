@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/backup/sync-head/v1.schema.json",
+  "title": "Quiltor remote synchronization head v1",
+  "type": "object",
+  "required": ["generation", "snapshotId"],
+  "additionalProperties": false,
+  "properties": {
+    "generation": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "snapshotId": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+  },
+  "oneOf": [
+    { "properties": { "generation": { "const": 0 }, "snapshotId": { "type": "null" } } },
+    {
+      "properties": {
+        "generation": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "snapshotId": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  ]
+}

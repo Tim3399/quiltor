@@ -2,6 +2,7 @@ import {
   ArchiveRestore,
   ArrowLeft,
   DatabaseBackup,
+  Cloud,
   Download,
   HelpCircle,
   History,
@@ -72,6 +73,7 @@ export function AppShell({
   onHistory,
   onSnapshot,
   onBackups,
+  onCloud,
   onExportProject,
   onGettingStarted,
   onAssistant,
@@ -100,6 +102,7 @@ export function AppShell({
   onHistory: () => void;
   onSnapshot: () => void;
   onBackups: () => void;
+  onCloud?: () => void;
   onExportProject?: () => void;
   onGettingStarted?: () => void;
   onAssistant: () => void;
@@ -209,6 +212,7 @@ export function AppShell({
               />
             )}
             <MenuItem icon={<DatabaseBackup />} label={t("backups")} onSelect={onBackups} />
+            {onCloud && <MenuItem icon={<Cloud />} label={t("cloudTitle")} onSelect={onCloud} />}
             {onExportProject && (
               <MenuItem
                 icon={<Download />}

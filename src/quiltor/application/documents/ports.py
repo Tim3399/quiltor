@@ -41,6 +41,8 @@ class DocumentRepository(Protocol):
 
     def revision(self, kind: DocumentKind, database: Path) -> int: ...
 
+    def image_digests(self, database: Path) -> list[str]: ...
+
     def save(
         self,
         kind: DocumentKind,

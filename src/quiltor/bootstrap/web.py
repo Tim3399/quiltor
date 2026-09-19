@@ -100,6 +100,13 @@ class BackupRouteServices:
 
 
 @dataclass(frozen=True, slots=True)
+class SynchronizationRouteServices:
+    synchronization: Any
+    lock: threading.Lock
+    backup_authorization: Callable[[str, SessionData | None], BackupAuthorization]
+
+
+@dataclass(frozen=True, slots=True)
 class PlaceMapRouteServices:
     place_maps: Any
     lock: threading.Lock
@@ -225,6 +232,12 @@ class WebApplication:
                 self.assistant_installation,
                 self.lock,
             )
+        if path.startswith("/api/sync"):
+            return SynchronizationRouteServices(
+                self.application.synchronization,
+                self.lock,
+                self.backup_authorization,
+            )
         if path.startswith("/api/backup") or path == "/backup/callback":
             return BackupRouteServices(
                 self.application.backups,
@@ -348,6 +361,7 @@ __all__ = [
     "DocumentRouteServices",
     "IdentityRouteServices",
     "ProjectTransferRouteServices",
+    "SynchronizationRouteServices",
     "WebApplication",
     "WebWorldContext",
     "WorldRouteServices",

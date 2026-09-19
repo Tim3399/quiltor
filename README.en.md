@@ -157,9 +157,12 @@ history are explicitly excluded; use the backup and history tools to restore tho
 Ordinary book export contains only chapters included in the book.
 
 A successful local save, a recoverable snapshot, and a transfer to a backup server are
-separate operations. Remote backup transfers explicitly created snapshots; automatic
-multi-device synchronization and merging are not currently offered. An unreachable backup
-endpoint does not lock the local editor.
+separate operations. **More → Cloud synchronization → Sync now** synchronizes a project
+with a compatible endpoint on demand. Concurrent changes and deletion versus offline edits
+retain both versions and require an explicit choice. Background transfers and automatic text
+merging are not implemented. An unreachable endpoint does not lock the local editor.
+See the [cloud service guide](services/backup-server/README.md) for configuration and
+operating limits.
 
 A paid managed cloud offer with a price, quota, and retention period has not been defined.
 There is consequently no promise here about cancellation terms, end-to-end encryption,

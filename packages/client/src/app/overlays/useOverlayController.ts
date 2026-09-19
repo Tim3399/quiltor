@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-export type Overlay = "palette" | "history" | "snapshot" | "backups" | null;
+export type Overlay = "palette" | "history" | "snapshot" | "backups" | "cloud" | null;
 
 export function useOverlayController() {
   const [overlay, setOverlay] = useState<Overlay>(null);

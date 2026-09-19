@@ -3,6 +3,7 @@ import { ConfirmDialog } from "../../design";
 import { useI18n } from "../../i18n";
 import { applyAssistantProposalsWithResult, loadAssistantDrawer } from "../../modules/assistant";
 import { loadBackupDialog } from "../../modules/backup";
+import { loadCloudDialog } from "../../modules/cloud";
 import { loadHistoryDialog, loadSnapshotDialog } from "../../modules/history";
 import {
   isChapterInBook,
@@ -21,6 +22,7 @@ const SearchDialog = lazy(loadSearchDialog);
 const SnapshotDialog = lazy(loadSnapshotDialog);
 const HistoryDialog = lazy(loadHistoryDialog);
 const BackupDialog = lazy(loadBackupDialog);
+const CloudDialog = lazy(loadCloudDialog);
 
 export type PendingEntityRename = {
   id: string;
@@ -124,6 +126,9 @@ export function OverlayHost({
       {overlay === "snapshot" && <SnapshotDialog onClose={onCloseOverlay} flush={flushAll} />}
       {overlay === "history" && <HistoryDialog onClose={onCloseOverlay} flush={flushAll} />}
       {overlay === "backups" && <BackupDialog onClose={onCloseOverlay} flush={flushAll} />}
+      {overlay === "cloud" && (
+        <CloudDialog onClose={onCloseOverlay} flush={flushAll} manuscript={manuscript} />
+      )}
       {pendingRename && (
         <ConfirmDialog
           title={t("updateEntityMentions")}
