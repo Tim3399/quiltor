@@ -446,3 +446,12 @@ engineering acceptance required before a future offer.
 
 The work remains on isolated branch `feature/qf-sprints`; unrelated working trees, version
 numbers and release/deployment state are unchanged.
+
+### Subsequent owner-authorized extension
+
+The statements above record the initial local delivery at `e3144dc`. The owner subsequently
+requested integration into the original workspace and cloud functionality. The separate
+[integration and cloud ledger](cloud-integration-sprints.md) records that extension,
+including manual synchronization and the now-exercised offline delete/edit conflict.
+The updated price concept is EUR 2.50 net; commercial terms and public deployment remain
+separate decisions. The acceptance matrix reflects the later technical capability.

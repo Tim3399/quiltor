@@ -96,6 +96,7 @@ def load() -> None:
         identity,
         place_maps,
         project_transfer,
+        synchronization,
         worlds,
         writing_assistance,
     )

@@ -9,6 +9,7 @@ import type {
   MetadataGateway,
   PlaceMapsGateway,
   ProjectTransferGateway,
+  SynchronizationGateway,
   StoryboardsGateway,
   StoryWorldGateway,
   WorldsGateway,
@@ -29,6 +30,7 @@ export type ApplicationGatewayOverrides = {
   documents?: Partial<DocumentsGateway>;
   placeMaps?: Partial<PlaceMapsGateway>;
   projectTransfer?: Partial<ProjectTransferGateway>;
+  synchronization?: Partial<SynchronizationGateway>;
 };
 
 function notStubbed(method: string): Promise<never> {
@@ -138,6 +140,12 @@ export function createApplicationGatewayStub(
       preview: () => notStubbed("projectTransfer.preview"),
       importProject: () => notStubbed("projectTransfer.importProject"),
       ...overrides.projectTransfer,
+    },
+    synchronization: {
+      status: () => notStubbed("synchronization.status"),
+      preview: () => notStubbed("synchronization.preview"),
+      synchronize: () => notStubbed("synchronization.synchronize"),
+      ...overrides.synchronization,
     },
   };
 }

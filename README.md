@@ -159,9 +159,13 @@ sind ausdrücklich nicht enthalten; für deren Wiederherstellung gibt es die Sic
 und Verlaufsfunktionen. Der gewöhnliche Buchexport enthält nur Kapitel im Buch.
 
 Eine erfolgreiche lokale Speicherung, eine wiederherstellbare Sicherung und eine Übertragung
-an einen Backup-Server sind getrennte Vorgänge. Remote-Backup überträgt ausdrücklich angelegte
-Sicherungsstände; automatische Synchronisation und Zusammenführung mehrerer Geräte werden
-derzeit nicht angeboten. Ein ausgefallener Backup-Endpunkt sperrt den lokalen Editor nicht.
+an einen Backup-Server sind getrennte Vorgänge. Unter **Mehr → Cloud-Synchronisation**
+gleicht **Jetzt synchronisieren** ein Projekt mit einem kompatiblen Cloud-Endpunkt ab.
+Bei konkurrierenden Änderungen oder Löschung gegen Offline-Bearbeitung bleiben die Fassungen
+erhalten und erfordern eine ausdrückliche Auswahl. Es gibt keine automatische Übertragung
+im Hintergrund und keine automatische Textzusammenführung. Ein ausgefallener Cloud-Endpunkt
+sperrt den lokalen Editor nicht. Einrichtungen und Betriebsgrenzen beschreibt die
+[Anleitung zum Cloud-Dienst](services/backup-server/README.md).
 
 Ein kostenpflichtiges gehostetes Cloud-Angebot mit festem Preis, Kontingent und
 Aufbewahrungsfrist ist noch nicht festgelegt. Daher gibt es hier auch keine Zusage zu

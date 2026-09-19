@@ -13,6 +13,7 @@ import { createIdentityHttpGateway } from "./identity";
 import { createMetadataHttpGateway } from "./metadata";
 import { createPlaceMapsHttpGateway } from "./placeMaps";
 import { createProjectTransferHttpGateway } from "./projectTransfer";
+import { createSynchronizationHttpGateway } from "./synchronization";
 import { createHttpApplicationState } from "./request";
 import { createWorldsHttpGateway } from "./worlds";
 import { createWritingAssistanceHttpGateway } from "./writingAssistance";
@@ -34,5 +35,6 @@ export function createHttpApplicationGateway(platform: PlatformGateway): Applica
     documents: createDocumentsHttpGateway(state, platform),
     placeMaps: createPlaceMapsHttpGateway(state),
     projectTransfer: createProjectTransferHttpGateway(),
+    synchronization: createSynchronizationHttpGateway(state),
   };
 }

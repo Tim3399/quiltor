@@ -7,6 +7,7 @@ import type { ManuscriptGateway } from "./manuscript";
 import type { MetadataGateway } from "./metadata";
 import type { PlaceMapsGateway } from "./placeMaps";
 import type { ProjectTransferGateway } from "./projectTransfer";
+import type { SynchronizationGateway } from "./synchronization";
 import type { StoryboardsGateway } from "./storyboards";
 import type { StoryWorldGateway } from "./storyWorld";
 import type { WorldsGateway } from "./worlds";
@@ -27,6 +28,7 @@ export interface ApplicationGateway {
   readonly documents: DocumentsGateway;
   readonly placeMaps: PlaceMapsGateway;
   readonly projectTransfer: ProjectTransferGateway;
+  readonly synchronization: SynchronizationGateway;
 }
 
 export type { AssistantBatchRequest, AssistantGateway } from "./assistant";
@@ -44,6 +46,13 @@ export type {
   ProjectTransferPreview,
 } from "./projectTransfer";
 export type { StoryboardsGateway } from "./storyboards";
+export type {
+  CloudSyncAction,
+  CloudSyncPreview,
+  CloudSyncState,
+  CloudSyncStatus,
+  SynchronizationGateway,
+} from "./synchronization";
 export type { StoryWorldGateway } from "./storyWorld";
 export type { VersionedDocument, VersionedDocumentGateway } from "./versionedDocument";
 export type { WorldsGateway } from "./worlds";

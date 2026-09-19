@@ -422,6 +422,7 @@ export function App() {
             onHistory={() => overlays.open("history")}
             onSnapshot={() => overlays.open("snapshot")}
             onBackups={() => overlays.open("backups")}
+            onCloud={() => overlays.open("cloud")}
             onExportProject={() => setProjectExportOpen(true)}
             onGettingStarted={() => setGettingStartedOpen(true)}
             onAssistant={overlays.toggleAssistant}

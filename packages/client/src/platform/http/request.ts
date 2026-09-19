@@ -59,6 +59,12 @@ function localizedApplicationErrorMessage(category: ApplicationErrorCategory): s
 function localizedStructuredErrorMessage(code: string | undefined): string | undefined {
   const messages = currentMessages();
   if (code === "storage.read_only") return messages.errorStorageReadOnly;
+  if (code === "cloud.quota_exceeded") return messages.cloudQuotaExceeded;
+  if (code === "cloud.read_only") return messages.cloudReadOnly;
+  if (code === "cloud.account_expired") return messages.cloudAccountExpired;
+  if (code === "sync.recovery_required") return messages.cloudRecoveryRequired;
+  if (code === "sync.conflict" || code === "sync.stale_comparison")
+    return messages.cloudStaleComparison;
   if (code === "storage.full") return messages.errorStorageFull;
   if (code === "storage.locked") return messages.errorStorageLocked;
   if (code === "backup.preview_failed") return messages.errorBackupPreviewFailed;

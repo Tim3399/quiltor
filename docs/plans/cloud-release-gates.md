@@ -1,26 +1,30 @@
 # Optional cloud service: capability and release gates
 
 This is the QF-08/QF-09 acceptance boundary, not an announcement or a service offer.
+The subsequent owner-authorized [cloud implementation](cloud-integration-sprints.md)
+adds manual synchronization and configurable operator policy. Commercial launch remains separate.
 It distinguishes delivered local features, the existing remote-backup protocol and
 a future managed subscription. Check evidence is maintained in the
 [sprint ledger](competition-findings-sprints.md).
 
 ## Current product boundary
 
-| Capability                   | Current implementation                                                                      | Permitted public claim                                                                        |
-| ---------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Local writing                | Local SQLite worlds, no cloud account required                                              | No subscription is needed to write locally, within the published licence terms.               |
-| Save state                   | Document save acknowledgement and optimistic revisions                                      | Saved state describes the current host's successful save, not a remote backup or device sync. |
-| Local safety copies          | Automatic SQLite copies and explicit restore                                                | Local backups do not depend on remote login or a cloud subscription.                          |
-| Named history snapshots      | Local content-addressed history with optional upload                                        | An explicitly saved version can optionally be sent to a configured backup endpoint.           |
-| Remote backup                | Authenticated immutable blobs/manifests, download and restore                               | Optional remote backup; uploading a snapshot is not continuous multi-device synchronization.  |
-| Multi-device synchronization | Not implemented or offered                                                                  | Do not advertise automatic sync, conflict merging or device combinations.                     |
-| Managed subscription         | No confirmed offer in this delivery                                                         | Do not publish a price, checkout, allowance or retention promise.                             |
-| Encryption                   | The current snapshot manifest supports unencrypted content; HTTPS protects remote transport | Do not claim end-to-end encryption.                                                           |
-| Hosted web                   | Storage/processing belongs to the configured server                                         | Do not tell a hosted-web author that their browser stores everything locally.                 |
+| Capability                   | Current implementation                                                                      | Permitted public claim                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Local writing                | Local SQLite worlds, no cloud account required                                              | No subscription is needed to write locally, within the published licence terms.                 |
+| Save state                   | Document save acknowledgement and optimistic revisions                                      | Saved state describes the current host's successful save, not a remote backup or device sync.   |
+| Local safety copies          | Automatic SQLite copies and explicit restore                                                | Local backups do not depend on remote login or a cloud subscription.                            |
+| Named history snapshots      | Local content-addressed history with optional upload                                        | An explicitly saved version can optionally be sent to a configured backup endpoint.             |
+| Remote backup                | Authenticated immutable blobs/manifests, download and restore                               | Optional remote backup; uploading a snapshot is not continuous multi-device synchronization.    |
+| Multi-device synchronization | Manual snapshot/head synchronization with explicit conflict resolution                      | Describe synchronization on demand; do not advertise automatic background sync or text merging. |
+| Managed subscription         | No confirmed offer in this delivery                                                         | Do not publish a price, checkout, allowance or retention promise.                               |
+| Encryption                   | The current snapshot manifest supports unencrypted content; HTTPS protects remote transport | Do not claim end-to-end encryption.                                                             |
+| Hosted web                   | Storage/processing belongs to the configured server                                         | Do not tell a hosted-web author that their browser stores everything locally.                   |
 
-The suggested EUR 2.99 has no confirmed billing period or commercial specification.
-It is not a released price. The existing licence remains authoritative; this document
+The owner updated the concept to EUR 2.50 net, with marketplace charges still to be applied
+or absorbed according to a future decision. There is no confirmed billing period or commercial
+specification; see the [pricing research](cloud-pricing-concept.md). It is not a released price.
+The existing licence remains authoritative; this document
 does not change licence rights or create service obligations.
 
 ## Mandatory managed-backup launch decisions
@@ -56,8 +60,10 @@ remote-backup unit tests:
 4. Show last successful transfer, pending changes and conflicts independently of local save.
 5. Restore a retained snapshot after a synchronized deletion on every advertised host pair.
 
-Gate result for the current delivery: **sync launch closed because no sync service is
-offered**. This is a capability exclusion, not a claim that those five tests passed.
+The additional technical delivery exercises a real reference endpoint and independent device
+roots for manual synchronization. The [integration ledger](cloud-integration-sprints.md)
+records the actual tests and their limits. A publicly operated paid service is still not
+launched, and automatic background synchronization remains outside the delivered scope.
 
 ## Local independence regression contract
 

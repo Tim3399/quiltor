@@ -1,4 +1,56 @@
 export const tools = {
+  cloudTitle: "Cloud-Synchronisation",
+  cloudManualExplanation:
+    "Gleiche dieses Projekt bei Bedarf mit deinen anderen Geräten ab. Übertragungen beginnen erst mit „Jetzt synchronisieren“. Gesicherte Versionen bleiben unabhängig davon erhalten.",
+  cloudLocalIndependence:
+    "Schreiben, Papierkorb, Wiederherstellung und Projektexport bleiben ohne Cloud nutzbar.",
+  cloudUnconfigured: "Keine Cloud eingerichtet",
+  cloudUnlinked: "Dieses Gerät wurde noch nicht abgeglichen",
+  cloudUnlinkedHelp:
+    "In der Cloud liegt bereits eine Fassung dieses Projekts. Dieses Gerät hat noch keinen bestätigten gemeinsamen Stand. Prüfe beide Fassungen und wähle ausdrücklich, welche übernommen werden soll.",
+  cloudSynced: "Projektstand mit der Cloud abgeglichen",
+  cloudLocalPending: "Lokale Änderungen warten auf Übertragung",
+  cloudRemotePending: "Ein neuerer Cloud-Stand ist verfügbar",
+  cloudConflict: "Beide Gerätefassungen wurden geändert",
+  cloudRefresh: "Status aktualisieren",
+  cloudSyncNow: "Jetzt synchronisieren",
+  cloudWorking: "Cloud-Stand wird geprüft …",
+  cloudStateNotSaved:
+    "Die Übertragung ist bestätigt, aber ihr Status konnte lokal nicht vollständig gespeichert werden. Vor dem nächsten Abgleich kann eine erneute Statusprüfung oder ein Fassungsvergleich nötig sein.",
+  cloudErrorHelp:
+    "Dein lokaler Stand bleibt erhalten. Prüfe die Verbindung oder Anmeldung und aktualisiere anschließend den Status.",
+  cloudReloadRequired:
+    "Der Cloud-Stand wurde übernommen. Dein vorheriger lokaler Stand ist im Versionsverlauf gesichert. Lade Quiltor neu, bevor du weiterarbeitest.",
+  cloudRecoveryRequired:
+    "Die Übernahme wurde unterbrochen; der aktive Projektstand konnte nicht sicher bestätigt werden. Eine lokale Sicherheitskopie wurde vorher angelegt. Lade Quiltor neu und prüfe den Projektstand und den Versionsverlauf, bevor du weiterschreibst.",
+  cloudSetupHint:
+    "Für diese Funktion muss ein Cloud-Ziel eingerichtet sein. Du kannst Projekte jederzeit kostenlos über Export und Import übertragen.",
+  cloudLastSync: "Letzter bestätigter Abgleich",
+  cloudStorage: "Cloud-Speicher",
+  cloudUsedBytes: "{used} Bytes belegt",
+  cloudNoQuotaSpecified: "Keine Speichergrenze mitgeteilt",
+  cloudReadOnly:
+    "Dieses Cloud-Konto ist nur lesbar. Du kannst vorhandene Stände abrufen; neue Uploads sind gesperrt. Deine lokale Arbeit bleibt uneingeschränkt nutzbar.",
+  cloudDeletionDate:
+    "Die Cloud-Kopien sind ab {date} zur Löschung vorgesehen. Sichere benötigte Stände vorher lokal.",
+  cloudConflictHelp:
+    "Es gibt Änderungen auf beiden Seiten. Auch eine Löschung kann damit kollidieren. Prüfe die Fassungen und entscheide ausdrücklich, welcher vollständige Projektstand übernommen werden soll. Es findet keine automatische Textzusammenführung statt.",
+  cloudInspectRemote: "Cloud-Fassung zum Vergleich laden",
+  cloudLocalVersion: "Deine lokale Fassung",
+  cloudRemoteVersion: "Fassung in der Cloud",
+  cloudKeepLocal: "Lokale Fassung übernehmen",
+  cloudUseRemote: "Cloud-Fassung übernehmen",
+  cloudResolveConfirmation:
+    "Der gewählte vollständige Projektstand ersetzt die andere Arbeitsfassung. Die bisherigen Stände bleiben als Sicherungen erhalten. Änderungen seit diesem Vergleich verhindern die Übernahme.",
+  cloudConfirmResolution: "Diese Fassung übernehmen",
+  cloudSetAside: "Zurückgestellt",
+  cloudInTrash: "Im Papierkorb",
+  cloudQuotaExceeded:
+    "Der Cloud-Speicher ist voll. Dein lokaler Stand bleibt erhalten. Gib Cloud-Speicher frei oder lass das Kontingent erhöhen, bevor du erneut überträgst.",
+  cloudAccountExpired:
+    "Der Zugriff auf dieses Cloud-Konto ist beendet. Deine lokale Arbeit bleibt erhalten; bei Fragen zu Cloud-Kopien wende dich an den Betreiber.",
+  cloudStaleComparison:
+    "Seit dem Vergleich wurde das Projekt verändert. Aktualisiere den Status und prüfe die Fassungen erneut.",
   searchCommands: "Suchen & Befehle",
   searchPlaceholder: "Kapitel, Text, Figuren, Orte, Storyboards …",
   commandView: "Ansicht",

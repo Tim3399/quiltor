@@ -4,6 +4,29 @@
   "manifestVersion": 1,
   "contracts": [
     {
+      "name": "backup.sync-head",
+      "version": 1,
+      "owner": "quiltor/backup",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "The synchronization head is strict; incompatible changes require a new protocol version."
+      },
+      "schema": "backup/sync-head/v1.schema.json",
+      "reference": "backup/sync-v1.md",
+      "fixtures": [
+        {
+          "path": "fixtures/backup/sync-head.empty.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/backup/sync-head.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
       "name": "application.project-transfer-manifest",
       "version": 1,
       "owner": "quiltor/application",

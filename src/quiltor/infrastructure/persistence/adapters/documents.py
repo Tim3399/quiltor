@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -9,9 +10,10 @@ from quiltor.application.documents import DocumentKind, RevisionConflict
 from quiltor.infrastructure.persistence.sqlite import (
     assistant_history,
     manuscript,
+    place_map_images,
     revisions,
-    storyboards,
     story_world,
+    storyboards,
 )
 
 
@@ -37,6 +39,15 @@ class SQLiteDocumentRepository:
 
     def revision(self, kind: DocumentKind, database: Path) -> int:
         return revisions.revision(kind, db_path=database)
+
+    def image_digests(self, database: Path) -> list[str]:
+        digests: list[str] = []
+        for image in place_map_images.catalog(database):
+            content = place_map_images.content(image.id, database)
+            if content is None or hashlib.sha256(content.data).hexdigest() != image.id:
+                raise ValueError("Stored map image failed content verification.")
+            digests.append(image.id)
+        return sorted(digests)
 
     def save(
         self,
