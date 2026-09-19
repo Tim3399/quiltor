@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from quiltor.infrastructure.persistence.sqlite import manuscript, storyboards, story_world
+from quiltor.infrastructure.persistence.sqlite import manuscript, story_world, storyboards
 from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
 
 
@@ -42,6 +42,7 @@ def save_with_revision(
     db_path: Path | None = None,
 ) -> int:
     with connection(db_path) as database:
+        database.execute("BEGIN IMMEDIATE")
         current = revision(kind, database)
         if expected is not None and expected != current:
             raise ConflictError(expected, current)

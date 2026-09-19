@@ -22,6 +22,10 @@ function envelopeWithoutRevision(): Record<string, unknown> {
   return envelope;
 }
 
+function manuscriptAtRevision(revision: number): Record<string, unknown> {
+  return { ...JSON.parse(JSON.stringify(manuscriptFixture)), revision } as Record<string, unknown>;
+}
+
 beforeEach(() => {
   application = createHttpApplicationGateway(createPlatformGateway());
   application.worlds.select(WORLD_ID);
@@ -120,11 +124,19 @@ describe("document HTTP v1 boundary", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(response(manuscriptFixture, { ETag: '"7"' }))
-      .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 8 }));
+      .mockResolvedValueOnce(
+        response({
+          ok: true,
+          zeit: "12:00:00",
+          revision: 8,
+          warnings: ["backup.mirror_failed"],
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
     const manuscript = await application.manuscript.load();
 
-    await application.manuscript.save(manuscript);
+    const result = await application.manuscript.save(manuscript);
+    expect(result.warnings).toEqual(["backup.mirror_failed"]);
 
     const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     const body = JSON.parse(String(init.body));
@@ -246,5 +258,64 @@ describe("document HTTP v1 boundary", () => {
       params: { document: "manuscript", expected: 11, actual: 12 },
       retryable: true,
     });
+  });
+
+  it("peeks at a persisted revision without changing the active write revision", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(manuscriptFixture, { ETag: '"7"' }))
+      .mockResolvedValueOnce(response(manuscriptAtRevision(9), { ETag: '"9"' }))
+      .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 8 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const local = await application.manuscript.load();
+    const persisted = await application.manuscript.peek();
+    await application.manuscript.save(local);
+
+    expect(persisted.revision).toBe(9);
+    expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"7"' }),
+    );
+  });
+
+  it("revalidates an explicitly reviewed revision when resolving a conflict", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(manuscriptFixture, { ETag: '"7"' }))
+      .mockResolvedValueOnce(response(manuscriptAtRevision(8), { ETag: '"8"' }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: false, error: revisionConflict }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const local = await application.manuscript.load();
+    const reviewed = await application.manuscript.peek();
+    await expect(
+      application.manuscript.saveExpected(local, reviewed.revision),
+    ).rejects.toMatchObject({ category: "conflict" });
+    expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"8"' }),
+    );
+  });
+
+  it("adopts a reviewed persisted revision only through the explicit adoption step", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(manuscriptFixture, { ETag: '"7"' }))
+      .mockResolvedValueOnce(response(manuscriptAtRevision(9), { ETag: '"9"' }))
+      .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 10 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await application.manuscript.load();
+    const reviewed = await application.manuscript.peek();
+    const adopted = application.manuscript.adoptPersisted(reviewed);
+    await application.manuscript.save(adopted);
+
+    expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"9"' }),
+    );
   });
 });

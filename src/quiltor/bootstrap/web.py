@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import os
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urlparse
 
 from quiltor import resources
@@ -101,6 +102,12 @@ class BackupRouteServices:
 @dataclass(frozen=True, slots=True)
 class PlaceMapRouteServices:
     place_maps: Any
+    lock: threading.Lock
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectTransferRouteServices:
+    project_transfer: Any
     lock: threading.Lock
 
 
@@ -230,6 +237,8 @@ class WebApplication:
             )
         if path.startswith("/api/place-map"):
             return PlaceMapRouteServices(self.application.place_maps, self.lock)
+        if path.startswith("/api/project-transfer"):
+            return ProjectTransferRouteServices(self.application.project_transfer, self.lock)
         if path.startswith("/api/history"):
             return HistoryRouteServices(self.application.history, self.lock)
         if path.startswith("/api/writing-assistance"):
@@ -267,7 +276,7 @@ def build_web_application(
     *,
     identity: Identity | None = None,
     render_pdf: Callable[[str], bytes] | None = None,
-    ensure_assistant_installed: bool = True,
+    ensure_assistant_installed: bool = False,
     inference: InferenceEngine | None = None,
     app_directories: AppDirectories | None = None,
 ) -> WebApplication:
@@ -333,11 +342,12 @@ def build_web_application(
 
 
 __all__ = [
+    "LOOPBACK_HOSTS",
     "AssistantRouteServices",
     "BackupRouteServices",
     "DocumentRouteServices",
     "IdentityRouteServices",
-    "LOOPBACK_HOSTS",
+    "ProjectTransferRouteServices",
     "WebApplication",
     "WebWorldContext",
     "WorldRouteServices",

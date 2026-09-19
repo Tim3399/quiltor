@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from quiltor.application.backups.errors import BackupSnapshotNotFound
 from quiltor.application.backups.ports import (
     BackupLoginGateway,
     BackupRepository,
     RemoteBackupGateway,
     SnapshotHistory,
 )
-from quiltor.application.backups.errors import BackupSnapshotNotFound
 from quiltor.application.backups.types import BackupAuthorization, WorldBackupContext
 from quiltor.application.documents.ports import DocumentRepository
 from quiltor.application.documents.types import DocumentLocation
@@ -40,14 +40,32 @@ class BackupUseCases:
     def list_local(self, backups) -> list[dict[str, Any]]:
         return self._local.list_local(backups)
 
-    def restore_local(self, name: str, location: DocumentLocation) -> None:
+    def preview_local(self, name: str, location: DocumentLocation) -> dict[str, Any]:
+        with self._observer.observe("backup", "preview_local"):
+            return self._local.preview_local(name, location.backups)
+
+    def storage_location(self, location: DocumentLocation) -> dict[str, Any]:
+        backups = self._local.list_local(location.backups)
+        return {
+            "databasePath": str(location.database),
+            "backupDirectory": str(location.backups),
+            "lastSuccessfulBackup": backups[0]["created"] if backups else None,
+            "scope": "application-host",
+            "canOpenFolder": False,
+        }
+
+    def restore_local(self, name: str, location: DocumentLocation) -> dict[str, Any]:
         with self._observer.observe("backup", "restore_local"):
             checkpoint = self._documents.revision_checkpoint(location.database)
             self._local.restore_local(name, location.database, location.backups, checkpoint)
-            manuscript = self._documents.load("manuscript", location.database)
-            story_world = self._documents.load("figures", location.database)
-            self._local.mirror_manuscript(manuscript["chapters"], location.manuscript_mirrors)
-            self._local.mirror_story_world(story_world, location.story_world_mirrors)
+            try:
+                manuscript = self._documents.load("manuscript", location.database)
+                story_world = self._documents.load("figures", location.database)
+                self._local.mirror_manuscript(manuscript["chapters"], location.manuscript_mirrors)
+                self._local.mirror_story_world(story_world, location.story_world_mirrors)
+            except Exception:  # noqa: BLE001 - the authoritative restore already committed
+                return {"ok": True, "warnings": ["backup.mirror_failed"]}
+            return {"ok": True}
 
     def context(
         self,

@@ -44,7 +44,7 @@ function canonicalStructure(structure: ManuscriptStructure): ManuscriptStructure
     }
   };
   visit();
-  return { folders, items };
+  return { ...structure, folders, items };
 }
 
 export function structureIssues(
@@ -130,6 +130,7 @@ export function manuscriptStructure(manuscript: Readonly<Manuscript>): Manuscrip
   const issues = structureIssues(manuscript.chapters, structure);
   if (issues.length) throw new Error(`Invalid manuscript structure: ${issues.join(", ")}`);
   return canonicalStructure({
+    ...structure,
     folders: structure.folders.map((folder) => ({ ...folder })),
     items: structure.items.map((item) => ({ ...item })),
   });
@@ -154,6 +155,14 @@ export function orderedChapters(manuscript: Readonly<Manuscript>): Chapter[] {
     if (!chapter) throw new Error(`Binder references missing chapter ${id}`);
     return chapter;
   });
+}
+
+export function isChapterInBook(chapter: Readonly<Chapter>): boolean {
+  return chapter.inBook !== false;
+}
+
+export function chaptersInBook(manuscript: Readonly<Manuscript>): Chapter[] {
+  return orderedChapters(manuscript).filter(isChapterInBook);
 }
 
 export function chapterBreadcrumb(

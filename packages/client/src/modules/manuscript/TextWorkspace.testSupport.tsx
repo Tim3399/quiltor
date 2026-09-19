@@ -1,4 +1,4 @@
-import { fireEvent, render, within } from "@testing-library/react";
+import { fireEvent, type RenderResult, render, within } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { I18nProvider } from "../../i18n";
 import { quiltorClient } from "../../platform";
@@ -24,7 +24,7 @@ export function requireValue<T>(value: T | null | undefined, message = "Expected
   return value;
 }
 
-export function renderWorkspace(props: React.ComponentProps<typeof TextWorkspace>) {
+export function renderWorkspace(props: React.ComponentProps<typeof TextWorkspace>): RenderResult {
   return render(
     <TestProviders>
       <TextWorkspace {...props} />
@@ -38,7 +38,7 @@ export function renderWorkspace(props: React.ComponentProps<typeof TextWorkspace
  * The inspector opens on the chapter register, so a test about the writing aid has to say
  * so -- the same click a writer makes.
  */
-export function renderWritingAid(props: React.ComponentProps<typeof TextWorkspace>) {
+export function renderWritingAid(props: React.ComponentProps<typeof TextWorkspace>): RenderResult {
   const view = renderWorkspace(props);
   // By position rather than by label: the tests also run in English.
   const registers = view.container.querySelector<HTMLElement>(".manuscript-inspector__registers");

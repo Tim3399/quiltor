@@ -8,7 +8,7 @@ import time
 from copy import deepcopy
 from typing import Any, Protocol
 
-from quiltor.domain.story_world.knowledge import build_knowledge, retrieve
+from quiltor.domain.story_world.knowledge import build_knowledge, retrieve, scoped_chapters
 from quiltor.modules.assistant.audit import audit_reply, validate_world
 from quiltor.modules.assistant.batch import broad_scope_reply, estimate_batch_seconds
 from quiltor.modules.assistant.config import RUNTIME_CONFIG
@@ -288,7 +288,13 @@ def complete_request(
     prompt = system_prompt(language)
     extraction_mode = mode == WORLD_EXTRACTION_MODE
     mutation_requested = extraction_mode or bool(MUTATION_REQUEST.search(question))
-    chunks = build_knowledge(manuscript, figures)
+    chapters = scoped_chapters(manuscript, chapter_ids)
+    scoped_manuscript = {**manuscript, "chapters": chapters}
+    chunks = build_knowledge(
+        scoped_manuscript,
+        figures,
+        [str(chapter.get("id")) for chapter in chapters],
+    )
     # Storyboards are author planning space, never world truth. Keep them out of every
     # mutation/extraction path until the product has an explicit promote-to-canon flow.
     # Read-only questions may retrieve them, with contextClass=planning preserved all
@@ -423,7 +429,7 @@ def complete_request(
             }
         )
     if contract["broad"] and not chapter_ids and not run_batches:
-        chapter_count = len({chapter["id"] for chapter in manuscript.get("chapters") or []})
+        chapter_count = len({chapter["id"] for chapter in scoped_chapters(manuscript)})
         trace.append(
             {
                 "step": "preflight",
@@ -589,7 +595,7 @@ def complete_request(
         read_tools=runtime.read_tools,
         invoke=runtime._invoke_with_growth,
         count_tokens=runtime.inference.count_tokens,
-        manuscript=manuscript,
+        manuscript=scoped_manuscript,
         figures=figures,
         world_revision=world_revision,
     )

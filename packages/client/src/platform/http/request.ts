@@ -56,6 +56,23 @@ function localizedApplicationErrorMessage(category: ApplicationErrorCategory): s
   return messageByCategory[category];
 }
 
+function localizedStructuredErrorMessage(code: string | undefined): string | undefined {
+  const messages = currentMessages();
+  if (code === "storage.read_only") return messages.errorStorageReadOnly;
+  if (code === "storage.full") return messages.errorStorageFull;
+  if (code === "storage.locked") return messages.errorStorageLocked;
+  if (code === "backup.preview_failed") return messages.errorBackupPreviewFailed;
+  if (code === "project_transfer.invalid_archive")
+    return messages.errorProjectTransferInvalidArchive;
+  if (code === "project_transfer.unsupported_version")
+    return messages.errorProjectTransferUnsupportedVersion;
+  if (code === "project_transfer.limit_exceeded") return messages.errorProjectTransferLimitExceeded;
+  if (code === "project_transfer.invalid_asset") return messages.errorProjectTransferInvalidAsset;
+  if (code === "project_transfer.publication_failed")
+    return messages.errorProjectTransferPublicationFailed;
+  return undefined;
+}
+
 function structuredApplicationError(value: unknown): StructuredApplicationError | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const envelope = value as Record<string, unknown>;
@@ -87,7 +104,7 @@ export function httpResponseError(response: Response, data: unknown): Applicatio
   const category = applicationCodeForHttpStatus(response.status);
   const structured = structuredApplicationError(data);
   return new ApplicationGatewayError(
-    localizedApplicationErrorMessage(category),
+    localizedStructuredErrorMessage(structured?.code) ?? localizedApplicationErrorMessage(category),
     structured?.code ?? category,
     {
       category,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ConfirmDialog, Toast, ToastRegion } from "../../design";
+import { Button, ConfirmDialog, Toast, ToastRegion } from "../../design";
 import { useI18n } from "../../i18n";
 import { applicationErrorMessage, quiltorClient, saveTextFile } from "../../platform";
 import { uid } from "../../shared/id";
@@ -7,14 +7,16 @@ import { BookDocument } from "./BookDocument";
 import { BookLayoutInspector } from "./BookLayoutInspector";
 import {
   addChapterItem,
+  chaptersInBook,
   flattenChapterIds,
+  isChapterInBook,
   manuscriptStructure,
   orderedChapters,
-  removeChapterItem,
 } from "./binder/manuscriptTree";
 import { resolveBookLayout } from "./bookLayout";
 import { ChapterBinder } from "./ChapterBinder";
 import { ChapterInspector } from "./ChapterInspector";
+import { ChapterTrashDialog } from "./ChapterTrashDialog";
 import { chapterPlacement } from "./chapterPlacement";
 import { EditorSurface } from "./EditorSurface";
 import { ElementsSheet } from "./ElementsSheet";
@@ -28,6 +30,7 @@ import { PrintPreviewWorkspace } from "./PrintPreviewWorkspace";
 import { SelectionActions } from "./SelectionActions";
 import { manuscriptShortcut } from "./shortcuts";
 import { TermsSheet } from "./TermsSheet";
+import { moveChapterToTrash, restoreTrashedChapter } from "./trash";
 import { useChapterHistory } from "./useChapterHistory";
 import { useManuscriptSearch } from "./useManuscriptSearch";
 import { useWorkspaceSizing } from "./useWorkspaceSizing";
@@ -53,6 +56,9 @@ export function TextWorkspace({
   targetId,
   targetRequestId,
   textSearch,
+  openChapterTrashToken = 0,
+  chapterFilter: controlledChapterFilter,
+  onChapterFilter,
   onUndo,
   onRedo,
   canUndo = false,
@@ -86,6 +92,11 @@ export function TextWorkspace({
     targetId || textSearch ? null : (sessionState ?? null),
   );
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [lastDeletedId, setLastDeletedId] = useState("");
+  const [localChapterFilter, setLocalChapterFilter] = useState<"all" | "in-book" | "set-aside">(
+    "all",
+  );
   const [localBinderOpen, setLocalBinderOpen] = useState(() => window.innerWidth >= 720);
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
@@ -102,21 +113,32 @@ export function TextWorkspace({
   const inspectorOpen = controlledInspectorOpen ?? localInspectorOpen;
   const setBinderOpen = onBinderOpen ?? setLocalBinderOpen;
   const setInspectorOpen = onInspectorOpen ?? setLocalInspectorOpen;
+  const chapterFilter = controlledChapterFilter ?? localChapterFilter;
+  const setChapterFilter = onChapterFilter ?? setLocalChapterFilter;
   const structure = useMemo(() => manuscriptStructure(manuscript), [manuscript]);
   const [inspectorRegister, setInspectorRegister] =
     useState<ManuscriptInspectorRegister>("chapter");
   const chapters = useMemo(() => orderedChapters(manuscript), [manuscript]);
   const current = chapters.find((chapter) => chapter.id === currentId) ?? chapters[0];
   const history = useChapterHistory(current);
-  const currentPosition = current ? chapters.indexOf(current) : -1;
-  const previousChapter = currentPosition > 0 ? chapters[currentPosition - 1] : undefined;
+  const bookChapters = useMemo(() => chaptersInBook(manuscript), [manuscript]);
+  const currentPosition = current ? bookChapters.indexOf(current) : -1;
+  const previousChapter = currentPosition > 0 ? bookChapters[currentPosition - 1] : undefined;
   const nextChapter =
-    currentPosition >= 0 && currentPosition < chapters.length - 1
-      ? chapters[currentPosition + 1]
+    currentPosition >= 0 && currentPosition < bookChapters.length - 1
+      ? bookChapters[currentPosition + 1]
       : undefined;
   useEffect(() => {
     onCurrentChapterId?.(current?.id || "");
   }, [current?.id, onCurrentChapterId]);
+  useEffect(() => {
+    if (openChapterTrashToken > 0) setTrashOpen(true);
+  }, [openChapterTrashToken]);
+  useEffect(() => {
+    if (lastDeletedId && !manuscript.trash?.some((entry) => entry.chapter.id === lastDeletedId)) {
+      setLastDeletedId("");
+    }
+  }, [lastDeletedId, manuscript.trash]);
   const commitManuscript = (nextChapters: Chapter[], nextStructure = structure) => {
     const byId = new Map(nextChapters.map((chapter) => [chapter.id, chapter]));
     const ordered = flattenChapterIds(nextStructure).map((id) => {
@@ -227,7 +249,9 @@ export function TextWorkspace({
     const index = chapters.indexOf(current);
     const nextChapters = chapters.filter((chapter) => chapter.id !== current.id);
     setCurrentId(nextChapters[Math.min(index, nextChapters.length - 1)]?.id ?? "");
-    commitManuscript(nextChapters, removeChapterItem(structure, current.id));
+    onChange(moveChapterToTrash(manuscript, current.id));
+    setLastDeletedId(current.id);
+    setDeleteOpen(false);
   };
   const runExport = (task: Promise<void>) => {
     void task
@@ -239,7 +263,7 @@ export function TextWorkspace({
       saveTextFile(
         quiltorClient.platform,
         `Quiltor-Manuskript-${new Date().toISOString().slice(0, 10)}.md`,
-        chapters
+        bookChapters
           .map(
             (chapter) =>
               `# ${chapter.title || t("untitled")}\n\n${markdownBody(chapter.body, chapter.marks).trim()}\n`,
@@ -289,6 +313,8 @@ ${markdownBody(current.body, current.marks)}
           if (next) commitManuscript(chapters, next);
         },
         onExport: exportCurrent,
+        inBook: isChapterInBook(current),
+        onToggleInBook: () => updateCurrent({ inBook: !isChapterInBook(current) }),
         onDelete: () => setDeleteOpen(true),
       }
     : undefined;
@@ -313,6 +339,9 @@ ${markdownBody(current.body, current.marks)}
           : setCurrentId
       }
       onStructureChange={(nextStructure) => commitManuscript(chapters, nextStructure)}
+      onOpenTrash={() => setTrashOpen(true)}
+      chapterFilter={chapterFilter}
+      onChapterFilter={setChapterFilter}
     />
   );
   const writingAid = current ? (
@@ -559,8 +588,40 @@ ${markdownBody(current.body, current.marks)}
           onClose={() => setDeleteOpen(false)}
         />
       )}
-      {(pdfState === "error" || exportError) && (
+      {trashOpen && (
+        <ChapterTrashDialog
+          manuscript={manuscript}
+          availableMomentIds={new Set((figures.timeline ?? []).map((moment) => moment.id))}
+          onChange={onChange}
+          onClose={() => setTrashOpen(false)}
+        />
+      )}
+      {(pdfState === "error" || exportError || lastDeletedId) && (
         <ToastRegion label={t("manuscript")}>
+          {!!lastDeletedId && (
+            <Toast onDismiss={() => setLastDeletedId("")} dismissLabel={t("closeMessage")}>
+              {t("chapterMovedToTrash")}
+              <Button
+                appearance="secondary"
+                onClick={() => {
+                  try {
+                    const restored = restoreTrashedChapter(manuscript, lastDeletedId, {
+                      availableMomentIds: new Set(
+                        (figures.timeline ?? []).map((moment) => moment.id),
+                      ),
+                    });
+                    onChange(restored.manuscript);
+                    setCurrentId(lastDeletedId);
+                    setLastDeletedId("");
+                  } catch {
+                    setExportError(t("trashRestoreError"));
+                  }
+                }}
+              >
+                {t("undoDeleteChapter")}
+              </Button>
+            </Toast>
+          )}
           {pdfState === "error" && (
             <Toast
               tone="danger"

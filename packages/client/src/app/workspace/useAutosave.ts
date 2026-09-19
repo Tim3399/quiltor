@@ -13,11 +13,13 @@ export function useAutosave<T>(
   const [phase, setPhase] = useState<SavePhase>("idle");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [failure, setFailure] = useState<unknown>(null);
   const timer = useRef<number | undefined>(undefined);
   const latest = useRef(value);
   const pending = useRef<Promise<void> | null>(null);
   const dirty = useRef(false);
   const initialized = useRef(false);
+  const acceptedReplacement = useRef<T | null>(null);
   latest.current = value;
 
   const flush = useCallback((): Promise<void> => {
@@ -32,6 +34,7 @@ export function useAutosave<T>(
           const snapshot = latest.current;
           setPhase("saving");
           setError("");
+          setFailure(null);
           await save(snapshot);
           if (latest.current === snapshot) dirty.current = false;
         }
@@ -39,6 +42,7 @@ export function useAutosave<T>(
         setPhase("saved");
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : t("saveFailed"));
+        setFailure(reason);
         setPhase("error");
         throw reason;
       } finally {
@@ -52,6 +56,11 @@ export function useAutosave<T>(
 
   useEffect(() => {
     if (!value) return;
+    if (acceptedReplacement.current === value) {
+      acceptedReplacement.current = null;
+      initialized.current = true;
+      return;
+    }
     if (!initialized.current) {
       initialized.current = true;
       return;
@@ -73,6 +82,50 @@ export function useAutosave<T>(
 
   // UI retries report failure through SaveStatus; dependent operations use rejecting flush.
   const retry = useCallback(() => flush().catch(() => undefined), [flush]);
+  const resolve = useCallback(
+    (snapshot: T, saveExpected: (snapshot: T) => Promise<unknown>): Promise<void> => {
+      clearTimeout(timer.current);
+      if (pending.current) return pending.current;
+      if (latest.current !== snapshot) return Promise.reject(new Error(t("recoveryDraftChanged")));
+      pending.current = Promise.resolve().then(async () => {
+        try {
+          setPhase("saving");
+          setError("");
+          setFailure(null);
+          await saveExpected(snapshot);
+          if (latest.current === snapshot) dirty.current = false;
+          while (latest.current && dirty.current) {
+            const next = latest.current;
+            await save(next);
+            if (latest.current === next) dirty.current = false;
+          }
+          setSavedAt(Date.now());
+          setPhase("saved");
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : t("saveFailed"));
+          setFailure(reason);
+          setPhase("error");
+          throw reason;
+        } finally {
+          pending.current = null;
+        }
+      });
+      return pending.current;
+    },
+    [save, t],
+  );
+  const replace = useCallback((expected: T, persisted: T): boolean => {
+    if (pending.current || latest.current !== expected) return false;
+    clearTimeout(timer.current);
+    latest.current = persisted;
+    acceptedReplacement.current = persisted;
+    dirty.current = false;
+    setError("");
+    setFailure(null);
+    setSavedAt(Date.now());
+    setPhase("saved");
+    return true;
+  }, []);
   const isDirty = useCallback(() => dirty.current, []);
-  return { phase, error, savedAt, flush, retry, isDirty };
+  return { phase, error, failure, savedAt, flush, retry, resolve, replace, isDirty };
 }

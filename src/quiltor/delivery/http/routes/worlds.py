@@ -17,6 +17,12 @@ def list_worlds(handler, request: Request, app) -> None:
         handler.send_json({"ok": True, "worlds": app.worlds.list(request.session.sub)})
 
 
+@get("/api/worlds/trash")
+def list_trash(handler, request: Request, app) -> None:
+    with app.lock:
+        handler.send_json({"ok": True, "worlds": app.worlds.list_trash(request.session.sub)})
+
+
 @save("/api/worlds/create")
 def create(handler, request: Request, app) -> None:
     _open_or_create(handler, request, app, creating=True)
@@ -29,16 +35,30 @@ def open_world(handler, request: Request, app) -> None:
 
 @save("/api/worlds/delete")
 def delete(handler, request: Request, app) -> None:
+    _world_command(handler, request, app, "delete")
+
+
+@save("/api/worlds/restore")
+def restore(handler, request: Request, app) -> None:
+    _world_command(handler, request, app, "restore")
+
+
+@save("/api/worlds/purge")
+def purge(handler, request: Request, app) -> None:
+    _world_command(handler, request, app, "purge")
+
+
+def _world_command(handler, request: Request, app, command: str) -> None:
     try:
         payload = handler._read_json_body()
-        with app.lock:
-            try:
-                app.worlds.delete(str(payload.get("id", "")), request.session.sub)
-            except PermissionError as exc:
-                return handler.send_exception(exc)
-        handler.send_json({"ok": True})
-    except Exception as exc:
-        handler.send_exception(exc)
+    except (TypeError, ValueError) as exc:
+        return handler.send_exception(exc)
+    with app.lock:
+        try:
+            getattr(app.worlds, command)(str(payload.get("id", "")), request.session.sub)
+        except (FileNotFoundError, PermissionError, ValueError) as exc:
+            return handler.send_exception(exc)
+    handler.send_json({"ok": True})
 
 
 def _open_or_create(handler, request: Request, app, *, creating: bool) -> None:

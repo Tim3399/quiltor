@@ -33,6 +33,7 @@ const PROPOSAL_FAILURE_MESSAGES: Record<AssistantProposalSkipReason, MessageKey>
   invalid_relationship: "proposalApplyInvalidRelationship",
   relationship_exists: "proposalApplyRelationshipExists",
 };
+const EMPTY_CHAPTER_STATUSES = new Map<string, "set_aside" | "deleted">();
 
 export function AssistantConversation({
   entries,
@@ -40,6 +41,7 @@ export function AssistantConversation({
   batchProgress,
   batchProgressId,
   figures,
+  chapterStatuses = EMPTY_CHAPTER_STATUSES,
   endRef,
   onDraftChange,
   onRetry,
@@ -57,6 +59,7 @@ export function AssistantConversation({
   batchProgress: AssistantBatchProgress | null;
   batchProgressId: string;
   figures: FigureState;
+  chapterStatuses?: ReadonlyMap<string, "set_aside" | "deleted">;
   endRef: RefObject<HTMLDivElement | null>;
   onDraftChange: (value: string) => void;
   onRetry: (entryId: string) => void;
@@ -96,6 +99,7 @@ export function AssistantConversation({
           key={entry.id}
           entry={entry}
           figures={figures}
+          chapterStatuses={chapterStatuses}
           sending={sending}
           onRetry={onRetry}
           onSendExplicit={onSendExplicit}
@@ -141,6 +145,7 @@ export function AssistantConversation({
 function AssistantExchange({
   entry,
   figures,
+  chapterStatuses,
   sending,
   onRetry,
   onSendExplicit,
@@ -154,6 +159,7 @@ function AssistantExchange({
 }: {
   entry: AssistantEntry;
   figures: FigureState;
+  chapterStatuses: ReadonlyMap<string, "set_aside" | "deleted">;
   sending: boolean;
   onRetry: (entryId: string) => void;
   onSendExplicit: (question: string) => void;
@@ -246,7 +252,11 @@ function AssistantExchange({
             </div>
           )}
           {!!reply.sources?.length && (
-            <SourceList sources={reply.sources} onNavigate={onNavigate} />
+            <SourceList
+              sources={reply.sources}
+              chapterStatuses={chapterStatuses}
+              onNavigate={onNavigate}
+            />
           )}
           {!!reply.proposals?.length && (
             <ProposalList
@@ -281,9 +291,11 @@ function AssistantExchange({
 
 function SourceList({
   sources,
+  chapterStatuses,
   onNavigate,
 }: {
   sources: AssistantSource[];
+  chapterStatuses: ReadonlyMap<string, "set_aside" | "deleted">;
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
 }) {
   const { t } = useI18n();
@@ -291,7 +303,12 @@ function SourceList({
     <Disclosure className="assistant-sources" summary={`${t("sources")} · ${sources.length}`}>
       <ChipList className="assistant-source-list" label={t("sources")}>
         {sources.map((source) => (
-          <AssistantSourceChip key={source.id} source={source} onNavigate={onNavigate} />
+          <AssistantSourceChip
+            key={source.id}
+            source={source}
+            documentStatus={chapterStatuses.get(source.target.id) ?? source.documentStatus}
+            onNavigate={onNavigate}
+          />
         ))}
       </ChipList>
     </Disclosure>
@@ -300,9 +317,11 @@ function SourceList({
 
 function AssistantSourceChip({
   source,
+  documentStatus,
   onNavigate,
 }: {
   source: AssistantSource;
+  documentStatus?: "set_aside" | "deleted";
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
 }) {
   const { t } = useI18n();
@@ -318,6 +337,11 @@ function AssistantSourceChip({
       {planning && (
         <span className="assistant-source-chip__context" aria-hidden="true">
           {t("planningContext")}
+        </span>
+      )}
+      {documentStatus && (
+        <span className="assistant-source-chip__context" aria-hidden="true">
+          {t(documentStatus === "deleted" ? "sourceDeleted" : "sourceSetAside")}
         </span>
       )}
     </ChipAction>

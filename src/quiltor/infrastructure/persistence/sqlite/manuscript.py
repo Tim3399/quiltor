@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -73,7 +74,7 @@ def save(
         chapters_by_id = {chapter["id"]: chapter for chapter in chapters}
         structure = structure_or_flat(chapters_by_id, state.get("structure"))
         ordered_chapter_ids = flatten_tree(chapters_by_id, structure)
-        with database:
+        with database if own else nullcontext():
             database.execute("DELETE FROM manuscript_tree_items")
             database.execute("DELETE FROM chapter_folders")
             database.execute("DELETE FROM chapters")

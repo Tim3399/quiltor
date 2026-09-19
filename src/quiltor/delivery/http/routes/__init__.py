@@ -24,8 +24,9 @@ instance. Routes never import a composition root or process-global store.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 Route = Callable[[Any, "Request", Any], None]
 
@@ -94,6 +95,7 @@ def load() -> None:
         history,
         identity,
         place_maps,
-        writing_assistance,
+        project_transfer,
         worlds,
+        writing_assistance,
     )

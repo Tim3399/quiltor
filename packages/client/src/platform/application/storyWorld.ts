@@ -1,6 +1,4 @@
 import type { FigureState } from "../../modules/story-world";
+import type { VersionedDocumentGateway } from "./versionedDocument";
 
-export interface StoryWorldGateway {
-  load(): Promise<FigureState>;
-  save(data: FigureState): Promise<{ ok: boolean; zeit: string; revision: number }>;
-}
+export interface StoryWorldGateway extends VersionedDocumentGateway<FigureState> {}

@@ -9,7 +9,7 @@ import {
 } from "react";
 import { Button, Checkbox, IconButton, Popover, ScrollArea, TextArea } from "../../design";
 import { useI18n } from "../../i18n";
-import type { Chapter } from "../manuscript";
+import { type Chapter, isChapterInBook } from "../manuscript";
 import "./AssistantComposer.css";
 
 export function AssistantComposer({
@@ -95,6 +95,7 @@ export function AssistantComposer({
                   label={
                     <span>
                       {index + 1}. {chapter.title || t("untitled")}
+                      {!isChapterInBook(chapter) && ` · ${t("chapterSetAsideStatus")}`}
                     </span>
                   }
                   checked={forcedChapterIds.includes(chapter.id)}

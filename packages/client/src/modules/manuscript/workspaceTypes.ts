@@ -10,6 +10,8 @@ export interface ManuscriptEditorSessionState {
   scrollTop: number;
 }
 
+export type ManuscriptChapterFilter = "all" | "in-book" | "set-aside";
+
 export interface TextWorkspaceProps {
   worldTitle?: string;
   manuscript: Manuscript;
@@ -26,6 +28,9 @@ export interface TextWorkspaceProps {
   targetId?: string;
   targetRequestId?: number;
   textSearch?: TextSearchTarget;
+  openChapterTrashToken?: number;
+  chapterFilter?: ManuscriptChapterFilter;
+  onChapterFilter?: (filter: ManuscriptChapterFilter) => void;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;

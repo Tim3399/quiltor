@@ -1,7 +1,9 @@
 export {
   chapterBreadcrumb,
+  chaptersInBook,
   flatManuscriptStructure,
   flattenChapterIds,
+  isChapterInBook,
   manuscriptStructure,
   orderedChapters,
 } from "./binder/manuscriptTree";
@@ -22,6 +24,7 @@ export type {
   Chapter,
   ChapterFolder,
   ChapterStoryTime,
+  ChapterTrashEntry,
   EntityMention,
   GrammarMode,
   Manuscript,
@@ -33,8 +36,15 @@ export type {
   WritingLocale,
 } from "./model";
 export { textSearchRanges } from "./search";
+export {
+  ChapterRestoreError,
+  moveChapterToTrash,
+  purgeTrashedChapter,
+  restoreTrashedChapter,
+  searchChapterTrash,
+} from "./trash";
 export { wordCount } from "./wordCount";
-export type { ManuscriptEditorSessionState } from "./workspaceTypes";
+export type { ManuscriptChapterFilter, ManuscriptEditorSessionState } from "./workspaceTypes";
 
 export const loadTextWorkspace = () =>
   import("./TextWorkspace").then(({ TextWorkspace }) => ({ default: TextWorkspace }));

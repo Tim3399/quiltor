@@ -4,7 +4,12 @@ import { useI18n } from "../../i18n";
 import { applyAssistantProposalsWithResult, loadAssistantDrawer } from "../../modules/assistant";
 import { loadBackupDialog } from "../../modules/backup";
 import { loadHistoryDialog, loadSnapshotDialog } from "../../modules/history";
-import { type Manuscript, orderedChapters, replaceEntityMentions } from "../../modules/manuscript";
+import {
+  isChapterInBook,
+  type Manuscript,
+  orderedChapters,
+  replaceEntityMentions,
+} from "../../modules/manuscript";
 import { loadSearchDialog } from "../../modules/search";
 import type { FigureState } from "../../modules/story-world";
 import type { StoryboardState } from "../../modules/storyboard";
@@ -44,6 +49,8 @@ export function OverlayHost({
   pendingRename,
   onManuscriptChange,
   onCloseRename,
+  onShowSetAside,
+  onOpenChapterTrash,
 }: {
   overlay: Overlay;
   onCloseOverlay: () => void;
@@ -65,6 +72,8 @@ export function OverlayHost({
   pendingRename: PendingEntityRename | null;
   onManuscriptChange: (manuscript: Manuscript) => void;
   onCloseRename: () => void;
+  onShowSetAside: () => void;
+  onOpenChapterTrash: () => void;
 }) {
   const { t } = useI18n();
   return (
@@ -74,6 +83,16 @@ export function OverlayHost({
           worldId={worldId}
           figures={figures}
           chapters={orderedChapters(manuscript)}
+          chapterStatuses={
+            new Map([
+              ...manuscript.chapters
+                .filter((chapter) => !isChapterInBook(chapter))
+                .map((chapter) => [chapter.id, "set_aside" as const] as const),
+              ...(manuscript.trash ?? []).map(
+                (entry) => [entry.chapter.id, "deleted" as const] as const,
+              ),
+            ])
+          }
           currentChapterId={currentChapterId}
           open={assistantOpen}
           onClose={onCloseAssistant}
@@ -98,6 +117,8 @@ export function OverlayHost({
           onWorkspace={onWorkspace}
           onSelect={onTarget}
           onCommand={onCommand}
+          onShowSetAside={onShowSetAside}
+          onOpenChapterTrash={onOpenChapterTrash}
         />
       )}
       {overlay === "snapshot" && <SnapshotDialog onClose={onCloseOverlay} flush={flushAll} />}

@@ -33,6 +33,7 @@ export function SnapshotDialog({
     [statusError, setStatusError] = useState(""),
     [message, setMessage] = useState(""),
     [output, setOutput] = useState(""),
+    [transferWarning, setTransferWarning] = useState(false),
     [busy, setBusy] = useState(false);
   const [login, setLogin] = useState<BackupLoginStatus | null>(null),
     [loginError, setLoginError] = useState(""),
@@ -109,11 +110,13 @@ export function SnapshotDialog({
   const send = async (upload: boolean) => {
     setBusy(true);
     setOutput("");
+    setTransferWarning(false);
     try {
       await flush();
       const result = await quiltorClient.application.backup.saveSnapshot(message, upload);
       setOutput(result.log.join("\n") || t("done"));
       setStatus(result.status);
+      setTransferWarning(result.warnings?.includes("backup.transfer_status_failed") ?? false);
     } catch (error) {
       setOutput(applicationErrorMessage(error));
     } finally {
@@ -191,6 +194,17 @@ export function SnapshotDialog({
             value={message}
             onChange={(event) => setMessage(event.target.value)}
           />
+          <section className="snapshot-transfer" aria-label={t("lastConfirmedTransfer")}>
+            <strong>{t("lastConfirmedTransfer")}</strong>
+            {status.lastSuccessfulTransfer ? (
+              <time dateTime={status.lastSuccessfulTransfer}>
+                {new Date(status.lastSuccessfulTransfer).toLocaleString()}
+              </time>
+            ) : (
+              <span>{t("noConfirmedTransfer")}</span>
+            )}
+            <p>{t("remoteTransferExplanation")}</p>
+          </section>
           {needsSignIn &&
             (staleSession ? (
               <Alert tone="danger">{t("backupSessionExpired")}</Alert>
@@ -214,12 +228,21 @@ export function SnapshotDialog({
               {output}
             </pre>
           )}
+          {transferWarning && <Alert tone="warning">{t("backupTransferStatusWarning")}</Alert>}
           <Disclosure className="utility-disclosure" summary={t("technicalDetails")}>
             <dl className="snapshot-facts">
               <div>
                 <dt>{t("target")}</dt>
                 <dd>{status.endpoint || t("notConfigured")}</dd>
               </div>
+              {status.transferredSnapshotId && (
+                <div>
+                  <dt>{t("transferredSnapshot")}</dt>
+                  <dd>
+                    <code>{status.transferredSnapshotId}</code>
+                  </dd>
+                </div>
+              )}
               {login?.signedIn && (
                 <div>
                   <dt>{t("backupAccount")}</dt>

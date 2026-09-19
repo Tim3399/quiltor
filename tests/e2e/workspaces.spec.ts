@@ -176,7 +176,7 @@ test("Mobile core workspaces hold their layout and touch contracts", async ({ pa
       }),
     );
   expect(undersizedToolbarButtons).toEqual([]);
-  await expect(page.getByRole("button", { name: "Exportieren" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Buch exportieren" })).toBeVisible();
   const offCenterToolbarIcons = await manuscriptToolbar.getByRole("button").evaluateAll((buttons) =>
     buttons.flatMap((button) => {
       const label = button.querySelector(".ui-button__label");
@@ -251,7 +251,7 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
       await page.reload();
       await waitForManuscriptReady(page);
 
-      await expectKeyboardMenuContract(page, "Exportieren", "Exportoptionen");
+      await expectKeyboardMenuContract(page, "Buch exportieren", "Buchexport");
 
       await page.getByRole("button", { name: "Figuren", exact: true }).click();
       await expectKeyboardMenuContract(page, "Element", "Element erstellen");
@@ -738,7 +738,7 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
   const sceneBreakAction = manuscriptToolbar.getByRole("button", {
     name: "Szenenwechsel einfügen",
   });
-  const exportAction = manuscriptToolbar.getByRole("button", { name: "Exportieren" });
+  const exportAction = manuscriptToolbar.getByRole("button", { name: "Buch exportieren" });
   for (const action of [versionsAction, sceneBreakAction, exportAction]) {
     await expect(action).toBeVisible();
     await action.focus();

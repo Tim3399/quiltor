@@ -1,6 +1,6 @@
 import { Clock3, Command, FileText, MapPin, PanelsTopLeft, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
-import { CommandPalette, type CommandPaletteItem } from "../../design";
+import { Button, CommandPalette, type CommandPaletteItem } from "../../design";
 import { useI18n } from "../../i18n";
 import { shortcut, type Workspace, type WorkspaceTarget } from "../../shared";
 import { type Manuscript, textSearchRanges } from "../manuscript";
@@ -22,6 +22,8 @@ export function SearchDialog({
   onWorkspace,
   onSelect,
   onCommand,
+  onShowSetAside,
+  onOpenChapterTrash,
 }: {
   manuscript: Manuscript;
   figures: FigureState;
@@ -30,6 +32,8 @@ export function SearchDialog({
   onWorkspace: (value: Workspace) => void;
   onSelect: (target: WorkspaceTarget) => void;
   onCommand: (command: string) => void;
+  onShowSetAside: () => void;
+  onOpenChapterTrash: () => void;
 }) {
   const { t, locale } = useI18n();
   const [query, setQuery] = useState("");
@@ -85,7 +89,13 @@ export function SearchDialog({
         return {
           id: candidate.id,
           label: candidate.label,
-          detail: [candidate.detail, matchDetail].filter(Boolean).join(" · "),
+          detail: [
+            candidate.documentStatus === "set_aside" ? t("chapterSetAsideStatus") : "",
+            candidate.detail,
+            matchDetail,
+          ]
+            .filter(Boolean)
+            .join(" · "),
           keywords: candidate.keywords,
           icon: referenceIcon(candidate.target),
           requiresQuery: true,
@@ -102,7 +112,7 @@ export function SearchDialog({
       },
     );
     return [...commands, ...references];
-  }, [manuscript, figures, storyboards.boards, onCommand, onWorkspace, onSelect, query, t]);
+  }, [manuscript, figures, storyboards.boards, onCommand, onWorkspace, onSelect, query, t, locale]);
   return (
     <CommandPalette
       open
@@ -111,6 +121,18 @@ export function SearchDialog({
       inputLabel={t("searchTerm")}
       placeholder={t("searchPlaceholder")}
       emptyLabel={t("noSearchResults")}
+      emptyActions={
+        query.trim() ? (
+          <>
+            <Button appearance="secondary" size="compact" onClick={onShowSetAside}>
+              {t("showSetAsideChapters")}
+            </Button>
+            <Button appearance="secondary" size="compact" onClick={onOpenChapterTrash}>
+              {t("openChapterTrash")}
+            </Button>
+          </>
+        ) : undefined
+      }
       items={items}
       onClose={onClose}
       onQueryChange={setQuery}

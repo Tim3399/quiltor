@@ -3,6 +3,7 @@ import inspect
 import unittest
 from pathlib import Path
 
+from quiltor.application.story_world import StoryWorldReadTools
 from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
 from quiltor.modules.assistant import (
     CONVERSATION_HISTORY_TOKEN_BUDGET,
@@ -396,6 +397,64 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         metrics = next(item for item in result["agentTrace"] if item["step"] == "metrics")
         self.assertEqual(metrics["toolRounds"], 1)
         self.assertEqual(metrics["toolCalls"], 1)
+
+    def test_read_tool_obeys_the_exact_assistant_chapter_scope(self):
+        manuscript = {
+            "chapters": [
+                {
+                    "id": "book",
+                    "title": "Im Buch",
+                    "body": "Die Glocke klingt im Hafen.",
+                    "note": "",
+                },
+                {
+                    "id": "aside",
+                    "title": "Entwurf",
+                    "body": "Ein Zinnoberdrache wartet im Turm.",
+                    "note": "",
+                    "inBook": False,
+                },
+            ]
+        }
+        tool_step = {
+            "action": "tool_calls",
+            "toolCalls": [
+                {"name": "search_manuscript", "arguments": {"query": "Zinnoberdrache"}},
+                {"name": "search_manuscript", "arguments": {"query": "Glocke"}},
+            ],
+        }
+        final = {
+            "action": "final",
+            "final": {"message": "Geprüft.", "citations": [], "proposals": []},
+        }
+
+        def invoke(chapter_ids=None):
+            inference = FakeInference([tool_step, final])
+            runtime = AssistantRuntime(
+                Path("."),
+                Path("."),
+                inference,
+                progress=_Progress(),
+                read_tools=StoryWorldReadTools(),
+                token_cache=BoundedTokenCountCache(),
+            )
+            runtime.complete(
+                "Suche die Manuskriptstellen.",
+                manuscript,
+                FIGURES,
+                history=None,
+                chapter_ids=chapter_ids,
+                world_revision=7,
+            )
+            return inference.calls[1]["messages"][-1]["content"]
+
+        default_results = invoke()
+        self.assertNotIn("Zinnoberdrache wartet", default_results)
+        self.assertIn("Glocke klingt", default_results)
+
+        explicit_results = invoke(["aside"])
+        self.assertIn("Zinnoberdrache wartet", explicit_results)
+        self.assertNotIn("Glocke klingt", explicit_results)
 
     def test_invalid_tool_name_fails_closed_without_proposal_fallback(self):
         runtime, inference = self._runtime(

@@ -136,7 +136,11 @@ class StoryWorldQueries:
         ]
         chunks = [
             chunk
-            for chunk in build_knowledge({"chapters": chapters}, {})
+            for chunk in build_knowledge(
+                {"chapters": chapters},
+                {},
+                [str(chapter.get("id")) for chapter in chapters],
+            )
             if chunk.kind in {"chapter", "chapter-note"}
         ]
         return [chunk.public() for chunk in retrieve(chunks, query, max(0, limit), fallback=False)]

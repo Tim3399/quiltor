@@ -13,6 +13,7 @@ export interface WorldReferenceCandidate {
   workspace: Workspace;
   /** Live semantic kind used by every visual card/minimap projection. */
   cardKind: CardKind;
+  documentStatus?: "set_aside" | "deleted";
 }
 
 export type WorldReferenceBacklinkSourceKind =

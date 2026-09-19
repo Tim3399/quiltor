@@ -104,3 +104,10 @@
   color: var(--muted);
   text-align: center;
 }
+
+.ui-command-palette__empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-control-gap);
+  margin-top: var(--spacing-control-gap);
+}

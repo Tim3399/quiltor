@@ -231,6 +231,25 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                             continue
                         _canonical_integer_field(entry, "from", minimum=0)
                         _canonical_integer_field(entry, "to", minimum=1)
+        trash = normalized.get("trash")
+        if isinstance(trash, list):
+            for entry in trash:
+                if not isinstance(entry, dict):
+                    continue
+                chapter = entry.get("chapter")
+                if isinstance(chapter, dict):
+                    _canonical_note_reference_integers(chapter)
+                    _canonical_note_mark_integers(chapter)
+                    for collection in ("mentions", "marks"):
+                        values = chapter.get(collection)
+                        if isinstance(values, list):
+                            for value in values:
+                                if isinstance(value, dict):
+                                    _canonical_integer_field(value, "from", minimum=0)
+                                    _canonical_integer_field(value, "to", minimum=1)
+                tree_item = entry.get("treeItem")
+                if isinstance(tree_item, dict):
+                    _canonical_integer_field(tree_item, "position", minimum=0)
         return normalized
 
     if kind == "storyboards":

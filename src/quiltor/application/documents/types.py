@@ -20,4 +20,10 @@ class VersionedDocument:
     revision: int
 
 
-__all__ = ["DocumentLocation", "VersionedDocument"]
+@dataclass(frozen=True)
+class DocumentSaveResult:
+    revision: int
+    warnings: tuple[str, ...] = ()
+
+
+__all__ = ["DocumentLocation", "DocumentSaveResult", "VersionedDocument"]

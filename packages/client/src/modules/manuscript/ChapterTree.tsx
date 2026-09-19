@@ -11,15 +11,17 @@ import {
   childrenOf,
   deleteFolder,
   flattenChapterIds,
+  isChapterInBook,
   renameFolder,
 } from "./binder/manuscriptTree";
 import { ChapterActionsMenu, type ChapterActionsMenuProps } from "./ChapterActionsMenu";
 import { chapterStoryTimeLabel } from "./ChapterStoryTimeFields";
-import { romanNumeral } from "./romanNumeral";
 import { ChapterTreeChapterRow, ChapterTreeEntry, ChapterTreeFolderRow } from "./ChapterTreeRows";
 import type { Chapter, Manuscript, ManuscriptStructure, ManuscriptTreeItem } from "./model";
+import { romanNumeral } from "./romanNumeral";
 import { useChapterTreeDragDrop } from "./useChapterTreeDragDrop";
 import { wordCount } from "./wordCount";
+import type { ManuscriptChapterFilter } from "./workspaceTypes";
 import "./ChapterBinder.css";
 import "./ChapterFolderTree.css";
 
@@ -36,6 +38,8 @@ export interface ChapterTreeProps {
   onSelect: (id: string) => void;
   onStructureChange: (structure: ManuscriptStructure) => void;
   chapterActions?: ChapterActionsMenuProps;
+  chapterFilter?: ManuscriptChapterFilter;
+  onChapterFilter?: (filter: ManuscriptChapterFilter) => void;
 }
 
 export function ChapterTree({
@@ -49,6 +53,8 @@ export function ChapterTree({
   onSelect,
   onStructureChange,
   chapterActions,
+  chapterFilter = "all",
+  onChapterFilter,
 }: ChapterTreeProps) {
   const { t } = useI18n();
   const chapterById = useMemo(
@@ -149,6 +155,9 @@ export function ChapterTree({
     if (item.kind === "chapter") {
       const chapter = chapterById.get(item.chapterId);
       if (!chapter) return null;
+      const inBook = isChapterInBook(chapter);
+      if ((chapterFilter === "in-book" && !inBook) || (chapterFilter === "set-aside" && inBook))
+        return null;
       const position = numberById.get(chapter.id) ?? 0;
       const title = chapter.title || t("untitled");
       const words = `${wordCount(chapter.body)} ${t("words")}`;
@@ -170,6 +179,7 @@ export function ChapterTree({
             spokenLabel={[String(position), title, words, storyTime].filter(Boolean).join(" ")}
             words={words}
             storyTime={storyTime}
+            inBook={inBook}
             dragDrop={dragDrop}
             actions={
               chapter.id === current?.id && chapterActions ? (
@@ -245,7 +255,31 @@ export function ChapterTree({
         >
           {t("addFolder")}
         </Button>
+        {onChapterFilter && (
+          <div className="binder-chapter-filter">
+            {(["all", "in-book", "set-aside"] as const).map((filter) => (
+              <Button
+                key={filter}
+                appearance={chapterFilter === filter ? "primary" : "ghost"}
+                size="compact"
+                aria-pressed={chapterFilter === filter}
+                onClick={() => onChapterFilter(filter)}
+              >
+                {t(
+                  filter === "all"
+                    ? "chapterFilterAll"
+                    : filter === "in-book"
+                      ? "chapterFilterInBook"
+                      : "chapterFilterSetAside",
+                )}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
+      {manuscript.chapters.some((chapter) => !isChapterInBook(chapter)) && (
+        <p className="binder-chapter-filter-help">{t("chapterSetAsideHelp")}</p>
+      )}
       <div className="binder-tree-shell">
         {structure.items.length ? (
           <ScrollArea

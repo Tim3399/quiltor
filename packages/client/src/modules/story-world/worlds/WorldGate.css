@@ -62,6 +62,9 @@
   background: var(--panel);
   box-shadow: var(--elevation-1) var(--shadow-color);
 }
+.world-trash-undo {
+  margin-bottom: var(--space-16);
+}
 .world-list-panel[data-long="true"] {
   min-height: 0;
   display: flex;
@@ -74,6 +77,12 @@
   justify-content: space-between;
   gap: var(--space-12);
   margin-bottom: var(--space-16);
+}
+.world-list-actions,
+.world-trash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
 }
 .world-list-panel h2,
 .world-create-sheet h2 {
@@ -112,6 +121,39 @@
 .world-create-sheet {
   min-height: 100%;
   padding: var(--space-24);
+}
+.world-trash-sheet {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-24);
+}
+.world-trash-list {
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+}
+.world-trash-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16);
+  padding: var(--space-16);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+.world-trash-title,
+.world-trash-meta {
+  margin: 0;
+}
+.world-trash-title {
+  font: 600 var(--font-size-body) var(--prose);
+}
+.world-trash-meta {
+  margin-top: var(--space-4);
+  color: var(--muted);
+  font-size: var(--font-size-metadata);
 }
 .world-create-header {
   display: flex;
@@ -157,6 +199,13 @@
   }
   .world-create-sheet {
     padding: var(--space-16);
+  }
+  .world-trash-sheet {
+    padding: var(--space-16);
+  }
+  .world-trash-item {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

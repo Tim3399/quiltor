@@ -62,4 +62,78 @@ describe("useWorldSession", () => {
     expect(location.hash).toBe("#top");
     await waitFor(() => expect(result.current.worlds).toEqual([refreshedWorld]));
   });
+
+  it("opens the newly owned imported project without replacing or reopening another world", async () => {
+    const imported = { ...firstWorld, id: "new-owned-id", title: "Importierte Welt" };
+    vi.spyOn(quiltorClient.application.worlds, "list").mockResolvedValue({
+      ok: true,
+      worlds: [firstWorld, imported],
+    });
+    const open = vi.spyOn(quiltorClient.application.worlds, "open");
+    const select = vi.spyOn(quiltorClient.application.worlds, "select");
+    vi.spyOn(quiltorClient.application.manuscript, "load").mockResolvedValue({ chapters: [] });
+    vi.spyOn(quiltorClient.application.storyWorld, "load").mockResolvedValue({
+      nodes: [],
+      edges: [],
+    });
+    vi.spyOn(quiltorClient.application.storyboards, "load").mockResolvedValue({
+      boards: [],
+      nodes: [],
+      edges: [],
+    });
+    const onDocumentsLoaded = vi.fn();
+    const { result } = renderHook(() => useWorldSession(onDocumentsLoaded));
+    await waitFor(() => expect(result.current.worlds).toEqual([firstWorld, imported]));
+
+    await act(() => result.current.projectImported(imported));
+
+    expect(open).not.toHaveBeenCalled();
+    expect(select).toHaveBeenCalledWith("new-owned-id");
+    expect(result.current.world).toEqual(imported);
+    expect(onDocumentsLoaded).toHaveBeenCalledOnce();
+  });
+
+  it("loads trash and refreshes both catalogs after restore", async () => {
+    const trashed = { ...firstWorld, deletedAt: "2026-08-24T12:00:00.000Z" };
+    vi.spyOn(quiltorClient.application.worlds, "list").mockResolvedValue({
+      ok: true,
+      worlds: [firstWorld],
+    });
+    vi.spyOn(quiltorClient.application.worlds, "listTrash")
+      .mockResolvedValueOnce({ ok: true, worlds: [trashed] })
+      .mockResolvedValueOnce({ ok: true, worlds: [] });
+    const restore = vi
+      .spyOn(quiltorClient.application.worlds, "restore")
+      .mockResolvedValue({ ok: true });
+
+    const { result } = renderHook(() => useWorldSession(vi.fn()));
+    await waitFor(() => expect(result.current.worlds).toEqual([firstWorld]));
+    await act(() => result.current.loadTrash());
+    expect(result.current.trash).toEqual([trashed]);
+
+    await act(() => result.current.restore(firstWorld.id));
+    expect(restore).toHaveBeenCalledWith(firstWorld.id);
+    expect(result.current.trash).toEqual([]);
+    expect(result.current.worlds).toEqual([firstWorld]);
+  });
+
+  it("keeps trash visible and reports purge failures", async () => {
+    const trashed = { ...firstWorld, deletedAt: "2026-08-24T12:00:00.000Z" };
+    vi.spyOn(quiltorClient.application.worlds, "list").mockResolvedValue({ ok: true, worlds: [] });
+    vi.spyOn(quiltorClient.application.worlds, "listTrash").mockResolvedValue({
+      ok: true,
+      worlds: [trashed],
+    });
+    vi.spyOn(quiltorClient.application.worlds, "purge").mockRejectedValue(new Error("blocked"));
+
+    const { result } = renderHook(() => useWorldSession(vi.fn()));
+    await waitFor(() => expect(result.current.worlds).toEqual([]));
+    await act(() => result.current.loadTrash());
+    await act(async () => {
+      await expect(result.current.purge(firstWorld.id)).rejects.toThrow("blocked");
+    });
+
+    expect(result.current.trash).toEqual([trashed]);
+    expect(result.current.trashError).toBeTruthy();
+  });
 });

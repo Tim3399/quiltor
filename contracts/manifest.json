@@ -4,6 +4,24 @@
   "manifestVersion": 1,
   "contracts": [
     {
+      "name": "application.project-transfer-manifest",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "Version 1 is strict; incompatible archive changes require a new manifest version."
+      },
+      "schema": "application-api/project-transfer/v1.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/project-transfer/manifest.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
       "name": "application.structured-error",
       "version": 1,
       "owner": "quiltor/application",

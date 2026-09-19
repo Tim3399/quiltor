@@ -1,0 +1,33 @@
+{
+  "format": "quiltor-project",
+  "version": 1,
+  "title": "Übertragbares Projekt",
+  "exportedAt": "2026-09-19T12:00:00Z",
+  "includes": { "trash": true, "history": false },
+  "documents": {
+    "manuscript": {
+      "contract": "quiltor.manuscript",
+      "version": 1,
+      "payload": {
+        "chapters": [{ "id": "chapter-1", "title": "Kapitel 1", "body": "Der Morgen war still." }],
+        "trash": [],
+        "activeChapterId": "chapter-1"
+      }
+    },
+    "figures": {
+      "contract": "quiltor.story-world",
+      "version": 1,
+      "payload": { "nodes": [], "edges": [] }
+    },
+    "storyboards": {
+      "contract": "quiltor.storyboards",
+      "version": 1,
+      "payload": {
+        "boards": [{ "id": "main-storyboard", "title": "Hauptstoryboard" }],
+        "nodes": [],
+        "edges": []
+      }
+    }
+  },
+  "images": []
+}

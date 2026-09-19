@@ -6,6 +6,8 @@ export interface BackupStatusWireV1 {
   changes: string[];
   changeCount: number;
   suggestedMessage: string;
+  lastSuccessfulTransfer: string | null;
+  transferredSnapshotId: string | null;
 }
 
 export function decodeBackupStatusV1(value: unknown): BackupStatus {
@@ -21,7 +23,14 @@ export function decodeBackupStatusV1(value: unknown): BackupStatus {
     typeof wire.changeCount !== "number" ||
     !Number.isSafeInteger(wire.changeCount) ||
     wire.changeCount < 0 ||
-    typeof wire.suggestedMessage !== "string"
+    typeof wire.suggestedMessage !== "string" ||
+    (wire.lastSuccessfulTransfer !== null && typeof wire.lastSuccessfulTransfer !== "string") ||
+    (wire.transferredSnapshotId !== null && typeof wire.transferredSnapshotId !== "string") ||
+    (wire.lastSuccessfulTransfer === null) !== (wire.transferredSnapshotId === null) ||
+    (typeof wire.lastSuccessfulTransfer === "string" &&
+      (!wire.lastSuccessfulTransfer.endsWith("Z") ||
+        Number.isNaN(Date.parse(wire.lastSuccessfulTransfer)))) ||
+    (typeof wire.transferredSnapshotId === "string" && !wire.transferredSnapshotId)
   ) {
     throw new TypeError("Invalid backup status wire value");
   }
@@ -31,5 +40,7 @@ export function decodeBackupStatusV1(value: unknown): BackupStatus {
     changes: [...wire.changes],
     changeCount: wire.changeCount,
     suggestedMessage: wire.suggestedMessage,
+    lastSuccessfulTransfer: wire.lastSuccessfulTransfer,
+    transferredSnapshotId: wire.transferredSnapshotId,
   };
 }

@@ -10,9 +10,10 @@ where we stand, starting a browser flow, catching what the browser brings back
 from __future__ import annotations
 
 import html
+import sqlite3
 from datetime import datetime
 
-from quiltor.application import ApplicationError
+from quiltor.application import ApplicationError, encode_document_v1
 from quiltor.application.backups import (
     BackupAuthorizationUnavailable,
     BackupEndpointNotConfigured,
@@ -21,7 +22,6 @@ from quiltor.application.backups import (
     BackupRestoreFailed,
 )
 from quiltor.delivery.http.routes import Request, get, save
-
 
 # Every route registered `world=True` has its world resolved by the dispatch, so
 # `request.world` is never None below and its snapshot context is the only
@@ -49,6 +49,31 @@ def local_backups(handler, request: Request, app) -> None:
                 "backups": app.backups.list_local(request.world.backups_dir),
             }
         )
+
+
+@get("/api/backups/location", world=True)
+def storage_location(handler, request: Request, app) -> None:
+    with app.lock:
+        handler.send_json(
+            {"ok": True, "storage": app.backups.storage_location(request.world.document_location)}
+        )
+
+
+@get("/api/backups/preview", world=True)
+def preview_local_backup(handler, request: Request, app) -> None:
+    try:
+        with app.lock:
+            documents = app.backups.preview_local(
+                request.param("name"), request.world.document_location
+            )
+            preview = {
+                kind: encode_document_v1(kind, documents[kind])
+                for kind in ("manuscript", "figures", "storyboards")
+            }
+        handler.send_json({"ok": True, "documents": preview})
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        _observe_failure(app, "backup.preview_failed", exc)
+        handler.send_api_error(400, error_code="backup.preview_failed", retryable=False)
 
 
 @get("/api/backup/remote")
@@ -154,8 +179,10 @@ def restore_local(handler, request: Request, app) -> None:
         return
     try:
         with app.lock:
-            app.backups.restore_local(str(payload.get("name", "")), world.document_location)
-        handler.send_json({"ok": True})
+            result = app.backups.restore_local(
+                str(payload.get("name", "")), world.document_location
+            )
+        handler.send_json(result)
     except Exception as exc:
         _observe_failure(app, "backup.local_restore_failed", exc)
         handler.send_exception(BackupRestoreFailed())

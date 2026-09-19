@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { messageCatalog } from "../../i18n";
-import { orderedChapters } from "./binder/manuscriptTree";
+import { chaptersInBook } from "./binder/manuscriptTree";
 import type { BookLayoutSettings } from "./bookLayout";
 import { bodyParagraphs, markedSegments } from "./marks";
 import type { Chapter, Manuscript } from "./model";
@@ -55,7 +55,7 @@ export function BookContent({
             .join(" · ")}
         </footer>
       </section>
-      {orderedChapters(manuscript).map((chapter, chapterIndex) => {
+      {chaptersInBook(manuscript).map((chapter, chapterIndex) => {
         let firstParagraph = true;
         return (
           <section className="book-chapter" data-chapter-id={chapter.id} key={chapter.id}>

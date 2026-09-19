@@ -18,12 +18,10 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
-from unittest.mock import patch
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from quiltor.application.backups import BackupAuthorization, BackupGatewayError
-from quiltor.infrastructure.backup import SnapshotStore
-from quiltor.infrastructure.backup import remote
+from quiltor.infrastructure.backup import SnapshotStore, remote
 from quiltor.infrastructure.backup.adapters import HttpRemoteBackupGateway
 from tests.python.fake_issuer import FakeIssuer
 
@@ -132,6 +130,8 @@ class BackupProtocolTest(unittest.TestCase):
         self.assertIn("Snapshot uploaded to the backup endpoint.", result["log"])
 
         entry = self.store.entries(ctx)[-1]
+        self.assertIsNotNone(result["status"]["lastSuccessfulTransfer"])
+        self.assertEqual(result["status"]["transferredSnapshotId"], entry["id"])
         self.assertEqual(
             set(self._stored()),
             {record["sha256"] for record in entry["files"].values()},
@@ -397,37 +397,43 @@ class BackupProtocolTest(unittest.TestCase):
         )
 
     def test_oidc_configuration_rejects_remote_plain_http(self):
-        with patch.object(self.reference, "ISSUER", "http://identity.example.test"):
-            with self.assertRaisesRegex(ValueError, "HTTPS"):
-                self.reference.validate_configuration()
+        with (
+            patch.object(self.reference, "ISSUER", "http://identity.example.test"),
+            self.assertRaisesRegex(ValueError, "HTTPS"),
+        ):
+            self.reference.validate_configuration()
 
     def test_discovery_must_match_the_configured_issuer_and_trusted_origin(self):
         issuer = "https://identity.example.test/realms/quiltor"
         self.reference.ISSUER = issuer
         self.reference.ALLOW_INSECURE_LOOPBACK = False
         self.reference._discovery.clear()
-        with patch.object(
-            self.reference,
-            "_get_json",
-            return_value={
-                "issuer": "https://different.example.test/realms/quiltor",
-                "introspection_endpoint": f"{issuer}/introspect",
-            },
+        with (
+            patch.object(
+                self.reference,
+                "_get_json",
+                return_value={
+                    "issuer": "https://different.example.test/realms/quiltor",
+                    "introspection_endpoint": f"{issuer}/introspect",
+                },
+            ),
+            self.assertRaisesRegex(ValueError, "does not match"),
         ):
-            with self.assertRaisesRegex(ValueError, "does not match"):
-                self.reference.discover()
+            self.reference.discover()
 
         self.reference._discovery.clear()
-        with patch.object(
-            self.reference,
-            "_get_json",
-            return_value={
-                "issuer": issuer,
-                "introspection_endpoint": "https://tokens.example.test/introspect",
-            },
+        with (
+            patch.object(
+                self.reference,
+                "_get_json",
+                return_value={
+                    "issuer": issuer,
+                    "introspection_endpoint": "https://tokens.example.test/introspect",
+                },
+            ),
+            self.assertRaisesRegex(ValueError, "trusted OIDC origin"),
         ):
-            with self.assertRaisesRegex(ValueError, "trusted OIDC origin"):
-                self.reference.discover()
+            self.reference.discover()
 
 
 if __name__ == "__main__":

@@ -7,11 +7,12 @@ import type {
   IdentityGateway,
   ManuscriptGateway,
   MetadataGateway,
-  StoryWorldGateway,
+  PlaceMapsGateway,
+  ProjectTransferGateway,
   StoryboardsGateway,
+  StoryWorldGateway,
   WorldsGateway,
   WritingAssistanceGateway,
-  PlaceMapsGateway,
 } from "../application";
 
 export type ApplicationGatewayOverrides = {
@@ -27,6 +28,7 @@ export type ApplicationGatewayOverrides = {
   writingAssistance?: Partial<WritingAssistanceGateway>;
   documents?: Partial<DocumentsGateway>;
   placeMaps?: Partial<PlaceMapsGateway>;
+  projectTransfer?: Partial<ProjectTransferGateway>;
 };
 
 function notStubbed(method: string): Promise<never> {
@@ -45,9 +47,12 @@ export function createApplicationGatewayStub(
     worlds: {
       select: () => {},
       list: () => notStubbed("worlds.list"),
+      listTrash: () => notStubbed("worlds.listTrash"),
       open: () => notStubbed("worlds.open"),
       create: () => notStubbed("worlds.create"),
       delete: () => notStubbed("worlds.delete"),
+      restore: () => notStubbed("worlds.restore"),
+      purge: () => notStubbed("worlds.purge"),
       ...overrides.worlds,
     },
     identity: {
@@ -57,17 +62,26 @@ export function createApplicationGatewayStub(
     },
     storyWorld: {
       load: () => notStubbed("storyWorld.load"),
+      peek: () => notStubbed("storyWorld.peek"),
+      adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("storyWorld.save"),
+      saveExpected: () => notStubbed("storyWorld.saveExpected"),
       ...overrides.storyWorld,
     },
     storyboards: {
       load: () => notStubbed("storyboards.load"),
+      peek: () => notStubbed("storyboards.peek"),
+      adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("storyboards.save"),
+      saveExpected: () => notStubbed("storyboards.saveExpected"),
       ...overrides.storyboards,
     },
     manuscript: {
       load: () => notStubbed("manuscript.load"),
+      peek: () => notStubbed("manuscript.peek"),
+      adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("manuscript.save"),
+      saveExpected: () => notStubbed("manuscript.saveExpected"),
       ...overrides.manuscript,
     },
     backup: {
@@ -77,6 +91,8 @@ export function createApplicationGatewayStub(
       beginLogin: () => notStubbed("backup.beginLogin"),
       signOut: () => notStubbed("backup.signOut"),
       list: () => notStubbed("backup.list"),
+      location: () => notStubbed("backup.location"),
+      preview: () => notStubbed("backup.preview"),
       restore: () => notStubbed("backup.restore"),
       ...overrides.backup,
     },
@@ -116,6 +132,12 @@ export function createApplicationGatewayStub(
       store: () => notStubbed("placeMaps.store"),
       sourceUrl: (imageId: string) => `/api/place-map?id=${imageId}`,
       ...overrides.placeMaps,
+    },
+    projectTransfer: {
+      exportProject: () => notStubbed("projectTransfer.exportProject"),
+      preview: () => notStubbed("projectTransfer.preview"),
+      importProject: () => notStubbed("projectTransfer.importProject"),
+      ...overrides.projectTransfer,
     },
   };
 }

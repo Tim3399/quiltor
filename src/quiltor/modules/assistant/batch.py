@@ -7,6 +7,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from quiltor.domain.story_world.knowledge import scoped_chapters
 from quiltor.modules.assistant.ports import AssistantProgressStore
 from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, UNTITLED_CHAPTER
 
@@ -197,12 +198,7 @@ def run_batches(
     Runtime-owned collaborators are supplied as ports/callables, keeping the product
     batching policy independent from process lifecycle and inference infrastructure.
     """
-    selected = set(chapter_ids or [])
-    chapters = [
-        chapter
-        for chapter in manuscript.get("chapters") or []
-        if not selected or chapter.get("id") in selected
-    ]
+    chapters = scoped_chapters(manuscript, chapter_ids)
     groups = _group_chapters_by_budget(
         chapters,
         identity,

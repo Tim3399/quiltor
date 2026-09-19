@@ -30,13 +30,13 @@ import sqlite3
 import stat
 import tempfile
 import zlib
+from collections.abc import Callable, Iterable
 from contextlib import closing
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from quiltor.application.backup_manifest import (
-    BackupContractError,
     CURRENT_FORMAT_VERSION,
     DATABASE_NAME,
     DIGEST_RE,
@@ -45,7 +45,7 @@ from quiltor.application.backup_manifest import (
     MAX_MANIFEST_BYTES,
     MAX_TEXT_FILE_BYTES,
     MAX_TOTAL_BYTES,
-    ManifestFile,
+    BackupContractError,
     build_manifest_files,
     manifest_identifier,
     strict_json_loads,
@@ -81,6 +81,9 @@ _TOKEN_RE = re.compile(r"\S+|\n|[^\S\n]+")
 # fields, whose target IDs and future keys are intentionally unbounded.
 _MAX_CHAPTER_EXTRA_BYTES = MAX_BLOB_BYTES
 _MAX_TEXT_MARKS = 10_000
+_MAX_TRANSFER_STATUS_BYTES = 16 * 1024
+_MAX_TRANSFER_ENDPOINTS = 32
+_TRANSFER_STATUS_FORMAT = 1
 
 
 def _historical_text_marks(extra_json: str, body: str) -> list[dict[str, Any]] | None:
@@ -469,6 +472,106 @@ class SnapshotStore:
         _assert_contained(ctx.root, path)
         return path
 
+    def _transfer_status_path(self, ctx: BackupContext) -> Path:
+        path = ctx.root / "remote-transfer.json"
+        _assert_contained(ctx.root, path)
+        return path
+
+    @staticmethod
+    def _endpoint_fingerprint(endpoint: str) -> str:
+        return hashlib.sha256(endpoint.encode("utf-8")).hexdigest()
+
+    def _transfer_records(self, ctx: BackupContext) -> dict[str, dict[str, str]]:
+        try:
+            path = self._transfer_status_path(ctx)
+            payload = path.read_bytes()
+            if len(payload) > _MAX_TRANSFER_STATUS_BYTES:
+                return {}
+            value = strict_json_loads(payload, maximum_bytes=_MAX_TRANSFER_STATUS_BYTES)
+            if (
+                not isinstance(value, dict)
+                or set(value) != {"format", "transfers"}
+                or type(value["format"]) is not int
+                or value["format"] != _TRANSFER_STATUS_FORMAT
+                or not isinstance(value["transfers"], dict)
+                or len(value["transfers"]) > _MAX_TRANSFER_ENDPOINTS
+            ):
+                return {}
+            records: dict[str, dict[str, str]] = {}
+            for endpoint_hash, record in value["transfers"].items():
+                if (
+                    not isinstance(endpoint_hash, str)
+                    or DIGEST_RE.fullmatch(endpoint_hash) is None
+                    or not isinstance(record, dict)
+                    or set(record) != {"lastSuccessfulTransfer", "transferredSnapshotId"}
+                ):
+                    return {}
+                transferred_at = record["lastSuccessfulTransfer"]
+                snapshot_id = record["transferredSnapshotId"]
+                if (
+                    not isinstance(transferred_at, str)
+                    or len(transferred_at) > 64
+                    or not transferred_at.endswith("Z")
+                    or not isinstance(snapshot_id, str)
+                    or DIGEST_RE.fullmatch(snapshot_id) is None
+                ):
+                    return {}
+                parsed = datetime.fromisoformat(transferred_at.removesuffix("Z") + "+00:00")
+                if parsed.tzinfo is None:
+                    return {}
+                records[endpoint_hash] = record
+            return records
+        except (BackupContractError, OSError, UnicodeError, ValueError):
+            return {}
+
+    def _transfer_status(self, ctx: BackupContext) -> dict[str, str] | None:
+        if not isinstance(ctx.endpoint_url, str) or not ctx.endpoint_url:
+            return None
+        return self._transfer_records(ctx).get(self._endpoint_fingerprint(ctx.endpoint_url))
+
+    def _record_successful_transfer(self, ctx: BackupContext, snapshot_id: str) -> None:
+        if DIGEST_RE.fullmatch(snapshot_id) is None:
+            raise BackupContractError(
+                "invalid_backup_manifest", "Backup snapshot failed validation."
+            )
+        _assert_no_link_or_reparse(ctx.root.parent)
+        ctx.root.mkdir(parents=True, exist_ok=True)
+        _assert_no_link_or_reparse(ctx.root)
+        target = self._transfer_status_path(ctx)
+        records = self._transfer_records(ctx)
+        endpoint_hash = self._endpoint_fingerprint(ctx.endpoint_url)
+        records[endpoint_hash] = {
+            "lastSuccessfulTransfer": datetime.now(UTC)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z"),
+            "transferredSnapshotId": snapshot_id,
+        }
+        if len(records) > _MAX_TRANSFER_ENDPOINTS:
+            oldest = min(
+                records,
+                key=lambda key: (records[key]["lastSuccessfulTransfer"], key),
+            )
+            del records[oldest]
+        document = {
+            "format": _TRANSFER_STATUS_FORMAT,
+            "transfers": records,
+        }
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=ctx.root,
+            prefix=".remote-transfer-",
+            delete=False,
+        ) as handle:
+            json.dump(document, handle, ensure_ascii=False, separators=(",", ":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+            staged = Path(handle.name)
+        try:
+            staged.replace(target)
+        finally:
+            staged.unlink(missing_ok=True)
+
     def entries(self, ctx: BackupContext) -> list[dict[str, Any]]:
         path = self._index_path(ctx)
         if not path.exists():
@@ -549,9 +652,10 @@ class SnapshotStore:
                 with (
                     closing(sqlite3.connect(ctx.database)) as source,
                     closing(sqlite3.connect(target)) as destination,
+                    source,
+                    destination,
                 ):
-                    with source, destination:
-                        source.backup(destination)
+                    source.backup(destination)
                 files[DATABASE_NAME] = target.read_bytes()
         for directory, name in ((ctx.manuscripts, "manuscripts"), (ctx.profiles, "profiles")):
             if not directory.exists():
@@ -584,13 +688,20 @@ class SnapshotStore:
         current = self._collect(ctx)
         previous = self._manifest_of(self._resolve(ctx, "HEAD"))
         changes = self._changes(current, previous)
+        transfer = self._transfer_status(ctx)
         return {
             "ok": True,
             "endpoint": ctx.endpoint_url,
+            "lastSuccessfulTransfer": (
+                transfer["lastSuccessfulTransfer"] if transfer is not None else None
+            ),
+            "transferredSnapshotId": (
+                transfer["transferredSnapshotId"] if transfer is not None else None
+            ),
             "changes": changes[:60],
             "changeCount": len(changes),
             "suggestedMessage": _describe_changes(changes)
-            or f"Writing backup {datetime.now():%Y-%m-%d %H:%M}",
+            or f"Writing backup {datetime.now():%Y-%m-%d %H:%M}",  # noqa: DTZ005
         }
 
     def commit(
@@ -605,16 +716,20 @@ class SnapshotStore:
         changes = self._changes(current, self._manifest_of(previous_entry))
         log: list[str] = []
         if not changes:
+            warning = None
             if push:
                 if previous_entry is None:
                     raise BackupSnapshotNotFound(params={"operation": "upload"})
-                self._push(ctx, previous_entry, authorization, snapshot_created=False)
+                warning = self._push(ctx, previous_entry, authorization, snapshot_created=False)
                 log.append("Snapshot uploaded to the backup endpoint.")
-            return {
+            result = {
                 "ok": True,
                 "log": log or ["Everything is already backed up."],
                 "status": self.status(ctx),
             }
+            if warning is not None:
+                result["warnings"] = [warning]
+            return result
 
         _assert_no_link_or_reparse(ctx.root.parent)
         _assert_no_link_or_reparse(ctx.root)
@@ -623,7 +738,7 @@ class SnapshotStore:
         manifest = build_manifest_files(sorted(current.items()))
         for payload in current.values():
             self._write_blob(ctx, payload)
-        created = datetime.now()
+        created = datetime.now()  # noqa: DTZ005 - preserve released local timestamp format
         entry = {
             "format": FORMAT_VERSION,
             "encryption": ENCRYPTION_NONE,
@@ -647,9 +762,12 @@ class SnapshotStore:
         log.append("Snapshot created.")
 
         if push:
-            self._push(ctx, entry, authorization, snapshot_created=True)
+            warning = self._push(ctx, entry, authorization, snapshot_created=True)
             log.append("Snapshot uploaded to the backup endpoint.")
-        return {"ok": True, "log": log, "status": self.status(ctx)}
+        result = {"ok": True, "log": log, "status": self.status(ctx)}
+        if push and warning is not None:
+            result["warnings"] = [warning]
+        return result
 
     def _push(
         self,
@@ -658,7 +776,7 @@ class SnapshotStore:
         authorization: BackupAuthorization | None,
         *,
         snapshot_created: bool,
-    ) -> None:
+    ) -> str | None:
         params = {"operation": "upload", "snapshotCreated": snapshot_created}
         if not ctx.endpoint_url:
             raise BackupEndpointNotConfigured(params=params)
@@ -673,6 +791,11 @@ class SnapshotStore:
             )
         except Exception as exc:
             raise BackupGatewayError(params=params) from exc
+        try:
+            self._record_successful_transfer(ctx, entry["id"])
+        except (BackupContractError, OSError):
+            return "backup.transfer_status_failed"
+        return None
 
     def history(self, ctx: BackupContext, limit: int = 40) -> list[dict[str, str]]:
         entries = self.entries(ctx)[-limit:]

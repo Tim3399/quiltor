@@ -684,9 +684,12 @@ export function ReferenceTextEditor({
                   appearance="ghost"
                   size="compact"
                   className="note-reference-link"
+                  disabled={!candidate}
                   onClick={() => openReferenceRef.current(reference.target)}
                 >
-                  {currentLabel}
+                  {candidate
+                    ? currentLabel
+                    : t("noteReferenceUnavailable", { title: currentLabel })}
                 </Button>
               );
             })}

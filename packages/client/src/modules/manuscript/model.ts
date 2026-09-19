@@ -29,6 +29,7 @@ export interface ChapterStoryTime {
 
 export interface Chapter {
   id: string;
+  inBook?: boolean;
   title: string;
   body: string;
   note: string;
@@ -67,6 +68,15 @@ export type ManuscriptTreeItem =
 export interface ManuscriptStructure {
   folders: ChapterFolder[];
   items: ManuscriptTreeItem[];
+  [key: string]: unknown;
+}
+
+export interface ChapterTrashEntry {
+  chapter: Chapter;
+  deletedAt: string;
+  originalFolderPath: ChapterFolder[];
+  treeItem: Extract<ManuscriptTreeItem, { kind: "chapter" }>;
+  [key: string]: unknown;
 }
 
 export type GrammarMode = "manual" | "automatic";
@@ -83,6 +93,7 @@ export type WritingIssue = {
 
 export interface Manuscript {
   chapters: Chapter[];
+  trash?: ChapterTrashEntry[];
   bookLayout?: BookLayoutSettings;
   structure?: ManuscriptStructure;
   language?: WritingLocale;

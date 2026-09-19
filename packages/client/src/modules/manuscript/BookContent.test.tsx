@@ -5,6 +5,24 @@ import { DEFAULT_BOOK_LAYOUT } from "./bookLayout";
 import { annotateBookPages, bookPageMargins, bookPageNumber, bookStyles } from "./bookPagination";
 
 describe("Shared book typesetting", () => {
+  it("omits set-aside chapters while keeping default chapters", () => {
+    render(
+      <BookContent
+        date=""
+        settings={DEFAULT_BOOK_LAYOUT}
+        manuscript={{
+          chapters: [
+            { id: "included", title: "Im Buch", body: "Bleibt", note: "" },
+            { id: "aside", title: "Entwurf", body: "Nicht drucken", note: "", inBook: false },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText("Im Buch")).toBeVisible();
+    expect(screen.queryByText("Entwurf")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nicht drucken")).not.toBeInTheDocument();
+  });
+
   it("preserves semantic marks, first paragraph and scene separators without interpreting markup", () => {
     const { container } = render(
       <BookContent

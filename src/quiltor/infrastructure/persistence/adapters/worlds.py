@@ -16,6 +16,7 @@ def _summary(record: dict[str, str]) -> WorldSummary:
         title=record["title"],
         backup_url=record.get("backupUrl", ""),
         updated=record.get("updated", ""),
+        deleted_at=record.get("deletedAt", ""),
     )
 
 
@@ -44,6 +45,14 @@ class SQLiteWorldRepository:
         return [
             _summary(record)
             for record in world_catalog.list_worlds(owner_sub=owner_sub, paths=self.paths)
+        ]
+
+    def list_trash(self, owner_sub: str) -> list[WorldSummary]:
+        return [
+            _summary(record)
+            for record in world_catalog.list_worlds(
+                owner_sub=owner_sub, paths=self.paths, deleted=True
+            )
         ]
 
     def create(self, title: str, backup_url: str, owner_sub: str) -> WorldSummary:
@@ -91,6 +100,12 @@ class SQLiteWorldRepository:
 
     def delete(self, world_id: str, owner_sub: str) -> None:
         world_catalog.delete_world(world_id, owner_sub=owner_sub, paths=self.paths)
+
+    def restore(self, world_id: str, owner_sub: str) -> None:
+        world_catalog.restore_world(world_id, owner_sub=owner_sub, paths=self.paths)
+
+    def purge(self, world_id: str, owner_sub: str) -> None:
+        world_catalog.purge_world(world_id, owner_sub=owner_sub, paths=self.paths)
 
     def assign_owner(self, world_id: str, owner_sub: str) -> None:
         path = world_catalog.world_db_path(world_id, paths=self.paths)

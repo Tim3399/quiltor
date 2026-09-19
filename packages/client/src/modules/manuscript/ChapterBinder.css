@@ -59,6 +59,13 @@
   border-color: var(--line);
   background: var(--paper);
 }
+.binder-chapter-row.is-set-aside {
+  opacity: 0.72;
+}
+.chapter-set-aside {
+  color: var(--muted);
+  font-style: italic;
+}
 .binder-chapter-row:focus-within {
   border-color: var(--focus-ring);
 }
@@ -242,4 +249,8 @@
 }
 .binder-story-time-status.is-warning {
   color: var(--danger);
+}
+.chapter-binder__trash {
+  width: calc(100% - 2 * var(--space-12));
+  margin: var(--space-8) var(--space-12) var(--space-12);
 }

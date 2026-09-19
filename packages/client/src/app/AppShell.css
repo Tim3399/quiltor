@@ -123,6 +123,9 @@
   flex: 0 1 auto;
   margin-inline-start: var(--space-4);
 }
+.app-save-recovery {
+  flex: 0 0 auto;
+}
 
 @media (max-width: 1099px) {
   .app-bar .global-action__content,
@@ -202,6 +205,9 @@
   }
   .app-bar .app-save-status {
     padding-inline: var(--space-4);
+  }
+  .app-save-recovery__label {
+    display: none;
   }
 }
 @media (max-width: 359px) {

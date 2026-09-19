@@ -145,9 +145,27 @@ Planning context is kept out of mutation and extraction requests. Automatic prom
 
 A local Quiltor setup needs no cloud account.
 
+**Free local writing under the [published licence](#status-and-license). No writing subscription.**
+
 Every world is stored in its own SQLite database on your machine. Manuscript and profile data are additionally mirrored into readable Markdown files. Automatic local backups and project history are part of the storage model.
 
 Remote backup is optional and can be run against your own backup endpoint.
+
+Free manual `.quiltor` project transfer includes the current project, set-aside chapters,
+chapter trash and required images. Import creates a new world. Earlier backups and saved
+history are explicitly excluded; use the backup and history tools to restore those.
+Ordinary book export contains only chapters included in the book.
+
+A successful local save, a recoverable snapshot, and a transfer to a backup server are
+separate operations. Remote backup transfers explicitly created snapshots; automatic
+multi-device synchronization and merging are not currently offered. An unreachable backup
+endpoint does not lock the local editor.
+
+A paid managed cloud offer with a price, quota, and retention period has not been defined.
+There is consequently no promise here about cancellation terms, end-to-end encryption,
+or hosting region. A self-hosted endpoint's operator defines its terms. Hosted web operation
+stores project data on that server, which is a different storage location from the local
+workshop on your computer.
 
 The assistant remains local as well:
 
@@ -160,7 +178,7 @@ The assistant remains local as well:
 
 ## What is included today
 
-Current repository version: **3.16.3**.
+[`VERSION`](VERSION) is the current version authority. This overview describes the source tree.
 
 | Area                 | Capabilities                                                                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -193,6 +211,9 @@ Quiltor is under active development. Its focus is a calm writing workflow, a con
 
 # Quick start
 
+For authors: [installation and first writing tasks (German)](docs/ERSTE-SCHRITTE.md).
+The commands below describe running from source.
+
 Requires **Python 3.12+**.
 
 ```bash
@@ -203,7 +224,12 @@ python3 apps/web/server.py
 
 On Windows, use `py -3.12 apps/web/server.py` to select the supported Python series explicitly.
 
-Quiltor opens `http://localhost:8000` by default and creates an empty world on first launch. If no local assistant is installed, Quiltor asks before downloading anything; the rest of the application works without the assistant.
+Quiltor opens `http://localhost:8000` by default. Choose **New world** in the world selection to create your first project. Startup does not wait for AI setup or download a model. You can explicitly set up the optional assistant later in its sidebar.
+
+Open the world, select or create a manuscript chapter, and start writing. Leave the optional
+backup endpoint empty if you do not use one. Model download and assistant setup are not
+required for this path. The shared search finds chapters and world elements; analysis can
+later target the active chapter or an explicitly selected group of chapters.
 
 CLI/Python packaging, local desktop builds, and Docker deployment are also implemented. See the platform status below for the distinction between build support and available release artifacts.
 
@@ -355,7 +381,7 @@ The model runtime uses:
 - `llama.cpp`
 - optional MLX on Apple Silicon Macs
 
-On first launch, Quiltor can install the appropriate runtime and model after explicit confirmation. A direct repository checkout stores these under `runtime/` and `models/`.
+When you explicitly start AI setup, Quiltor can download the appropriate runtime and model. A direct repository checkout stores these under `runtime/` and `models/`.
 
 Explicit installation:
 
@@ -1009,7 +1035,7 @@ author-owned planning data.
 
 ## Status and license
 
-Quiltor **3.16.3** is under active development. The current five-workspace workflow is
+Quiltor is under active development. The current five-workspace workflow is
 implemented; deeper evidence/provenance, persistent findings, incremental analysis, and
 dedicated AI storyboard workflows are tracked in [`docs/TODO.md`](docs/TODO.md).
 

@@ -5,17 +5,26 @@ from __future__ import annotations
 import os
 import sqlite3
 import tempfile
-from contextlib import closing
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from quiltor.infrastructure.persistence.backup_validation import validate_backup_documents
 from quiltor.infrastructure.persistence.sqlite import config, revisions
 from quiltor.infrastructure.persistence.sqlite.connection import connect
 from quiltor.infrastructure.persistence.sqlite.schema import SCHEMA_VERSION, initialize
 
 MAX_BACKUPS = 40
 BACKUP_INTERVAL = 300
+
+
+@dataclass(frozen=True, slots=True)
+class StagedBackup:
+    path: Path
+    documents: dict[str, dict[str, Any]]
 
 
 def backup_if_due(
@@ -59,16 +68,15 @@ def list_backups(backups_dir: Path | None = None) -> list[dict[str, Any]]:
     ]
 
 
-def restore_backup(
-    name: str,
-    db_path: Path | None = None,
-    backups_dir: Path | None = None,
-    previous_revisions: dict[str, int] | None = None,
-) -> None:
-    source_dir = backups_dir or config.BACKUPS
+@contextmanager
+def staged_backup(name: str, source_dir: Path) -> Iterator[StagedBackup]:
+    """Inspect or restore an isolated, validated copy without modifying its source."""
+
     if Path(name).name != name or not name.startswith("backup-") or not name.endswith(".sqlite3"):
         raise ValueError("Invalid backup name.")
     source_path = source_dir / name
+    if source_path.resolve().parent != source_dir.resolve():
+        raise ValueError("Backup path escapes its project directory.")
     with source_path.open("rb") as handle:
         if handle.read(16) != b"SQLite format 3\x00":
             raise ValueError("Backup is not a valid SQLite database.")
@@ -103,16 +111,27 @@ def restore_backup(
 
         # Migration failures affect only the staged copy, never the active world.
         initialize(staged)
+        yield StagedBackup(staged, validate_backup_documents(staged))
+
+
+def restore_backup(
+    name: str,
+    db_path: Path | None = None,
+    backups_dir: Path | None = None,
+    previous_revisions: dict[str, int] | None = None,
+) -> None:
+    source_dir = backups_dir or config.BACKUPS
+    with staged_backup(name, source_dir) as staged:
         if previous_revisions is None:
             initialize(db_path)
             previous_revisions = {
                 kind: revisions.revision(kind, db_path=db_path)
                 for kind in ("manuscript", "figures", "storyboards")
             }
-        revisions.advance_restore_revisions(previous_revisions, db_path=staged)
+        revisions.advance_restore_revisions(previous_revisions, db_path=staged.path)
         backup_if_due(force=True, db_path=db_path, backups_dir=source_dir)
-        with closing(connect(staged)) as source, closing(connect(db_path)) as destination:
+        with closing(connect(staged.path)) as source, closing(connect(db_path)) as destination:
             source.backup(destination)
 
 
-__all__ = ["backup_if_due", "list_backups", "restore_backup"]
+__all__ = ["StagedBackup", "backup_if_due", "list_backups", "restore_backup", "staged_backup"]

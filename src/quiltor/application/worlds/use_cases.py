@@ -32,6 +32,9 @@ class WorldUseCases:
     def list(self, owner_sub: str | None = None) -> list[dict[str, str]]:
         return [world.public() for world in self._worlds.list(owner_sub)]
 
+    def list_trash(self, owner_sub: str) -> list[dict[str, str]]:
+        return [world.public() for world in self._worlds.list_trash(owner_sub)]
+
     def create(self, title: str, backup_url: str, owner_sub: str) -> dict[str, str]:
         with self._observer.observe("persistence", "create_world"):
             return self._worlds.create(title, backup_url, owner_sub).public()
@@ -46,6 +49,14 @@ class WorldUseCases:
     def delete(self, world_id: str, owner_sub: str) -> None:
         with self._observer.observe("persistence", "delete_world"):
             self._worlds.delete(world_id, owner_sub)
+
+    def restore(self, world_id: str, owner_sub: str) -> None:
+        with self._observer.observe("persistence", "restore_world"):
+            self._worlds.restore(world_id, owner_sub)
+
+    def purge(self, world_id: str, owner_sub: str) -> None:
+        with self._observer.observe("persistence", "purge_world"):
+            self._worlds.purge(world_id, owner_sub)
 
     def assign_owner(self, world_id: str, owner_sub: str) -> None:
         self._worlds.assign_owner(world_id, owner_sub)

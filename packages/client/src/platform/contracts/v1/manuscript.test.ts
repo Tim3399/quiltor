@@ -7,7 +7,62 @@ function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function trashOf(value: { payload: unknown }) {
+  return (
+    value.payload as {
+      trash: Array<{
+        chapter: { id: string };
+        deletedAt: string;
+        treeItem: { chapterId: string };
+      }>;
+    }
+  ).trash;
+}
+
 describe("manuscript wire v1", () => {
+  it("defaults absent inBook to included and rejects non-boolean values", () => {
+    const decoded = decodeManuscriptV1(copy(fixture));
+    expect(decoded.document.chapters[0].inBook).toBeUndefined();
+    const invalid = copy(fixture);
+    (invalid.payload.chapters[0] as Record<string, unknown>).inBook = "no";
+    expect(() => decodeManuscriptV1(invalid)).toThrow();
+  });
+
+  it("round-trips complete trashed chapters and rejects id collisions", () => {
+    const wire = copy(fixture);
+    const deleted = copy(wire.payload.chapters[0]);
+    deleted.id = "chapter-deleted";
+    (wire.payload as Record<string, unknown>).trash = [
+      {
+        chapter: { ...deleted, futureChapter: { kept: true } },
+        deletedAt: "2026-09-19T10:00:00.000Z",
+        originalFolderPath: [{ id: "part-one", title: "Teil Eins", futureFolder: true }],
+        treeItem: {
+          id: "tree-deleted",
+          kind: "chapter",
+          chapterId: "chapter-deleted",
+          parentFolderId: "part-one",
+          position: 2,
+          futurePlacement: true,
+        },
+      },
+    ];
+    const decoded = decodeManuscriptV1(wire);
+    expect(decoded.document.trash?.[0]).toMatchObject({
+      chapter: { id: "chapter-deleted", futureChapter: { kept: true } },
+      treeItem: { futurePlacement: true },
+    });
+    expect(encodeManuscriptV1(decoded.document).payload.trash).toEqual(trashOf(wire));
+
+    const collision = copy(wire);
+    trashOf(collision)[0].chapter.id = collision.payload.chapters[0].id;
+    trashOf(collision)[0].treeItem.chapterId = collision.payload.chapters[0].id;
+    expect(() => decodeManuscriptV1(collision)).toThrow();
+    const malformed = copy(wire);
+    trashOf(malformed)[0].deletedAt = "gestern";
+    expect(() => decodeManuscriptV1(malformed)).toThrow();
+  });
+
   it("consumes the registered fixture and round-trips extensions", () => {
     const contract = manifest.contracts.find(
       (item) => item.name === "application.manuscript-wire" && item.version === 1,
