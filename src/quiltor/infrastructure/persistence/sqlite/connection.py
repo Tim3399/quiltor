@@ -15,10 +15,14 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
 
     database = config.DB if path is None else path
     conn = sqlite3.connect(database, timeout=15)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = FULL")
+    try:
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = FULL")
+    except BaseException:
+        conn.close()
+        raise
     return conn
 
 

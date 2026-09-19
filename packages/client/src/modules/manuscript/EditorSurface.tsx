@@ -10,8 +10,9 @@ import {
 } from "react";
 import { Button, EmptyState, ScrollArea, TextField } from "../../design";
 import { useI18n } from "../../i18n";
+import type { SnapshotChapterRecord } from "../../platform";
 import type { Workspace } from "../../shared";
-import type { SnapshotInfo } from "../history";
+import type { SnapshotInfo, VersionDiffProjection } from "../history";
 import { type FigureNode, type FigureState, kindLabel } from "../story-world";
 import { ChapterHistoryPanel } from "./ChapterHistoryPanel";
 import { ChapterTurnAffordance, type ChapterTurnTarget } from "./ChapterTurnAffordance";
@@ -25,8 +26,8 @@ import {
 import {
   advanceChapterTouch,
   beginChapterTouch,
-  chapterTouchNavigation,
   type ChapterTouchState,
+  chapterTouchNavigation,
   idleChapterTouch,
 } from "./chapterTouchTurn";
 import {
@@ -60,10 +61,10 @@ interface EditorSurfaceProps {
   historyOpen: boolean;
   historyCommits: SnapshotInfo[];
   historyRef: string;
-  historicalText: string;
-  historicalExists: boolean;
-  previousHistoricalText: string;
-  historyComparisonAvailable: boolean;
+  historicalChapter: SnapshotChapterRecord | null;
+  previousHistoricalChapter: SnapshotChapterRecord | null;
+  historyProjection: VersionDiffProjection | null;
+  historySnapshotReady: boolean;
   historyState: ChapterHistoryState;
   previousChapter?: ChapterTurnTarget;
   nextChapter?: ChapterTurnTarget;
@@ -99,10 +100,10 @@ export function EditorSurface({
   historyOpen,
   historyCommits,
   historyRef,
-  historicalText,
-  historicalExists,
-  previousHistoricalText,
-  historyComparisonAvailable,
+  historicalChapter,
+  previousHistoricalChapter,
+  historyProjection,
+  historySnapshotReady,
   historyState,
   previousChapter,
   nextChapter,
@@ -130,15 +131,27 @@ export function EditorSurface({
     null,
   );
   const sessionCallbackRef = useRef(onSessionStateChange);
+  const pendingRestoreCancelRef = useRef<(() => void) | null>(null);
   sessionCallbackRef.current = onSessionStateChange;
+  const stopScheduledRestore = () => {
+    pendingRestoreCancelRef.current?.();
+    pendingRestoreCancelRef.current = null;
+  };
+  const abandonSessionRestore = () => {
+    stopScheduledRestore();
+    restoreRef.current = null;
+  };
   const captureSession = () => {
     const view = viewSelectionRef.current;
     const scroller = scrollRef.current;
-    if (!view || !scroller || view.chapterId !== current?.id) return;
+    if (historyOpen || !view || !scroller || view.chapterId !== current?.id) return;
     sessionCallbackRef.current?.({
       chapterId: view.chapterId,
       selection: view.selection,
-      scrollTop: restoreRef.current?.scrollTop ?? scroller.scrollTop,
+      scrollTop:
+        historyScroll.current?.chapterId === view.chapterId
+          ? historyScroll.current.top
+          : (restoreRef.current?.scrollTop ?? scroller.scrollTop),
     });
   };
   const pendingLandingRef = useRef<{
@@ -158,6 +171,31 @@ export function EditorSurface({
   const currentChapterId = current?.id;
   const chapterNavigationContext = `${currentChapterId ?? ""}:${previousChapter?.id ?? ""}:${nextChapter?.id ?? ""}`;
   const chapterNavigationContextRef = useRef(chapterNavigationContext);
+  const historyScroll = useRef<{ chapterId: string; top: number; left: number } | null>(null);
+  const previousHistoryOpen = useRef(historyOpen);
+
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || previousHistoryOpen.current === historyOpen) return;
+    previousHistoryOpen.current = historyOpen;
+    const saved = historyScroll.current;
+    if (historyOpen && currentChapterId) {
+      abandonSessionRestore();
+      historyScroll.current = {
+        chapterId: currentChapterId,
+        top: scroller.scrollTop,
+        left: scroller.scrollLeft,
+      };
+    } else if (!historyOpen && saved && saved.chapterId === currentChapterId) {
+      const frame = requestAnimationFrame(() => {
+        scroller.scrollTop = saved.top;
+        scroller.scrollLeft = saved.left;
+        historyScroll.current = null;
+        captureSession();
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [currentChapterId, historyOpen]);
 
   const updateChapterOverscroll = (next: ReturnType<typeof idleChapterOverscroll>) => {
     chapterOverscrollRef.current = next;
@@ -203,12 +241,10 @@ export function EditorSurface({
   };
 
   useLayoutEffect(() => {
+    if (historyOpen) return;
     const saved = restoreRef.current;
     if (!saved) {
-      const view = viewSelectionRef.current;
-      if (view && scrollRef.current) {
-        sessionCallbackRef.current?.({ ...view, scrollTop: scrollRef.current.scrollTop });
-      }
+      captureSession();
       return;
     }
     if (!allowSessionRestore || saved.chapterId !== currentChapterId || pendingLandingRef.current) {
@@ -221,19 +257,39 @@ export function EditorSurface({
       editorRef.current?.focus();
       scroller.scrollTop = Math.max(0, saved.scrollTop);
     };
-    // Set the viewport before paint, then settle after CodeMirror and the workspace panels
-    // have measured their layout. This is a one-time return, never a chapter landing rule.
+    // Set the viewport before paint, then write the exact position after CodeMirror has
+    // measured its virtual document and applied scroll anchoring. This is a one-time return,
+    // never a chapter landing rule.
     restoreViewport();
-    const frame = requestAnimationFrame(() => {
-      restoreViewport();
+    const finishRestore = (hasFocus: boolean) => {
+      pendingRestoreCancelRef.current = null;
+      if (restoreRef.current !== saved) return;
+      const scroller = scrollRef.current;
+      if (!scroller || !hasFocus) {
+        restoreRef.current = null;
+        return;
+      }
+      scroller.scrollTop = Math.max(0, saved.scrollTop);
       restoreRef.current = null;
       const view = viewSelectionRef.current;
-      if (view && scrollRef.current) {
-        sessionCallbackRef.current?.({ ...view, scrollTop: scrollRef.current.scrollTop });
+      if (view) {
+        sessionCallbackRef.current?.({ ...view, scrollTop: scroller.scrollTop });
       }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [allowSessionRestore, currentChapterId, editorRef]);
+    };
+    const afterMeasure = editorRef.current?.afterMeasure;
+    let cancel: () => void;
+    if (afterMeasure) {
+      cancel = afterMeasure(finishRestore);
+    } else {
+      const frame = requestAnimationFrame(() => finishRestore(Boolean(editorRef.current)));
+      cancel = () => cancelAnimationFrame(frame);
+    }
+    pendingRestoreCancelRef.current = cancel;
+    return () => {
+      if (pendingRestoreCancelRef.current === cancel) pendingRestoreCancelRef.current = null;
+      cancel();
+    };
+  }, [allowSessionRestore, currentChapterId, editorRef, historyOpen]);
 
   useLayoutEffect(() => {
     const pending = pendingLandingRef.current;
@@ -278,6 +334,7 @@ export function EditorSurface({
   );
 
   const onChapterWheel = (event: ReactWheelEvent<HTMLElement>) => {
+    abandonSessionRestore();
     if (event.ctrlKey || event.deltaY === 0 || Math.abs(event.deltaX) > Math.abs(event.deltaY))
       return;
     const scroller = event.currentTarget;
@@ -354,6 +411,7 @@ export function EditorSurface({
   };
 
   const onChapterTouchStart = (event: ReactTouchEvent<HTMLElement>) => {
+    abandonSessionRestore();
     // Two fingers are a pinch or a zoom, never a page turn.
     if (event.touches.length !== 1) {
       abandonChapterTouch();
@@ -425,6 +483,8 @@ export function EditorSurface({
       }
       onWheel={onChapterWheel}
       onScroll={onChapterScroll}
+      onPointerDownCapture={abandonSessionRestore}
+      onKeyDownCapture={abandonSessionRestore}
       onTouchStart={onChapterTouchStart}
       onTouchMove={onChapterTouchMove}
       onTouchEnd={onChapterTouchEnd}
@@ -448,10 +508,11 @@ export function EditorSurface({
               label={t("chapterTitle")}
               labelHidden
               value={current.title}
+              disabled={historyOpen}
               onChange={(event) => onUpdateTitle(event.target.value)}
               placeholder={t("chapterTitle")}
             />
-            {searchQuery && (
+            {searchQuery && !historyOpen && (
               <SearchNavigation
                 query={searchQuery}
                 current={activeSearchMatch ? activeSearchIndex + 1 : 0}
@@ -463,36 +524,57 @@ export function EditorSurface({
             )}
             <ManuscriptEditor
               key={current.id}
+              value={historyOpen && historicalChapter ? historicalChapter.text : current.body}
+              mentions={historyOpen ? [] : current.mentions}
+              marks={historyOpen && historicalChapter ? historicalChapter.marks : current.marks}
+              issues={historyOpen ? [] : grammarIssues}
+              searchMatches={historyOpen ? [] : currentSearchMatches}
               initialSelection={
                 allowSessionRestore && restoreRef.current?.chapterId === current.id
                   ? restoreRef.current.selection
                   : undefined
               }
               onViewSelectionChange={(selection) => {
+                if (historyOpen) return;
                 viewSelectionRef.current = { chapterId: current.id, selection };
                 captureSession();
               }}
-              value={current.body}
-              mentions={current.mentions}
-              marks={current.marks}
-              issues={grammarIssues}
-              searchMatches={currentSearchMatches}
               activeSearchMatch={
-                activeSearchMatch?.chapterId === current.id ? activeSearchMatch : null
+                !historyOpen && activeSearchMatch?.chapterId === current.id
+                  ? activeSearchMatch
+                  : null
               }
-              entities={figures.nodes}
+              entities={historyOpen ? [] : figures.nodes}
               label={t("chapterText")}
               placeholder={t("startWritingPlaceholder")}
               vocabulary={vocabulary}
               editorRef={editorRef}
-              onChange={onEditorChange}
-              held={held}
+              onChange={historyOpen ? () => undefined : onEditorChange}
+              held={historyOpen ? null : held}
+              readOnly={historyOpen}
+              versionDiff={historyOpen && historySnapshotReady ? historyProjection : null}
+              versionDiffLabels={{
+                added: t("versionAdded"),
+                addedLineBreak: t("versionAddedLineBreak"),
+                removed: t("versionRemoved"),
+                formattingAdded: {
+                  bold: `${t("versionFormattingAdded")}: ${t("formatBold")}`,
+                  italic: `${t("versionFormattingAdded")}: ${t("formatItalic")}`,
+                },
+                formattingRemoved: {
+                  bold: `${t("versionFormattingRemoved")}: ${t("formatBold")}`,
+                  italic: `${t("versionFormattingRemoved")}: ${t("formatItalic")}`,
+                },
+              }}
               onSelection={(next: EditorTextSelection | null) =>
                 onSelection(
-                  next ? { ...next, chapterId: current.id, revision: current.body } : null,
+                  historyOpen || !next
+                    ? null
+                    : { ...next, chapterId: current.id, revision: current.body },
                 )
               }
               onSelectionMenu={(next) =>
+                !historyOpen &&
                 onSelectionMenu({ ...next, chapterId: current.id, revision: current.body })
               }
               onIssue={onIssue}
@@ -516,10 +598,9 @@ export function EditorSurface({
             <ChapterHistoryPanel
               commits={historyCommits}
               selectedRef={historyRef}
-              historicalText={historicalText}
-              historicalExists={historicalExists}
-              previousHistoricalText={previousHistoricalText}
-              comparisonAvailable={historyComparisonAvailable}
+              selected={historicalChapter}
+              previous={previousHistoricalChapter}
+              projection={historyProjection}
               state={historyState}
               onClose={onCloseHistory}
               onRefChange={onHistoryRef}

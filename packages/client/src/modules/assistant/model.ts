@@ -11,6 +11,7 @@ export interface AssistantSource {
   title: string;
   text: string;
   target: { workspace: Workspace; id: string; boardId?: string };
+  documentStatus?: "set_aside" | "deleted";
 }
 
 export type AssistantMode = "chat" | "world_extraction";

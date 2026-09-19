@@ -21,6 +21,7 @@ export interface CommandPaletteProps {
   inputLabel?: string;
   placeholder: string;
   emptyLabel: string;
+  emptyActions?: ReactNode;
   items: CommandPaletteItem[];
   onClose: () => void;
   onQueryChange?: (query: string) => void;
@@ -46,6 +47,7 @@ export function CommandPalette({
   inputLabel = label,
   placeholder,
   emptyLabel,
+  emptyActions,
   items,
   onClose,
   onQueryChange,
@@ -165,9 +167,10 @@ export function CommandPalette({
           ))}
         </div>
       ) : (
-        <p className="ui-command-palette__empty" role="status">
-          {emptyLabel}
-        </p>
+        <div className="ui-command-palette__empty">
+          <p role="status">{emptyLabel}</p>
+          {emptyActions && <div className="ui-command-palette__empty-actions">{emptyActions}</div>}
+        </div>
       )}
     </Dialog>
   );

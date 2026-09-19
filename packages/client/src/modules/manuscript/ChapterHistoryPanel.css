@@ -31,6 +31,16 @@
   box-shadow: var(--ring-1) var(--diff-word-delete);
 }
 
+.chapter-version-diff__legend-format-add {
+  color: var(--diff-add-text);
+  box-shadow: var(--ring-1) var(--diff-word-add);
+}
+
+.chapter-version-diff__legend-format-remove {
+  color: var(--diff-delete-text);
+  box-shadow: var(--ring-1) var(--diff-word-delete);
+}
+
 .chapter-version-diff__status {
   margin: 0 0 var(--space-10);
   color: var(--muted);

@@ -1,4 +1,8 @@
-import type { BackupStatus } from "../../modules/backup";
+import type {
+  BackupPreviewDocuments,
+  BackupStatus,
+  BackupStorageLocation,
+} from "../../modules/backup";
 
 export type BackupLoginStatus = {
   ok: true;
@@ -26,7 +30,12 @@ export interface BackupGateway {
   saveSnapshot(
     message: string,
     upload: boolean,
-  ): Promise<{ ok: true; log: string[]; status: BackupStatus }>;
+  ): Promise<{
+    ok: true;
+    log: string[];
+    status: BackupStatus;
+    warnings?: Array<"backup.transfer_status_failed">;
+  }>;
   loginStatus(): Promise<BackupLoginStatus>;
   beginLogin(): Promise<BackupLoginStart>;
   signOut(): Promise<{ ok: true; signedIn: false }>;
@@ -34,5 +43,7 @@ export interface BackupGateway {
     ok: true;
     backups: Array<{ name: string; created: string; size: number }>;
   }>;
-  restore(name: string): Promise<{ ok: true }>;
+  location(): Promise<{ ok: true; storage: BackupStorageLocation }>;
+  preview(name: string): Promise<{ ok: true; documents: BackupPreviewDocuments }>;
+  restore(name: string): Promise<{ ok: true; warnings?: Array<"backup.mirror_failed"> }>;
 }

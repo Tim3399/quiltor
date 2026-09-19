@@ -1,0 +1,55 @@
+.print-document {
+  color: var(--print-ink);
+}
+.book-pagination-stage {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.book-page-number {
+  position: absolute;
+  color: var(--print-muted);
+  font-size: 7pt;
+  line-height: 1;
+}
+@media print {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body {
+    background: var(--print-paper);
+    color: var(--print-ink);
+  }
+  .app-bar,
+  .app-frame > [role="contentinfo"],
+  .manuscript-toolbar,
+  .focus-helper,
+  .exit-focus,
+  .book-pagination-stage {
+    display: none !important;
+  }
+  .app-frame,
+  .workspace,
+  .text-workspace {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .print-document .pagedjs_pages {
+    display: block !important;
+  }
+  .print-document .pagedjs_page {
+    margin: 0 !important;
+    box-shadow: none !important;
+    break-after: page;
+    break-inside: avoid;
+  }
+  .print-document .pagedjs_page:last-child {
+    break-after: auto;
+  }
+}

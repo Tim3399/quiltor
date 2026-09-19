@@ -99,7 +99,8 @@ COPY --from=playwright-browser \
   /ms-playwright/chromium_headless_shell-1228
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN node node_modules/playwright/cli.js install-deps chromium \
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && node node_modules/playwright/cli.js install-deps chromium \
     && rm -rf /var/lib/apt/lists/*
 RUN test -x "$(find /ms-playwright/chromium_headless_shell-* -type f \( -name chrome-headless-shell -o -name headless_shell \) -print -quit)" \
     && test -z "$(find /ms-playwright -maxdepth 1 -type d \( -name 'ffmpeg-*' -o -name 'firefox-*' -o -name 'webkit-*' -o -name 'chromium-[0-9]*' \) -print -quit)"

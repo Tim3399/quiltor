@@ -32,27 +32,9 @@ than from documentation, because almost every step has a trap:
     two factories below are cached: without that, the first book PDF of a
     session works and every one after it fails until the app is restarted.
 
-Readiness is a DOM check for the print root having content, deliberately *not*
-the German aria-label that the Chromium path waits on (`system_browser.py`):
-that only works because a fresh browser profile defaults the UI to German, and
-it would become a 90 s timeout the day that default changes.
-
-Page numbers are added afterwards
---------------------------------
-`src/styles.css` numbers the book with CSS Paged Media --
-`@bottom-center { content: counter(page) }`. **WebKit's print path does not
-implement `@page` margin boxes**, so nothing WebKit produces carries them.
-Measured, not assumed: a minimal three-page document with nothing but that rule
-prints without them, and the real book renders 24 pages with zero numbers where
-Chromium renders 22 with 21.
-
-Nor is it a deployment-target question. Safari 18.2 did ship `@page` margin
-boxes, but that covers Safari's own rendering, not the embedded
-`NSPrintOperation` path -- the measurements above are from macOS 26.5.2, far
-beyond that.
-
-So `page_numbers.stamp()` draws them on afterwards, positioned from the same CSS
-and checked against Chromium's real output. See that module.
+Readiness and paper geometry come from the explicit paginated book DOM. Page
+numbers are part of those physical pages, so the native output needs no PDF
+post-processing.
 """
 
 from __future__ import annotations
@@ -62,20 +44,15 @@ import tempfile
 from functools import lru_cache
 from pathlib import Path
 
-from quiltor.infrastructure.pdf import page_numbers
+from quiltor.infrastructure.pdf.book_document import (
+    PAPER_GEOMETRY_JS,
+    RENDER_STATE_JS,
+    render_state,
+    validate_paper_mm,
+)
 
-PAPER_WIDTH_POINTS = 6 * 72
-PAPER_HEIGHT_POINTS = 9 * 72
+POINTS_PER_MM = 72 / 25.4
 POLL_INTERVAL_SECONDS = 0.25
-
-#: True once the app has rendered the book into the DOM. An expression, because
-#: that is what evaluateJavaScript evaluates.
-READY_JS = """
-(function () {
-  var root = document.querySelector('.print-document');
-  return !!(root && root.textContent && root.textContent.trim().length > 0);
-})();
-"""
 
 UNAVAILABLE = (
     "PDF export requires this build's macOS system components "
@@ -110,7 +87,7 @@ def render(url: str, timeout: int = 90) -> bytes:
     Path(payload).unlink(missing_ok=True)
     if not data:
         raise RuntimeError("PDF export produced an empty file.")
-    return page_numbers.stamp(data)
+    return data
 
 
 def _start(url: str, results: queue.Queue) -> None:
@@ -120,7 +97,7 @@ def _start(url: str, results: queue.Queue) -> None:
     import WebKit
 
     try:
-        frame = Foundation.NSMakeRect(0, 0, PAPER_WIDTH_POINTS, PAPER_HEIGHT_POINTS)
+        frame = Foundation.NSMakeRect(0, 0, 800, 1000)
         view = WebKit.WKWebView.alloc().initWithFrame_configuration_(
             frame, WebKit.WKWebViewConfiguration.alloc().init()
         )
@@ -170,11 +147,13 @@ def _navigation_delegate():
 
         @objc.python_method
         def check(self, view):
-            def handler(ready, error):
+            def handler(result, error):
                 if error is not None:
                     self.results.put(("error", f"Readiness check failed: {error}"))
-                elif ready:
-                    self.print_(view)
+                elif render_state(result) == "error":
+                    self.results.put(("error", "The book view reported a pagination error."))
+                elif render_state(result) == "ready":
+                    self.read_geometry(view)
                 else:
                     self.waited += POLL_INTERVAL_SECONDS
                     if self.waited > 60:
@@ -184,14 +163,29 @@ def _navigation_delegate():
                         POLL_INTERVAL_SECONDS, False, lambda timer: self.check(view)
                     )
 
-            view.evaluateJavaScript_completionHandler_(READY_JS, handler)
+            view.evaluateJavaScript_completionHandler_(RENDER_STATE_JS, handler)
 
         @objc.python_method
-        def print_(self, view):
+        def read_geometry(self, view):
+            def handler(value, error):
+                if error is not None:
+                    self.results.put(("error", f"Paper geometry query failed: {error}"))
+                    return
+                try:
+                    self.print_(view, validate_paper_mm(value))
+                except Exception as exc:  # noqa: BLE001
+                    self.results.put(("error", str(exc)))
+
+            view.evaluateJavaScript_completionHandler_(PAPER_GEOMETRY_JS, handler)
+
+        @objc.python_method
+        def print_(self, view, paper_mm):
             try:
                 target = Path(tempfile.mkstemp(suffix=".pdf")[1])
                 info = AppKit.NSPrintInfo.sharedPrintInfo().copy()
-                info.setPaperSize_(AppKit.NSMakeSize(PAPER_WIDTH_POINTS, PAPER_HEIGHT_POINTS))
+                info.setPaperSize_(
+                    AppKit.NSMakeSize(paper_mm[0] * POINTS_PER_MM, paper_mm[1] * POINTS_PER_MM)
+                )
                 # Zero here; the page's own @page rule owns the margins.
                 for setter in (
                     "setTopMargin_",

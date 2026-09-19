@@ -19,12 +19,14 @@ export type LoadedWorldDocuments = {
 export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocuments) => void) {
   const [worlds, setWorlds] = useState<WorldInfo[] | null>(null);
   const [world, setWorld] = useState<WorldInfo | null>(null);
+  const [trash, setTrash] = useState<(WorldInfo & { deletedAt: string })[] | null>(null);
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const [authError] = useState(() => new URLSearchParams(location.search).get("authError"));
   const [loadError, setLoadError] = useState("");
+  const [trashError, setTrashError] = useState("");
 
   const loadWorld = useCallback(
-    async (selected: Promise<{ ok: boolean; world: WorldInfo }>) => {
+    async (selected: Promise<{ ok: boolean; world: WorldInfo }>, rejectOnFailure = false) => {
       setLoadError("");
       try {
         const result = await selected;
@@ -52,6 +54,7 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
         setWorld(result.world);
       } catch (error) {
         setLoadError(applicationErrorMessage(error));
+        if (rejectOnFailure) throw error;
       }
     },
     [onDocumentsLoaded],
@@ -89,10 +92,64 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
     [loadWorld],
   );
   const remove = useCallback(async (id: string) => {
-    await quiltorClient.application.worlds.delete(id);
-    const result = await quiltorClient.application.worlds.list();
-    setWorlds(result.worlds);
+    setLoadError("");
+    try {
+      await quiltorClient.application.worlds.delete(id);
+      const result = await quiltorClient.application.worlds.list();
+      setWorlds(result.worlds);
+      setTrash(null);
+    } catch (error) {
+      setLoadError(applicationErrorMessage(error));
+      throw error;
+    }
   }, []);
+  const loadTrash = useCallback(async () => {
+    setTrash(null);
+    setTrashError("");
+    try {
+      const result = await quiltorClient.application.worlds.listTrash();
+      setTrash(result.worlds);
+    } catch (error) {
+      setTrash([]);
+      setTrashError(applicationErrorMessage(error));
+    }
+  }, []);
+  const restore = useCallback(async (id: string) => {
+    setTrashError("");
+    try {
+      await quiltorClient.application.worlds.restore(id);
+      const [listed, trashed] = await Promise.all([
+        quiltorClient.application.worlds.list(),
+        quiltorClient.application.worlds.listTrash(),
+      ]);
+      setWorlds(listed.worlds);
+      setTrash(trashed.worlds);
+    } catch (error) {
+      setTrashError(applicationErrorMessage(error));
+      throw error;
+    }
+  }, []);
+  const purge = useCallback(async (id: string) => {
+    setTrashError("");
+    try {
+      await quiltorClient.application.worlds.purge(id);
+      const result = await quiltorClient.application.worlds.listTrash();
+      setTrash(result.worlds);
+    } catch (error) {
+      setTrashError(applicationErrorMessage(error));
+      throw error;
+    }
+  }, []);
+  const projectImported = useCallback(
+    async (imported: WorldInfo) => {
+      await loadWorld(Promise.resolve({ ok: true, world: imported }), true);
+      void quiltorClient.application.worlds
+        .list()
+        .then((listed) => setWorlds(listed.worlds))
+        .catch(() => undefined);
+    },
+    [loadWorld],
+  );
   const close = useCallback(() => {
     quiltorClient.application.worlds.select("");
     setWorld(null);
@@ -114,9 +171,15 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
     needsSignIn,
     authError,
     loadError,
+    trash,
+    trashError,
     open,
     create,
     remove,
+    loadTrash,
+    restore,
+    purge,
+    projectImported,
     close,
   };
 }

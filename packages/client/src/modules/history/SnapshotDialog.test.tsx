@@ -49,6 +49,8 @@ beforeEach(() => {
     changeCount: 1,
     changes: [],
     suggestedMessage: "Kapitel 3",
+    lastSuccessfulTransfer: null,
+    transferredSnapshotId: null,
   };
   backupStatus.mockResolvedValue(status);
   saveSnapshot.mockResolvedValue({ ok: true, log: ["fertig"], status });
@@ -215,6 +217,66 @@ describe("SnapshotDialog", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the last confirmed remote transfer and retains it after a failed upload", async () => {
+    const transferredAt = "2026-09-19T10:30:00Z";
+    const status = {
+      ok: true,
+      endpoint: "https://backup.example",
+      changeCount: 1,
+      changes: [],
+      suggestedMessage: "Kapitel 3",
+      lastSuccessfulTransfer: transferredAt,
+      transferredSnapshotId: "snapshot-confirmed",
+    };
+    backupStatus.mockResolvedValue(status);
+    backupLoginStatus.mockResolvedValue(loginStatus({ signedIn: true }));
+    saveSnapshot.mockRejectedValue(new Error("Upload fehlgeschlagen"));
+    show();
+
+    expect(await screen.findByText(new Date(transferredAt).toLocaleString())).toBeVisible();
+    expect(screen.getByText(/Lokales Sichern überträgt nichts automatisch/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Sichern & hochladen" }));
+    expect(await screen.findByText("Upload fehlgeschlagen")).toBeVisible();
+    expect(screen.getByText(new Date(transferredAt).toLocaleString())).toBeVisible();
+  });
+
+  it("reports an unpersisted transfer status without calling the confirmed upload a failure", async () => {
+    const transferredAt = "2026-09-18T09:15:00Z";
+    const previousStatus = {
+      ok: true,
+      endpoint: "https://backup.example",
+      changeCount: 1,
+      changes: [],
+      suggestedMessage: "Kapitel 3",
+      lastSuccessfulTransfer: transferredAt,
+      transferredSnapshotId: "snapshot-previous",
+    };
+    backupStatus.mockResolvedValue(previousStatus);
+    backupLoginStatus.mockResolvedValue(loginStatus({ signedIn: true }));
+    saveSnapshot.mockResolvedValue({
+      ok: true,
+      log: ["Übertragung bestätigt"],
+      status: previousStatus,
+      warnings: ["backup.transfer_status_failed"],
+    });
+    show();
+
+    expect(await screen.findByText(new Date(transferredAt).toLocaleString())).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Sichern & hochladen" }));
+
+    expect(await screen.findByText("Übertragung bestätigt")).toBeVisible();
+    expect(
+      screen.getByText(/Bestätigungszeit konnte lokal nicht gespeichert werden/),
+    ).toBeVisible();
+    expect(screen.getByText(new Date(transferredAt).toLocaleString())).toBeVisible();
+  });
+
+  it("states clearly when no remote transfer has been confirmed", async () => {
+    backupLoginStatus.mockResolvedValue(loginStatus({ signedIn: true }));
+    show();
+    expect(await screen.findByText("Noch keine bestätigte Übertragung")).toBeVisible();
+  });
+
   it("keeps the dead button without a configured target, because there is nothing to sign in to", async () => {
     backupStatus.mockResolvedValue({
       ok: true,
@@ -222,6 +284,8 @@ describe("SnapshotDialog", () => {
       changeCount: 0,
       changes: [],
       suggestedMessage: "Sicherung",
+      lastSuccessfulTransfer: null,
+      transferredSnapshotId: null,
     });
     backupLoginStatus.mockResolvedValue(
       loginStatus({ configured: false, endpoint: "", issuerReachable: false }),

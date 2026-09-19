@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import sqlite3
+from contextlib import closing
+from datetime import UTC, datetime
 from pathlib import Path
 
 from quiltor.infrastructure.persistence.sqlite import config
@@ -270,20 +274,143 @@ CREATE INDEX IF NOT EXISTS assistant_interactions_created
 """
 
 
-def initialize(path: Path | None = None) -> None:
-    """Create the current schema and apply every forward-only migration."""
+def _stored_version(path: Path) -> tuple[int, bool]:
+    """Return the declared version and whether this is an existing world database."""
+
+    if not path.exists() or path.stat().st_size == 0:
+        return 0, False
+    uri = f"{path.resolve().as_uri()}?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as database:
+        has_tables = database.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1"
+        ).fetchone()
+        if has_tables is None:
+            return 0, False
+        has_meta = database.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'"
+        ).fetchone()
+        if has_meta is None:
+            return 0, True
+        current = database.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
+    try:
+        return (int(current[0]) if current else 0), True
+    except (TypeError, ValueError) as error:
+        raise ValueError("Database schema version is invalid.") from error
+
+
+def _backup_database(source_path: Path, destination_path: Path) -> None:
+    """Create a standalone snapshot, including changes held in a WAL."""
+
+    with closing(sqlite3.connect(destination_path)) as destination:
+        source_uri = f"{source_path.resolve().as_uri()}?mode=ro"
+        with closing(sqlite3.connect(source_uri, uri=True)) as opened_source:
+            opened_source.backup(destination)
+
+
+def _migration_backup_path(database_path: Path, version: int) -> Path:
+    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
+    return database_path.with_name(
+        f"{database_path.stem}.pre-migration-v{version}-{timestamp}.sqlite3"
+    )
+
+
+def _initialize_in_place(database_path: Path, version: int) -> None:
+    """Apply schema changes to a new database or an isolated staging copy."""
 
     # Import lazily: migrations intentionally calls focused story-world helpers,
     # while those modules remain independent of this schema entry point.
     from quiltor.infrastructure.persistence.sqlite.migrations import migrate
 
-    database_path = path or config.DB
-    database_path.parent.mkdir(parents=True, exist_ok=True)
     with connection(database_path) as database:
         database.executescript(SCHEMA)
-        current = database.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
-        version = int(current[0]) if current else 0
         migrate(database, version)
+
+
+def _execute_schema(database: sqlite3.Connection) -> None:
+    """Execute bootstrap DDL without ``executescript``'s implicit commit."""
+
+    statement = ""
+    for line in SCHEMA.splitlines(keepends=True):
+        statement += line
+        if sqlite3.complete_statement(statement):
+            database.execute(statement)
+            statement = ""
+    if statement.strip():
+        raise ValueError("Schema contains an incomplete SQL statement.")
+
+
+def _validate_migrated_database(database: sqlite3.Connection) -> None:
+    integrity = database.execute("PRAGMA quick_check").fetchall()
+    if [row[0] for row in integrity] != ["ok"]:
+        raise ValueError("Migrated database failed its integrity check.")
+    if database.execute("PRAGMA foreign_key_check").fetchall():
+        raise ValueError("Migrated database failed its foreign key check.")
+    current = database.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
+    if current is None or int(current[0]) != SCHEMA_VERSION:
+        raise ValueError("Migration did not produce the current schema version.")
+
+
+def initialize(path: Path | None = None) -> None:
+    """Create the schema or safely migrate an existing older database."""
+
+    database_path = path or config.DB
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    version, existing = _stored_version(database_path)
+    if version < 0:
+        raise ValueError(f"Database schema version {version} is invalid.")
+    if version > SCHEMA_VERSION:
+        raise ValueError(
+            f"Database schema version {version} is newer than supported version {SCHEMA_VERSION}."
+        )
+    if existing and version == SCHEMA_VERSION:
+        return
+    if not existing:
+        _initialize_in_place(database_path, 0)
+        return
+
+    # Hold SQLite's writer lock from snapshot through commit. The safety copy includes
+    # committed WAL contents, and another writer cannot slip changes between snapshot and
+    # migration. Individual DDL statements keep the migration transactional, so any failed
+    # step rolls back without partially updating the active world.
+    safety_path = _migration_backup_path(database_path, version)
+    safety_temp = safety_path.with_suffix(".tmp")
+    database = None
+    try:
+        from quiltor.infrastructure.persistence.sqlite.connection import connect
+
+        database = connect(database_path)
+        database.execute("BEGIN IMMEDIATE")
+        has_meta = database.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'"
+        ).fetchone()
+        locked_version = (
+            database.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
+            if has_meta
+            else None
+        )
+        observed_version = int(locked_version[0]) if locked_version else 0
+        if observed_version != version:
+            raise RuntimeError("Database changed while migration was starting.")
+        # sqlite3_backup cannot advance from the same connection while that connection
+        # owns a write transaction. A second read-only handle observes the locked,
+        # committed snapshot while the first handle prevents concurrent writers.
+        _backup_database(database_path, safety_temp)
+        os.replace(safety_temp, safety_path)
+        _execute_schema(database)
+
+        from quiltor.infrastructure.persistence.sqlite.migrations import migrate
+
+        migrate(database, version)
+        _validate_migrated_database(database)
+        database.commit()
+    except BaseException:
+        if database is not None:
+            database.rollback()
+        raise
+    finally:
+        if database is not None:
+            database.close()
+        safety_temp.unlink(missing_ok=True)
 
 
 __all__ = ["SCHEMA", "SCHEMA_VERSION", "initialize"]

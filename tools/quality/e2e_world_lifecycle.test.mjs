@@ -29,6 +29,12 @@ test("persistent E2E worlds are created only through the cleanup fixture", () =>
   const fixtureSource = readFileSync(worldFixture, "utf8");
   assert.match(fixtureSource, /\/api\/worlds\/create/);
   assert.match(fixtureSource, /\/api\/worlds\/delete/);
+  assert.match(fixtureSource, /await page\.close\(\)/);
+  assert.ok(
+    fixtureSource.indexOf("await page.close()") <
+      fixtureSource.indexOf("deleteRegisteredWorlds(page.request, testIds)"),
+    "the test page must close before its registered worlds are deleted",
+  );
 });
 
 test("synthetic E2E worlds mock every document required to open a world", () => {

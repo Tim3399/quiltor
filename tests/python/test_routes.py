@@ -95,6 +95,8 @@ class RouteTableTests(unittest.TestCase):
             "/api/backup",
             "/api/history",
             "/api/backups",
+            "/api/backups/location",
+            "/api/backups/preview",
             "/api/history/diff",
             "/api/history/chapter-text",
             "/api/history/chapter-comparison",

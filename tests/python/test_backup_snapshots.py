@@ -6,12 +6,14 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 from quiltor.application.backup_manifest import BackupContractError
 from quiltor.application.backups import (
     BackupAuthorization,
+    BackupAuthorizationUnavailable,
     BackupEndpointNotConfigured,
     BackupGatewayError,
     BackupSnapshotNotFound,
@@ -64,14 +66,36 @@ class SnapshotStoreTest(unittest.TestCase):
                 (chapter_id, position, title, body),
             )
 
+    def _write_marked_chapter_row(
+        self,
+        ctx: BackupContext,
+        chapter_id: str,
+        body: str,
+        marks: object,
+    ) -> None:
+        with closing(sqlite3.connect(ctx.database)) as database, database:
+            database.execute(
+                "CREATE TABLE IF NOT EXISTS chapters("
+                "id TEXT PRIMARY KEY, position INTEGER, title TEXT, body TEXT, extra_json TEXT)"
+            )
+            database.execute(
+                "INSERT OR REPLACE INTO chapters(id,position,title,body,extra_json) "
+                "VALUES(?,?,?,?,?)",
+                (chapter_id, 0, "Kapitel", body, json.dumps({"marks": marks})),
+            )
+
     # ------------------------------------------------------------ basic flow
 
     def test_status_reports_the_configured_endpoint(self):
         plain = self.store.status(self._world("world-a"))
         self.assertTrue(plain["ok"])
         self.assertEqual(plain["endpoint"], "")
+        self.assertIsNone(plain["lastSuccessfulTransfer"])
+        self.assertIsNone(plain["transferredSnapshotId"])
         configured = self.store.status(self._world("world-b", "https://backup.example.com"))
         self.assertEqual(configured["endpoint"], "https://backup.example.com")
+        self.assertIsNone(configured["lastSuccessfulTransfer"])
+        self.assertIsNone(configured["transferredSnapshotId"])
 
     def test_collect_releases_the_source_database(self):
         ctx = self._world("world-a")
@@ -226,12 +250,37 @@ class SnapshotStoreTest(unittest.TestCase):
 
         self.assertEqual(
             comparison["selected"],
-            {"available": True, "exists": True, "text": "Neuer Text."},
+            {"available": True, "exists": True, "text": "Neuer Text.", "marks": []},
         )
         self.assertEqual(
             comparison["previous"],
-            {"available": True, "exists": True, "text": "Alter Text."},
+            {"available": True, "exists": True, "text": "Alter Text.", "marks": []},
         )
+
+    def test_chapter_comparison_keeps_historical_marks_when_only_formatting_changed(self):
+        ctx = self._world("world-a")
+        body = "😀Mara bleibt."
+        self._write_marked_chapter_row(
+            ctx,
+            "chapter-stable",
+            body,
+            [{"from": 2, "to": 6, "kind": "italic"}],
+        )
+        self.store.commit(ctx, "Italic", push=False)
+        self._write_marked_chapter_row(
+            ctx,
+            "chapter-stable",
+            body,
+            [{"from": 2, "to": 6, "kind": "bold"}],
+        )
+        self.store.commit(ctx, "Bold", push=False)
+
+        comparison = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")
+
+        self.assertEqual(comparison["selected"]["text"], body)
+        self.assertEqual(comparison["selected"]["marks"], [{"from": 2, "to": 6, "kind": "bold"}])
+        self.assertEqual(comparison["previous"]["text"], body)
+        self.assertEqual(comparison["previous"]["marks"], [{"from": 2, "to": 6, "kind": "italic"}])
 
     def test_chapter_comparison_keeps_selected_text_when_parent_is_missing_locally(self):
         ctx = self._world("world-a")
@@ -249,7 +298,7 @@ class SnapshotStoreTest(unittest.TestCase):
         self.assertEqual(comparison["selected"]["text"], "Neu.")
         self.assertEqual(
             comparison["previous"],
-            {"available": False, "exists": False, "text": ""},
+            {"available": False, "exists": False, "text": "", "marks": []},
         )
 
     def test_chapter_comparison_marks_a_snapshot_without_chapter_schema_unavailable(self):
@@ -261,7 +310,101 @@ class SnapshotStoreTest(unittest.TestCase):
 
         self.assertEqual(
             comparison["selected"],
-            {"available": False, "exists": False, "text": ""},
+            {"available": False, "exists": False, "text": "", "marks": []},
+        )
+
+    def test_chapter_comparison_treats_legacy_chapter_rows_as_unformatted(self):
+        ctx = self._world("world-a")
+        self._write_chapter_row(ctx, "chapter-stable", "Kapitel", "Legacy.", 0)
+        self.store.commit(ctx, "Legacy", push=False)
+
+        record = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")["selected"]
+
+        self.assertEqual(
+            record,
+            {"available": True, "exists": True, "text": "Legacy.", "marks": []},
+        )
+
+    def test_chapter_comparison_defaults_missing_persisted_marks_to_empty(self):
+        ctx = self._world("world-a")
+        with closing(sqlite3.connect(ctx.database)) as database, database:
+            database.execute(
+                "CREATE TABLE chapters("
+                "id TEXT PRIMARY KEY, position INTEGER, title TEXT, body TEXT, extra_json TEXT)"
+            )
+            database.execute(
+                "INSERT INTO chapters VALUES(?,?,?,?,?)",
+                ("chapter-stable", 0, "Kapitel", "Text.", json.dumps({"future": True})),
+            )
+        self.store.commit(ctx, "Snapshot", push=False)
+
+        record = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")["selected"]
+
+        self.assertEqual(record["marks"], [])
+        self.assertTrue(record["available"])
+
+    def test_chapter_comparison_rejects_malformed_or_unsafe_historical_marks(self):
+        invalid_marks = (
+            "not-json",
+            json.dumps({"marks": [{"from": 1, "to": 2, "kind": "underline"}]}),
+            json.dumps({"marks": [{"from": 0, "to": 1, "kind": []}]}),
+            "[" * 1100 + "0" + "]" * 1100,
+            json.dumps({"marks": [{"from": 1, "to": 2, "kind": "bold"}]}),
+            json.dumps(
+                {
+                    "marks": [
+                        {"from": 0, "to": 3, "kind": "bold"},
+                        {"from": 2, "to": 4, "kind": "bold"},
+                    ]
+                }
+            ),
+        )
+        bodies = ("Text", "Text", "Text", "Text", "😀Text", "Text")
+        for index, (extra_json, body) in enumerate(zip(invalid_marks, bodies)):
+            with self.subTest(index=index):
+                ctx = self._world(f"world-invalid-{index}")
+                with closing(sqlite3.connect(ctx.database)) as database, database:
+                    database.execute(
+                        "CREATE TABLE chapters("
+                        "id TEXT PRIMARY KEY, position INTEGER, title TEXT, body TEXT, "
+                        "extra_json TEXT)"
+                    )
+                    database.execute(
+                        "INSERT INTO chapters VALUES(?,?,?,?,?)",
+                        ("chapter-stable", 0, "Kapitel", body, extra_json),
+                    )
+                self.store.commit(ctx, "Invalid", push=False)
+
+                record = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")["selected"]
+
+                self.assertEqual(
+                    record,
+                    {"available": False, "exists": False, "text": "", "marks": []},
+                )
+
+    def test_chapter_comparison_bounds_historical_extension_reads(self):
+        ctx = self._world("world-a")
+        self._write_marked_chapter_row(ctx, "chapter-stable", "Text", [])
+        self.store.commit(ctx, "Snapshot", push=False)
+
+        with patch("quiltor.infrastructure.backup.snapshots._MAX_CHAPTER_EXTRA_BYTES", 1):
+            record = self.store.chapter_comparison(ctx, "HEAD", "chapter-stable")["selected"]
+
+        self.assertEqual(
+            record,
+            {"available": False, "exists": False, "text": "", "marks": []},
+        )
+
+    def test_chapter_comparison_reports_a_missing_chapter_with_empty_marks(self):
+        ctx = self._world("world-a")
+        self._write_chapter_row(ctx, "chapter-other", "Kapitel", "Text.", 0)
+        self.store.commit(ctx, "Snapshot", push=False)
+
+        record = self.store.chapter_comparison(ctx, "HEAD", "chapter-missing")["selected"]
+
+        self.assertEqual(
+            record,
+            {"available": True, "exists": False, "text": "", "marks": []},
         )
 
     # --------------------------------------------------------------- storage
@@ -405,6 +548,159 @@ class SnapshotStoreTest(unittest.TestCase):
         gateway.push.assert_called_once()
         self.assertEqual(gateway.push.call_args.args[1], original)
         self.assertEqual(self.store.entries(ctx), [original])
+
+    def test_successful_transfer_status_survives_restart_without_storing_endpoint(self):
+        gateway = Mock()
+        self.store = SnapshotStore(self.root / "history", gateway)
+        ctx = self._world("world-a", "https://backup.example.com/private")
+        authorization = BackupAuthorization(ctx.endpoint_url, "synthetic-secret-token")
+        self._write(ctx, "Remote text")
+
+        result = self.store.commit(ctx, "Remote snapshot", push=True, authorization=authorization)
+        entry = self.store.entries(ctx)[-1]
+        status = result["status"]
+
+        self.assertIsNotNone(status["lastSuccessfulTransfer"])
+        self.assertEqual(status["transferredSnapshotId"], entry["id"])
+        restarted = SnapshotStore(self.root / "history", gateway)
+        self.assertEqual(
+            restarted.status(ctx)["transferredSnapshotId"],
+            entry["id"],
+        )
+        metadata = (ctx.root / "remote-transfer.json").read_text(encoding="utf-8")
+        self.assertNotIn(ctx.endpoint_url, metadata)
+        self.assertNotIn(authorization.bearer_token, metadata)
+
+    def test_local_only_snapshot_never_advances_transfer_status(self):
+        gateway = Mock()
+        self.store = SnapshotStore(self.root / "history", gateway)
+        ctx = self._world("world-a", "https://backup.example.com")
+        self._write(ctx, "Only local")
+
+        result = self.store.commit(ctx, "Local snapshot", push=False)
+
+        self.assertIsNone(result["status"]["lastSuccessfulTransfer"])
+        self.assertIsNone(result["status"]["transferredSnapshotId"])
+        self.assertFalse((ctx.root / "remote-transfer.json").exists())
+        gateway.push.assert_not_called()
+
+    def test_failed_transfers_retain_the_previous_success(self):
+        gateway = Mock()
+        self.store = SnapshotStore(self.root / "history", gateway)
+        ctx = self._world("world-a", "https://backup.example.com")
+        authorization = BackupAuthorization(ctx.endpoint_url, "synthetic-token")
+        self._write(ctx, "Successful text")
+        self.store.commit(ctx, "Success", push=True, authorization=authorization)
+        previous = self.store.status(ctx)
+
+        with self.assertRaises(BackupAuthorizationUnavailable):
+            self.store.commit(ctx, "Missing authorization", push=True, authorization=None)
+        self.assertEqual(
+            self.store.status(ctx)["transferredSnapshotId"],
+            previous["transferredSnapshotId"],
+        )
+
+        failures = (
+            PermissionError("authorization rejected"),
+            RuntimeError("quota exhausted"),
+            TimeoutError("request timed out"),
+        )
+        for index, failure in enumerate(failures):
+            with self.subTest(failure=type(failure).__name__):
+                self._write(ctx, f"Failed remote text {index}")
+                gateway.push.side_effect = failure
+                with self.assertRaises(BackupGatewayError):
+                    self.store.commit(
+                        ctx,
+                        f"Failed {index}",
+                        push=True,
+                        authorization=authorization,
+                    )
+                current = self.store.status(ctx)
+                self.assertEqual(
+                    current["lastSuccessfulTransfer"], previous["lastSuccessfulTransfer"]
+                )
+                self.assertEqual(
+                    current["transferredSnapshotId"], previous["transferredSnapshotId"]
+                )
+
+    def test_confirmed_upload_stays_successful_when_status_persistence_fails(self):
+        gateway = Mock()
+        self.store = SnapshotStore(self.root / "history", gateway)
+        ctx = self._world("world-a", "https://backup.example.com")
+        authorization = BackupAuthorization(ctx.endpoint_url, "synthetic-token")
+        self._write(ctx, "First remote version")
+        self.store.commit(ctx, "First success", push=True, authorization=authorization)
+        previous = self.store.status(ctx)
+
+        self._write(ctx, "Second remote version")
+        self.store.commit(ctx, "Second local snapshot", push=False)
+        newest = self.store.entries(ctx)[-1]
+        gateway.reset_mock()
+        with patch.object(
+            Path,
+            "replace",
+            side_effect=OSError("C:/private/history/remote-transfer.json is locked"),
+        ):
+            result = self.store.commit(
+                ctx,
+                "Upload existing snapshot",
+                push=True,
+                authorization=authorization,
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertIn("Snapshot uploaded to the backup endpoint.", result["log"])
+        self.assertEqual(result["warnings"], ["backup.transfer_status_failed"])
+        gateway.push.assert_called_once()
+        self.assertEqual(gateway.push.call_args.args[1]["id"], newest["id"])
+        self.assertEqual(
+            result["status"]["transferredSnapshotId"], previous["transferredSnapshotId"]
+        )
+        self.assertEqual(
+            result["status"]["lastSuccessfulTransfer"], previous["lastSuccessfulTransfer"]
+        )
+        self.assertEqual(len(self.store.entries(ctx)), 2)
+        self.assertEqual(
+            (ctx.manuscripts / "01 - Kapitel.md").read_text(encoding="utf-8"),
+            "Second remote version",
+        )
+        self.assertNotIn("private", json.dumps(result))
+
+    def test_transfer_status_is_endpoint_scoped_and_corrupt_metadata_is_safe(self):
+        gateway = Mock()
+        self.store = SnapshotStore(self.root / "history", gateway)
+        ctx = self._world("world-a", "https://backup.example.com/first")
+        authorization = BackupAuthorization(ctx.endpoint_url, "synthetic-token")
+        self._write(ctx, "Transferred text")
+        self.store.commit(ctx, "Success", push=True, authorization=authorization)
+        successful = self.store.status(ctx)
+
+        other_endpoint = replace(ctx, endpoint_url="https://backup.example.com/second")
+        self.assertIsNone(self.store.status(other_endpoint)["lastSuccessfulTransfer"])
+        self.assertIsNone(self.store.status(other_endpoint)["transferredSnapshotId"])
+        self.assertEqual(
+            self.store.status(ctx)["transferredSnapshotId"],
+            successful["transferredSnapshotId"],
+        )
+
+        self.store.commit(
+            other_endpoint,
+            "Transfer to second endpoint",
+            push=True,
+            authorization=BackupAuthorization(other_endpoint.endpoint_url, "second-token"),
+        )
+        self.assertIsNotNone(self.store.status(other_endpoint)["lastSuccessfulTransfer"])
+        self.assertEqual(
+            self.store.status(ctx)["transferredSnapshotId"],
+            successful["transferredSnapshotId"],
+        )
+
+        (ctx.root / "remote-transfer.json").write_text(
+            '{"endpointHash":"broken","endpointHash":"duplicate"}', encoding="utf-8"
+        )
+        self.assertIsNone(self.store.status(ctx)["lastSuccessfulTransfer"])
+        self.assertIsNone(self.store.status(ctx)["transferredSnapshotId"])
 
     def test_a_failed_upload_is_retried_without_creating_a_duplicate_snapshot(self):
         gateway = Mock()

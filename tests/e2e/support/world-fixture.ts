@@ -28,6 +28,16 @@ interface WorldCleanupWorkerFixtures {
 
 const registries = new WeakMap<Page, WorldRegistry>();
 
+/** Register only a world created by this test, including an imported project copy. */
+export function registerTestWorld(page: Page, id: string): void {
+  const registry = registries.get(page);
+  if (!registry || !/^[0-9a-f]{32}$/.test(id)) {
+    throw new Error("A valid test-created world and the shared E2E fixture are required.");
+  }
+  registry.testIds.add(id);
+  registry.workerIds.add(id);
+}
+
 async function deleteRegisteredWorlds(
   request: APIRequestContext,
   ids: Iterable<string>,
@@ -42,6 +52,14 @@ async function deleteRegisteredWorlds(
         });
         if (!response.ok() && response.status() !== 404) {
           failures.push(`${id}: HTTP ${response.status()} ${await response.text()}`);
+          return;
+        }
+        const purged = await request.post("/api/worlds/purge", {
+          data: { id },
+          timeout: 10_000,
+        });
+        if (!purged.ok() && purged.status() !== 404) {
+          failures.push(`${id}: purge HTTP ${purged.status()} ${await purged.text()}`);
         }
       } catch (error) {
         failures.push(`${id}: ${error instanceof Error ? error.message : String(error)}`);
@@ -136,12 +154,22 @@ export const test = base.extend<WorldCleanupFixtures, WorldCleanupWorkerFixtures
       try {
         await use(true);
       } finally {
-        const failures = await deleteRegisteredWorlds(page.request, testIds);
+        const failures: string[] = [];
+        let pageClosed = page.isClosed();
+        if (!pageClosed) {
+          try {
+            await page.close();
+            pageClosed = true;
+          } catch (error) {
+            failures.push(`page: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+        failures.push(...(await deleteRegisteredWorlds(page.request, testIds)));
         const failedIds = new Set(
           failures.map((failure) => failure.slice(0, failure.indexOf(":"))),
         );
         for (const id of testIds) {
-          if (!failedIds.has(id)) pendingWorldIds.delete(id);
+          if (pageClosed && !failedIds.has(id)) pendingWorldIds.delete(id);
         }
         registries.delete(page);
 

@@ -15,6 +15,8 @@ review problem. wkwebview.py is the answer there.
 
 from __future__ import annotations
 
+from quiltor.infrastructure.pdf.book_document import RENDER_STATE_JS, render_state
+
 CHANNELS = ("chrome", "msedge")
 
 
@@ -32,15 +34,20 @@ def render(url: str, timeout: int = 90) -> bytes:
             try:
                 page = browser.new_page()
                 page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
-                # Waits for the editor to exist, i.e. the app has finished
-                # hydrating and the chapters are on the page.
-                #
-                # This matches a *German* aria-label and only works because each
-                # render gets a fresh browser profile with empty localStorage and
-                # the UI defaults to German. If that default ever becomes
-                # locale-detection, this silently turns into a 90 s timeout.
-                # Whatever replaces this path must not reintroduce the dependency.
-                page.get_by_label("Kapiteltext").wait_for(timeout=timeout * 1000)
+                page.wait_for_function(
+                    """() => {
+                      const root = document.querySelector('.print-document');
+                      return root?.dataset.bookError === 'true' ||
+                        (root?.dataset.bookReady === 'true' &&
+                          root.querySelector('.pagedjs_page'));
+                    }""",
+                    timeout=timeout * 1000,
+                )
+                state = render_state(page.evaluate(RENDER_STATE_JS))
+                if state == "error":
+                    raise RuntimeError("The book view reported a pagination error.")
+                if state != "ready":
+                    raise RuntimeError("The book view reported readiness without physical pages.")
                 page.emulate_media(media="print")
                 return page.pdf(
                     prefer_css_page_size=True, print_background=True, display_header_footer=False

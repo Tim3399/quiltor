@@ -111,6 +111,32 @@ describe("CommandPalette", () => {
     expect(screen.getByText("Nichts gefunden")).toBeInTheDocument();
   });
 
+  it("keeps caller-provided empty actions keyboard accessible", () => {
+    const action = vi.fn();
+    render(
+      <CommandPalette
+        open
+        label="Befehle"
+        closeLabel="Palette schließen"
+        placeholder="Suchen"
+        emptyLabel="Nichts gefunden"
+        emptyActions={
+          <button type="button" onClick={action}>
+            Papierkorb öffnen
+          </button>
+        }
+        items={[]}
+        onClose={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Papierkorb öffnen" });
+    button.focus();
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.click(button);
+    expect(button).toHaveFocus();
+    expect(action).toHaveBeenCalledOnce();
+  });
+
   it("keeps keyboard navigation visible in a long result list", () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {

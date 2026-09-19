@@ -1,0 +1,20 @@
+.book-layout-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-14);
+}
+
+.book-layout-inspector__preset {
+  padding-bottom: var(--space-10);
+  border-bottom: 1px solid var(--line);
+}
+
+.book-layout-inspector__reset {
+  width: 100%;
+  justify-content: center;
+}
+
+.book-layout-inspector__toggle {
+  margin-bottom: var(--spacing-field-group);
+}

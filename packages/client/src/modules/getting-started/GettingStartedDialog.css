@@ -1,0 +1,46 @@
+.getting-started-guide {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.getting-started-guide__tasks {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.getting-started-guide__tasks section {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.getting-started-guide__tasks section > svg {
+  width: var(--font-size-6);
+  height: var(--font-size-6);
+  color: var(--accent-primary);
+}
+
+.getting-started-guide__tasks h3,
+.getting-started-guide__tasks p {
+  margin: 0;
+}
+
+.getting-started-guide__tasks p {
+  margin-top: var(--space-1);
+  color: var(--muted);
+}
+
+@media (max-width: 719px) {
+  .getting-started-guide__tasks section {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .getting-started-guide__action {
+    grid-column: 1 / -1;
+  }
+}

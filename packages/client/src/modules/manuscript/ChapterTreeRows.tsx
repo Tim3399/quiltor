@@ -106,6 +106,7 @@ export interface ChapterTreeChapterRowProps {
   spokenLabel: string;
   words: ReactNode;
   storyTime: ReactNode;
+  inBook?: boolean;
   actions?: ReactNode;
   dragDrop: ChapterTreeDragDrop;
   onSelect: () => void;
@@ -120,10 +121,12 @@ export function ChapterTreeChapterRow({
   spokenLabel,
   words,
   storyTime,
+  inBook = true,
   actions,
   dragDrop,
   onSelect,
 }: ChapterTreeChapterRowProps) {
+  const { t } = useI18n();
   const rowDestination = (event: DragEvent<HTMLElement>) =>
     dragDrop.chapterRowDestination(event, item);
   return (
@@ -131,7 +134,7 @@ export function ChapterTreeChapterRow({
     // biome-ignore lint/a11y/noStaticElementInteractions: native drag-and-drop is owned by the focused controls inside this layout wrapper.
     <div
       data-binder-depth={depth}
-      className={`binder-chapter-row ${selected ? "active" : ""} ${actions ? "has-actions" : ""}`.trim()}
+      className={`binder-chapter-row ${selected ? "active" : ""} ${actions ? "has-actions" : ""} ${inBook ? "" : "is-set-aside"}`.trim()}
       onDragEnter={(event) => dragDrop.allowDrop(event, rowDestination(event))}
       onDragOver={(event) => dragDrop.allowDrop(event, rowDestination(event))}
       onDragLeave={(event) => {
@@ -172,6 +175,7 @@ export function ChapterTreeChapterRow({
           <span className="chapter-meta">
             <span className="chapter-words">{words}</span>
             {storyTime && <span className="chapter-story-time-summary">{storyTime}</span>}
+            {!inBook && <span className="chapter-set-aside">{t("chapterSetAside")}</span>}
           </span>
         </span>
       </Button>

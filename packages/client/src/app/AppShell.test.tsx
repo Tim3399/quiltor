@@ -9,10 +9,41 @@ afterEach(() => {
 });
 
 describe("AppShell", () => {
+  it("shows a mirror warning without turning a durable save into an error", () => {
+    render(
+      <I18nProvider>
+        <AppShell
+          title="Welt"
+          workspace="text"
+          onWorkspace={() => undefined}
+          phase="saved"
+          warning="Lokal gespeichert. Spiegeldatei fehlgeschlagen."
+          retry={() => undefined}
+          theme="light"
+          onTheme={() => undefined}
+          onSearch={() => undefined}
+          onHistory={() => undefined}
+          onSnapshot={() => undefined}
+          onBackups={() => undefined}
+          onAssistant={() => undefined}
+          onExitWorld={() => undefined}
+        >
+          <div />
+        </AppShell>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("status")).toHaveAttribute("data-phase", "saved");
+    expect(screen.getByRole("status")).toHaveTextContent("Spiegeldatei fehlgeschlagen");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("keeps secondary tools in a keyboard-accessible overflow menu", () => {
     const history = vi.fn(),
       snapshot = vi.fn(),
       backups = vi.fn(),
+      exportProject = vi.fn(),
+      gettingStarted = vi.fn(),
       exitWorld = vi.fn();
     render(
       <I18nProvider>
@@ -28,6 +59,8 @@ describe("AppShell", () => {
           onHistory={history}
           onSnapshot={snapshot}
           onBackups={backups}
+          onExportProject={exportProject}
+          onGettingStarted={gettingStarted}
           onAssistant={() => undefined}
           onExitWorld={exitWorld}
         >
@@ -41,6 +74,8 @@ describe("AppShell", () => {
     const more = screen.getByRole("button", { name: "Mehr" });
     fireEvent.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menuitem", { name: "Projekt exportieren" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Erste Schritte" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "Verlauf" }));
     expect(history).toHaveBeenCalledOnce();
     expect(more).toHaveFocus();
@@ -125,5 +160,35 @@ describe("AppShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
     expect(status.closest('[role="menu"]')).toBeNull();
     expect(screen.getAllByRole("status")).toHaveLength(1);
+  });
+
+  it("opens recovery directly beside a failed save", () => {
+    const recover = vi.fn();
+    render(
+      <I18nProvider>
+        <AppShell
+          title="Welt"
+          workspace="text"
+          onWorkspace={() => undefined}
+          phase="error"
+          error="Speichern fehlgeschlagen"
+          retry={() => undefined}
+          onRecover={recover}
+          theme="light"
+          onTheme={() => undefined}
+          onSearch={() => undefined}
+          onHistory={() => undefined}
+          onSnapshot={() => undefined}
+          onBackups={() => undefined}
+          onAssistant={() => undefined}
+          onExitWorld={() => undefined}
+        >
+          <div />
+        </AppShell>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Entwurf retten" }));
+    expect(recover).toHaveBeenCalledOnce();
   });
 });

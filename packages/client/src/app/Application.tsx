@@ -2,8 +2,15 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { PRODUCT_MARK } from "../config/branding";
 import { PageState, StatusBarItem } from "../design";
 import { useI18n } from "../i18n";
-import { type Manuscript, wordCount } from "../modules/manuscript";
+import { GettingStartedDialog } from "../modules/getting-started";
+import { chaptersInBook, type Manuscript, wordCount } from "../modules/manuscript";
 import { NoteReferenceProvider } from "../modules/notes";
+import { ProjectExportDialog } from "../modules/project-transfer";
+import {
+  type PersistedRecoveryDocuments,
+  RecoveryDialog,
+  type RecoveryDocuments,
+} from "../modules/recovery";
 import { type FigureState, kindLabel } from "../modules/story-world";
 import type { StoryboardState } from "../modules/storyboard";
 import {
@@ -15,7 +22,7 @@ import {
   workspaceTargetForBacklink,
   workspaceTargetForReference,
 } from "../modules/world-references";
-import { quiltorClient } from "../platform";
+import { ApplicationGatewayError, quiltorClient } from "../platform";
 import { AppShell } from "./AppShell";
 import { OverlayHost, type PendingEntityRename } from "./overlays/OverlayHost";
 import { useOverlayController } from "./overlays/useOverlayController";
@@ -29,6 +36,8 @@ import { WorkspaceSurface } from "./workspace/WorkspaceSurface";
 import { type LoadedWorldDocuments, useWorldSession } from "./world/useWorldSession";
 import { WorldSessionBoundary } from "./world/WorldSessionBoundary";
 
+type DocumentFamily = "manuscript" | "figures" | "storyboards";
+
 export function App() {
   const { t } = useI18n();
   const { theme, preference, setPreference, toggleTheme } = useTheme();
@@ -41,6 +50,16 @@ export function App() {
   const [orphanedMentions, setOrphanedMentions] = useState(0);
   const [pendingRename, setPendingRename] = useState<PendingEntityRename | null>(null);
   const [currentChapterId, setCurrentChapterId] = useState("");
+  const [recoveryFamily, setRecoveryFamily] = useState<DocumentFamily | null>(null);
+  const [chapterFilter, setChapterFilter] = useState<"all" | "in-book" | "set-aside">("all");
+  const [openChapterTrashToken, setOpenChapterTrashToken] = useState(0);
+  const [projectExportOpen, setProjectExportOpen] = useState(false);
+  const [gettingStartedOpen, setGettingStartedOpen] = useState(false);
+  const [mirrorWarnings, setMirrorWarnings] = useState<Record<DocumentFamily, boolean>>({
+    manuscript: false,
+    figures: false,
+    storyboards: false,
+  });
 
   const loadDocuments = useCallback(
     ({
@@ -54,6 +73,7 @@ export function App() {
       storyboardHistory.load(loadedStoryboards);
       setOrphanedMentions(count);
       setCurrentChapterId(loadedManuscript.chapters[0]?.id || "");
+      setMirrorWarnings({ manuscript: false, figures: false, storyboards: false });
     },
     [figureHistory.load, manuscriptHistory.load, storyboardHistory.load],
   );
@@ -105,38 +125,163 @@ export function App() {
     [workspace.navigate],
   );
 
-  const saveManuscript = useCallback(
-    (value: Manuscript) => quiltorClient.application.manuscript.save(value),
+  const rememberMirrorWarning = useCallback(
+    (family: DocumentFamily, result: { warnings?: readonly string[] }) => {
+      const failed = result.warnings?.includes("backup.mirror_failed") ?? false;
+      setMirrorWarnings((current) =>
+        current[family] === failed ? current : { ...current, [family]: failed },
+      );
+      return result;
+    },
     [],
+  );
+  const saveManuscript = useCallback(
+    async (value: Manuscript) =>
+      rememberMirrorWarning("manuscript", await quiltorClient.application.manuscript.save(value)),
+    [rememberMirrorWarning],
   );
   const saveFigures = useCallback(
-    (value: FigureState) => quiltorClient.application.storyWorld.save(value),
-    [],
+    async (value: FigureState) =>
+      rememberMirrorWarning("figures", await quiltorClient.application.storyWorld.save(value)),
+    [rememberMirrorWarning],
   );
   const saveStoryboards = useCallback(
-    (value: StoryboardState) => quiltorClient.application.storyboards.save(value),
-    [],
+    async (value: StoryboardState) =>
+      rememberMirrorWarning("storyboards", await quiltorClient.application.storyboards.save(value)),
+    [rememberMirrorWarning],
   );
   const manuscriptSave = useAutosave(manuscript, saveManuscript);
   const figureSave = useAutosave(figures, saveFigures);
   const storyboardSave = useAutosave(storyboards, saveStoryboards);
+  const saveByFamily = {
+    manuscript: manuscriptSave,
+    figures: figureSave,
+    storyboards: storyboardSave,
+  };
   const workspaceSave =
     workspace.workspace === "text"
       ? manuscriptSave
       : workspace.workspace === "storyboard"
         ? storyboardSave
         : figureSave;
-  const activeSave =
-    [manuscriptSave, figureSave, storyboardSave].find((save) => save.phase === "error") ??
-    workspaceSave;
+  const activeSaveEntry =
+    (Object.entries(saveByFamily) as [DocumentFamily, typeof manuscriptSave][]).find(
+      ([, save]) => save.phase === "error",
+    ) ??
+    ([
+      workspace.workspace === "text"
+        ? "manuscript"
+        : workspace.workspace === "storyboard"
+          ? "storyboards"
+          : "figures",
+      workspaceSave,
+    ] as const);
+  const [activeSaveFamily, activeSave] = activeSaveEntry;
+  const recoverySave = recoveryFamily ? saveByFamily[recoveryFamily] : null;
+  const recoveryHasConflict =
+    recoverySave?.failure instanceof ApplicationGatewayError &&
+    recoverySave.failure.category === "conflict";
+  const comparePersisted = useCallback(async (): Promise<PersistedRecoveryDocuments> => {
+    const [persistedManuscript, persistedFigures, persistedStoryboards] = await Promise.all([
+      quiltorClient.application.manuscript.peek(),
+      quiltorClient.application.storyWorld.peek(),
+      quiltorClient.application.storyboards.peek(),
+    ]);
+    return {
+      manuscript: persistedManuscript,
+      figures: persistedFigures,
+      storyboards: persistedStoryboards,
+    };
+  }, []);
+  const keepLocalDraft = useCallback(
+    async (local: RecoveryDocuments, persisted: PersistedRecoveryDocuments) => {
+      if (recoveryFamily === "manuscript") {
+        await manuscriptSave.resolve(local.manuscript, async (snapshot) =>
+          rememberMirrorWarning(
+            "manuscript",
+            await quiltorClient.application.manuscript.saveExpected(
+              snapshot,
+              persisted.manuscript.revision,
+            ),
+          ),
+        );
+      } else if (recoveryFamily === "figures") {
+        await figureSave.resolve(local.figures, async (snapshot) =>
+          rememberMirrorWarning(
+            "figures",
+            await quiltorClient.application.storyWorld.saveExpected(
+              snapshot,
+              persisted.figures.revision,
+            ),
+          ),
+        );
+      } else if (recoveryFamily === "storyboards") {
+        await storyboardSave.resolve(local.storyboards, async (snapshot) =>
+          rememberMirrorWarning(
+            "storyboards",
+            await quiltorClient.application.storyboards.saveExpected(
+              snapshot,
+              persisted.storyboards.revision,
+            ),
+          ),
+        );
+      }
+    },
+    [
+      figureSave.resolve,
+      manuscriptSave.resolve,
+      recoveryFamily,
+      rememberMirrorWarning,
+      storyboardSave.resolve,
+    ],
+  );
+  const loadPersistedDraft = useCallback(
+    async (local: RecoveryDocuments, persisted: PersistedRecoveryDocuments) => {
+      let replaced = false;
+      if (recoveryFamily === "manuscript") {
+        replaced = manuscriptSave.replace(local.manuscript, persisted.manuscript.document);
+        if (replaced) {
+          manuscriptHistory.load(
+            quiltorClient.application.manuscript.adoptPersisted(persisted.manuscript),
+          );
+        }
+      } else if (recoveryFamily === "figures") {
+        replaced = figureSave.replace(local.figures, persisted.figures.document);
+        if (replaced) {
+          figureHistory.load(
+            quiltorClient.application.storyWorld.adoptPersisted(persisted.figures),
+          );
+        }
+      } else if (recoveryFamily === "storyboards") {
+        replaced = storyboardSave.replace(local.storyboards, persisted.storyboards.document);
+        if (replaced) {
+          storyboardHistory.load(
+            quiltorClient.application.storyboards.adoptPersisted(persisted.storyboards),
+          );
+        }
+      }
+      if (!replaced) throw new Error(t("recoveryDraftChanged"));
+    },
+    [
+      figureHistory.load,
+      figureSave.replace,
+      manuscriptHistory.load,
+      manuscriptSave.replace,
+      recoveryFamily,
+      storyboardHistory.load,
+      storyboardSave.replace,
+      t,
+    ],
+  );
   // What is open belongs in the status line. The numbers are here anyway; every workspace
   // counts the thing it can give an account of.
   const summary = useMemo(() => {
     if (workspace.workspace === "text") {
-      const words = manuscript?.chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0);
+      const bookChapters = manuscript ? chaptersInBook(manuscript) : [];
+      const words = bookChapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0);
       return (
         <>
-          <StatusBarItem>{t("nChapters", { n: manuscript?.chapters.length ?? 0 })}</StatusBarItem>
+          <StatusBarItem>{t("nChapters", { n: bookChapters.length })}</StatusBarItem>
           <StatusBarItem>
             {t("nStandardPages", {
               n: ((words ?? 0) / 250).toFixed(1).replace(".", ","),
@@ -246,6 +391,12 @@ export function App() {
       onOpen={session.open}
       onCreate={session.create}
       onDelete={session.remove}
+      trash={session.trash}
+      trashError={session.trashError}
+      onLoadTrash={session.loadTrash}
+      onRestore={session.restore}
+      onPurge={session.purge}
+      onProjectImported={session.projectImported}
     >
       {session.world && manuscript && figures && storyboards && (
         <Suspense
@@ -262,13 +413,17 @@ export function App() {
             phase={activeSave.phase}
             savedAt={activeSave.savedAt}
             error={activeSave.error}
+            warning={mirrorWarnings[activeSaveFamily] ? t("backupMirrorFailed") : undefined}
             retry={activeSave.retry}
+            onRecover={() => setRecoveryFamily(activeSaveFamily)}
             theme={theme}
             onTheme={toggleTheme}
             onSearch={() => overlays.open("palette")}
             onHistory={() => overlays.open("history")}
             onSnapshot={() => overlays.open("snapshot")}
             onBackups={() => overlays.open("backups")}
+            onExportProject={() => setProjectExportOpen(true)}
+            onGettingStarted={() => setGettingStartedOpen(true)}
             onAssistant={overlays.toggleAssistant}
             onExitWorld={returnToWorldSelection}
             whoami={shell.account}
@@ -303,9 +458,40 @@ export function App() {
                 onSave={flushAll}
                 currentChapterId={currentChapterId}
                 onCurrentChapterId={setCurrentChapterId}
+                openChapterTrashToken={openChapterTrashToken}
+                chapterFilter={chapterFilter}
+                onChapterFilter={setChapterFilter}
               />
             </NoteReferenceProvider>
           </AppShell>
+          {recoveryFamily && (
+            <RecoveryDialog
+              manuscript={manuscript}
+              figures={figures}
+              storyboards={storyboards}
+              conflictFamily={recoveryHasConflict ? recoveryFamily : undefined}
+              onCompare={recoveryHasConflict ? comparePersisted : undefined}
+              onKeepLocal={recoveryHasConflict ? keepLocalDraft : undefined}
+              onLoadPersisted={recoveryHasConflict ? loadPersistedDraft : undefined}
+              onClose={() => setRecoveryFamily(null)}
+            />
+          )}
+          {projectExportOpen && (
+            <ProjectExportDialog
+              worldId={session.world.id}
+              flush={flushAll}
+              onClose={() => setProjectExportOpen(false)}
+            />
+          )}
+          {gettingStartedOpen && (
+            <GettingStartedDialog
+              onWrite={() => workspace.selectWorkspace("text")}
+              onImportText={() => workspace.selectWorkspace("text")}
+              onSearch={() => overlays.open("palette")}
+              onAssistant={overlays.toggleAssistant}
+              onClose={() => setGettingStartedOpen(false)}
+            />
+          )}
           <OverlayHost
             overlay={overlays.overlay}
             onCloseOverlay={overlays.close}
@@ -327,6 +513,16 @@ export function App() {
             pendingRename={pendingRename}
             onManuscriptChange={manuscriptHistory.change}
             onCloseRename={() => setPendingRename(null)}
+            onShowSetAside={() => {
+              overlays.close();
+              workspace.selectWorkspace("text");
+              setChapterFilter("set-aside");
+            }}
+            onOpenChapterTrash={() => {
+              overlays.close();
+              workspace.selectWorkspace("text");
+              setOpenChapterTrashToken((token) => token + 1);
+            }}
           />
         </Suspense>
       )}

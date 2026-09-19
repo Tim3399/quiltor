@@ -1,13 +1,14 @@
 import type { AssistantGateway } from "./assistant";
 import type { BackupGateway } from "./backup";
 import type { DocumentsGateway } from "./documents";
-import type { PlaceMapsGateway } from "./placeMaps";
 import type { HistoryGateway } from "./history";
 import type { IdentityGateway } from "./identity";
 import type { ManuscriptGateway } from "./manuscript";
 import type { MetadataGateway } from "./metadata";
-import type { StoryWorldGateway } from "./storyWorld";
+import type { PlaceMapsGateway } from "./placeMaps";
+import type { ProjectTransferGateway } from "./projectTransfer";
 import type { StoryboardsGateway } from "./storyboards";
+import type { StoryWorldGateway } from "./storyWorld";
 import type { WorldsGateway } from "./worlds";
 import type { WritingAssistanceGateway } from "./writingAssistance";
 
@@ -25,19 +26,26 @@ export interface ApplicationGateway {
   readonly writingAssistance: WritingAssistanceGateway;
   readonly documents: DocumentsGateway;
   readonly placeMaps: PlaceMapsGateway;
+  readonly projectTransfer: ProjectTransferGateway;
 }
 
 export type { AssistantBatchRequest, AssistantGateway } from "./assistant";
 export type { BackupGateway, BackupLoginStart, BackupLoginStatus } from "./backup";
 export type { DocumentsGateway } from "./documents";
-export type { PlaceMapsGateway, StoredMapImage } from "./placeMaps";
 export { ApplicationGatewayError, applicationErrorMessage } from "./errors";
-export type { HistoryGateway } from "./history";
+export type { ChapterComparisonResult, HistoryGateway, SnapshotChapterRecord } from "./history";
 export type { IdentityGateway, IdentityLogoutResult } from "./identity";
 export type { ManuscriptGateway } from "./manuscript";
 export type { MetadataGateway } from "./metadata";
-export type { StoryWorldGateway } from "./storyWorld";
+export type { PlaceMapsGateway, StoredMapImage } from "./placeMaps";
+export type {
+  ProjectTransferCounts,
+  ProjectTransferGateway,
+  ProjectTransferPreview,
+} from "./projectTransfer";
 export type { StoryboardsGateway } from "./storyboards";
+export type { StoryWorldGateway } from "./storyWorld";
+export type { VersionedDocument, VersionedDocumentGateway } from "./versionedDocument";
 export type { WorldsGateway } from "./worlds";
 export type {
   GrammarStatus,

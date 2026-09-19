@@ -176,7 +176,7 @@ test("Mobile core workspaces hold their layout and touch contracts", async ({ pa
       }),
     );
   expect(undersizedToolbarButtons).toEqual([]);
-  await expect(page.getByRole("button", { name: "Exportieren" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Buch exportieren" })).toBeVisible();
   const offCenterToolbarIcons = await manuscriptToolbar.getByRole("button").evaluateAll((buttons) =>
     buttons.flatMap((button) => {
       const label = button.querySelector(".ui-button__label");
@@ -251,7 +251,7 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
       await page.reload();
       await waitForManuscriptReady(page);
 
-      await expectKeyboardMenuContract(page, "Exportieren", "Exportoptionen");
+      await expectKeyboardMenuContract(page, "Buch exportieren", "Buchexport");
 
       await page.getByRole("button", { name: "Figuren", exact: true }).click();
       await expectKeyboardMenuContract(page, "Element", "Element erstellen");
@@ -734,15 +734,31 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
   expect(compactFit.scrollWidth).toBeLessThanOrEqual(compactFit.clientWidth + 1);
   expect(compactFit.overflowX).toBe("auto");
 
-  const exportAction = manuscriptToolbar.getByRole("button", { name: "Exportieren" });
-  await exportAction.focus();
-  const [actionsBox, exportBox] = await Promise.all([
-    toolbarActions.boundingBox(),
-    exportAction.boundingBox(),
-  ]);
-  if (!actionsBox || !exportBox) throw new Error("Focused toolbar action has no geometry");
-  expect(exportBox.x).toBeGreaterThanOrEqual(actionsBox.x - 0.5);
-  expect(exportBox.x + exportBox.width).toBeLessThanOrEqual(actionsBox.x + actionsBox.width + 0.5);
+  const versionsAction = manuscriptToolbar.getByRole("button", { name: "Fassungen" });
+  const sceneBreakAction = manuscriptToolbar.getByRole("button", {
+    name: "Szenenwechsel einfügen",
+  });
+  const exportAction = manuscriptToolbar.getByRole("button", { name: "Buch exportieren" });
+  for (const action of [versionsAction, sceneBreakAction, exportAction]) {
+    await expect(action).toBeVisible();
+    await action.focus();
+    await expect(action).toBeFocused();
+    const [actionsBox, actionBox] = await Promise.all([
+      toolbarActions.boundingBox(),
+      action.boundingBox(),
+    ]);
+    if (!actionsBox || !actionBox) throw new Error("Focused toolbar action has no geometry");
+    expect(actionBox.x).toBeGreaterThanOrEqual(actionsBox.x - 0.5);
+    expect(actionBox.x + actionBox.width).toBeLessThanOrEqual(
+      actionsBox.x + actionsBox.width + 0.5,
+    );
+    expect(actionBox.y).toBeGreaterThanOrEqual(actionsBox.y - 0.5);
+    expect(actionBox.y + actionBox.height).toBeLessThanOrEqual(
+      actionsBox.y + actionsBox.height + 0.5,
+    );
+    expect(actionBox.width).toBeGreaterThanOrEqual(44);
+    expect(actionBox.height).toBeGreaterThanOrEqual(44);
+  }
 
   // The full manuscript bar folds its labels away slightly earlier than small toolbars do, so
   // that intermediate widths never have to be scrolled sideways first.
@@ -2940,7 +2956,7 @@ test("Focus margin panels change neither the writing surface nor the line breaks
   expect(await editor.boundingBox()).toEqual(initial);
 });
 
-test("Chapter versions appear right beside the writing surface", async ({ page }, testInfo) => {
+test("Chapter versions appear inline in the writing surface", async ({ page }, testInfo) => {
   await page.route("**/api/history*", (route) =>
     route.fulfill({
       json: {
@@ -2961,8 +2977,18 @@ test("Chapter versions appear right beside the writing surface", async ({ page }
     route.fulfill({
       json: {
         ok: true,
-        selected: { available: true, exists: true, text: "Historischer neuer Kapiteltext" },
-        previous: { available: true, exists: true, text: "Historischer alter Kapiteltext" },
+        selected: {
+          available: true,
+          exists: true,
+          text: "Historischer neuer Kapiteltext",
+          marks: [],
+        },
+        previous: {
+          available: true,
+          exists: true,
+          text: "Historischer alter Kapiteltext",
+          marks: [],
+        },
       },
     }),
   );
@@ -2970,11 +2996,13 @@ test("Chapter versions appear right beside the writing surface", async ({ page }
   await page.getByRole("button", { name: "Fassungen" }).click();
   const history = page.getByRole("complementary", { name: "Fassungen" });
   await expect(history).toBeVisible();
-  await expect(history).toContainText("Historischer");
-  await expect(history).toContainText("Kapiteltext");
-  await expect(history.locator("ins")).toContainText("neuer");
-  await expect(history.locator("del")).toContainText("alter");
-  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const editor = page.getByLabel("Kapiteltext");
+  await expect(editor).toContainText("Historischer");
+  await expect(editor).toContainText("Kapiteltext");
+  await expect(editor.locator(".version-diff-added")).toContainText("neuer");
+  await expect(editor.locator(".version-diff-removed")).toContainText("alter");
+  await expect(editor).toHaveAttribute("aria-readonly", "true");
+  await expect(history).not.toContainText("Historischer");
   await page.screenshot({ path: testInfo.outputPath("chapter-history.png"), fullPage: true });
 });
 
@@ -2982,7 +3010,11 @@ test("Book export renders a real 6-by-9-inch PDF", async ({ page }, testInfo) =>
   test.skip(testInfo.project.name !== "wide", "PDF geometry only needs one run.");
   await openBlankWorld(page);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
-  await expect(page.locator(".print-document")).toBeAttached();
+  await expect(page.locator(".print-document")).toHaveCount(0);
+  await page.goto(`${page.url()}&bookRender=1`);
+  await expect(page.locator(".print-document")).toHaveAttribute("data-book-ready", "true", {
+    timeout: 30_000,
+  });
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".print-document")).toHaveCSS("display", "block");
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });

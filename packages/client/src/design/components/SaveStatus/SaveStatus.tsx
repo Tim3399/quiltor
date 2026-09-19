@@ -1,4 +1,4 @@
-import { AlertCircle, Check, CloudOff, LoaderCircle } from "lucide-react";
+import { AlertCircle, Check, LoaderCircle } from "lucide-react";
 import type { HTMLAttributes } from "react";
 import { Button } from "../../primitives/Button";
 import "./SaveStatus.css";
@@ -26,7 +26,7 @@ export function SaveStatus({
 }: SaveStatusProps) {
   const Icon =
     phase === "error"
-      ? CloudOff
+      ? AlertCircle
       : phase === "saving"
         ? LoaderCircle
         : phase === "dirty"

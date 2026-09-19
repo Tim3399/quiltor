@@ -1,4 +1,4 @@
-import { Annotation, EditorSelection, EditorState } from "@codemirror/state";
+import { Annotation, Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import {
   EditorView,
   hoverTooltip,
@@ -7,6 +7,7 @@ import {
 } from "@codemirror/view";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { VersionDiffProjection } from "../history";
 import type { FigureNode } from "../story-world";
 import { EntityMentionCard, type EntityMentionDescription } from "./EntityMentionCard";
 import {
@@ -21,6 +22,7 @@ import {
   setMarkDecorations,
   setMentionDecorations,
   setSearchDecorations,
+  setVersionDiffDecorations,
 } from "./editorDecorations";
 import { mapMarks, toggleMark } from "./marks";
 import { mapMentions } from "./mentions";
@@ -42,6 +44,10 @@ export type EditorViewSelection = {
 
 export type ManuscriptEditorHandle = {
   focus: () => void;
+  getPosition: () => ManuscriptEditorPosition;
+  restorePosition: (position: ManuscriptEditorPosition) => void;
+  /** Run after CodeMirror has completed its pending geometry measurement and scroll anchoring. */
+  afterMeasure?: (callback: (hasFocus: boolean) => void) => () => void;
   insert: (text: string) => void;
   insertEntity: (entity: FigureNode) => void;
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
@@ -49,6 +55,12 @@ export type ManuscriptEditorHandle = {
   toggleMark: (kind: TextMarkKind, range?: { from: number; to: number }) => boolean;
   cut: (from: number, to: number) => void;
   reveal: (from: number, to: number) => void;
+};
+
+export type ManuscriptEditorPosition = {
+  anchor: number;
+  head: number;
+  focused: boolean;
 };
 
 export function ManuscriptEditor({
@@ -63,6 +75,9 @@ export function ManuscriptEditor({
   held = null,
   searchMatches = [],
   activeSearchMatch = null,
+  readOnly = false,
+  versionDiff = null,
+  versionDiffLabels,
   editorRef,
   initialSelection,
   onChange,
@@ -86,6 +101,15 @@ export function ManuscriptEditor({
   held?: { from: number; to: number } | null;
   searchMatches?: Array<{ from: number; to: number }>;
   activeSearchMatch?: { from: number; to: number } | null;
+  readOnly?: boolean;
+  versionDiff?: VersionDiffProjection | null;
+  versionDiffLabels?: {
+    added: string;
+    addedLineBreak: string;
+    removed: string;
+    formattingAdded: Record<"bold" | "italic", string>;
+    formattingRemoved: Record<"bold" | "italic", string>;
+  };
   editorRef: React.MutableRefObject<ManuscriptEditorHandle | null>;
   initialSelection?: EditorViewSelection;
   onChange: (value: string, mentions: EntityMention[], marks: TextMark[]) => void;
@@ -114,6 +138,15 @@ export function ManuscriptEditor({
     marksRef = useRef(marks || []),
     issuesRef = useRef(issues),
     entitiesRef = useRef(entities || []);
+  const readOnlyRef = useRef(readOnly);
+  const editableCompartment = useRef(new Compartment()).current;
+  const savedLiveState = useRef<{
+    anchor: number;
+    head: number;
+    scrollTop: number;
+    scrollLeft: number;
+  } | null>(null);
+  const wasReadOnly = useRef(readOnly);
   const [completion, setCompletion] = useState<EditorCompletion | null>(null);
   changeRef.current = onChange;
   selectionRef.current = onSelection;
@@ -135,6 +168,7 @@ export function ManuscriptEditor({
   marksRef.current = marks || [];
   issuesRef.current = issues;
   entitiesRef.current = entities || [];
+  readOnlyRef.current = readOnly;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: The editor view is created once; controlled document updates are synchronized by the value effect below.
   useLayoutEffect(() => {
@@ -170,6 +204,9 @@ export function ManuscriptEditor({
       if (asked) selectionMenuRef.current?.(selection);
     };
     const reportViewSelection = (instance: EditorView) => {
+      // A historical snapshot reuses this editor, but its temporary cursor must never
+      // replace the live chapter session that will be restored when history closes.
+      if (readOnlyRef.current) return;
       const { anchor, head } = instance.state.selection.main;
       viewSelectionRef.current?.({ anchor, head });
     };
@@ -182,6 +219,7 @@ export function ManuscriptEditor({
       kind: TextMarkKind,
       range?: { from: number; to: number },
     ) => {
+      if (readOnlyRef.current) return false;
       const target = range ?? instance.state.selection.main;
       if (target.to <= target.from) return false;
       const next = toggleMark(marksRef.current, target.from, target.to, kind);
@@ -202,6 +240,9 @@ export function ManuscriptEditor({
             )
           : undefined,
         extensions: [
+          // Persisted offsets count every UTF-16 code unit. Treat only LF as CodeMirror's
+          // structural separator so a CR in CRLF remains in the document and offsets stay exact.
+          EditorState.lineSeparator.of("\n"),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             "aria-label": label,
@@ -209,7 +250,19 @@ export function ManuscriptEditor({
             role: "textbox",
             "aria-multiline": "true",
           }),
-          placeholderExtension(placeholder),
+          editableCompartment.of([
+            placeholderExtension(readOnlyRef.current ? "" : placeholder),
+            EditorState.readOnly.of(readOnlyRef.current),
+            EditorView.editable.of(!readOnlyRef.current),
+            EditorView.contentAttributes.of({ tabindex: "0" }),
+          ]),
+          EditorState.transactionFilter.of((transaction) =>
+            readOnlyRef.current &&
+            transaction.docChanged &&
+            !transaction.annotation(controlledUpdate)
+              ? []
+              : transaction,
+          ),
           editorDecorationExtensions,
           hoverTooltip((_current, position) => {
             const mention = mentionsRef.current.find(
@@ -237,6 +290,16 @@ export function ManuscriptEditor({
           // Formatting belongs to the editor, not to the window: App.tsx's global handler
           // would fire in every field of the app, including ones where bold means nothing.
           keymap.of([
+            {
+              key: "Mod-a",
+              run: (current) => {
+                if (!readOnlyRef.current) return false;
+                current.dispatch({
+                  selection: EditorSelection.range(0, current.state.doc.length),
+                });
+                return true;
+              },
+            },
             { key: "Mod-b", preventDefault: true, run: (current) => applyMark(current, "bold") },
             { key: "Mod-i", preventDefault: true, run: (current) => applyMark(current, "italic") },
           ]),
@@ -244,6 +307,7 @@ export function ManuscriptEditor({
             {
               key: "Tab",
               run: (current) => {
+                if (readOnlyRef.current) return false;
                 const range = current.state.selection.main;
                 if (!range.empty) return false;
                 const next = suggestEditorCompletion(
@@ -287,6 +351,10 @@ export function ManuscriptEditor({
               return false;
             },
             contextmenu: (event, current) => {
+              if (readOnlyRef.current) {
+                event.preventDefault();
+                return true;
+              }
               if (current.state.selection.main.empty) {
                 const position = current.posAtCoords({ x: event.clientX, y: event.clientY });
                 const word = position === null ? null : current.state.wordAt(position);
@@ -303,6 +371,10 @@ export function ManuscriptEditor({
               return true;
             },
             keydown: (event, current) => {
+              if (readOnlyRef.current && event.shiftKey && event.key === "F10") {
+                event.preventDefault();
+                return true;
+              }
               if (!(event.shiftKey && event.key === "F10")) return false;
               event.preventDefault();
               const range = current.state.selection.main,
@@ -375,7 +447,46 @@ export function ManuscriptEditor({
     view.current = instance;
     editorRef.current = {
       focus: () => instance.focus(),
+      getPosition: () => ({
+        anchor: instance.state.selection.main.anchor,
+        head: instance.state.selection.main.head,
+        focused: instance.hasFocus,
+      }),
+      restorePosition: ({ anchor, head, focused }) => {
+        const length = instance.state.doc.length;
+        const safeAnchor = Math.max(0, Math.min(anchor, length));
+        const safeHead = Math.max(0, Math.min(head, length));
+        instance.dispatch({ selection: EditorSelection.range(safeAnchor, safeHead) });
+        if (focused) instance.focus();
+      },
+      afterMeasure: (callback) => {
+        let cancelled = false;
+        let frame: number | null = null;
+        instance.requestMeasure({
+          read: () => undefined,
+          write: () => {
+            if (cancelled) return;
+            const editorWindow = instance.dom.ownerDocument.defaultView ?? window;
+            // Chromium may queue another virtual-layout measurement after this measure frame.
+            // Wait through that settlement frame before declaring scroll anchoring complete.
+            frame = editorWindow.requestAnimationFrame(() => {
+              if (cancelled) return;
+              frame = editorWindow.requestAnimationFrame(() => {
+                frame = null;
+                if (!cancelled) callback(instance.hasFocus);
+              });
+            });
+          },
+        });
+        return () => {
+          cancelled = true;
+          if (frame !== null) {
+            (instance.dom.ownerDocument.defaultView ?? window).cancelAnimationFrame(frame);
+          }
+        };
+      },
       insert: (text) => {
+        if (readOnlyRef.current) return;
         const range = instance.state.selection.main;
         instance.dispatch({
           changes: { from: range.from, to: range.to, insert: text },
@@ -385,6 +496,7 @@ export function ManuscriptEditor({
         instance.focus();
       },
       insertEntity: (entity) => {
+        if (readOnlyRef.current) return;
         const range = instance.state.selection.main;
         const mention = {
           id: crypto.randomUUID(),
@@ -404,6 +516,7 @@ export function ManuscriptEditor({
         instance.focus();
       },
       replaceSelection: (from, to, expected, text) => {
+        if (readOnlyRef.current) return false;
         if (instance.state.sliceDoc(from, to) !== expected) return false;
         instance.dispatch({
           changes: { from, to, insert: text },
@@ -414,11 +527,13 @@ export function ManuscriptEditor({
         return true;
       },
       toggleMark: (kind, range) => {
+        if (readOnlyRef.current) return false;
         const applied = applyMark(instance, kind, range);
         instance.focus();
         return applied;
       },
       cut: (from, to) => {
+        if (readOnlyRef.current) return;
         instance.dispatch({
           changes: { from, to, insert: "" },
           selection: { anchor: from },
@@ -447,17 +562,53 @@ export function ManuscriptEditor({
     };
   }, [editorRef, label, placeholder]);
 
+  useLayoutEffect(() => {
+    const instance = view.current;
+    if (!instance || wasReadOnly.current === readOnly) return;
+    if (readOnly) {
+      savedLiveState.current = {
+        anchor: instance.state.selection.main.anchor,
+        head: instance.state.selection.main.head,
+        scrollTop: instance.scrollDOM.scrollTop,
+        scrollLeft: instance.scrollDOM.scrollLeft,
+      };
+      setCompletion(null);
+      setMentionCard(null);
+      selectionRef.current(null);
+    }
+    wasReadOnly.current = readOnly;
+    instance.dispatch({
+      effects: editableCompartment.reconfigure([
+        placeholderExtension(readOnly ? "" : placeholder),
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
+        EditorView.contentAttributes.of({ tabindex: "0" }),
+      ]),
+    });
+  }, [editableCompartment, placeholder, readOnly]);
+
   useEffect(() => {
     const instance = view.current;
-    if (!instance || instance.state.doc.toString() === value) return;
-    const { anchor, head } = instance.state.selection.main;
+    if (!instance) return;
+    const restored = !readOnly ? savedLiveState.current : null;
     const clampPosition = (position: number) => Math.max(0, Math.min(position, value.length));
-    instance.dispatch({
-      changes: { from: 0, to: instance.state.doc.length, insert: value },
-      selection: EditorSelection.single(clampPosition(anchor), clampPosition(head)),
-      annotations: controlledUpdate.of(true),
-    });
-  }, [value]);
+    const anchor = clampPosition(restored?.anchor ?? instance.state.selection.main.anchor);
+    const head = clampPosition(restored?.head ?? instance.state.selection.main.head);
+    if (instance.state.doc.toString() !== value) {
+      instance.dispatch({
+        changes: { from: 0, to: instance.state.doc.length, insert: value },
+        selection: EditorSelection.single(anchor, head),
+        annotations: controlledUpdate.of(true),
+      });
+    } else if (restored) {
+      instance.dispatch({ selection: EditorSelection.single(anchor, head) });
+    }
+    if (restored) {
+      instance.scrollDOM.scrollTop = restored.scrollTop;
+      instance.scrollDOM.scrollLeft = restored.scrollLeft;
+      savedLiveState.current = null;
+    }
+  }, [readOnly, value]);
 
   useEffect(() => {
     view.current?.dispatch({ effects: setMentionDecorations.of(mentions) });
@@ -476,10 +627,22 @@ export function ManuscriptEditor({
       effects: setSearchDecorations.of({ matches: searchMatches, active: activeSearchMatch }),
     });
   }, [searchMatches, activeSearchMatch]);
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: setVersionDiffDecorations.of({
+        projection: versionDiff,
+        addedLabel: versionDiffLabels?.added ?? "",
+        addedLineBreakLabel: versionDiffLabels?.addedLineBreak ?? "",
+        removedLabel: versionDiffLabels?.removed ?? "",
+        formattingAddedLabels: versionDiffLabels?.formattingAdded ?? { bold: "", italic: "" },
+        formattingRemovedLabels: versionDiffLabels?.formattingRemoved ?? { bold: "", italic: "" },
+      }),
+    });
+  }, [versionDiff, versionDiffLabels]);
 
   return (
-    <div className="prose-editor" ref={host}>
-      {completion && (
+    <div className="prose-editor" ref={host} data-readonly={readOnly || undefined}>
+      {!readOnly && completion && (
         <div className="word-completion" role="status" aria-live="polite">
           <kbd>Tab</kbd>
           <span>

@@ -1,4 +1,6 @@
 import {
+  BetweenHorizontalEnd,
+  BookOpen,
   Download,
   FilePlus2,
   Focus,
@@ -33,6 +35,7 @@ interface ManuscriptToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   pdfState: PdfState;
+  preview: boolean;
   onAddChapter: () => void;
   onBinderOpen: (open: boolean) => void;
   onInspectorOpen: (open: boolean) => void;
@@ -42,6 +45,8 @@ interface ManuscriptToolbarProps {
   onHistoryOpen: (open: boolean) => void;
   onExport: () => void;
   onPrint: () => void;
+  onPreview: (preview: boolean) => void;
+  onInsertSceneBreak: () => void;
 }
 
 export function ManuscriptToolbar({
@@ -53,6 +58,7 @@ export function ManuscriptToolbar({
   canUndo,
   canRedo,
   pdfState,
+  preview,
   onAddChapter,
   onBinderOpen,
   onInspectorOpen,
@@ -62,8 +68,10 @@ export function ManuscriptToolbar({
   onHistoryOpen,
   onExport,
   onPrint,
+  onPreview,
+  onInsertSceneBreak,
 }: ManuscriptToolbarProps) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
 
   return (
     <WorkspaceToolbar className="manuscript-toolbar" label={t("manuscript")}>
@@ -77,12 +85,22 @@ export function ManuscriptToolbar({
             <WorkspaceToolbarCreateButton
               label={t("newChapter")}
               icon={<FilePlus2 />}
+              disabled={preview}
               onClick={onAddChapter}
             />
           </WorkspaceToolbarGroup>
         }
         view={
           <>
+            <WorkspaceToolbarGroup className="manuscript-toolbar-group">
+              <ToolbarButton
+                label={t("printPreview")}
+                icon={<BookOpen />}
+                collapseAt="medium"
+                aria-pressed={preview}
+                onClick={() => onPreview(!preview)}
+              />
+            </WorkspaceToolbarGroup>
             {!focus && (
               <WorkspaceToolbarGroup className="manuscript-toolbar-group panel-toggles">
                 <ToolbarButton
@@ -111,6 +129,7 @@ export function ManuscriptToolbar({
                   icon={<Focus />}
                   collapseAt="medium"
                   aria-pressed={focus}
+                  disabled={preview}
                   onClick={() => onFocus(!focus)}
                 />
               </WorkspaceToolbarGroup>
@@ -137,8 +156,8 @@ export function ManuscriptToolbar({
               redoLabel={t("redoManuscript")}
               onUndo={() => onUndo?.()}
               onRedo={() => onRedo?.()}
-              canUndo={canUndo}
-              canRedo={canRedo}
+              canUndo={!preview && canUndo}
+              canRedo={!preview && canRedo}
             />
             {current && (
               <WorkspaceToolbarGroup className="manuscript-toolbar-group">
@@ -147,6 +166,7 @@ export function ManuscriptToolbar({
                   icon={<HistoryIcon />}
                   collapseAt="medium"
                   aria-pressed={historyOpen}
+                  disabled={preview}
                   onClick={() => onHistoryOpen(!historyOpen)}
                 />
               </WorkspaceToolbarGroup>
@@ -155,6 +175,13 @@ export function ManuscriptToolbar({
         }
         actions={
           <WorkspaceToolbarGroup className="manuscript-toolbar-group">
+            <ToolbarButton
+              label={t("insertSceneBreak")}
+              icon={<BetweenHorizontalEnd />}
+              collapseAt="medium"
+              disabled={!current || preview}
+              onClick={onInsertSceneBreak}
+            />
             <DropdownMenu
               label={t("exportOptions")}
               renderTrigger={({ ref, ...triggerProps }) => (

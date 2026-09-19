@@ -23,25 +23,24 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from quiltor.infrastructure.pdf import page_numbers
-from quiltor.infrastructure.pdf.hidden_window import (
-    PAPER_HEIGHT_INCHES,
-    PAPER_WIDTH_INCHES,
-    printable_window,
-)
+from quiltor.infrastructure.pdf.book_document import PAPER_GEOMETRY_JS, validate_paper_mm
+from quiltor.infrastructure.pdf.hidden_window import printable_window
+
+MM_PER_INCH = 25.4
 
 
 def render(url: str, timeout: int = 90) -> bytes:
     with printable_window(url, timeout) as window:
+        paper_mm = validate_paper_mm(window.evaluate_js(PAPER_GEOMETRY_JS))
         target = Path(_temporary_pdf())
         try:
-            _print(window, target, timeout)
+            _print(window, target, timeout, paper_mm)
             data = target.read_bytes()
         finally:
             target.unlink(missing_ok=True)
     if not data:
         raise RuntimeError("PDF export produced an empty file.")
-    return page_numbers.stamp(data)
+    return data
 
 
 def _temporary_pdf() -> str:
@@ -54,7 +53,7 @@ def _temporary_pdf() -> str:
     return name
 
 
-def _print(window, target: Path, timeout: int) -> None:
+def _print(window, target: Path, timeout: int, paper_mm: tuple[float, float]) -> None:
     """Drive CoreWebView2.PrintToPdfAsync on the widget pywebview built."""
     control = getattr(window.native, "webview", None)
     if control is None or getattr(control, "CoreWebView2", None) is None:
@@ -62,10 +61,8 @@ def _print(window, target: Path, timeout: int) -> None:
     core = control.CoreWebView2
 
     settings = core.Environment.CreatePrintSettings()
-    # Inches, matching @page { size: 6in 9in } in src/styles.css. Margins are
-    # zero here because the page's own @page rule owns them.
-    settings.PageWidth = PAPER_WIDTH_INCHES
-    settings.PageHeight = PAPER_HEIGHT_INCHES
+    settings.PageWidth = paper_mm[0] / MM_PER_INCH
+    settings.PageHeight = paper_mm[1] / MM_PER_INCH
     settings.MarginTop = settings.MarginBottom = 0.0
     settings.MarginLeft = settings.MarginRight = 0.0
     settings.ShouldPrintBackgrounds = True

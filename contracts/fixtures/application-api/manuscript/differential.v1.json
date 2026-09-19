@@ -4,6 +4,7 @@
   "baseFixture": "fixtures/application-api/manuscript/wire.v1.json",
   "optionalPresence": [
     { "id": "revision", "path": "/revision", "absent": "accept", "null": "reject" },
+    { "id": "book-layout", "path": "/payload/bookLayout", "absent": "accept", "null": "reject" },
     { "id": "language", "path": "/payload/language", "absent": "accept", "null": "reject" },
     { "id": "grammar-mode", "path": "/payload/grammarMode", "absent": "accept", "null": "reject" },
     { "id": "words", "path": "/payload/words", "absent": "accept", "null": "reject" },
@@ -77,6 +78,48 @@
     }
   ],
   "cases": [
+    {
+      "id": "book-layout-invalid-enum",
+      "operation": "set",
+      "path": "/payload/bookLayout/pageFormat",
+      "value": "letter",
+      "expect": "reject"
+    },
+    {
+      "id": "book-layout-invalid-type",
+      "operation": "set",
+      "path": "/payload/bookLayout/mirrorMargins",
+      "value": "yes",
+      "expect": "reject"
+    },
+    {
+      "id": "book-layout-enum-wrong-type",
+      "operation": "set",
+      "path": "/payload/bookLayout/pageFormat",
+      "value": [],
+      "expect": "reject"
+    },
+    {
+      "id": "book-layout-invalid-range",
+      "operation": "set",
+      "path": "/payload/bookLayout/widows",
+      "value": 6,
+      "expect": "reject"
+    },
+    {
+      "id": "book-layout-whitespace-scene-symbol",
+      "operation": "set",
+      "path": "/payload/bookLayout/sceneSymbol",
+      "value": "   ",
+      "expect": "reject"
+    },
+    {
+      "id": "book-layout-extension",
+      "operation": "set",
+      "path": "/payload/bookLayout/futureField",
+      "value": { "preserved": true },
+      "expect": "accept"
+    },
     {
       "id": "version-integral-float",
       "operation": "set",

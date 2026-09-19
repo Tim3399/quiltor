@@ -30,43 +30,71 @@ either automatically on first launch of `apps/web/server.py`, or explicitly via
 This is the complete production dependency closure from `package-lock.json`.
 Development-only test and build packages are not shipped in `dist/`.
 
-| Package                      | Version | License      |
-| ---------------------------- | ------- | ------------ |
-| `@codemirror/state`          | 6.7.1   | MIT          |
-| `@codemirror/view`           | 6.43.8  | MIT          |
-| `@marijn/find-cluster-break` | 1.0.3   | MIT          |
-| `@types/d3-color`            | 3.1.3   | MIT          |
-| `@types/d3-drag`             | 3.0.7   | MIT          |
-| `@types/d3-interpolate`      | 3.0.4   | MIT          |
-| `@types/d3-selection`        | 3.0.11  | MIT          |
-| `@types/d3-transition`       | 3.0.9   | MIT          |
-| `@types/d3-zoom`             | 3.0.8   | MIT          |
-| `@xyflow/react`              | 12.11.2 | MIT          |
-| `@xyflow/system`             | 0.0.79  | MIT          |
-| `classcat`                   | 5.0.5   | MIT          |
-| `crelt`                      | 1.0.7   | MIT          |
-| `d3-color`                   | 3.1.0   | ISC          |
-| `d3-dispatch`                | 3.0.1   | ISC          |
-| `d3-drag`                    | 3.0.0   | ISC          |
-| `d3-ease`                    | 3.0.1   | BSD-3-Clause |
-| `d3-interpolate`             | 3.0.1   | ISC          |
-| `d3-selection`               | 3.0.0   | ISC          |
-| `d3-timer`                   | 3.0.1   | ISC          |
-| `d3-transition`              | 3.0.1   | ISC          |
-| `d3-zoom`                    | 3.0.0   | ISC          |
-| `lucide-react`               | 1.27.0  | ISC          |
-| `react`                      | 19.2.8  | MIT          |
-| `react-dom`                  | 19.2.8  | MIT          |
-| `scheduler`                  | 0.27.0  | MIT          |
-| `style-mod`                  | 4.1.3   | MIT          |
-| `use-sync-external-store`    | 1.6.0   | MIT          |
-| `w3c-keyname`                | 2.2.8   | MIT          |
-| `zustand`                    | 4.5.7   | MIT          |
+| Package                               | Version | License      |
+| ------------------------------------- | ------- | ------------ |
+| `@babel/polyfill`                     | 7.12.1  | MIT          |
+| `@babel/runtime`                      | 7.29.7  | MIT          |
+| `@codemirror/state`                   | 6.7.1   | MIT          |
+| `@codemirror/view`                    | 6.43.8  | MIT          |
+| `@fontsource-variable/crimson-pro`    | 5.3.0   | OFL-1.1      |
+| `@fontsource-variable/eb-garamond`    | 5.3.0   | OFL-1.1      |
+| `@fontsource-variable/literata`       | 5.3.0   | OFL-1.1      |
+| `@fontsource-variable/source-serif-4` | 5.3.0   | OFL-1.1      |
+| `@fontsource/libre-baskerville`       | 5.3.0   | OFL-1.1      |
+| `@marijn/find-cluster-break`          | 1.0.3   | MIT          |
+| `@types/d3-color`                     | 3.1.3   | MIT          |
+| `@types/d3-drag`                      | 3.0.7   | MIT          |
+| `@types/d3-interpolate`               | 3.0.4   | MIT          |
+| `@types/d3-selection`                 | 3.0.11  | MIT          |
+| `@types/d3-transition`                | 3.0.9   | MIT          |
+| `@types/d3-zoom`                      | 3.0.8   | MIT          |
+| `@xyflow/react`                       | 12.11.2 | MIT          |
+| `@xyflow/system`                      | 0.0.79  | MIT          |
+| `classcat`                            | 5.0.5   | MIT          |
+| `clear-cut`                           | 2.0.2   | MIT          |
+| `core-js`                             | 2.6.12  | MIT          |
+| `crelt`                               | 1.0.7   | MIT          |
+| `css-tree`                            | 1.1.3   | MIT          |
+| `css-tree`                            | 3.2.1   | MIT          |
+| `d`                                   | 1.0.2   | ISC          |
+| `d3-color`                            | 3.1.0   | ISC          |
+| `d3-dispatch`                         | 3.0.1   | ISC          |
+| `d3-drag`                             | 3.0.0   | ISC          |
+| `d3-ease`                             | 3.0.1   | BSD-3-Clause |
+| `d3-interpolate`                      | 3.0.1   | ISC          |
+| `d3-selection`                        | 3.0.0   | ISC          |
+| `d3-timer`                            | 3.0.1   | ISC          |
+| `d3-transition`                       | 3.0.1   | ISC          |
+| `d3-zoom`                             | 3.0.0   | ISC          |
+| `es5-ext`                             | 0.10.64 | ISC          |
+| `es6-iterator`                        | 2.0.3   | MIT          |
+| `es6-symbol`                          | 3.1.4   | ISC          |
+| `esniff`                              | 2.0.1   | ISC          |
+| `event-emitter`                       | 0.3.5   | MIT          |
+| `ext`                                 | 1.7.0   | ISC          |
+| `lucide-react`                        | 1.27.0  | ISC          |
+| `mdn-data`                            | 2.0.14  | CC0-1.0      |
+| `mdn-data`                            | 2.27.1  | CC0-1.0      |
+| `next-tick`                           | 1.1.0   | ISC          |
+| `pagedjs`                             | 0.4.3   | MIT          |
+| `react`                               | 19.2.8  | MIT          |
+| `react-dom`                           | 19.2.8  | MIT          |
+| `regenerator-runtime`                 | 0.13.11 | MIT          |
+| `scheduler`                           | 0.27.0  | MIT          |
+| `source-map`                          | 0.6.1   | BSD-3-Clause |
+| `source-map-js`                       | 1.2.1   | BSD-3-Clause |
+| `style-mod`                           | 4.1.3   | MIT          |
+| `type`                                | 2.7.3   | ISC          |
+| `use-sync-external-store`             | 1.6.0   | MIT          |
+| `w3c-keyname`                         | 2.2.8   | MIT          |
+| `zustand`                             | 4.5.7   | MIT          |
 
 Copyright and full license texts are available from the respective npm package
 metadata and repositories. CodeMirror is copyright (c) 2018-2021 Marijn
 Haverbeke and others; React, React DOM and Scheduler include copyrights held by
-Meta Platforms, Inc. and affiliates.
+Meta Platforms, Inc. and affiliates. Complete license and copyright notices for
+the five bundled book fonts and Paged.js ship in
+`book-typesetting-licenses.txt` beside the built client.
 
 ## Bundled in application runtimes
 

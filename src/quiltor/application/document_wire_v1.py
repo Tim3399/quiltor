@@ -210,6 +210,11 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
     if not isinstance(normalized, dict):
         return normalized
     if kind == "manuscript":
+        book_layout = normalized.get("bookLayout")
+        if isinstance(book_layout, dict):
+            _canonical_integer_field(book_layout, "version", minimum=1, maximum=1)
+            _canonical_integer_field(book_layout, "widows", minimum=1, maximum=5)
+            _canonical_integer_field(book_layout, "orphans", minimum=1, maximum=5)
         chapters = normalized.get("chapters")
         if isinstance(chapters, list):
             for chapter in chapters:
@@ -226,6 +231,25 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                             continue
                         _canonical_integer_field(entry, "from", minimum=0)
                         _canonical_integer_field(entry, "to", minimum=1)
+        trash = normalized.get("trash")
+        if isinstance(trash, list):
+            for entry in trash:
+                if not isinstance(entry, dict):
+                    continue
+                chapter = entry.get("chapter")
+                if isinstance(chapter, dict):
+                    _canonical_note_reference_integers(chapter)
+                    _canonical_note_mark_integers(chapter)
+                    for collection in ("mentions", "marks"):
+                        values = chapter.get(collection)
+                        if isinstance(values, list):
+                            for value in values:
+                                if isinstance(value, dict):
+                                    _canonical_integer_field(value, "from", minimum=0)
+                                    _canonical_integer_field(value, "to", minimum=1)
+                tree_item = entry.get("treeItem")
+                if isinstance(tree_item, dict):
+                    _canonical_integer_field(tree_item, "position", minimum=0)
         return normalized
 
     if kind == "storyboards":
@@ -279,6 +303,8 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
 
 
 def _valid_manuscript_wire_fields(payload: dict[str, Any]) -> bool:
+    if "bookLayout" in payload and not _valid_book_layout(payload.get("bookLayout")):
+        return False
     words = payload.get("words")
     if "words" in payload and (
         not isinstance(words, list)
@@ -303,6 +329,98 @@ def _valid_manuscript_wire_fields(payload: dict[str, Any]) -> bool:
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
             return False
     return True
+
+
+def _valid_book_layout(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    enums = {
+        "preset": {"quiltor-novel", "classic-paperback", "a5-manuscript"},
+        "pageFormat": {"6x9", "a5", "5.5x8.5", "custom"},
+        "fontFamily": {
+            "eb-garamond",
+            "literata",
+            "source-serif-4",
+            "crimson-pro",
+            "libre-baskerville",
+        },
+        "alignment": {"justify", "left"},
+        "chapterStart": {"next-page", "right-page"},
+        "chapterNumberStyle": {"number", "padded", "chapter"},
+        "chapterAlignment": {"left", "center"},
+        "pageNumberPosition": {"bottom-center", "bottom-outside", "top-outside"},
+    }
+    booleans = {
+        "mirrorMargins",
+        "hyphenation",
+        "firstLineIndent",
+        "chapterNumber",
+        "chapterTitle",
+        "dropCap",
+        "chapterFirstIndent",
+        "pageNumbers",
+        "hideChapterPageNumbers",
+        "hideTitlePageNumber",
+        "numberFromFirstChapter",
+        "showNovelLabel",
+        "showVersion",
+        "showDate",
+    }
+    number_ranges = {
+        "pageWidthMm": (80, 500),
+        "pageHeightMm": (80, 500),
+        "marginInnerMm": (0, 100),
+        "marginOuterMm": (0, 100),
+        "marginTopMm": (0, 100),
+        "marginBottomMm": (0, 100),
+        "gutterMm": (0, 50),
+        "fontSizePt": (6, 36),
+        "lineHeight": (0.8, 3),
+        "firstLineIndentEm": (0, 10),
+        "paragraphSpacingEm": (0, 10),
+        "chapterTopMm": (0, 150),
+        "chapterTitleSizePt": (6, 72),
+        "sceneSpaceBeforeMm": (0, 100),
+        "sceneSpaceAfterMm": (0, 100),
+    }
+    metadata = {"bookTitle", "subtitle", "author", "series", "volume"}
+    required = (
+        {"version", "widows", "orphans", "sceneSymbol"}
+        | set(enums)
+        | booleans
+        | set(number_ranges)
+        | metadata
+    )
+    if not required <= set(value):
+        return False
+    if type(value["version"]) is not int or value["version"] != 1:
+        return False
+    if any(
+        not isinstance(value.get(key), str) or value[key] not in choices
+        for key, choices in enums.items()
+    ):
+        return False
+    if any(type(value.get(key)) is not bool for key in booleans):
+        return False
+    if any(
+        not _number(value.get(key)) or not minimum <= value[key] <= maximum
+        for key, (minimum, maximum) in number_ranges.items()
+    ):
+        return False
+    if any(
+        type(value.get(key)) is not int or not 1 <= value[key] <= 5 for key in ("widows", "orphans")
+    ):
+        return False
+    if any(not isinstance(value.get(key), str) or len(value[key]) > 1000 for key in metadata):
+        return False
+    symbol = value.get("sceneSymbol")
+    if not isinstance(symbol, str) or len(symbol) > 32 or (symbol and not symbol.strip()):
+        return False
+    usable_width = (
+        value["pageWidthMm"] - value["marginInnerMm"] - value["marginOuterMm"] - value["gutterMm"]
+    )
+    usable_height = value["pageHeightMm"] - value["marginTopMm"] - value["marginBottomMm"]
+    return usable_width >= 30 and usable_height >= 30
 
 
 def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:

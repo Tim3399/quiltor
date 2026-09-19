@@ -3,6 +3,11 @@
 **Baseline:** Quiltor `3.7.0` / P0 reviewed on 22 August 2026
 **Purpose:** Product roadmap. This file answers **what should be built next and in what order**.
 
+The owner-requested safety and workflow delivery was completed on 2026-09-19 in the
+[competition findings sprint plan](plans/competition-findings-sprints.md). That plan
+maps all 54 QF-01–QF-09 requirements to bounded tasks and records verification,
+including the explicitly closed release gates for an unoffered managed cloud service.
+
 ---
 
 # Product direction

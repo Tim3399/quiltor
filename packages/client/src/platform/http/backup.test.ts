@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import manuscriptWire from "../../../../../contracts/fixtures/application-api/manuscript/wire.v1.json";
+import storyWorldWire from "../../../../../contracts/fixtures/application-api/story-world/wire.v1.json";
+import storyboardsWire from "../../../../../contracts/fixtures/application-api/storyboards/wire.v1.json";
 import backupGatewayError from "../../../../../contracts/fixtures/application-api/structured-error/backup-gateway.v1.json";
 import { createBackupHttpGateway } from "./backup";
 import { createHttpApplicationState } from "./request";
@@ -22,6 +25,8 @@ describe("backup HTTP port", () => {
       changes: ["manuscript.json"],
       changeCount: 1,
       suggestedMessage: "Kapitel sichern",
+      lastSuccessfulTransfer: "2026-09-19T10:30:00Z",
+      transferredSnapshotId: "snapshot-confirmed",
     };
     const fetchMock = vi
       .fn()
@@ -65,6 +70,8 @@ describe("backup HTTP port", () => {
       changes: ["figures.json"],
       changeCount: 1,
       suggestedMessage: "Figuren sichern",
+      lastSuccessfulTransfer: null,
+      transferredSnapshotId: null,
     };
     const fetchMock = vi
       .fn()
@@ -94,6 +101,116 @@ describe("backup HTTP port", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
       name: "snapshot-1.zip",
       worldId: WORLD_ID,
+    });
+  });
+
+  it("preserves a transfer-status warning and rejects unknown snapshot warnings", async () => {
+    const savedStatus = {
+      ok: true as const,
+      endpoint: "https://backup.example.test/repository.git",
+      changes: [],
+      changeCount: 0,
+      suggestedMessage: "Sicherung",
+      lastSuccessfulTransfer: "2026-09-18T09:15:00Z",
+      transferredSnapshotId: "snapshot-previous",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          ok: true,
+          log: ["upload confirmed"],
+          status: savedStatus,
+          warnings: ["backup.transfer_status_failed"],
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          ok: true,
+          log: ["upload confirmed"],
+          status: savedStatus,
+          warnings: ["unknown"],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const backup = createBackupHttpGateway(createHttpApplicationState());
+
+    await expect(backup.saveSnapshot("Sicherung", true)).resolves.toEqual({
+      ok: true,
+      log: ["upload confirmed"],
+      status: savedStatus,
+      warnings: ["backup.transfer_status_failed"],
+    });
+    await expect(backup.saveSnapshot("Sicherung", true)).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  it("loads host storage details and decodes an isolated backup preview", async () => {
+    const storage = {
+      databasePath: "C:\\Quiltor\\world.sqlite3",
+      backupDirectory: "C:\\Quiltor\\backups",
+      lastSuccessfulBackup: "2026-09-19T10:00:00Z",
+      scope: "application-host" as const,
+      canOpenFolder: false as const,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ ok: true, storage }))
+      .mockResolvedValueOnce(
+        response({
+          ok: true,
+          documents: {
+            manuscript: manuscriptWire,
+            figures: storyWorldWire,
+            storyboards: storyboardsWire,
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const state = createHttpApplicationState();
+    state.activeWorldId = WORLD_ID;
+    const backup = createBackupHttpGateway(state);
+
+    await expect(backup.location()).resolves.toEqual({ ok: true, storage });
+    const preview = await backup.preview("Sicherung 1.sqlite3");
+    expect(preview.documents.manuscript.chapters[0].title).toBeTruthy();
+    expect(preview.documents.figures.nodes.length).toBeGreaterThan(0);
+    expect(preview.documents.storyboards.boards.length).toBeGreaterThan(0);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      `/api/backups/location?world=${WORLD_ID}`,
+      `/api/backups/preview?name=Sicherung%201.sqlite3&world=${WORLD_ID}`,
+    ]);
+  });
+
+  it("rejects malformed storage and preview success payloads", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ ok: true, storage: { canOpenFolder: true } }))
+      .mockResolvedValueOnce(response({ ok: true, documents: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+    const backup = createBackupHttpGateway(createHttpApplicationState());
+
+    await expect(backup.location()).rejects.toMatchObject({ code: "invalid_response" });
+    await expect(backup.preview("broken.sqlite3")).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  it("preserves the committed-restore mirror warning and rejects unknown warnings", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ ok: true, warnings: ["backup.mirror_failed"] }))
+      .mockResolvedValueOnce(response({ ok: true, warnings: ["backup.unknown"] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const backup = createBackupHttpGateway(createHttpApplicationState());
+
+    await expect(backup.restore("snapshot-1")).resolves.toEqual({
+      ok: true,
+      warnings: ["backup.mirror_failed"],
+    });
+    await expect(backup.restore("snapshot-2")).rejects.toMatchObject({
+      code: "invalid_response",
     });
   });
 

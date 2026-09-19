@@ -17,20 +17,9 @@ from __future__ import annotations
 import time
 from contextlib import contextmanager
 
-#: 6 x 9 inch, matching @page in src/styles.css.
-PAPER_WIDTH_INCHES = 6.0
-PAPER_HEIGHT_INCHES = 9.0
-POLL_INTERVAL_SECONDS = 0.25
+from quiltor.infrastructure.pdf.book_document import RENDER_STATE_JS, render_state
 
-#: True once the app has rendered the book into the DOM. An expression, because
-#: that is what evaluate_js evaluates. Deliberately not the German aria-label
-#: the Chromium path waits on -- that only holds while the UI defaults to German.
-READY_JS = """
-(function () {
-  var root = document.querySelector('.print-document');
-  return !!(root && root.textContent && root.textContent.trim().length > 0);
-})();
-"""
+POLL_INTERVAL_SECONDS = 0.25
 
 
 @contextmanager
@@ -50,8 +39,8 @@ def printable_window(url: str, timeout: int):
         "Quiltor PDF",
         url,
         hidden=True,
-        width=int(PAPER_WIDTH_INCHES * 96),
-        height=int(PAPER_HEIGHT_INCHES * 96),
+        width=800,
+        height=1000,
     )
     try:
         _wait_until_rendered(window, timeout)
@@ -72,10 +61,15 @@ def _wait_until_rendered(window, timeout: int) -> None:
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        state = "waiting"
         try:
-            if window.evaluate_js(READY_JS):
+            state = render_state(window.evaluate_js(RENDER_STATE_JS))
+            if state == "ready":
                 return
+            if state == "error":
+                raise RuntimeError("The book view reported a pagination error.")
         except Exception:  # noqa: BLE001 - the page may not be loaded yet
-            pass
+            if state == "error":
+                raise
         time.sleep(POLL_INTERVAL_SECONDS)
     raise RuntimeError(f"The book view was not ready after {timeout}s.")

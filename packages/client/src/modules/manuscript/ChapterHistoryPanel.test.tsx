@@ -1,20 +1,28 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import type { SnapshotChapterRecord } from "../../platform";
+import type { VersionDiffProjection } from "../history";
 import { ChapterHistoryPanel } from "./ChapterHistoryPanel";
 
+const record = (
+  text: string,
+  overrides: Partial<SnapshotChapterRecord> = {},
+): SnapshotChapterRecord => ({ available: true, exists: true, text, marks: [], ...overrides });
+
+const unchanged: VersionDiffProjection = { changes: [], equalSpans: [], formattingChanges: [] };
+
 describe("ChapterHistoryPanel", () => {
-  it("renders version choices and reports a changed ref", () => {
+  it("renders version choices without duplicating the selected prose", () => {
     const onRefChange = vi.fn();
     render(
       <I18nProvider>
         <ChapterHistoryPanel
           commits={[{ hash: "abc", shortHash: "abc", date: "2026-01-01", subject: "Version" }]}
           selectedRef="abc"
-          historicalText="Früherer Text"
-          historicalExists
-          previousHistoricalText=""
-          comparisonAvailable
+          selected={record("Früherer Text")}
+          previous={record("Noch früher")}
+          projection={unchanged}
           state="idle"
           onClose={() => undefined}
           onRefChange={onRefChange}
@@ -22,7 +30,7 @@ describe("ChapterHistoryPanel", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByText("Früherer Text")).toBeInTheDocument();
+    expect(screen.queryByText("Früherer Text")).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Fassung" }), {
       target: { value: "abc" },
     });
@@ -35,10 +43,9 @@ describe("ChapterHistoryPanel", () => {
         <ChapterHistoryPanel
           commits={[]}
           selectedRef=""
-          historicalText=""
-          historicalExists={false}
-          previousHistoricalText=""
-          comparisonAvailable
+          selected={null}
+          previous={null}
+          projection={null}
           state="error"
           onClose={() => undefined}
           onRefChange={() => undefined}
@@ -51,16 +58,25 @@ describe("ChapterHistoryPanel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("marks additions and removals against the directly preceding version semantically", () => {
-    const { container } = render(
+  it("summarizes text and formatting changes in its legend", () => {
+    render(
       <I18nProvider>
         <ChapterHistoryPanel
           commits={[{ hash: "new", shortHash: "new", date: "2026-01-02", subject: "Neu" }]}
           selectedRef="new"
-          historicalText="Der junge Baum."
-          historicalExists
-          previousHistoricalText="Der alte Baum."
-          comparisonAvailable
+          selected={record("Der junge Baum.")}
+          previous={record("Der alte Baum.")}
+          projection={{
+            changes: [
+              { kind: "removed", at: 4, text: "alte" },
+              { kind: "added", from: 4, to: 9, text: "junge" },
+            ],
+            equalSpans: [],
+            formattingChanges: [
+              { kind: "format-added", markKind: "bold", from: 10, to: 14 },
+              { kind: "format-removed", markKind: "italic", from: 0, to: 3 },
+            ],
+          }}
           state="idle"
           onClose={() => undefined}
           onRefChange={() => undefined}
@@ -68,24 +84,23 @@ describe("ChapterHistoryPanel", () => {
       </I18nProvider>,
     );
 
-    expect(container.querySelector("ins")).toHaveTextContent("junge");
-    expect(container.querySelector("del")).toHaveTextContent("alte");
-    const rendered = within(container);
-    expect(rendered.getByText("Hinzugefügt")).toBeVisible();
-    expect(rendered.getByText("Entfernt")).toBeVisible();
-    expect(rendered.getByLabelText("Änderungen dieser Fassung")).toBeInTheDocument();
+    const legend = screen.getByLabelText("Legende der Fassungsänderungen");
+    expect(legend).toHaveTextContent("Hinzugefügt");
+    expect(legend).toHaveTextContent("Entfernt");
+    expect(legend).toHaveTextContent("Formatierung hinzugefügt");
+    expect(legend).toHaveTextContent("Formatierung entfernt");
+    expect(screen.queryByText("Der junge Baum.")).not.toBeInTheDocument();
   });
 
-  it("shows the selected text without false additions when its parent is unavailable", () => {
+  it("reports an unavailable predecessor without a false change legend", () => {
     const { container } = render(
       <I18nProvider>
         <ChapterHistoryPanel
           commits={[{ hash: "new", shortHash: "new", date: "2026-01-02", subject: "Neu" }]}
           selectedRef="new"
-          historicalText="Nur die ausgewählte Fassung."
-          historicalExists
-          previousHistoricalText=""
-          comparisonAvailable={false}
+          selected={record("Nur die ausgewählte Fassung.")}
+          previous={record("", { available: false, exists: false })}
+          projection={null}
           state="idle"
           onClose={() => undefined}
           onRefChange={() => undefined}
@@ -94,24 +109,23 @@ describe("ChapterHistoryPanel", () => {
     );
 
     expect(within(container).getByRole("status")).toHaveTextContent("nicht verfügbar");
-    expect(container.querySelector("ins, del")).toBeNull();
-    expect(container).toHaveTextContent("Nur die ausgewählte Fassung.");
+    expect(container.querySelector(".chapter-version-diff__legend")).toBeNull();
+    expect(container).not.toHaveTextContent("Nur die ausgewählte Fassung.");
   });
 
   it("distinguishes an existing empty chapter from a chapter that did not exist", () => {
     const props = {
       commits: [{ hash: "new", shortHash: "new", date: "2026-01-02", subject: "Neu" }],
       selectedRef: "new",
-      historicalText: "",
-      previousHistoricalText: "",
-      comparisonAvailable: true,
+      previous: record(""),
+      projection: unchanged,
       state: "idle" as const,
       onClose: () => undefined,
       onRefChange: () => undefined,
     };
     const existing = render(
       <I18nProvider>
-        <ChapterHistoryPanel {...props} historicalExists />
+        <ChapterHistoryPanel {...props} selected={record("")} />
       </I18nProvider>,
     );
     expect(
@@ -121,7 +135,7 @@ describe("ChapterHistoryPanel", () => {
 
     const missing = render(
       <I18nProvider>
-        <ChapterHistoryPanel {...props} historicalExists={false} />
+        <ChapterHistoryPanel {...props} selected={record("", { exists: false })} />
       </I18nProvider>,
     );
     expect(

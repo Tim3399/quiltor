@@ -25,8 +25,18 @@ describe("history HTTP port", () => {
       .mockResolvedValueOnce(
         response({
           ok: true,
-          selected: { available: true, exists: true, text: "Neu" },
-          previous: { available: true, exists: true, text: "Alt" },
+          selected: {
+            available: true,
+            exists: true,
+            text: "Neu",
+            marks: [{ from: 0, to: 3, kind: "bold" }],
+          },
+          previous: {
+            available: true,
+            exists: true,
+            text: "Alt",
+            marks: [{ from: 0, to: 3, kind: "italic" }],
+          },
         }),
       );
     vi.stubGlobal("fetch", fetchMock);
@@ -42,7 +52,21 @@ describe("history HTTP port", () => {
       mode: "line",
     });
     await history.textVersion("HEAD~1", 7, "Ankunft & Abschied");
-    await history.chapterComparison("HEAD~1", "chapter / ä");
+    await expect(history.chapterComparison("HEAD~1", "chapter / ä")).resolves.toEqual({
+      ok: true,
+      selected: {
+        available: true,
+        exists: true,
+        text: "Neu",
+        marks: [{ from: 0, to: 3, kind: "bold" }],
+      },
+      previous: {
+        available: true,
+        exists: true,
+        text: "Alt",
+        marks: [{ from: 0, to: 3, kind: "italic" }],
+      },
+    });
 
     const encodedWorld = encodeURIComponent(WORLD_ID);
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([

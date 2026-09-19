@@ -18,6 +18,10 @@ const designPath = relative(root, designRoot).replaceAll("\\", "/");
 const rawValueAuthorities = new Set([
   join(designRoot, "colors.css"),
   join(designRoot, "tokens.css"),
+  // The shared book renderer uses physical typography on screen and in PDF.
+  // Its print values are independent of the application's screen design tokens.
+  join(clientRoot, "modules", "manuscript", "PrintDocument.css"),
+  join(clientRoot, "modules", "manuscript", "bookPagination.ts"),
 ]);
 
 const extensions = new Set([".css", ".html", ".ts", ".tsx"]);

@@ -1,26 +1,11 @@
 export type {
-  ClipboardGateway,
-  ExternalNavigationGateway,
-  FileGateway,
-  PlatformGateway,
-  PreferenceStore,
-  SaveFileResult,
-} from "./PlatformGateway";
-export { createPlatformGateway } from "./createPlatformGateway";
-export { saveBlob, saveTextFile } from "./fileSave";
-export {
-  configureQuiltorClient,
-  createQuiltorClient,
-  quiltorClient,
-  type QuiltorClient,
-} from "./QuiltorClient";
-export type {
   ApplicationGateway,
-  AssistantGateway,
   AssistantBatchRequest,
+  AssistantGateway,
   BackupGateway,
   BackupLoginStart,
   BackupLoginStatus,
+  ChapterComparisonResult,
   DocumentsGateway,
   GrammarStatus,
   HistoryGateway,
@@ -29,9 +14,15 @@ export type {
   ManuscriptGateway,
   MetadataGateway,
   PlaceMapsGateway,
+  ProjectTransferCounts,
+  ProjectTransferGateway,
+  ProjectTransferPreview,
+  SnapshotChapterRecord,
   StoredMapImage,
-  StoryWorldGateway,
   StoryboardsGateway,
+  StoryWorldGateway,
+  VersionedDocument,
+  VersionedDocumentGateway,
   WorldsGateway,
   WritingAssistanceGateway,
   WritingAssistanceLookupMode,
@@ -41,3 +32,19 @@ export type {
 export { ApplicationGatewayError, applicationErrorMessage } from "./application";
 export { validateNoteMarks } from "./contracts/v1/noteMark";
 export { decodeStoryWorldV1 } from "./contracts/v1/storyWorld";
+export { createPlatformGateway } from "./createPlatformGateway";
+export { saveBlob, saveTextFile } from "./fileSave";
+export type {
+  ClipboardGateway,
+  ExternalNavigationGateway,
+  FileGateway,
+  PlatformGateway,
+  PreferenceStore,
+  SaveFileResult,
+} from "./PlatformGateway";
+export {
+  configureQuiltorClient,
+  createQuiltorClient,
+  type QuiltorClient,
+  quiltorClient,
+} from "./QuiltorClient";

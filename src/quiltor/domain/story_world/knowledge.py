@@ -25,9 +25,10 @@ class KnowledgeChunk:
     text: str
     target: dict[str, str]
     context_class: KnowledgeContextClass = KnowledgeContextClass.CANON
+    document_status: str | None = None
 
     def public(self) -> dict[str, Any]:
-        return {
+        result = {
             "id": self.id,
             "kind": self.kind,
             "title": self.title,
@@ -35,6 +36,9 @@ class KnowledgeChunk:
             "target": dict(self.target),
             "contextClass": self.context_class.value,
         }
+        if self.document_status:
+            result["documentStatus"] = self.document_status
+        return result
 
 
 def _clean(value: Any) -> str:
@@ -72,12 +76,32 @@ def _parts(text: str, limit: int = 1400) -> list[str]:
     return result
 
 
-def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list[KnowledgeChunk]:
+def chapter_in_book(chapter: dict[str, Any]) -> bool:
+    return chapter.get("inBook") is not False
+
+
+def scoped_chapters(
+    manuscript: dict[str, Any], chapter_ids: list[str] | None = None
+) -> list[dict[str, Any]]:
+    selected = set(chapter_ids or [])
+    return [
+        chapter
+        for chapter in manuscript.get("chapters") or []
+        if (chapter.get("id") in selected if selected else chapter_in_book(chapter))
+    ]
+
+
+def build_knowledge(
+    manuscript: dict[str, Any],
+    figures: dict[str, Any],
+    chapter_ids: list[str] | None = None,
+) -> list[KnowledgeChunk]:
     chunks: list[KnowledgeChunk] = []
     nodes = figures.get("nodes") or []
     names = {node.get("id"): node.get("name", "Unbekannt") for node in nodes}
-    for chapter_index, chapter in enumerate(manuscript.get("chapters") or []):
+    for chapter_index, chapter in enumerate(scoped_chapters(manuscript, chapter_ids)):
         title = _clean(chapter.get("title")) or f"Kapitel {chapter_index + 1}"
+        document_status = "set_aside" if not chapter_in_book(chapter) else None
         for index, part in enumerate(_parts(str(chapter.get("body") or ""))):
             chunks.append(
                 KnowledgeChunk(
@@ -87,6 +111,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                     part,
                     {"workspace": "text", "id": chapter["id"]},
                     context_class=KnowledgeContextClass.MANUSCRIPT,
+                    document_status=document_status,
                 )
             )
         note = _clean(chapter.get("note"))
@@ -99,6 +124,7 @@ def build_knowledge(manuscript: dict[str, Any], figures: dict[str, Any]) -> list
                     note,
                     {"workspace": "text", "id": chapter["id"]},
                     context_class=KnowledgeContextClass.MANUSCRIPT,
+                    document_status=document_status,
                 )
             )
     for node in nodes:

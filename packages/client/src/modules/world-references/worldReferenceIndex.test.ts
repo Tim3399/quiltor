@@ -56,6 +56,24 @@ const labels = {
 };
 
 describe("world reference index", () => {
+  it("marks a set-aside chapter without changing its stable reference identity", () => {
+    const candidates = buildWorldReferenceCandidates({
+      manuscript: {
+        chapters: [
+          { id: "draft", title: "Entwurf", body: "Zinnoberdrache", note: "", inBook: false },
+        ],
+      },
+      figures: { nodes: [], edges: [] },
+      labels,
+    });
+
+    expect(candidates[0]).toMatchObject({
+      id: "chapter:draft",
+      target: { kind: "chapter", id: "draft" },
+      documentStatus: "set_aside",
+    });
+  });
+
   it("uses flattened manuscript order and keeps places on the existing figure identity", () => {
     const candidates = buildWorldReferenceCandidates({ manuscript, figures, labels });
     expect(candidates.map((item) => item.id)).toEqual([

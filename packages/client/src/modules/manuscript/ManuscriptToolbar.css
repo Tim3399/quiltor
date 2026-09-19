@@ -69,6 +69,12 @@
   }
 }
 
+@media (max-width: 380px) {
+  .manuscript-toolbar-actions {
+    flex-wrap: wrap;
+  }
+}
+
 /* Whatever switches the view stands together as one strip: three independent switches,
    one group to the eye. A SegmentedControl would be a radio group and therefore the wrong
    promise -- chapter and details can both be open at once. */

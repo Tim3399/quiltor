@@ -7,6 +7,17 @@
   flex: none;
   padding: var(--space-6) var(--space-8) 0;
 }
+.binder-chapter-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.binder-chapter-filter-help {
+  margin: 0;
+  padding: 0 var(--space-12) var(--space-8);
+  color: var(--muted);
+  font-size: var(--font-size-metadata-legacy-compact);
+}
 .binder-tree-toolbar .binder-add-folder {
   width: 100%;
   justify-content: flex-start;

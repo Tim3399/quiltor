@@ -18,6 +18,12 @@ export function WorldSessionBoundary({
   onOpen,
   onCreate,
   onDelete,
+  trash,
+  trashError,
+  onLoadTrash,
+  onRestore,
+  onPurge,
+  onProjectImported,
   children,
 }: {
   worlds: WorldInfo[] | null;
@@ -31,6 +37,12 @@ export function WorldSessionBoundary({
   onOpen: (id: string) => Promise<void>;
   onCreate: (title: string, backupUrl: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  trash: (WorldInfo & { deletedAt: string })[] | null;
+  trashError: string;
+  onLoadTrash: () => Promise<void>;
+  onRestore: (id: string) => Promise<void>;
+  onPurge: (id: string) => Promise<void>;
+  onProjectImported?: (world: WorldInfo) => Promise<void>;
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -52,6 +64,12 @@ export function WorldSessionBoundary({
         onOpen={onOpen}
         onCreate={onCreate}
         onDelete={onDelete}
+        trash={trash}
+        trashError={trashError}
+        onLoadTrash={onLoadTrash}
+        onRestore={onRestore}
+        onPurge={onPurge}
+        onProjectImported={onProjectImported}
       />
     );
   if (loadError) {

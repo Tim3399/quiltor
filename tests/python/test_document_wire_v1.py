@@ -12,6 +12,7 @@ from quiltor.application import (
     decode_document_v1,
     encode_document_v1,
 )
+from quiltor.application.documents.types import DocumentSaveResult
 from quiltor.delivery.http.routes import documents
 from quiltor.domain.story_world.entity_resolution import (
     ENTITY_ALIAS_ASCII_UPPERCASE_V1,
@@ -92,6 +93,50 @@ def at_pointer(value, path: str):
 
 
 class DocumentWireV1Tests(unittest.TestCase):
+    def test_book_layout_round_trips_extensions_and_rejects_invalid_geometry(self):
+        fixture = registered_fixture("application.manuscript-wire")
+        decoded = decode_document_v1("manuscript", fixture)
+        self.assertEqual(decoded.payload["bookLayout"]["sceneSymbol"], "⁂")
+        self.assertEqual(decoded.payload["bookLayout"]["extensionTypography"], {"kept": True})
+        self.assertEqual(
+            encode_document_v1("manuscript", decoded.payload, decoded.revision), fixture
+        )
+        decoded.payload["bookLayout"]["extensionTypography"]["kept"] = False
+        self.assertTrue(fixture["payload"]["bookLayout"]["extensionTypography"]["kept"])
+
+        invalid_values = (
+            ("mirrorMargins", "yes"),
+            ("fontFamily", "times"),
+            ("pageFormat", []),
+            ("widows", 0),
+            ("sceneSymbol", "   "),
+        )
+        for key, value in invalid_values:
+            candidate = registered_fixture("application.manuscript-wire")
+            candidate["payload"]["bookLayout"][key] = value
+            with self.subTest(key=key), self.assertRaises(InvalidDocumentWireV1):
+                decode_document_v1("manuscript", candidate)
+
+        for dimensions in (
+            {
+                "pageWidthMm": 80,
+                "marginInnerMm": 25,
+                "marginOuterMm": 25,
+                "gutterMm": 1,
+            },
+            {"pageHeightMm": 80, "marginTopMm": 26, "marginBottomMm": 25},
+        ):
+            candidate = registered_fixture("application.manuscript-wire")
+            candidate["payload"]["bookLayout"].update(dimensions)
+            with self.subTest(dimensions=dimensions), self.assertRaises(InvalidDocumentWireV1):
+                decode_document_v1("manuscript", candidate)
+
+    def test_book_layout_is_optional_for_older_manuscripts(self):
+        fixture = registered_fixture("application.manuscript-wire")
+        del fixture["payload"]["bookLayout"]
+        decoded = decode_document_v1("manuscript", fixture)
+        self.assertNotIn("bookLayout", decoded.payload)
+
     def test_frozen_alias_rules_and_vectors_match_the_registered_contract(self):
         rules = json.loads(
             (
@@ -189,7 +234,9 @@ class DocumentWireV1Tests(unittest.TestCase):
                     explicit_null = mutate(prepared, presence["path"], "set", None)
 
                     accepted_operations = MagicMock()
-                    accepted_operations.save.return_value = base["revision"] + 1
+                    accepted_operations.save_with_status.return_value = DocumentSaveResult(
+                        base["revision"] + 1
+                    )
                     accepted_writer = SimpleNamespace(
                         headers={"If-Match": f'"{base["revision"]}"'},
                         _read_json_body=MagicMock(return_value=absent),
@@ -205,7 +252,7 @@ class DocumentWireV1Tests(unittest.TestCase):
                         kind=kind,
                     )
                     self.assertTrue(
-                        accepted_operations.save.called,
+                        accepted_operations.save_with_status.called,
                         f"{contract_name}:{presence['id']}:absent",
                     )
 
@@ -228,7 +275,7 @@ class DocumentWireV1Tests(unittest.TestCase):
                     rejected_writer.send_api_error.assert_called_once_with(
                         400, error_code="document.invalid_wire"
                     )
-                    rejected_operations.save.assert_not_called()
+                    rejected_operations.save_with_status.assert_not_called()
 
                     if presence["path"] == "/revision":
                         continue
@@ -288,7 +335,7 @@ class DocumentWireV1Tests(unittest.TestCase):
                     case.get("value"),
                 )
                 operations = MagicMock()
-                operations.save.return_value = base["revision"] + 1
+                operations.save_with_status.return_value = DocumentSaveResult(base["revision"] + 1)
                 writer = SimpleNamespace(
                     headers={"If-Match": f'"{base["revision"]}"'},
                     _read_json_body=MagicMock(return_value=candidate),
@@ -302,9 +349,9 @@ class DocumentWireV1Tests(unittest.TestCase):
                     kind="manuscript",
                 )
                 if case["expect"] == "accept":
-                    self.assertTrue(operations.save.called, case["id"])
+                    self.assertTrue(operations.save_with_status.called, case["id"])
                 else:
-                    operations.save.assert_not_called()
+                    operations.save_with_status.assert_not_called()
                     self.assertTrue(writer.send_api_error.called, case["id"])
 
     def test_registered_fixtures_round_trip_through_runtime_producer_and_consumer(self):
@@ -756,7 +803,7 @@ class DocumentWireV1Tests(unittest.TestCase):
             writer.send_api_error.assert_called_once_with(
                 400, error_code="document.invalid_revision"
             )
-        operations.save.assert_not_called()
+        operations.save_with_status.assert_not_called()
 
     def test_http_route_produces_and_consumes_the_registered_envelope(self):
         fixture = registered_fixture("application.manuscript-wire")
@@ -764,7 +811,7 @@ class DocumentWireV1Tests(unittest.TestCase):
         operations.load.return_value = SimpleNamespace(
             state=deepcopy(fixture["payload"]), revision=fixture["revision"]
         )
-        operations.save.return_value = fixture["revision"] + 1
+        operations.save_with_status.return_value = DocumentSaveResult(fixture["revision"] + 1)
         app = SimpleNamespace(lock=RLock(), documents=operations)
         request = SimpleNamespace(
             db_path="world.sqlite3",
@@ -785,7 +832,7 @@ class DocumentWireV1Tests(unittest.TestCase):
         )
         documents._write(writer, request, app, kind="manuscript")
 
-        operations.save.assert_called_once_with(
+        operations.save_with_status.assert_called_once_with(
             "manuscript",
             fixture["payload"],
             fixture["revision"],
