@@ -124,6 +124,16 @@ step. Bumping `SCHEMA_VERSION` without adding the step there fails the backend s
 A migration step runs against databases that carry only `meta` — ask
 `sqlite_master` whether a table exists before reading it, the way every existing step does.
 
+## Frontend design
+
+For frontend work, read `docs/design/FRONTEND_STYLEGUIDE.md`: its entry section,
+section 1 and Definition of Done first, then the task-relevant sections. Use
+`DESIGN.md` for product identity, `packages/client/src/design/README.md` for the
+system contract, and the existing token files and comparable components for implementation.
+Preserve the approved scope and existing identity. A review alone does not authorize edits;
+an implementation request does. Check proposals against current code and report actual
+verification and remaining gaps.
+
 ## Gates
 
 - `npm run check` — contracts, architecture, design, design system, i18n, platform

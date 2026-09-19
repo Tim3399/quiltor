@@ -887,3 +887,34 @@ test("workspace, tabs and side panels stay usable in narrow hosts", async ({ pag
   await expectNarrowHostContract(panel, 240);
   await expectCenterHit(panel.getByRole("button", { name: "Schließen" }));
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`Reading labels retain their hierarchy and reflow with enlarged text in ${theme}`, async ({
+    page,
+  }) => {
+    await openStory(page, "TextField/LongContent", theme);
+    const field = page.locator(`${storyCanvasSelector} .ui-field`).first();
+    const label = field.locator(".ui-field__label");
+    await expect(label).toHaveCSS("font-size", "12px");
+    await expect(label).toHaveCSS("font-weight", "500");
+    await expect(label).toHaveCSS("line-height", "16.8px");
+    await label.evaluate((element) => {
+      element.style.fontSize = "24px";
+    });
+    await expectNarrowHostContract(field, 240);
+    await label.click();
+    await expect(field.locator("input")).toBeFocused();
+
+    await openStory(page, "SidePanel/Inspector", theme);
+    const panel = page.getByRole("complementary", { name: "Figurinspektor" });
+    const header = panel.locator(".side-panel__header");
+    await expect(header).toHaveCSS("font-size", "12px");
+    await expect(header).toHaveCSS("font-weight", "600");
+    await expect(header).toHaveCSS("line-height", "16.2px");
+    await header.evaluate((element) => {
+      element.style.fontSize = "24px";
+    });
+    await expectNarrowHostContract(panel, 240);
+    await expectCenterHit(panel.getByRole("button", { name: "Schließen" }));
+  });
+}

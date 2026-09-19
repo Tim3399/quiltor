@@ -36,15 +36,14 @@ Every Rust gate runs Cargo with `--locked`. A missing or stale `Cargo.lock`
 therefore fails both the fast CI workflow and the complete local/release
 preflight instead of resolving a different dependency graph.
 
-CI and local release preflight use the explicit `releaseToolchains`: Node.js
-22.23.2 with npm 10.9.8, CPython 3.11.9 and Rust 1.98.0 from
-`distribution/toolchains.json`; the matching dotfiles and
-`rust-toolchain.toml` make the same choice outside CI. Python 3.11.9 is the last
-3.11 patch with official `setup-python` assets for Linux, macOS and Windows.
+CI and local release preflight use the exact `releaseToolchains` declared in
+`distribution/toolchains.json`; the matching dotfiles and `rust-toolchain.toml`
+make the same choice outside CI. `npm run doctor` checks installed versions;
+`distribution/tooling/workflow_contract.py check` checks the corresponding source-controlled pins.
 Release packaging uses `build==1.5.0`, `editables==0.5`, `hatchling==1.31.0`,
 `pyinstaller==6.22.0` and `ruff==0.16.4`; package builds disable build isolation
 after installing those exact tools. This is a build-tool contract, not a
-generic target-runtime claim. Native targets also use CPython 3.11.9; the web
+generic target-runtime claim. Native targets use the declared release CPython; the web
 OCI stages assert CPython 3.12.3 and the digest-bound backup base names CPython
 3.12.13. Target roles, versions, resolver inputs and lock digests are separate
 records in `distribution/dependency-locks.json`.

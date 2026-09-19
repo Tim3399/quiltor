@@ -78,7 +78,7 @@
   padding-top: var(--space-2);
   color: var(--muted);
   font-family: var(--prose);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-numeric-compact);
   font-feature-settings: "onum";
   text-align: right;
 }
@@ -86,7 +86,7 @@
   grid-area: name;
   overflow: hidden;
   font-family: var(--prose);
-  font-size: var(--font-size-4);
+  font-size: var(--font-size-body);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -101,7 +101,7 @@
   align-items: baseline;
   overflow: hidden;
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
   white-space: nowrap;
 }
 .chapter-meta > :not(:first-child) {
@@ -145,7 +145,7 @@
 }
 .binder-note-control {
   min-height: 64px;
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-control-compact);
 }
 
 .binder-story-time {
@@ -174,15 +174,14 @@
 }
 .binder-story-time-title {
   color: var(--muted);
-  font-size: var(--font-size-2);
-  font-weight: 600;
+  font: var(--font-section-label);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--tracking-section-label);
 }
 .binder-story-time-value {
   overflow: hidden;
   color: var(--soft);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-numeric-legacy-compact);
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -212,7 +211,7 @@
 .binder-story-time-status {
   margin: 0;
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
   line-height: 1.35;
 }
 .binder-story-time-mode {
@@ -230,8 +229,7 @@
 }
 .binder-story-time-field > span {
   color: var(--muted);
-  font-size: var(--font-size-2);
-  font-weight: 600;
+  font: var(--font-field-label);
 }
 .binder-story-time-select {
   width: 100%;

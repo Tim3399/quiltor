@@ -22,10 +22,8 @@
   min-width: 0;
   overflow: hidden;
   color: var(--ink);
-  font: 600 var(--font-size-2) var(--prose);
-  letter-spacing: 0.06em;
+  font: 600 var(--font-size-body) / 1.35 var(--prose);
   text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -33,7 +31,7 @@
   flex: none;
   padding-right: var(--space-4);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-numeric-legacy-micro);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

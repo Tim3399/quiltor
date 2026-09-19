@@ -11,7 +11,7 @@
   min-width: 0;
 }
 .timeline-time-settings-trigger {
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-legacy-compact);
 }
 .timeline-time-settings-panel {
   max-height: min(620px, calc(100dvh - var(--space-88)));
@@ -27,7 +27,7 @@
   display: grid;
   gap: var(--space-4);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-legacy-compact);
 }
 @media (max-width: 640px) {
   .timeline-time-controls {

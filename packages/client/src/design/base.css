@@ -12,7 +12,7 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--ui);
-  font-size: var(--font-size-4);
+  font-size: var(--font-size-body);
 }
 button,
 input,
@@ -44,7 +44,7 @@ select:focus-visible,
   border: 0;
 }
 kbd {
-  font: 500 var(--font-size-2) var(--ui);
+  font: 500 var(--font-size-control-legacy-compact) var(--ui);
   color: var(--muted);
   background: var(--control-hint);
   border: 1px solid var(--line);

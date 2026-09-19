@@ -8,7 +8,7 @@
   align-items: center;
   gap: var(--space-6);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-control-compact);
   list-style: none;
   cursor: pointer;
 }
@@ -30,13 +30,16 @@
 }
 .snapshot-facts dt {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font: var(--font-field-label);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--tracking-label);
 }
 .snapshot-facts dd {
+  min-width: 0;
   margin: 0;
   font-weight: 600;
+  overflow-wrap: anywhere;
+  text-align: end;
 }
 .changed-files {
   max-height: 130px;
@@ -50,15 +53,20 @@
   background: var(--canvas);
 }
 .changed-files code {
-  font-size: var(--font-size-2);
+  font: var(--font-code);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .snapshot-output {
+  max-width: 100%;
   overflow: auto;
   padding: var(--space-12);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--canvas);
-  font-size: var(--font-size-2);
-  line-height: 1.55;
+  font: var(--font-code);
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
+  word-break: break-word;
 }

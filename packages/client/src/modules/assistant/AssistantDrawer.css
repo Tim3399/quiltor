@@ -48,11 +48,12 @@
   flex-direction: column;
 }
 .assistant-drawer > header strong {
-  font-size: var(--font-size-3);
+  font: var(--font-section-label);
+  letter-spacing: var(--tracking-section-label);
 }
 .assistant-drawer > header small {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata);
 }
 .assistant-world-update {
   display: grid;
@@ -68,7 +69,7 @@
 }
 .assistant-world-update > small {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata);
   line-height: 1.4;
 }
 

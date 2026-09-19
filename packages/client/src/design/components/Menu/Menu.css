@@ -92,7 +92,7 @@
   padding-left: var(--spacing-regular-wide);
   color: var(--soft);
   font-family: inherit;
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-control-compact);
   white-space: nowrap;
 }
 

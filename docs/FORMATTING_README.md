@@ -24,5 +24,6 @@ This aggregate currently covers web, Python and documentation files. Format Rust
 Check formatting without writing with `npm run check:format` and the Rust check above.
 
 The [cross-project engineering standard](standards/README.md) provides reusable formatting,
-startup and versioning rules with configuration templates. [Quiltor's profile](standards/quiltor.md)
-records the current implementation and the remaining adoption work.
+startup and versioning rules with configuration templates. The current
+[project engineering profile](PROJECT_PROFILE.md) records this repository's implementation and
+remaining adoption work.

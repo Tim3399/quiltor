@@ -9,7 +9,7 @@
   justify-content: space-between;
   gap: var(--spacing-transition-feedback-gap);
   color: var(--muted);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-label-compact);
 }
 
 .progress-component__track {

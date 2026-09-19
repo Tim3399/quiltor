@@ -36,7 +36,7 @@
   min-width: 0;
   align-self: center;
   color: inherit;
-  font-size: var(--font-size-4);
+  font-size: var(--font-size-label);
   overflow-wrap: anywhere;
 }
 
@@ -47,10 +47,14 @@
 }
 
 .ui-checkbox__description,
-.ui-checkbox__hint,
+.ui-checkbox__hint {
+  min-width: 0;
+  font-size: var(--font-size-metadata);
+  overflow-wrap: anywhere;
+}
 .ui-checkbox__error {
   min-width: 0;
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
   overflow-wrap: anywhere;
 }
 

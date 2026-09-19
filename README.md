@@ -839,6 +839,13 @@ Der Server besitzt keinen globalen Zustand „diese Welt ist gerade geöffnet“
 
 ## Entwicklung und Qualität
 
+Der verbindliche [Projektstandard](docs/PROJECT_PROFILE.md) dokumentiert Formatter-Zuständigkeiten,
+Startbefehle, Agentenregeln und noch offene Anforderungen. Nach der Einrichtung startet `npm start`
+die vollständige lokale Anwendung (API auf 8010, Vite auf 5173). `npm run format` formatiert Web,
+Python, Dokumentation und Rust; `npm run check:format` prüft dieselben Bereiche ohne Änderungen.
+`npm run check`, `npm run build` und `npm test` sind die getrennten Qualitäts-, Build- und Unit-Gates.
+Alternative Ports und isolierte Testdaten stehen im Projektprofil.
+
 Die exakten Release-Versionen für Node.js, npm, Python und Rust sowie die Build-Werkzeuge stehen in [`distribution/toolchains.json`](distribution/toolchains.json). `npm run doctor` zeigt Abweichungen. Für Python-Tests die deklarierten Abhängigkeiten in einer virtuellen Umgebung installieren: `python -m pip install -e .`. Der Python-Formatter wird separat in der dort gepinnten Ruff-Version benötigt.
 
 ```bash

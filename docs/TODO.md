@@ -334,6 +334,146 @@ Hierarchical chapter organization, the Figure / entity workspace overhaul and th
 **P1 Storyboard** slice are complete. Explicit overlap ordering is now shipped; the deliberately
 bounded AI planning features remain open below.
 
+**Import existing manuscripts** is the next high-priority delivery. Intuitiveness testing and
+better export follow as P1; device sync is an optional subscription (P2).
+
+Recurring problems of comparable products are collected in
+[`competitor pain points`](research/competitor-pain-points.md) (September 2026).
+
+---
+
+# P1 — HIGH PRIORITY: Import existing manuscripts
+
+Most authors arrive with a manuscript that already exists. Import is the moment they decide
+whether to switch, and comparable products lose trust exactly here: a LivingWriter import shrank a
+290-page manuscript to 56 pages, and Papyrus users lose their structure when a Word file comes back
+from the editor. Evidence:
+[`competitor pain points`](research/competitor-pain-points.md#2-import-that-silently-drops-text).
+
+## Formats
+
+- [ ] DOCX — the format most authors and their editors already use.
+- [ ] Markdown.
+- [ ] TXT / RTF if useful.
+- [ ] Scrivener `.scriv` projects — Scrivener is the tool most authors switch from.
+- Papyrus `.pap` stays out of scope; Papyrus exports DOCX and RTF.
+
+## Trustworthy import
+
+- [ ] Preview the detected chapter and folder split before anything is written.
+- [ ] Let the author correct the split (headings, scene separators, page breaks) in the preview.
+- [ ] Compare word and paragraph counts of source and result; never lose text silently.
+- [ ] Preserve:
+  - chapter structure and folder hierarchy;
+  - titles;
+  - paragraphs;
+  - italics, bold and scene separators;
+  - stable enough source boundaries for evidence;
+  - manuscript revision provenance.
+- [ ] Report content Quiltor cannot represent yet (footnotes, comments, images) instead of dropping
+      it.
+- [ ] Import into a new world or append to an existing manuscript; one undo step either way.
+- [ ] Create a snapshot before importing into an existing world.
+
+## After import
+
+- [ ] Offer **Update world from manuscript** directly after import, so figures, places and timeline
+      fill themselves instead of being re-entered.
+- [ ] Show progress and keep the manuscript usable while a whole-book scan runs.
+
+## Editor round-trip (later)
+
+- [ ] Re-import a DOCX that came back from an editor with tracked changes into the existing chapters
+      without losing notes, references, story-time anchors or folder structure.
+- [ ] Present the editor's changes as reviewable differences instead of replacing chapters.
+
+Do not prioritize Google Docs / Word add-ins before product-market fit.
+
+---
+
+# P1 — Intuitiveness: Quiltor must not feel overwhelming
+
+Five workspaces, a signed time axis, calendars, presence and an assistant are a lot to meet at once.
+Scrivener's compile, the Papyrus timeline and Aeon Timeline's terminology show how powerful features
+go unused when they feel like configuration. Evidence:
+[`competitor pain points`](research/competitor-pain-points.md#7-complexity-and-learning-curve).
+
+## Test with authors, not only by review
+
+- [ ] Run moderated think-aloud sessions with about five authors per round who have never used
+      Quiltor.
+- [ ] Use fixed tasks:
+  - write a first chapter and find out whether it is saved;
+  - import an existing manuscript;
+  - create a figure and a relationship;
+  - record where a figure is at a moment;
+  - find every mention of a figure;
+  - run **Update world from manuscript** and review the proposals;
+  - restore an earlier version of a chapter;
+  - export the manuscript.
+- [ ] Record task success, time, errors and the moments of hesitation.
+- [ ] Ask one ease-of-use question per task and a short questionnaire per session.
+- [ ] Repeat the round after the design overhaul and after each major workflow change.
+- [ ] Keep the findings with the change each one caused.
+
+## UI/UX review
+
+- [ ] Heuristic review of every workspace: visible state, recognition over recall, consistency,
+      error prevention and recovery.
+- [ ] Audit German labels for jargon (`Kanon`, `Präsenz`, relative coordinates such as `t+4`) and
+      test replacements with authors.
+- [ ] Progressive disclosure: calendars, relative time coordinates, custom fields and layer controls
+      appear when needed, not on first contact.
+- [ ] Every setting must justify its existence; remove or merge overlapping ones.
+- [ ] Empty states explain the next useful step in one sentence.
+- [ ] Writing a first sentence requires no setup of world, timeline or assistant.
+- [ ] Without an installed model, assistant surfaces explain what is missing instead of failing.
+
+## Let the assistant take over bookkeeping
+
+- [ ] List every manual maintenance task in Quiltor and classify it:
+  - deterministic and automatic;
+  - assistant proposal the author confirms;
+  - necessarily manual.
+- [ ] Move tasks up that list wherever the product invariant allows, for example aliases, presence
+      changes, relationship changes and story-time anchors for chapters.
+- [ ] Never ask the author to re-enter what the manuscript already says.
+- [ ] Keep proposal review light: grouping, accepting a whole group, no flood of low-confidence
+      proposals.
+- [ ] Count the steps of the fixed tasks above before and after each change.
+
+---
+
+# P1 — Better export
+
+Today Quiltor exports one 6 × 9 in book PDF. Authors need files for editors, agents, shops and
+print. Comparable products fail in two ways: a compile designer nobody understands (Scrivener) and
+exports that break later (EPUB rejected on upload, chapter numbers missing in DOCX). Evidence:
+[`competitor pain points`](research/competitor-pain-points.md#3-export-and-compile-as-a-configuration-maze).
+
+## Formats
+
+- [ ] DOCX manuscript for editors and agents.
+- [ ] German standard manuscript page (`Normseite`) as a one-click preset.
+- [ ] EPUB 3.
+- [ ] Print PDF in common trim sizes, not only 6 × 9 in.
+- [ ] Markdown / plain text for portability.
+- [ ] World data (figures, places, timeline) in a readable format.
+
+## Presets instead of a compile designer
+
+- [ ] Named presets (manuscript for an editor, Normseite, e-book, paperback) with few, clear options:
+      title page, chapter numbering, scene separator, font.
+- [ ] Preview before the file is written.
+- [ ] Carry chapter numbers, titles, italics and scene separators into every format, in the binder's
+      flattened order.
+
+## Verify before the author uploads
+
+- [ ] Validate EPUB output against the EPUB 3 specification in the release suite.
+- [ ] Report word and chapter counts of the export next to the manuscript's.
+- [ ] Round-trip test: import an exported DOCX and compare it with the source.
+
 ---
 
 # P1 — Shared Notes system
@@ -863,29 +1003,6 @@ Interface language and manuscript writing language are different concepts.
 
 ---
 
-# P2 — Import existing manuscripts
-
-Important before a real external pilot.
-
-Recommended order:
-
-- [ ] Markdown
-- [ ] DOCX
-- [ ] TXT / RTF if useful
-- [ ] Scrivener later
-
-Import should preserve:
-
-- chapter structure;
-- titles;
-- paragraphs;
-- stable enough source boundaries for evidence;
-- manuscript revision provenance.
-
-Do not prioritize Google Docs / Word add-ins before product-market fit.
-
----
-
 # P2 — Story math and temporal constraints
 
 After the basic resolver is stable:
@@ -936,6 +1053,255 @@ Never add:
 - [ ] `continue_story`
 - [ ] `apply_without_confirmation`
 - [ ] unrestricted delete/canon mutation
+
+---
+
+# P2 — Device sync and cloud storage (optional subscription)
+
+Quiltor stays fully usable on one device without an account. Sync between devices and cloud storage
+can be booked as a subscription. Comparable products show what must not happen: Scrivener projects
+break inside Dropbox, iCloud and OneDrive folders, Dabble cannot merge offline work from two devices,
+and cloud-first apps lock authors out when the login or the service fails. Evidence:
+[`competitor pain points`](research/competitor-pain-points.md#4-sync-between-devices).
+
+## Principles
+
+- [ ] The local world stays authoritative and fully usable offline.
+- [ ] Sync runs through Quiltor's own revision-aware service, never by placing the SQLite database
+      in a third-party sync folder.
+- [ ] End-to-end encryption: the service stores what it cannot read.
+- [ ] Sync is not backup: local backups and restore keep working without a subscription.
+- [ ] Ending the subscription leaves every world local, complete and editable.
+
+## Behaviour
+
+- [ ] Sync per document revision (manuscript, story world, storyboard), reusing the existing revision
+      checks.
+- [ ] Conflicting edits from two devices are shown side by side and never resolved by overwriting.
+- [ ] Offline edits on two devices merge per chapter where they do not overlap.
+- [ ] Visible sync state: last sync, pending changes, conflicts.
+- [ ] Evaluate whether `services/backup-server` can become the sync and storage backend.
+- [ ] Transfer changed chapters and assets only; this needs the
+      [storage foundation](#storage-foundation-snapshot-units-end-to-end-encryption-retention) first.
+
+## Storage foundation: snapshot units, end-to-end encryption, retention
+
+Cloud backup is the first paid part of this subscription, and sync builds on the same storage. Today
+it would not pay for itself. Every snapshot stores the whole world database as one blob
+(`snapshots.py`, `_collect`). In the largest local test world that is 4.47 MB, of which 4.0 MB are
+two place-map images and 177 KB are chapter text, so changing a comma stores the images again.
+Snapshots are manual only, only the newest one is uploaded, `encryption` must be `none`, and the
+reference server never deletes anything.
+
+### Decisions
+
+- Keycloak stays the identity provider for the hosted web app and the store apps.
+- One backup client for every host: the Python process on desktop, in store apps and in the hosted
+  web app. The web app runs the same end-to-end code, but there the server decrypts; the browser
+  version says so plainly ("decrypted on the server, not end-to-end").
+- A forgotten passphrase is covered by a recovery key that is shown once. Losing both loses the
+  cloud copy; local worlds are untouched.
+- Retention: every snapshot of the last 30 days, then the newest snapshot of each calendar month
+  (UTC) with no end date. The newest snapshot overall is always kept. The same rule applies locally
+  and on the server.
+- Automatic snapshots at most every 10 minutes, plus an upload queue for every snapshot that is not
+  on the server yet.
+
+### Phase 1 — Snapshot format v3: units instead of the database (local, plaintext)
+
+- [ ] Split a snapshot into canonical JSON units (sorted keys, compact, UTF-8) built from the v1
+      document contracts (`application/document_wire_v1.py`), so equal content yields the same blob:
+  - `world.json`: world title and document contract versions;
+  - `manuscript/index.json`: chapter order, `structure`, `language`, `grammarMode`, `words`,
+    `activeSymbols`, `hiddenElements`;
+  - `manuscript/chapters/<id-hash>.json`: one chapter as in the v1 document;
+  - `story-world/index.json`: node order, `edges`, `timeline`, `presence`, `canvasSize`,
+    `mapScale`, `timeSystem`;
+  - `story-world/nodes/<id-hash>.json`: one element with its profile and aliases;
+  - `storyboards/index.json` and `storyboards/boards/<id-hash>.json`: one board with its nodes and
+    edges;
+  - `assets/place-maps/<sha256>`: image bytes, only for images that a `mapImageId` references;
+  - `assistant/interactions/<id-hash>.json`: one immutable assistant log row.
+- [ ] `<id-hash>` is a shortened SHA-256 of the id, so the path is always portable; the id itself
+      lives inside the unit.
+- [ ] Exclude revisions, `owner_sub`, `backup_endpoint`, `schema_version`, the Markdown mirrors
+      (derived), indexes and unreferenced images. Backups stop depending on the SQLite schema.
+- [ ] Pure `split_world` / `join_world` in `application/backup_units.py`, with round-trip tests
+      over the `wire.v1` fixtures.
+- [ ] `_collect` reads all three documents in one read transaction; `load` in
+      `sqlite/manuscript.py`, `sqlite/story_world.py` and `sqlite/storyboards.py` gains the optional
+      `conn` parameter that `save` already has.
+- [ ] Restore: `join_world` → the domain validators (`valid_figures`, `valid_manuscript`,
+      `valid_storyboard_document`, `story_time_anchor_issue`) → a fresh staged database via
+      `schema.initialize` → `story_world.save`, `manuscript.save`, `storyboards.save`, then images
+      and assistant rows, in that order for the foreign keys → `quick_check` → the existing atomic
+      swap → regenerate the mirrors (`mirror_text`, `mirror_profiles`) → `finalize_restore`.
+- [ ] Blob writes skip digests that already exist instead of re-reading and decompressing them;
+      reads keep verifying.
+- [ ] History keeps its client contract:
+  - `status` still lists chapters as `manuscripts/NN - Title.md` and elements as
+    `profiles/NN - Name.md`;
+  - the new display paths `storyboards/…` and `assets/…` get their own kinds in
+    `modules/history/pathNames.ts`;
+  - `diff` renders chapter text with `markdown_body` / `note_markdown` from `mirror.py`, so the
+    output matches today's;
+  - `chapter_version` and `chapter_comparison` read the chapter unit by id without decompressing a
+    database.
+- [ ] v1 and v2 snapshots stay readable and restorable through the existing code path.
+- [ ] Manifest v3 in `application/backup_manifest.py`: `CURRENT_FORMAT_VERSION = 3`, supported
+      {1, 2, 3}; `world.json` required; new field `kind` (`manual`, `automatic`, `before-restore`);
+      limits per unit kind (images 10 MiB, chapters large enough for 10 million characters of
+      UTF-8, 1 GiB in total).
+- [ ] Contracts: `contracts/backup/v3.md`, `v3.schema.json` and
+      `contracts/fixtures/backup/snapshot.v3.json`, registered in `contracts/manifest.json`; update
+      `tests/python/test_architecture_contracts.py`.
+- [ ] Update the History port wording in `docs/architecture/implementation-plan.md`, where it still
+      reads chapters "from immutable snapshot SQLite".
+
+**Exit:** a v3 snapshot restores on a fresh machine; v2 snapshots still restore; editing one chapter
+adds only that chapter unit and `manuscript/index.json` (asserted by blob count);
+`tests/e2e/history-design.spec.ts` stays green; the change is proven with `tools/dev/mutate.mjs`.
+
+### Phase 2 — Local retention and automatic snapshots
+
+- [ ] Pure, standard-library `retained(items, now) -> frozenset[str]` in
+      `application/backup_retention.py`: keep everything with `at >= now - 30 days`, the newest
+      snapshot of each calendar month (UTC) and the newest snapshot overall. A timestamp in the
+      future counts as `now`; ties are broken by id.
+- [ ] Fixture `contracts/fixtures/backup/retention.v1.json`: month boundary, February in a leap
+      year, tie, empty list, timestamp in the future.
+- [ ] Ship the module in the backup-server image next to `backup_manifest.py`: Dockerfile `COPY`,
+      `artifact-contract.json` payload, `tests/python/test_distribution.py`,
+      `tests/python/test_release.py`.
+- [ ] Thin the local history after each commit under a new per-world lock, in process and as a lock
+      file in the history directory (there is none today, and two server processes can run at
+      once): rewrite `index.jsonl` atomically (temporary file, fsync, `os.replace`), then mark and
+      sweep unreferenced blobs. A crash in between leaves only orphan blobs for the next run.
+- [ ] When a snapshot's `parent` was thinned, `diff` and `chapter_comparison` compare with the
+      nearest older retained snapshot instead of an empty base.
+- [ ] Automatic snapshots next to `backup_if_due` in `application/documents/use_cases.py`, after the
+      save and outside its path: when the last snapshot is older than 10 minutes and something
+      changed, commit with `kind=automatic` and the `_describe_changes` message. Failures are
+      logged and never fail a save.
+- [ ] The 40 rotating SQLite copies (`sqlite/restore.py`) stay as they are.
+
+**Exit:** the retention fixture is green; crash tests pass at every thinning step; autosave creates
+at most one snapshot per 10 minutes; History shows each snapshot's kind.
+
+### Phase 3 — End-to-end encryption and upload queue
+
+- [ ] Account key: 32 random bytes per Keycloak `sub`, wrapped twice: by a passphrase key derived
+      with Argon2id (`cryptography` 50.0.0 ships `kdf.argon2`, so no new dependency) and by a
+      recovery key (32 random bytes, shown once as grouped Base32, with a confirmation step).
+      Per-world keys come from HKDF-SHA256 (`…/{world}/enc`, `…/{world}/dedup`).
+- [ ] Key document at `GET/PUT /v2/keys`, with `If-Match` against lost updates; the server checks
+      its structure only.
+- [ ] Key cache:
+  - desktop and store apps use the `CredentialVault`; first fix the macOS adapter, which passes the
+    secret to `security -w` as a command-line argument
+    (`infrastructure/platform/adapters/credentials.py`);
+  - the hosted web app keeps the key in session memory only (`infrastructure/identity/runtime.py`),
+    so backup pauses after a restart until the passphrase is entered again.
+- [ ] Blob: zlib, then AES-256-GCM (random nonce, AAD = world id + unit digest), stored as
+      `version ‖ nonce ‖ ciphertext` and named by its SHA-256. The standard-library server keeps
+      checking `sha256(body) == name` without any cryptography.
+- [ ] The v3 manifest (paths, titles, messages, `kind`, local snapshot id and, per unit,
+      `keyedDigest = HMAC(dedup key, plaintext)`, `size`, `blob`) is encrypted as its own blob. The
+      server sees only the envelope
+      `{format, encryption, world, id, parent, created, keyId, manifest, blobs[{sha256, size}]}`,
+      i.e. world ids, times, sizes and counts; document that.
+- [ ] Dedup: reuse a blob when its `keyedDigest` appears in the last uploaded manifest, cached under
+      `history/{world}/remote/` and rebuildable from the server.
+- [ ] Protocol `/v2/`:
+  - a snapshot `PUT` checks that the blobs exist and have the right size instead of re-hashing
+    every blob;
+  - `GET /v2/worlds` returns no titles; the client decrypts them;
+  - the client no longer writes plaintext v1/v2 uploads;
+  - touches `infrastructure/backup/remote.py`, `adapters.py`, `services/backup-server/server.py`
+    and `contracts/backup/v1.md`.
+- [ ] Upload queue as an after-commit job: uploads every retained snapshot that is not on the server
+      yet, oldest first, and resumes after offline periods and restarts. The snapshot dialog shows
+      the last upload and the number of pending snapshots.
+- [ ] Hosted web app: request the `quiltor.backup` scope when a backup endpoint is configured
+      (`identity/runtime.py`, today only `openid email profile`); document the Keycloak client
+      scope in the README.
+- [ ] Flows:
+  - set up: choose a passphrase, confirm the recovery key;
+  - new device: log in, enter the passphrase, pick a world;
+  - change the passphrase: re-wrap the account key only;
+  - recover: recovery key, new passphrase, new recovery key;
+  - log out: delete the cached key.
+- [ ] Contracts `contracts/backup/remote-envelope.v1.*` and `key-document.v1.*`, with fixed test
+      vectors (key, nonce) so future Swift and Kotlin apps verify the same bytes.
+
+**Exit:** the server holds no plaintext (a test searches the stored files for a known chapter
+sentence); swapped blobs, a wrong world AAD or an altered envelope fail closed; a fresh machine
+restores with the passphrase and with the recovery key; unchanged chapters are not uploaded again;
+the hosted web flow works with the session key.
+
+### Phase 4 — Server retention, garbage collection and usage
+
+- [ ] The server records `receivedAt` per envelope and applies `backup_retention.retained` to it, so
+      client clocks and forged `created` values do not matter.
+- [ ] `server.py gc` (cron or timer), plus a per-world run after each snapshot `PUT`: delete
+      envelopes that fall out of retention, then sweep unreferenced blobs older than a 24-hour grace
+      period.
+- [ ] Races: a `PUT` of an existing blob refreshes its modification time (`os.utime`); an envelope
+      `PUT` naming a missing blob answers `409 backup.blob_missing`, and the client uploads it
+      again and retries once.
+- [ ] `GET /v2/usage` returns `{bytes, blobs, worlds, quota}`. The quota comes from configuration
+      for now; exceeding it answers `507 backup.quota_exceeded`, which is shown plainly while local
+      snapshots continue.
+- [ ] `DELETE /v2/worlds/{w}`, confirmed in the interface.
+
+**Exit:** GC tests pass with a frozen clock; an upload during GC loses nothing; reported usage
+matches the disk.
+
+### Out of scope here
+
+- Sync conflicts and merging (see Behaviour).
+- Buying and unlocking the subscription, e.g. mapping a store receipt to a Keycloak role.
+- Key rotation; `keyId` keeps it open.
+- Retention for the rotating SQLite copies.
+- Pricing.
+
+### Risks
+
+- Restoring through documents instead of a database file: stricter validators could later reject old
+  snapshots. Keep the units on the v1 document contract and keep fixtures of older snapshots in the
+  tests for good.
+- Forgotten passphrases create support requests, so setup has to be explicit and honest.
+- Compressing before encrypting reveals each unit's size; acceptable and documented.
+- The hosted web app is not end-to-end encrypted, and the browser says so.
+
+## Subscription hygiene
+
+- [ ] Remind before renewal; cancelling is as easy as subscribing.
+- [ ] Storage limits are shown plainly and never block local writing.
+
+## Until sync exists
+
+- [ ] Warn when the data or backup directory lies inside OneDrive, iCloud Drive or Dropbox, where
+      online-only placeholders make projects appear lost.
+
+---
+
+# Consideration — stronger assistant for power users (subscription)
+
+The local model stays the default and keeps every assistant feature working. A subscription could
+additionally offer a stronger hosted model for authors who run large whole-book analyses. Quiltor is
+not meant to be AI-heavy, so this is a power-user option, not the centre of the product.
+
+Conditions if it is built:
+
+- [ ] Same tool surface and invariants as the local assistant: proposals only, no prose tools.
+- [ ] Opt-in per world, with a clear notice that manuscript text leaves the device.
+- [ ] The interface always shows whether the local or the hosted model is answering.
+- [ ] No core feature depends on the hosted model.
+- [ ] No credits or token counters in the writing flow; fair-use limits are stated plainly.
+- [ ] No training on authors' text, contractually; hosting and data processing documented.
+- [ ] Measure first: the retrieval and continuity benchmarks must show that the hosted model finds
+      what the local one misses.
 
 ---
 
@@ -1000,6 +1366,36 @@ Run this alongside product work.
 - [ ] No AI canon mutation without confirmation.
 - [ ] No AI manuscript mutation.
 - [ ] Deterministic rules produce reproducible results.
+
+---
+
+# Candidates from competitor research
+
+Not prioritized. Each item answers a recurring complaint in
+[`competitor pain points`](research/competitor-pain-points.md); decide per item before it moves into
+a milestone.
+
+- [ ] **Visible safety:** show last save, last backup and where the world lives; restore an earlier
+      version without contacting support. (Scrivener "lost work" threads, Dabble.)
+- [ ] **Safe tree operations:** regression tests that moving and sorting chapters and folders can
+      never delete content; a trash with restore. (Manuskript #1392.)
+- [ ] **Authorship record:** export a readable writing history from snapshots as evidence of human
+      authorship; the no-prose assistant makes it credible. (Scrivener forum, August 2026; publisher
+      AI disputes in 2026.)
+- [ ] **Find the passage:** semantic search that returns verbatim passages with links, never
+      paraphrased summaries. (Papyrus users exporting HTML to external AI, June–July 2026; see
+      Retrieval v2.)
+- [ ] **Simple timeline answers:** a list view that answers "which weekday / which period is this?"
+      without configuring the full timeline. (Papyrus users planning in calendars and spreadsheets.)
+- [ ] **Performance budget:** measure graph, Storyboard and timeline against a large fixture world
+      (a complete novel with a realistic cast; size to be defined). (Campfire, Plottr, Aeon Timeline,
+      World Anvil.)
+- [ ] **Self-service support:** error messages that say what happened and what to do, and a
+      diagnostics bundle the author can send. (Papyrus, Dabble, LivingWriter support reviews.)
+- [ ] **Maintenance signals:** public changelog and release cadence visible from the app and the store
+      page. (Manuskript "Abandonware?", Scrivener for Windows.)
+- [ ] **No nagging:** upgrade hints never interrupt writing and can be dismissed for good.
+      (bibisco #395.)
 
 ---
 
@@ -1079,10 +1475,11 @@ This is the recommended order, not a promise of version numbers.
 2. FTS5/BM25.
 3. Incremental analysis.
 4. Embeddings only if justified.
-5. Import.
-6. English writing tools.
-7. Closed pilot.
-8. Series canon / advanced temporal logic later.
+5. English writing tools.
+6. Closed pilot.
+7. Series canon / advanced temporal logic later.
+
+Import is no longer part of this milestone; it moved forward to the high-priority P1 section.
 
 ---
 

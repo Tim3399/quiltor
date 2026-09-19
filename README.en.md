@@ -829,6 +829,13 @@ The server no longer has one process-wide "open world" state, so restoring a wor
 
 ## Development and quality
 
+The [project engineering profile](docs/PROJECT_PROFILE.md) is the operational reference for
+formatter ownership, startup, agent instructions and pending requirements. After setup, `npm start`
+runs the complete local application (API on 8010, Vite on 5173). `npm run format` formats web,
+Python, documentation and Rust; `npm run check:format` checks the same scopes without writing.
+Run `npm run check`, `npm run build` and `npm test` for the separate static, build and unit gates.
+The profile includes alternate-port and isolated-data configuration.
+
 Set up the editable Python environment and npm dependencies described under
 [Development](#development). Exact release toolchains are recorded in
 [`distribution/toolchains.json`](distribution/toolchains.json): currently Node 22.23.2,

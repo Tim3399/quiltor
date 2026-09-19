@@ -31,12 +31,12 @@
 }
 .text-workspace .manuscript-toolbar__stats dd {
   margin: 0;
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-numeric-legacy-compact);
   font-weight: 600;
 }
 .text-workspace .manuscript-toolbar__stats dt {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-numeric-legacy-micro);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }

@@ -24,7 +24,7 @@
   margin: 0 0 var(--space-4);
   padding: 0 var(--space-8);
   color: var(--muted);
-  font: var(--font-size-4) var(--prose);
+  font: var(--font-size-section-title-small) var(--prose);
   font-variant: small-caps;
   letter-spacing: 0.05em;
   text-transform: lowercase;
@@ -46,7 +46,7 @@
 .world-overview__group-title > small {
   margin-left: auto;
   font-family: var(--ui);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-numeric-legacy-compact);
   font-variant-numeric: tabular-nums;
 }
 
@@ -67,6 +67,6 @@
   padding: var(--space-8) var(--space-14);
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
   font-variant-numeric: tabular-nums;
 }
