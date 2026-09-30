@@ -141,3 +141,52 @@ macOS/mobile, full browser/design suites, Docker image builds and release prefli
 run for this delivery. The container contract checker passed separately. Windows directory
 metadata durability has the documented standard-library limitation. No billing or public
 deployment was activated; commercial terms remain in the separate pricing/release documents.
+
+## Visual reference follow-up, 2026-09-30
+
+The reference-generation request exposed 52 missing Linux/macOS images. The existing
+workflow also hid comparison failures, and a failed screenshot stopped the remaining
+views in that test from being photographed. Bootstrap mode now collects screenshot
+failures, generates only missing files, and must pass a second comparison with updates
+disabled before committing. Separate diagnostic directories preserve both passes; a
+missing platform sentinel cannot turn verification into a skipped, green run.
+
+Existing changes were reviewed before selectively retiring references: project import
+and trash controls, manuscript filters/actions, and the completed map toolbar state.
+Sampled new screenshots covered both themes and all three viewport sizes.
+
+Visual inspection also caught a compact figure-canvas defect already present in the old
+Windows reference. Higher-specificity grid selectors retained the hidden overview's
+200-pixel column. The responsive override now gives the canvas the full available width.
+The compact reference hides the timeline through its normal menu and fits both cards;
+wider references retain timeline coverage. The new browser geometry assertion failed
+with a 190-pixel width deficit when the old CSS was restored temporarily, then passed
+after restoration of the fix. Card visibility allows only floating-point rounding;
+pixel-comparison thresholds were not increased.
+
+Verification on the final source change:
+
+| Command                                                                                         | Result                                                                                                 |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `npm run build`                                                                                 | Passed; committed production assets regenerated. Existing large-chunk advisory remains.                |
+| `npm test`                                                                                      | 225 files, 1,443 tests passed.                                                                         |
+| `node --test tools/quality/visual_baseline_reach.test.mjs`                                      | 7 passed.                                                                                              |
+| `node tools/dev/python.mjs --needs quiltor distribution/tooling/workflow_contract.py check`     | Passed.                                                                                                |
+| `npx playwright test tests/e2e/visual-baseline.spec.ts --update-snapshots=none --reporter=line` | 13 passed, 2 intentional performance-viewport skips, against the fresh production server on port 8138. |
+| `node tools/quality/check_visual_baseline_reach.mjs`                                            | Passed; all three platform sets are complete.                                                          |
+
+The complete application was started with `npm start`, isolated temporary data/runtime
+directories, API port 8138 and Vite port 5288. API version 3.20.0, served HTML and the
+entry JavaScript matched the local build. Owned servers were stopped after verification.
+Initial sandboxed Chromium launches failed with `spawn EPERM`; approved reruns executed.
+Missing-only generation intentionally returned failures for newly written images; those
+were followed by the successful no-update comparison above.
+
+Final native runner verification is tracked in
+[Generate visual baselines, run 36762349204](https://github.com/Tim3399/quiltor/actions/runs/36762349204).
+The run completed successfully. Linux, macOS and Windows each passed all 13 applicable
+cases in strict no-update mode; each skips the same two intentional performance-viewport
+duplicates. There are 144 references, 48 per platform: 52 additions and 28 reviewed updates
+relative to the request's starting revision. PNG dimensions match the three declared
+viewports. The generated references were pulled into the local feature branch.
+This follow-up does not substitute for the complete release preflight.
