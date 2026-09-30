@@ -23,6 +23,12 @@ on:
         required: false
         default: ""
 
+concurrency:
+  # A matrix already serializes its three writers. Serialize separate runs for the same
+  # target as well, so two pushes cannot race while filling one branch's snapshot set.
+  group: visual-baselines-bootstrap-${{ inputs.branch || github.ref_name }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -81,18 +87,54 @@ jobs:
         shell: bash
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
-          QUILTOR_BASELINE_BOOTSTRAP: "1"
         run: |
+          set -euo pipefail
           npx vite --port 4173 --strictPort --host 127.0.0.1 > "$RUNNER_TEMP/vite.log" 2>&1 &
+          vite_pid=$!
+          trap 'kill "$vite_pid" 2>/dev/null || true' EXIT
+          ready=no
           for attempt in $(seq 1 60); do
-            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            if kill -0 "$vite_pid" 2>/dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then
+              ready=yes
+              break
+            fi
             sleep 1
           done
+          if [ "$ready" != yes ]; then
+            echo "::error::Vite did not become ready on 127.0.0.1:4173."
+            cat "$RUNNER_TEMP/vite.log"
+            exit 1
+          fi
+
           # Playwright fails a run when it writes a missing image -- right for a normal run,
-          # but the success case here. Whether anything was actually produced is decided by
-          # the next step, from the files.
-          npx playwright test tests/e2e/visual-baseline.spec.ts \
-            --update-snapshots=missing --reporter=line || true
+          # but the success case here. Soft screenshot assertions let every core view write
+          # its missing reference. This exit status is diagnostic only; the hard-assertion
+          # pass below must succeed without updating anything before files can be committed.
+          set +e
+          QUILTOR_BASELINE_BOOTSTRAP=1 npx playwright test \
+            tests/e2e/visual-baseline.spec.ts --update-snapshots=missing \
+            --output=test-results/bootstrap --reporter=line
+          bootstrap_status=$?
+          set -e
+          echo "Bootstrap pass exited with status $bootstrap_status."
+          snapshots=tests/e2e/visual-baseline.spec.ts-snapshots
+          if [ "$bootstrap_status" -ne 0 ] \
+            && [ -z "$(git status --porcelain -- "$snapshots")" ]; then
+            echo "::error::Bootstrap failed without generating a missing reference."
+            exit "$bootstrap_status"
+          fi
+          platform=$(node -p "process.platform")
+          sentinel="$snapshots/light-manuscript-wide-$platform.png"
+          if [ ! -f "$sentinel" ]; then
+            echo "::error::Bootstrap did not produce the platform sentinel $sentinel."
+            exit 1
+          fi
+
+          echo "Running strict verification without snapshot updates."
+          QUILTOR_BASELINE_BOOTSTRAP=0 npx playwright test \
+            tests/e2e/visual-baseline.spec.ts --update-snapshots=none \
+            --output=test-results/verification --reporter=line
       - name: Check the new images in
         shell: bash
         run: |
@@ -105,8 +147,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$snapshots"
           git commit -m "test(e2e): generate baselines for ${{ matrix.os }}"
-          # Between the run and the push another matrix job may have written.
-          git pull --rebase origin "$TARGET_BRANCH"
+          # Refuse to combine the verified snapshot commit with branch changes that arrived
+          # during the run. A later workflow invocation will verify the new branch head.
           git push origin "HEAD:$TARGET_BRANCH"
       - name: Upload diagnostics
         if: always()
