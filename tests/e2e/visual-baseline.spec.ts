@@ -217,7 +217,29 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.getByRole("button", { name: "Figuren", exact: true }).click();
     await expect(page.getByLabel("Figuren und Beziehungen")).toBeVisible();
+    if ((page.viewportSize()?.width ?? 0) < 720) {
+      await expect
+        .poll(async () => {
+          const workspace = await page.locator(".figure-workspace").boundingBox();
+          const canvas = await page.locator(".figure-workspace .flow-area").boundingBox();
+          if (!workspace || !canvas) return Number.POSITIVE_INFINITY;
+          return Math.abs(workspace.width - canvas.width);
+        })
+        .toBeLessThanOrEqual(1);
+      await page.getByRole("button", { name: "Ansicht", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }).click();
+      await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
+      await page.locator(".figure-workspace .react-flow__controls-fitview").click();
+    }
     await stillstehendeLeinwand(page);
+    if ((page.viewportSize()?.width ?? 0) < 720) {
+      await expect(
+        page.locator('.figure-workspace .react-flow__node[data-id="mara"] .story-node'),
+      ).toBeInViewport({ ratio: 0.999999 });
+      await expect(
+        page.locator('.figure-workspace .react-flow__node[data-id="archiv"] .story-node'),
+      ).toBeInViewport({ ratio: 0.999999 });
+    }
     await screenshotExpectation.toHaveScreenshot(`${theme}-figures.png`, {
       animations: "disabled",
       ...LEINWAND_TOLERANZ,

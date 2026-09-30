@@ -304,8 +304,10 @@
   }
 }
 @media (max-width: 820px) {
-  .figure-layout {
-    grid-template-columns: 1fr;
+  .figure-layout,
+  .figure-workspace .figure-layout,
+  .figure-workspace .figure-layout.layout-without-inspector {
+    grid-template-columns: minmax(0, 1fr);
   }
   /* On narrow surfaces the canvas stays; the overview is the first thing there to give
      up its space. */
