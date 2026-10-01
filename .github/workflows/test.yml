@@ -264,22 +264,38 @@ jobs:
       - name: Portable core
         run: cargo --locked test --workspace --all-targets
 
-  # Both suites used to run one after the other in a single job: product first, then design,
-  # together over twenty minutes on Windows. Split apart they are two jobs side by side --
-  # the wall clock now shows only the longer of the two, and what it costs is a second setup
-  # per system rather than a third runner hour for a four-way shard.
+  # Product and design used to run one after the other in a single job. They remain separate
+  # so the design gallery needs no Python application setup. macOS runs each suite once;
+  # Windows product coverage uses three fresh runners because network buffers were exhausted
+  # late in the complete 447-test process even after its browser contexts were serialized.
   #
   # The design suite does not need the application at all: it runs against the design
   # gallery, which its own config starts. Split off, it also skips Python, the install and
   # the server start.
   cross-platform-product:
-    name: Product on ${{ matrix.os }}
+    name: Product on ${{ matrix.label }}
     needs: frontend
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, windows-2025]
+        include:
+          - os: macos-15
+            label: macos-15
+            product_shard: ""
+            diagnostics: macos-15
+          - os: windows-2025
+            label: windows-2025 / shard 1 of 3
+            product_shard: "1/3"
+            diagnostics: windows-2025-1-of-3
+          - os: windows-2025
+            label: windows-2025 / shard 2 of 3
+            product_shard: "2/3"
+            diagnostics: windows-2025-2-of-3
+          - os: windows-2025
+            label: windows-2025 / shard 3 of 3
+            product_shard: "3/3"
+            diagnostics: windows-2025-3-of-3
     env:
       PYTHONPATH: src
     steps:
@@ -316,21 +332,27 @@ jobs:
           cat "$RUNNER_TEMP/quiltor-server.log"
           exit 1
 
-      # Two Windows runs exhausted Chromium's network buffers while fetching different
-      # workspace chunks (ERR_NO_BUFFER_SPACE). Serialize that runner's browser contexts
-      # to bound concurrent connections; keep every product test and assertion enabled.
-      # visual-baseline.spec.ts lives in this suite and compares this system's images.
+      # Full Windows runs repeatedly exhausted Chromium's network buffers late in the suite,
+      # even with one worker. Each shard gets a fresh runner and together they retain every
+      # product test and assertion. macOS still runs the complete suite in one job.
+      # visual-baseline.spec.ts remains in the product suite and compares this system's images.
       - name: Product suite
         env:
           PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
+          PRODUCT_SHARD: ${{ matrix.product_shard }}
         shell: bash
-        run: npx playwright test --output=test-results/product --reporter=line
+        run: |
+          if [ -n "$PRODUCT_SHARD" ]; then
+            npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
+          else
+            npx playwright test --output=test-results/product --reporter=line
+          fi
 
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cross-platform-product-${{ matrix.os }}-diagnostics
+          name: cross-platform-product-${{ matrix.diagnostics }}-diagnostics
           if-no-files-found: ignore
           path: |
             test-results/**

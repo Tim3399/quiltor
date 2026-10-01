@@ -1070,6 +1070,39 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_browser_e2e_sharding(mutated)
 
+    def test_cross_platform_product_shards_windows_without_splitting_macos(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_cross_platform_product_sharding(sources)
+
+        mutations = (
+            (
+                "missing final Windows shard",
+                'label: windows-2025 / shard 3 of 3\n            product_shard: "3/3"',
+                'label: windows-2025 / shard 3 of 3\n            product_shard: "2/3"',
+                "complete macOS coverage and exactly Windows shards",
+            ),
+            (
+                "reused diagnostics name",
+                "diagnostics: windows-2025-3-of-3",
+                "diagnostics: windows-2025-2-of-3",
+                "complete macOS coverage and exactly Windows shards",
+            ),
+            (
+                "missing matrix shard binding",
+                "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}\n"
+                "          PRODUCT_SHARD: ${{ matrix.product_shard }}",
+                "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}\n"
+                "          PRODUCT_SHARD: broken",
+                "missing shard evidence",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = mutated[TEST_WORKFLOW].replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_cross_platform_product_sharding(mutated)
+
     def test_browser_worker_defaults_are_bounded_and_overrideable(self):
         product = (REPO_ROOT / "playwright.config.ts").read_text(encoding="utf-8")
         design = (REPO_ROOT / "playwright.design.config.ts").read_text(encoding="utf-8")
