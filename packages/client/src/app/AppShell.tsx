@@ -1,6 +1,10 @@
 import {
+  ArchiveRestore,
   ArrowLeft,
   DatabaseBackup,
+  Cloud,
+  Download,
+  HelpCircle,
   History,
   LogOut,
   Moon,
@@ -60,13 +64,18 @@ export function AppShell({
   phase,
   savedAt,
   error,
+  warning,
   retry,
+  onRecover,
   theme,
   onTheme,
   onSearch,
   onHistory,
   onSnapshot,
   onBackups,
+  onCloud,
+  onExportProject,
+  onGettingStarted,
   onAssistant,
   onExitWorld,
   whoami,
@@ -81,7 +90,9 @@ export function AppShell({
   phase: SavePhase;
   savedAt?: number | null;
   error?: string;
+  warning?: string;
   retry: () => void;
+  onRecover?: () => void;
   theme: Theme;
   onTheme: () => void;
   navigationAvailable?: boolean;
@@ -91,6 +102,9 @@ export function AppShell({
   onHistory: () => void;
   onSnapshot: () => void;
   onBackups: () => void;
+  onCloud?: () => void;
+  onExportProject?: () => void;
+  onGettingStarted?: () => void;
   onAssistant: () => void;
   onExitWorld: () => void;
   whoami?: { email?: string; name?: string } | null;
@@ -190,7 +204,22 @@ export function AppShell({
             />
             <MenuSeparator />
             <MenuItem icon={<History />} label={t("history")} onSelect={onHistory} />
+            {onGettingStarted && (
+              <MenuItem
+                icon={<HelpCircle />}
+                label={t("gettingStartedTitle")}
+                onSelect={onGettingStarted}
+              />
+            )}
             <MenuItem icon={<DatabaseBackup />} label={t("backups")} onSelect={onBackups} />
+            {onCloud && <MenuItem icon={<Cloud />} label={t("cloudTitle")} onSelect={onCloud} />}
+            {onExportProject && (
+              <MenuItem
+                icon={<Download />}
+                label={t("projectExportButton")}
+                onSelect={onExportProject}
+              />
+            )}
             <MenuSeparator />
             <MenuItem icon={<Save />} label={t("snapshotSave")} onSelect={onSnapshot} />
             <MenuSeparator />
@@ -210,10 +239,22 @@ export function AppShell({
             className="app-save-status"
             phase={phase}
             label={saveLabel}
-            error={error}
+            error={error || warning}
             retryLabel={t("retry")}
             onRetry={retry}
           />
+          {phase === "error" && onRecover && (
+            <Button
+              className="app-save-recovery"
+              appearance="secondary"
+              size="compact"
+              icon={<ArchiveRestore />}
+              aria-label={t("recoveryOpen")}
+              onClick={onRecover}
+            >
+              <span className="app-save-recovery__label">{t("recoveryOpen")}</span>
+            </Button>
+          )}
         </div>
       </header>
       <main className="app-workspace">{children}</main>

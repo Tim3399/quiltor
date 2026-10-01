@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from quiltor.application.backups.types import BackupAuthorization, WorldBackupContext
 
@@ -11,6 +12,7 @@ from quiltor.application.backups.types import BackupAuthorization, WorldBackupCo
 class BackupRepository(Protocol):
     def backup_if_due(self, database: Path, backups: Path) -> None: ...
     def list_local(self, backups: Path) -> list[dict[str, Any]]: ...
+    def preview_local(self, name: str, backups: Path) -> dict[str, Any]: ...
     def restore_local(
         self,
         name: str,
@@ -34,6 +36,13 @@ class SnapshotHistory(Protocol):
         title: str = "",
     ) -> WorldBackupContext: ...
     def status(self, context: WorldBackupContext) -> dict[str, Any]: ...
+    def entries(self, context: WorldBackupContext) -> list[dict[str, Any]]: ...
+    def upload(
+        self,
+        context: WorldBackupContext,
+        entry: dict[str, Any],
+        authorization: BackupAuthorization,
+    ) -> str | None: ...
     def commit(
         self,
         context: WorldBackupContext,
@@ -68,6 +77,17 @@ class RemoteBackupGateway(Protocol):
         digest: str,
         authorization: BackupAuthorization,
     ) -> bytes: ...
+    def account(self, endpoint: str, authorization: BackupAuthorization) -> dict[str, Any]: ...
+    def sync_head(
+        self, context: WorldBackupContext, authorization: BackupAuthorization
+    ) -> dict[str, Any]: ...
+    def compare_and_set_head(
+        self,
+        context: WorldBackupContext,
+        expected_generation: int,
+        snapshot_id: str,
+        authorization: BackupAuthorization,
+    ) -> dict[str, Any]: ...
 
 
 class BackupLoginGateway(Protocol):

@@ -1,6 +1,7 @@
 import { normalizeNoteReferenceSurface, type WorkspaceTarget } from "../../shared";
 import {
   chapterBreadcrumb,
+  isChapterInBook,
   type Manuscript,
   manuscriptStructure,
   orderedChapters,
@@ -40,7 +41,7 @@ export function buildWorldReferenceCandidates({
     const breadcrumb = chapterBreadcrumb(structure, chapter.id)
       .map((folder) => folder.title)
       .join(" / ");
-    return candidate(
+    const result = candidate(
       { kind: "chapter", id: chapter.id },
       chapter.title.trim() || labels.untitled,
       [breadcrumb, chapter.note || chapter.body.slice(0, 120)].filter(Boolean).join(" · "),
@@ -48,6 +49,8 @@ export function buildWorldReferenceCandidates({
       "text",
       "chapter",
     );
+    if (!isChapterInBook(chapter)) result.documentStatus = "set_aside";
+    return result;
   });
   const nodes = figures.nodes.map((node) => {
     const isPlace = node.type === "ort";

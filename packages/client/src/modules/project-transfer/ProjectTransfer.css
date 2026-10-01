@@ -1,0 +1,51 @@
+/* Import and export use the same compact dialog stack. */
+.project-transfer-dialog {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.project-transfer-file {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.project-transfer-file__input {
+  color: var(--ink);
+  font: inherit;
+}
+
+.project-transfer-preview {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.project-transfer-preview dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.project-transfer-preview dl div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.project-transfer-preview dd {
+  margin: 0;
+  font-size: var(--font-size-5);
+  font-weight: 600;
+}
+
+/* Import and export keep their actions in the same trailing row. */
+.project-transfer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

@@ -55,7 +55,7 @@ test("On touch devices the chapter switches stand visibly in the text flow", asy
   await expect(previous).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Kapiteltitel")).toHaveValue("Prolog");
-  expect(
-    await page.locator(".editor-scroll").evaluate((element) => element.scrollTop),
-  ).toBeGreaterThan(0);
+  await expect
+    .poll(() => page.locator(".editor-scroll").evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
 });

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
-from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.application.backups import BackupAuthorization, WorldBackupContext
+from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.application.observability import Metrics, StructuredLogger
 from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.backup.login import BackupLoginRuntime
@@ -105,6 +106,31 @@ class HttpRemoteBackupGateway:
         self._require_remote_backup()
         return self._request(
             "fetch_blob", lambda: remote.fetch_blob(context, digest, authorization)
+        )
+
+    def account(self, endpoint: str, authorization: BackupAuthorization) -> dict[str, Any]:
+        self._require_remote_backup()
+        return self._request("account", lambda: remote.account(endpoint, authorization))
+
+    def sync_head(
+        self, context: WorldBackupContext, authorization: BackupAuthorization
+    ) -> dict[str, Any]:
+        self._require_remote_backup()
+        return self._request("sync_head", lambda: remote.sync_head(context, authorization))
+
+    def compare_and_set_head(
+        self,
+        context: WorldBackupContext,
+        expected_generation: int,
+        snapshot_id: str,
+        authorization: BackupAuthorization,
+    ) -> dict[str, Any]:
+        self._require_remote_backup()
+        return self._request(
+            "compare_and_set_head",
+            lambda: remote.compare_and_set_head(
+                context, expected_generation, snapshot_id, authorization
+            ),
         )
 
 

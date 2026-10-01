@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import errno
+import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from quiltor.application import (
     ApplicationConflict,
@@ -16,7 +19,6 @@ from quiltor.application import (
     PdfExportUnavailable,
     RevisionConflict,
 )
-
 
 _STATUS_CODES = {
     400: "request.invalid",
@@ -90,6 +92,19 @@ def from_exception(error: Exception) -> HttpError:
         )
     if isinstance(error, (UnicodeDecodeError, TypeError, ValueError)):
         return for_status(400, code="request.invalid")
+    if isinstance(error, sqlite3.Error):
+        primary_code = getattr(error, "sqlite_errorcode", 0) & 0xFF
+        if primary_code == sqlite3.SQLITE_READONLY:
+            return for_status(503, code="storage.read_only")
+        if primary_code == sqlite3.SQLITE_FULL:
+            return for_status(503, code="storage.full")
+        if primary_code in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}:
+            return for_status(503, code="storage.locked")
+    if isinstance(error, OSError):
+        if error.errno == errno.ENOSPC:
+            return for_status(503, code="storage.full")
+        if error.errno == errno.EROFS:
+            return for_status(503, code="storage.read_only")
     if isinstance(error, PermissionError):
         return for_status(403)
     if isinstance(error, FileNotFoundError):

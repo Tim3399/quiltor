@@ -17,7 +17,7 @@ describe("SaveStatus", () => {
 
   it("announces errors assertively and exposes an optional retry", () => {
     const retry = vi.fn();
-    render(
+    const { container } = render(
       <SaveStatus
         phase="error"
         label="Nicht gespeichert"
@@ -27,6 +27,8 @@ describe("SaveStatus", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("Verbindung unterbrochen");
+    expect(container.querySelector(".lucide-circle-alert")).not.toBeNull();
+    expect(container.querySelector(".lucide-cloud-off")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
     expect(retry).toHaveBeenCalledOnce();
   });

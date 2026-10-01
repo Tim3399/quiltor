@@ -88,13 +88,13 @@
 }
 
 .selection-card__title {
-  font: 600 var(--font-size-6) / 1.2 var(--prose);
+  font: 600 var(--font-size-section-title) / 1.2 var(--prose);
   white-space: nowrap;
 }
 
 .selection-card__description {
   color: var(--muted);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
   line-height: 1.35;
   white-space: nowrap;
 }

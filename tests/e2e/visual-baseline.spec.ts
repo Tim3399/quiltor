@@ -113,12 +113,11 @@ function hasBaselines() {
 }
 
 /**
- * The bootstrap run of the visual-baselines-bootstrap workflow.
+ * The generation pass of the visual-baselines-bootstrap workflow.
  *
- * It runs by hand only and only with --update-snapshots=missing, so it writes exclusively
- * images that do not exist yet and leaves existing references alone. Without this concession
- * the skip above would keep a first set from ever coming into being -- the run would skip
- * itself.
+ * It runs only with --update-snapshots=missing, so it writes exclusively images that do not
+ * exist yet and leaves existing references alone. Without this concession the skip above
+ * would keep a first set from ever coming into being -- the run would skip itself.
  */
 const BOOTSTRAP = process.env.QUILTOR_BASELINE_BOOTSTRAP === "1";
 
@@ -191,10 +190,14 @@ for (const theme of ["light", "dark"] as const) {
   test(`${theme}: the core views stay visually reproducible`, async ({ page }) => {
     test.skip(
       !BOOTSTRAP && !hasBaselines(),
-      `No baseline set exists for ${process.platform}. Run once with ` +
-        "`npx playwright test tests/e2e/visual-baseline.spec.ts --update-snapshots` " +
-        "and commit the generated baselines; subsequent runs compare against them.",
+      `No baseline set exists for ${process.platform}. Run the ` +
+        '"Generate visual baselines" workflow for this branch; subsequent runs compare ' +
+        "against the generated baselines.",
     );
+    // Missing snapshots fail their assertion even when Playwright writes them. During the
+    // bootstrap pass, collect those expected failures so every core view gets a reference;
+    // the workflow follows this with a normal hard-assertion comparison before committing.
+    const screenshotExpectation = BOOTSTRAP ? expect.soft(page) : expect(page);
     await page.addInitScript((selected) => {
       localStorage.setItem("quiltor-theme", selected);
       localStorage.setItem("quiltor-interface-language", "de");
@@ -202,35 +205,65 @@ for (const theme of ["light", "dark"] as const) {
     await mockWorkshop(page);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible();
-    await expect(page).toHaveScreenshot(`${theme}-world-gate.png`, { animations: "disabled" });
+    await screenshotExpectation.toHaveScreenshot(`${theme}-world-gate.png`, {
+      animations: "disabled",
+    });
 
     await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
     await expect(page.getByLabel("Kapiteltext")).toBeVisible();
-    await expect(page).toHaveScreenshot(`${theme}-manuscript.png`, { animations: "disabled" });
+    await screenshotExpectation.toHaveScreenshot(`${theme}-manuscript.png`, {
+      animations: "disabled",
+    });
 
     await page.getByRole("button", { name: "Figuren", exact: true }).click();
     await expect(page.getByLabel("Figuren und Beziehungen")).toBeVisible();
+    if ((page.viewportSize()?.width ?? 0) < 720) {
+      await expect
+        .poll(async () => {
+          const workspace = await page.locator(".figure-workspace").boundingBox();
+          const canvas = await page.locator(".figure-workspace .flow-area").boundingBox();
+          if (!workspace || !canvas) return Number.POSITIVE_INFINITY;
+          return Math.abs(workspace.width - canvas.width);
+        })
+        .toBeLessThanOrEqual(1);
+      await page.getByRole("button", { name: "Ansicht", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }).click();
+      await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
+      await page.locator(".figure-workspace .react-flow__controls-fitview").click();
+    }
     await stillstehendeLeinwand(page);
-    await expect(page).toHaveScreenshot(`${theme}-figures.png`, {
+    if ((page.viewportSize()?.width ?? 0) < 720) {
+      await expect(
+        page.locator('.figure-workspace .react-flow__node[data-id="mara"] .story-node'),
+      ).toBeInViewport({ ratio: 0.999999 });
+      await expect(
+        page.locator('.figure-workspace .react-flow__node[data-id="archiv"] .story-node'),
+      ).toBeInViewport({ ratio: 0.999999 });
+    }
+    await screenshotExpectation.toHaveScreenshot(`${theme}-figures.png`, {
       animations: "disabled",
       ...LEINWAND_TOLERANZ,
     });
 
     await page.getByRole("button", { name: "Timeline", exact: true }).click();
     await expect(page.getByRole("region", { name: "Timeline" })).toBeVisible();
-    await expect(page).toHaveScreenshot(`${theme}-timeline.png`, { animations: "disabled" });
+    await screenshotExpectation.toHaveScreenshot(`${theme}-timeline.png`, {
+      animations: "disabled",
+    });
 
     await page.getByRole("button", { name: "Orte", exact: true }).click();
     await expect(page.locator(".places-workspace")).toBeVisible();
     await stillstehendeLeinwand(page);
-    await expect(page).toHaveScreenshot(`${theme}-places.png`, {
+    await screenshotExpectation.toHaveScreenshot(`${theme}-places.png`, {
       animations: "disabled",
       ...LEINWAND_TOLERANZ,
     });
 
     await page.keyboard.press("Control+KeyF");
     await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page).toHaveScreenshot(`${theme}-dialog.png`, { animations: "disabled" });
+    await screenshotExpectation.toHaveScreenshot(`${theme}-dialog.png`, {
+      animations: "disabled",
+    });
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
@@ -239,7 +272,9 @@ for (const theme of ["light", "dark"] as const) {
         ? page.getByRole("dialog", { name: "Lokaler Assistent" })
         : page.getByRole("complementary", { name: "Lokaler Assistent" });
     await expect(assistant).toBeVisible();
-    await expect(page).toHaveScreenshot(`${theme}-assistant.png`, { animations: "disabled" });
+    await screenshotExpectation.toHaveScreenshot(`${theme}-assistant.png`, {
+      animations: "disabled",
+    });
   });
 }
 

@@ -91,9 +91,9 @@
 .focus-helper-panel h3 {
   margin: 0 0 var(--space-7);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font: var(--font-section-label);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--tracking-section-label);
 }
 .focus-helper-chips {
   display: flex;
@@ -108,7 +108,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--paper);
-  font: 500 var(--font-size-3) var(--prose);
+  font: 500 var(--font-size-control-compact) var(--prose);
   cursor: pointer;
 }
 .focus-helper-chip:hover {
@@ -116,7 +116,7 @@
 }
 .focus-helper-symbol {
   min-width: 30px;
-  font-size: var(--font-size-5);
+  font-size: var(--font-size-label-emphasis);
 }
 
 .focus-chapters {
@@ -188,7 +188,7 @@
 
 .focus-chapter-row__number {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-numeric-legacy-compact);
   font-variant-numeric: tabular-nums;
 }
 
@@ -207,7 +207,7 @@
 
 .focus-chapter-row__copy small {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 
 .text-workspace .focus-helper {
@@ -262,10 +262,7 @@
     max-width: 100%;
     padding: var(--space-4) var(--space-5);
     overflow-wrap: anywhere;
-    font-size: var(--font-size-2);
-  }
-  .focus-helper-panel h3 {
-    font-size: var(--font-size-1);
+    font-size: var(--font-size-control-compact);
   }
 }
 

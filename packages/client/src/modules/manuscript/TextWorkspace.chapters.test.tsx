@@ -2,6 +2,7 @@ import { EditorView } from "@codemirror/view";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { quiltorClient } from "../../platform";
 import type { Manuscript } from "./model";
 import { TextWorkspace } from "./TextWorkspace";
 import {
@@ -117,6 +118,109 @@ describe("TextWorkspace chapter binder", () => {
     );
   });
 
+  it("sets a chapter aside without changing its stable content", async () => {
+    const onChange = vi.fn();
+    const view = renderWorkspace({
+      manuscript,
+      figures,
+      onChange,
+      focus: false,
+      onFocus: vi.fn(),
+      viewportMode: "wide",
+      binderOpen: true,
+      inspectorOpen: true,
+    });
+    const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
+    fireEvent.click(binder.getByRole("button", { name: "Kapitelaktionen: Prolog" }));
+    const actions = within(await screen.findByRole("menu", { name: "Kapitelaktionen: Prolog" }));
+    fireEvent.click(actions.getByRole("menuitem", { name: "Aus dem Buch nehmen" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapters: [{ ...manuscript.chapters[0], inBook: false }],
+      }),
+    );
+  });
+
+  it("opens the chapter trash when the public navigation token changes", async () => {
+    const trashed: Manuscript = {
+      chapters: [],
+      trash: [
+        {
+          chapter: { ...manuscript.chapters[0], inBook: false },
+          deletedAt: "2026-09-19T10:00:00.000Z",
+          originalFolderPath: [],
+          treeItem: { id: "tree-c1", kind: "chapter", chapterId: "c1", position: 0 },
+        },
+      ],
+    };
+    const view = renderWorkspace({
+      manuscript: trashed,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      viewportMode: "wide",
+      binderOpen: true,
+      inspectorOpen: true,
+      openChapterTrashToken: 0,
+    });
+    view.rerender(
+      <TestProviders>
+        <TextWorkspace
+          manuscript={trashed}
+          figures={figures}
+          onChange={vi.fn()}
+          focus={false}
+          onFocus={vi.fn()}
+          viewportMode="wide"
+          binderOpen
+          inspectorOpen
+          openChapterTrashToken={1}
+        />
+      </TestProviders>,
+    );
+    expect(await screen.findByRole("dialog", { name: "Papierkorb" })).toBeVisible();
+  });
+
+  it("excludes set-aside chapters from the full markdown export", async () => {
+    const save = vi
+      .spyOn(quiltorClient.platform.files, "save")
+      .mockResolvedValue({ status: "saved" });
+    renderWorkspace({
+      manuscript: {
+        chapters: [
+          { id: "included", title: "Im Buch", body: "Bleibt im Export", note: "" },
+          {
+            id: "aside",
+            title: "Beiseite",
+            body: "Darf nicht im Export stehen",
+            note: "",
+            inBook: false,
+          },
+        ],
+      },
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      viewportMode: "wide",
+      binderOpen: true,
+      inspectorOpen: true,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buch exportieren" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Manuskript" }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    const reader = new FileReader();
+    const exported = new Promise<string>((resolve, reject) => {
+      reader.addEventListener("load", () => resolve(String(reader.result)));
+      reader.addEventListener("error", () => reject(reader.error));
+    });
+    reader.readAsText(save.mock.calls[0][1]);
+    await expect(exported).resolves.toContain("Bleibt im Export");
+    await expect(exported).resolves.not.toContain("Darf nicht im Export stehen");
+  });
+
   it("deletes a chapter from the left tab only after confirmation", async () => {
     const onChange = vi.fn();
     const view = renderWorkspace({
@@ -136,7 +240,18 @@ describe("TextWorkspace chapter binder", () => {
     const dialog = within(await screen.findByRole("alertdialog"));
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.click(dialog.getByRole("button", { name: "Kapitel löschen" }));
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ chapters: [] }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapters: [],
+        trash: [
+          expect.objectContaining({
+            chapter: expect.objectContaining({ id: "c1", title: "Prolog" }),
+            deletedAt: expect.any(String),
+            treeItem: expect.objectContaining({ chapterId: "c1" }),
+          }),
+        ],
+      }),
+    );
   });
 
   it("anchors a flashback without changing the manuscript order", () => {

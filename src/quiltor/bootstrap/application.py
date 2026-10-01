@@ -13,12 +13,13 @@ from quiltor.application.assistant import AssistantAuditUseCases
 from quiltor.application.backups import BackupUseCases
 from quiltor.application.capabilities import FeatureAvailability
 from quiltor.application.documents import DocumentUseCases
-from quiltor.application.place_maps import PlaceMapUseCases
 from quiltor.application.history import HistoryUseCases
+from quiltor.application.place_maps import PlaceMapUseCases
+from quiltor.application.project_transfer import ProjectTransferUseCases
 from quiltor.application.story_world import StoryWorldReadTools, StoryWorldUseCases
+from quiltor.application.synchronization import SynchronizationUseCases
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.application.worlds import WorldUseCases
-from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
 from quiltor.infrastructure.backup import SnapshotStore
 from quiltor.infrastructure.backup.adapters import (
     HttpRemoteBackupGateway,
@@ -26,6 +27,8 @@ from quiltor.infrastructure.backup.adapters import (
 )
 from quiltor.infrastructure.backup.authorization import EndpointBoundBackupAuthorizer
 from quiltor.infrastructure.backup.login import BackupLoginRuntime
+from quiltor.infrastructure.backup.sync_state import JsonSyncStateStore
+from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
 from quiltor.infrastructure.identity import (
     InMemoryRenderTokenStore,
     SQLiteOwnerIdentityStore,
@@ -39,16 +42,17 @@ from quiltor.infrastructure.observability import (
     RuntimeDiagnostics,
     StdlibStructuredLogger,
 )
+from quiltor.infrastructure.persistence.adapters.backups import SQLiteBackupRepository
+from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocumentRepository
+from quiltor.infrastructure.persistence.adapters.place_maps import SQLitePlaceMapRepository
+from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
 from quiltor.infrastructure.persistence.assistant_interactions import (
     ApplicationAssistantWorldAccess,
     LockedAssistantInteractionLogger,
 )
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.infrastructure.persistence.assistant_progress import SQLiteAssistantProgressStore
-from quiltor.infrastructure.persistence.adapters.backups import SQLiteBackupRepository
-from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocumentRepository
-from quiltor.infrastructure.persistence.adapters.place_maps import SQLitePlaceMapRepository
-from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
+from quiltor.infrastructure.persistence.project_archive import SQLiteProjectTransferRepository
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
 from quiltor.infrastructure.platform.feature_availability import (
     DistributionCapabilitySource,
@@ -94,10 +98,12 @@ class ApplicationServices:
     worlds: WorldUseCases
     documents: DocumentUseCases
     place_maps: PlaceMapUseCases
+    project_transfer: ProjectTransferUseCases
     backups: BackupUseCases
     history: HistoryUseCases
     assistant: AssistantAuditUseCases
     story_world: StoryWorldUseCases
+    synchronization: SynchronizationUseCases
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,7 +135,8 @@ def build_application_services(
     observability: ObservabilityServices,
     persistence_paths: SQLitePaths | None = None,
 ) -> ApplicationServices:
-    worlds = SQLiteWorldRepository(persistence_paths or SQLitePaths.from_environment())
+    selected_paths = persistence_paths or SQLitePaths.from_environment()
+    worlds = SQLiteWorldRepository(selected_paths)
     documents = SQLiteDocumentRepository()
     local_backups = SQLiteBackupRepository()
     observer = UseCaseObserver(observability.logger, observability.metrics)
@@ -147,10 +154,20 @@ def build_application_services(
         ),
     )
     history = SnapshotStore(lambda: worlds.data_directory / "history", remote_backups)
+    synchronization = SynchronizationUseCases(
+        worlds,
+        documents,
+        history,
+        remote_backups,
+        JsonSyncStateStore(lambda: worlds.data_directory / "synchronization"),
+    )
     return ApplicationServices(
         worlds=WorldUseCases(worlds, observer),
         documents=DocumentUseCases(documents, local_backups, observer),
         place_maps=PlaceMapUseCases(SQLitePlaceMapRepository()),
+        project_transfer=ProjectTransferUseCases(
+            SQLiteProjectTransferRepository(selected_paths), observer
+        ),
         backups=BackupUseCases(
             worlds,
             documents,
@@ -163,6 +180,7 @@ def build_application_services(
         history=HistoryUseCases(history, local_backups.safe_name),
         assistant=AssistantAuditUseCases(worlds, documents),
         story_world=StoryWorldUseCases(),
+        synchronization=synchronization,
     )
 
 

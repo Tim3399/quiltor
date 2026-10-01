@@ -4,7 +4,7 @@
   gap: var(--space-6);
   margin-bottom: var(--space-10);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-label-legacy-micro);
 }
 
 .chapter-version-diff__legend > span {
@@ -44,5 +44,27 @@
 .chapter-version-diff__status {
   margin: 0 0 var(--space-10);
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata-legacy-micro);
+}
+
+.chapter-version-diff ins,
+.chapter-version-diff del {
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-xs);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.chapter-version-diff ins {
+  border-bottom: 2px solid var(--diff-word-add);
+  background: var(--diff-add);
+  color: var(--diff-add-text);
+  text-decoration: none;
+}
+
+.chapter-version-diff del {
+  background: var(--diff-delete);
+  color: var(--diff-delete-text);
+  text-decoration-color: var(--diff-delete-text);
+  text-decoration-thickness: 1.5px;
 }

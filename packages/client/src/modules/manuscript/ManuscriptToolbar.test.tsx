@@ -31,7 +31,7 @@ it("links manuscript export actions and restores focus after selection", async (
     </I18nProvider>,
   );
 
-  const trigger = screen.getByRole("button", { name: "Exportieren" });
+  const trigger = screen.getByRole("button", { name: "Buch exportieren" });
   const responsiveActions = [
     ...container.querySelectorAll<HTMLButtonElement>(
       '.manuscript-toolbar .ui-toolbar-button[data-label-mode="responsive"]:not([data-workspace-action="create"])',

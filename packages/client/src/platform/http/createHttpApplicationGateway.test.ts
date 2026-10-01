@@ -31,6 +31,8 @@ describe("HTTP application composition", () => {
           changes: [],
           changeCount: 0,
           suggestedMessage: "Sicherung",
+          lastSuccessfulTransfer: null,
+          transferredSnapshotId: null,
         }),
       )
       .mockResolvedValueOnce(response({ ok: true, commits: [] }));
@@ -47,12 +49,17 @@ describe("HTTP application composition", () => {
         "manuscript",
         "metadata",
         "placeMaps",
+        "projectTransfer",
         "storyWorld",
         "storyboards",
+        "synchronization",
         "worlds",
         "writingAssistance",
       ].sort(),
     );
+    expect(application.projectTransfer.exportProject).toEqual(expect.any(Function));
+    expect(application.projectTransfer.preview).toEqual(expect.any(Function));
+    expect(application.projectTransfer.importProject).toEqual(expect.any(Function));
 
     application.worlds.select(WORLD_ID);
     await application.backup.status();

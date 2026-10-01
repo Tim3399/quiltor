@@ -7,6 +7,8 @@
 > **Eine local-first Autorenwerkstatt für Menschen, die selbst schreiben wollen.**  
 > Manuskript, Figuren, Beziehungen, Orte, Timeline und Storyboard an einem Ort – mit lokaler KI für die Arbeit **rund um** das Schreiben, niemals für das Schreiben selbst.
 
+**Lokal und kostenlos im Rahmen der [Lizenz](#status-und-lizenz). Kein Abo zum Schreiben.**
+
 ![Quiltor Manuskriptansicht](docs/screenshots/manuscript.png)
 
 Quiltor ist eine Schreibumgebung für Romane und andere lange fiktionale Projekte. Statt Manuskript, Figurenlisten, Timeline, Karten und Notizen über mehrere Anwendungen zu verteilen, verbindet Quiltor sie zu einer gemeinsamen Welt.
@@ -150,6 +152,28 @@ Jede Welt ist eine eigene SQLite-Datenbank auf deinem Rechner. Manuskript und Pr
 
 Ein Remote-Backup ist optional und kann über einen eigenen Backup-Endpunkt betrieben werden.
 
+Der kostenlose manuelle Projekttransfer als `.quiltor` überträgt den aktuellen
+Projektinhalt einschließlich zurückgestellter Kapitel, Kapitelpapierkorb und benötigter
+Bilder. Der Import erstellt eine neue Welt. Frühere Sicherungen und der Versionsverlauf
+sind ausdrücklich nicht enthalten; für deren Wiederherstellung gibt es die Sicherungs-
+und Verlaufsfunktionen. Der gewöhnliche Buchexport enthält nur Kapitel im Buch.
+
+Eine erfolgreiche lokale Speicherung, eine wiederherstellbare Sicherung und eine Übertragung
+an einen Backup-Server sind getrennte Vorgänge. Unter **Mehr → Cloud-Synchronisation**
+gleicht **Jetzt synchronisieren** ein Projekt mit einem kompatiblen Cloud-Endpunkt ab.
+Bei konkurrierenden Änderungen oder Löschung gegen Offline-Bearbeitung bleiben die Fassungen
+erhalten und erfordern eine ausdrückliche Auswahl. Es gibt keine automatische Übertragung
+im Hintergrund und keine automatische Textzusammenführung. Ein ausgefallener Cloud-Endpunkt
+sperrt den lokalen Editor nicht. Einrichtungen und Betriebsgrenzen beschreibt die
+[Anleitung zum Cloud-Dienst](services/backup-server/README.md).
+
+Ein kostenpflichtiges gehostetes Cloud-Angebot mit festem Preis, Kontingent und
+Aufbewahrungsfrist ist noch nicht festgelegt. Daher gibt es hier auch keine Zusage zu
+Kündigungsfristen, Ende-zu-Ende-Verschlüsselung oder Hostingregionen. Die Bedingungen eines
+selbst betriebenen Endpunkts bestimmt dessen Betreiber. Bei einem gehosteten Webbetrieb
+liegen die Projektdaten auf dem jeweiligen Server; das ist ein anderer Speicherort als
+die lokale Werkstatt auf deinem Rechner.
+
 Auch der lokale Assistent bleibt lokal:
 
 - Modell-Runtime auf Loopback
@@ -161,7 +185,7 @@ Auch der lokale Assistent bleibt lokal:
 
 ## Was heute enthalten ist
 
-Stand dieser Übersicht: **3.16.3**; die Versionsquelle ist [`VERSION`](VERSION).
+Die aktuelle Versionsquelle ist [`VERSION`](VERSION). Diese Übersicht beschreibt den Quellstand.
 
 | Bereich              | Enthalten                                                                                                       |
 | -------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -206,6 +230,9 @@ Quiltor befindet sich in aktiver Entwicklung. Der Schwerpunkt liegt auf einem ru
 
 # Schnellstart
 
+Ohne technische Vorkenntnisse: [Installation und erste Schreibaufgaben](docs/ERSTE-SCHRITTE.md).
+Die folgenden Befehle beschreiben den Start aus dem Quellcode.
+
 Voraussetzung: **Python 3.12+**.
 
 ```bash
@@ -216,7 +243,13 @@ python3 apps/web/server.py
 
 Unter Windows mit installiertem Python-Launcher: `py -3.12 apps/web/server.py`.
 
-Quiltor öffnet standardmäßig `http://localhost:8000` und legt beim ersten Start eine leere Welt an. Wenn noch kein lokaler Assistent eingerichtet ist, fragt Quiltor vor einem Download nach; ohne Assistent funktioniert der Rest der Anwendung weiterhin.
+Quiltor öffnet standardmäßig `http://localhost:8000`. Lege in der Weltauswahl mit **Neue Welt** dein erstes Projekt an. Der Start wartet nicht auf eine KI-Einrichtung und lädt kein Modell herunter. Den optionalen Assistenten richtest du später ausdrücklich in dessen Seitenleiste ein.
+
+Öffne die Welt, wähle im Manuskript ein Kapitel oder lege eines an und beginne zu schreiben.
+Den optionalen Backup-Endpunkt kannst du leer lassen. Modelldownload und Einrichtung des
+Assistenten sind für diesen Weg nicht erforderlich. Die gemeinsame Suche findet Kapitel
+und Weltelemente; die Analyse lässt sich später für das aktive Kapitel oder eine ausdrücklich
+ausgewählte Kapitelmenge starten.
 
 Alternativ stehen CLI/Python-Pakete, Desktop-Builds und Docker-Betrieb zur Verfügung. Details folgen unten.
 
@@ -355,7 +388,7 @@ Die Modell-Runtime verwendet:
 - `llama.cpp`
 - auf Apple-Silicon-Macs optional MLX
 
-Beim ersten Start kann Quiltor die passende Runtime und das Modell nach Zustimmung automatisch einrichten. Die Daten landen bei einem direkten Repository-Start unter `runtime/` und `models/`.
+Bei der ausdrücklich gestarteten KI-Einrichtung kann Quiltor die passende Runtime und das Modell herunterladen. Die Daten landen bei einem direkten Repository-Start unter `runtime/` und `models/`.
 
 Explizite Installation:
 
@@ -838,6 +871,13 @@ Der Server besitzt keinen globalen Zustand „diese Welt ist gerade geöffnet“
 ---
 
 ## Entwicklung und Qualität
+
+Der verbindliche [Projektstandard](docs/PROJECT_PROFILE.md) dokumentiert Formatter-Zuständigkeiten,
+Startbefehle, Agentenregeln und noch offene Anforderungen. Nach der Einrichtung startet `npm start`
+die vollständige lokale Anwendung (API auf 8010, Vite auf 5173). `npm run format` formatiert Web,
+Python, Dokumentation und Rust; `npm run check:format` prüft dieselben Bereiche ohne Änderungen.
+`npm run check`, `npm run build` und `npm test` sind die getrennten Qualitäts-, Build- und Unit-Gates.
+Alternative Ports und isolierte Testdaten stehen im Projektprofil.
 
 Die exakten Release-Versionen für Node.js, npm, Python und Rust sowie die Build-Werkzeuge stehen in [`distribution/toolchains.json`](distribution/toolchains.json). `npm run doctor` zeigt Abweichungen. Für Python-Tests die deklarierten Abhängigkeiten in einer virtuellen Umgebung installieren: `python -m pip install -e .`. Der Python-Formatter wird separat in der dort gepinnten Ruff-Version benötigt.
 

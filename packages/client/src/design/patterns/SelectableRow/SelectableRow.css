@@ -29,7 +29,7 @@
 .selectable-row__metadata {
   flex-shrink: 0;
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 
 .selectable-row[data-selected="true"] .selectable-row__metadata {

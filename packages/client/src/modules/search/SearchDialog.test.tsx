@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import type { Manuscript } from "../manuscript";
 import { SearchDialog } from "./SearchDialog";
 
 const manuscript = {
@@ -18,22 +19,29 @@ const storyboards = {
 
 afterEach(cleanup);
 
-function renderSearch(onSelect = vi.fn()) {
+function renderSearch(
+  onSelect = vi.fn(),
+  sourceManuscript: Manuscript = manuscript,
+  onShowSetAside = vi.fn(),
+  onOpenChapterTrash = vi.fn(),
+) {
   const onWorkspace = vi.fn();
   render(
     <I18nProvider>
       <SearchDialog
-        manuscript={manuscript}
+        manuscript={sourceManuscript}
         figures={figures}
         storyboards={storyboards}
         onClose={vi.fn()}
         onWorkspace={onWorkspace}
         onSelect={onSelect}
         onCommand={vi.fn()}
+        onShowSetAside={onShowSetAside}
+        onOpenChapterTrash={onOpenChapterTrash}
       />
     </I18nProvider>,
   );
-  return { onSelect, onWorkspace };
+  return { onSelect, onWorkspace, onShowSetAside, onOpenChapterTrash };
 }
 
 describe("SearchDialog manuscript results", () => {
@@ -71,6 +79,40 @@ describe("SearchDialog manuscript results", () => {
     fireEvent.click(screen.getByRole("option", { name: /Main Storyboard/ }));
     expect(onWorkspace).toHaveBeenCalledWith("storyboard");
     expect(onSelect).toHaveBeenCalledWith({ workspace: "storyboard", id: "main-storyboard" });
+  });
+
+  it("labels set-aside results and offers explicit alternate views when trash is excluded", () => {
+    const scopedManuscript: Manuscript = {
+      chapters: [
+        ...manuscript.chapters,
+        {
+          id: "aside",
+          title: "Entwurf",
+          body: "Zinnoberdrache",
+          note: "",
+          inBook: false,
+        },
+      ],
+      trash: [
+        {
+          chapter: { id: "deleted", title: "Alt", body: "Saphirwal", note: "" },
+          deletedAt: "2026-09-19T10:00:00Z",
+          originalFolderPath: [],
+          treeItem: { id: "chapter:deleted", kind: "chapter", chapterId: "deleted", position: 0 },
+        },
+      ],
+    };
+    const { onShowSetAside, onOpenChapterTrash } = renderSearch(vi.fn(), scopedManuscript);
+    const input = screen.getByLabelText("Suchbegriff");
+    fireEvent.change(input, { target: { value: "Zinnoberdrache" } });
+    expect(screen.getByRole("option", { name: /Entwurf/ })).toHaveTextContent("Zurückgestellt");
+
+    fireEvent.change(input, { target: { value: "Saphirwal" } });
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Zurückgestellte Kapitel anzeigen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kapitel-Papierkorb öffnen" }));
+    expect(onShowSetAside).toHaveBeenCalledOnce();
+    expect(onOpenChapterTrash).toHaveBeenCalledOnce();
   });
 });
 

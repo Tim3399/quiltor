@@ -111,7 +111,20 @@ line-length = 100
 # Markdown belongs to Prettier. Current Ruff versions can also process Python
 # code blocks in Markdown, so explicitly exclude it to keep formatter ownership
 # unambiguous.
-extend-exclude = ["*.md"]
+extend-exclude = [
+  "*.md",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".venv*",
+  "venv",
+  "target",
+  "runtime",
+  "models",
+  "test-results",
+  "playwright-report",
+]
 
 [tool.ruff.format]
 indent-style = "space"

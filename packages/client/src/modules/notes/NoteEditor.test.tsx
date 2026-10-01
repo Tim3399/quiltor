@@ -473,6 +473,44 @@ describe("NoteEditor", () => {
     expect(onOpenReference).toHaveBeenCalledWith({ kind: "place", id: "harbour" });
   });
 
+  it("marks a missing target while preserving reference identity and pasted paragraphs", () => {
+    const onChange = vi.fn();
+    const onOpenReference = vi.fn();
+    const reference: NoteReference = {
+      id: "ref-missing",
+      target: harbour.target,
+      from: 0,
+      to: 5,
+      surface: "Hafen",
+    };
+    renderNote(
+      <NoteEditor
+        owner={{ kind: "chapter", id: "c1" }}
+        label="Notiz"
+        value="Hafen"
+        references={[reference]}
+        onChange={onChange}
+      />,
+      [],
+      onOpenReference,
+    );
+    const unavailable = screen.getByRole("button", {
+      name: "„Hafen“ – Ziel nicht verfügbar",
+    });
+    expect(unavailable).toBeDisabled();
+    fireEvent.click(unavailable);
+    expect(onOpenReference).not.toHaveBeenCalled();
+    const view = viewFor(screen.getByRole("textbox", { name: "Notiz" }));
+    const copied = view.state.sliceDoc(0, 5);
+    act(() =>
+      view.dispatch({
+        changes: { from: 5, insert: `\n\n${copied}\nNeuer Absatz.` },
+        userEvent: "input.paste",
+      }),
+    );
+    expect(onChange).toHaveBeenLastCalledWith("Hafen\n\nHafen\nNeuer Absatz.", [reference], []);
+  });
+
   it("keeps externally updated reference metadata on the next text edit", () => {
     const onChange = vi.fn();
     function MetadataNote() {

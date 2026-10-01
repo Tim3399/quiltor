@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from quiltor.domain.manuscript.story_time import valid_story_time_reference
@@ -447,6 +448,8 @@ def valid_manuscript(payload: Any) -> bool:
             return False
         if any(not isinstance(chapter.get(key, ""), str) for key in ("title", "body", "note")):
             return False
+        if "inBook" in chapter and type(chapter["inBook"]) is not bool:
+            return False
         if (
             len(chapter["id"]) > 200
             or len(chapter.get("title", "")) > 1000
@@ -513,6 +516,70 @@ def valid_manuscript(payload: Any) -> bool:
         ids.append(chapter["id"])
     if len(ids) != len(set(ids)):
         return False
+    trash = payload.get("trash", [])
+    if not isinstance(trash, list) or len(trash) > 1000:
+        return False
+    trash_ids: set[str] = set()
+    for entry in trash:
+        if not isinstance(entry, dict):
+            return False
+        chapter = entry.get("chapter")
+        if not isinstance(chapter, dict) or not valid_manuscript({"chapters": [chapter]}):
+            return False
+        chapter_id = chapter["id"]
+        if chapter_id in ids or chapter_id in trash_ids:
+            return False
+        trash_ids.add(chapter_id)
+        deleted_at = entry.get("deletedAt")
+        if not isinstance(deleted_at, str) or not deleted_at.endswith("Z"):
+            return False
+        try:
+            datetime.fromisoformat(deleted_at.removesuffix("Z") + "+00:00")
+        except ValueError:
+            return False
+        tree_item = entry.get("treeItem")
+        if (
+            not isinstance(tree_item, dict)
+            or tree_item.get("kind") != "chapter"
+            or tree_item.get("chapterId") != chapter_id
+            or not isinstance(tree_item.get("id"), str)
+            or not tree_item["id"]
+            or len(tree_item["id"]) > 500
+            or type(tree_item.get("position")) is not int
+            or not 0 <= tree_item["position"] <= MAX_SAFE_INTEGER
+            or "folderId" in tree_item
+            or (
+                "parentFolderId" in tree_item
+                and (
+                    not isinstance(tree_item["parentFolderId"], str)
+                    or not tree_item["parentFolderId"]
+                    or len(tree_item["parentFolderId"]) > 200
+                )
+            )
+        ):
+            return False
+        folder_path = entry.get("originalFolderPath")
+        if not isinstance(folder_path, list) or len(folder_path) > 100:
+            return False
+        folder_ids: set[str] = set()
+        for folder in folder_path:
+            if (
+                not isinstance(folder, dict)
+                or not isinstance(folder.get("id"), str)
+                or not folder["id"]
+                or len(folder["id"]) > 200
+                or folder["id"] in folder_ids
+                or not isinstance(folder.get("title"), str)
+                or len(folder["title"]) > 1000
+            ):
+                return False
+            folder_ids.add(folder["id"])
+        original_parent = tree_item.get("parentFolderId")
+        if (original_parent is None and folder_path) or (
+            original_parent is not None
+            and (not folder_path or folder_path[-1]["id"] != original_parent)
+        ):
+            return False
     try:
         structure_or_flat(ids, payload.get("structure"))
     except ManuscriptTreeError:

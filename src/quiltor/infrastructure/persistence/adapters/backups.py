@@ -16,6 +16,10 @@ class SQLiteBackupRepository:
     def list_local(self, backups: Path) -> list[dict[str, Any]]:
         return restore.list_backups(backups)
 
+    def preview_local(self, name: str, backups: Path) -> dict[str, Any]:
+        with restore.staged_backup(name, backups) as staged:
+            return staged.documents
+
     def restore_local(
         self,
         name: str,

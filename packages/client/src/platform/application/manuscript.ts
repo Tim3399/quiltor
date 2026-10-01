@@ -1,6 +1,4 @@
 import type { Manuscript } from "../../modules/manuscript";
+import type { VersionedDocumentGateway } from "./versionedDocument";
 
-export interface ManuscriptGateway {
-  load(): Promise<Manuscript>;
-  save(data: Manuscript): Promise<{ ok: boolean; zeit: string; revision: number }>;
-}
+export interface ManuscriptGateway extends VersionedDocumentGateway<Manuscript> {}

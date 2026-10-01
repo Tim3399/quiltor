@@ -84,4 +84,51 @@ describe("ChapterTree", () => {
       }),
     );
   });
+
+  it("filters set-aside chapters without making them unavailable", () => {
+    const filtered = {
+      ...manuscript,
+      chapters: [manuscript.chapters[0], { ...manuscript.chapters[1], inBook: false }],
+    };
+    const onChapterFilter = vi.fn();
+    const { rerender } = render(
+      <TestProviders>
+        <ChapterTree
+          manuscript={filtered}
+          structure={structure}
+          current={filtered.chapters[0]}
+          viewportMode="wide"
+          chapterFilter="in-book"
+          onChapterFilter={onChapterFilter}
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+          onStructureChange={vi.fn()}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.getByRole("button", { name: /Opening/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Arrival/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Zurückgestellt" }));
+    expect(onChapterFilter).toHaveBeenCalledWith("set-aside");
+
+    rerender(
+      <TestProviders>
+        <ChapterTree
+          manuscript={filtered}
+          structure={structure}
+          current={filtered.chapters[1]}
+          viewportMode="wide"
+          chapterFilter="set-aside"
+          onChapterFilter={onChapterFilter}
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+          onStructureChange={vi.fn()}
+        />
+      </TestProviders>,
+    );
+    expect(screen.queryByRole("button", { name: /Opening/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Arrival/ })).toBeVisible();
+    expect(document.querySelector(".chapter-set-aside")).toHaveTextContent("Zurückgestellt");
+  });
 });

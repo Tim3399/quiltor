@@ -1,4 +1,56 @@
 export const tools = {
+  cloudTitle: "Cloud synchronization",
+  cloudManualExplanation:
+    "Synchronize this project with your other devices when needed. Transfers start only when you choose Sync now. Saved versions remain independent of synchronization.",
+  cloudLocalIndependence:
+    "Writing, trash, restoration and project export remain available without cloud access.",
+  cloudUnconfigured: "No cloud configured",
+  cloudUnlinked: "This device has not been synchronized",
+  cloudUnlinkedHelp:
+    "A version of this project already exists in the cloud. This device has no confirmed common baseline yet. Review both versions and explicitly choose which one to use.",
+  cloudSynced: "Project synchronized with the cloud",
+  cloudLocalPending: "Local changes are waiting to upload",
+  cloudRemotePending: "A newer cloud version is available",
+  cloudConflict: "Both device versions have changed",
+  cloudRefresh: "Refresh status",
+  cloudSyncNow: "Sync now",
+  cloudWorking: "Checking cloud state …",
+  cloudStateNotSaved:
+    "The transfer is confirmed, but its status could not be fully saved locally. Another status check or version comparison may be needed before the next synchronization.",
+  cloudErrorHelp:
+    "Your local version is retained. Check the connection or sign-in, then refresh the status.",
+  cloudReloadRequired:
+    "The cloud version was applied. Your previous local version is saved in version history. Reload Quiltor before continuing.",
+  cloudRecoveryRequired:
+    "Applying the version was interrupted; the active project state could not be safely confirmed. A local safety copy was created beforehand. Reload Quiltor and review the project and version history before continuing to write.",
+  cloudSetupHint:
+    "This feature requires a configured cloud endpoint. You can always transfer projects for free using export and import.",
+  cloudLastSync: "Last confirmed synchronization",
+  cloudStorage: "Cloud storage",
+  cloudUsedBytes: "{used} bytes used",
+  cloudNoQuotaSpecified: "No storage limit reported",
+  cloudReadOnly:
+    "This cloud account is read-only. You can retrieve existing versions; new uploads are blocked. Your local work remains fully available.",
+  cloudDeletionDate:
+    "Cloud copies are eligible for deletion from {date}. Save any versions you need locally before then.",
+  cloudConflictHelp:
+    "Both sides have changed. A deletion can also cause a conflict. Review the versions and explicitly choose which complete project version to use. Text is never merged automatically.",
+  cloudInspectRemote: "Load cloud version for comparison",
+  cloudLocalVersion: "Your local version",
+  cloudRemoteVersion: "Cloud version",
+  cloudKeepLocal: "Use local version",
+  cloudUseRemote: "Use cloud version",
+  cloudResolveConfirmation:
+    "The chosen complete project version replaces the other working version. Previous versions remain as backups. Changes made since this comparison prevent applying the choice.",
+  cloudConfirmResolution: "Apply this version",
+  cloudSetAside: "Set aside",
+  cloudInTrash: "In trash",
+  cloudQuotaExceeded:
+    "Cloud storage is full. Your local version is retained. Free cloud space or ask for a larger allowance before retrying the transfer.",
+  cloudAccountExpired:
+    "Access to this cloud account has ended. Your local work is retained; contact the operator about cloud copies.",
+  cloudStaleComparison:
+    "The project changed after this comparison. Refresh the status and review the versions again.",
   searchCommands: "Search & commands",
   searchPlaceholder: "Chapters, text, characters, places, storyboards …",
   commandView: "View",
@@ -26,6 +78,13 @@ export const tools = {
     "The sign-in service for this target is not answering right now. Signing in is only possible once it can be reached again.",
   backupAccount: "Account",
   backupSignedIn: "Signed in",
+  lastConfirmedTransfer: "Last confirmed transfer",
+  noConfirmedTransfer: "No confirmed transfer yet",
+  remoteTransferExplanation:
+    "Only a successfully confirmed upload updates this time. Saving locally does not transfer anything automatically.",
+  transferredSnapshot: "Confirmed backup snapshot",
+  backupTransferStatusWarning:
+    "The upload was confirmed, but this confirmation time could not be saved locally. The previously saved transfer remains displayed.",
   comparison: "Comparison",
   byWord: "By word",
   byLine: "By line",
@@ -49,6 +108,24 @@ export const tools = {
   backupPreviewDescription: "Local SQLite backup · {size}",
   backupSelectTitle: "Select a backup",
   backupSelectDescription: "Select a backup on the left to review and restore it.",
+  backupStorageTitle: "Backup storage location",
+  backupStorageScope: "Storage location of the running Quiltor; on the server when web hosted.",
+  backupDatabasePath: "Database file",
+  backupDirectory: "Backup directory",
+  backupLastSuccessful: "Last successful backup",
+  backupNever: "No backup yet",
+  backupCopyPath: "Copy path",
+  backupPathCopied: "Path copied",
+  backupPreviewLoading: "Safely checking backup …",
+  backupChapterCount: "{count} chapters",
+  backupSetAsideCount: "{count} set aside",
+  backupTrashCount: "{count} in trash",
+  backupFigureCount: "{count} characters and places",
+  backupBoardCount: "{count} storyboards",
+  backupEmptyChapter: "No chapter text",
+  backupMirrorWarning:
+    "The backup was restored, but the additional mirror files could not be updated.",
+  reloadAfterRestore: "Reload Quiltor",
   switchToManuscript: "Switch to manuscript",
   switchToFigures: "Switch to character board",
   switchToTimeline: "Switch to timeline",
@@ -57,6 +134,9 @@ export const tools = {
   toggleFocus: "Toggle focus mode",
   searchMatchCount: "{count} matches in text",
   noSearchResults: "No matching content or commands found.",
+  chapterSetAsideStatus: "Set aside",
+  showSetAsideChapters: "Show set-aside chapters",
+  openChapterTrash: "Open chapter trash",
   showMinimap: "Show overview map",
   hideMinimap: "Hide overview map",
   graphControlsLabel: "Map controls",

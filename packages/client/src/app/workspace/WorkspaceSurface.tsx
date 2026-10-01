@@ -54,6 +54,9 @@ export function WorkspaceSurface({
   onSave,
   currentChapterId,
   onCurrentChapterId,
+  openChapterTrashToken,
+  chapterFilter,
+  onChapterFilter,
 }: {
   worldId: string;
   worldTitle: string;
@@ -74,6 +77,9 @@ export function WorkspaceSurface({
   onSave: () => Promise<void>;
   currentChapterId: string;
   onCurrentChapterId: (chapterId: string) => void;
+  openChapterTrashToken?: number;
+  chapterFilter?: "all" | "in-book" | "set-aside";
+  onChapterFilter?: (filter: "all" | "in-book" | "set-aside") => void;
 }) {
   const layout = useWorkspaceLayout(worldId, workspace);
   const manuscriptSession = useRef<{
@@ -111,6 +117,9 @@ export function WorkspaceSurface({
         targetId={target?.workspace === "text" ? target.id : undefined}
         targetRequestId={target?.workspace === "text" ? target.requestId : undefined}
         textSearch={target?.workspace === "text" ? target.textSearch : undefined}
+        openChapterTrashToken={openChapterTrashToken}
+        chapterFilter={chapterFilter}
+        onChapterFilter={onChapterFilter}
         onUndo={manuscriptHistory.undo}
         onRedo={manuscriptHistory.redo}
         canUndo={manuscriptHistory.canUndo}

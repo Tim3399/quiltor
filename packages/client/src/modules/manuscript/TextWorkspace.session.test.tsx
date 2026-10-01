@@ -126,8 +126,9 @@ describe("TextWorkspace session", () => {
       const scroller = requireValue(view.container.querySelector<HTMLElement>(".editor-scroll"));
       expect(scroller.scrollTop).toBe(saved.scrollTop);
 
-      // CodeMirror runs custom measure writes before its own scroll-anchor correction.
-      // The editor schedules the exact restore for the following frame.
+      // CodeMirror can schedule another virtual-layout correction after the first
+      // post-measure frame. The editor waits through that settlement before restoring.
+      frames.runFrame();
       frames.runFrame();
       scroller.scrollTop = saved.scrollTop - 18;
       frames.runFrame();
@@ -144,6 +145,7 @@ describe("TextWorkspace session", () => {
     try {
       const view = renderWorkspace({ ...defaults, sessionState: saved });
       const scroller = requireValue(view.container.querySelector<HTMLElement>(".editor-scroll"));
+      frames.runFrame();
       frames.runFrame();
       scroller.scrollTop = saved.scrollTop - 18;
       const title = screen.getByLabelText("Kapiteltitel");

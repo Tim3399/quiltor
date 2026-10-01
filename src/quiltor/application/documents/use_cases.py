@@ -7,12 +7,16 @@ from typing import Any
 
 from quiltor.application.backups.ports import BackupRepository
 from quiltor.application.documents.ports import DocumentKind, DocumentRepository
-from quiltor.application.documents.types import DocumentLocation, VersionedDocument
+from quiltor.application.documents.types import (
+    DocumentLocation,
+    DocumentSaveResult,
+    VersionedDocument,
+)
 from quiltor.application.errors import InvalidApplicationInput
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.domain.manuscript import flatten_tree, story_time_anchor_issue, structure_or_flat
-from quiltor.domain.storyboard.validation import valid_storyboards
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
+from quiltor.domain.storyboard.validation import valid_storyboards
 
 
 class InvalidDocumentState(InvalidApplicationInput):
@@ -56,6 +60,15 @@ class DocumentUseCases:
         expected_revision: int | None,
         location: DocumentLocation,
     ) -> int:
+        return self.save_with_status(kind, state, expected_revision, location).revision
+
+    def save_with_status(
+        self,
+        kind: DocumentKind,
+        state: dict[str, Any],
+        expected_revision: int | None,
+        location: DocumentLocation,
+    ) -> DocumentSaveResult:
         with self._observer.observe("persistence", f"save_{kind}"):
             validators = {
                 "manuscript": valid_manuscript,
@@ -86,17 +99,25 @@ class DocumentUseCases:
                     )
             self._local_backups.backup_if_due(location.database, location.backups)
             revision = self._documents.save(kind, state, expected_revision, location.database)
-            if kind == "manuscript":
-                chapters_by_id = {chapter["id"]: chapter for chapter in state["chapters"]}
-                structure = structure_or_flat(chapters_by_id, state.get("structure"))
-                ordered_chapters = [
-                    chapters_by_id[chapter_id]
-                    for chapter_id in flatten_tree(chapters_by_id, structure)
-                ]
-                self._local_backups.mirror_manuscript(ordered_chapters, location.manuscript_mirrors)
-            elif kind == "figures":
-                self._local_backups.mirror_story_world(state, location.story_world_mirrors)
-            return revision
+            try:
+                with self._observer.observe("backup", f"mirror_{kind}"):
+                    if kind == "manuscript":
+                        chapters_by_id = {chapter["id"]: chapter for chapter in state["chapters"]}
+                        structure = structure_or_flat(chapters_by_id, state.get("structure"))
+                        ordered_chapters = [
+                            chapters_by_id[chapter_id]
+                            for chapter_id in flatten_tree(chapters_by_id, structure)
+                        ]
+                        self._local_backups.mirror_manuscript(
+                            ordered_chapters, location.manuscript_mirrors
+                        )
+                    elif kind == "figures":
+                        self._local_backups.mirror_story_world(state, location.story_world_mirrors)
+            except Exception:  # noqa: BLE001 - committed data must still be acknowledged
+                # The authoritative document and revision have already committed. A failed
+                # derived mirror must not turn that acknowledged write into a stale retry.
+                return DocumentSaveResult(revision, ("backup.mirror_failed",))
+            return DocumentSaveResult(revision)
 
 
 __all__ = ["DocumentUseCases", "InvalidChapterStoryTime", "InvalidDocumentState"]

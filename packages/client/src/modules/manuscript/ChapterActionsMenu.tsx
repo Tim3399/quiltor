@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Download, Ellipsis, Trash2 } from "lucide-react";
+import { BookOpen, BookX, ChevronDown, ChevronUp, Download, Ellipsis, Trash2 } from "lucide-react";
 import { DropdownMenu, IconButton, MenuItem, MenuSeparator } from "../../design";
 import { useI18n } from "../../i18n";
 import "./ChapterActionsMenu.css";
@@ -10,6 +10,8 @@ export interface ChapterActionsMenuProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onExport: () => void;
+  inBook?: boolean;
+  onToggleInBook?: () => void;
   onDelete: () => void;
 }
 
@@ -21,6 +23,8 @@ export function ChapterActionsMenu({
   onMoveUp,
   onMoveDown,
   onExport,
+  inBook = true,
+  onToggleInBook,
   onDelete,
 }: ChapterActionsMenuProps) {
   const { t } = useI18n();
@@ -60,6 +64,13 @@ export function ChapterActionsMenu({
       />
       <MenuSeparator />
       <MenuItem icon={<Download />} label={t("chapterMarkdown")} onSelect={onExport} />
+      {onToggleInBook && (
+        <MenuItem
+          icon={inBook ? <BookX /> : <BookOpen />}
+          label={t(inBook ? "removeChapterFromBook" : "returnChapterToBook")}
+          onSelect={onToggleInBook}
+        />
+      )}
       <MenuSeparator />
       <MenuItem icon={<Trash2 />} label={t("deleteChapter")} tone="danger" onSelect={onDelete} />
     </DropdownMenu>

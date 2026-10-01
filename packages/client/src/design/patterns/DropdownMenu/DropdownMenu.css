@@ -20,7 +20,7 @@
   padding: var(--spacing-compact-wide) var(--spacing-regular-tight);
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
 }
 
 .ui-dropdown-menu {

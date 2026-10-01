@@ -2,6 +2,65 @@
 // action verbs live in menus.ts. Wording needed by only one area stays in that area's file.
 // Only text that would otherwise need duplicate maintenance belongs here.
 export const shared = {
+  gettingStartedTitle: "Erste Schritte",
+  gettingStartedIntro: "Vier Wege, um direkt mit deinem Projekt weiterzuarbeiten.",
+  gettingStartedWrite: "Schreiben",
+  gettingStartedWriteHelp:
+    "Öffne das aktuelle Kapitel. Wenn noch keines existiert, kannst du im Manuskript ein neues anlegen.",
+  gettingStartedWriteAction: "Zum Schreiben",
+  gettingStartedBringManuscript: "Manuskript übernehmen",
+  gettingStartedBringManuscriptHelp:
+    "Lege ein Kapitel an und füge vorhandenen Text sicher ein. Ein vollständiges .quiltor-Projekt importierst du in der Projektauswahl.",
+  gettingStartedBringManuscriptAction: "Zum Manuskript",
+  gettingStartedFindFigure: "Figur nachschlagen",
+  gettingStartedFindFigureHelp:
+    "Die gemeinsame Suche findet Kapitel, Figuren, Orte, Zeitpunkte und Storyboards.",
+  gettingStartedFindFigureAction: "Suche öffnen",
+  gettingStartedPrepareWorld: "Weltwissen vorbereiten",
+  gettingStartedPrepareWorldHelp:
+    "Öffne den Assistenten und prüfe vor dem Senden die sichtbare Kapitelauswahl.",
+  gettingStartedPrepareWorldAction: "Assistent öffnen",
+  projectImportTitle: "Quiltor-Projekt importieren",
+  projectImportIntro:
+    "Wähle eine Quiltor-Projektdatei. Vor dem Import wird ihr Inhalt geprüft und angezeigt.",
+  projectArchiveFile: "Projektdatei",
+  projectPreviewLoading: "Projektdatei wird geprüft …",
+  projectPreviewTitle: "Inhalt der Projektdatei",
+  projectCountChapters: "Kapitel gesamt",
+  projectCountBookChapters: "Kapitel im Buch",
+  projectCountSetAside: "Zurückgestellte Kapitel",
+  projectCountTrash: "Kapitel im Papierkorb",
+  projectCountFigures: "Figuren und Weltelemente",
+  projectCountStoryboards: "Storyboards",
+  projectCountImages: "Bilder",
+  projectIncludesTrash: "Zurückgestellte Kapitel und der Papierkorb sind enthalten.",
+  projectExcludesHistory: "Versionsverlauf und Sicherungen sind nicht enthalten.",
+  projectImportCreatesNew:
+    "Der Import erstellt ein neues Projekt. Das aktuelle Projekt wird nicht ersetzt.",
+  projectImportAction: "Als neues Projekt importieren",
+  projectImporting: "Projekt wird importiert …",
+  projectImportOpenAction: "Importiertes Projekt öffnen",
+  projectImportOpenFailed:
+    "Das Projekt wurde importiert, konnte aber noch nicht geöffnet werden. Versuche erneut, es zu öffnen.",
+  projectImportButton: "Projekt importieren",
+  projectTransferTooLarge: "Die Projektdatei ist größer als 64 MiB.",
+  projectExportTitle: "Quiltor-Projekt exportieren",
+  projectExportIntro: "Exportiert das vollständige Projekt als übertragbare Quiltor-Projektdatei.",
+  projectExportAction: "Projektdatei speichern",
+  projectExporting: "Projekt wird exportiert …",
+  projectExportButton: "Projekt exportieren",
+  projectExportFailed: "Die Projektdatei konnte nicht gespeichert werden.",
+  errorProjectTransferInvalidArchive:
+    "Die Projektdatei ist ungültig oder beschädigt. Es wurde nichts importiert.",
+  errorProjectTransferUnsupportedVersion:
+    "Diese Projektdatei stammt aus einer nicht unterstützten Quiltor-Version.",
+  errorProjectTransferLimitExceeded: "Die Projektdatei überschreitet die zulässige Größe.",
+  errorProjectTransferInvalidAsset:
+    "Die Projektdatei enthält eine ungültige Bild- oder Dateianlage.",
+  errorProjectTransferPublicationFailed:
+    "Das neue Projekt konnte nicht veröffentlicht werden. Das bestehende Projekt bleibt unverändert.",
+  backupMirrorFailed:
+    "Lokal gespeichert. Die zusätzliche lesbare Spiegeldatei konnte nicht aktualisiert werden. Prüfe Speicherplatz und Schreibrechte.",
   closeDialog: "Dialog schließen",
   themeChoice: "Darstellung",
   themeSystem: "System",
@@ -20,11 +79,60 @@ export const shared = {
   savedAgo: "Gespeichert · {ago}",
   notSaved: "Nicht gespeichert",
   saveFailed: "Speichern fehlgeschlagen",
+  recoveryOpen: "Entwurf retten",
+  recoveryTitle: "Ungespeicherten Entwurf retten",
+  recoveryDescription:
+    "Das Speichern ist fehlgeschlagen. Sichere den aktuellen Stand, bevor du die Seite verlässt oder gespeicherte Fassungen vergleichst.",
+  recoveryCopyManuscript: "Manuskripttext kopieren",
+  recoveryDownloadManuscript: "Manuskripttext herunterladen",
+  recoveryDownloadAll: "Dokumentdaten als JSON herunterladen",
+  recoveryJsonScope:
+    "Die JSON-Datei enthält Manuskript, Notizen, Welt und Storyboards. Bilder und Verlauf sind nicht enthalten.",
+  recoveryCopying: "Kopiert …",
+  recoveryDownloading: "Lädt herunter …",
+  recoveryCopySucceeded: "Der aktuelle Manuskripttext wurde kopiert.",
+  recoveryDownloadSucceeded: "Der aktuelle Stand wurde heruntergeladen.",
+  recoveryExportFailed:
+    "Die Ausgabe ist fehlgeschlagen. Dein Entwurf bleibt geöffnet und kann erneut ausgegeben werden.",
+  recoveryKeepEditing:
+    "Kopieren oder Herunterladen ändert den Entwurf nicht. Du kannst danach weiterschreiben oder erneut speichern.",
+  recoveryDraftChanged:
+    "Der Entwurf wurde während des Vergleichs geändert. Lade beide Fassungen erneut herunter, bevor du entscheidest.",
+  recoveryConflictTitle: "Konflikt vergleichen",
+  recoveryConflictDescription:
+    "Vergleiche deinen Entwurf mit der gespeicherten Fassung. Quiltor führt die Änderungen nicht automatisch zusammen.",
+  recoveryCompare: "Gespeicherte Fassung laden",
+  recoveryRefreshComparison: "Vergleich aktualisieren",
+  recoveryComparing: "Lädt Vergleich …",
+  recoveryComparisonFailed: "Die gespeicherte Fassung konnte nicht geladen werden.",
+  recoveryOwnVersion: "Mein Entwurf",
+  recoveryPersistedVersion: "Gespeicherte Fassung",
+  recoveryEmptyManuscript: "Kein Manuskripttext",
+  recoveryOwnPlanning: "Meine Planung",
+  recoveryPersistedPlanning: "Gespeicherte Planung",
+  recoveryWorldElements: "Weltelemente",
+  recoveryWorldRelationships: "Beziehungen",
+  recoveryStoryboardBoards: "Storyboards",
+  recoveryStoryboardCards: "Karten",
+  recoveryDownloadBoth: "Beide Fassungen als JSON herunterladen",
+  recoveryBothSaved: "Beide Fassungen wurden heruntergeladen. Du kannst jetzt entscheiden.",
+  recoveryDecisionGuard:
+    "Die Entscheidung wird erst freigeschaltet, nachdem beide Fassungen erfolgreich heruntergeladen wurden. Änderungen am Entwurf sperren sie wieder.",
+  recoveryDecisionFamily: "Diese Entscheidung betrifft: {family}.",
+  recoveryFamilyManuscript: "Manuskript",
+  recoveryFamilyWorld: "Welt und Figuren",
+  recoveryFamilyStoryboard: "Storyboard",
+  recoveryInspectPlanning: "Planungsdaten vollständig anzeigen",
+  recoveryKeepLocal: "Meinen Entwurf als neue Fassung speichern",
+  recoveryLoadPersisted: "Gespeicherte Fassung übernehmen",
+  recoveryResolving: "Löst Konflikt …",
+  recoveryResolutionFailed:
+    "Der Konflikt konnte nicht aufgelöst werden. Beide Fassungen bleiben erhalten.",
   // Shown when an export does not reach its destination: rarely in the browser, but in
   // the desktop app whenever the native save bridge cannot write the file.
   exportFailed: "Der Export konnte nicht gespeichert werden.",
   saveConflict:
-    "Die Seite wurde in einem anderen Tab geändert. Lade sie neu, bevor du weiterschreibst.",
+    "Die gespeicherte Fassung wurde in einem anderen Tab geändert. Bewahre deinen Entwurf auf und vergleiche ihn mit der gespeicherten Fassung.",
   timeline: "Timeline",
   moment: "Zeitpunkt",
   moments: "Zeitpunkte",
@@ -58,6 +166,7 @@ export const shared = {
   noteFocusEditor: "Notiz für {context}",
   noteReferencePicker: "Referenz auswählen",
   noteReferenceNoResults: "Keine passende Referenz",
+  noteReferenceUnavailable: "„{title}“ – Ziel nicht verfügbar",
   noteReferenceLinks: "Verknüpfte Referenzen",
   noteFormatting: "Notiz formatieren",
   noteBold: "Fett",

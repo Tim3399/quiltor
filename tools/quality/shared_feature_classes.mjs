@@ -15,6 +15,10 @@ const MODULES = "packages/client/src/modules";
  * and entries that no longer share anything stand out just as much.
  */
 export const SHARED_FEATURE_CLASSES = Object.freeze({
+  "project-transfer-dialog":
+    "Shared content stack for the project import and export dialogs so both transfer directions keep the same spacing.",
+  "project-transfer-actions":
+    "Shared trailing action row for the project import and export dialogs.",
   "editable-chips":
     "Editable chip list shared by the terms sheet and the elements sheet: both show the same kind of list, one you switch on and off or remove from.",
   "figure-layout":

@@ -94,12 +94,27 @@ async function pressRepeatedly(page: Page, key: string, count: number) {
 const lineStartKey = process.platform === "darwin" ? "Meta+ArrowLeft" : "Home";
 const lineEndKey = process.platform === "darwin" ? "Meta+ArrowRight" : "End";
 
-async function switchWorkspace(page: Page, name: "Text" | "Figuren") {
+async function switchWorkspace(page: Page, name: "Text" | "Figuren" | "Storyboard") {
   await page.getByRole("button", { name, exact: true }).click();
   if (name === "Text") {
     await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
-  } else {
+  } else if (name === "Figuren") {
     await expect(page.getByLabel("Figuren und Beziehungen")).toBeVisible();
+  } else {
+    await page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" }).waitFor();
+  }
+}
+
+async function openChapterDetails(page: Page) {
+  const details = page.getByRole("button", { name: "Details", exact: true });
+  if ((await details.getAttribute("aria-pressed")) !== "true") await details.click();
+  await expect(page.getByLabel("Kapitelnotiz")).toBeVisible();
+}
+
+async function closeModalChapterDetails(page: Page) {
+  const details = page.getByRole("dialog", { name: "Details" });
+  if (await details.isVisible()) {
+    await details.getByRole("button", { name: "Details schließen" }).click();
   }
 }
 
@@ -118,6 +133,8 @@ test("Returning to Text restores the edited chapter, cursor, scroll and input fo
   await nextChapter.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Kapiteltitel")).toHaveValue("Zweites Kapitel");
+  await openChapterDetails(page);
+  await closeModalChapterDetails(page);
 
   const editor = page.getByLabel("Kapiteltext");
   const scroller = page.locator(".editor-scroll");
@@ -148,6 +165,7 @@ test("Returning to Text restores the edited chapter, cursor, scroll and input fo
   expect(savedScrollTop).toBeGreaterThan(0);
 
   await switchWorkspace(page, "Figuren");
+  await switchWorkspace(page, "Storyboard");
   await switchWorkspace(page, "Text");
 
   await expect(page.getByLabel("Kapiteltitel")).toHaveValue("Zweites Kapitel");
@@ -159,6 +177,7 @@ test("Returning to Text restores the edited chapter, cursor, scroll and input fo
     element.scrollTop = element.scrollHeight;
   });
   await expect.poll(() => editorText(editor)).toContain("Am Ende wartet der ZielXYpunkt.");
+  await openChapterDetails(page);
 });
 
 test("Returning to Text restores a reversed selection for exact replacement", async ({

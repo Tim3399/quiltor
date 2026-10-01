@@ -246,7 +246,7 @@ export function HistoryDialog({
                   {segments
                     .filter((segment) => open.has(segment.path))
                     .map((segment) => (
-                      <section key={segment.path} className="diff-segment">
+                      <section key={segment.path} className="diff-segment" data-kind={segment.kind}>
                         <h3>
                           {kindLabel(segment.kind, t)
                             ? `${kindLabel(segment.kind, t)} · ${segment.title}`
@@ -255,26 +255,28 @@ export function HistoryDialog({
                         {segment.binary ? (
                           <p className="diff-note">{t("binaryChange")}</p>
                         ) : (
-                          withOccurrenceKeys(segment.lines).map(({ key, value: line }) =>
-                            line === GAP_MARK ? (
-                              <div key={key} className="diff-gap">
-                                {GAP_MARK}
-                              </div>
-                            ) : (
-                              <div
-                                key={key}
-                                className={
-                                  line.startsWith("+")
-                                    ? "diff-add"
-                                    : line.startsWith("-")
-                                      ? "diff-del"
-                                      : ""
-                                }
-                              >
-                                {word ? markWords(line) : line}
-                              </div>
-                            ),
-                          )
+                          <div className="diff-content">
+                            {withOccurrenceKeys(segment.lines).map(({ key, value: line }) =>
+                              line === GAP_MARK ? (
+                                <div key={key} className="diff-gap">
+                                  {GAP_MARK}
+                                </div>
+                              ) : (
+                                <div
+                                  key={key}
+                                  className={
+                                    line.startsWith("+")
+                                      ? "diff-add"
+                                      : line.startsWith("-")
+                                        ? "diff-del"
+                                        : ""
+                                  }
+                                >
+                                  {word ? markWords(line) : line}
+                                </div>
+                              ),
+                            )}
+                          </div>
                         )}
                       </section>
                     ))}

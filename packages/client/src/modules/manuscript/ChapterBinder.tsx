@@ -1,6 +1,6 @@
-import { X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { useMemo } from "react";
-import { IconButton, SidePanelHeader } from "../../design";
+import { Button, IconButton, SidePanelHeader } from "../../design";
 import { useI18n } from "../../i18n";
 import type { ViewportMode } from "../../shared";
 import type { TimelineMoment, TimeSystem } from "../story-world";
@@ -8,6 +8,7 @@ import { manuscriptStructure } from "./binder/manuscriptTree";
 import type { ChapterActionsMenuProps } from "./ChapterActionsMenu";
 import { ChapterTree } from "./ChapterTree";
 import type { Chapter, Manuscript, ManuscriptStructure } from "./model";
+import type { ManuscriptChapterFilter } from "./workspaceTypes";
 import "./ChapterBinder.css";
 
 /**
@@ -25,6 +26,9 @@ interface ChapterBinderProps {
   onClose: () => void;
   onSelect: (id: string) => void;
   onStructureChange: (structure: ManuscriptStructure) => void;
+  onOpenTrash?: () => void;
+  chapterFilter?: ManuscriptChapterFilter;
+  onChapterFilter?: (filter: ManuscriptChapterFilter) => void;
 }
 
 export function ChapterBinder({
@@ -37,6 +41,9 @@ export function ChapterBinder({
   onClose,
   onSelect,
   onStructureChange,
+  onOpenTrash,
+  chapterFilter,
+  onChapterFilter,
 }: ChapterBinderProps) {
   const { t } = useI18n();
   const structure = useMemo(() => manuscriptStructure(manuscript), [manuscript]);
@@ -65,7 +72,19 @@ export function ChapterBinder({
         onSelect={onSelect}
         onStructureChange={onStructureChange}
         chapterActions={chapterActions}
+        chapterFilter={chapterFilter}
+        onChapterFilter={onChapterFilter}
       />
+      {onOpenTrash && (
+        <Button
+          className="chapter-binder__trash"
+          appearance="secondary"
+          icon={<Trash2 />}
+          onClick={onOpenTrash}
+        >
+          {t("chapterTrash")}
+        </Button>
+      )}
     </>
   );
 }

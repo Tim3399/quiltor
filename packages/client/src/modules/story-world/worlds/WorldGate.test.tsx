@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
@@ -38,6 +38,17 @@ function renderGate(
 }
 
 describe("WorldGate", () => {
+  it("offers project import at project selection without opening an existing world", () => {
+    const onOpen = vi.fn().mockResolvedValue(undefined);
+    renderGate([world("paper")], {
+      onOpen,
+      onProjectImported: vi.fn().mockResolvedValue(undefined),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Projekt importieren" }));
+    expect(screen.getByRole("dialog", { name: "Quiltor-Projekt importieren" })).toBeInTheDocument();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   it("opens creation as a separate sheet and creates only after submission", () => {
     const onCreate = vi.fn().mockResolvedValue(undefined);
     renderGate([], { onCreate });
@@ -76,7 +87,151 @@ describe("WorldGate", () => {
 
     fireEvent.click(remove);
     expect(onOpen).not.toHaveBeenCalled();
-    expect(screen.getByRole("alertdialog", { name: "Welt lokal löschen" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("alertdialog", { name: "Welt in Papierkorb verschieben" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/in den Papierkorb verschoben/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "In Papierkorb verschieben" })).toBeInTheDocument();
+  });
+
+  it("undoes only the world that was just moved to trash", async () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    const onRestore = vi.fn().mockResolvedValue(undefined);
+    renderGate([world("paper", "Die Stadt aus Papier")], {
+      onDelete,
+      onRestore,
+      onLoadTrash: vi.fn().mockResolvedValue(undefined),
+      onPurge: vi.fn().mockResolvedValue(undefined),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Die Stadt aus Papier – Welt löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "In Papierkorb verschieben" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Rückgängig" })).toBeEnabled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
+    await waitFor(() => expect(onRestore).toHaveBeenCalledWith("paper"));
+  });
+
+  it.each(["restore", "purge"] as const)(
+    "clears stale undo after the same world is %s from trash",
+    async (action) => {
+      const trashed = {
+        ...world("paper", "Die Stadt aus Papier"),
+        deletedAt: "2026-08-24T12:00:00Z",
+      };
+      const onRestore = vi.fn().mockResolvedValue(undefined);
+      const onPurge = vi.fn().mockResolvedValue(undefined);
+      renderGate([trashed], {
+        trash: [trashed],
+        onDelete: vi.fn().mockResolvedValue(undefined),
+        onLoadTrash: vi.fn().mockResolvedValue(undefined),
+        onRestore,
+        onPurge,
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Die Stadt aus Papier – Welt löschen" }));
+      fireEvent.click(screen.getByRole("button", { name: "In Papierkorb verschieben" }));
+      await screen.findByRole("button", { name: "Rückgängig" });
+      fireEvent.click(screen.getByRole("button", { name: "Papierkorb" }));
+
+      if (action === "restore") {
+        fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
+        await waitFor(() => expect(onRestore).toHaveBeenCalledWith("paper"));
+      } else {
+        fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+        const dialog = screen.getByRole("alertdialog", { name: "Welt endgültig löschen" });
+        const purge = within(dialog).getByRole("button", {
+          name: "Endgültig löschen – gedrückt halten zum Bestätigen",
+        });
+        vi.useFakeTimers();
+        try {
+          fireEvent.pointerDown(purge, { pointerId: 1 });
+          await vi.advanceTimersByTimeAsync(1600);
+          expect(onPurge).toHaveBeenCalledWith("paper");
+        } finally {
+          vi.useRealTimers();
+        }
+      }
+
+      await waitFor(() =>
+        expect(screen.queryByRole("button", { name: "Rückgängig" })).not.toBeInTheDocument(),
+      );
+    },
+  );
+
+  it("offers accessible restore and confirmed permanent deletion from trash", async () => {
+    const onLoadTrash = vi.fn().mockResolvedValue(undefined);
+    const onRestore = vi.fn().mockResolvedValue(undefined);
+    const onPurge = vi.fn().mockResolvedValue(undefined);
+    renderGate([], {
+      trash: [{ ...world("paper", "Die Stadt aus Papier"), deletedAt: "2026-08-24T12:00:00Z" }],
+      onLoadTrash,
+      onRestore,
+      onPurge,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Papierkorb" }));
+    expect(onLoadTrash).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog", { name: "Papierkorb" })).toBeInTheDocument();
+    expect(screen.getByText("Die Stadt aus Papier")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+    expect(screen.getByRole("alertdialog", { name: "Welt endgültig löschen" })).toBeInTheDocument();
+    expect(screen.getByText(/alle lokalen Sicherungen/)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Endgültig löschen – gedrückt halten zum Bestätigen",
+      }),
+    );
+    expect(onPurge).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(onPurge).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
+    expect(onRestore).toHaveBeenCalledWith("paper");
+  });
+
+  it("shows loading, empty, and error trash states", () => {
+    const callbacks = {
+      onLoadTrash: vi.fn().mockResolvedValue(undefined),
+      onRestore: vi.fn().mockResolvedValue(undefined),
+      onPurge: vi.fn().mockResolvedValue(undefined),
+    };
+    const { rerender } = render(
+      <I18nProvider>
+        <WorldGate
+          worlds={[]}
+          theme="system"
+          onTheme={vi.fn()}
+          onOpen={vi.fn()}
+          onCreate={vi.fn()}
+          onDelete={vi.fn()}
+          trash={null}
+          {...callbacks}
+        />
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Papierkorb" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Papierkorb wird geladen");
+
+    rerender(
+      <I18nProvider>
+        <WorldGate
+          worlds={[]}
+          theme="system"
+          onTheme={vi.fn()}
+          onOpen={vi.fn()}
+          onCreate={vi.fn()}
+          onDelete={vi.fn()}
+          trash={[]}
+          trashError="Nicht erreichbar"
+          {...callbacks}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Nicht erreichbar");
+    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    expect(callbacks.onLoadTrash).toHaveBeenCalledTimes(2);
   });
 
   it("keeps large catalogs bounded and searchable", () => {

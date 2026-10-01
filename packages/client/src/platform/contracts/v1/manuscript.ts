@@ -16,6 +16,7 @@ import {
   optional,
   WireContractError,
   wireArray,
+  wireBoolean,
   wireEnum,
   wireInteger,
   wireNumber,
@@ -82,8 +83,17 @@ export interface ManuscriptStructureWireV1 {
   [key: string]: unknown;
 }
 
+export interface ChapterTrashEntryWireV1 {
+  chapter: ChapterWireV1;
+  deletedAt: string;
+  originalFolderPath: ChapterFolderWireV1[];
+  treeItem: ManuscriptTreeItemWireV1 & { kind: "chapter"; chapterId: string };
+  [key: string]: unknown;
+}
+
 export interface ManuscriptPayloadWireV1 {
   chapters: ChapterWireV1[];
+  trash?: ChapterTrashEntryWireV1[];
   bookLayout?: BookLayoutWireV1;
   structure?: ManuscriptStructureWireV1;
   language?: "de-DE";
@@ -122,6 +132,7 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
     const id = wireString(chapter.id, `${chapterPath}.id`, { min: 1, max: 200 });
     if (chapterIds.has(id)) throw new WireContractError(`${chapterPath}.id`);
     chapterIds.add(id);
+    optional(chapter, "inBook", wireBoolean, chapterPath);
     optional(
       chapter,
       "title",
@@ -245,6 +256,90 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
         previousMarkEnd.set(kind, to);
       }
     }
+  }
+
+  const canonicalTrash: ChapterTrashEntryWireV1[] | undefined =
+    payload.trash === undefined
+      ? undefined
+      : wireArray(payload.trash, `${path}.trash`).map((entryValue, index) => {
+          const entryPath = `${path}.trash[${index}]`;
+          const entry = wireRecord(entryValue, entryPath);
+          const deletedAt = wireString(entry.deletedAt, `${entryPath}.deletedAt`, {
+            min: 20,
+            max: 40,
+          });
+          if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(deletedAt)) {
+            throw new WireContractError(`${entryPath}.deletedAt`);
+          }
+          const canonicalChapter = manuscriptPayload(
+            { chapters: [entry.chapter] },
+            `${entryPath}.chapterEnvelope`,
+          ).chapters[0];
+          const chapterId = canonicalChapter.id;
+          if (chapterIds.has(chapterId)) throw new WireContractError(`${entryPath}.chapter.id`);
+          const previousTrash = payload.trash as unknown[];
+          if (
+            previousTrash.slice(0, index).some((candidate) => {
+              const record = candidate as { chapter?: { id?: unknown } };
+              return record.chapter?.id === chapterId;
+            })
+          ) {
+            throw new WireContractError(`${entryPath}.chapter.id`);
+          }
+          const treeItem = wireRecord(entry.treeItem, `${entryPath}.treeItem`);
+          if (
+            wireEnum(treeItem.kind, ["chapter"] as const, `${entryPath}.treeItem.kind`) !==
+              "chapter" ||
+            wireString(treeItem.chapterId, `${entryPath}.treeItem.chapterId`, {
+              min: 1,
+              max: 200,
+            }) !== chapterId ||
+            treeItem.folderId !== undefined
+          ) {
+            throw new WireContractError(`${entryPath}.treeItem`);
+          }
+          wireString(treeItem.id, `${entryPath}.treeItem.id`, { min: 1, max: 500 });
+          wireInteger(treeItem.position, `${entryPath}.treeItem.position`, { min: 0 });
+          optional(
+            treeItem,
+            "parentFolderId",
+            (item, itemPath) => wireString(item, itemPath, { min: 1, max: 200 }),
+            `${entryPath}.treeItem`,
+          );
+          const originalFolderPathValues = wireArray(
+            entry.originalFolderPath,
+            `${entryPath}.originalFolderPath`,
+          );
+          if (originalFolderPathValues.length > 100) {
+            throw new WireContractError(`${entryPath}.originalFolderPath`);
+          }
+          const folderIds = new Set<string>();
+          const originalFolderPath = originalFolderPathValues.map((folderValue, folderIndex) => {
+            const folderPath = `${entryPath}.originalFolderPath[${folderIndex}]`;
+            const folder = wireRecord(folderValue, folderPath);
+            const folderId = wireString(folder.id, `${folderPath}.id`, { min: 1, max: 200 });
+            if (folderIds.has(folderId)) throw new WireContractError(`${folderPath}.id`);
+            folderIds.add(folderId);
+            wireString(folder.title, `${folderPath}.title`, { max: 1000 });
+            return folder as ChapterFolderWireV1;
+          });
+          const originalParent = treeItem.parentFolderId;
+          if (
+            (originalParent === undefined && originalFolderPath.length > 0) ||
+            (originalParent !== undefined && originalFolderPath.at(-1)?.id !== originalParent)
+          ) {
+            throw new WireContractError(`${entryPath}.originalFolderPath`);
+          }
+          return {
+            ...entry,
+            chapter: canonicalChapter,
+            deletedAt,
+            originalFolderPath,
+            treeItem: treeItem as ChapterTrashEntryWireV1["treeItem"],
+          };
+        });
+  if (canonicalTrash && canonicalTrash.length > 1000) {
+    throw new WireContractError(`${path}.trash`);
   }
 
   if (payload.structure !== undefined) {
@@ -373,6 +468,7 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
       ...wireRecord(chapter, `${path}.chapters[${index}]`),
       ...(canonicalNoteMarks[index] === undefined ? {} : { noteMarks: canonicalNoteMarks[index] }),
     })),
+    ...(canonicalTrash === undefined ? {} : { trash: canonicalTrash }),
   } as unknown as ManuscriptPayloadWireV1;
 }
 
@@ -401,6 +497,7 @@ function encodeChapter(chapter: Manuscript["chapters"][number]): ChapterWireV1 {
 
 export function decodeManuscriptV1(value: unknown): DecodedDocumentV1<Manuscript> {
   const wire = decodeDocumentEnvelopeV1(value, "quiltor.manuscript", manuscriptPayload);
+  const { trash: wireTrash, ...payloadWithoutTrash } = wire.payload;
   const structure = wire.payload.structure ?? {
     folders: [],
     items: wire.payload.chapters.map((chapter, position) => ({
@@ -412,7 +509,7 @@ export function decodeManuscriptV1(value: unknown): DecodedDocumentV1<Manuscript
   };
   return {
     document: {
-      ...wire.payload,
+      ...payloadWithoutTrash,
       bookLayout: cloneBookLayoutV1(wire.payload.bookLayout),
       structure: {
         ...structure,
@@ -429,6 +526,21 @@ export function decodeManuscriptV1(value: unknown): DecodedDocumentV1<Manuscript
         body: chapter.body ?? "",
         note: chapter.note ?? "",
       })),
+      ...(wireTrash === undefined
+        ? {}
+        : {
+            trash: wireTrash.map((entry) => ({
+              ...entry,
+              chapter: {
+                ...cloneChapter(entry.chapter),
+                title: entry.chapter.title ?? "",
+                body: entry.chapter.body ?? "",
+                note: entry.chapter.note ?? "",
+              },
+              originalFolderPath: entry.originalFolderPath.map((folder) => ({ ...folder })),
+              treeItem: { ...entry.treeItem, kind: "chapter" as const },
+            })),
+          }),
     },
     revision: wire.revision,
   };
@@ -439,6 +551,16 @@ export function encodeManuscriptV1(model: Manuscript, revision?: number): Manusc
     ...model,
     bookLayout: cloneBookLayoutV1(model.bookLayout),
     chapters: model.chapters.map(encodeChapter),
+    ...(model.trash === undefined
+      ? {}
+      : {
+          trash: model.trash.map((entry) => ({
+            ...entry,
+            chapter: encodeChapter(entry.chapter),
+            originalFolderPath: entry.originalFolderPath.map((folder) => ({ ...folder })),
+            treeItem: { ...entry.treeItem },
+          })),
+        }),
   } as ManuscriptPayloadWireV1;
   return encodeDocumentEnvelopeV1("quiltor.manuscript", payload, revision, manuscriptPayload);
 }

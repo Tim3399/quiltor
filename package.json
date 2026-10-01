@@ -2,7 +2,7 @@
   "name": "quiltor",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.0",
-  "version": "3.19.0",
+  "version": "3.20.0",
   "packageManager": "npm@10.9.8",
   "type": "module",
   "scripts": {
@@ -13,14 +13,16 @@
     "start": "node tools/dev/start-workshop.mjs",
     "dev": "vite",
     "build": "npm run check:contracts && npm run check:architecture && npm run check:design && npm run check:design-system && npm run check:i18n && npm run check:platform && tsc -b && vite build",
-    "format": "npm run format:web && npm run format:python && npm run format:docs",
+    "format": "npm run format:web && npm run format:python && npm run format:docs && npm run format:rust",
     "format:web": "biome format --write .",
     "format:python": "node tools/dev/python.mjs --needs ruff -m ruff format .",
     "format:docs": "prettier --write \"**/*.{md,yml,yaml,html}\"",
-    "check:format": "npm run check:format:web && npm run check:format:python && npm run check:format:docs",
+    "format:rust": "cargo fmt --all",
+    "check:format": "npm run check:format:web && npm run check:format:python && npm run check:format:docs && npm run check:format:rust",
     "check:format:web": "biome format .",
     "check:format:python": "node tools/dev/python.mjs --needs ruff -m ruff format --check .",
     "check:format:docs": "prettier --check \"**/*.{md,yml,yaml,html}\"",
+    "check:format:rust": "cargo fmt --all -- --check",
     "check:contracts": "node tools/quality/check_contracts.mjs",
     "check:architecture": "node --test tools/quality/architecture_docs.test.mjs tools/quality/frontend_boundaries.test.mjs tools/quality/css_ownership.test.mjs tools/quality/shared_feature_classes.test.mjs tools/quality/e2e_world_lifecycle.test.mjs tools/quality/rust_safety.test.mjs && node tools/quality/check_architecture.mjs && node tools/quality/check_shared_feature_classes.mjs",
     "check:design": "node --test tools/quality/semantic_color_roles.test.mjs tools/quality/layout_geometry.test.mjs && node tools/quality/check_design.mjs && node tools/quality/check_layout_geometry.mjs",
@@ -65,6 +67,6 @@
     "prettier": "3.9.6",
     "typescript": "7.0.2",
     "vite": "8.1.5",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }

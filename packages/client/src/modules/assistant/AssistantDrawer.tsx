@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button, ConfirmDialog, IconButton, ListboxSelect, Sheet, SidePanel } from "../../design";
 import { useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
-import type { Chapter } from "../manuscript";
+import { type Chapter, isChapterInBook } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { AssistantComposer } from "./AssistantComposer";
 import { AssistantConversation } from "./AssistantConversation";
@@ -18,6 +18,7 @@ export function AssistantDrawer({
   worldId,
   figures,
   chapters,
+  chapterStatuses,
   currentChapterId,
   open,
   onApply,
@@ -28,6 +29,7 @@ export function AssistantDrawer({
   worldId: string;
   figures: FigureState;
   chapters: Chapter[];
+  chapterStatuses?: ReadonlyMap<string, "set_aside" | "deleted">;
   currentChapterId: string;
   open: boolean;
   onApply: (proposals: AssistantProposal[]) => AssistantProposalApplyResult;
@@ -90,6 +92,10 @@ export function AssistantDrawer({
     setChapterPickerOpen(true);
     chapterPickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
+  const currentChapter = chapters.find((chapter) => chapter.id === currentChapterId);
+  const currentScopeLabel = `${t("currentChapterScope")}${
+    currentChapter && !isChapterInBook(currentChapter) ? ` · ${t("chapterSetAsideStatus")}` : ""
+  }`;
 
   const sendDraft = () => {
     const question = draft.trim();
@@ -166,7 +172,7 @@ export function AssistantDrawer({
             options={[
               {
                 value: "current",
-                label: t("currentChapterScope"),
+                label: currentScopeLabel,
                 disabled: !currentChapterId,
               },
               { value: "selected", label: t("selectedChaptersScope") },
@@ -177,13 +183,10 @@ export function AssistantDrawer({
         </div>
         <small>
           {t("updateWorldFromManuscriptHint", {
-            scope: t(
+            scope:
               extractionScope === "current"
-                ? "currentChapterScope"
-                : extractionScope === "selected"
-                  ? "selectedChaptersScope"
-                  : "allChaptersScope",
-            ),
+                ? currentScopeLabel
+                : t(extractionScope === "selected" ? "selectedChaptersScope" : "allChaptersScope"),
           })}
         </small>
       </section>
@@ -193,6 +196,7 @@ export function AssistantDrawer({
         batchProgress={batchProgress}
         batchProgressId={batchProgressId}
         figures={figures}
+        chapterStatuses={chapterStatuses}
         endRef={endRef}
         onDraftChange={setDraft}
         onRetry={(entryId) => void send(entryId)}

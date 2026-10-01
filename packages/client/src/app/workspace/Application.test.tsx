@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import type { FigureState } from "../../modules/story-world";
-import { quiltorClient } from "../../platform";
+import { ApplicationGatewayError, quiltorClient } from "../../platform";
 import { App } from "../Application";
 import type { LoadedWorldDocuments } from "../world/useWorldSession";
 
@@ -91,6 +91,113 @@ describe("application save barriers", () => {
       fireEvent.click(screen.getByRole("menuitem", { name: menuItem }));
       await waitFor(() => expect(actions[action]).toHaveBeenCalledOnce());
       expect(save.mock.calls[1][0].nodes[0].sub).toBe("unsaved draft");
+    },
+  );
+
+  it("rescues the latest in-memory documents while every save attempt rejects", async () => {
+    const save = vi
+      .spyOn(quiltorClient.application.storyWorld, "save")
+      .mockRejectedValue(new Error("Local storage failed"));
+    const exportFile = vi
+      .spyOn(quiltorClient.platform.files, "save")
+      .mockResolvedValue({ status: "saved" });
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "original" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Zur Weltauswahl" }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(screen.getByRole("alert")).toHaveTextContent("Local storage failed");
+    expect(screen.queryByText(/^Gespeichert/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Entwurf retten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dokumentdaten als JSON herunterladen" }));
+    await waitFor(() => expect(exportFile).toHaveBeenCalledOnce());
+    const reader = new FileReader();
+    const exported = new Promise<string>((resolve, reject) => {
+      reader.addEventListener("load", () => resolve(String(reader.result)));
+      reader.addEventListener("error", () => reject(reader.error));
+    });
+    reader.readAsText(exportFile.mock.calls[0][1]);
+    expect(JSON.parse(await exported).figures.nodes[0].sub).toBe("unsaved draft");
+
+    fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+    expect(screen.getByRole("button", { name: "unsaved draft" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ sub: "unsaved draft" })],
+      }),
+    );
+    expect(screen.queryByText(/^Gespeichert/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Meinen Entwurf als neue Fassung speichern", "unsaved draft"],
+    ["Gespeicherte Fassung übernehmen", "persisted"],
+  ] as const)(
+    "resolves a figure conflict with the explicit %s choice",
+    async (choice, expected) => {
+      vi.spyOn(quiltorClient.application.storyWorld, "save").mockRejectedValueOnce(
+        new ApplicationGatewayError("Konflikt", "document.revision_conflict", {
+          category: "conflict",
+        }),
+      );
+      const saveExpected = vi
+        .spyOn(quiltorClient.application.storyWorld, "saveExpected")
+        .mockResolvedValue({ ok: true, zeit: "12:00", revision: 9 });
+      vi.spyOn(quiltorClient.application.manuscript, "peek").mockResolvedValue({
+        document: { chapters: [] },
+        revision: 2,
+      });
+      vi.spyOn(quiltorClient.application.storyWorld, "peek").mockResolvedValue({
+        document: {
+          nodes: [{ id: "ada", name: "Ada", x: 0, y: 0, sub: "persisted" }],
+          edges: [],
+        },
+        revision: 8,
+      });
+      vi.spyOn(quiltorClient.application.storyboards, "peek").mockResolvedValue({
+        document: { boards: [], nodes: [], edges: [] },
+        revision: 3,
+      });
+      vi.spyOn(quiltorClient.platform.files, "save").mockResolvedValue({ status: "saved" });
+      render(
+        <I18nProvider>
+          <App />
+        </I18nProvider>,
+      );
+
+      fireEvent.click(await screen.findByRole("button", { name: "original" }));
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Zur Weltauswahl" }));
+      await screen.findByText("Konflikt");
+      fireEvent.click(screen.getByRole("button", { name: "Entwurf retten" }));
+      fireEvent.click(screen.getByRole("button", { name: "Gespeicherte Fassung laden" }));
+      await screen.findByRole("heading", { name: "Gespeicherte Planung" });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Beide Fassungen als JSON herunterladen" }),
+      );
+      const resolution = await screen.findByRole("button", { name: choice });
+      await waitFor(() => expect(resolution).toBeEnabled());
+      fireEvent.click(resolution);
+
+      await waitFor(() => expect(screen.getByRole("button", { name: expected })).toBeVisible());
+      if (expected === "unsaved draft") {
+        expect(saveExpected).toHaveBeenCalledWith(
+          expect.objectContaining({
+            nodes: [expect.objectContaining({ sub: "unsaved draft" })],
+          }),
+          8,
+        );
+      } else {
+        expect(saveExpected).not.toHaveBeenCalled();
+      }
     },
   );
 });

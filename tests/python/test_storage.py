@@ -1864,7 +1864,7 @@ class StorageTest(unittest.TestCase):
                         "",
                         "Gesicherter Ort",
                         "",
-                        "blue",
+                        "moss",
                         0,
                         0,
                         "{}",
@@ -1964,16 +1964,19 @@ class StorageTest(unittest.TestCase):
 
         self.delete_world(doomed["id"])
 
+        self.assertTrue(doomed_database.exists())
+        for root in roots:
+            self.assertTrue((config.DATA / root / doomed["id"] / "sentinel.txt").exists())
+            self.assertTrue((config.DATA / root / survivor["id"] / "sentinel.txt").exists())
+        self.assertTrue(survivor_database.exists())
+        self.assertEqual([world["title"] for world in self.list_worlds()], ["Keep me"])
+
+        world_catalog.purge_world(doomed["id"], paths=self.paths)
         self.assertFalse(doomed_database.exists())
         self.assertFalse(Path(f"{doomed_database}-wal").exists())
         self.assertFalse(Path(f"{doomed_database}-shm").exists())
         for root in roots:
             self.assertFalse((config.DATA / root / doomed["id"]).exists())
-            self.assertTrue((config.DATA / root / survivor["id"] / "sentinel.txt").exists())
-        self.assertTrue(survivor_database.exists())
-        self.assertTrue(Path(f"{survivor_database}-wal").exists())
-        self.assertTrue(Path(f"{survivor_database}-shm").exists())
-        self.assertEqual([world["title"] for world in self.list_worlds()], ["Keep me"])
 
     def test_world_listing_ignores_sqlite_files_without_a_world_id(self):
         world = self.create_world("Valid world")
@@ -2023,6 +2026,8 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(self.list_worlds(owner_sub="temporary"), [])
 
         self.delete_world(world["id"], owner_sub=config.LOCAL_OWNER)
+        self.assertTrue(path.exists())
+        world_catalog.purge_world(world["id"], config.LOCAL_OWNER, paths=self.paths)
         self.assertFalse(path.exists())
 
     def test_create_world_stamps_owner_sub(self):
@@ -2040,9 +2045,11 @@ class StorageTest(unittest.TestCase):
             self.delete_world(world["id"], owner_sub="bob")
         self.assertTrue((config.WORLDS / f"{world['id']}.sqlite3").exists())
         self.delete_world(world["id"], owner_sub="alice")
-        self.assertFalse((config.WORLDS / f"{world['id']}.sqlite3").exists())
+        self.assertTrue((config.WORLDS / f"{world['id']}.sqlite3").exists())
         with self.assertRaises(FileNotFoundError):
             self.delete_world(world["id"], owner_sub="alice")
+        world_catalog.purge_world(world["id"], "alice", paths=self.paths)
+        self.assertFalse((config.WORLDS / f"{world['id']}.sqlite3").exists())
 
     def test_explicit_db_paths_are_isolated_without_global_activation(self):
         world_a = self.create_world("A")

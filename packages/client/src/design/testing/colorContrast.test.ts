@@ -216,6 +216,23 @@ function expectNonTextContrast(
 }
 
 describe.each(["light", "dark"] as const)("%s-theme text contrast", (theme) => {
+  it.each(["ins", "del"])(
+    "keeps history %s words readable on context, added and deleted lines",
+    (tag) => {
+      const history = stylesheet("../modules/history/HistoryDialog.css");
+      const block = history.match(new RegExp(`\\.diff-view ${tag}\\s*\\{([^}]*)\\}`))?.[1];
+      expect(block, `History word rule for ${tag} is missing`).toBeDefined();
+      const foreground = block?.match(/(?:^|;)\s*color:\s*var\((--[\w-]+)\)/)?.[1] ?? "--ink";
+      const background = block?.match(/(?:^|;)\s*background:\s*var\((--[\w-]+)\)/)?.[1];
+      for (const parent of ["--paper", "--diff-add", "--diff-delete"]) {
+        const ratio = contrastRatio(token(theme, foreground), token(theme, background ?? parent));
+        expect(ratio, `${theme} ${tag} on ${parent}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+          4.5,
+        );
+      }
+    },
+  );
+
   it("keeps all normal-size foundation text at WCAG AA across materials and states", () => {
     const backgrounds = materialBackgrounds(theme);
     expectSmallTextContrast(theme, "--text-primary", backgrounds);

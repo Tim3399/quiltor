@@ -14,8 +14,7 @@
 
 .graph-edge-appearance-select__label {
   color: var(--muted);
-  font-size: var(--font-size-2);
-  font-weight: 600;
+  font: var(--font-field-label);
   white-space: nowrap;
 }
 

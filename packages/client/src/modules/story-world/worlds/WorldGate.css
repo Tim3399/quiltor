@@ -37,11 +37,11 @@
   border: 1px solid var(--accent-primary);
   border-radius: 50%;
   color: var(--accent-primary);
-  font: 600 var(--font-size-8) var(--prose);
+  font: 600 var(--font-size-label-hero) var(--prose);
 }
 .world-gate header small {
   color: var(--muted);
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-metadata-legacy-compact);
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
@@ -62,6 +62,9 @@
   background: var(--panel);
   box-shadow: var(--elevation-1) var(--shadow-color);
 }
+.world-trash-undo {
+  margin-bottom: var(--space-16);
+}
 .world-list-panel[data-long="true"] {
   min-height: 0;
   display: flex;
@@ -75,10 +78,16 @@
   gap: var(--space-12);
   margin-bottom: var(--space-16);
 }
+.world-list-actions,
+.world-trash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
 .world-list-panel h2,
 .world-create-sheet h2 {
   margin: 0;
-  font: 600 var(--font-size-6) var(--prose);
+  font: 600 var(--font-size-section-title) var(--prose);
 }
 .world-filter {
   width: min(360px, 100%);
@@ -113,6 +122,39 @@
   min-height: 100%;
   padding: var(--space-24);
 }
+.world-trash-sheet {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-24);
+}
+.world-trash-list {
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+}
+.world-trash-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16);
+  padding: var(--space-16);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+.world-trash-title,
+.world-trash-meta {
+  margin: 0;
+}
+.world-trash-title {
+  font: 600 var(--font-size-body) var(--prose);
+}
+.world-trash-meta {
+  margin-top: var(--space-4);
+  color: var(--muted);
+  font-size: var(--font-size-metadata);
+}
 .world-create-header {
   display: flex;
   align-items: center;
@@ -143,7 +185,7 @@
   .world-mark {
     width: 42px;
     height: 42px;
-    font-size: var(--font-size-7);
+    font-size: var(--font-size-label-display);
   }
   .world-list-panel {
     padding: var(--space-14);
@@ -157,6 +199,13 @@
   }
   .world-create-sheet {
     padding: var(--space-16);
+  }
+  .world-trash-sheet {
+    padding: var(--space-16);
+  }
+  .world-trash-item {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

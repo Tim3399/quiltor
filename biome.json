@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "root": true,
 
   "vcs": {
     "enabled": true,
@@ -13,9 +14,14 @@
       "!!**/node_modules",
       "!!**/dist",
       "!!**/build",
-      "!!**/.venv-desktop",
+      "!!**/coverage",
+      "!!**/.venv*",
+      "!!**/venv",
+      "!!**/target",
       "!!**/runtime",
-      "!!**/models"
+      "!!**/models",
+      "!!**/test-results",
+      "!!**/playwright-report"
     ],
     "ignoreUnknown": true
   },

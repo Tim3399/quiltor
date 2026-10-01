@@ -1,7 +1,12 @@
 node_modules
 dist
+build
+coverage
+.venv*
+venv
+target
 runtime
 models
-coverage
+test-results
+playwright-report
 .pytest_cache
-*.gguf

@@ -33,7 +33,12 @@ def get_world_owner(world_id: str, *, paths: config.SQLitePaths) -> str | None:
         return None
 
 
-def list_worlds(owner_sub: str | None = None, *, paths: config.SQLitePaths) -> list[dict[str, str]]:
+def list_worlds(
+    owner_sub: str | None = None,
+    *,
+    paths: config.SQLitePaths,
+    deleted: bool = False,
+) -> list[dict[str, str]]:
     paths.worlds.mkdir(parents=True, exist_ok=True)
     candidates = [
         (path.stem, path)
@@ -53,11 +58,17 @@ def list_worlds(owner_sub: str | None = None, *, paths: config.SQLitePaths) -> l
                 owner_row = database.execute(
                     "SELECT value FROM meta WHERE key='owner_sub'"
                 ).fetchone()
+                deleted_row = database.execute(
+                    "SELECT value FROM meta WHERE key='deleted_at'"
+                ).fetchone()
             if (
                 owner_sub is not None
                 and (owner_row[0] if owner_row and owner_row[0] else config.LOCAL_OWNER)
                 != owner_sub
             ):
+                continue
+            deleted_at = deleted_row[0] if deleted_row and deleted_row[0] else ""
+            if bool(deleted_at) != deleted:
                 continue
             result.append(
                 {
@@ -65,6 +76,7 @@ def list_worlds(owner_sub: str | None = None, *, paths: config.SQLitePaths) -> l
                     "title": row[0] if row else world_id,
                     "backupUrl": repository_row[0] if repository_row else "",
                     "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
+                    **({"deletedAt": deleted_at} if deleted_at else {}),
                 }
             )
         except sqlite3.Error:
@@ -147,7 +159,7 @@ def delete_world(
     *,
     paths: config.SQLitePaths,
 ) -> None:
-    """Delete a local world without touching its configured remote repository."""
+    """Move a world to its owner's persistent trash."""
 
     if not WORLD_ID_RE.fullmatch(world_id):
         raise ValueError("Invalid world identifier.")
@@ -156,6 +168,40 @@ def delete_world(
         raise FileNotFoundError("This world does not exist.")
     if owner_sub is not None and get_world_owner(world_id, paths=paths) != owner_sub:
         raise PermissionError("This world belongs to a different account.")
+    with connection(path) as database:
+        deleted_row = database.execute("SELECT value FROM meta WHERE key='deleted_at'").fetchone()
+        if deleted_row and deleted_row[0]:
+            raise FileNotFoundError("This world does not exist.")
+        database.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES('deleted_at',?)",
+            (datetime.now().astimezone().isoformat(),),
+        )
+        _advance_document_revisions(database)
+
+
+def restore_world(
+    world_id: str,
+    owner_sub: str | None = None,
+    *,
+    paths: config.SQLitePaths,
+) -> None:
+    """Restore a trashed world without changing its identity or resources."""
+
+    path = _require_trashed_world(world_id, owner_sub, paths=paths)
+    with connection(path) as database:
+        database.execute("DELETE FROM meta WHERE key='deleted_at'")
+        _advance_document_revisions(database)
+
+
+def purge_world(
+    world_id: str,
+    owner_sub: str | None = None,
+    *,
+    paths: config.SQLitePaths,
+) -> None:
+    """Permanently remove a trashed world and all of its local resources."""
+
+    path = _require_trashed_world(world_id, owner_sub, paths=paths)
     for directory in (
         paths.backups / world_id,
         paths.data / "history" / world_id,
@@ -168,6 +214,48 @@ def delete_world(
             pass
     for database_file in (Path(f"{path}-wal"), Path(f"{path}-shm"), path):
         database_file.unlink(missing_ok=True)
+    _purge_migration_copies(world_id, paths=paths)
+
+
+def _advance_document_revisions(database: sqlite3.Connection) -> None:
+    for kind in ("manuscript", "figures", "storyboards"):
+        key = f"{kind}_revision"
+        row = database.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        current = int(row[0]) if row else 0
+        database.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+            (key, str(current + 1)),
+        )
+
+
+def _purge_migration_copies(world_id: str, *, paths: config.SQLitePaths) -> None:
+    copy_name = re.compile(
+        rf"{re.escape(world_id)}\.pre-migration-v[0-9]+-"
+        r"[0-9]{8}-[0-9]{6}-[0-9]{6}\.sqlite3(?:-(?:wal|shm))?"
+    )
+    for candidate in paths.worlds.glob(f"{world_id}.pre-migration-v*.sqlite3*"):
+        if copy_name.fullmatch(candidate.name):
+            candidate.unlink(missing_ok=True)
+
+
+def _require_trashed_world(
+    world_id: str,
+    owner_sub: str | None,
+    *,
+    paths: config.SQLitePaths,
+) -> Path:
+    if not WORLD_ID_RE.fullmatch(world_id):
+        raise ValueError("Invalid world identifier.")
+    path = world_db_path(world_id, paths=paths)
+    if not path.exists():
+        raise FileNotFoundError("This world does not exist.")
+    if owner_sub is not None and get_world_owner(world_id, paths=paths) != owner_sub:
+        raise PermissionError("This world belongs to a different account.")
+    with connection(path) as database:
+        deleted_row = database.execute("SELECT value FROM meta WHERE key='deleted_at'").fetchone()
+    if not deleted_row or not deleted_row[0]:
+        raise ValueError("Only trashed worlds can be restored or permanently deleted.")
+    return path
 
 
 __all__ = [
@@ -177,5 +265,7 @@ __all__ = [
     "get_world_owner",
     "list_worlds",
     "normalize_backup_url",
+    "purge_world",
+    "restore_world",
     "world_db_path",
 ]

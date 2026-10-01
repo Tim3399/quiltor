@@ -1,4 +1,56 @@
 export const tools = {
+  cloudTitle: "Cloud-Synchronisation",
+  cloudManualExplanation:
+    "Gleiche dieses Projekt bei Bedarf mit deinen anderen Geräten ab. Übertragungen beginnen erst mit „Jetzt synchronisieren“. Gesicherte Versionen bleiben unabhängig davon erhalten.",
+  cloudLocalIndependence:
+    "Schreiben, Papierkorb, Wiederherstellung und Projektexport bleiben ohne Cloud nutzbar.",
+  cloudUnconfigured: "Keine Cloud eingerichtet",
+  cloudUnlinked: "Dieses Gerät wurde noch nicht abgeglichen",
+  cloudUnlinkedHelp:
+    "In der Cloud liegt bereits eine Fassung dieses Projekts. Dieses Gerät hat noch keinen bestätigten gemeinsamen Stand. Prüfe beide Fassungen und wähle ausdrücklich, welche übernommen werden soll.",
+  cloudSynced: "Projektstand mit der Cloud abgeglichen",
+  cloudLocalPending: "Lokale Änderungen warten auf Übertragung",
+  cloudRemotePending: "Ein neuerer Cloud-Stand ist verfügbar",
+  cloudConflict: "Beide Gerätefassungen wurden geändert",
+  cloudRefresh: "Status aktualisieren",
+  cloudSyncNow: "Jetzt synchronisieren",
+  cloudWorking: "Cloud-Stand wird geprüft …",
+  cloudStateNotSaved:
+    "Die Übertragung ist bestätigt, aber ihr Status konnte lokal nicht vollständig gespeichert werden. Vor dem nächsten Abgleich kann eine erneute Statusprüfung oder ein Fassungsvergleich nötig sein.",
+  cloudErrorHelp:
+    "Dein lokaler Stand bleibt erhalten. Prüfe die Verbindung oder Anmeldung und aktualisiere anschließend den Status.",
+  cloudReloadRequired:
+    "Der Cloud-Stand wurde übernommen. Dein vorheriger lokaler Stand ist im Versionsverlauf gesichert. Lade Quiltor neu, bevor du weiterarbeitest.",
+  cloudRecoveryRequired:
+    "Die Übernahme wurde unterbrochen; der aktive Projektstand konnte nicht sicher bestätigt werden. Eine lokale Sicherheitskopie wurde vorher angelegt. Lade Quiltor neu und prüfe den Projektstand und den Versionsverlauf, bevor du weiterschreibst.",
+  cloudSetupHint:
+    "Für diese Funktion muss ein Cloud-Ziel eingerichtet sein. Du kannst Projekte jederzeit kostenlos über Export und Import übertragen.",
+  cloudLastSync: "Letzter bestätigter Abgleich",
+  cloudStorage: "Cloud-Speicher",
+  cloudUsedBytes: "{used} Bytes belegt",
+  cloudNoQuotaSpecified: "Keine Speichergrenze mitgeteilt",
+  cloudReadOnly:
+    "Dieses Cloud-Konto ist nur lesbar. Du kannst vorhandene Stände abrufen; neue Uploads sind gesperrt. Deine lokale Arbeit bleibt uneingeschränkt nutzbar.",
+  cloudDeletionDate:
+    "Die Cloud-Kopien sind ab {date} zur Löschung vorgesehen. Sichere benötigte Stände vorher lokal.",
+  cloudConflictHelp:
+    "Es gibt Änderungen auf beiden Seiten. Auch eine Löschung kann damit kollidieren. Prüfe die Fassungen und entscheide ausdrücklich, welcher vollständige Projektstand übernommen werden soll. Es findet keine automatische Textzusammenführung statt.",
+  cloudInspectRemote: "Cloud-Fassung zum Vergleich laden",
+  cloudLocalVersion: "Deine lokale Fassung",
+  cloudRemoteVersion: "Fassung in der Cloud",
+  cloudKeepLocal: "Lokale Fassung übernehmen",
+  cloudUseRemote: "Cloud-Fassung übernehmen",
+  cloudResolveConfirmation:
+    "Der gewählte vollständige Projektstand ersetzt die andere Arbeitsfassung. Die bisherigen Stände bleiben als Sicherungen erhalten. Änderungen seit diesem Vergleich verhindern die Übernahme.",
+  cloudConfirmResolution: "Diese Fassung übernehmen",
+  cloudSetAside: "Zurückgestellt",
+  cloudInTrash: "Im Papierkorb",
+  cloudQuotaExceeded:
+    "Der Cloud-Speicher ist voll. Dein lokaler Stand bleibt erhalten. Gib Cloud-Speicher frei oder lass das Kontingent erhöhen, bevor du erneut überträgst.",
+  cloudAccountExpired:
+    "Der Zugriff auf dieses Cloud-Konto ist beendet. Deine lokale Arbeit bleibt erhalten; bei Fragen zu Cloud-Kopien wende dich an den Betreiber.",
+  cloudStaleComparison:
+    "Seit dem Vergleich wurde das Projekt verändert. Aktualisiere den Status und prüfe die Fassungen erneut.",
   searchCommands: "Suchen & Befehle",
   searchPlaceholder: "Kapitel, Text, Figuren, Orte, Storyboards …",
   commandView: "Ansicht",
@@ -26,6 +78,13 @@ export const tools = {
     "Der Anmeldedienst des Ziels antwortet gerade nicht. Eine Anmeldung ist erst wieder möglich, wenn er erreichbar ist.",
   backupAccount: "Konto",
   backupSignedIn: "Angemeldet",
+  lastConfirmedTransfer: "Letzte bestätigte Übertragung",
+  noConfirmedTransfer: "Noch keine bestätigte Übertragung",
+  remoteTransferExplanation:
+    "Nur ein erfolgreich bestätigter Upload aktualisiert diesen Zeitpunkt. Lokales Sichern überträgt nichts automatisch.",
+  transferredSnapshot: "Bestätigter Sicherungsstand",
+  backupTransferStatusWarning:
+    "Der Upload wurde bestätigt, aber die Bestätigungszeit konnte lokal nicht gespeichert werden. Angezeigt bleibt die zuvor gespeicherte Übertragung.",
   comparison: "Vergleich",
   byWord: "Wortweise",
   byLine: "Zeilenweise",
@@ -49,6 +108,24 @@ export const tools = {
   backupPreviewDescription: "Lokale SQLite-Sicherung · {size}",
   backupSelectTitle: "Sicherung auswählen",
   backupSelectDescription: "Wähle links eine Sicherung, um sie zu prüfen und wiederherzustellen.",
+  backupStorageTitle: "Speicherort der Sicherungen",
+  backupStorageScope: "Speicherort des gestarteten Quiltor; bei Webhosting auf dem Server.",
+  backupDatabasePath: "Datenbankdatei",
+  backupDirectory: "Sicherungsordner",
+  backupLastSuccessful: "Letzte erfolgreiche Sicherung",
+  backupNever: "Noch keine Sicherung",
+  backupCopyPath: "Pfad kopieren",
+  backupPathCopied: "Pfad kopiert",
+  backupPreviewLoading: "Sicherung wird sicher geprüft …",
+  backupChapterCount: "{count} Kapitel",
+  backupSetAsideCount: "{count} zurückgestellt",
+  backupTrashCount: "{count} im Papierkorb",
+  backupFigureCount: "{count} Figuren und Orte",
+  backupBoardCount: "{count} Storyboards",
+  backupEmptyChapter: "Kein Kapiteltext",
+  backupMirrorWarning:
+    "Die Sicherung wurde wiederhergestellt, aber die zusätzlichen Spiegeldateien konnten nicht aktualisiert werden.",
+  reloadAfterRestore: "Quiltor neu laden",
   switchToManuscript: "Zum Manuskript wechseln",
   switchToFigures: "Zum Figurenboard wechseln",
   switchToTimeline: "Zur Timeline wechseln",
@@ -57,6 +134,9 @@ export const tools = {
   toggleFocus: "Fokusmodus umschalten",
   searchMatchCount: "{count} Treffer im Text",
   noSearchResults: "Keine passenden Inhalte oder Befehle gefunden.",
+  chapterSetAsideStatus: "Zurückgestellt",
+  showSetAsideChapters: "Zurückgestellte Kapitel anzeigen",
+  openChapterTrash: "Kapitel-Papierkorb öffnen",
   showMinimap: "Übersichtskarte einblenden",
   hideMinimap: "Übersichtskarte ausblenden",
   graphControlsLabel: "Kartensteuerung",

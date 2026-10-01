@@ -467,9 +467,14 @@ export function ManuscriptEditor({
           write: () => {
             if (cancelled) return;
             const editorWindow = instance.dom.ownerDocument.defaultView ?? window;
+            // Chromium may queue another virtual-layout measurement after this measure frame.
+            // Wait through that settlement frame before declaring scroll anchoring complete.
             frame = editorWindow.requestAnimationFrame(() => {
-              frame = null;
-              if (!cancelled) callback(instance.hasFocus);
+              if (cancelled) return;
+              frame = editorWindow.requestAnimationFrame(() => {
+                frame = null;
+                if (!cancelled) callback(instance.hasFocus);
+              });
             });
           },
         });

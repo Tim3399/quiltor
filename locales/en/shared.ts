@@ -2,6 +2,64 @@
 // action verbs in menus.ts. Anything only one area needs stays in its own feature file -- only
 // what would otherwise be maintained twice belongs here.
 export const shared = {
+  gettingStartedTitle: "Getting started",
+  gettingStartedIntro: "Four ways to continue working on your project right away.",
+  gettingStartedWrite: "Write",
+  gettingStartedWriteHelp:
+    "Open the current chapter. If none exists yet, you can create one in the manuscript.",
+  gettingStartedWriteAction: "Start writing",
+  gettingStartedBringManuscript: "Bring in a manuscript",
+  gettingStartedBringManuscriptHelp:
+    "Create a chapter and safely paste existing text. Import a complete .quiltor project from project selection.",
+  gettingStartedBringManuscriptAction: "Open manuscript",
+  gettingStartedFindFigure: "Look up a character",
+  gettingStartedFindFigureHelp:
+    "Shared search finds chapters, characters, places, timeline moments, and storyboards.",
+  gettingStartedFindFigureAction: "Open search",
+  gettingStartedPrepareWorld: "Prepare world knowledge",
+  gettingStartedPrepareWorldHelp:
+    "Open the assistant and review the visible chapter scope before sending.",
+  gettingStartedPrepareWorldAction: "Open assistant",
+  projectImportTitle: "Import Quiltor project",
+  projectImportIntro:
+    "Choose a Quiltor project file. Its contents will be checked and shown before import.",
+  projectArchiveFile: "Project file",
+  projectPreviewLoading: "Checking project file …",
+  projectPreviewTitle: "Project file contents",
+  projectCountChapters: "Total chapters",
+  projectCountBookChapters: "Chapters in the book",
+  projectCountSetAside: "Set-aside chapters",
+  projectCountTrash: "Chapters in trash",
+  projectCountFigures: "Characters and world elements",
+  projectCountStoryboards: "Storyboards",
+  projectCountImages: "Images",
+  projectIncludesTrash: "Set-aside chapters and trash are included.",
+  projectExcludesHistory: "Version history and backups are not included.",
+  projectImportCreatesNew:
+    "Import creates a new project. The current project will not be replaced.",
+  projectImportAction: "Import as new project",
+  projectImporting: "Importing project …",
+  projectImportOpenAction: "Open imported project",
+  projectImportOpenFailed:
+    "The project was imported but could not be opened yet. Try opening it again.",
+  projectImportButton: "Import project",
+  projectTransferTooLarge: "The project file is larger than 64 MiB.",
+  projectExportTitle: "Export Quiltor project",
+  projectExportIntro: "Exports the complete project as a transferable Quiltor project file.",
+  projectExportAction: "Save project file",
+  projectExporting: "Exporting project …",
+  projectExportButton: "Export project",
+  projectExportFailed: "The project file could not be saved.",
+  errorProjectTransferInvalidArchive:
+    "The project file is invalid or damaged. Nothing was imported.",
+  errorProjectTransferUnsupportedVersion:
+    "This project file comes from an unsupported version of Quiltor.",
+  errorProjectTransferLimitExceeded: "The project file exceeds the allowed size.",
+  errorProjectTransferInvalidAsset: "The project file contains an invalid image or file asset.",
+  errorProjectTransferPublicationFailed:
+    "The new project could not be published. The existing project remains unchanged.",
+  backupMirrorFailed:
+    "Saved locally. The additional readable mirror file could not be updated. Check storage space and write permissions.",
   closeDialog: "Close dialog",
   themeChoice: "Theme",
   themeSystem: "System",
@@ -20,10 +78,58 @@ export const shared = {
   savedAgo: "Saved · {ago}",
   notSaved: "Not saved",
   saveFailed: "Save failed",
+  recoveryOpen: "Rescue draft",
+  recoveryTitle: "Rescue unsaved draft",
+  recoveryDescription:
+    "Saving failed. Preserve the current draft before leaving the page or comparing saved versions.",
+  recoveryCopyManuscript: "Copy manuscript text",
+  recoveryDownloadManuscript: "Download manuscript text",
+  recoveryDownloadAll: "Download document data as JSON",
+  recoveryJsonScope:
+    "The JSON file contains the manuscript, notes, story world, and storyboards. Images and history are not included.",
+  recoveryCopying: "Copying …",
+  recoveryDownloading: "Downloading …",
+  recoveryCopySucceeded: "The current manuscript text was copied.",
+  recoveryDownloadSucceeded: "The current draft was downloaded.",
+  recoveryExportFailed: "Export failed. Your draft remains open and can be exported again.",
+  recoveryKeepEditing:
+    "Copying or downloading does not change the draft. You can keep writing or retry saving afterwards.",
+  recoveryDraftChanged:
+    "The draft changed during comparison. Download both versions again before deciding.",
+  recoveryConflictTitle: "Compare conflict",
+  recoveryConflictDescription:
+    "Compare your draft with the saved version. Quiltor does not merge the changes automatically.",
+  recoveryCompare: "Load saved version",
+  recoveryRefreshComparison: "Refresh comparison",
+  recoveryComparing: "Loading comparison …",
+  recoveryComparisonFailed: "The saved version could not be loaded.",
+  recoveryOwnVersion: "My draft",
+  recoveryPersistedVersion: "Saved version",
+  recoveryEmptyManuscript: "No manuscript text",
+  recoveryOwnPlanning: "My planning",
+  recoveryPersistedPlanning: "Saved planning",
+  recoveryWorldElements: "Story-world elements",
+  recoveryWorldRelationships: "Relationships",
+  recoveryStoryboardBoards: "Storyboards",
+  recoveryStoryboardCards: "Cards",
+  recoveryDownloadBoth: "Download both versions as JSON",
+  recoveryBothSaved: "Both versions were downloaded. You can now choose.",
+  recoveryDecisionGuard:
+    "A choice becomes available only after both versions download successfully. Editing the draft locks it again.",
+  recoveryDecisionFamily: "This choice affects: {family}.",
+  recoveryFamilyManuscript: "manuscript",
+  recoveryFamilyWorld: "story world and figures",
+  recoveryFamilyStoryboard: "storyboard",
+  recoveryInspectPlanning: "Show all planning data",
+  recoveryKeepLocal: "Save my draft as a new version",
+  recoveryLoadPersisted: "Use saved version",
+  recoveryResolving: "Resolving conflict …",
+  recoveryResolutionFailed: "The conflict could not be resolved. Both versions remain available.",
   // Raised when an export never reaches its destination -- practically never in the browser, and in
   // the desktop app whenever the native save bridge could not write the file.
   exportFailed: "The export could not be saved.",
-  saveConflict: "The page was changed in another tab. Reload it before writing on.",
+  saveConflict:
+    "The saved version changed in another tab. Preserve your draft and compare it with the saved version.",
   timeline: "Timeline",
   moment: "Moment",
   moments: "Moments",
@@ -57,6 +163,7 @@ export const shared = {
   noteFocusEditor: "Note for {context}",
   noteReferencePicker: "Choose reference",
   noteReferenceNoResults: "No matching reference",
+  noteReferenceUnavailable: "“{title}” — target unavailable",
   noteReferenceLinks: "Linked references",
   noteFormatting: "Format note",
   noteBold: "Bold",

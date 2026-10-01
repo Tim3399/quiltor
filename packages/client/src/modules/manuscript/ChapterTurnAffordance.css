@@ -55,7 +55,7 @@
 }
 .chapter-turn__copy > span {
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-label-legacy-micro);
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -63,14 +63,14 @@
 .chapter-turn__copy > strong {
   overflow: hidden;
   font-family: var(--prose);
-  font-size: var(--font-size-3);
+  font-size: var(--font-size-body-compact);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .chapter-turn__copy > small {
   grid-column: 1 / -1;
   color: var(--muted);
-  font-size: var(--font-size-1);
+  font-size: var(--font-size-metadata-legacy-micro);
 }
 .chapter-turn__progress {
   height: var(--space-2);

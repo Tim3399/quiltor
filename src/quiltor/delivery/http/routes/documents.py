@@ -7,9 +7,9 @@ through the same strict document boundary without sharing persistence state.
 from __future__ import annotations
 
 from quiltor.application import (
+    MAX_SAFE_REVISION,
     InvalidDocumentState,
     InvalidDocumentWireV1,
-    MAX_SAFE_REVISION,
     RevisionConflict,
     decode_document_v1,
     encode_document_v1,
@@ -88,7 +88,7 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
 
     with app.lock:
         try:
-            updated_revision = app.documents.save(
+            saved = app.documents.save_with_status(
                 kind, payload, expected, request.world.document_location
             )
         except (RevisionConflict, InvalidDocumentState):
@@ -96,6 +96,7 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
             # host's central exception mapper.
             raise
 
+    updated_revision = saved.revision
     now = datetime.now().strftime("%H:%M:%S")
     if kind == "manuscript":
         chapters = payload["chapters"]
@@ -110,7 +111,12 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
         boards = payload["boards"]
         print(f"  · {now}  Storyboards saved — {len(boards)} boards, {len(payload['nodes'])} cards")
     handler.send_json(
-        {"ok": True, "zeit": now, "revision": updated_revision},
+        {
+            "ok": True,
+            "zeit": now,
+            "revision": updated_revision,
+            **({"warnings": list(saved.warnings)} if saved.warnings else {}),
+        },
         headers={"ETag": f'"{updated_revision}"'},
     )
 

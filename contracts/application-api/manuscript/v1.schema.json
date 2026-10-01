@@ -21,6 +21,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/chapter" }
         },
+        "trash": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/chapterTrashEntry" }
+        },
         "bookLayout": { "$ref": "#/$defs/bookLayout" },
         "structure": { "$ref": "#/$defs/manuscriptStructure" },
         "language": { "const": "de-DE" },
@@ -214,6 +219,7 @@
       "required": ["id"],
       "properties": {
         "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "inBook": { "type": "boolean" },
         "title": { "type": "string", "maxLength": 1000 },
         "body": { "type": "string", "maxLength": 10000000 },
         "note": { "type": "string", "maxLength": 100000 },
@@ -256,6 +262,34 @@
           "then": { "required": ["note"] }
         }
       ]
+    },
+    "chapterTrashEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["chapter", "deletedAt", "originalFolderPath", "treeItem"],
+      "properties": {
+        "chapter": { "$ref": "#/$defs/chapter" },
+        "deletedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$",
+          "maxLength": 40
+        },
+        "originalFolderPath": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/chapterFolder" }
+        },
+        "treeItem": {
+          "allOf": [
+            { "$ref": "#/$defs/manuscriptTreeItem" },
+            {
+              "properties": { "kind": { "const": "chapter" } },
+              "required": ["chapterId"]
+            }
+          ]
+        }
+      }
     },
     "storyTime": {
       "type": "object",

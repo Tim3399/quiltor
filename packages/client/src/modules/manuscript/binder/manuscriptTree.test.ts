@@ -3,14 +3,38 @@ import type { Chapter, ManuscriptStructure } from "../model";
 import {
   canMoveTreeItem,
   chapterBreadcrumb,
+  chaptersInBook,
   childrenOf,
   deleteFolder,
   flatManuscriptStructure,
   flattenChapterIds,
   folderDescendants,
+  isChapterInBook,
   moveTreeItem,
   structureIssues,
 } from "./manuscriptTree";
+
+it("treats absent inBook as included and ignores folder names", () => {
+  const manuscript = {
+    chapters: [chapters[0], { ...chapters[1], inBook: false }],
+    structure: {
+      folders: [{ id: "archive", title: "Archiv" }],
+      items: [
+        { id: "archive-item", kind: "folder" as const, folderId: "archive", position: 0 },
+        {
+          id: "c1-item",
+          kind: "chapter" as const,
+          chapterId: "c1",
+          parentFolderId: "archive",
+          position: 0,
+        },
+        { id: "c2-item", kind: "chapter" as const, chapterId: "c2", position: 1 },
+      ],
+    },
+  };
+  expect(isChapterInBook(chapters[0])).toBe(true);
+  expect(chaptersInBook(manuscript).map((chapter) => chapter.id)).toEqual(["c1"]);
+});
 
 const chapters: Chapter[] = ["c1", "c2", "c3"].map((id) => ({
   id,

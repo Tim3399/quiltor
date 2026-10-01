@@ -13,14 +13,18 @@ class WorldSummary:
     title: str
     backup_url: str
     updated: str
+    deleted_at: str = ""
 
     def public(self) -> dict[str, str]:
-        return {
+        result = {
             "id": self.id,
             "title": self.title,
             "backupUrl": self.backup_url,
             "updated": self.updated,
         }
+        if self.deleted_at:
+            result["deletedAt"] = self.deleted_at
+        return result
 
 
 @dataclass(frozen=True)

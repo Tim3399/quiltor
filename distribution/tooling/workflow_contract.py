@@ -541,6 +541,51 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         )
 
 
+def validate_cross_platform_product_sharding(sources: dict[Path, str]) -> None:
+    """Keep macOS complete and split Windows product coverage across fresh runners."""
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    product = _job_body(workflow, "cross-platform-product")
+    entries = re.findall(
+        r"^\s+- os: (macos-15|windows-2025)\n"
+        r"^[ \t]+label: ([^\n]+)\n"
+        r'^[ \t]+product_shard: "([0-9/]*)"\n'
+        r"^[ \t]+diagnostics: ([^\n]+)$",
+        product,
+        re.MULTILINE,
+    )
+    expected = {
+        ("macos-15", "macos-15", "", "macos-15"),
+        ("windows-2025", "windows-2025 / shard 1 of 3", "1/3", "windows-2025-1-of-3"),
+        ("windows-2025", "windows-2025 / shard 2 of 3", "2/3", "windows-2025-2-of-3"),
+        ("windows-2025", "windows-2025 / shard 3 of 3", "3/3", "windows-2025-3-of-3"),
+    }
+    if len(entries) != 4 or set(entries) != expected:
+        raise WorkflowContractError(
+            "cross-platform product must run complete macOS coverage and exactly Windows shards 1/3..3/3 with unique diagnostics"
+        )
+
+    required_evidence = (
+        "name: Product on ${{ matrix.label }}",
+        "fail-fast: false",
+        "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}",
+        "PRODUCT_SHARD: ${{ matrix.product_shard }}",
+        'if [ -n "$PRODUCT_SHARD" ]; then',
+        'npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line',
+        "npx playwright test --output=test-results/product --reporter=line",
+        "name: cross-platform-product-${{ matrix.diagnostics }}-diagnostics",
+        "test-results/**",
+        "${{ runner.temp }}/quiltor-server.log",
+    )
+    for evidence in required_evidence:
+        if evidence not in product:
+            raise WorkflowContractError(
+                f"cross-platform product matrix is missing shard evidence: {evidence}"
+            )
+    if "continue-on-error" in product:
+        raise WorkflowContractError("cross-platform product shards must fail closed")
+
+
 def _job_body(source: str, name: str) -> str:
     try:
         jobs = source.split("\njobs:\n", 1)[1]
@@ -649,6 +694,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_publication_boundary(sources)
         validate_image_size_guard(sources)
         validate_browser_e2e_sharding(sources)
+        validate_cross_platform_product_sharding(sources)
         validate_native_release_targets(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original

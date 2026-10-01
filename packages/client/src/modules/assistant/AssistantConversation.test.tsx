@@ -112,6 +112,30 @@ describe("assistant conversation content", () => {
     expect(onNavigate).toHaveBeenCalledWith({ workspace: "figures", id: "tarek" });
   });
 
+  it("keeps a set-aside manuscript source identifiable without changing its target", async () => {
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        sources: [
+          {
+            id: "chapter:draft:0",
+            kind: "chapter",
+            contextClass: "manuscript",
+            documentStatus: "set_aside",
+            title: "Entwurf",
+            text: "Zinnoberdrache",
+            target: { workspace: "text", id: "draft" },
+          },
+        ],
+      }),
+    );
+    const { onNavigate } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Prüfe den Entwurf.");
+    expect(await screen.findByText("Zurückgestellt")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Entwurf"));
+    expect(onNavigate).toHaveBeenCalledWith({ workspace: "text", id: "draft" });
+  });
+
   it("marks Storyboard sources as planning context and navigates to the exact card", async () => {
     vi.mocked(api.chat).mockResolvedValue(
       reply({
