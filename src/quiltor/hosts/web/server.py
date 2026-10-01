@@ -56,6 +56,7 @@ from quiltor.delivery.http import routes as api_routes
 from quiltor.modules.identity.service import SESSION_COOKIE
 
 MAX_BODY = 16 * 1024 * 1024  # 16 MB limit per save request
+REQUEST_HEADER_TIMEOUT_SECONDS = 15.0
 
 
 # ------------------------------------------------- Local-mode request guard
@@ -112,6 +113,8 @@ api_routes.load()
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     @property
     def application(self) -> WebApplication:
         return self.server.application
@@ -127,9 +130,53 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             directory=str(server.application.public_assets),
         )
 
+    def handle_one_request(self) -> None:
+        """Bound idle keep-alive sockets and clear state before every parse."""
+        self._pending_cookies = []
+        setattr(self, identity.REDIRECT_ATTR, None)
+        self._response_status = 0
+        self._sent_connection_header = False
+        self.connection.settimeout(REQUEST_HEADER_TIMEOUT_SECONDS)
+        super().handle_one_request()
+
+    def parse_request(self) -> bool:
+        parsed = super().parse_request()
+        if not parsed:
+            return False
+
+        # The timeout only bounds an idle socket and request headers. Once framing is
+        # known, uploads and route handlers retain their previous unbounded behavior.
+        self.connection.settimeout(None)
+
+        connection_tokens = {
+            token.strip().lower()
+            for value in self.headers.get_all("Connection", ())
+            for token in value.split(",")
+            if token.strip()
+        }
+        has_request_body_or_upgrade = any(
+            self.headers.get(name) is not None
+            for name in ("Content-Length", "Transfer-Encoding", "Expect", "Upgrade")
+        )
+        may_persist = (
+            self.command == "GET"
+            and self.request_version == "HTTP/1.1"
+            and not has_request_body_or_upgrade
+            and "close" not in connection_tokens
+            and "upgrade" not in connection_tokens
+        )
+        if not may_persist:
+            self.close_connection = True
+        return True
+
     def send_response(self, code: int, message: str | None = None) -> None:
         self._response_status = int(code)
         super().send_response(code, message)
+
+    def send_header(self, keyword: str, value: str) -> None:
+        if keyword.lower() == "connection":
+            self._sent_connection_header = True
+        super().send_header(keyword, value)
 
     def send_json(self, obj, code: int = 200, headers: dict | None = None) -> None:
         obj, code = http_errors.normalize_response(obj, code)
@@ -247,11 +294,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return False
 
     def end_headers(self) -> None:
-        # Any Set-Cookie headers queued by the auth routes ride along on whatever
-        # response actually gets sent (send_json/send_pdf/redirect/static fallback).
-        for key, value in getattr(self, "_pending_cookies", None) or []:
-            self.send_header(key, value)
-        super().end_headers()
+        try:
+            # Any Set-Cookie headers queued by the auth routes ride along on whatever
+            # response actually gets sent (send_json/send_pdf/redirect/static fallback).
+            for key, value in getattr(self, "_pending_cookies", None) or []:
+                self.send_header(key, value)
+            # A 100 Continue is its own header block and send_response_only() does not
+            # set _response_status. Do not advertise a close until the final response.
+            if (
+                self.close_connection
+                and self._response_status >= 200
+                and not getattr(self, "_sent_connection_header", False)
+            ):
+                self.send_header("Connection", "close")
+            super().end_headers()
+        finally:
+            self._sent_connection_header = False
 
     def log_message(self, fmt, *args):
         pass  # Suppress default noise; meaningful operations are logged explicitly.
