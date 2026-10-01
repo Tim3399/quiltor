@@ -6,6 +6,7 @@ import {
   Button,
   ConfirmDialog,
   IconButton,
+  IRREVERSIBLE_HOLD_MS,
   ScrollArea,
   SegmentedControl,
   SelectionCard,
@@ -367,6 +368,13 @@ export function WorldGate({
           closeLabel={t("closeDialog")}
           cancelLabel={t("cancel")}
           confirmLabel={t("purgeWorld")}
+          confirmation="hold"
+          holdDurationMs={IRREVERSIBLE_HOLD_MS}
+          holdLabels={{
+            accessible: t("holdAriaLabel", { label: t("purgeWorld") }),
+            idle: t("holdToConfirm", { label: t("purgeWorld") }),
+            active: t("keepHolding"),
+          }}
           onConfirm={() => {
             const target = purgeTarget;
             void run(() => onPurge(target.id)).then((purged) => {

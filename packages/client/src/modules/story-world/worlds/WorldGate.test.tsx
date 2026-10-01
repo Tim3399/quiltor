@@ -140,8 +140,17 @@ describe("WorldGate", () => {
       } else {
         fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
         const dialog = screen.getByRole("alertdialog", { name: "Welt endgültig löschen" });
-        fireEvent.click(within(dialog).getByRole("button", { name: "Endgültig löschen" }));
-        await waitFor(() => expect(onPurge).toHaveBeenCalledWith("paper"));
+        const purge = within(dialog).getByRole("button", {
+          name: "Endgültig löschen – gedrückt halten zum Bestätigen",
+        });
+        vi.useFakeTimers();
+        try {
+          fireEvent.pointerDown(purge, { pointerId: 1 });
+          await vi.advanceTimersByTimeAsync(1600);
+          expect(onPurge).toHaveBeenCalledWith("paper");
+        } finally {
+          vi.useRealTimers();
+        }
       }
 
       await waitFor(() =>
@@ -169,6 +178,12 @@ describe("WorldGate", () => {
     fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
     expect(screen.getByRole("alertdialog", { name: "Welt endgültig löschen" })).toBeInTheDocument();
     expect(screen.getByText(/alle lokalen Sicherungen/)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Endgültig löschen – gedrückt halten zum Bestätigen",
+      }),
+    );
+    expect(onPurge).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(onPurge).not.toHaveBeenCalled();
 

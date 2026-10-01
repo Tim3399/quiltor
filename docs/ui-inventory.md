@@ -39,9 +39,9 @@
 - Dialogs trap focus and restore it; menus use arrow keys, Home/End, Enter, and Escape.
 - Destructive confirmations are graded by what can be recovered. Deleting a chapter, element, place,
   moment or relationship goes through the undo stack, so it is a plain `alertdialog` that names the
-  undo shortcut and confirms with one click. Only deleting a world and restoring a backup — neither of
-  which any undo, backup or snapshot survives — keep the press-and-hold control, now at 1.5 seconds
-  (`IRREVERSIBLE_HOLD_MS`).
+  undo shortcut and confirms with one click. Moving a world into the recoverable trash also confirms
+  with one click. Permanently deleting a world from the trash and restoring a backup retain the
+  press-and-hold control at 1.5 seconds (`IRREVERSIBLE_HOLD_MS`).
 - Marking text in the manuscript never opens anything by itself. The marked passage stays visible
   (`.held-selection`, painted even once focus moves into the inspector) and is named in the writing
   aid; dictionary, synonyms and translation are asked for deliberately — right-click or `Shift+F10`

@@ -358,10 +358,15 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Design suite
+        # Chromium failed to load the gallery entry point with ERR_NO_BUFFER_SPACE on the
+        # Windows runner. Match the product suite's bounded Windows concurrency while
+        # preserving two workers on macOS.
+        env:
+          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
         shell: bash
-        run: |
-          PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts \
-            --output=test-results/design --reporter=line
+        run: >-
+          npx playwright test --config playwright.design.config.ts
+          --output=test-results/design --reporter=line
 
       - name: Upload browser diagnostics
         if: failure()

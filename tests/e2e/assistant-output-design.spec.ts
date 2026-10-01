@@ -101,6 +101,8 @@ for (const theme of ["light", "dark"] as const) {
         changes: [`M chapters/${longSegment}.md`],
         changeCount: 1,
         suggestedMessage: "Kapitel geprüft",
+        lastSuccessfulTransfer: null,
+        transferredSnapshotId: null,
       };
       await page.route("**/api/backup**", (route) => {
         const request = route.request();

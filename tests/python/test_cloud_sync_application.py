@@ -154,7 +154,10 @@ class _FailingFinalizeWorlds(_Worlds):
 class CloudSyncApplicationTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
+        # Production data roots are canonical before they reach snapshot safety checks.
+        # Match that behavior when macOS places temporary directories below the /var
+        # symlink to /private/var.
+        self.root = Path(self.temporary.name).resolve()
         self.remote = _Remote()
         self.documents = SQLiteDocumentRepository()
         self.authorization = BackupAuthorization(self.remote.default_endpoint(), "token")
@@ -228,6 +231,32 @@ class CloudSyncApplicationTest(unittest.TestCase):
         self.assertGreater(
             self.documents.revision("manuscript", context_b.database), revision_before
         )
+
+    def test_remote_validation_canonicalizes_its_trusted_temporary_root(self):
+        context, service = self.devices["a"]
+        aliased_root = self.root / "staging-parent" / ".." / "staging"
+        captured = None
+
+        def stop_after_context(staging, entry, fetch):
+            nonlocal captured
+            del entry, fetch
+            captured = staging
+            raise RuntimeError("context captured")
+
+        service._history.restore = stop_after_context
+        temporary = MagicMock()
+        temporary.__enter__.return_value = str(aliased_root)
+        with (
+            patch(
+                "quiltor.application.synchronization.use_cases.tempfile.TemporaryDirectory",
+                return_value=temporary,
+            ),
+            self.assertRaisesRegex(RuntimeError, "context captured"),
+        ):
+            service._validated_remote_documents(context, {"title": "Remote"}, self.authorization)
+
+        self.assertIsNotNone(captured)
+        self.assertEqual(captured.root.parent.parent, aliased_root.resolve())
 
     def test_offline_delete_and_edit_conflict_without_resurrecting_or_mutating(self):
         self.test_initial_push_and_explicit_fresh_device_pull_link_both_devices()

@@ -631,7 +631,10 @@ class SynchronizationUseCases:
             return cached_blobs[digest]
 
         with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
+            # macOS commonly returns temporary paths below /var, which is a symlink to
+            # /private/var. Resolve this trusted, freshly created root before handing its
+            # descendants to the snapshot store's link/reparse safety boundary.
+            root = Path(raw).resolve()
             temporary = WorldBackupContext(
                 root=root / "history" / context.root.name,
                 database=root / "world.sqlite3",

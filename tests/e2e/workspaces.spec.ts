@@ -937,6 +937,7 @@ test("The world picker stays fully scrollable even with many worlds", async ({
   const worlds = Array.from({ length: 30 }, (_, index) => ({
     id: `world-${index + 1}`,
     title: `Welt ${index + 1}`,
+    backupUrl: "",
     updated: "2026-08-09T12:00:00Z",
   }));
   await page.route("**/api/worlds", (route) => route.fulfill({ json: { worlds } }));
@@ -3192,32 +3193,57 @@ test("An open world can be left again from the global menu", async ({ page }) =>
   await expect(page.getByLabel("Kapiteltext")).toHaveCount(0);
 });
 
-test("A world can only be deleted locally by a sustained press", async ({ page }) => {
+test("A world moves to trash normally but permanent deletion requires a sustained press", async ({
+  page,
+}) => {
   const title = `Löschtest ${crypto.randomUUID()}`;
-  await createTestWorld(page, title, "https://backup.example.com/remote-remains");
+  const world = await createTestWorld(page, title, "https://backup.example.com/remote-remains");
   await createTestWorld(page, `Aktive Testwelt ${crypto.randomUUID()}`);
   await page.goto("/");
   await page.getByRole("button", { name: `${title} – Welt löschen` }).click();
-  await expect(page.getByRole("heading", { name: "Welt lokal löschen" })).toBeVisible();
+  const moveToTrash = page.getByRole("alertdialog", {
+    name: "Welt in Papierkorb verschieben",
+  });
+  await expect(moveToTrash).toBeVisible();
   await expect(
-    page.getByText("Bereits hochgeladene Backups bleiben auf dem Endpunkt erhalten."),
+    moveToTrash.getByText(
+      "Du kannst die Welt später mit Datenbank, Sicherungen und Verlauf wiederherstellen.",
+    ),
   ).toBeVisible();
+  await moveToTrash.getByRole("button", { name: "In Papierkorb verschieben" }).click();
+  await expect(page.getByRole("button", { name: `${title} – Welt öffnen` })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Rückgängig" })).toBeVisible();
 
-  // Press-and-hold protects here because no undo applies: database, backups and history are
-  // gone afterwards. The real proof is therefore that letting go too early deletes nothing.
-  const confirm = page.getByRole("button", {
-    name: "Welt löschen – gedrückt halten zum Bestätigen",
+  await page.getByRole("button", { name: "Papierkorb" }).click();
+  const trash = page.getByRole("dialog", { name: "Papierkorb" });
+  const item = trash.locator("li").filter({ hasText: title });
+  await expect(item).toBeVisible();
+  await item.getByRole("button", { name: "Endgültig löschen" }).click();
+  const permanentDelete = page.getByRole("alertdialog", { name: "Welt endgültig löschen" });
+  await expect(permanentDelete).toContainText(
+    "Dabei gehen die lokale Datenbank, alle lokalen Sicherungen, der Verlauf und lokale Spiegel unwiderruflich verloren.",
+  );
+
+  // Press-and-hold protects the irreversible boundary. Letting go early must leave both the
+  // confirmation and the recoverable trash entry intact.
+  const confirm = permanentDelete.getByRole("button", {
+    name: "Endgültig löschen – gedrückt halten zum Bestätigen",
   });
   await confirm.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "mouse" });
   await page.waitForTimeout(400);
   await confirm.dispatchEvent("pointerup", { pointerId: 1, pointerType: "mouse" });
-  await expect(page.getByRole("heading", { name: "Welt lokal löschen" })).toBeVisible();
+  await expect(permanentDelete).toBeVisible();
+  const retainedTrash = await page.request.get("/api/worlds/trash");
+  expect(retainedTrash.ok(), await retainedTrash.text()).toBe(true);
+  expect((await retainedTrash.json()).worlds).toEqual(
+    expect.arrayContaining([expect.objectContaining({ id: world.id, title })]),
+  );
 
   await confirm.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "mouse" });
   await page.waitForTimeout(1700);
 
-  await expect(page.getByRole("heading", { name: "Welt lokal löschen" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: new RegExp(title) })).toHaveCount(0);
+  await expect(permanentDelete).toHaveCount(0);
+  await expect(item).toHaveCount(0);
 });
 
 test("The language is chosen in the world picker and nowhere else", async ({ page }) => {
