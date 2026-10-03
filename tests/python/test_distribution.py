@@ -220,6 +220,27 @@ class EmbeddedProfileTests(unittest.TestCase):
         self.assertIn("exclude =", pyproject)
         self.assertIn('"PyJWT[crypto]>=2.13,<3"', pyproject)
 
+    def test_oci_python_runtime_lock_matches_the_exact_reviewed_allowlist(self):
+        expected = {
+            "cffi",
+            "cryptography",
+            "markdown-it-py",
+            "mdurl",
+            "pycparser",
+            "pyjwt",
+        }
+        lock = REPO_ROOT / "distribution/web/self-hosted/requirements.lock"
+        self.assertEqual(container_contract.validate_lock(lock), expected)
+        container_contract.validate_runtime_locks()
+
+        for drift in (expected - {"mdurl"}, expected | {"unreviewed-package"}):
+            with (
+                self.subTest(packages=drift),
+                patch.object(container_contract, "validate_lock", return_value=drift),
+                self.assertRaisesRegex(ValueError, "reviewed exact allowlist"),
+            ):
+                container_contract.validate_runtime_locks()
+
     def test_python_artifact_verifier_rejects_the_source_profile(self):
         source = json.loads(
             (

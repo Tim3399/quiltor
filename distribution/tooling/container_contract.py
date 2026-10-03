@@ -205,6 +205,8 @@ def validate_runtime_locks(repo_root: Path = REPO_ROOT) -> None:
     if pins != {
         "cffi",
         "cryptography",
+        "markdown-it-py",
+        "mdurl",
         "pycparser",
         "pyjwt",
     }:
