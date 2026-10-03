@@ -546,6 +546,12 @@ def validate_cross_platform_product_sharding(sources: dict[Path, str]) -> None:
 
     workflow = sources[WORKFLOW_ROOT / "test.yml"]
     product = _job_body(workflow, "cross-platform-product")
+    product_config = (REPO_ROOT / "playwright.config.ts").read_text(encoding="utf-8")
+    parallel_switch = 'fullyParallel: process.env.PLAYWRIGHT_FULLY_PARALLEL === "1"'
+    if product_config.count(parallel_switch) != 1:
+        raise WorkflowContractError(
+            "product Playwright config must expose one exact opt-in test-level sharding switch"
+        )
     entries = re.findall(
         r"^\s+- os: (macos-15|windows-2025)\n"
         r"^[ \t]+label: ([^\n]+)\n"
@@ -556,14 +562,18 @@ def validate_cross_platform_product_sharding(sources: dict[Path, str]) -> None:
     )
     expected = {
         ("macos-15", "macos-15", "", "macos-15"),
-        ("windows-2025", "windows-2025 / shard 1 of 4", "1/4", "windows-2025-1-of-4"),
-        ("windows-2025", "windows-2025 / shard 2 of 4", "2/4", "windows-2025-2-of-4"),
-        ("windows-2025", "windows-2025 / shard 3 of 4", "3/4", "windows-2025-3-of-4"),
-        ("windows-2025", "windows-2025 / shard 4 of 4", "4/4", "windows-2025-4-of-4"),
+        ("windows-2025", "windows-2025 / shard 1 of 8", "1/8", "windows-2025-1-of-8"),
+        ("windows-2025", "windows-2025 / shard 2 of 8", "2/8", "windows-2025-2-of-8"),
+        ("windows-2025", "windows-2025 / shard 3 of 8", "3/8", "windows-2025-3-of-8"),
+        ("windows-2025", "windows-2025 / shard 4 of 8", "4/8", "windows-2025-4-of-8"),
+        ("windows-2025", "windows-2025 / shard 5 of 8", "5/8", "windows-2025-5-of-8"),
+        ("windows-2025", "windows-2025 / shard 6 of 8", "6/8", "windows-2025-6-of-8"),
+        ("windows-2025", "windows-2025 / shard 7 of 8", "7/8", "windows-2025-7-of-8"),
+        ("windows-2025", "windows-2025 / shard 8 of 8", "8/8", "windows-2025-8-of-8"),
     }
-    if len(entries) != 5 or set(entries) != expected:
+    if len(entries) != 9 or set(entries) != expected:
         raise WorkflowContractError(
-            "cross-platform product must run complete macOS coverage and exactly Windows shards 1/4..4/4 with unique diagnostics"
+            "cross-platform product must run complete macOS coverage and exactly Windows shards 1/8..8/8 with unique diagnostics"
         )
 
     required_evidence = (
@@ -572,7 +582,7 @@ def validate_cross_platform_product_sharding(sources: dict[Path, str]) -> None:
         "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}",
         "PRODUCT_SHARD: ${{ matrix.product_shard }}",
         'if [ -n "$PRODUCT_SHARD" ]; then',
-        'npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line',
+        'PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line',
         "npx playwright test --output=test-results/product --reporter=line",
         "name: cross-platform-product-${{ matrix.diagnostics }}-diagnostics",
         "test-results/**",

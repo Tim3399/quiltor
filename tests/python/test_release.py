@@ -1077,14 +1077,14 @@ class WorkflowBoundaryTests(unittest.TestCase):
         mutations = (
             (
                 "missing final Windows shard",
-                'label: windows-2025 / shard 4 of 4\n            product_shard: "4/4"',
-                'label: windows-2025 / shard 4 of 4\n            product_shard: "3/4"',
+                'label: windows-2025 / shard 8 of 8\n            product_shard: "8/8"',
+                'label: windows-2025 / shard 8 of 8\n            product_shard: "7/8"',
                 "complete macOS coverage and exactly Windows shards",
             ),
             (
                 "reused diagnostics name",
-                "diagnostics: windows-2025-4-of-4",
-                "diagnostics: windows-2025-3-of-4",
+                "diagnostics: windows-2025-8-of-8",
+                "diagnostics: windows-2025-7-of-8",
                 "complete macOS coverage and exactly Windows shards",
             ),
             (
@@ -1093,6 +1093,12 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "          PRODUCT_SHARD: ${{ matrix.product_shard }}",
                 "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}\n"
                 "          PRODUCT_SHARD: broken",
+                "missing shard evidence",
+            ),
+            (
+                "missing Windows test-level sharding",
+                "PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
+                "npx playwright test",
                 "missing shard evidence",
             ),
         )

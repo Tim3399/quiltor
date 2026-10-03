@@ -266,9 +266,9 @@ jobs:
 
   # Product and design used to run one after the other in a single job. They remain separate
   # so the design gallery needs no Python application setup. macOS runs each suite once;
-  # Windows product coverage uses four fresh runners because network buffers were exhausted
-  # late in the 489-test suite even after its browser contexts were serialized. Four shards
-  # keep each fresh runner near 123 cases.
+  # Windows product coverage uses eight fresh runners because network buffers were exhausted
+  # after more than 115 tests even when browser contexts were serialized. Test-level sharding
+  # keeps every Windows runner to at most 62 of the current 489 tests.
   #
   # The design suite does not need the application at all: it runs against the design
   # gallery, which its own config starts. Split off, it also skips Python, the install and
@@ -286,21 +286,37 @@ jobs:
             product_shard: ""
             diagnostics: macos-15
           - os: windows-2025
-            label: windows-2025 / shard 1 of 4
-            product_shard: "1/4"
-            diagnostics: windows-2025-1-of-4
+            label: windows-2025 / shard 1 of 8
+            product_shard: "1/8"
+            diagnostics: windows-2025-1-of-8
           - os: windows-2025
-            label: windows-2025 / shard 2 of 4
-            product_shard: "2/4"
-            diagnostics: windows-2025-2-of-4
+            label: windows-2025 / shard 2 of 8
+            product_shard: "2/8"
+            diagnostics: windows-2025-2-of-8
           - os: windows-2025
-            label: windows-2025 / shard 3 of 4
-            product_shard: "3/4"
-            diagnostics: windows-2025-3-of-4
+            label: windows-2025 / shard 3 of 8
+            product_shard: "3/8"
+            diagnostics: windows-2025-3-of-8
           - os: windows-2025
-            label: windows-2025 / shard 4 of 4
-            product_shard: "4/4"
-            diagnostics: windows-2025-4-of-4
+            label: windows-2025 / shard 4 of 8
+            product_shard: "4/8"
+            diagnostics: windows-2025-4-of-8
+          - os: windows-2025
+            label: windows-2025 / shard 5 of 8
+            product_shard: "5/8"
+            diagnostics: windows-2025-5-of-8
+          - os: windows-2025
+            label: windows-2025 / shard 6 of 8
+            product_shard: "6/8"
+            diagnostics: windows-2025-6-of-8
+          - os: windows-2025
+            label: windows-2025 / shard 7 of 8
+            product_shard: "7/8"
+            diagnostics: windows-2025-7-of-8
+          - os: windows-2025
+            label: windows-2025 / shard 8 of 8
+            product_shard: "8/8"
+            diagnostics: windows-2025-8-of-8
     env:
       PYTHONPATH: src
     steps:
@@ -338,8 +354,8 @@ jobs:
           exit 1
 
       # Full Windows runs repeatedly exhausted Chromium's network buffers late in the suite,
-      # even with one worker. Each shard gets a fresh runner and together they retain every
-      # product test and assertion. macOS still runs the complete suite in one job.
+      # even with one worker. Eight fresh runners and test-level sharding cap each Windows
+      # process at 62 current tests. macOS still runs the complete suite in one job.
       # visual-baseline.spec.ts remains in the product suite and compares this system's images.
       - name: Product suite
         env:
@@ -348,7 +364,7 @@ jobs:
         shell: bash
         run: |
           if [ -n "$PRODUCT_SHARD" ]; then
-            npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
+            PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
           else
             npx playwright test --output=test-results/product --reporter=line
           fi

@@ -9,6 +9,9 @@ export const baselineViewports = {
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Windows CI opts into test-level sharding so every fresh runner has a hard-balanced test
+  // count instead of a whole-file allocation. Other runs retain file-level grouping.
+  fullyParallel: process.env.PLAYWRIGHT_FULLY_PARALLEL === "1",
   // Two isolated browser contexts keep local/release runs moving without overwhelming the
   // shared application server. CI shards override this to one worker per runner.
   workers: resolvePlaywrightWorkers(2),
