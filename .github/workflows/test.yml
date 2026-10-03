@@ -266,8 +266,9 @@ jobs:
 
   # Product and design used to run one after the other in a single job. They remain separate
   # so the design gallery needs no Python application setup. macOS runs each suite once;
-  # Windows product coverage uses three fresh runners because network buffers were exhausted
-  # late in the complete 447-test process even after its browser contexts were serialized.
+  # Windows product coverage uses four fresh runners because network buffers were exhausted
+  # late in the 489-test suite even after its browser contexts were serialized. Four shards
+  # keep each fresh runner near 123 cases.
   #
   # The design suite does not need the application at all: it runs against the design
   # gallery, which its own config starts. Split off, it also skips Python, the install and
@@ -285,17 +286,21 @@ jobs:
             product_shard: ""
             diagnostics: macos-15
           - os: windows-2025
-            label: windows-2025 / shard 1 of 3
-            product_shard: "1/3"
-            diagnostics: windows-2025-1-of-3
+            label: windows-2025 / shard 1 of 4
+            product_shard: "1/4"
+            diagnostics: windows-2025-1-of-4
           - os: windows-2025
-            label: windows-2025 / shard 2 of 3
-            product_shard: "2/3"
-            diagnostics: windows-2025-2-of-3
+            label: windows-2025 / shard 2 of 4
+            product_shard: "2/4"
+            diagnostics: windows-2025-2-of-4
           - os: windows-2025
-            label: windows-2025 / shard 3 of 3
-            product_shard: "3/3"
-            diagnostics: windows-2025-3-of-3
+            label: windows-2025 / shard 3 of 4
+            product_shard: "3/4"
+            diagnostics: windows-2025-3-of-4
+          - os: windows-2025
+            label: windows-2025 / shard 4 of 4
+            product_shard: "4/4"
+            diagnostics: windows-2025-4-of-4
     env:
       PYTHONPATH: src
     steps:

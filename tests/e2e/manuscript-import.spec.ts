@@ -10,9 +10,7 @@ for (const theme of ["light", "dark"] as const) {
     page,
   }, testInfo) => {
     await page.addInitScript((value) => localStorage.setItem("quiltor-theme", value), theme);
-    if (testInfo.project.name === "compact") {
-      await page.emulateMedia({ reducedMotion: "reduce" });
-    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
     const existing = await createTestWorld(page, `Unverändert ${crypto.randomUUID()}`);
     const existingBefore = await (
       await page.request.get(`/api/manuscript?world=${existing.id}`)

@@ -1077,14 +1077,14 @@ class WorkflowBoundaryTests(unittest.TestCase):
         mutations = (
             (
                 "missing final Windows shard",
-                'label: windows-2025 / shard 3 of 3\n            product_shard: "3/3"',
-                'label: windows-2025 / shard 3 of 3\n            product_shard: "2/3"',
+                'label: windows-2025 / shard 4 of 4\n            product_shard: "4/4"',
+                'label: windows-2025 / shard 4 of 4\n            product_shard: "3/4"',
                 "complete macOS coverage and exactly Windows shards",
             ),
             (
                 "reused diagnostics name",
-                "diagnostics: windows-2025-3-of-3",
-                "diagnostics: windows-2025-2-of-3",
+                "diagnostics: windows-2025-4-of-4",
+                "diagnostics: windows-2025-3-of-4",
                 "complete macOS coverage and exactly Windows shards",
             ),
             (

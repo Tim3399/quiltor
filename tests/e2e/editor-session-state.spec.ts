@@ -50,6 +50,27 @@ async function editorText(editor: Locator) {
   return (await editor.locator(".cm-line").allInnerTexts()).join("\n");
 }
 
+async function settleEditorScroll(scroller: Locator, ratio: number) {
+  return scroller.evaluate(async (element, targetRatio) => {
+    element.scrollTop = Math.round((element.scrollHeight - element.clientHeight) * targetRatio);
+    element.dispatchEvent(new Event("scroll"));
+
+    let previousGeometry = "";
+    let stableFrames = 0;
+    for (let frame = 0; frame < 8 && stableFrames < 2; frame += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const geometry = `${element.scrollTop}:${element.scrollHeight}:${element.clientHeight}`;
+      stableFrames = geometry === previousGeometry ? stableFrames + 1 : 0;
+      previousGeometry = geometry;
+    }
+    if (stableFrames < 2) throw new Error("Editor scroll geometry did not settle within 8 frames");
+
+    // Capture the viewport that actually exists after CodeMirror's virtual layout settles.
+    element.dispatchEvent(new Event("scroll"));
+    return element.scrollTop;
+  }, ratio);
+}
+
 async function selectionOffsets(editor: Locator) {
   return editor.evaluate((root) => {
     const selection = document.getSelection();
@@ -156,12 +177,7 @@ test("Returning to Text restores the edited chapter, cursor, scroll and input fo
   await page.keyboard.type("X");
   await expect.poll(() => editorText(editor)).toContain("Am Ende wartet der ZielXpunkt.");
 
-  const savedScrollTop = await scroller.evaluate((element) => {
-    const target = Math.round((element.scrollHeight - element.clientHeight) * 0.58);
-    element.scrollTop = target;
-    element.dispatchEvent(new Event("scroll"));
-    return element.scrollTop;
-  });
+  const savedScrollTop = await settleEditorScroll(scroller, 0.58);
   expect(savedScrollTop).toBeGreaterThan(0);
 
   await switchWorkspace(page, "Figuren");

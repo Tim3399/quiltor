@@ -556,13 +556,14 @@ def validate_cross_platform_product_sharding(sources: dict[Path, str]) -> None:
     )
     expected = {
         ("macos-15", "macos-15", "", "macos-15"),
-        ("windows-2025", "windows-2025 / shard 1 of 3", "1/3", "windows-2025-1-of-3"),
-        ("windows-2025", "windows-2025 / shard 2 of 3", "2/3", "windows-2025-2-of-3"),
-        ("windows-2025", "windows-2025 / shard 3 of 3", "3/3", "windows-2025-3-of-3"),
+        ("windows-2025", "windows-2025 / shard 1 of 4", "1/4", "windows-2025-1-of-4"),
+        ("windows-2025", "windows-2025 / shard 2 of 4", "2/4", "windows-2025-2-of-4"),
+        ("windows-2025", "windows-2025 / shard 3 of 4", "3/4", "windows-2025-3-of-4"),
+        ("windows-2025", "windows-2025 / shard 4 of 4", "4/4", "windows-2025-4-of-4"),
     }
-    if len(entries) != 4 or set(entries) != expected:
+    if len(entries) != 5 or set(entries) != expected:
         raise WorkflowContractError(
-            "cross-platform product must run complete macOS coverage and exactly Windows shards 1/3..3/3 with unique diagnostics"
+            "cross-platform product must run complete macOS coverage and exactly Windows shards 1/4..4/4 with unique diagnostics"
         )
 
     required_evidence = (
