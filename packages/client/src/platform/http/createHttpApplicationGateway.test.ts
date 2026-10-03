@@ -47,6 +47,7 @@ describe("HTTP application composition", () => {
         "history",
         "identity",
         "manuscript",
+        "manuscriptImport",
         "metadata",
         "placeMaps",
         "projectTransfer",
@@ -60,6 +61,9 @@ describe("HTTP application composition", () => {
     expect(application.projectTransfer.exportProject).toEqual(expect.any(Function));
     expect(application.projectTransfer.preview).toEqual(expect.any(Function));
     expect(application.projectTransfer.importProject).toEqual(expect.any(Function));
+    expect(application.manuscriptImport.createRequestId).toEqual(expect.any(Function));
+    expect(application.manuscriptImport.preview).toEqual(expect.any(Function));
+    expect(application.manuscriptImport.importManuscript).toEqual(expect.any(Function));
 
     application.worlds.select(WORLD_ID);
     await application.backup.status();

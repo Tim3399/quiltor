@@ -1,12 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import manuscriptFixture from "../../../../../contracts/fixtures/application-api/manuscript/wire.v1.json";
+import manuscriptExportFixture from "../../../../../contracts/fixtures/application-api/manuscript-export/preview.v1.json";
 import storyboardsFixture from "../../../../../contracts/fixtures/application-api/storyboards/wire.v1.json";
 import revisionConflict from "../../../../../contracts/fixtures/application-api/structured-error/revision-conflict.v1.json";
-import type { ApplicationGateway } from "../application";
+import type { ApplicationGateway, ManuscriptDocxPreview } from "../application";
 import { createPlatformGateway } from "../createPlatformGateway";
 import { createHttpApplicationGateway } from ".";
 
 const WORLD_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const docxPreview: ManuscriptDocxPreview = {
+  preset: "editor",
+  revision: 7,
+  sourceSha256: "a".repeat(64),
+  fileName: "Quiltor-Manuskript.docx",
+  chapters: [{ id: "chapter-1", title: "Ankunft", words: 3, excerpt: "Mara wartet am Hafen." }],
+  counts: {
+    manuscriptChapters: 2,
+    manuscriptWords: 5,
+    exportedChapters: 1,
+    exportedWords: 3,
+  },
+  warnings: [{ code: "excluded_chapters", count: 1 }],
+};
 let application: ApplicationGateway;
 
 function response(body: unknown, headers: Record<string, string> = {}): Response {
@@ -34,6 +49,235 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("document HTTP v1 boundary", () => {
+  it("previews, renders, and saves a reviewed manuscript DOCX", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ ok: true, preview: docxPreview }))
+      .mockResolvedValueOnce(
+        new Response("docx-data", {
+          status: 200,
+          headers: {
+            "Content-Type":
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          },
+        }),
+      );
+    const save = vi.fn().mockResolvedValue({ status: "saved" });
+    application = createHttpApplicationGateway(createPlatformGateway({ files: { save } }));
+    application.worlds.select(WORLD_ID);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const reviewed = await application.documents.previewManuscriptDocx("editor");
+    const blob = await application.documents.renderManuscriptDocx(reviewed.preview, [
+      "excluded_chapters",
+    ]);
+    await expect(
+      application.documents.saveManuscriptDocx(blob, reviewed.preview.fileName),
+    ).resolves.toBe("saved");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`/api/manuscript-export/preview?world=${WORLD_ID}`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ preset: "editor" });
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/manuscript-export/docx?world=${WORLD_ID}`);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      preset: "editor",
+      revision: 7,
+      sourceSha256: "a".repeat(64),
+      acknowledgedWarnings: ["excluded_chapters"],
+    });
+    expect(await blob.text()).toBe("docx-data");
+    expect(save).toHaveBeenCalledWith("Quiltor-Manuskript.docx", blob);
+  });
+
+  it("accepts the registered preview fixture and preserves an empty chapter title", async () => {
+    const fixture = structuredClone(manuscriptExportFixture);
+    fixture.preview.chapters[0].title = "";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(fixture)));
+
+    await expect(application.documents.previewManuscriptDocx("editor")).resolves.toMatchObject({
+      preview: { chapters: [{ title: "" }] },
+    });
+  });
+
+  it("keeps a cancelled native file picker neutral", async () => {
+    const save = vi.fn().mockResolvedValue({ status: "cancelled" });
+    application = createHttpApplicationGateway(createPlatformGateway({ files: { save } }));
+
+    await expect(
+      application.documents.saveManuscriptDocx(new Blob(["docx"]), "Quiltor-Manuskript.docx"),
+    ).resolves.toBe("cancelled");
+  });
+
+  it.each([
+    ["wrong exported chapter count", { counts: { ...docxPreview.counts, exportedChapters: 2 } }],
+    ["wrong exported word count", { counts: { ...docxPreview.counts, exportedWords: 4 } }],
+    ["unknown warning", { warnings: [{ code: "layout", count: 1 }] }],
+    ["wrong filename", { fileName: "unsafe.docx" }],
+  ])("rejects a malformed DOCX preview with %s", async (_name, change) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(response({ ok: true, preview: { ...docxPreview, ...change } })),
+    );
+
+    await expect(application.documents.previewManuscriptDocx("editor")).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  it.each([
+    ["an extra envelope property", { ...manuscriptExportFixture, extra: true }],
+    [
+      "an extra preview property",
+      {
+        ...manuscriptExportFixture,
+        preview: { ...manuscriptExportFixture.preview, extra: true },
+      },
+    ],
+    [
+      "an extra chapter property",
+      {
+        ...manuscriptExportFixture,
+        preview: {
+          ...manuscriptExportFixture.preview,
+          chapters: [{ ...manuscriptExportFixture.preview.chapters[0], extra: true }],
+        },
+      },
+    ],
+    [
+      "an overlong Unicode chapter id",
+      {
+        ...manuscriptExportFixture,
+        preview: {
+          ...manuscriptExportFixture.preview,
+          chapters: [{ ...manuscriptExportFixture.preview.chapters[0], id: "🧵".repeat(201) }],
+        },
+      },
+    ],
+    [
+      "an overlong Unicode title",
+      {
+        ...manuscriptExportFixture,
+        preview: {
+          ...manuscriptExportFixture.preview,
+          chapters: [{ ...manuscriptExportFixture.preview.chapters[0], title: "Ä".repeat(1001) }],
+        },
+      },
+    ],
+    [
+      "an overlong Unicode excerpt",
+      {
+        ...manuscriptExportFixture,
+        preview: {
+          ...manuscriptExportFixture.preview,
+          chapters: [{ ...manuscriptExportFixture.preview.chapters[0], excerpt: "🌊".repeat(281) }],
+        },
+      },
+    ],
+    [
+      "an extra counts property",
+      {
+        ...manuscriptExportFixture,
+        preview: {
+          ...manuscriptExportFixture.preview,
+          counts: { ...manuscriptExportFixture.preview.counts, extra: 0 },
+        },
+      },
+    ],
+    [
+      "an extra warning property",
+      {
+        ...manuscriptExportFixture,
+        preview: {
+          ...manuscriptExportFixture.preview,
+          warnings: [{ ...manuscriptExportFixture.preview.warnings[0], extra: true }],
+        },
+      },
+    ],
+  ])("rejects a strict-contract preview with %s", async (_name, body) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(body)));
+
+    await expect(application.documents.previewManuscriptDocx("editor")).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  it("rejects an unsafe aggregate chapter word count", async () => {
+    const chapters = [
+      { id: "one", title: "", words: Number.MAX_SAFE_INTEGER, excerpt: "" },
+      { id: "two", title: "", words: 1, excerpt: "" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        response({
+          ok: true,
+          preview: {
+            ...docxPreview,
+            chapters,
+            counts: {
+              manuscriptChapters: 2,
+              manuscriptWords: Number.MAX_SAFE_INTEGER,
+              exportedChapters: 2,
+              exportedWords: Number.MAX_SAFE_INTEGER,
+            },
+          },
+        }),
+      ),
+    );
+
+    await expect(application.documents.previewManuscriptDocx("editor")).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  it("rejects more than 10,000 exported chapters", async () => {
+    const chapters = Array.from({ length: 10_001 }, (_, index) => ({
+      id: `chapter-${index}`,
+      title: "",
+      words: 0,
+      excerpt: "",
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        response({
+          ok: true,
+          preview: {
+            ...docxPreview,
+            chapters,
+            counts: {
+              manuscriptChapters: chapters.length,
+              manuscriptWords: 0,
+              exportedChapters: chapters.length,
+              exportedWords: 0,
+            },
+            warnings: [],
+          },
+        }),
+      ),
+    );
+
+    await expect(application.documents.previewManuscriptDocx("editor")).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  it.each([
+    ["wrong MIME", new Response("data", { headers: { "Content-Type": "text/plain" } })],
+    [
+      "empty body",
+      new Response("", {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+      }),
+    ],
+  ])("rejects a DOCX download with %s", async (_name, rendered) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rendered));
+    await expect(
+      application.documents.renderManuscriptDocx(docxPreview, ["excluded_chapters"]),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
   it("renders and saves a book PDF as separate operations", async () => {
     const fetchMock = vi
       .fn()

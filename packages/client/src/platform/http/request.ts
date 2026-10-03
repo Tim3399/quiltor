@@ -76,6 +76,21 @@ function localizedStructuredErrorMessage(code: string | undefined): string | und
   if (code === "project_transfer.invalid_asset") return messages.errorProjectTransferInvalidAsset;
   if (code === "project_transfer.publication_failed")
     return messages.errorProjectTransferPublicationFailed;
+  if (code === "manuscript_import.invalid_file") return messages.errorManuscriptImportInvalidFile;
+  if (code === "manuscript_import.limit_exceeded")
+    return messages.errorManuscriptImportLimitExceeded;
+  if (code === "manuscript_import.unsupported_content")
+    return messages.errorManuscriptImportUnsupportedContent;
+  if (code === "manuscript_import.invalid_selection")
+    return messages.errorManuscriptImportInvalidSelection;
+  if (code === "manuscript_import.preview_mismatch")
+    return messages.errorManuscriptImportPreviewMismatch;
+  if (code === "manuscript_import.warnings_unacknowledged")
+    return messages.errorManuscriptImportWarningsUnacknowledged;
+  if (code === "manuscript_import.conflicting_request")
+    return messages.errorManuscriptImportConflictingRequest;
+  if (code === "manuscript_import.publication_failed")
+    return messages.errorManuscriptImportPublicationFailed;
   return undefined;
 }
 

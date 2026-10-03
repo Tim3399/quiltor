@@ -117,6 +117,9 @@ the five bundled book fonts and Paged.js ship in
 - **cffi 2.1.1** — MIT No Attribution (`MIT-0`) License, and **pycparser 3.0**
   — 3-Clause BSD License. Both are pinned transitive dependencies of the
   self-hosted cryptography runtime.
+- **markdown-it-py 4.2.0** and **mdurl 0.1.2** — MIT License. The Markdown
+  manuscript importer uses their token parser locally in every supported host,
+  including the self-hosted image.
 
 ### Hash-locked Python build and runtime closure
 

@@ -1,15 +1,31 @@
 # TODO — Quiltor Product Roadmap
 
-**Baseline:** Quiltor `3.7.0` / P0 reviewed on 22 August 2026
+**Baseline:** Quiltor `3.20.0` / accepted delivery reviewed on 2 October 2026
 **Purpose:** Product roadmap. This file answers **what should be built next and in what order**.
 
-The owner-requested safety and workflow delivery was completed on 2026-09-19 in the
-[competition findings sprint plan](plans/competition-findings-sprints.md). That plan
-maps all 54 QF-01–QF-09 requirements to bounded tasks and records verification,
-including the explicitly closed release gates for an unoffered managed cloud service.
+The owner-requested safety and workflow delivery is recorded in the
+[54-row acceptance matrix](plans/competition-findings-acceptance.md) and the
+[final integrated acceptance](plans/competition-findings-sprints.md#final-integrated-acceptance--2026-09-19).
 The subsequently authorized [integration and cloud delivery](plans/cloud-integration-sprints.md)
 adds manual synchronization with explicit conflict resolution and configurable server policy.
-Its verification and original-workspace handoff are tracked separately from commercial launch.
+
+[Release 3.20.0](https://github.com/Tim3399/quiltor/releases/tag/v3.20.0) was published on
+1 October 2026 after Linux, macOS and Windows CI, release preflight and all 144 design references
+passed. The production server was upgraded on 2 October: the app and backup service both report
+3.20.0, the public endpoint returns HTTP 200 and the Keycloak form loaded without browser errors.
+Before the upgrade, 58 SQLite databases were backed up and checked; migration of 55 world copies
+from schema 3 or 12 to schema 14 retained manuscript text and notes.
+
+The cloud capability delivered in 3.20 is manual, per-project snapshot/head synchronization. It is
+not automatic background sync, chapter-level text merging, end-to-end encryption or a managed
+billing offer. The broader roadmap requirements for those capabilities remain open below.
+
+The [follow-up sprint plan](plans/roadmap-followup-sprints.md) records local work after 3.20.0:
+DOCX, Markdown and TXT import, reviewed chapter splitting and folder mapping, plus
+reviewed DOCX export with editor and Normseite presets. These
+changes have not yet been released or deployed. The owner selected the existing
+`status.bananenban.de` entry as sufficient operational visibility for now; separate
+notification channels are deferred.
 
 ---
 
@@ -360,26 +376,34 @@ from the editor. Evidence:
 
 ## Formats
 
-- [ ] DOCX — the format most authors and their editors already use.
-- [ ] Markdown.
-- [ ] TXT / RTF if useful.
+- [x] DOCX — bounded manuscript import with Heading 1 chapter detection, reviewed merging,
+      bold/italic text and explicit loss warnings; see [S13](plans/roadmap-followup-sprints.md).
+- [x] Markdown — bounded CommonMark prose, headings, bold/italic and explicit loss warnings;
+      raw HTML is rejected. See [S14](plans/roadmap-followup-sprints.md#s14-contract-and-acceptance).
+- [x] TXT — UTF-8 or BOM-declared UTF-16, preserved paragraph text and reviewed splitting.
+- [ ] RTF if useful.
 - [ ] Scrivener `.scriv` projects — Scrivener is the tool most authors switch from.
 - Papyrus `.pap` stays out of scope; Papyrus exports DOCX and RTF.
 
 ## Trustworthy import
 
-- [ ] Preview the detected chapter and folder split before anything is written.
-- [ ] Let the author correct the split (headings, scene separators, page breaks) in the preview.
-- [ ] Compare word and paragraph counts of source and result; never lose text silently.
-- [ ] Preserve:
-  - chapter structure and folder hierarchy;
-  - titles;
-  - paragraphs;
-  - italics, bold and scene separators;
-  - stable enough source boundaries for evidence;
-  - manuscript revision provenance.
-- [ ] Report content Quiltor cannot represent yet (footnotes, comments, images) instead of dropping
-      it.
+- [x] Preview detected DOCX/Markdown chapters and TXT paragraphs before anything is written.
+- [x] Correct chapter boundaries by splitting at a source paragraph or merging adjacent chapters;
+      require a refreshed preview before publication.
+- [x] Edit chapter titles and merge adjacent chapters, then require a refreshed preview.
+- [ ] Extend automatic split detection to scene separators and page breaks.
+- [x] Compare main-document word and paragraph counts of source and result; report unsupported
+      ancillary content separately and reject ambiguous structures before publication.
+- [x] Preserve source chapter titles, paragraph text, supported body bold/italic, literal scene
+      separators and source-file provenance through DOCX/Markdown/TXT import and later saves.
+- [x] Map imported chapters into nested folders while preserving their reviewed order; reject
+      folder reentry that would reorder text.
+- [ ] Preserve source-native folder hierarchy and stable source-boundary references for evidence
+      across richer imports.
+- [x] Report content Quiltor cannot represent yet (footnotes, comments, images), with explicit
+      acknowledgement before a DOCX import.
+- [x] Publish a new owner-scoped project atomically; an uncertain response retry returns the same
+      project instead of duplicating it.
 - [ ] Import into a new world or append to an existing manuscript; one undo step either way.
 - [ ] Create a snapshot before importing into an existing world.
 
@@ -454,25 +478,31 @@ go unused when they feel like configuration. Evidence:
 
 # P1 — Better export
 
-Today Quiltor exports one 6 × 9 in book PDF. Authors need files for editors, agents, shops and
-print. Comparable products fail in two ways: a compile designer nobody understands (Scrivener) and
-exports that break later (EPUB rejected on upload, chapter numbers missing in DOCX). Evidence:
+Today Quiltor exports print PDFs and Markdown chapters/books, and its portable project archive can
+transfer a complete current project into a new project copy. Authors still need editor, agent,
+shop and broader print formats. Comparable products fail in two ways: a compile designer nobody
+understands (Scrivener) and exports that break later (EPUB rejected on upload, chapter numbers
+missing in DOCX). Evidence:
 [`competitor pain points`](research/competitor-pain-points.md#3-export-and-compile-as-a-configuration-maze).
 
 ## Formats
 
-- [ ] DOCX manuscript for editors and agents.
-- [ ] German standard manuscript page (`Normseite`) as a one-click preset.
+- [x] DOCX manuscript for editors and agents, with review before download (S15, local).
+- [x] German standard manuscript page (`Normseite`) as a one-click preset (S15, local).
 - [ ] EPUB 3.
 - [ ] Print PDF in common trim sizes, not only 6 × 9 in.
-- [ ] Markdown / plain text for portability.
+- [x] Markdown chapter and book export for portability.
 - [ ] World data (figures, places, timeline) in a readable format.
 
 ## Presets instead of a compile designer
 
 - [ ] Named presets (manuscript for an editor, Normseite, e-book, paperback) with few, clear options:
       title page, chapter numbering, scene separator, font.
+      S15 supplies two fixed DOCX presets; optional title pages, generated numbering,
+      EPUB and broader print presets remain open.
 - [ ] Preview before the file is written.
+      DOCX has a content preview and counted omission warnings; its final pagination
+      is produced by the DOCX reader. Existing print preview remains separate.
 - [ ] Carry chapter numbers, titles, italics and scene separators into every format, in the binder's
       flattened order.
 
@@ -480,7 +510,10 @@ exports that break later (EPUB rejected on upload, chapter numbers missing in DO
 
 - [ ] Validate EPUB output against the EPUB 3 specification in the release suite.
 - [ ] Report word and chapter counts of the export next to the manuscript's.
-- [ ] Round-trip test: import an exported DOCX and compare it with the source.
+      Completed for both DOCX presets in S15; remaining formats are still open.
+- [x] Round-trip test: import an exported DOCX and compare it with the source.
+      Covers body text, titles, order and visible bold/italic; see
+      [S15 acceptance](plans/roadmap-followup-sprints.md#s15-editor-export-and-acceptance).
 
 ---
 
@@ -1066,40 +1099,52 @@ Never add:
 
 # P2 — Device sync and cloud storage (optional subscription)
 
-Quiltor stays fully usable on one device without an account. Sync between devices and cloud storage
-can be booked as a subscription. Comparable products show what must not happen: Scrivener projects
-break inside Dropbox, iCloud and OneDrive folders, Dabble cannot merge offline work from two devices,
-and cloud-first apps lock authors out when the login or the service fails. Evidence:
+Quiltor stays fully usable on one device without an account. Manual synchronization is implemented,
+but no managed subscription or billing flow is offered. Comparable products show what must not
+happen: Scrivener projects break inside Dropbox, iCloud and OneDrive folders, Dabble cannot merge
+offline work from two devices, and cloud-first apps lock authors out when the login or the service
+fails. Evidence:
 [`competitor pain points`](research/competitor-pain-points.md#4-sync-between-devices).
 
 ## Principles
 
-- [ ] The local world stays authoritative and fully usable offline.
-- [ ] Sync runs through Quiltor's own revision-aware service, never by placing the SQLite database
-      in a third-party sync folder.
+- [x] The local world stays authoritative and fully usable offline.
+- [x] Manual sync runs through Quiltor's own revision-aware service, never by placing the SQLite
+      database in a third-party sync folder.
 - [ ] End-to-end encryption: the service stores what it cannot read.
-- [ ] Sync is not backup: local backups and restore keep working without a subscription.
+- [x] Sync is not backup: local backups and restore remain independent from the mutable sync head.
 - [ ] Ending the subscription leaves every world local, complete and editable.
+
+Remote authentication, quota, read-only policy and outages cannot block local writing, trash,
+restore, export or import. The cancellation requirement remains open because there is no billing or
+subscription lifecycle to exercise.
 
 ## Behaviour
 
 - [ ] Sync per document revision (manuscript, story world, storyboard), reusing the existing revision
       checks.
-- [ ] Conflicting edits from two devices are shown side by side and never resolved by overwriting.
+- [x] Conflicting project versions are shown side by side and require an explicit, stale-state-checked
+      choice; both versions receive safety snapshots rather than being silently overwritten.
 - [ ] Offline edits on two devices merge per chapter where they do not overlap.
-- [ ] Visible sync state: last sync, pending changes, conflicts.
-- [ ] Evaluate whether `services/backup-server` can become the sync and storage backend.
+- [x] Visible manual-sync state: last confirmed sync, local/remote pending changes and conflicts.
+- [x] Use `services/backup-server` as the authenticated snapshot and atomic sync-head backend.
 - [ ] Transfer changed chapters and assets only; this needs the
       [storage foundation](#storage-foundation-snapshot-units-end-to-end-encryption-retention) first.
 
+The accepted implementation synchronizes a whole-project semantic snapshot on demand. It does not
+run in the background or merge non-overlapping chapter text, so the broader per-document and merge
+items remain open.
+
 ## Storage foundation: snapshot units, end-to-end encryption, retention
 
-Cloud backup is the first paid part of this subscription, and sync builds on the same storage. Today
-it would not pay for itself. Every snapshot stores the whole world database as one blob
-(`snapshots.py`, `_collect`). In the largest local test world that is 4.47 MB, of which 4.0 MB are
-two place-map images and 177 KB are chapter text, so changing a comma stores the images again.
-Snapshots are manual only, only the newest one is uploaded, `encryption` must be `none`, and the
-reference server never deletes anything.
+If a managed subscription is offered, cloud backup is intended to be its first paid part; no paid
+offer exists today. Sync builds on the same storage. Every snapshot stores the whole world database
+as one blob (`snapshots.py`, `_collect`). In the largest local test world that is 4.47 MB, of which
+4.0 MB are two place-map images and 177 KB are chapter text, so changing a comma stores the images
+again.
+Remote publication is explicit and `encryption` must be `none`. The reference server supports
+operator-configured account expiry and purge; this is separate from the snapshot retention
+and end-to-end encryption design below.
 
 ### Decisions
 
@@ -1285,9 +1330,9 @@ matches the disk.
 ## Subscription hygiene
 
 - [ ] Remind before renewal; cancelling is as easy as subscribing.
-- [ ] Storage limits are shown plainly and never block local writing.
+- [x] Configured storage limits are shown plainly and never block local writing.
 
-## Until sync exists
+## Host-folder safety
 
 - [ ] Warn when the data or backup directory lies inside OneDrive, iCloud Drive or Dropbox, where
       online-only placeholders make projects appear lost.
@@ -1383,9 +1428,9 @@ Not prioritized. Each item answers a recurring complaint in
 [`competitor pain points`](research/competitor-pain-points.md); decide per item before it moves into
 a milestone.
 
-- [ ] **Visible safety:** show last save, last backup and where the world lives; restore an earlier
+- [x] **Visible safety:** show last save, last backup and where the world lives; restore an earlier
       version without contacting support. (Scrivener "lost work" threads, Dabble.)
-- [ ] **Safe tree operations:** regression tests that moving and sorting chapters and folders can
+- [x] **Safe tree operations:** regression tests that moving and sorting chapters and folders can
       never delete content; a trash with restore. (Manuskript #1392.)
 - [ ] **Authorship record:** export a readable writing history from snapshots as evidence of human
       authorship; the no-prose assistant makes it credible. (Scrivener forum, August 2026; publisher

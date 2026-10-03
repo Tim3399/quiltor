@@ -7,6 +7,7 @@ afterEach(cleanup);
 
 it("links manuscript export actions and restores focus after selection", async () => {
   const onExport = vi.fn();
+  const onExportDocx = vi.fn();
   const { container } = render(
     <I18nProvider>
       <ManuscriptToolbar
@@ -24,6 +25,7 @@ it("links manuscript export actions and restores focus after selection", async (
         onFocus={vi.fn()}
         onHistoryOpen={vi.fn()}
         onExport={onExport}
+        onExportDocx={onExportDocx}
         onPrint={vi.fn()}
         onPreview={vi.fn()}
         onInsertSceneBreak={vi.fn()}
@@ -62,6 +64,8 @@ it("links manuscript export actions and restores focus after selection", async (
   expect(trigger).toHaveAttribute("aria-expanded", "true");
   expect(trigger).toHaveAttribute("aria-controls", menu.id);
   const exportItem = within(menu).getByRole("menuitem", { name: "Manuskript" });
+  expect(within(menu).getByRole("menuitem", { name: "DOCX fürs Lektorat" })).toBeInTheDocument();
+  expect(within(menu).getByRole("menuitem", { name: "DOCX als Normseite" })).toBeInTheDocument();
   expect(exportItem.querySelector(".ui-menu__label")).toHaveTextContent("Manuskript");
   fireEvent.click(exportItem);
 
@@ -91,6 +95,7 @@ it("exposes print preview and scene-break actions", () => {
         onFocus={vi.fn()}
         onHistoryOpen={vi.fn()}
         onExport={vi.fn()}
+        onExportDocx={vi.fn()}
         onPrint={vi.fn()}
         onPreview={onPreview}
         onInsertSceneBreak={onInsertSceneBreak}

@@ -6,12 +6,13 @@ import type {
   HistoryGateway,
   IdentityGateway,
   ManuscriptGateway,
+  ManuscriptImportGateway,
   MetadataGateway,
   PlaceMapsGateway,
   ProjectTransferGateway,
-  SynchronizationGateway,
   StoryboardsGateway,
   StoryWorldGateway,
+  SynchronizationGateway,
   WorldsGateway,
   WritingAssistanceGateway,
 } from "../application";
@@ -23,6 +24,7 @@ export type ApplicationGatewayOverrides = {
   storyWorld?: Partial<StoryWorldGateway>;
   storyboards?: Partial<StoryboardsGateway>;
   manuscript?: Partial<ManuscriptGateway>;
+  manuscriptImport?: Partial<ManuscriptImportGateway>;
   backup?: Partial<BackupGateway>;
   history?: Partial<HistoryGateway>;
   assistant?: Partial<AssistantGateway>;
@@ -86,6 +88,12 @@ export function createApplicationGatewayStub(
       saveExpected: () => notStubbed("manuscript.saveExpected"),
       ...overrides.manuscript,
     },
+    manuscriptImport: {
+      createRequestId: () => "00000000-0000-4000-8000-000000000000",
+      preview: () => notStubbed("manuscriptImport.preview"),
+      importManuscript: () => notStubbed("manuscriptImport.importManuscript"),
+      ...overrides.manuscriptImport,
+    },
     backup: {
       status: () => notStubbed("backup.status"),
       saveSnapshot: () => notStubbed("backup.saveSnapshot"),
@@ -128,6 +136,9 @@ export function createApplicationGatewayStub(
       renderBookPdf: () => notStubbed("documents.renderBookPdf"),
       saveBookPdf: () => notStubbed("documents.saveBookPdf"),
       bookPdf: () => notStubbed("documents.bookPdf"),
+      previewManuscriptDocx: () => notStubbed("documents.previewManuscriptDocx"),
+      renderManuscriptDocx: () => notStubbed("documents.renderManuscriptDocx"),
+      saveManuscriptDocx: () => notStubbed("documents.saveManuscriptDocx"),
       ...overrides.documents,
     },
     placeMaps: {

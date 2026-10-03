@@ -82,6 +82,99 @@ describe("manuscript wire v1", () => {
     ).toEqual(fixture);
   });
 
+  it("preserves validated import provenance through an ordinary manuscript edit", () => {
+    const wire = copy(fixture);
+    (wire.payload as Record<string, unknown>).importSource = {
+      version: 1,
+      fileName: "Entwurf.docx",
+      format: "docx",
+      sourceSha256: "a".repeat(64),
+      importedAt: "2026-10-02T14:30:00Z",
+      counts: {
+        sourceWords: 12,
+        sourceParagraphs: 4,
+        importedWords: 12,
+        importedParagraphs: 4,
+        futureCount: 3,
+      },
+      warnings: [{ code: "comments", count: 2, futureWarning: true }],
+      futureSource: { kept: true },
+    };
+
+    const decoded = decodeManuscriptV1(wire);
+    decoded.document.chapters[0].body += " Weiter.";
+    const encoded = encodeManuscriptV1(decoded.document, decoded.revision);
+
+    expect(encoded.payload.importSource).toEqual(
+      (wire.payload as unknown as { importSource: unknown }).importSource,
+    );
+    if (!decoded.document.importSource) throw new Error("import provenance missing");
+    decoded.document.importSource.counts.sourceWords = 99;
+    expect(encoded.payload.importSource?.counts.sourceWords).toBe(12);
+  });
+
+  it("rejects malformed import provenance while keeping it optional", () => {
+    const without = copy(fixture);
+    expect(decodeManuscriptV1(without).document.importSource).toBeUndefined();
+
+    for (const candidate of [
+      { version: 3 },
+      { version: 1, format: "markdown" },
+      { version: 1, sourceSha256: "short" },
+      { version: 1, importedAt: "yesterday" },
+      { version: 1, importedAt: "2026-02-30T14:30:00Z" },
+      { version: 1, importedAt: "2026-99-02T14:30:00Z" },
+      { version: 1, fileName: "   " },
+    ]) {
+      const wire = copy(fixture);
+      (wire.payload as Record<string, unknown>).importSource = Object.assign(
+        {
+          version: 1,
+          fileName: "Entwurf.docx",
+          format: "docx",
+          sourceSha256: "a".repeat(64),
+          importedAt: "2026-10-02T14:30:00Z",
+          counts: {
+            sourceWords: 12,
+            sourceParagraphs: 4,
+            importedWords: 12,
+            importedParagraphs: 4,
+          },
+          warnings: [],
+        },
+        candidate,
+      );
+      expect(() => decodeManuscriptV1(wire)).toThrow();
+    }
+  });
+
+  it.each([
+    ["docx", "Entwurf.docx"],
+    ["markdown", "Entwurf.md"],
+    ["txt", "Entwurf.txt"],
+  ])("round-trips version 2 %s import provenance", (format, fileName) => {
+    const wire = copy(fixture);
+    (wire.payload as Record<string, unknown>).importSource = {
+      version: 2,
+      fileName,
+      format,
+      sourceSha256: "b".repeat(64),
+      importedAt: "2026-10-03T08:15:00.123456Z",
+      counts: {
+        sourceWords: 12,
+        sourceParagraphs: 4,
+        importedWords: 12,
+        importedParagraphs: 4,
+      },
+      warnings: [],
+    };
+
+    const decoded = decodeManuscriptV1(wire);
+    expect(encodeManuscriptV1(decoded.document, decoded.revision).payload.importSource).toEqual(
+      (wire.payload as unknown as { importSource: unknown }).importSource,
+    );
+  });
+
   it("isolates nested story-time records and validates their identifiers", () => {
     const source = copy(fixture);
     const decoded = decodeManuscriptV1(source);

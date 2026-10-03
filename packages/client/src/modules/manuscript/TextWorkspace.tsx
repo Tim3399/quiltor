@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, ConfirmDialog, Toast, ToastRegion } from "../../design";
 import { useI18n } from "../../i18n";
-import { applicationErrorMessage, quiltorClient, saveTextFile } from "../../platform";
+import {
+  applicationErrorMessage,
+  type ManuscriptDocxPreset,
+  quiltorClient,
+  saveTextFile,
+} from "../../platform";
 import { uid } from "../../shared/id";
 import { BookDocument } from "./BookDocument";
 import { BookLayoutInspector } from "./BookLayoutInspector";
@@ -22,6 +27,7 @@ import { EditorSurface } from "./EditorSurface";
 import { ElementsSheet } from "./ElementsSheet";
 import { FocusPanels } from "./FocusPanels";
 import type { ManuscriptEditorPosition } from "./ManuscriptEditor";
+import { ManuscriptExportDialog } from "./ManuscriptExportDialog";
 import { ManuscriptInspector, type ManuscriptInspectorRegister } from "./ManuscriptInspector";
 import { ManuscriptToolbar } from "./ManuscriptToolbar";
 import { markdownBody } from "./marks";
@@ -101,6 +107,7 @@ export function TextWorkspace({
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
   const [exportError, setExportError] = useState("");
+  const [docxPreset, setDocxPreset] = useState<ManuscriptDocxPreset | null>(null);
   const [preview, setPreview] = useState(false);
   const [previewChapterId, setPreviewChapterId] = useState("");
   const [previewTargetChapterId, setPreviewTargetChapterId] = useState("");
@@ -438,6 +445,7 @@ ${markdownBody(current.body, current.marks)}
         onFocus={onFocus}
         onHistoryOpen={history.setOpen}
         onExport={exportAll}
+        onExportDocx={setDocxPreset}
         onPrint={() => void printBook()}
         onPreview={setPrintPreview}
         onInsertSceneBreak={() => writing.insert("\n\n⁂\n\n")}
@@ -594,6 +602,14 @@ ${markdownBody(current.body, current.marks)}
           availableMomentIds={new Set((figures.timeline ?? []).map((moment) => moment.id))}
           onChange={onChange}
           onClose={() => setTrashOpen(false)}
+        />
+      )}
+      {docxPreset && (
+        <ManuscriptExportDialog
+          key={docxPreset}
+          preset={docxPreset}
+          onSave={onSave}
+          onClose={() => setDocxPreset(null)}
         />
       )}
       {(pdfState === "error" || exportError || lastDeletedId) && (

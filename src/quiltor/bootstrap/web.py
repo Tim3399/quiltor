@@ -78,6 +78,12 @@ class DocumentRouteServices:
 
 
 @dataclass(frozen=True, slots=True)
+class ManuscriptExportRouteServices:
+    manuscript_export: Any
+    lock: threading.Lock
+
+
+@dataclass(frozen=True, slots=True)
 class AssistantRouteServices:
     documents: Any
     story_world: Any
@@ -115,6 +121,12 @@ class PlaceMapRouteServices:
 @dataclass(frozen=True, slots=True)
 class ProjectTransferRouteServices:
     project_transfer: Any
+    lock: threading.Lock
+
+
+@dataclass(frozen=True, slots=True)
+class ManuscriptImportRouteServices:
+    manuscript_import: Any
     lock: threading.Lock
 
 
@@ -252,6 +264,10 @@ class WebApplication:
             return PlaceMapRouteServices(self.application.place_maps, self.lock)
         if path.startswith("/api/project-transfer"):
             return ProjectTransferRouteServices(self.application.project_transfer, self.lock)
+        if path.startswith("/api/manuscript-import"):
+            return ManuscriptImportRouteServices(self.application.manuscript_import, self.lock)
+        if path.startswith("/api/manuscript-export"):
+            return ManuscriptExportRouteServices(self.application.manuscript_export, self.lock)
         if path.startswith("/api/history"):
             return HistoryRouteServices(self.application.history, self.lock)
         if path.startswith("/api/writing-assistance"):
@@ -360,6 +376,7 @@ __all__ = [
     "BackupRouteServices",
     "DocumentRouteServices",
     "IdentityRouteServices",
+    "ManuscriptImportRouteServices",
     "ProjectTransferRouteServices",
     "SynchronizationRouteServices",
     "WebApplication",

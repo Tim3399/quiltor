@@ -91,8 +91,39 @@ export interface ChapterTrashEntryWireV1 {
   [key: string]: unknown;
 }
 
+interface ManuscriptImportSourceWireBaseV1 {
+  fileName: string;
+  sourceSha256: string;
+  importedAt: string;
+  counts: {
+    sourceWords: number;
+    sourceParagraphs: number;
+    importedWords: number;
+    importedParagraphs: number;
+    [key: string]: unknown;
+  };
+  warnings: Array<{
+    code:
+      | "images"
+      | "hyperlinks"
+      | "headers_footers"
+      | "footnotes_endnotes"
+      | "comments"
+      | "numbering"
+      | "fields"
+      | "formatting";
+    count: number;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+export type ManuscriptImportSourceWireV1 = ManuscriptImportSourceWireBaseV1 &
+  ({ version: 1; format: "docx" } | { version: 2; format: "docx" | "markdown" | "txt" });
+
 export interface ManuscriptPayloadWireV1 {
   chapters: ChapterWireV1[];
+  importSource?: ManuscriptImportSourceWireV1;
   trash?: ChapterTrashEntryWireV1[];
   bookLayout?: BookLayoutWireV1;
   structure?: ManuscriptStructureWireV1;
@@ -113,6 +144,102 @@ export interface ManuscriptPayloadWireV1 {
 
 export type ManuscriptWireV1 = DocumentEnvelopeWireV1<ManuscriptPayloadWireV1>;
 
+const importWarningCodes = [
+  "images",
+  "hyperlinks",
+  "headers_footers",
+  "footnotes_endnotes",
+  "comments",
+  "numbering",
+  "fields",
+  "formatting",
+] as const;
+
+function isValidUtcTimestamp(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?Z$/.exec(value);
+  if (!match) return false;
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map((part) => Number(part));
+  if (year < 1) return false;
+  const instant = new Date(0);
+  instant.setUTCFullYear(year, month - 1, day);
+  instant.setUTCHours(hour, minute, second, 0);
+  return (
+    instant.getUTCFullYear() === year &&
+    instant.getUTCMonth() === month - 1 &&
+    instant.getUTCDate() === day &&
+    instant.getUTCHours() === hour &&
+    instant.getUTCMinutes() === minute &&
+    instant.getUTCSeconds() === second
+  );
+}
+
+function importSource(value: unknown, path: string): ManuscriptImportSourceWireV1 {
+  const source = wireRecord(value, path);
+  const version = wireInteger(source.version, `${path}.version`, { min: 1, max: 2 });
+  const fileName = wireString(source.fileName, `${path}.fileName`, { min: 1, max: 1000 });
+  if (!fileName.trim()) throw new WireContractError(`${path}.fileName`);
+  const format = wireEnum(source.format, ["docx", "markdown", "txt"] as const, `${path}.format`);
+  if (version === 1 && format !== "docx") throw new WireContractError(`${path}.format`);
+  const sourceSha256 = wireString(source.sourceSha256, `${path}.sourceSha256`, {
+    min: 64,
+    max: 64,
+  });
+  if (!/^[a-f0-9]{64}$/.test(sourceSha256)) throw new WireContractError(`${path}.sourceSha256`);
+  const importedAt = wireString(source.importedAt, `${path}.importedAt`, { min: 20, max: 40 });
+  if (!isValidUtcTimestamp(importedAt)) {
+    throw new WireContractError(`${path}.importedAt`);
+  }
+  const counts = wireRecord(source.counts, `${path}.counts`);
+  const canonicalCounts = {
+    ...counts,
+    sourceWords: wireInteger(counts.sourceWords, `${path}.counts.sourceWords`, { min: 0 }),
+    sourceParagraphs: wireInteger(counts.sourceParagraphs, `${path}.counts.sourceParagraphs`, {
+      min: 0,
+    }),
+    importedWords: wireInteger(counts.importedWords, `${path}.counts.importedWords`, { min: 0 }),
+    importedParagraphs: wireInteger(
+      counts.importedParagraphs,
+      `${path}.counts.importedParagraphs`,
+      { min: 0 },
+    ),
+  };
+  const seenWarnings = new Set<string>();
+  const warnings = wireArray(source.warnings, `${path}.warnings`).map((value, index) => {
+    const warningPath = `${path}.warnings[${index}]`;
+    const warning = wireRecord(value, warningPath);
+    const code = wireEnum(warning.code, importWarningCodes, `${warningPath}.code`);
+    if (seenWarnings.has(code)) throw new WireContractError(`${warningPath}.code`);
+    seenWarnings.add(code);
+    return {
+      ...warning,
+      code,
+      count: wireInteger(warning.count, `${warningPath}.count`, { min: 1 }),
+    };
+  });
+  return {
+    ...source,
+    version,
+    fileName,
+    format,
+    sourceSha256,
+    importedAt,
+    counts: canonicalCounts,
+    warnings,
+  } as ManuscriptImportSourceWireV1;
+}
+
+function cloneImportSource(
+  source: ManuscriptImportSourceWireV1 | undefined,
+): ManuscriptImportSourceWireV1 | undefined {
+  return source
+    ? {
+        ...source,
+        counts: { ...source.counts },
+        warnings: source.warnings.map((warning) => ({ ...warning })),
+      }
+    : undefined;
+}
+
 /** V1 editor offsets are UTF-16 code units and may not split a surrogate pair. */
 function isUtf16Boundary(text: string, offset: number): boolean {
   if (offset <= 0 || offset >= text.length) return true;
@@ -123,6 +250,10 @@ function isUtf16Boundary(text: string, offset: number): boolean {
 
 function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV1 {
   const payload = wireRecord(value, path);
+  const canonicalImportSource =
+    payload.importSource === undefined
+      ? undefined
+      : importSource(payload.importSource, `${path}.importSource`);
   const chapters = wireArray(payload.chapters, `${path}.chapters`);
   const chapterIds = new Set<string>();
   const canonicalNoteMarks: Array<NoteMarkWireV1[] | undefined> = [];
@@ -464,6 +595,7 @@ function manuscriptPayload(value: unknown, path: string): ManuscriptPayloadWireV
   }
   return {
     ...payload,
+    ...(canonicalImportSource === undefined ? {} : { importSource: canonicalImportSource }),
     chapters: chapters.map((chapter, index) => ({
       ...wireRecord(chapter, `${path}.chapters[${index}]`),
       ...(canonicalNoteMarks[index] === undefined ? {} : { noteMarks: canonicalNoteMarks[index] }),
@@ -510,6 +642,7 @@ export function decodeManuscriptV1(value: unknown): DecodedDocumentV1<Manuscript
   return {
     document: {
       ...payloadWithoutTrash,
+      importSource: cloneImportSource(wire.payload.importSource),
       bookLayout: cloneBookLayoutV1(wire.payload.bookLayout),
       structure: {
         ...structure,
@@ -549,6 +682,7 @@ export function decodeManuscriptV1(value: unknown): DecodedDocumentV1<Manuscript
 export function encodeManuscriptV1(model: Manuscript, revision?: number): ManuscriptWireV1 {
   const payload = {
     ...model,
+    importSource: cloneImportSource(model.importSource),
     bookLayout: cloneBookLayoutV1(model.bookLayout),
     chapters: model.chapters.map(encodeChapter),
     ...(model.trash === undefined

@@ -3,6 +3,8 @@ import { auth } from "./auth";
 import { common } from "./common";
 import { figures } from "./figures";
 import { manuscript } from "./manuscript";
+import { manuscriptExport } from "./manuscriptExport";
+import { manuscriptImport } from "./manuscriptImport";
 import { menus } from "./menus";
 import { places } from "./places";
 import { shared } from "./shared";
@@ -19,6 +21,8 @@ const catalog = {
   ...shell,
   ...worlds,
   ...manuscript,
+  ...manuscriptExport,
+  ...manuscriptImport,
   ...figures,
   ...timeline,
   ...tools,

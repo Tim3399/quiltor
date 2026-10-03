@@ -16,7 +16,7 @@ license = { text = "PolyForm-Noncommercial-1.0.0 OR PolyForm-Small-Business-1.0.
 # Core dependencies are shared by every supported host. PyJWT's crypto extra is
 # required for fail-closed OIDC ID-token signature verification in hosted and
 # desktop backup-login flows.
-dependencies = ["typer>=0.12", "PyJWT[crypto]>=2.13,<3"]
+dependencies = ["typer>=0.12", "PyJWT[crypto]>=2.13,<3", "markdown-it-py==4.2.0"]
 
 # Only needed for the desktop host (a native-window build, see distribution/) --
 # never required for the web bootstrap, the plain CLI, or Docker.

@@ -14,6 +14,8 @@ from quiltor.application.backups import BackupUseCases
 from quiltor.application.capabilities import FeatureAvailability
 from quiltor.application.documents import DocumentUseCases
 from quiltor.application.history import HistoryUseCases
+from quiltor.application.manuscript_export import ManuscriptExportUseCases
+from quiltor.application.manuscript_import import ManuscriptImportUseCases
 from quiltor.application.place_maps import PlaceMapUseCases
 from quiltor.application.project_transfer import ProjectTransferUseCases
 from quiltor.application.story_world import StoryWorldReadTools, StoryWorldUseCases
@@ -29,6 +31,7 @@ from quiltor.infrastructure.backup.authorization import EndpointBoundBackupAutho
 from quiltor.infrastructure.backup.login import BackupLoginRuntime
 from quiltor.infrastructure.backup.sync_state import JsonSyncStateStore
 from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
+from quiltor.infrastructure.exporting.docx import DocxExportOptions, serialize_docx
 from quiltor.infrastructure.identity import (
     InMemoryRenderTokenStore,
     SQLiteOwnerIdentityStore,
@@ -52,6 +55,7 @@ from quiltor.infrastructure.persistence.assistant_interactions import (
 )
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.infrastructure.persistence.assistant_progress import SQLiteAssistantProgressStore
+from quiltor.infrastructure.persistence.manuscript_import import SQLiteManuscriptImportRepository
 from quiltor.infrastructure.persistence.project_archive import SQLiteProjectTransferRepository
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
 from quiltor.infrastructure.platform.feature_availability import (
@@ -99,6 +103,8 @@ class ApplicationServices:
     documents: DocumentUseCases
     place_maps: PlaceMapUseCases
     project_transfer: ProjectTransferUseCases
+    manuscript_import: ManuscriptImportUseCases
+    manuscript_export: ManuscriptExportUseCases
     backups: BackupUseCases
     history: HistoryUseCases
     assistant: AssistantAuditUseCases
@@ -167,6 +173,15 @@ def build_application_services(
         place_maps=PlaceMapUseCases(SQLitePlaceMapRepository()),
         project_transfer=ProjectTransferUseCases(
             SQLiteProjectTransferRepository(selected_paths), observer
+        ),
+        manuscript_import=ManuscriptImportUseCases(
+            SQLiteManuscriptImportRepository(selected_paths), observer
+        ),
+        manuscript_export=ManuscriptExportUseCases(
+            documents,
+            lambda chapters, preset: (
+                serialize_docx(chapters, DocxExportOptions(preset=preset)).content
+            ),
         ),
         backups=BackupUseCases(
             worlds,

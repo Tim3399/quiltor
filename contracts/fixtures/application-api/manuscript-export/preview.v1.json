@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "preview": {
+    "preset": "editor",
+    "revision": 3,
+    "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "fileName": "Quiltor-Manuskript.docx",
+    "chapters": [
+      {
+        "id": "c1",
+        "title": "1. Ankunft",
+        "words": 6,
+        "excerpt": "Der Morgen lag still am Hafen."
+      }
+    ],
+    "counts": {
+      "manuscriptChapters": 2,
+      "manuscriptWords": 10,
+      "exportedChapters": 1,
+      "exportedWords": 6
+    },
+    "warnings": [
+      {
+        "code": "excluded_chapters",
+        "count": 1
+      }
+    ]
+  }
+}

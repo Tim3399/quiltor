@@ -11,6 +11,7 @@ import {
 import { createHistoryHttpGateway } from "./history";
 import { createIdentityHttpGateway } from "./identity";
 import { createMetadataHttpGateway } from "./metadata";
+import { createManuscriptImportHttpGateway } from "./manuscriptImport";
 import { createPlaceMapsHttpGateway } from "./placeMaps";
 import { createProjectTransferHttpGateway } from "./projectTransfer";
 import { createSynchronizationHttpGateway } from "./synchronization";
@@ -28,6 +29,7 @@ export function createHttpApplicationGateway(platform: PlatformGateway): Applica
     storyWorld: createStoryWorldHttpGateway(state),
     storyboards: createStoryboardsHttpGateway(state),
     manuscript: createManuscriptHttpGateway(state),
+    manuscriptImport: createManuscriptImportHttpGateway(),
     backup: createBackupHttpGateway(state),
     history: createHistoryHttpGateway(state),
     assistant: createAssistantHttpGateway(state),

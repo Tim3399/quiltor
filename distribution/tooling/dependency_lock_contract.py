@@ -143,7 +143,7 @@ EXPECTED_LOCKS = {
         "sources": ["distribution/web/self-hosted/requirements.in"],
         "extras": [],
         "path": "distribution/web/self-hosted/requirements.lock",
-        "packages": {"cffi", "cryptography", "pycparser", "pyjwt"},
+        "packages": {"cffi", "cryptography", "markdown-it-py", "mdurl", "pycparser", "pyjwt"},
     },
 }
 

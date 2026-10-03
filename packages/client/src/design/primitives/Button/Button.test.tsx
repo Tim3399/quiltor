@@ -96,7 +96,7 @@ describe("Button", () => {
   });
 
   it("can expose composed label visuals without requiring a product CSS override", () => {
-    render(
+    const { rerender } = render(
       <Button labelOverflow="visible">
         <span>Beziehung</span>
       </Button>,
@@ -113,6 +113,11 @@ describe("Button", () => {
     expect(css).toMatch(
       /\.ui-button\[data-label-overflow="visible"\]\s+\.ui-button__label\s*\{[^}]*overflow:\s*visible;/s,
     );
+
+    rerender(<Button labelOverflow="wrap">Eine lange Entscheidung vollständig anzeigen</Button>);
+    expect(
+      screen.getByRole("button", { name: "Eine lange Entscheidung vollständig anzeigen" }),
+    ).toHaveAttribute("data-label-overflow", "wrap");
   });
 
   it("is natively disabled and announced as busy while loading", () => {

@@ -10,13 +10,25 @@ export type {
   CloudSyncPreview,
   CloudSyncState,
   CloudSyncStatus,
-  SynchronizationGateway,
   DocumentsGateway,
   GrammarStatus,
   HistoryGateway,
   IdentityGateway,
   IdentityLogoutResult,
+  ManuscriptDocxPreset,
+  ManuscriptDocxPreview,
+  ManuscriptDocxWarningCode,
   ManuscriptGateway,
+  ManuscriptImportChapter,
+  ManuscriptImportFormat,
+  ManuscriptImportGateway,
+  ManuscriptImportMark,
+  ManuscriptImportPreview,
+  ManuscriptImportRequest,
+  ManuscriptImportSelection,
+  ManuscriptImportSource,
+  ManuscriptImportUnit,
+  ManuscriptImportWarningCode,
   MetadataGateway,
   PlaceMapsGateway,
   ProjectTransferCounts,
@@ -26,6 +38,7 @@ export type {
   StoredMapImage,
   StoryboardsGateway,
   StoryWorldGateway,
+  SynchronizationGateway,
   VersionedDocument,
   VersionedDocumentGateway,
   WorldsGateway,
@@ -34,7 +47,11 @@ export type {
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,
 } from "./application";
-export { ApplicationGatewayError, applicationErrorMessage } from "./application";
+export {
+  ApplicationGatewayError,
+  applicationErrorMessage,
+  MANUSCRIPT_IMPORT_MAX_BYTES,
+} from "./application";
 export { validateNoteMarks } from "./contracts/v1/noteMark";
 export { decodeStoryWorldV1 } from "./contracts/v1/storyWorld";
 export { createPlatformGateway } from "./createPlatformGateway";

@@ -178,9 +178,9 @@ function validate(instance, schema, sourcePath, at = "$") {
     if (schema.uniqueItems && new Set(instance.map(JSON.stringify)).size !== instance.length)
       errors.push(`${at} has duplicate items`);
     if (schema.items)
-      instance.forEach((item, index) =>
-        errors.push(...validate(item, schema.items, sourcePath, `${at}[${index}]`)),
-      );
+      instance.forEach((item, index) => {
+        errors.push(...validate(item, schema.items, sourcePath, `${at}[${index}]`));
+      });
   }
   if (instance !== null && typeof instance === "object" && !Array.isArray(instance)) {
     const propertyCount = Object.keys(instance).length;
@@ -298,7 +298,9 @@ try {
     );
   }
   const manifestErrors = validate(manifest, parseJson(manifestSchemaPath), manifestSchemaPath);
-  manifestErrors.forEach((error) => fail(display(manifestPath), error));
+  manifestErrors.forEach((error) => {
+    fail(display(manifestPath), error);
+  });
 
   const identities = new Set();
   const fixturePaths = new Set();
@@ -331,6 +333,37 @@ try {
             );
         }
         inspectReferences(schema, schemaPath);
+        if (contract.name === "application.manuscript-import") {
+          const warningCodes = schema?.$defs?.warningCode?.enum;
+          const frozenWarningCodes = [
+            "images",
+            "hyperlinks",
+            "headers_footers",
+            "footnotes_endnotes",
+            "comments",
+            "numbering",
+            "fields",
+            "formatting",
+          ];
+          if (!same(warningCodes, frozenWarningCodes)) {
+            fail(display(schemaPath), "manuscript import warning codes are frozen");
+          }
+          if (contract.version === 2) {
+            const formats =
+              schema?.$defs?.previewResponse?.properties?.preview?.properties?.format?.enum;
+            const selectionRequired = schema?.$defs?.selectionChapter?.required;
+            const previewRequired = schema?.$defs?.previewResponse?.properties?.preview?.required;
+            if (!same(formats, ["docx", "markdown", "txt"])) {
+              fail(display(schemaPath), "manuscript import v2 formats are frozen");
+            }
+            if (!selectionRequired?.includes("folderPath")) {
+              fail(display(schemaPath), "manuscript import v2 selection requires folderPath");
+            }
+            if (!previewRequired?.includes("units")) {
+              fail(display(schemaPath), "manuscript import v2 preview requires units");
+            }
+          }
+        }
       } catch (error) {
         fail(label, error.message);
       }
@@ -351,9 +384,9 @@ try {
         if (fixture.mediaType === "application/json") {
           const value = parseJson(fixturePath);
           if (fixture.role === "differential") {
-            validate(value, differentialSchema, differentialSchemaPath).forEach((error) =>
-              fail(display(fixturePath), error),
-            );
+            validate(value, differentialSchema, differentialSchemaPath).forEach((error) => {
+              fail(display(fixturePath), error);
+            });
             if (value.contract !== contract.name || value.version !== contract.version) {
               fail(display(fixturePath), "differential corpus identity differs from its contract");
             }
@@ -382,9 +415,9 @@ try {
             }
           } else if (!schema) fail(label, "JSON fixture has no schema");
           else
-            validate(value, schema, schemaPath).forEach((error) =>
-              fail(display(fixturePath), error),
-            );
+            validate(value, schema, schemaPath).forEach((error) => {
+              fail(display(fixturePath), error);
+            });
           if (contract.name === "host.mcp-tools") {
             const names = new Set();
             for (const tool of value.tools ?? []) {
@@ -396,7 +429,9 @@ try {
                 tool.inputSchema,
                 fixturePath,
                 `$.tools.${tool.name}.example`,
-              ).forEach((error) => fail(display(fixturePath), error));
+              ).forEach((error) => {
+                fail(display(fixturePath), error);
+              });
             }
           }
           if (contract.name === "persistence.sqlite-migrations") {
@@ -410,7 +445,9 @@ try {
               fail(display(fixturePath), "currentSchemaVersion does not match the chain tip");
           }
         } else {
-          checkTsv(fixturePath).forEach((error) => fail(display(fixturePath), error));
+          checkTsv(fixturePath).forEach((error) => {
+            fail(display(fixturePath), error);
+          });
         }
       } catch (error) {
         fail(label, error.message);

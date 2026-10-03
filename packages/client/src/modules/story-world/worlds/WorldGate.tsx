@@ -1,4 +1,4 @@
-import { BookOpen, ChevronRight, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { BookOpen, ChevronRight, FileText, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useState } from "react";
 import { PRODUCT_MARK, PRODUCT_NAME } from "../../../config/branding";
 import {
@@ -15,6 +15,7 @@ import {
 } from "../../../design";
 import { availableLocales, useI18n } from "../../../i18n";
 import type { ThemePreference } from "../../../shared";
+import { ManuscriptImportDialog } from "../../manuscript-import";
 import { ProjectImportDialog } from "../../project-transfer";
 import type { WorldInfo } from "../model";
 import "./WorldGate.css";
@@ -57,6 +58,7 @@ export function WorldGate({
   const [createOpen, setCreateOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [manuscriptImportOpen, setManuscriptImportOpen] = useState(false);
   const [worldQuery, setWorldQuery] = useState("");
   const { locale, setLocale, t } = useI18n();
   const normalizedQuery = worldQuery.trim().toLocaleLowerCase(locale);
@@ -141,9 +143,14 @@ export function WorldGate({
             <h2>{t("existingWorlds")}</h2>
             <div className="world-list-actions">
               {onProjectImported && (
-                <Button icon={<Upload />} onClick={() => setImportOpen(true)}>
-                  {t("projectImportButton")}
-                </Button>
+                <>
+                  <Button icon={<FileText />} onClick={() => setManuscriptImportOpen(true)}>
+                    {t("manuscriptImportButton")}
+                  </Button>
+                  <Button icon={<Upload />} onClick={() => setImportOpen(true)}>
+                    {t("projectImportButton")}
+                  </Button>
+                </>
               )}
               {onLoadTrash && onRestore && onPurge && (
                 <Button
@@ -272,6 +279,12 @@ export function WorldGate({
       )}
       {importOpen && onProjectImported && (
         <ProjectImportDialog onImported={onProjectImported} onClose={() => setImportOpen(false)} />
+      )}
+      {manuscriptImportOpen && onProjectImported && (
+        <ManuscriptImportDialog
+          onImported={onProjectImported}
+          onClose={() => setManuscriptImportOpen(false)}
+        />
       )}
       {trashOpen && onLoadTrash && onRestore && onPurge && (
         <Sheet open label={t("trashTitle")} onClose={() => setTrashOpen(false)}>

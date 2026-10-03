@@ -94,6 +94,8 @@ def load() -> None:
         documents,
         history,
         identity,
+        manuscript_export,
+        manuscript_import,
         place_maps,
         project_transfer,
         synchronization,

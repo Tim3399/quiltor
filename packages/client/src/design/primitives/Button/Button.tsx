@@ -5,7 +5,7 @@ export type ActionAppearance = "primary" | "secondary" | "ghost";
 export type ActionTone = "neutral" | "danger";
 export type ActionSize = "compact" | "regular" | "touch";
 export type ActionIconPosition = "start" | "end";
-export type ActionLabelOverflow = "truncate" | "visible";
+export type ActionLabelOverflow = "truncate" | "visible" | "wrap";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;

@@ -1,5 +1,33 @@
 # Application API
 
+Manuscript DOCX export uses the strict `manuscript-export` v1 boundary. Both
+`POST /api/manuscript-export/preview?world=ID` and
+`POST /api/manuscript-export/docx?world=ID` require an authenticated, authorized
+world. Preview accepts `{ preset: "editor" | "normseite" }`. The download accepts
+the preset, revision, source SHA-256 and acknowledged warning codes returned by
+preview. A changed saved snapshot or preset requires a new preview and returns
+`manuscript_export.preview_mismatch`; it cannot silently export an older review.
+The client flushes pending saves before both operations. Neither operation writes
+project data or retains generated files. DOCX uses its standard OOXML MIME type,
+a fixed safe filename, and `Cache-Control: no-store`.
+
+Only `inBook` chapters are exported, in flattened binder order. Counts compare
+all active chapters with the exported subset; word counts cover body text only
+and follow the client counter's ECMAScript whitespace definition. Chapter titles
+are exported exactly, including author-supplied numbering. Folder names, chapter
+notes, entity/time references, set-aside chapters and unknown extensions are
+reported as explicit counted warnings and require acknowledgement. The content
+preview shows chapter titles and the first 280 Unicode code points of each body;
+it is not a page-layout preview. World data, trash, history, existing print layout
+and import provenance are outside this manuscript document.
+
+The bounded local OOXML writer preserves text, paragraph breaks, soft line breaks,
+tabs, and visible bold/italic formatting using UTF-16 ranges. It never generates
+macros or external relationships. Invalid text/formatting and excessive output
+fail explicitly. Its errors use `manuscript_export` with suffixes
+`invalid_request`, `empty_book`, `invalid_content`, `limit_exceeded`,
+`preview_mismatch`, and `warnings_unacknowledged`.
+
 The application API is independent of its transport. HTTP and native hosts
 implement the same operation names and response semantics.
 
@@ -39,6 +67,33 @@ matching CodeMirror and JavaScript string indexing. Both ends of a range must be
 Unicode-scalar boundaries; an offset between the surrogate halves of an astral
 character is invalid. Human-readable string length limits continue to count
 Unicode code points as required by JSON Schema.
+
+External manuscript import uses the authenticated `manuscript-import` v1 JSON
+contract. Preview parses a bounded DOCX without writing, and publication derives
+the manuscript from the original bytes and the reviewed chapter selection.
+Source indexes partition the original chapter order exactly once; adjacent
+chapters may be merged. A request UUID is scoped to the owner and retained with
+the import fingerprint so a lost-response retry returns the same new project.
+Warning codes are finite and require explicit acknowledgement. The optional
+manuscript `importSource` extension records version 1, format, filename, source
+SHA-256, import time, source/result counts and warnings; document edits and
+portable project transfer preserve it. See the
+[follow-up sprint contract](../../docs/plans/roadmap-followup-sprints.md#frozen-http-boundary-for-s13)
+for the current format limits and count semantics.
+
+The UI now uses `manuscript-import` v2 at
+`/api/manuscript-import/v2/preview` and `/api/manuscript-import/v2/import`.
+It adds Markdown and TXT, ordered source paragraph units, and reviewed
+`folderPath` arrays. V2 source indexes partition paragraph units, allowing
+splits and adjacent merges while retaining source order. Folder paths must
+form contiguous subtrees; the preview rejects mappings that would reorder
+chapters. Publication validates the staged folder structure as well as text,
+marks and provenance. Its request fingerprint includes the protocol version.
+V2 imports record `importSource.version: 2` and format `docx`, `markdown` or
+`txt`; existing version 1 DOCX records remain valid. The original unversioned
+v1 routes keep their frozen chapter-index behavior. See
+[S14](../../docs/plans/roadmap-followup-sprints.md#s14-contract-and-acceptance)
+for encoding, parsing and review boundaries.
 
 Story-world alias identity is frozen as
 `quiltor.story-world.alias-ascii-v1`; its committed table lives in

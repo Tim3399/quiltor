@@ -3,6 +3,38 @@ import type { BookLayoutSettings } from "./bookLayout";
 
 export type WritingLocale = "de-DE";
 
+export type ManuscriptImportWarningCode =
+  | "images"
+  | "hyperlinks"
+  | "headers_footers"
+  | "footnotes_endnotes"
+  | "comments"
+  | "numbering"
+  | "fields"
+  | "formatting";
+
+interface ManuscriptImportSourceProvenanceBase {
+  fileName: string;
+  sourceSha256: string;
+  importedAt: string;
+  counts: {
+    sourceWords: number;
+    sourceParagraphs: number;
+    importedWords: number;
+    importedParagraphs: number;
+    [key: string]: unknown;
+  };
+  warnings: Array<{
+    code: ManuscriptImportWarningCode;
+    count: number;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+export type ManuscriptImportSourceProvenance = ManuscriptImportSourceProvenanceBase &
+  ({ version: 1; format: "docx" } | { version: 2; format: "docx" | "markdown" | "txt" });
+
 export interface EntityMention {
   id: string;
   elementId: string;
@@ -93,6 +125,7 @@ export type WritingIssue = {
 
 export interface Manuscript {
   chapters: Chapter[];
+  importSource?: ManuscriptImportSourceProvenance;
   trash?: ChapterTrashEntry[];
   bookLayout?: BookLayoutSettings;
   structure?: ManuscriptStructure;

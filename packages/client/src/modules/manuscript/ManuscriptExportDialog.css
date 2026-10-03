@@ -1,0 +1,91 @@
+.manuscript-export-dialog {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-16);
+  overflow-wrap: anywhere;
+}
+
+.manuscript-export-dialog h3,
+.manuscript-export-dialog h4,
+.manuscript-export-dialog p {
+  margin: 0;
+}
+
+.manuscript-export-dialog > section,
+.manuscript-export-dialog > section > section {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-12);
+}
+
+.manuscript-export-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-12);
+  margin: 0;
+}
+
+.manuscript-export-counts div {
+  min-width: 0;
+}
+
+.manuscript-export-counts dt,
+.manuscript-export-chapters small {
+  color: var(--muted);
+}
+
+.manuscript-export-counts dd {
+  margin: var(--space-3) 0 0;
+  font-weight: 600;
+}
+
+.manuscript-export-chapters {
+  max-height: min(34vh, 24rem);
+  padding: var(--space-12);
+}
+
+.manuscript-export-chapters article {
+  min-width: 0;
+  padding: var(--space-8) 0;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.manuscript-export-chapters article:first-child {
+  border-top: 0;
+}
+
+.manuscript-export-chapters p {
+  margin-top: var(--space-5);
+  color: var(--soft);
+  white-space: pre-wrap;
+}
+
+.manuscript-export-warnings {
+  min-width: 0;
+  padding: var(--space-12);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+}
+
+.manuscript-export-warnings ul {
+  margin: 0;
+  padding-inline-start: var(--space-24);
+}
+
+.manuscript-export-actions {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-8);
+}
+
+@media (max-width: 719px) {
+  .manuscript-export-actions > * {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}

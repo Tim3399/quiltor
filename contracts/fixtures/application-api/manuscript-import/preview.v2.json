@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "preview": {
+    "format": "markdown",
+    "fileName": "Hafenroman.md",
+    "sourceSha256": "c71d239d6fdd5346390598e677b29be565e36152c923887678c9d546955aeb39",
+    "title": "Hafenroman",
+    "units": [
+      { "index": 0, "text": "Der Hafen", "marks": [], "isHeading": true },
+      {
+        "index": 1,
+        "text": "😀 Der Morgen lag still über dem Hafen.",
+        "marks": [{ "from": 0, "to": 13, "kind": "bold" }],
+        "isHeading": false
+      }
+    ],
+    "chapters": [
+      {
+        "sourceIndexes": [0, 1],
+        "title": "Der Hafen",
+        "folderPath": ["Teil I"],
+        "body": "😀 Der Morgen lag still über dem Hafen.",
+        "marks": [{ "from": 0, "to": 13, "kind": "bold" }]
+      }
+    ],
+    "counts": {
+      "sourceWords": 9,
+      "sourceParagraphs": 2,
+      "importedWords": 9,
+      "importedParagraphs": 2
+    },
+    "warnings": []
+  }
+}

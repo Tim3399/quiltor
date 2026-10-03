@@ -38,6 +38,20 @@ function renderGate(
 }
 
 describe("WorldGate", () => {
+  it("offers DOCX manuscript import as a new-project flow at project selection", () => {
+    const onOpen = vi.fn().mockResolvedValue(undefined);
+    renderGate([world("paper")], {
+      onOpen,
+      onProjectImported: vi.fn().mockResolvedValue(undefined),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Manuskript importieren" }));
+
+    expect(screen.getByRole("dialog", { name: "Manuskript importieren" })).toBeInTheDocument();
+    expect(screen.getByText(/neues Projekt erstellt/i)).toBeInTheDocument();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   it("offers project import at project selection without opening an existing world", () => {
     const onOpen = vi.fn().mockResolvedValue(undefined);
     renderGate([world("paper")], {

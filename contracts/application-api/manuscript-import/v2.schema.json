@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/manuscript-import/v2.schema.json",
+  "title": "Quiltor manuscript import HTTP contract v2",
+  "oneOf": [
+    { "$ref": "#/$defs/previewRequest" },
+    { "$ref": "#/$defs/previewResponse" },
+    { "$ref": "#/$defs/importRequest" },
+    { "$ref": "#/$defs/importResponse" }
+  ],
+  "$defs": {
+    "warningCode": {
+      "enum": [
+        "images",
+        "hyperlinks",
+        "headers_footers",
+        "footnotes_endnotes",
+        "comments",
+        "numbering",
+        "fields",
+        "formatting"
+      ]
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "count"],
+      "properties": {
+        "code": { "$ref": "#/$defs/warningCode" },
+        "count": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "selectionChapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceIndexes", "title", "folderPath"],
+      "properties": {
+        "sourceIndexes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "folderPath": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "chapters"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "chapters": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/selectionChapter" }
+        }
+      }
+    },
+    "mark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "kind"],
+      "properties": {
+        "from": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "to": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "kind": { "enum": ["bold", "italic"] }
+      }
+    },
+    "previewChapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceIndexes", "title", "folderPath", "body", "marks"],
+      "properties": {
+        "sourceIndexes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "folderPath": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        },
+        "body": { "type": "string", "maxLength": 10000000 },
+        "marks": { "type": "array", "items": { "$ref": "#/$defs/mark" } }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceWords", "sourceParagraphs", "importedWords", "importedParagraphs"],
+      "properties": {
+        "sourceWords": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sourceParagraphs": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "importedWords": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "importedParagraphs": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      }
+    },
+    "unit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "text", "marks", "isHeading"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "text": { "type": "string", "maxLength": 10000000 },
+        "marks": { "type": "array", "items": { "$ref": "#/$defs/mark" } },
+        "isHeading": { "type": "boolean" }
+      }
+    },
+    "previewRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "dataBase64"],
+      "properties": {
+        "fileName": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "dataBase64": { "type": "string", "minLength": 1, "maxLength": 11184812 },
+        "selection": { "$ref": "#/$defs/selection" }
+      }
+    },
+    "previewResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "preview"],
+      "properties": {
+        "ok": { "const": true },
+        "preview": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "fileName",
+            "sourceSha256",
+            "title",
+            "units",
+            "chapters",
+            "counts",
+            "warnings"
+          ],
+          "properties": {
+            "format": { "enum": ["docx", "markdown", "txt"] },
+            "fileName": { "type": "string", "minLength": 1, "maxLength": 1000 },
+            "sourceSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "units": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/unit" }
+            },
+            "chapters": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/previewChapter" }
+            },
+            "counts": { "$ref": "#/$defs/counts" },
+            "warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } }
+          }
+        }
+      }
+    },
+    "importRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileName",
+        "dataBase64",
+        "sourceSha256",
+        "title",
+        "chapters",
+        "acknowledgedWarnings",
+        "requestId"
+      ],
+      "properties": {
+        "fileName": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "dataBase64": { "type": "string", "minLength": 1, "maxLength": 11184812 },
+        "sourceSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "chapters": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/selectionChapter" }
+        },
+        "acknowledgedWarnings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/warningCode" }
+        },
+        "requestId": { "type": "string", "format": "uuid", "maxLength": 36 }
+      }
+    },
+    "importResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "world"],
+      "properties": {
+        "ok": { "const": true },
+        "world": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "title", "backupUrl", "updated"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+            "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "backupUrl": { "const": "" },
+            "updated": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    }
+  }
+}

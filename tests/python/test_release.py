@@ -1604,6 +1604,8 @@ class ThirdPartyNoticeContractTests(unittest.TestCase):
             "cryptography": ("50.0.0", "Apache License 2.0"),
             "cffi": ("2.1.1", "MIT-0"),
             "pycparser": ("3.0", "3-Clause BSD License"),
+            "markdown-it-py": ("4.2.0", "MIT License"),
+            "mdurl": ("0.1.2", "MIT License"),
         }
         for package, (version, license_name) in expected.items():
             with self.subTest(package=package):

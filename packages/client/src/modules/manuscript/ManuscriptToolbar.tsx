@@ -21,6 +21,7 @@ import {
   WorkspaceToolbarTitle,
 } from "../../design";
 import { useI18n } from "../../i18n";
+import type { ManuscriptDocxPreset } from "../../platform";
 import type { Chapter } from "./model";
 import "./ManuscriptToolbar.css";
 
@@ -44,6 +45,7 @@ interface ManuscriptToolbarProps {
   onFocus: (focus: boolean) => void;
   onHistoryOpen: (open: boolean) => void;
   onExport: () => void;
+  onExportDocx: (preset: ManuscriptDocxPreset) => void;
   onPrint: () => void;
   onPreview: (preview: boolean) => void;
   onInsertSceneBreak: () => void;
@@ -67,6 +69,7 @@ export function ManuscriptToolbar({
   onFocus,
   onHistoryOpen,
   onExport,
+  onExportDocx,
   onPrint,
   onPreview,
   onInsertSceneBreak,
@@ -195,6 +198,16 @@ export function ManuscriptToolbar({
               )}
             >
               <MenuItem icon={<Download />} label={t("manuscript")} onSelect={onExport} />
+              <MenuItem
+                icon={<Download />}
+                label={t("manuscriptExportEditorAction")}
+                onSelect={() => onExportDocx("editor")}
+              />
+              <MenuItem
+                icon={<Download />}
+                label={t("manuscriptExportNormseiteAction")}
+                onSelect={() => onExportDocx("normseite")}
+              />
               <MenuItem
                 icon={<Printer />}
                 label={pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}

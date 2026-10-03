@@ -14,7 +14,7 @@ export {
   DEFAULT_BOOK_LAYOUT,
   resolveBookLayout,
 } from "./bookLayout";
-export { normalizeMarks } from "./marks";
+export { markedSegments, normalizeMarks } from "./marks";
 export {
   addDeterministicMentions,
   reconcileMentions,
@@ -28,6 +28,8 @@ export type {
   EntityMention,
   GrammarMode,
   Manuscript,
+  ManuscriptImportSourceProvenance,
+  ManuscriptImportWarningCode,
   ManuscriptStructure,
   ManuscriptTreeItem,
   TextMark,

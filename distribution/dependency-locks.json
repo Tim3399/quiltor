@@ -65,7 +65,7 @@
       "sources": ["distribution/web/self-hosted/requirements.in"],
       "extras": [],
       "path": "distribution/web/self-hosted/requirements.lock",
-      "sha256": "f56718082644eda8f94d52917f8d32fc19203136f614593ff344a38ed2b0227b"
+      "sha256": "ed87f4be45c49d7edcd8673377616395a6adccd55c9d559cfeddf38b042b1ce8"
     }
   ]
 }

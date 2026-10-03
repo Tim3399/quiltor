@@ -4,6 +4,24 @@
   "manifestVersion": 1,
   "contracts": [
     {
+      "name": "application.manuscript-export",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "The reviewed DOCX preset and snapshot boundary is frozen; incompatible changes require a new version."
+      },
+      "schema": "application-api/manuscript-export/v1.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/manuscript-export/preview.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
       "name": "backup.sync-head",
       "version": 1,
       "owner": "quiltor/backup",
@@ -39,6 +57,42 @@
       "fixtures": [
         {
           "path": "fixtures/application-api/project-transfer/manifest.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
+      "name": "application.manuscript-import",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "The S13 JSON boundary and warning code set are frozen; incompatible changes require a new version."
+      },
+      "schema": "application-api/manuscript-import/v1.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/manuscript-import/preview.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
+      "name": "application.manuscript-import",
+      "version": 2,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "The S14 paragraph-unit boundary, folder paths, and warning code set are frozen; incompatible changes require a new version."
+      },
+      "schema": "application-api/manuscript-import/v2.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/manuscript-import/preview.v2.json",
           "mediaType": "application/json",
           "role": "example"
         }

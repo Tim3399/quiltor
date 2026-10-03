@@ -8,8 +8,10 @@ around an unchecked dictionary.
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import datetime
 from math import isfinite
 from typing import Any, Literal
 
@@ -250,6 +252,23 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                 tree_item = entry.get("treeItem")
                 if isinstance(tree_item, dict):
                     _canonical_integer_field(tree_item, "position", minimum=0)
+        import_source = normalized.get("importSource")
+        if isinstance(import_source, dict):
+            _canonical_integer_field(import_source, "version", minimum=1, maximum=2)
+            counts = import_source.get("counts")
+            if isinstance(counts, dict):
+                for key in (
+                    "sourceWords",
+                    "sourceParagraphs",
+                    "importedWords",
+                    "importedParagraphs",
+                ):
+                    _canonical_integer_field(counts, key, minimum=0)
+            warnings = import_source.get("warnings")
+            if isinstance(warnings, list):
+                for warning in warnings:
+                    if isinstance(warning, dict):
+                        _canonical_integer_field(warning, "count", minimum=1)
         return normalized
 
     if kind == "storyboards":
@@ -305,6 +324,8 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
 def _valid_manuscript_wire_fields(payload: dict[str, Any]) -> bool:
     if "bookLayout" in payload and not _valid_book_layout(payload.get("bookLayout")):
         return False
+    if "importSource" in payload and not _valid_import_source(payload.get("importSource")):
+        return False
     words = payload.get("words")
     if "words" in payload and (
         not isinstance(words, list)
@@ -329,6 +350,89 @@ def _valid_manuscript_wire_fields(payload: dict[str, Any]) -> bool:
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
             return False
     return True
+
+
+_IMPORT_WARNING_CODES = {
+    "images",
+    "hyperlinks",
+    "headers_footers",
+    "footnotes_endnotes",
+    "comments",
+    "numbering",
+    "fields",
+    "formatting",
+}
+_UTC_IMPORT_TIME = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z")
+
+
+def _valid_import_source(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    required = {
+        "version",
+        "fileName",
+        "format",
+        "sourceSha256",
+        "importedAt",
+        "counts",
+        "warnings",
+    }
+    if not required <= set(value):
+        return False
+    file_name = value.get("fileName")
+    imported_at = value.get("importedAt")
+    format_name = value.get("format")
+    if (
+        type(value.get("version")) is not int
+        or value["version"] not in {1, 2}
+        or not isinstance(format_name, str)
+        or (value["version"] == 1 and format_name != "docx")
+        or (value["version"] == 2 and format_name not in {"docx", "markdown", "txt"})
+        or not isinstance(file_name, str)
+        or not file_name.strip()
+        or len(file_name) > 1000
+        or not isinstance(value.get("sourceSha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", value["sourceSha256"]) is None
+        or not isinstance(imported_at, str)
+        or _UTC_IMPORT_TIME.fullmatch(imported_at) is None
+    ):
+        return False
+    try:
+        datetime.fromisoformat(imported_at.removesuffix("Z") + "+00:00")
+    except ValueError:
+        return False
+    counts = value.get("counts")
+    count_fields = {
+        "sourceWords",
+        "sourceParagraphs",
+        "importedWords",
+        "importedParagraphs",
+    }
+    if (
+        not isinstance(counts, dict)
+        or not count_fields <= set(counts)
+        or any(
+            type(counts.get(field)) is not int or not 0 <= counts[field] <= MAX_SAFE_WIRE_INTEGER
+            for field in count_fields
+        )
+    ):
+        return False
+    warnings = value.get("warnings")
+    if not isinstance(warnings, list):
+        return False
+    codes = []
+    for warning in warnings:
+        code = warning.get("code") if isinstance(warning, dict) else None
+        if (
+            not isinstance(warning, dict)
+            or not isinstance(code, str)
+            or code not in _IMPORT_WARNING_CODES
+            or type(warning.get("count")) is not int
+            or not 1 <= warning["count"] <= MAX_SAFE_WIRE_INTEGER
+        ):
+            return False
+        codes.append(code)
+    return len(codes) == len(set(codes))
 
 
 def _valid_book_layout(value: object) -> bool:
