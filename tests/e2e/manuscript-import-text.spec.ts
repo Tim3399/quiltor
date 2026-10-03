@@ -11,6 +11,7 @@ for (const theme of ["light", "dark"] as const) {
     page,
   }, testInfo) => {
     await page.addInitScript((value) => localStorage.setItem("quiltor-theme", value), theme);
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });

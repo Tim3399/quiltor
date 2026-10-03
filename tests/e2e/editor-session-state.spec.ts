@@ -215,7 +215,29 @@ test("Returning to Text restores a reversed selection for exact replacement", as
       await firstLine.click();
       await page.keyboard.press(lineStartKey);
       await pressRepeatedly(page, "ArrowRight", "Der Anfang".length);
-      await pressRepeatedly(page, "Shift+ArrowLeft", "Anfang".length);
+      await expect
+        .poll(() => selectionOffsets(editor))
+        .toEqual({
+          anchor: 10,
+          head: 10,
+          text: "",
+        });
+      await page.keyboard.down("Shift");
+      try {
+        for (let index = 0; index < "Anfang".length; index += 1) {
+          await page.keyboard.press("ArrowLeft", { delay: 20 });
+          const head = 9 - index;
+          await expect
+            .poll(() => selectionOffsets(editor))
+            .toEqual({
+              anchor: 10,
+              head,
+              text: "Der Anfang".slice(head),
+            });
+        }
+      } finally {
+        await page.keyboard.up("Shift");
+      }
     },
   );
   expect(reversed).toEqual({ anchor: 10, head: 4, text: "Anfang" });
