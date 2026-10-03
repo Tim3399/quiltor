@@ -69,6 +69,11 @@ for (const theme of ["light", "dark"] as const) {
     );
     for (const checkbox of await dialog.getByRole("checkbox").all()) await checkbox.check();
     await expect(confirm).toBeEnabled();
+    await confirm.evaluate(async (button) => {
+      await Promise.all(
+        button.getAnimations({ subtree: true }).map((animation) => animation.finished),
+      );
+    });
     const accessibility = await new AxeBuilder({ page })
       .include('[role="dialog"]')
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])

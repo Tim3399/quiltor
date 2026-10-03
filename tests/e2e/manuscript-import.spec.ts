@@ -72,6 +72,11 @@ for (const theme of ["light", "dark"] as const) {
     await expect(confirm).toBeDisabled();
     for (const checkbox of await dialog.getByRole("checkbox").all()) await checkbox.check();
     await expect(confirm).toBeEnabled();
+    await confirm.evaluate(async (button) => {
+      await Promise.all(
+        button.getAnimations({ subtree: true }).map((animation) => animation.finished),
+      );
+    });
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
 
     const accessibility = await new AxeBuilder({ page })

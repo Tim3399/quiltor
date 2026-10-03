@@ -212,18 +212,23 @@ test("Paragraph changes stay local and loading keeps the current text visible", 
     await route.fallback();
   });
   const editor = page.getByLabel("Kapiteltext");
+  const panel = page.getByRole("complementary", { name: "Fassungen" });
+  const loading = panel.getByRole("progressbar", { name: "Fassung wird geladen …" });
   const requested = page.waitForRequest("**/api/history/chapter-comparison*");
   await page.getByRole("button", { name: "Fassungen", exact: true }).click();
   await requested;
   await expect(editor).toHaveText("Fabien wartet am Hafen.");
   await expect(editor).toHaveAttribute("aria-readonly", "true");
+  await expect(loading).toBeVisible();
   release();
+  await expect(loading).toBeHidden({ timeout: 10_000 });
+  await expect(editor).toContainText("Dann wartete er. Der Hafen blieb still.", {
+    timeout: 10_000,
+  });
   await expect(editor.locator(".cm-line")).toHaveCount(3);
-  await expect(editor).toContainText("Dann wartete er. Der Hafen blieb still.");
   expect((await editor.locator(".version-diff-added").allTextContents()).join("")).not.toContain(
     "Hafen",
   );
-  const panel = page.getByRole("complementary", { name: "Fassungen" });
   await panel.getByRole("combobox").selectOption("zusammen");
   await expect(editor.locator(".version-diff-removed")).toBeVisible();
   await expect(editor.locator(".version-diff-removed")).not.toContainText("Hafen");
