@@ -133,6 +133,18 @@ async function seedAuditWorld(page: Page, title: string) {
 
 async function expectContained(locator: Locator, page: Page) {
   await expect(locator).toBeVisible();
+  await expect
+    .poll(() =>
+      locator.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return Math.max(
+          -rect.left,
+          rect.right - window.innerWidth,
+          document.documentElement.scrollWidth - window.innerWidth,
+        );
+      }),
+    )
+    .toBeLessThanOrEqual(1);
   const geometry = await locator.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {
