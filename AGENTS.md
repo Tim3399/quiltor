@@ -1,5 +1,10 @@
 # Agent workflow
 
+Development coordination starts at `knowledgebase/orchestrator/README.md` and
+`knowledgebase/taskboard.md`. Keep task ownership and status current. Agent briefs
+must state **Was**, **Warum**, and **Wann erledigt** (scope, reason and acceptance
+criteria), following the owner's coordination agreement.
+
 Follow `CLAUDE.md` for repository rules and proof requirements, `CONTRIBUTING.md` for contributor gates, and `package.json` for the current scripts. Preserve unrelated changes, including committed `dist/` behavior described in `CLAUDE.md`.
 
 For frontend work, read `docs/design/FRONTEND_STYLEGUIDE.md` (entry section, section 1,
