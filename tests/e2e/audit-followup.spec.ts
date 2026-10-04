@@ -553,9 +553,11 @@ for (const theme of ["light", "dark"] as const) {
 
       const chooser = page.waitForEvent("filechooser");
       await page.getByRole("button", { name: "Neue Karte", exact: true }).click();
-      await (
-        await chooser
-      ).setFiles({ name: "audit-karte.png", mimeType: "image/png", buffer: mapPng });
+      await (await chooser).setFiles({
+        name: "audit-karte.png",
+        mimeType: "image/png",
+        buffer: mapPng,
+      });
       await expect
         .poll(async () => {
           const response = await page.request.get(`/api/state?world=${world.id}`);
