@@ -430,12 +430,7 @@ for (const theme of ["light", "dark"] as const) {
               expect(box?.height, `${name} height at ${width}px`).toBeGreaterThanOrEqual(44);
             }
             if (width === 320) {
-              await capture(
-                second,
-                testInfo,
-                `${theme}-compact-320-save-error-header`,
-                appBar,
-              );
+              await capture(second, testInfo, `${theme}-compact-320-save-error-header`, appBar);
               await expect(
                 appBar.getByRole("button", { name: "Lokalen Assistenten öffnen" }),
               ).toBeHidden();
