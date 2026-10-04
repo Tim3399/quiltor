@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addDeterministicMentions,
   type Manuscript,
@@ -24,18 +24,31 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
   const [authError] = useState(() => new URLSearchParams(location.search).get("authError"));
   const [loadError, setLoadError] = useState("");
   const [trashError, setTrashError] = useState("");
+  const loadGeneration = useRef(0);
+  const pendingCreatedWorld = useRef<{
+    world: WorldInfo;
+    title: string;
+    backupUrl: string;
+  } | null>(null);
 
   const loadWorld = useCallback(
-    async (selected: Promise<{ ok: boolean; world: WorldInfo }>, rejectOnFailure = false) => {
-      setLoadError("");
+    async (
+      selected: Promise<{ ok: boolean; world: WorldInfo }>,
+      generation: number,
+      rejectOnFailure = false,
+      onSelected?: (world: WorldInfo) => void,
+    ): Promise<boolean> => {
       try {
         const result = await selected;
+        if (generation !== loadGeneration.current) return false;
+        onSelected?.(result.world);
         quiltorClient.application.worlds.select(result.world.id);
         const [manuscript, figures, storyboards] = await Promise.all([
           quiltorClient.application.manuscript.load(),
           quiltorClient.application.storyWorld.load(),
           quiltorClient.application.storyboards.load(),
         ]);
+        if (generation !== loadGeneration.current) return false;
         const reconciled = reconcileMentions(manuscript, figures.nodes);
         const linked: Manuscript = {
           ...reconciled.manuscript,
@@ -52,23 +65,35 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
           orphanedMentions: reconciled.orphanedCount,
         });
         setWorld(result.world);
+        return true;
       } catch (error) {
+        if (generation !== loadGeneration.current) return false;
         setLoadError(applicationErrorMessage(error));
         if (rejectOnFailure) throw error;
+        return false;
       }
     },
     [onDocumentsLoaded],
   );
 
   useEffect(() => {
+    let active = true;
+    const initialGeneration = loadGeneration.current;
     quiltorClient.application.worlds
       .list()
       .then((result) => {
+        if (!active) return;
         setWorlds(result.worlds);
         const requested = new URLSearchParams(location.search).get("world");
-        if (requested) void loadWorld(quiltorClient.application.worlds.open(requested));
+        if (requested && loadGeneration.current === initialGeneration) {
+          const generation = ++loadGeneration.current;
+          pendingCreatedWorld.current = null;
+          setLoadError("");
+          void loadWorld(quiltorClient.application.worlds.open(requested), generation);
+        }
       })
       .catch((error) => {
+        if (!active || loadGeneration.current !== initialGeneration) return;
         if (error instanceof ApplicationGatewayError && error.category === "unauthorized") {
           setNeedsSignIn(true);
           return;
@@ -76,6 +101,11 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
         setWorlds([]);
         setLoadError(applicationErrorMessage(error));
       });
+    return () => {
+      active = false;
+      loadGeneration.current += 1;
+      pendingCreatedWorld.current = null;
+    };
   }, [loadWorld]);
 
   useEffect(() => {
@@ -83,12 +113,33 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
   }, [authError]);
 
   const open = useCallback(
-    (id: string) => loadWorld(quiltorClient.application.worlds.open(id)),
+    (id: string) => {
+      const generation = ++loadGeneration.current;
+      pendingCreatedWorld.current = null;
+      setLoadError("");
+      return loadWorld(quiltorClient.application.worlds.open(id), generation).then(() => undefined);
+    },
     [loadWorld],
   );
   const create = useCallback(
-    (title: string, backupUrl: string) =>
-      loadWorld(quiltorClient.application.worlds.create(title, backupUrl)),
+    async (title: string, backupUrl: string) => {
+      const retry = pendingCreatedWorld.current;
+      const reuse = retry?.title === title && retry.backupUrl === backupUrl;
+      if (!reuse) pendingCreatedWorld.current = null;
+      const generation = ++loadGeneration.current;
+      setLoadError("");
+      const loaded = await loadWorld(
+        reuse
+          ? quiltorClient.application.worlds.open(retry.world.id)
+          : quiltorClient.application.worlds.create(title, backupUrl),
+        generation,
+        true,
+        (created) => {
+          pendingCreatedWorld.current = { world: created, title, backupUrl };
+        },
+      );
+      if (loaded && generation === loadGeneration.current) pendingCreatedWorld.current = null;
+    },
     [loadWorld],
   );
   const remove = useCallback(async (id: string) => {
@@ -142,7 +193,15 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
   }, []);
   const projectImported = useCallback(
     async (imported: WorldInfo) => {
-      await loadWorld(Promise.resolve({ ok: true, world: imported }), true);
+      const generation = ++loadGeneration.current;
+      pendingCreatedWorld.current = null;
+      setLoadError("");
+      const loaded = await loadWorld(
+        Promise.resolve({ ok: true, world: imported }),
+        generation,
+        true,
+      );
+      if (!loaded) return;
       void quiltorClient.application.worlds
         .list()
         .then((listed) => setWorlds(listed.worlds))
@@ -151,6 +210,8 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
     [loadWorld],
   );
   const close = useCallback(() => {
+    const generation = ++loadGeneration.current;
+    pendingCreatedWorld.current = null;
     quiltorClient.application.worlds.select("");
     setWorld(null);
     setLoadError("");
@@ -161,8 +222,12 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
 
     void quiltorClient.application.worlds
       .list()
-      .then((result) => setWorlds(result.worlds))
-      .catch((error) => setLoadError(applicationErrorMessage(error)));
+      .then((result) => {
+        if (generation === loadGeneration.current) setWorlds(result.worlds);
+      })
+      .catch((error) => {
+        if (generation === loadGeneration.current) setLoadError(applicationErrorMessage(error));
+      });
   }, []);
 
   return {

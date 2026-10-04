@@ -2,12 +2,31 @@ import type { VersionedDocument, VersionedDocumentGateway } from "../application
 import { ApplicationGatewayError } from "../application";
 import { type DecodedDocumentV1, DOCUMENT_MEDIA_TYPE_V1 } from "../contracts/v1/documentEnvelope";
 import { currentMessages } from "./locale";
-import { type HttpApplicationState, httpResponseError, readJson, withWorldQuery } from "./request";
+import {
+  currentWorldSelection,
+  type HttpApplicationState,
+  type HttpWorldSelection,
+  httpResponseError,
+  isCurrentWorldSelection,
+  readJson,
+  withSelectedWorldQuery,
+} from "./request";
 
 type DocumentKind = keyof HttpApplicationState["revisions"];
 
 function invalidDocumentResponse(): ApplicationGatewayError {
   return new ApplicationGatewayError(currentMessages().errorInvalidResponse, "invalid_response");
+}
+
+function staleDocumentSelection(): ApplicationGatewayError {
+  return new ApplicationGatewayError(
+    currentMessages().errorConflict,
+    "document.revision_conflict",
+    {
+      category: "conflict",
+      retryable: true,
+    },
+  );
 }
 
 function responseRevision(response: Response): number | undefined {
@@ -34,8 +53,13 @@ export function createDocumentTransport<TModel extends object>(
     encode: (model: TModel, revision?: number) => object;
   },
 ): VersionedDocumentGateway<TModel> {
-  const read = async (): Promise<VersionedDocument<TModel>> => {
-    const response = await fetch(withWorldQuery(state, url), {
+  const peekSelections = new WeakMap<VersionedDocument<TModel>, HttpWorldSelection>();
+  const read = async (): Promise<{
+    versioned: VersionedDocument<TModel>;
+    selection: HttpWorldSelection;
+  }> => {
+    const selection = currentWorldSelection(state);
+    const response = await fetch(withSelectedWorldQuery(selection, url), {
       cache: "no-store",
       headers: { Accept: DOCUMENT_MEDIA_TYPE_V1 },
     });
@@ -55,11 +79,18 @@ export function createDocumentTransport<TModel extends object>(
     ) {
       throw invalidDocumentResponse();
     }
-    return { document: decoded.document, revision: decoded.revision ?? taggedRevision ?? 0 };
+    return {
+      versioned: {
+        document: decoded.document,
+        revision: decoded.revision ?? taggedRevision ?? 0,
+      },
+      selection,
+    };
   };
 
   const saveExpected = async (data: TModel, expectedRevision: number) => {
-    const response = await fetch(withWorldQuery(state, url), {
+    const selection = currentWorldSelection(state);
+    const response = await fetch(withSelectedWorldQuery(selection, url), {
       method: "PUT",
       headers: {
         Accept: DOCUMENT_MEDIA_TYPE_V1,
@@ -94,7 +125,7 @@ export function createDocumentTransport<TModel extends object>(
     if (taggedRevision !== undefined && taggedRevision !== record.revision) {
       throw invalidDocumentResponse();
     }
-    state.revisions[kind] = record.revision;
+    if (isCurrentWorldSelection(state, selection)) state.revisions[kind] = record.revision;
     return {
       ok: true as const,
       zeit: record.zeit,
@@ -105,12 +136,18 @@ export function createDocumentTransport<TModel extends object>(
 
   return {
     load: async () => {
-      const versioned = await read();
-      state.revisions[kind] = versioned.revision;
+      const { versioned, selection } = await read();
+      if (isCurrentWorldSelection(state, selection)) state.revisions[kind] = versioned.revision;
       return versioned.document;
     },
-    peek: read,
+    peek: async () => {
+      const { versioned, selection } = await read();
+      peekSelections.set(versioned, selection);
+      return versioned;
+    },
     adoptPersisted: (versioned) => {
+      const selection = peekSelections.get(versioned);
+      if (selection && !isCurrentWorldSelection(state, selection)) throw staleDocumentSelection();
       state.revisions[kind] = versioned.revision;
       return versioned.document;
     },

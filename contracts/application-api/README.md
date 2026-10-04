@@ -1,5 +1,31 @@
 # Application API
 
+EPUB export extends the shared preview route with `{ preset: "epub" }` and a
+separate frozen `manuscript-epub-export/v1.schema.json` contract. The response adds
+`metadata: { title, author, language }`, read from the saved manuscript's
+`bookLayout.bookTitle`, `bookLayout.author` and `language`. Blank title defaults
+to `Manuskript`; absent author and language default to an empty string and `de`.
+Title and author are trimmed and bounded to 1,000 Unicode code points; language
+is bounded to 64 characters and a supported BCP 47 shape. Metadata participates
+in the source digest, so changes require another review even if a caller cannot
+observe a revision change. The EPUB download is
+`POST /api/manuscript-export/epub?world=ID` with the same reviewed request fields.
+The DOCX download rejects EPUB presets and the EPUB download rejects DOCX presets.
+The EPUB response uses `application/epub+zip`, `Quiltor-Manuskript.epub`, and the
+same authorization, warning acknowledgements, source-read-only and no-cache rules.
+
+The single EPUB 3 reading preset is reflowable. Its local package includes one
+XHTML document per included chapter, ordered spine and navigation, semantic
+headings and paragraphs, bold/italic marks, soft breaks, and a small stylesheet.
+Reader settings control fonts and pagination; there is no fixed page count.
+Only title, author and manuscript language are publication metadata in this slice.
+Subtitle, series, volume, print typography, generated numbering and cover/title-page
+extras are not exported. Notes, references, folders, excluded chapters and unknown
+extensions retain the shared explicit loss warnings. No remote resources, fonts,
+scripts or source paths are embedded. The ZIP mimetype is first and uncompressed;
+publication identifier is bound to the reviewed source digest and modification
+time describes generation of the publication, not modification of the source.
+
 Manuscript DOCX export uses the strict `manuscript-export` v1 boundary. Both
 `POST /api/manuscript-export/preview?world=ID` and
 `POST /api/manuscript-export/docx?world=ID` require an authenticated, authorized

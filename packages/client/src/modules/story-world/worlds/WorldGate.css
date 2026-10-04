@@ -191,7 +191,16 @@
     padding: var(--space-14);
   }
   .world-list-panel > header {
+    align-items: stretch;
+    flex-direction: column;
     margin-bottom: var(--space-14);
+  }
+  .world-list-actions {
+    display: grid;
+    grid-template-columns: repeat(
+        auto-fit,
+        minmax(min(100%, max(7.5rem, calc((100% - var(--space-8)) / 2))), 1fr)
+      );
   }
   .world-filter {
     width: 100%;
@@ -213,15 +222,9 @@
   .gate-preferences {
     margin-bottom: var(--space-18);
   }
-  .world-list-panel > header {
-    align-items: flex-start;
-  }
-  .world-list-panel h2 {
-    padding-top: var(--space-10);
-  }
 }
 
-@media (max-height: 640px) {
+@media (max-width: 719px), (max-height: 640px) {
   .world-gate[data-axis="y"] {
     overflow-x: hidden;
     overflow-y: auto;

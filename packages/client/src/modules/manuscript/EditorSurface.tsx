@@ -3,12 +3,13 @@ import {
   type MutableRefObject,
   type TouchEvent as ReactTouchEvent,
   type WheelEvent as ReactWheelEvent,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
-import { Button, EmptyState, ScrollArea, TextField } from "../../design";
+import { Button, EmptyState, ScrollArea, TextArea } from "../../design";
 import { useI18n } from "../../i18n";
 import type { SnapshotChapterRecord } from "../../platform";
 import type { Workspace } from "../../shared";
@@ -82,6 +83,10 @@ interface EditorSurfaceProps {
   onHistoryRef: (ref: string) => void;
 }
 
+function singleLineTitle(value: string): string {
+  return value.replace(/[\r\n]+/g, " ");
+}
+
 export function EditorSurface({
   current,
   initialSessionState,
@@ -122,6 +127,9 @@ export function EditorSurface({
 }: EditorSurfaceProps) {
   const { t } = useI18n();
   const scrollRef = useRef<HTMLElement | null>(null);
+  const titleRef = useRef<HTMLTextAreaElement | null>(null);
+  const titleCompositionRef = useRef<{ chapterId: string; value: string } | null>(null);
+  const pendingTitleSelectionFrameRef = useRef<number | null>(null);
   const restoreRef = useRef(
     allowSessionRestore && initialSessionState?.chapterId === current?.id
       ? initialSessionState
@@ -133,15 +141,15 @@ export function EditorSurface({
   const sessionCallbackRef = useRef(onSessionStateChange);
   const pendingRestoreCancelRef = useRef<(() => void) | null>(null);
   sessionCallbackRef.current = onSessionStateChange;
-  const stopScheduledRestore = () => {
+  const stopScheduledRestore = useCallback(() => {
     pendingRestoreCancelRef.current?.();
     pendingRestoreCancelRef.current = null;
-  };
-  const abandonSessionRestore = () => {
+  }, []);
+  const abandonSessionRestore = useCallback(() => {
     stopScheduledRestore();
     restoreRef.current = null;
-  };
-  const captureSession = () => {
+  }, [stopScheduledRestore]);
+  const captureSession = useCallback(() => {
     const view = viewSelectionRef.current;
     const scroller = scrollRef.current;
     if (historyOpen || !view || !scroller || view.chapterId !== current?.id) return;
@@ -153,7 +161,7 @@ export function EditorSurface({
           ? historyScroll.current.top
           : (restoreRef.current?.scrollTop ?? scroller.scrollTop),
     });
-  };
+  }, [current?.id, historyOpen]);
   const pendingLandingRef = useRef<{
     chapterId: string;
     edge: "top" | "bottom";
@@ -166,13 +174,74 @@ export function EditorSurface({
   });
   const [chapterOverscroll, setChapterOverscroll] = useState(idleChapterOverscroll);
   const [chapterTouch, setChapterTouch] = useState<ChapterTouchState>(idleChapterTouch);
+  const [titleComposition, setTitleComposition] = useState<{
+    chapterId: string;
+    value: string;
+  } | null>(null);
   const chapterTouchRef = useRef(chapterTouch);
   const chapterOverscrollRef = useRef(chapterOverscroll);
   const currentChapterId = current?.id;
+  const chapterTitle = current?.title;
+  const currentChapterIdRef = useRef(currentChapterId);
+  currentChapterIdRef.current = currentChapterId;
+  const displayedChapterTitle =
+    titleComposition && titleComposition.chapterId === currentChapterId
+      ? titleComposition.value
+      : chapterTitle;
   const chapterNavigationContext = `${currentChapterId ?? ""}:${previousChapter?.id ?? ""}:${nextChapter?.id ?? ""}`;
   const chapterNavigationContextRef = useRef(chapterNavigationContext);
   const historyScroll = useRef<{ chapterId: string; top: number; left: number } | null>(null);
   const previousHistoryOpen = useRef(historyOpen);
+
+  const resizeChapterTitle = useCallback(() => {
+    const title = titleRef.current;
+    if (!title) return;
+    title.style.height = "auto";
+    if (title.scrollHeight > 0) {
+      const style = getComputedStyle(title);
+      const borderHeight =
+        (Number.parseFloat(style.borderTopWidth) || 0) +
+        (Number.parseFloat(style.borderBottomWidth) || 0);
+      title.style.height = `${title.scrollHeight + borderHeight}px`;
+    }
+  }, []);
+
+  const cancelPendingTitleSelection = useCallback(() => {
+    if (pendingTitleSelectionFrameRef.current === null) return;
+    window.cancelAnimationFrame(pendingTitleSelectionFrameRef.current);
+    pendingTitleSelectionFrameRef.current = null;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (displayedChapterTitle === undefined) return;
+    resizeChapterTitle();
+  }, [displayedChapterTitle, resizeChapterTitle]);
+
+  useEffect(() => {
+    const composition = titleCompositionRef.current;
+    if (composition && composition.chapterId !== currentChapterId) {
+      titleCompositionRef.current = null;
+      setTitleComposition(null);
+    }
+    cancelPendingTitleSelection();
+  }, [cancelPendingTitleSelection, currentChapterId]);
+
+  useEffect(() => cancelPendingTitleSelection, [cancelPendingTitleSelection]);
+
+  useEffect(() => {
+    if (!currentChapterId) return;
+    const title = titleRef.current;
+    if (!title) return;
+    const observed = title.parentElement ?? title;
+    const observer =
+      typeof ResizeObserver === "function" ? new ResizeObserver(resizeChapterTitle) : null;
+    observer?.observe(observed);
+    window.addEventListener("resize", resizeChapterTitle);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", resizeChapterTitle);
+    };
+  }, [currentChapterId, resizeChapterTitle]);
 
   useLayoutEffect(() => {
     const scroller = scrollRef.current;
@@ -195,7 +264,7 @@ export function EditorSurface({
       });
       return () => cancelAnimationFrame(frame);
     }
-  }, [currentChapterId, historyOpen]);
+  }, [abandonSessionRestore, captureSession, currentChapterId, historyOpen]);
 
   const updateChapterOverscroll = (next: ReturnType<typeof idleChapterOverscroll>) => {
     chapterOverscrollRef.current = next;
@@ -289,7 +358,7 @@ export function EditorSurface({
       if (pendingRestoreCancelRef.current === cancel) pendingRestoreCancelRef.current = null;
       cancel();
     };
-  }, [allowSessionRestore, currentChapterId, editorRef, historyOpen]);
+  }, [allowSessionRestore, captureSession, currentChapterId, editorRef, historyOpen]);
 
   useLayoutEffect(() => {
     const pending = pendingLandingRef.current;
@@ -502,14 +571,85 @@ export function EditorSurface({
             />
           )}
           <div className="editor-document">
-            <TextField
+            <TextArea
+              ref={titleRef}
               fieldClassName="chapter-title-field"
               className="chapter-title"
               label={t("chapterTitle")}
               labelHidden
-              value={current.title}
+              rows={1}
+              value={displayedChapterTitle ?? ""}
               disabled={historyOpen}
-              onChange={(event) => onUpdateTitle(event.target.value)}
+              onChange={(event) => {
+                cancelPendingTitleSelection();
+                const composition = titleCompositionRef.current;
+                if (composition && composition.chapterId === currentChapterId) {
+                  const nextComposition = {
+                    chapterId: composition.chapterId,
+                    value: event.currentTarget.value,
+                  };
+                  titleCompositionRef.current = nextComposition;
+                  setTitleComposition(nextComposition);
+                  return;
+                }
+                onUpdateTitle(singleLineTitle(event.currentTarget.value));
+              }}
+              onCompositionStart={(event) => {
+                cancelPendingTitleSelection();
+                if (!currentChapterId) return;
+                const nextComposition = {
+                  chapterId: currentChapterId,
+                  value: event.currentTarget.value,
+                };
+                titleCompositionRef.current = nextComposition;
+                setTitleComposition(nextComposition);
+              }}
+              onCompositionEnd={(event) => {
+                cancelPendingTitleSelection();
+                const composition = titleCompositionRef.current;
+                titleCompositionRef.current = null;
+                setTitleComposition(null);
+                if (composition?.chapterId === currentChapterId) {
+                  onUpdateTitle(singleLineTitle(event.currentTarget.value));
+                }
+              }}
+              onKeyDown={(event) => {
+                cancelPendingTitleSelection();
+                if (
+                  event.key === "Enter" &&
+                  titleCompositionRef.current?.chapterId !== currentChapterId &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                }
+              }}
+              onPointerDown={cancelPendingTitleSelection}
+              onPaste={(event) => {
+                if (titleCompositionRef.current?.chapterId === currentChapterId) return;
+                const pasted = event.clipboardData.getData("text");
+                if (!/[\r\n]/.test(pasted)) return;
+                event.preventDefault();
+                cancelPendingTitleSelection();
+                const title = event.currentTarget;
+                const start = title.selectionStart;
+                const end = title.selectionEnd;
+                const inserted = singleLineTitle(pasted);
+                const nextTitle = `${title.value.slice(0, start)}${inserted}${title.value.slice(end)}`;
+                const nextCaret = start + inserted.length;
+                const pasteChapterId = currentChapterId;
+                onUpdateTitle(nextTitle);
+                pendingTitleSelectionFrameRef.current = window.requestAnimationFrame(() => {
+                  pendingTitleSelectionFrameRef.current = null;
+                  const updatedTitle = titleRef.current;
+                  if (
+                    pasteChapterId === currentChapterIdRef.current &&
+                    updatedTitle?.value === nextTitle &&
+                    document.activeElement === updatedTitle
+                  ) {
+                    updatedTitle.setSelectionRange(nextCaret, nextCaret);
+                  }
+                });
+              }}
               placeholder={t("chapterTitle")}
             />
             {searchQuery && !historyOpen && (

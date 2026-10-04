@@ -4,6 +4,24 @@
   "manifestVersion": 1,
   "contracts": [
     {
+      "name": "application.manuscript-epub-export",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "frozen",
+        "rule": "The EPUB preset, metadata and reviewed snapshot are frozen; incompatible changes require a new version."
+      },
+      "schema": "application-api/manuscript-epub-export/v1.schema.json",
+      "reference": "application-api/README.md",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/manuscript-export/preview.epub.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
       "name": "application.manuscript-export",
       "version": 1,
       "owner": "quiltor/application",

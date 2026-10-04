@@ -4,6 +4,11 @@ Baseline: published release `3.20.0`, source `bb204af`, deployed on 2026-10-02.
 This plan records the next bounded delivery, rather than treating every historical
 roadmap checkbox as an unimplemented feature.
 
+Release checkpoint on 2026-10-03: S13–S15 shipped in `3.21.0`; current source
+`36aaa46` has successful Test, Release Build and Release Publish runs. Historical
+local acceptance notes below describe their original verification. S16 builds on
+that release and remains a local, unreleased delivery.
+
 ## Owner decisions and delivery order
 
 - On 2026-10-02 the owner selected the existing public status page as sufficient
@@ -13,19 +18,22 @@ roadmap checkbox as an unimplemented feature.
   endpoint-status API and live Gatus configuration were checked on 2026-10-02:
   a 60-second check requires HTTP 200 and `ok: true`; current results pass.
   This is status-page visibility, not an implemented notification channel.
-- The next product slice is external manuscript import, starting with DOCX and
-  creation of a new project. Portable `.quiltor` project transfer already exists.
+- External manuscript import, text formats and editor export shipped in S13–S15.
+  EPUB is the next bounded product slice; S17 is an observed author pilot and
+  requires real participants. Portable `.quiltor` project transfer already exists.
 - Commercial cloud decisions, native signing accounts and broader automatic
   synchronization remain separate roadmap items.
+- On 2026-10-03 the owner deferred the author pilot. Keep S17 and its proposed
+  task script available; do not recruit participants or infer pilot acceptance.
 
-| Sprint                                    | Scope                                                                                          | Acceptance                                                                                                                                 | Status                |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
-| S12 Roadmap and status                    | Reconcile proven 3.20 capabilities; verify existing public status entry; record alert deferral | Stale items corrected with evidence, no duplicate status entry or invented alert delivery                                                  | Accepted              |
-| S13 DOCX import                           | Safe conversion, reviewable chapter plan, explicit loss warnings, atomic new-project import    | Preview does not write; text/order/bold/italic survive; bad input leaves catalogue unchanged; retries do not duplicate a committed project | Accepted locally      |
-| S14 Text formats and chapter organization | Markdown/TXT through the same import boundary; richer split correction and folder mapping      | Format-specific fixtures, counts and author-controlled hierarchy                                                                           | Accepted locally      |
-| S15 Editor export                         | DOCX and Normseite presets; verify exported text and formatting                                | Export counts and round-trip fixtures; explicit unsupported-content handling                                                               | Accepted locally      |
-| S16 EPUB                                  | EPUB 3 with bounded presets and package validation                                             | Validated package, chapter order and semantic structure                                                                                    | Planned               |
-| S17 Author pilot                          | Fixed first-use tasks with authors; prioritize observed friction                               | Recorded task outcomes and targeted corrections                                                                                            | Requires participants |
+| Sprint                                    | Scope                                                                                          | Acceptance                                                                                                                                 | Status             |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| S12 Roadmap and status                    | Reconcile proven 3.20 capabilities; verify existing public status entry; record alert deferral | Stale items corrected with evidence, no duplicate status entry or invented alert delivery                                                  | Accepted           |
+| S13 DOCX import                           | Safe conversion, reviewable chapter plan, explicit loss warnings, atomic new-project import    | Preview does not write; text/order/bold/italic survive; bad input leaves catalogue unchanged; retries do not duplicate a committed project | Released in 3.21.0 |
+| S14 Text formats and chapter organization | Markdown/TXT through the same import boundary; richer split correction and folder mapping      | Format-specific fixtures, counts and author-controlled hierarchy                                                                           | Released in 3.21.0 |
+| S15 Editor export                         | DOCX and Normseite presets; verify exported text and formatting                                | Export counts and round-trip fixtures; explicit unsupported-content handling                                                               | Released in 3.21.0 |
+| S16 EPUB                                  | EPUB 3 with a bounded reading preset and package validation                                    | Validated package, chapter order and semantic structure                                                                                    | Accepted locally   |
+| S17 Author pilot                          | Fixed first-use tasks with authors; prioritize observed friction                               | Recorded task outcomes and targeted corrections                                                                                            | Deferred by owner  |
 
 ## S13 acceptance and boundaries
 
@@ -400,3 +408,97 @@ Linux/macOS execution, LibreOffice/Pages pagination, native packaging and the fu
 design-gallery suite were not rerun. The Normseite calibration is for the tested
 Word/Courier New environment; other font substitutions/readers may paginate
 differently. S16 EPUB is the next planned product sprint; S17 still needs authors.
+
+## S16 EPUB export and acceptance
+
+Implemented locally on 2026-10-03. The existing book export menu now offers
+`EPUB für E-Reader`. It reuses save flushing, revision-bound preview, counted
+omission warnings, acknowledgement, cancellation and stale-preview recovery.
+The preview additionally shows the saved book title, author and manuscript
+language. Empty book titles use `Manuskript`; absent authors are explicit. The
+SQLite repository materializes an absent manuscript language as `de-DE`;
+the application service also supports the `de` fallback for an absent field.
+
+The single reflowable reading preset preserves included chapters in flattened
+binder order, titles, text, paragraph/soft breaks, tabs, scene text and visible
+UTF-16 bold/italic ranges. It supplies a local stylesheet, semantic XHTML,
+navigation, an ordered spine and publication metadata. Readers determine fonts
+and pagination; there is no fixed printed page count. Empty or whitespace-only
+chapter titles remain unchanged in the body and use `Kapitel N` only in technical
+document titles and navigation. Reader themes inherit their own colors.
+
+The new EPUB contract is separate from the frozen DOCX contract. Cross-format
+download requests fail before rendering. Metadata and content are bound to the
+review digest; both routes remain authenticated and owner-scoped. Export never
+writes manuscript data. The standard-library serializer bounds text, chapters,
+marks, metadata, XML nodes, expanded bytes and archive bytes, escapes source
+content and embeds no scripts, remote resources or source paths. It adds no
+runtime dependency. Title/author come from book layout; subtitle, series, volume,
+cover/title-page extras, generated numbering and print geometry remain outside
+this preset and are stated in the review.
+
+Verification:
+
+- `npm run build` passed, including static gates, TypeScript and regenerated
+  tracked `dist/`. Repeated after the final pagination-copy correction. The
+  existing non-fatal large-chunk advisory remains.
+- `npm test` passed: 228 files, 1,526 tests. Subsequent frontend changes only
+  clarified two locale strings; their formatting and i18n checks passed.
+- `.venv-desktop/Scripts/python.exe -m unittest discover -s tests/python -t tests/python`
+  passed: 1,095 total, 1,088 successful and 7 skipped. The first full run had a
+  Windows connection abort in the existing `ForeignRequestTests` cross-origin
+  rejection test. Its focused group passed unchanged, then the full final suite
+  passed. No HTTP guard assertion was weakened.
+- With `PLAYWRIGHT_BASE_URL=http://127.0.0.1:8113`,
+  `node node_modules/@playwright/test/cli.js test tests/e2e/manuscript-export.spec.ts tests/e2e/manuscript-epub-export.spec.ts --output "$env:TEMP/quiltor-epub-s16/e2e"`
+  initially produced 19 passed, 10 intentionally skipped duplicate viewport
+  cases and one new fixture-expectation failure: persisted missing language is
+  normalized to `de-DE`, not the service-only `de` fallback. Correcting the
+  expectation, while asserting it matches the saved payload, and running
+  `node node_modules/@playwright/test/cli.js test tests/e2e/manuscript-epub-export.spec.ts --project wide --grep "defaults metadata" --output "$env:TEMP/quiltor-epub-s16/e2e-metadata-recheck"`
+  passed the remaining case. All 20 applicable cases therefore passed. EPUB
+  coverage includes wide/compact light/dark, actual downloaded archive structure,
+  metadata, source identity, order, Unicode and formatting, warning acknowledgement,
+  metadata-only stale recovery, focus/Escape and 320-pixel doubled-text reflow with
+  long unbroken title/author values. Axe reported no dialog violations.
+- Rendered light/dark and doubled-text screenshots were inspected. The independent
+  W3C EPUBCheck 5.4.0 CLI passed the actual browser download and Unicode/empty-title
+  fixtures with `--locale en --failonwarnings`: zero errors and warnings. This
+  validator announces EPUB 3.4 rules; the generated package uses the bounded
+  EPUB 3.3 feature set. The first check exposed an empty XHTML head title, which
+  was fixed and covered by empty/whitespace-title regressions before acceptance.
+- Removing the EPUB-only download guard with
+  `node tools/dev/mutate.mjs src/quiltor/delivery/http/routes/manuscript_export.py --from 'if payload["preset"] != "epub":' --to 'if False:' -- .venv-desktop\Scripts\python.exe -m unittest tests.python.test_manuscript_export_routes.ManuscriptExportRouteTests.test_epub_download_uses_epub_mime_and_rejects_cross_format_requests`
+  made the cross-format assertion fail. The source was restored and the test
+  passed subsequently. A first launcher attempt with a forward-slash executable
+  path failed before executing the test and is not counted as regression proof.
+- Scoped Ruff, Biome, contract registry and i18n checks passed. Changed documentation
+  uses Prettier. A worker's overly broad platform lint call found existing
+  unrelated violations in `storyWorld.test.ts` and `safeFileName.ts`; every
+  changed file passed its scoped lint checks.
+- `npm run check:format` passed for web, Python, documentation and Rust. After the
+  final locale-only clarification, the wide/light browser download case passed
+  again against the rebuilt frontend; its current screenshot was inspected.
+
+The documented `npm start` launcher used API 8113/Vite 5276 with isolated temporary
+data and home directories, starting after all Python changes. API version matched
+`VERSION` (3.21.0); served HTML and the entry bundle matched built `dist/` bytes.
+This verifies served files, not an embedded source-identity feature. npm used
+`npm_config_prefix=C:/Program Files/nodejs`. Existing mobile project-selector
+changes and their baseline updates were preserved.
+
+Final entry: `/assets/index-D5wnEFIX.js`, SHA-256
+`310585ccd4d57eeda6501055766dfda3fb250e52c4adc98fcdcb79dda1707037`.
+The isolated catalogue and trash were empty after fixture teardown. The owned
+launcher was stopped with Ctrl+C; neither 8113 nor 5276 retained a listener.
+
+No version bump, commit, push, release or production deployment was performed.
+No physical reader, native file picker, Linux/macOS execution or complete design
+gallery run is claimed. External EPUBCheck remains a local acceptance tool;
+package regression tests run in the backend suite, but a pinned external-checker
+release gate is still open. S17 requires real author participants and observed
+task outcomes; a plan or automated browser run is not pilot evidence.
+
+The [S17 author-pilot proposal](author-pilot.md) defines fixed participant tasks,
+observation fields and completion criteria. Sample material preparation and real
+participant sessions remain pending; it records no fictional pilot results.

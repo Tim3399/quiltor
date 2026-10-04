@@ -11,9 +11,11 @@ from unittest.mock import Mock
 
 from quiltor.application.manuscript_export import (
     DOCX_MEDIA_TYPE,
+    EPUB_MEDIA_TYPE,
     EmptyExportBook,
     ExportPreviewMismatch,
     ExportWarningsUnacknowledged,
+    InvalidExportContent,
     InvalidExportRequest,
     ManuscriptExportUseCases,
     word_count,
@@ -22,6 +24,7 @@ from quiltor.delivery.http import routes
 from quiltor.delivery.http.routes import Request
 from quiltor.delivery.http.routes.manuscript_export import (
     download_manuscript_docx,
+    download_manuscript_epub,
     preview_manuscript_export,
 )
 from tests.python.test_server_auth import _LiveAuthServerTestCase
@@ -73,6 +76,73 @@ class ManuscriptExportUseCaseTests(unittest.TestCase):
         self.renderer = Mock(return_value=b"PK-docx")
         self.service = ManuscriptExportUseCases(self.documents, self.renderer)
         self.database = Path("owned.sqlite")
+
+    def test_epub_preview_binds_metadata_and_order_without_writing(self):
+        fixture = (
+            Path(__file__).resolve().parents[2]
+            / "contracts/fixtures/application-api/manuscript/wire.v1.json"
+        )
+        self.state["bookLayout"] = json.loads(fixture.read_text(encoding="utf-8"))["payload"][
+            "bookLayout"
+        ]
+        self.state["bookLayout"].update(bookTitle="  Der Atlas  ", author=" Anna ")
+        self.state["language"] = "de-DE"
+        renderer = Mock(return_value=b"PK-epub")
+        service = ManuscriptExportUseCases(self.documents, self.renderer, renderer)
+        preview = service.preview(self.database, "epub")
+        self.assertEqual(
+            preview["metadata"], {"title": "Der Atlas", "author": "Anna", "language": "de-DE"}
+        )
+        self.assertEqual(preview["fileName"], "Quiltor-Manuskript.epub")
+        self.assertEqual(
+            [chapter["id"] for chapter in renderer.call_args.args[0]], ["first", "second"]
+        )
+        self.assertEqual(renderer.call_args.args[1], preview["metadata"])
+        self.assertEqual(renderer.call_args.args[2], preview["sourceSha256"])
+        self.renderer.assert_not_called()
+        self.documents.save.assert_not_called()
+        payload = {key: preview[key] for key in ("preset", "revision", "sourceSha256")}
+        payload["acknowledgedWarnings"] = [item["code"] for item in preview["warnings"]]
+        self.assertEqual(
+            service.export(self.database, payload), ("Quiltor-Manuskript.epub", b"PK-epub")
+        )
+        for key in ("bookTitle", "author"):
+            with self.subTest(metadata=key):
+                before = copy.deepcopy(self.state)
+                self.state["bookLayout"][key] = "Changed"
+                with self.assertRaises(ExportPreviewMismatch):
+                    service.export(self.database, payload)
+                self.state = before
+
+    def test_epub_metadata_defaults_and_invalid_values_are_explicit(self):
+        renderer = Mock(return_value=b"PK-epub")
+        service = ManuscriptExportUseCases(self.documents, self.renderer, renderer)
+        self.assertEqual(
+            service.preview(self.database, "epub")["metadata"],
+            {"title": "Manuskript", "author": "", "language": "de"},
+        )
+        for layout in (
+            {"bookTitle": "x" * 1001},
+            {"author": "x" * 1001},
+            {"bookTitle": 42},
+            {"author": []},
+        ):
+            with self.subTest(layout=layout), self.assertRaises(InvalidExportContent):
+                self.state["bookLayout"] = layout
+                service.preview(self.database, "epub")
+
+    def test_epub_warnings_and_cross_preset_review_remain_required(self):
+        renderer = Mock(return_value=b"PK-epub")
+        service = ManuscriptExportUseCases(self.documents, self.renderer, renderer)
+        preview = service.preview(self.database, "epub")
+        payload = {key: preview[key] for key in ("preset", "revision", "sourceSha256")}
+        payload["acknowledgedWarnings"] = []
+        with self.assertRaises(ExportWarningsUnacknowledged):
+            service.export(self.database, payload)
+        payload["acknowledgedWarnings"] = [item["code"] for item in preview["warnings"]]
+        payload["preset"] = "editor"
+        with self.assertRaises(ExportPreviewMismatch):
+            service.export(self.database, payload)
 
     def reviewed(self, preset="editor"):
         preview = self.service.preview(self.database, preset)
@@ -192,7 +262,7 @@ class ManuscriptExportRouteTests(unittest.TestCase):
         )
 
     def test_both_routes_require_resolved_authenticated_world(self):
-        for suffix in ("preview", "docx"):
+        for suffix in ("preview", "docx", "epub"):
             registration = routes.SAVE[f"/api/manuscript-export/{suffix}"]
             self.assertTrue(registration.world)
             self.assertFalse(registration.anonymous)
@@ -244,6 +314,31 @@ class ManuscriptExportRouteTests(unittest.TestCase):
         self.assertEqual(handler.headers["Content-Length"], "4")
         self.assertEqual(handler.wfile.getvalue(), b"PK\x03\x04")
 
+    def test_epub_download_uses_epub_mime_and_rejects_cross_format_requests(self):
+        payload = {
+            "preset": "epub",
+            "revision": 1,
+            "sourceSha256": "a" * 64,
+            "acknowledgedWarnings": [],
+        }
+        handler = Handler(payload)
+        self.service.export.return_value = ("Quiltor-Manuskript.epub", b"PK-epub")
+        download_manuscript_epub(handler, self.request, self.app)
+        self.assertEqual(handler.headers["Content-Type"], EPUB_MEDIA_TYPE)
+        self.assertEqual(handler.headers["Cache-Control"], "no-store")
+        self.assertEqual(
+            handler.headers["Content-Disposition"], 'attachment; filename="Quiltor-Manuskript.epub"'
+        )
+        self.assertEqual(handler.wfile.getvalue(), b"PK-epub")
+        self.service.export.reset_mock()
+        with self.assertRaises(InvalidExportRequest):
+            download_manuscript_docx(Handler(payload), self.request, self.app)
+        with self.assertRaises(InvalidExportRequest):
+            download_manuscript_epub(
+                Handler({**payload, "preset": "editor"}), self.request, self.app
+            )
+        self.service.export.assert_not_called()
+
 
 class ManuscriptExportAuthorizationTests(_LiveAuthServerTestCase):
     def test_preview_and_download_are_owner_scoped_and_read_only(self):
@@ -263,7 +358,7 @@ class ManuscriptExportAuthorizationTests(_LiveAuthServerTestCase):
         status, _, _, _ = self._request("PUT", path, original, cookies=alice)
         self.assertEqual(status, 200)
         _, _, before, _ = self._request("GET", path, cookies=alice)
-        for suffix in ("preview", "docx"):
+        for suffix in ("preview", "docx", "epub"):
             target = f"/api/manuscript-export/{suffix}?world={world}"
             for cookies, expected in ((None, 401), (bob, 403)):
                 status, _, _, _ = self._request(
@@ -282,5 +377,35 @@ class ManuscriptExportAuthorizationTests(_LiveAuthServerTestCase):
         self.assertEqual(headers["Content-Type"], DOCX_MEDIA_TYPE)
         parsed = parse_docx("Export.docx", raw)
         self.assertEqual([chapter.title for chapter in parsed.chapters], ["1. Morgen", "2. Abend"])
+        _, _, after, _ = self._request("GET", path, cookies=alice)
+        self.assertEqual(json.loads(after), json.loads(before))
+
+        import zipfile
+        from xml.etree import ElementTree as ET
+
+        status, _, raw, _ = self._request(
+            "POST",
+            f"/api/manuscript-export/preview?world={world}",
+            {"preset": "epub"},
+            cookies=alice,
+        )
+        self.assertEqual(status, 200, raw)
+        preview = json.loads(raw)["preview"]
+        payload = {key: preview[key] for key in ("preset", "revision", "sourceSha256")}
+        payload["acknowledgedWarnings"] = [warning["code"] for warning in preview["warnings"]]
+        status, headers, raw, _ = self._request(
+            "POST", f"/api/manuscript-export/epub?world={world}", payload, cookies=alice
+        )
+        self.assertEqual(status, 200, raw[:200])
+        self.assertEqual(headers["Content-Type"], EPUB_MEDIA_TYPE)
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            self.assertEqual(archive.read("mimetype"), b"application/epub+zip")
+            container = ET.fromstring(archive.read("META-INF/container.xml"))
+            package_path = next(
+                container.iter("{urn:oasis:names:tc:opendocument:xmlns:container}rootfile")
+            ).attrib["full-path"]
+            package = ET.fromstring(archive.read(package_path))
+            items = list(package.iter("{http://www.idpf.org/2007/opf}itemref"))
+            self.assertEqual(len(items), 2)
         _, _, after, _ = self._request("GET", path, cookies=alice)
         self.assertEqual(json.loads(after), json.loads(before))

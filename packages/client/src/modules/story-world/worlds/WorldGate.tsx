@@ -21,6 +21,7 @@ import type { WorldInfo } from "../model";
 import "./WorldGate.css";
 
 export function WorldGate({
+  compact = false,
   worlds,
   onOpen,
   onCreate,
@@ -35,6 +36,7 @@ export function WorldGate({
   onTheme,
   error,
 }: {
+  compact?: boolean;
   worlds: WorldInfo[];
   onOpen: (id: string) => Promise<void>;
   onCreate: (title: string, backupUrl: string) => Promise<void>;
@@ -144,10 +146,18 @@ export function WorldGate({
             <div className="world-list-actions">
               {onProjectImported && (
                 <>
-                  <Button icon={<FileText />} onClick={() => setManuscriptImportOpen(true)}>
+                  <Button
+                    icon={<FileText />}
+                    labelOverflow={compact ? "wrap" : undefined}
+                    onClick={() => setManuscriptImportOpen(true)}
+                  >
                     {t("manuscriptImportButton")}
                   </Button>
-                  <Button icon={<Upload />} onClick={() => setImportOpen(true)}>
+                  <Button
+                    icon={<Upload />}
+                    labelOverflow={compact ? "wrap" : undefined}
+                    onClick={() => setImportOpen(true)}
+                  >
                     {t("projectImportButton")}
                   </Button>
                 </>
@@ -155,6 +165,7 @@ export function WorldGate({
               {onLoadTrash && onRestore && onPurge && (
                 <Button
                   icon={<Trash2 />}
+                  labelOverflow={compact ? "wrap" : undefined}
                   onClick={() => {
                     setTrashOpen(true);
                     void onLoadTrash();
@@ -163,7 +174,12 @@ export function WorldGate({
                   {t("trash")}
                 </Button>
               )}
-              <Button appearance="primary" icon={<Plus />} onClick={() => setCreateOpen(true)}>
+              <Button
+                appearance="primary"
+                icon={<Plus />}
+                labelOverflow={compact ? "wrap" : undefined}
+                onClick={() => setCreateOpen(true)}
+              >
                 {t("newWorld")}
               </Button>
             </div>

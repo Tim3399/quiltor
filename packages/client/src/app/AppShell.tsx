@@ -1,8 +1,8 @@
 import {
   ArchiveRestore,
   ArrowLeft,
-  DatabaseBackup,
   Cloud,
+  DatabaseBackup,
   Download,
   HelpCircle,
   History,
@@ -126,7 +126,7 @@ export function AppShell({
   const saveLabel = savedAgo ? t("savedAgo", { ago: savedAgo }) : t(SAVE_STATUS_LABEL_KEYS[phase]);
   return (
     <div className="app-frame" data-workspace={workspace}>
-      <header className="app-bar">
+      <header className={`app-bar${phase === "error" ? " app-bar--save-error" : ""}`}>
         <div className="app-bar__leading">
           {navigationAvailable && (
             <IconButton
@@ -197,6 +197,13 @@ export function AppShell({
               />
             )}
           >
+            {phase === "error" && (
+              <>
+                <MenuItem icon={<Sparkles />} label={t("assistant")} onSelect={onAssistant} />
+                <MenuItem icon={<Search />} label={t("search")} onSelect={onSearch} />
+                <MenuSeparator />
+              </>
+            )}
             <MenuItem
               icon={<ArrowLeft />}
               label={t("returnToWorldSelection")}

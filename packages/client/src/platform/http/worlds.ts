@@ -1,12 +1,12 @@
 import type { WorldsGateway } from "../application";
 import type { WorldInfoWireV1 } from "../contracts/v1/worlds";
 import { decodeTrashedWorldInfoV1, decodeWorldInfoV1 } from "../contracts/v1/worlds";
-import { type HttpApplicationState, requestJson } from "./request";
+import { type HttpApplicationState, requestJson, selectWorld } from "./request";
 
 export function createWorldsHttpGateway(state: HttpApplicationState): WorldsGateway {
   return {
     select: (id: string) => {
-      state.activeWorldId = id;
+      selectWorld(state, id);
     },
     list: async () => {
       const wire = await requestJson<{ ok: boolean; worlds: WorldInfoWireV1[] }>("/api/worlds");

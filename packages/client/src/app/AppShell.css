@@ -210,6 +210,23 @@
     display: none;
   }
 }
+/* A failed save adds retry and recovery to the action lane. Compact screens keep those
+   actions direct, reserve one workspace target, and move contextual tools into More. */
+@media (max-width: 719px) {
+  .app-bar--save-error .workspace-switch {
+    min-width: var(--control-touch);
+  }
+  .app-bar--save-error .global-actions {
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+  .app-bar--save-error .app-save-recovery {
+    min-width: var(--control-touch);
+  }
+  .app-bar--save-error .global-action:not(.global-action--icon) {
+    display: none;
+  }
+}
 @media (max-width: 359px) {
   .app-bar {
     gap: 0;

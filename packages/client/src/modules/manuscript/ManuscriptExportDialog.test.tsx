@@ -1,7 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
-import { ApplicationGatewayError, type ManuscriptDocxPreview, quiltorClient } from "../../platform";
+import {
+  ApplicationGatewayError,
+  type ManuscriptDocxPreview,
+  type ManuscriptEpubPreview,
+  type ManuscriptExportPreset,
+  quiltorClient,
+} from "../../platform";
 import { ManuscriptExportDialog } from "./ManuscriptExportDialog";
 
 const preview: ManuscriptDocxPreview = {
@@ -18,6 +24,12 @@ const preview: ManuscriptDocxPreview = {
   },
   warnings: [{ code: "excluded_chapters", count: 1 }],
 };
+const epubPreview: ManuscriptEpubPreview = {
+  ...preview,
+  preset: "epub",
+  fileName: "Quiltor-Manuskript.epub",
+  metadata: { title: "Hafenlicht", author: "Mara Beispiel", language: "de-DE" },
+};
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -27,10 +39,14 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function renderDialog(onSave = vi.fn().mockResolvedValue(undefined), onClose = vi.fn()) {
+function renderDialog(
+  onSave = vi.fn().mockResolvedValue(undefined),
+  onClose = vi.fn(),
+  preset: ManuscriptExportPreset = "editor",
+) {
   render(
     <I18nProvider>
-      <ManuscriptExportDialog preset="editor" onSave={onSave} onClose={onClose} />
+      <ManuscriptExportDialog preset={preset} onSave={onSave} onClose={onClose} />
     </I18nProvider>,
   );
   return { onSave, onClose };
@@ -42,6 +58,86 @@ afterEach(() => {
 });
 
 describe("ManuscriptExportDialog", () => {
+  it("reviews EPUB metadata and saves an acknowledged export", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const inspect = vi
+      .spyOn(quiltorClient.application.documents, "previewManuscriptExport")
+      .mockResolvedValue({ ok: true, preview: epubPreview });
+    const renderEpub = vi
+      .spyOn(quiltorClient.application.documents, "renderManuscriptExport")
+      .mockResolvedValue(new Blob(["epub"]));
+    const saveEpub = vi
+      .spyOn(quiltorClient.application.documents, "saveManuscriptExport")
+      .mockResolvedValue("saved");
+    renderDialog(onSave, vi.fn(), "epub");
+
+    expect(await screen.findByRole("dialog", { name: "EPUB-Inhalt prüfen" })).toBeInTheDocument();
+    expect(screen.getByText("Hafenlicht")).toBeInTheDocument();
+    expect(screen.getByText("Mara Beispiel")).toBeInTheDocument();
+    expect(screen.getByText("de-DE")).toBeInTheDocument();
+    expect(screen.getByText(/Schrift, Schriftgröße und Seitenaufteilung/)).toBeInTheDocument();
+    expect(screen.queryByText(/DOCX-Programm/)).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Alle angezeigten Hinweise wurden geprüft" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "EPUB herunterladen" }));
+
+    expect(
+      await screen.findByText("Die EPUB-Datei wurde zum Speichern übergeben."),
+    ).toBeInTheDocument();
+    expect(inspect).toHaveBeenCalledWith("epub");
+    expect(renderEpub).toHaveBeenCalledWith(epubPreview, ["excluded_chapters"]);
+    expect(saveEpub).toHaveBeenCalledWith(expect.any(Blob), "Quiltor-Manuskript.epub");
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires a fresh EPUB preview after a revision mismatch", async () => {
+    const inspect = vi
+      .spyOn(quiltorClient.application.documents, "previewManuscriptExport")
+      .mockResolvedValue({ ok: true, preview: epubPreview });
+    vi.spyOn(quiltorClient.application.documents, "renderManuscriptExport").mockRejectedValue(
+      new ApplicationGatewayError("conflict", "manuscript_export.preview_mismatch", {
+        category: "conflict",
+      }),
+    );
+    const saveEpub = vi.spyOn(quiltorClient.application.documents, "saveManuscriptExport");
+    renderDialog(undefined, vi.fn(), "epub");
+    await screen.findByText("Hafenlicht");
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Alle angezeigten Hinweise wurden geprüft" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "EPUB herunterladen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Das Manuskript hat sich seit der Vorschau geändert",
+    );
+    expect(screen.queryByText("Hafenlicht")).not.toBeInTheDocument();
+    expect(saveEpub).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Vorschau neu laden" }));
+    await waitFor(() => expect(inspect).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps a cancelled EPUB file picker neutral", async () => {
+    vi.spyOn(quiltorClient.application.documents, "previewManuscriptExport").mockResolvedValue({
+      ok: true,
+      preview: { ...epubPreview, warnings: [] },
+    });
+    vi.spyOn(quiltorClient.application.documents, "renderManuscriptExport").mockResolvedValue(
+      new Blob(["epub"]),
+    );
+    const saveEpub = vi
+      .spyOn(quiltorClient.application.documents, "saveManuscriptExport")
+      .mockResolvedValue("cancelled");
+    renderDialog(undefined, vi.fn(), "epub");
+    fireEvent.click(await screen.findByRole("button", { name: "EPUB herunterladen" }));
+
+    await waitFor(() => expect(saveEpub).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByText("Die EPUB-Datei wurde zum Speichern übergeben."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("saves before preview and again before the acknowledged download", async () => {
     const calls: string[] = [];
     const onSave = vi.fn(async () => {

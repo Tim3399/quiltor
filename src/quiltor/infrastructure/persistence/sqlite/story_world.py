@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -14,8 +15,8 @@ from quiltor.infrastructure.persistence.sqlite.codec import decode_extra, encode
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
 
-def load(db_path: Path | None = None) -> dict[str, Any]:
-    with connection(db_path) as database:
+def load(db_path: Path | None = None, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
+    with nullcontext(conn) if conn is not None else connection(db_path) as database:
         settings = database.execute("SELECT * FROM figure_settings WHERE id=1").fetchone()
         result = decode_extra(settings["extra_json"]) if settings else {}
         raw_collections = result.pop(temporal.COLLECTIONS_KEY, [])

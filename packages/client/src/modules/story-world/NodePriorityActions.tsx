@@ -9,7 +9,6 @@ export interface NodePriorityActionsProps {
   onImportantChange: (important: boolean) => void;
   onPinnedChange: (pinned: boolean) => void;
   className?: string;
-  actionClassName?: string;
 }
 
 /** Common importance and layout-lock actions for story graph nodes. */
@@ -21,13 +20,12 @@ export function NodePriorityActions({
   onImportantChange,
   onPinnedChange,
   className = "",
-  actionClassName = "",
 }: NodePriorityActionsProps) {
   return (
     <div className={`node-priority-actions ${className}`.trim()}>
       <Button
-        className={`node-priority-action ${actionClassName} ${important ? "active" : ""}`.trim()}
-        appearance={important ? "primary" : "secondary"}
+        className="node-priority-action"
+        appearance="secondary"
         icon={<Star />}
         aria-pressed={important}
         onClick={() => onImportantChange(!important)}
@@ -35,8 +33,8 @@ export function NodePriorityActions({
         {importantLabel}
       </Button>
       <Button
-        className={`node-priority-action ${actionClassName} ${pinned ? "active" : ""}`.trim()}
-        appearance={pinned ? "primary" : "secondary"}
+        className="node-priority-action"
+        appearance="secondary"
         icon={<Pin />}
         aria-pressed={pinned}
         onClick={() => onPinnedChange(!pinned)}

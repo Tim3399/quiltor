@@ -7,6 +7,7 @@ import re
 from quiltor.application.document_wire_v1 import MAX_SAFE_REVISION
 from quiltor.application.manuscript_export import (
     DOCX_MEDIA_TYPE,
+    EPUB_MEDIA_TYPE,
     WARNING_CODES,
     InvalidExportRequest,
     validate_preset,
@@ -54,10 +55,24 @@ def preview_manuscript_export(handler, request: Request, app) -> None:
 @save("/api/manuscript-export/docx", world=True)
 def download_manuscript_docx(handler, request: Request, app) -> None:
     payload = _payload(handler, download=True)
+    if payload["preset"] not in ("editor", "normseite"):
+        raise InvalidExportRequest("This endpoint requires a DOCX preset.")
+    _download(handler, request, app, payload, DOCX_MEDIA_TYPE)
+
+
+@save("/api/manuscript-export/epub", world=True)
+def download_manuscript_epub(handler, request: Request, app) -> None:
+    payload = _payload(handler, download=True)
+    if payload["preset"] != "epub":
+        raise InvalidExportRequest("This endpoint requires an EPUB preset.")
+    _download(handler, request, app, payload, EPUB_MEDIA_TYPE)
+
+
+def _download(handler, request: Request, app, payload: dict, media_type: str) -> None:
     with app.lock:
         file_name, content = app.manuscript_export.export(request.db_path, payload)
     handler.send_response(200)
-    handler.send_header("Content-Type", DOCX_MEDIA_TYPE)
+    handler.send_header("Content-Type", media_type)
     handler.send_header("Content-Disposition", f'attachment; filename="{file_name}"')
     handler.send_header("Content-Length", str(len(content)))
     handler.send_header("Cache-Control", "no-store")

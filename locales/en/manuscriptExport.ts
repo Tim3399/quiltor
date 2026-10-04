@@ -1,6 +1,7 @@
 export const manuscriptExport = {
   manuscriptExportEditorAction: "DOCX for editing",
   manuscriptExportNormseiteAction: "DOCX as standard page",
+  manuscriptEpubAction: "EPUB for e-readers",
   manuscriptExportTitle: "Review DOCX content",
   manuscriptExportPreviewLoading: "Reviewing the saved manuscript …",
   manuscriptExportRefreshPreview: "Reload preview",
@@ -38,6 +39,32 @@ export const manuscriptExport = {
   manuscriptExportPreviewFailed: "The content preview could not be loaded.",
   manuscriptExportRenderFailed: "The DOCX file could not be created.",
   manuscriptExportSaveFailed: "The DOCX file could not be saved.",
+  manuscriptEpubTitle: "Review EPUB content",
+  manuscriptEpubDescription:
+    "The EPUB adapts its text flow and presentation to the e-reader. The reader chooses the font, font size, and pagination on the device.",
+  manuscriptEpubScope:
+    "Exports chapter titles, manuscript text, bold, italic, and scene separators in book order.",
+  manuscriptEpubPagination:
+    "The preview shows content and order. Font size, line breaks, and pagination depend on the reading device; chapters remain structured. There is no fixed printed page count.",
+  manuscriptEpubNoExtras:
+    "Subtitle, series, volume, and title-page styling are not included in this EPUB.",
+  manuscriptEpubMetadata: "Book metadata",
+  manuscriptEpubMetadataHelp:
+    "Change title and author in book layout. Language comes from the saved manuscript.",
+  manuscriptEpubMetadataTitle: "Title",
+  manuscriptEpubMetadataAuthor: "Author",
+  manuscriptEpubMetadataLanguage: "Language",
+  manuscriptEpubMetadataNoAuthor: "Not specified",
+  manuscriptEpubWarningsHelp:
+    "These contents remain in the project but are not included in the EPUB file.",
+  manuscriptEpubDownload: "Download EPUB",
+  manuscriptEpubRendering: "Creating EPUB …",
+  manuscriptEpubDownloaded: "The EPUB file was handed off for saving.",
+  manuscriptEpubRenderFailed: "The EPUB file could not be created.",
+  manuscriptEpubSaveFailed: "The EPUB file could not be saved.",
+  errorManuscriptEpubInvalidContent:
+    "The manuscript has content that cannot be exported safely as EPUB.",
+  errorManuscriptEpubLimitExceeded: "The manuscript is too large for this EPUB export.",
   errorManuscriptExportInvalidRequest: "The export request is invalid.",
   errorManuscriptExportEmptyBook: "The book view has no chapters to export.",
   errorManuscriptExportInvalidContent: "The manuscript has content that cannot be exported safely.",

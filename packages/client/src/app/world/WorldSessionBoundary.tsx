@@ -5,6 +5,7 @@ import { useI18n } from "../../i18n";
 import { SignInGate } from "../../modules/identity";
 import { WorldGate, type WorldInfo } from "../../modules/story-world";
 import type { ThemePreference } from "../../shared";
+import { useViewportMode } from "../workspace/useWorkspaceLayout";
 
 export function WorldSessionBoundary({
   worlds,
@@ -46,6 +47,7 @@ export function WorldSessionBoundary({
   children: ReactNode;
 }) {
   const { t } = useI18n();
+  const viewportMode = useViewportMode();
   const loading = (message: string) => (
     <PageState kind="loading" mark={PRODUCT_MARK}>
       <p>{message}</p>
@@ -57,6 +59,7 @@ export function WorldSessionBoundary({
   if (!world)
     return (
       <WorldGate
+        compact={viewportMode === "compact"}
         worlds={worlds}
         theme={theme}
         onTheme={onTheme}

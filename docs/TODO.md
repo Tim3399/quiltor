@@ -1,6 +1,6 @@
 # TODO — Quiltor Product Roadmap
 
-**Baseline:** Quiltor `3.20.0` / accepted delivery reviewed on 2 October 2026
+**Baseline:** Quiltor `3.21.0` / roadmap reviewed on 3 October 2026
 **Purpose:** Product roadmap. This file answers **what should be built next and in what order**.
 
 The owner-requested safety and workflow delivery is recorded in the
@@ -20,12 +20,19 @@ The cloud capability delivered in 3.20 is manual, per-project snapshot/head sync
 not automatic background sync, chapter-level text merging, end-to-end encryption or a managed
 billing offer. The broader roadmap requirements for those capabilities remain open below.
 
-The [follow-up sprint plan](plans/roadmap-followup-sprints.md) records local work after 3.20.0:
+The [follow-up sprint plan](plans/roadmap-followup-sprints.md) records work after 3.20.0:
 DOCX, Markdown and TXT import, reviewed chapter splitting and folder mapping, plus
-reviewed DOCX export with editor and Normseite presets. These
-changes have not yet been released or deployed. The owner selected the existing
+reviewed DOCX export with editor and Normseite presets. These changes shipped in
+[release 3.21.0](https://github.com/Tim3399/quiltor/releases/tag/v3.21.0) on 3 October.
+The subsequent S16 EPUB export is accepted locally and has not been released.
+The earlier production deployment evidence above remains specific to 3.20.0.
+The owner selected the existing
 `status.bananenban.de` entry as sufficient operational visibility for now; separate
 notification channels are deferred.
+
+The owner deferred S17 (the real-author pilot) on 3 October 2026. Its
+[proposed task script](plans/author-pilot.md) is retained without participant
+results or an acceptance claim.
 
 ---
 
@@ -487,9 +494,9 @@ missing in DOCX). Evidence:
 
 ## Formats
 
-- [x] DOCX manuscript for editors and agents, with review before download (S15, local).
-- [x] German standard manuscript page (`Normseite`) as a one-click preset (S15, local).
-- [ ] EPUB 3.
+- [x] DOCX manuscript for editors and agents, with review before download (S15, released in 3.21.0).
+- [x] German standard manuscript page (`Normseite`) as a one-click preset (S15, released in 3.21.0).
+- [x] EPUB 3 with reviewed metadata, ordered chapters and a reflowable reading preset (S16, local).
 - [ ] Print PDF in common trim sizes, not only 6 × 9 in.
 - [x] Markdown chapter and book export for portability.
 - [ ] World data (figures, places, timeline) in a readable format.
@@ -498,19 +505,22 @@ missing in DOCX). Evidence:
 
 - [ ] Named presets (manuscript for an editor, Normseite, e-book, paperback) with few, clear options:
       title page, chapter numbering, scene separator, font.
-      S15 supplies two fixed DOCX presets; optional title pages, generated numbering,
-      EPUB and broader print presets remain open.
+      S15 supplies two fixed DOCX presets and S16 a reflowable EPUB reading preset;
+      optional title pages, generated numbering and broader print presets remain open.
 - [ ] Preview before the file is written.
-      DOCX has a content preview and counted omission warnings; its final pagination
-      is produced by the DOCX reader. Existing print preview remains separate.
+      DOCX and EPUB have content previews and counted omission warnings; final pagination
+      is produced by the reader. Existing print preview remains separate.
 - [ ] Carry chapter numbers, titles, italics and scene separators into every format, in the binder's
       flattened order.
 
 ## Verify before the author uploads
 
 - [ ] Validate EPUB output against the EPUB 3 specification in the release suite.
+      S16 includes package/semantic regression tests in the backend suite and passed
+      local EPUBCheck 5.4.0 on fixtures and an actual browser download. The external
+      EPUBCheck CLI is not yet a release-pipeline gate.
 - [ ] Report word and chapter counts of the export next to the manuscript's.
-      Completed for both DOCX presets in S15; remaining formats are still open.
+      Completed for both DOCX presets in S15 and EPUB in S16; remaining formats are still open.
 - [x] Round-trip test: import an exported DOCX and compare it with the source.
       Covers body text, titles, order and visible bold/italic; see
       [S15 acceptance](plans/roadmap-followup-sprints.md#s15-editor-export-and-acceptance).

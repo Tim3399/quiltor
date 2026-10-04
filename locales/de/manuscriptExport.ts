@@ -1,6 +1,7 @@
 export const manuscriptExport = {
   manuscriptExportEditorAction: "DOCX fürs Lektorat",
   manuscriptExportNormseiteAction: "DOCX als Normseite",
+  manuscriptEpubAction: "EPUB für E-Reader",
   manuscriptExportTitle: "DOCX-Inhalt prüfen",
   manuscriptExportPreviewLoading: "Gespeicherten Manuskriptstand prüfen …",
   manuscriptExportRefreshPreview: "Vorschau neu laden",
@@ -38,6 +39,32 @@ export const manuscriptExport = {
   manuscriptExportPreviewFailed: "Die Inhaltsvorschau konnte nicht geladen werden.",
   manuscriptExportRenderFailed: "Die DOCX-Datei konnte nicht erstellt werden.",
   manuscriptExportSaveFailed: "Die DOCX-Datei konnte nicht gespeichert werden.",
+  manuscriptEpubTitle: "EPUB-Inhalt prüfen",
+  manuscriptEpubDescription:
+    "Das EPUB passt Textfluss und Darstellung an den E-Reader an. Schrift, Schriftgröße und Seitenaufteilung wählt die lesende Person im Gerät.",
+  manuscriptEpubScope:
+    "Exportiert werden Kapiteltitel, Manuskripttext, Fett, Kursiv und Szenentrenner in der Reihenfolge der Buchansicht.",
+  manuscriptEpubPagination:
+    "Die Vorschau zeigt Inhalt und Reihenfolge. Schriftgröße sowie Zeilen- und Seitenumbrüche richten sich nach dem Lesegerät; Kapitel bleiben gegliedert. Eine feste Seitenzahl wie im Druck gibt es nicht.",
+  manuscriptEpubNoExtras:
+    "Untertitel, Reihe, Band und Titelblattgestaltung werden in diesem EPUB nicht übernommen.",
+  manuscriptEpubMetadata: "Buchangaben",
+  manuscriptEpubMetadataHelp:
+    "Titel und Autor kannst du in der Buchgestaltung ändern. Die Sprache wird aus dem gespeicherten Manuskript übernommen.",
+  manuscriptEpubMetadataTitle: "Titel",
+  manuscriptEpubMetadataAuthor: "Autor",
+  manuscriptEpubMetadataLanguage: "Sprache",
+  manuscriptEpubMetadataNoAuthor: "Nicht angegeben",
+  manuscriptEpubWarningsHelp:
+    "Diese Inhalte bleiben im Projekt, werden aber nicht in die EPUB-Datei übernommen.",
+  manuscriptEpubDownload: "EPUB herunterladen",
+  manuscriptEpubRendering: "EPUB wird erstellt …",
+  manuscriptEpubDownloaded: "Die EPUB-Datei wurde zum Speichern übergeben.",
+  manuscriptEpubRenderFailed: "Die EPUB-Datei konnte nicht erstellt werden.",
+  manuscriptEpubSaveFailed: "Die EPUB-Datei konnte nicht gespeichert werden.",
+  errorManuscriptEpubInvalidContent:
+    "Das Manuskript enthält Inhalte, die nicht sicher als EPUB exportiert werden können.",
+  errorManuscriptEpubLimitExceeded: "Das Manuskript ist für diesen EPUB-Export zu groß.",
   errorManuscriptExportInvalidRequest: "Die Exportanfrage ist ungültig.",
   errorManuscriptExportEmptyBook: "Die Buchansicht enthält keine exportierbaren Kapitel.",
   errorManuscriptExportInvalidContent:

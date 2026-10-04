@@ -164,6 +164,9 @@ describe("AppShell", () => {
 
   it("opens recovery directly beside a failed save", () => {
     const recover = vi.fn();
+    const retry = vi.fn();
+    const assistant = vi.fn();
+    const search = vi.fn();
     render(
       <I18nProvider>
         <AppShell
@@ -172,15 +175,15 @@ describe("AppShell", () => {
           onWorkspace={() => undefined}
           phase="error"
           error="Speichern fehlgeschlagen"
-          retry={() => undefined}
+          retry={retry}
           onRecover={recover}
           theme="light"
           onTheme={() => undefined}
-          onSearch={() => undefined}
+          onSearch={search}
           onHistory={() => undefined}
           onSnapshot={() => undefined}
           onBackups={() => undefined}
-          onAssistant={() => undefined}
+          onAssistant={assistant}
           onExitWorld={() => undefined}
         >
           <div />
@@ -188,7 +191,18 @@ describe("AppShell", () => {
       </I18nProvider>,
     );
 
+    const alert = screen.getByRole("alert");
+    expect(alert.closest("header")).toHaveClass("app-bar--save-error");
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(retry).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Entwurf retten" }));
     expect(recover).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Assistent" }));
+    expect(assistant).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Suche" }));
+    expect(search).toHaveBeenCalledOnce();
   });
 });

@@ -3,7 +3,7 @@ import { Button, ConfirmDialog, Toast, ToastRegion } from "../../design";
 import { useI18n } from "../../i18n";
 import {
   applicationErrorMessage,
-  type ManuscriptDocxPreset,
+  type ManuscriptExportPreset,
   quiltorClient,
   saveTextFile,
 } from "../../platform";
@@ -107,7 +107,7 @@ export function TextWorkspace({
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
   const [exportError, setExportError] = useState("");
-  const [docxPreset, setDocxPreset] = useState<ManuscriptDocxPreset | null>(null);
+  const [exportPreset, setExportPreset] = useState<ManuscriptExportPreset | null>(null);
   const [preview, setPreview] = useState(false);
   const [previewChapterId, setPreviewChapterId] = useState("");
   const [previewTargetChapterId, setPreviewTargetChapterId] = useState("");
@@ -445,7 +445,8 @@ ${markdownBody(current.body, current.marks)}
         onFocus={onFocus}
         onHistoryOpen={history.setOpen}
         onExport={exportAll}
-        onExportDocx={setDocxPreset}
+        onExportDocx={setExportPreset}
+        onExportEpub={() => setExportPreset("epub")}
         onPrint={() => void printBook()}
         onPreview={setPrintPreview}
         onInsertSceneBreak={() => writing.insert("\n\n⁂\n\n")}
@@ -604,12 +605,12 @@ ${markdownBody(current.body, current.marks)}
           onClose={() => setTrashOpen(false)}
         />
       )}
-      {docxPreset && (
+      {exportPreset && (
         <ManuscriptExportDialog
-          key={docxPreset}
-          preset={docxPreset}
+          key={exportPreset}
+          preset={exportPreset}
           onSave={onSave}
-          onClose={() => setDocxPreset(null)}
+          onClose={() => setExportPreset(null)}
         />
       )}
       {(pdfState === "error" || exportError || lastDeletedId) && (

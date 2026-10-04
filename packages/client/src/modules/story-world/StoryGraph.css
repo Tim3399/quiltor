@@ -271,25 +271,7 @@
   margin-top: var(--space-12);
 }
 .node-priority-action {
-  display: flex;
-  align-items: center;
   justify-content: flex-start;
-  gap: var(--space-8);
-  padding: var(--space-7) var(--space-10);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  color: var(--soft);
-  cursor: pointer;
-}
-.node-priority-action.active {
-  border-color: var(--selection-border);
-  background: var(--control-hover);
-  color: var(--ink);
-}
-.node-priority-actions svg {
-  width: 16px;
-  flex: 0 0 auto;
 }
 
 @media (max-width: 1050px) {

@@ -69,24 +69,6 @@
   align-items: end;
   gap: var(--space-8);
 }
-.timeline-inline-add,
-.timeline-inline-remove {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-6);
-  padding: 0 var(--space-10);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  color: var(--ink);
-  cursor: pointer;
-}
-.timeline-inline-add svg,
-.timeline-inline-remove svg {
-  width: 14px;
-}
 @media (max-width: 640px) {
   .timeline-meta-card {
     grid-template-columns: 1fr;

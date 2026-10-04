@@ -13,8 +13,8 @@ from quiltor.infrastructure.persistence.sqlite.codec import decode_extra, encode
 from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
 
 
-def load(db_path: Path | None = None) -> dict[str, Any]:
-    with connection(db_path) as database:
+def load(db_path: Path | None = None, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
+    with nullcontext(conn) if conn is not None else connection(db_path) as database:
         settings = database.execute("SELECT * FROM manuscript_settings WHERE id=1").fetchone()
         result = decode_extra(settings["extra_json"]) if settings else {}
         result["words"] = json.loads(settings["words_json"]) if settings else []

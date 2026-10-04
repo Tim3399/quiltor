@@ -90,6 +90,11 @@ describe("worlds HTTP port", () => {
     worlds.select(WORLD_ID);
 
     expect(state.activeWorldId).toBe(WORLD_ID);
+    expect(state.selectionGeneration).toBe(1);
+    state.revisions.manuscript = 9;
+    worlds.select(WORLD_ID);
+    expect(state.selectionGeneration).toBe(2);
+    expect(state.revisions).toEqual({ manuscript: 0, figures: 0, storyboards: 0 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

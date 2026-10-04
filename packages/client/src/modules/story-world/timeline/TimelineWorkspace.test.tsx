@@ -104,13 +104,10 @@ describe("TimelineWorkspace sections", () => {
       join(process.cwd(), "packages/client/src/design/tokens.css"),
       "utf8",
     );
-    const modeRule = panelsCss.match(/\.state-change-mode \[role="radio"\]\s*\{([^}]*)\}/s)?.[1];
     const inspectorActionRule = panelsCss.match(
       /\.relationship-inspector-action,\s*\.reset-inheritance\s*\{([^}]*)\}/s,
     )?.[1];
 
-    expect(modeRule).toBeDefined();
-    expect(modeRule).not.toMatch(/\b(?:min-)?height\s*:/);
     expect(inspectorActionRule).toBeDefined();
     expect(inspectorActionRule).not.toMatch(/\b(?:min-)?height\s*:/);
     expect(
@@ -124,6 +121,18 @@ describe("TimelineWorkspace sections", () => {
     expect(tokensCss).toMatch(
       /@media \(max-width: 719px\), \(pointer: coarse\)[\s\S]*?--control-regular:\s*var\(--control-touch\);/,
     );
+  });
+
+  it("switches relationship views with the segmented keyboard contract", () => {
+    renderTimeline();
+    const changes = screen.getByRole("radio", { name: "Nur Änderungen" });
+    const all = screen.getByRole("radio", { name: "Alle Beziehungen" });
+    expect(changes).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.keyDown(changes, { key: "ArrowRight" });
+
+    expect(all).toHaveAttribute("aria-checked", "true");
+    expect(all).toHaveFocus();
   });
 
   it("starts focused on relationships and keeps secondary tasks collapsed", () => {

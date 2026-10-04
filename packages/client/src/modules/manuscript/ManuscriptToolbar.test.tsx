@@ -8,6 +8,7 @@ afterEach(cleanup);
 it("links manuscript export actions and restores focus after selection", async () => {
   const onExport = vi.fn();
   const onExportDocx = vi.fn();
+  const onExportEpub = vi.fn();
   const { container } = render(
     <I18nProvider>
       <ManuscriptToolbar
@@ -26,6 +27,7 @@ it("links manuscript export actions and restores focus after selection", async (
         onHistoryOpen={vi.fn()}
         onExport={onExport}
         onExportDocx={onExportDocx}
+        onExportEpub={onExportEpub}
         onPrint={vi.fn()}
         onPreview={vi.fn()}
         onInsertSceneBreak={vi.fn()}
@@ -63,11 +65,19 @@ it("links manuscript export actions and restores focus after selection", async (
   const menu = await screen.findByRole("menu");
   expect(trigger).toHaveAttribute("aria-expanded", "true");
   expect(trigger).toHaveAttribute("aria-controls", menu.id);
-  const exportItem = within(menu).getByRole("menuitem", { name: "Manuskript" });
+  expect(within(menu).getByRole("menuitem", { name: "Manuskript" })).toBeInTheDocument();
   expect(within(menu).getByRole("menuitem", { name: "DOCX fürs Lektorat" })).toBeInTheDocument();
   expect(within(menu).getByRole("menuitem", { name: "DOCX als Normseite" })).toBeInTheDocument();
-  expect(exportItem.querySelector(".ui-menu__label")).toHaveTextContent("Manuskript");
-  fireEvent.click(exportItem);
+  const epubItem = within(menu).getByRole("menuitem", { name: "EPUB für E-Reader" });
+  expect(epubItem).toBeInTheDocument();
+  fireEvent.click(epubItem);
+  expect(onExportEpub).toHaveBeenCalledOnce();
+  await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+  fireEvent.click(trigger);
+  const reopenedMenu = await screen.findByRole("menu");
+  const reopenedExportItem = within(reopenedMenu).getByRole("menuitem", { name: "Manuskript" });
+  expect(reopenedExportItem.querySelector(".ui-menu__label")).toHaveTextContent("Manuskript");
+  fireEvent.click(reopenedExportItem);
 
   expect(onExport).toHaveBeenCalledOnce();
   await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
@@ -96,6 +106,7 @@ it("exposes print preview and scene-break actions", () => {
         onHistoryOpen={vi.fn()}
         onExport={vi.fn()}
         onExportDocx={vi.fn()}
+        onExportEpub={vi.fn()}
         onPrint={vi.fn()}
         onPreview={onPreview}
         onInsertSceneBreak={onInsertSceneBreak}

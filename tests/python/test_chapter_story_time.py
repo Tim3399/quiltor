@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import copy
 import json
 import sqlite3
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
+from datetime import UTC, datetime
 from pathlib import Path
 
 from quiltor.application.documents import (
@@ -15,7 +19,7 @@ from quiltor.application.documents import (
 from quiltor.domain.manuscript import story_time_anchor_issue, valid_story_time_reference
 from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocumentRepository
 from quiltor.infrastructure.persistence.sqlite import manuscript, revisions, schema, story_world
-from quiltor.infrastructure.persistence.sqlite.connection import connection
+from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
 
 
 class _Observer:
@@ -32,6 +36,24 @@ class _Backups:
 
     def mirror_story_world(self, *_args):
         return None
+
+
+class _CoordinatedRepository(SQLiteDocumentRepository):
+    def __init__(self, first: str):
+        self._first = first
+        self._ready = threading.Barrier(2)
+        self._first_committed = threading.Event()
+
+    def save(self, kind, state, expected_revision, database):
+        self._ready.wait(timeout=5)
+        if kind == self._first:
+            try:
+                return super().save(kind, state, expected_revision, database)
+            finally:
+                self._first_committed.set()
+        if not self._first_committed.wait(timeout=5):
+            raise TimeoutError("The first concurrent document save did not finish.")
+        return super().save(kind, state, expected_revision, database)
 
 
 def _timeline() -> dict:
@@ -228,9 +250,102 @@ class ChapterStoryTimePersistenceTests(unittest.TestCase):
 
     def test_database_foreign_keys_defend_direct_persistence_bypasses(self):
         self.documents.save("manuscript", _manuscript(), 0, self.location)
-        with self.assertRaises(sqlite3.IntegrityError):
-            with connection(self.database) as database:
-                database.execute("DELETE FROM timeline_moments WHERE id='past'")
+        with self.assertRaises(sqlite3.IntegrityError), connection(self.database) as database:
+            database.execute("DELETE FROM timeline_moments WHERE id='past'")
+
+    def test_restore_revision_timestamp_is_explicit_utc(self):
+        revisions.advance_restore_revisions({}, db_path=self.database)
+        with connection(self.database) as database:
+            stored = database.execute(
+                "SELECT value FROM meta WHERE key='last_restore_at'"
+            ).fetchone()[0]
+
+        restored_at = datetime.fromisoformat(stored)
+        self.assertEqual(restored_at.tzinfo, UTC)
+
+    def test_cross_document_validation_and_save_share_one_transaction(self):
+        for first in ("figures", "manuscript"):
+            with self.subTest(first=first), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                database = root / "world.sqlite3"
+                location = DocumentLocation(
+                    database=database,
+                    backups=root / "backups",
+                    manuscript_mirrors=root / "manuscript",
+                    story_world_mirrors=root / "story-world",
+                )
+                schema.initialize(database)
+                story_world.save(_timeline(), db_path=database)
+                unanchored = copy.deepcopy(_manuscript())
+                for chapter in unanchored["chapters"]:
+                    chapter.pop("storyTime", None)
+                manuscript.save(unanchored, db_path=database)
+                swapped = copy.deepcopy(_timeline())
+                for moment in swapped["timeline"]:
+                    moment["time"] *= -1
+
+                documents = DocumentUseCases(
+                    _CoordinatedRepository(first),
+                    _Backups(),
+                    _Observer(),
+                )
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    futures = {
+                        "figures": pool.submit(documents.save, "figures", swapped, 0, location),
+                        "manuscript": pool.submit(
+                            documents.save, "manuscript", _manuscript(), 0, location
+                        ),
+                    }
+                    winner = futures[first].result(timeout=10)
+                    with self.assertRaises(InvalidChapterStoryTime) as raised:
+                        futures["manuscript" if first == "figures" else "figures"].result(
+                            timeout=10
+                        )
+
+                losing_kind = "manuscript" if first == "figures" else "figures"
+                self.assertEqual(winner, 1)
+                self.assertEqual(raised.exception.params["document"], losing_kind)
+                self.assertEqual(raised.exception.params["reason"], "reversed_range")
+                self.assertEqual(revisions.revision(first, db_path=database), 1)
+                self.assertEqual(revisions.revision(losing_kind, db_path=database), 0)
+                persisted_manuscript = manuscript.load(database)
+                persisted_figures = story_world.load(database)
+                self.assertIsNone(story_time_anchor_issue(persisted_manuscript, persisted_figures))
+                if first == "figures":
+                    self.assertTrue(
+                        all(
+                            "storyTime" not in chapter
+                            for chapter in persisted_manuscript["chapters"]
+                        )
+                    )
+                else:
+                    self.assertEqual(
+                        [moment["time"] for moment in persisted_figures["timeline"]],
+                        [-10, 10],
+                    )
+
+    def test_transaction_loaders_use_and_preserve_the_caller_connection(self):
+        database = connect(self.database)
+        try:
+            database.execute("BEGIN IMMEDIATE")
+            database.execute("UPDATE timeline_moments SET time=42 WHERE id='past'")
+            self.assertEqual(
+                next(
+                    moment
+                    for moment in story_world.load(conn=database)["timeline"]
+                    if moment["id"] == "past"
+                )["time"],
+                42,
+            )
+            self.assertEqual(manuscript.load(conn=database)["chapters"], [])
+            database.rollback()
+            self.assertEqual(database.execute("SELECT 1").fetchone()[0], 1)
+        finally:
+            database.close()
+
+    def test_unknown_document_kind_retains_the_existing_value_error(self):
+        with self.assertRaisesRegex(ValueError, "Unknown document type"):
+            revisions.save_with_revision("unknown", {}, None, db_path=self.database)
 
 
 class ChapterStoryTimeMigrationTests(unittest.TestCase):

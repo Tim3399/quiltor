@@ -32,6 +32,7 @@ from quiltor.infrastructure.backup.login import BackupLoginRuntime
 from quiltor.infrastructure.backup.sync_state import JsonSyncStateStore
 from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
 from quiltor.infrastructure.exporting.docx import DocxExportOptions, serialize_docx
+from quiltor.infrastructure.exporting.epub import EpubExportOptions, serialize_epub
 from quiltor.infrastructure.identity import (
     InMemoryRenderTokenStore,
     SQLiteOwnerIdentityStore,
@@ -181,6 +182,12 @@ def build_application_services(
             documents,
             lambda chapters, preset: (
                 serialize_docx(chapters, DocxExportOptions(preset=preset)).content
+            ),
+            lambda chapters, metadata, digest: (
+                serialize_epub(
+                    chapters,
+                    EpubExportOptions(**metadata, identifier=f"urn:sha256:{digest}"),
+                ).content
             ),
         ),
         backups=BackupUseCases(

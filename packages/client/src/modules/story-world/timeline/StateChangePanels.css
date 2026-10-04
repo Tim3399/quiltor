@@ -34,25 +34,7 @@
   font: var(--font-field-label);
 }
 .state-change-mode {
-  display: flex;
-  gap: var(--space-4);
-  padding: var(--space-4);
   width: max-content;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--canvas);
-}
-.state-change-mode [role="radio"] {
-  padding: 0 var(--space-12);
-  border-radius: var(--radius-sm);
-  background: var(--transparent);
-  color: var(--muted);
-  cursor: pointer;
-}
-.state-change-mode [role="radio"][aria-checked="true"] {
-  background: var(--selection-surface);
-  color: var(--selection-text);
-  box-shadow: inset var(--ring-1) var(--selection-border);
 }
 .timeline-manager-section {
   margin-top: var(--space-12);
@@ -413,9 +395,6 @@
   }
   .state-change-mode {
     width: 100%;
-  }
-  .state-change-mode [role="radio"] {
-    flex: 1;
   }
   .timeline-section-toggle {
     align-items: flex-start;

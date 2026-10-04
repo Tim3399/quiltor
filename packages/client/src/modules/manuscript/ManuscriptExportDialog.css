@@ -19,23 +19,27 @@
   gap: var(--space-12);
 }
 
-.manuscript-export-counts {
+.manuscript-export-counts,
+.manuscript-export-metadata {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: var(--space-12);
   margin: 0;
 }
 
-.manuscript-export-counts div {
+.manuscript-export-counts div,
+.manuscript-export-metadata div {
   min-width: 0;
 }
 
 .manuscript-export-counts dt,
+.manuscript-export-metadata dt,
 .manuscript-export-chapters small {
   color: var(--muted);
 }
 
-.manuscript-export-counts dd {
+.manuscript-export-counts dd,
+.manuscript-export-metadata dd {
   margin: var(--space-3) 0 0;
   font-weight: 600;
 }

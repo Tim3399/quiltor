@@ -1,18 +1,28 @@
 import type { Page } from "@playwright/test";
-import { fulfillDocumentSave, fulfillManuscript } from "./support/application-api";
+import {
+  decodeSavedManuscript,
+  fulfillDocumentSave,
+  fulfillManuscript,
+} from "./support/application-api";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
-async function openChapter(page: Page) {
-  await page.route("**/api/manuscript*", (route) =>
-    route.request().method() === "GET"
-      ? fulfillManuscript(route, {
-          chapters: [{ id: "chapter-title-style", title: "Prolog", body: "Nebel.", note: "" }],
-        })
-      : fulfillDocumentSave(route, 1),
-  );
+async function openChapter(page: Page, initialTitle = "Prolog") {
+  let manuscript = {
+    chapters: [{ id: "chapter-title-style", title: initialTitle, body: "Nebel.", note: "" }],
+  };
+  let revision = 0;
+  await page.route("**/api/manuscript*", (route) => {
+    if (route.request().method() === "GET") {
+      return fulfillManuscript(route, manuscript, revision);
+    }
+    manuscript = decodeSavedManuscript<typeof manuscript>(route);
+    revision += 1;
+    return fulfillDocumentSave(route, revision);
+  });
   const world = await createTestWorld(page, "Kapiteltitel-Stiltest");
   await page.goto(`/?world=${world.id}`);
   await page.getByRole("textbox", { name: "Kapiteltitel" }).waitFor();
+  return () => manuscript;
 }
 
 function channel(value: number) {
@@ -102,4 +112,47 @@ test("The chapter title stays document-like and keeps a clear keyboard focus", a
   expect(focused.borderRightWidth).toBe("0px");
   expect(focused.borderLeftWidth).toBe("0px");
   expect(focused.boxShadow).not.toBe("none");
+});
+
+test("A long chapter title remains readable and single-line in compact editing", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "compact", "This regression covers compact title reflow.");
+  const initialTitle =
+    "Die Ankunft im Gezeitenarchiv KapitelOhneTrennzeichenDasAuchAufSchmalenBildschirmenVollstaendigLesbarBleibt";
+  const savedManuscript = await openChapter(page, initialTitle);
+  const title = page.getByRole("textbox", { name: "Kapiteltitel" });
+
+  const layout = await title.evaluate((element) => {
+    const field = element as HTMLTextAreaElement;
+    const lineHeight = Number.parseFloat(getComputedStyle(field).lineHeight);
+    return {
+      height: field.getBoundingClientRect().height,
+      lineHeight,
+      clientWidth: field.clientWidth,
+      scrollWidth: field.scrollWidth,
+      clientHeight: field.clientHeight,
+      scrollHeight: field.scrollHeight,
+      documentClientWidth: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+  expect(layout.height).toBeGreaterThan(layout.lineHeight * 1.5);
+  expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
+  expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight + 1);
+  expect(layout.documentScrollWidth).toBe(layout.documentClientWidth);
+
+  await title.focus();
+  await title.evaluate((field) => {
+    const end = (field as HTMLTextAreaElement).value.length;
+    (field as HTMLTextAreaElement).setSelectionRange(end, end);
+  });
+  await page.keyboard.insertText(" – Schluss");
+  const editedTitle = `${initialTitle} – Schluss`;
+  await page.keyboard.press("Enter");
+  await expect(title).toHaveValue(editedTitle);
+  await expect.poll(() => savedManuscript().chapters[0]?.title).toBe(editedTitle);
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Kapiteltitel" })).toHaveValue(editedTitle);
 });

@@ -6,7 +6,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from quiltor.application.documents import DocumentKind, RevisionConflict
+from quiltor.application.documents import DocumentKind, InvalidChapterStoryTime, RevisionConflict
 from quiltor.infrastructure.persistence.sqlite import (
     assistant_history,
     manuscript,
@@ -60,6 +60,15 @@ class SQLiteDocumentRepository:
             return revisions.save_with_revision(kind, state, expected_revision, db_path=database)
         except revisions.ConflictError as exc:
             raise RevisionConflict(kind, exc.expected, exc.actual, str(exc)) from exc
+        except revisions.StoryTimeConflictError as exc:
+            params = {"document": exc.document, "reason": exc.issue.reason}
+            if exc.issue.chapter_id:
+                params["chapterId"] = exc.issue.chapter_id
+            if exc.issue.moment_id:
+                params["momentId"] = exc.issue.moment_id
+            raise InvalidChapterStoryTime(
+                "invalid chapter story-time reference", params=params
+            ) from exc
 
     def log_assistant_interaction(
         self,

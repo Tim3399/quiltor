@@ -9,8 +9,14 @@ afterEach(cleanup);
 
 function GregorianFields({
   onStartChange,
+  onEndChange = vi.fn(),
+  onClearEnd = vi.fn(),
+  endTime,
 }: {
   onStartChange: (time: number, precision: "day" | "month" | "year") => void;
+  onEndChange?: (time: number, precision: "day" | "month" | "year") => void;
+  onClearEnd?: () => void;
+  endTime?: number;
 }) {
   const { locale, t } = useI18n();
   const system: TimeSystem = {
@@ -21,11 +27,11 @@ function GregorianFields({
   return (
     <MomentCalendarFields
       system={system}
-      moment={{ id: "m1", title: "Ankunft", time: 0, position: 0 }}
+      moment={{ id: "m1", title: "Ankunft", time: 0, endTime, position: 0 }}
       fallback={0}
       onStartChange={onStartChange}
-      onEndChange={vi.fn()}
-      onClearEnd={vi.fn()}
+      onEndChange={onEndChange}
+      onClearEnd={onClearEnd}
       locale={locale}
       t={t}
     />
@@ -83,5 +89,35 @@ describe("MomentTimeFields", () => {
     });
     expect(onChange).toHaveBeenCalledWith(2, "after", "base");
     expect(timeline.map((moment) => moment.time)).toEqual([0, 0]);
+  });
+
+  it("adds and removes the optional end through the shared actions", () => {
+    const onEndChange = vi.fn();
+    const onClearEnd = vi.fn();
+    const view = render(
+      <I18nProvider>
+        <GregorianFields
+          onStartChange={vi.fn()}
+          onEndChange={onEndChange}
+          onClearEnd={onClearEnd}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ende hinzufügen" }));
+    expect(onEndChange).toHaveBeenCalledWith(0, "day");
+
+    view.rerender(
+      <I18nProvider>
+        <GregorianFields
+          endTime={0}
+          onStartChange={vi.fn()}
+          onEndChange={onEndChange}
+          onClearEnd={onClearEnd}
+        />
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Ende entfernen" }));
+    expect(onClearEnd).toHaveBeenCalledOnce();
   });
 });

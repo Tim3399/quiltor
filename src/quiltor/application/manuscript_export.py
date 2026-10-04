@@ -13,10 +13,15 @@ from quiltor.application.documents.ports import DocumentRepository
 from quiltor.application.errors import ApplicationConflict, InvalidApplicationInput
 from quiltor.domain.manuscript import flatten_tree, structure_or_flat
 
-PRESETS = ("editor", "normseite")
+PRESETS = ("editor", "normseite", "epub")
 WARNING_CODES = ("notes", "references", "folders", "excluded_chapters", "extensions")
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-FILE_NAMES = {"editor": "Quiltor-Manuskript.docx", "normseite": "Quiltor-Normseite.docx"}
+EPUB_MEDIA_TYPE = "application/epub+zip"
+FILE_NAMES = {
+    "editor": "Quiltor-Manuskript.docx",
+    "normseite": "Quiltor-Normseite.docx",
+    "epub": "Quiltor-Manuskript.epub",
+}
 # ECMAScript whitespace, matching the author-facing manuscript word counter.
 _WORDS = re.compile(
     r"[^\u0009-\u000d\u0020\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+"
@@ -58,9 +63,39 @@ def validate_preset(preset: object) -> str:
 
 
 class ManuscriptExportUseCases:
-    def __init__(self, documents: DocumentRepository, render: Callable[[list[dict], str], bytes]):
+    def __init__(
+        self,
+        documents: DocumentRepository,
+        render: Callable[[list[dict], str], bytes],
+        render_epub: Callable[[list[dict], dict, str], bytes] | None = None,
+    ):
         self._documents = documents
         self._render = render
+        self._render_epub = render_epub
+
+    @staticmethod
+    def _epub_metadata(state: dict) -> dict[str, str]:
+        layout = state.get("bookLayout", {})
+        if not isinstance(layout, dict):
+            raise InvalidExportContent("The book metadata is invalid.")
+        title = layout.get("bookTitle", "")
+        author = layout.get("author", "")
+        language = state.get("language", "de")
+        if (
+            not isinstance(title, str)
+            or len(title) > 1_000
+            or not isinstance(author, str)
+            or len(author) > 1_000
+            or not isinstance(language, str)
+            or len(language) > 64
+            or not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", language)
+        ):
+            raise InvalidExportContent("The book metadata is invalid.")
+        return {
+            "title": title.strip() or "Manuskript",
+            "author": author.strip(),
+            "language": language,
+        }
 
     def _snapshot(self, database: Path, preset: str) -> tuple[dict, list[dict]]:
         validate_preset(preset)
@@ -123,7 +158,7 @@ class ManuscriptExportUseCases:
             "extensions": len(state.keys() - known_manuscript)
             + sum(len(chapter.keys() - known_chapter) for chapter in chapters),
         }
-        return {
+        preview = {
             "preset": preset,
             "revision": revision,
             "sourceSha256": digest,
@@ -148,13 +183,23 @@ class ManuscriptExportUseCases:
             "warnings": [
                 {"code": code, "count": counts[code]} for code in WARNING_CODES if counts[code]
             ],
-        }, chapters
+        }
+        if preset == "epub":
+            preview["metadata"] = self._epub_metadata(state)
+        return preview, chapters
+
+    def _render_snapshot(self, preview: dict, chapters: list[dict]) -> bytes:
+        if preview["preset"] == "epub":
+            if self._render_epub is None:
+                raise InvalidExportRequest("EPUB export is unavailable.")
+            return self._render_epub(chapters, preview["metadata"], preview["sourceSha256"])
+        return self._render(chapters, preview["preset"])
 
     def preview(self, database: Path, preset: str) -> dict:
         preview, chapters = self._snapshot(database, preset)
         # Run the same bounded serializer before the author approves the preview.
         # No file, generated archive, or manuscript content is persisted here.
-        self._render(chapters, preset)
+        self._render_snapshot(preview, chapters)
         return preview
 
     def export(self, database: Path, payload: dict) -> tuple[str, bytes]:
@@ -167,4 +212,4 @@ class ManuscriptExportUseCases:
         required = {warning["code"] for warning in preview["warnings"]}
         if set(payload["acknowledgedWarnings"]) != required:
             raise ExportWarningsUnacknowledged("Review the current export warnings.")
-        return preview["fileName"], self._render(chapters, payload["preset"])
+        return preview["fileName"], self._render_snapshot(preview, chapters)

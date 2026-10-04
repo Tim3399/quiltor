@@ -7,7 +7,7 @@ import { NodePriorityActions } from "./NodePriorityActions";
 afterEach(cleanup);
 
 describe("NodePriorityActions", () => {
-  it("inherits adaptive regular and touch sizing from Button", () => {
+  it("leaves visual states and adaptive sizing with Button", () => {
     const css = readFileSync(
       join(process.cwd(), "packages/client/src/modules/story-world/StoryGraph.css"),
       "utf8",
@@ -42,6 +42,14 @@ describe("NodePriorityActions", () => {
     expect(screen.getByRole("button", { name: "Unmark important" })).toHaveAttribute(
       "aria-pressed",
       "true",
+    );
+    expect(screen.getByRole("button", { name: "Unmark important" })).toHaveAttribute(
+      "data-appearance",
+      "secondary",
+    );
+    expect(screen.getByRole("button", { name: "Pin position" })).toHaveAttribute(
+      "data-appearance",
+      "secondary",
     );
     fireEvent.click(screen.getByRole("button", { name: "Unmark important" }));
     fireEvent.click(screen.getByRole("button", { name: "Pin position" }));

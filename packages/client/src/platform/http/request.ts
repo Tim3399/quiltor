@@ -4,16 +4,49 @@ import { currentMessages } from "./locale";
 
 export type HttpApplicationState = {
   activeWorldId: string;
+  selectionGeneration: number;
   revisions: { manuscript: number; figures: number; storyboards: number };
 };
 
 export function createHttpApplicationState(): HttpApplicationState {
-  return { activeWorldId: "", revisions: { manuscript: 0, figures: 0, storyboards: 0 } };
+  return {
+    activeWorldId: "",
+    selectionGeneration: 0,
+    revisions: { manuscript: 0, figures: 0, storyboards: 0 },
+  };
+}
+
+export type HttpWorldSelection = {
+  worldId: string;
+  generation: number;
+};
+
+export function selectWorld(state: HttpApplicationState, worldId: string): void {
+  state.activeWorldId = worldId;
+  state.selectionGeneration += 1;
+  state.revisions = { manuscript: 0, figures: 0, storyboards: 0 };
+}
+
+export function currentWorldSelection(state: HttpApplicationState): HttpWorldSelection {
+  return { worldId: state.activeWorldId, generation: state.selectionGeneration };
+}
+
+export function isCurrentWorldSelection(
+  state: HttpApplicationState,
+  selection: HttpWorldSelection,
+): boolean {
+  return (
+    state.activeWorldId === selection.worldId && state.selectionGeneration === selection.generation
+  );
+}
+
+export function withSelectedWorldQuery(selection: HttpWorldSelection, url: string): string {
+  if (!selection.worldId) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}world=${encodeURIComponent(selection.worldId)}`;
 }
 
 export function withWorldQuery(state: HttpApplicationState, url: string): string {
-  if (!state.activeWorldId) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}world=${encodeURIComponent(state.activeWorldId)}`;
+  return withSelectedWorldQuery(currentWorldSelection(state), url);
 }
 
 export function withWorldBody<T extends object>(

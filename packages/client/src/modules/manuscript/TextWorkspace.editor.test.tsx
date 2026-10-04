@@ -30,6 +30,115 @@ afterEach(() => {
 });
 
 describe("TextWorkspace editor, search and versions", () => {
+  it("keeps the wrapping chapter title single-line in storage", () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(72);
+    const onChange = vi.fn();
+    renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn() });
+    const title = screen.getByRole("textbox", {
+      name: "Kapiteltitel",
+    }) as HTMLTextAreaElement;
+
+    expect(title).toBeInstanceOf(HTMLTextAreaElement);
+    expect(title).toHaveAttribute("rows", "1");
+    expect(title).toHaveStyle({ height: "72px" });
+    expect(fireEvent.keyDown(title, { key: "Enter" })).toBe(false);
+    expect(fireEvent.keyDown(title, { key: "Enter", isComposing: true })).toBe(true);
+
+    fireEvent.change(title, { target: { value: "Ein langer\nKapiteltitel" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        chapters: [expect.objectContaining({ title: "Ein langer Kapiteltitel" })],
+      }),
+    );
+
+    onChange.mockClear();
+    fireEvent.compositionStart(title);
+    expect(fireEvent.keyDown(title, { key: "Enter" })).toBe(true);
+    fireEvent.change(title, { target: { value: "Zwischen\nstand" } });
+    expect(title).toHaveValue("Zwischen\nstand");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(
+      fireEvent.paste(title, {
+        clipboardData: { getData: () => " Eingefügt\nText" },
+      }),
+    ).toBe(true);
+    fireEvent.change(title, { target: { value: "Zwischen\nstand Eingefügt\nText" } });
+    expect(title).toHaveValue("Zwischen\nstand Eingefügt\nText");
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(title, {
+      data: "Text",
+      target: { value: "Zwischen\nstand Eingefügt\nText" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        chapters: [expect.objectContaining({ title: "Zwischen stand Eingefügt Text" })],
+      }),
+    );
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    title.focus();
+    title.value = "Prolog";
+    title.setSelectionRange(3, title.value.length);
+    fireEvent.paste(title, {
+      clipboardData: { getData: () => "Erste Zeile\r\nZweite Zeile" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        chapters: [expect.objectContaining({ title: "ProErste Zeile Zweite Zeile" })],
+      }),
+    );
+    title.value = "ProErste Zeile Zweite Zeile";
+    animationFrames.at(-1)?.(0);
+    expect(title.selectionStart).toBe(27);
+    expect(title.selectionEnd).toBe(27);
+  });
+
+  it("does not restore a pasted title selection after chapter navigation", async () => {
+    const searchable = {
+      chapters: [
+        { id: "c1", title: "Prolog", body: "Nebel hier.", note: "" },
+        { id: "c2", title: "Aufbruch", body: "Noch ein Nebel.", note: "" },
+      ],
+    };
+    const view = renderWorkspace({
+      manuscript: searchable,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      targetId: "c2",
+      textSearch: { query: "Nebel", from: 9, to: 14 },
+    });
+    const rendered = within(view.container);
+    const title = rendered.getByRole("textbox", {
+      name: "Kapiteltitel",
+    }) as HTMLTextAreaElement;
+    await waitFor(() => expect(title).toHaveValue("Aufbruch"));
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    const selection = vi.spyOn(HTMLTextAreaElement.prototype, "setSelectionRange");
+    title.focus();
+    title.setSelectionRange(0, title.value.length);
+    fireEvent.paste(title, {
+      clipboardData: { getData: () => "Neuer\nTitel" },
+    });
+
+    fireEvent.click(rendered.getByRole("button", { name: "Nächster Treffer" }));
+    await waitFor(() => expect(title).toHaveValue("Prolog"));
+    title.focus();
+    selection.mockClear();
+    animationFrames.at(-1)?.(0);
+    expect(selection).not.toHaveBeenCalled();
+  });
+
   it("changes text without losing the rest of the manuscript structure", async () => {
     const onChange = vi.fn();
     renderWorkspace({ manuscript, figures, onChange, focus: false, onFocus: vi.fn() });

@@ -46,6 +46,7 @@ interface ManuscriptToolbarProps {
   onHistoryOpen: (open: boolean) => void;
   onExport: () => void;
   onExportDocx: (preset: ManuscriptDocxPreset) => void;
+  onExportEpub: () => void;
   onPrint: () => void;
   onPreview: (preview: boolean) => void;
   onInsertSceneBreak: () => void;
@@ -70,6 +71,7 @@ export function ManuscriptToolbar({
   onHistoryOpen,
   onExport,
   onExportDocx,
+  onExportEpub,
   onPrint,
   onPreview,
   onInsertSceneBreak,
@@ -207,6 +209,11 @@ export function ManuscriptToolbar({
                 icon={<Download />}
                 label={t("manuscriptExportNormseiteAction")}
                 onSelect={() => onExportDocx("normseite")}
+              />
+              <MenuItem
+                icon={<Download />}
+                label={t("manuscriptEpubAction")}
+                onSelect={onExportEpub}
               />
               <MenuItem
                 icon={<Printer />}

@@ -158,7 +158,6 @@ export function PlaceInspector({
             />
             <NodePriorityActions
               className="places-priority-actions"
-              actionClassName="places-priority-action"
               important={!!selected.important}
               pinned={!!selected.pinned}
               importantLabel={selected.important ? t("unfavoritePlace") : t("favoritePlace")}

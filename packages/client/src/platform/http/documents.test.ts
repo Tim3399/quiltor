@@ -3,7 +3,11 @@ import manuscriptFixture from "../../../../../contracts/fixtures/application-api
 import manuscriptExportFixture from "../../../../../contracts/fixtures/application-api/manuscript-export/preview.v1.json";
 import storyboardsFixture from "../../../../../contracts/fixtures/application-api/storyboards/wire.v1.json";
 import revisionConflict from "../../../../../contracts/fixtures/application-api/structured-error/revision-conflict.v1.json";
-import type { ApplicationGateway, ManuscriptDocxPreview } from "../application";
+import type {
+  ApplicationGateway,
+  ManuscriptDocxPreview,
+  ManuscriptEpubPreview,
+} from "../application";
 import { createPlatformGateway } from "../createPlatformGateway";
 import { createHttpApplicationGateway } from ".";
 
@@ -21,6 +25,12 @@ const docxPreview: ManuscriptDocxPreview = {
     exportedWords: 3,
   },
   warnings: [{ code: "excluded_chapters", count: 1 }],
+};
+const epubPreview: ManuscriptEpubPreview = {
+  ...docxPreview,
+  preset: "epub",
+  fileName: "Quiltor-Manuskript.epub",
+  metadata: { title: "Hafenlicht", author: "Mara Beispiel", language: "de-DE" },
 };
 let application: ApplicationGateway;
 
@@ -41,6 +51,14 @@ function manuscriptAtRevision(revision: number): Record<string, unknown> {
   return { ...JSON.parse(JSON.stringify(manuscriptFixture)), revision } as Record<string, unknown>;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   application = createHttpApplicationGateway(createPlatformGateway());
   application.worlds.select(WORLD_ID);
@@ -49,6 +67,75 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("document HTTP v1 boundary", () => {
+  it("previews, renders, and saves a reviewed manuscript EPUB", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ ok: true, preview: epubPreview }))
+      .mockResolvedValueOnce(
+        new Response("epub-data", {
+          status: 200,
+          headers: { "Content-Type": "application/epub+zip" },
+        }),
+      );
+    const save = vi.fn().mockResolvedValue({ status: "saved" });
+    application = createHttpApplicationGateway(createPlatformGateway({ files: { save } }));
+    application.worlds.select(WORLD_ID);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const reviewed = await application.documents.previewManuscriptExport("epub");
+    const blob = await application.documents.renderManuscriptExport(reviewed.preview, [
+      "excluded_chapters",
+    ]);
+    await expect(
+      application.documents.saveManuscriptExport(blob, reviewed.preview.fileName),
+    ).resolves.toBe("saved");
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ preset: "epub" });
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/manuscript-export/epub?world=${WORLD_ID}`);
+    expect(fetchMock.mock.calls[1][1].headers).toEqual({
+      "Content-Type": "application/json",
+      Accept: "application/epub+zip",
+    });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      preset: "epub",
+      revision: 7,
+      sourceSha256: "a".repeat(64),
+      acknowledgedWarnings: ["excluded_chapters"],
+    });
+    expect(await blob.text()).toBe("epub-data");
+    expect(save).toHaveBeenCalledWith("Quiltor-Manuskript.epub", blob);
+  });
+
+  it.each([
+    ["wrong preset", { preset: "editor" }],
+    ["wrong filename", { fileName: "unsafe.epub" }],
+    ["missing metadata", { metadata: undefined }],
+    ["blank title", { metadata: { ...epubPreview.metadata, title: " " } }],
+    ["overlong author", { metadata: { ...epubPreview.metadata, author: "Ä".repeat(1001) } }],
+    ["invalid language", { metadata: { ...epubPreview.metadata, language: "de_Deutsch" } }],
+  ])("rejects an EPUB preview with %s", async (_name, change) => {
+    const changed = { ...epubPreview, ...change } as Record<string, unknown>;
+    if ("metadata" in change && change.metadata === undefined) delete changed.metadata;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ ok: true, preview: changed })));
+
+    await expect(application.documents.previewManuscriptExport("epub")).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  it("rejects an EPUB download with the wrong MIME type", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(new Response("data", { headers: { "Content-Type": "text/plain" } })),
+    );
+
+    await expect(
+      application.documents.renderManuscriptExport(epubPreview, ["excluded_chapters"]),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
   it("previews, renders, and saves a reviewed manuscript DOCX", async () => {
     const fetchMock = vi
       .fn()
@@ -130,6 +217,16 @@ describe("document HTTP v1 boundary", () => {
       {
         ...manuscriptExportFixture,
         preview: { ...manuscriptExportFixture.preview, extra: true },
+      },
+    ],
+    [
+      "EPUB metadata on a DOCX preview",
+      {
+        ...manuscriptExportFixture,
+        preview: {
+          ...manuscriptExportFixture.preview,
+          metadata: { title: "Manuskript", author: "", language: "de" },
+        },
       },
     ],
     [
@@ -560,6 +657,116 @@ describe("document HTTP v1 boundary", () => {
 
     expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toEqual(
       expect.objectContaining({ "If-Match": '"9"' }),
+    );
+  });
+
+  it("does not adopt late load revisions across world selection generations", async () => {
+    const firstA = deferred<Response>();
+    const worldB = deferred<Response>();
+    const secondA = deferred<Response>();
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(firstA.promise)
+      .mockReturnValueOnce(worldB.promise)
+      .mockReturnValueOnce(secondA.promise)
+      .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 31 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const oldA = application.manuscript.load();
+    application.worlds.select("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    const loadB = application.manuscript.load();
+    application.worlds.select(WORLD_ID);
+    const currentA = application.manuscript.load();
+
+    secondA.resolve(response(manuscriptAtRevision(30), { ETag: '"30"' }));
+    await currentA;
+    worldB.resolve(response(manuscriptAtRevision(20), { ETag: '"20"' }));
+    await loadB;
+    firstA.resolve(response(manuscriptAtRevision(10), { ETag: '"10"' }));
+    const manuscript = await oldA;
+    await application.manuscript.save(manuscript);
+
+    expect(fetchMock.mock.calls.slice(0, 3).map(([url]) => url)).toEqual([
+      `/api/manuscript?world=${WORLD_ID}`,
+      "/api/manuscript?world=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      `/api/manuscript?world=${WORLD_ID}`,
+    ]);
+    expect((fetchMock.mock.calls[3][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"30"' }),
+    );
+  });
+
+  it("does not adopt a late save revision after selecting another world", async () => {
+    const lateSave = deferred<Response>();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(manuscriptFixture, { ETag: '"7"' }))
+      .mockReturnValueOnce(lateSave.promise)
+      .mockResolvedValueOnce(response(manuscriptAtRevision(3), { ETag: '"3"' }))
+      .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 4 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const manuscriptA = await application.manuscript.load();
+    const savingA = application.manuscript.save(manuscriptA);
+    application.worlds.select("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    const manuscriptB = await application.manuscript.load();
+    lateSave.resolve(response({ ok: true, zeit: "12:00:00", revision: 8 }));
+    await savingA;
+    await application.manuscript.save(manuscriptB);
+
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/manuscript?world=${WORLD_ID}`);
+    expect((fetchMock.mock.calls[3][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"3"' }),
+    );
+  });
+
+  it("does not adopt a peek result from an earlier world selection", async () => {
+    const latePeek = deferred<Response>();
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(latePeek.promise)
+      .mockResolvedValueOnce(response(manuscriptAtRevision(3), { ETag: '"3"' }))
+      .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 4 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const peekedA = application.manuscript.peek();
+    application.worlds.select("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    const manuscriptB = await application.manuscript.load();
+    latePeek.resolve(response(manuscriptAtRevision(9), { ETag: '"9"' }));
+    const stalePersisted = await peekedA;
+    let staleError: unknown;
+    try {
+      application.manuscript.adoptPersisted(stalePersisted);
+    } catch (error) {
+      staleError = error;
+    }
+    expect(staleError).toMatchObject({
+      code: "document.revision_conflict",
+      category: "conflict",
+      retryable: true,
+    });
+    await application.manuscript.save(manuscriptB);
+
+    expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"3"' }),
+    );
+  });
+
+  it("continues to adopt an explicit untracked persisted document", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 12 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const explicit = {
+      document: { chapters: [] },
+      revision: 11,
+    };
+
+    const adopted = application.manuscript.adoptPersisted(explicit);
+    await application.manuscript.save(adopted);
+
+    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"11"' }),
     );
   });
 });

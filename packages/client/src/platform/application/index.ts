@@ -40,6 +40,10 @@ export type {
   ManuscriptDocxPreset,
   ManuscriptDocxPreview,
   ManuscriptDocxWarningCode,
+  ManuscriptEpubPreview,
+  ManuscriptExportPreset,
+  ManuscriptExportPreview,
+  ManuscriptExportWarningCode,
 } from "./documents";
 export { ApplicationGatewayError, applicationErrorMessage } from "./errors";
 export type { ChapterComparisonResult, HistoryGateway, SnapshotChapterRecord } from "./history";

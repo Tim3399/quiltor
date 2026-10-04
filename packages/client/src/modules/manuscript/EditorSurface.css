@@ -50,7 +50,11 @@
 .chapter-title-field > .chapter-title {
   display: block;
   width: 100%;
+  max-width: 100%;
   min-height: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  resize: none;
   border: 0;
   border-bottom: 1px solid var(--transparent);
   border-radius: 0;

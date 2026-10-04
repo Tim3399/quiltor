@@ -4,14 +4,14 @@ import { Alert, Button, Checkbox, Dialog, ScrollArea } from "../../design";
 import { type MessageKey, useI18n } from "../../i18n";
 import {
   applicationErrorMessage,
-  type ManuscriptDocxPreset,
-  type ManuscriptDocxPreview,
-  type ManuscriptDocxWarningCode,
+  type ManuscriptExportPreset,
+  type ManuscriptExportPreview,
+  type ManuscriptExportWarningCode,
   quiltorClient,
 } from "../../platform";
 import "./ManuscriptExportDialog.css";
 
-const warningLabels: Record<ManuscriptDocxWarningCode, MessageKey> = {
+const warningLabels: Record<ManuscriptExportWarningCode, MessageKey> = {
   notes: "manuscriptExportWarningNotes",
   references: "manuscriptExportWarningReferences",
   folders: "manuscriptExportWarningFolders",
@@ -39,12 +39,12 @@ export function ManuscriptExportDialog({
   onSave,
   onClose,
 }: {
-  preset: ManuscriptDocxPreset;
+  preset: ManuscriptExportPreset;
   onSave?: () => Promise<void>;
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const [preview, setPreview] = useState<ManuscriptDocxPreview | null>(null);
+  const [preview, setPreview] = useState<ManuscriptExportPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -56,10 +56,16 @@ export function ManuscriptExportDialog({
 
   const messageFor = useCallback(
     (reason: unknown, fallback: MessageKey) => {
-      const key = errorMessages[errorCode(reason) ?? ""];
+      const code = errorCode(reason) ?? "";
+      const key =
+        preset === "epub" && code === "manuscript_export.invalid_content"
+          ? "errorManuscriptEpubInvalidContent"
+          : preset === "epub" && code === "manuscript_export.limit_exceeded"
+            ? "errorManuscriptEpubLimitExceeded"
+            : errorMessages[code];
       return key ? t(key) : `${t(fallback)} ${applicationErrorMessage(reason)}`;
     },
-    [t],
+    [preset, t],
   );
 
   const loadPreview = useCallback(async () => {
@@ -72,7 +78,10 @@ export function ManuscriptExportDialog({
     try {
       await onSave?.();
       if (requestGeneration.current !== request) return;
-      const result = await quiltorClient.application.documents.previewManuscriptDocx(preset);
+      const result =
+        preset === "epub"
+          ? await quiltorClient.application.documents.previewManuscriptExport(preset)
+          : await quiltorClient.application.documents.previewManuscriptDocx(preset);
       if (requestGeneration.current !== request) return;
       setPreview(result.preview);
     } catch (reason) {
@@ -103,16 +112,17 @@ export function ManuscriptExportDialog({
     try {
       await onSave?.();
       if (lifecycleGeneration.current !== lifecycle) return;
-      const blob = await quiltorClient.application.documents.renderManuscriptDocx(
-        preview,
-        preview.warnings.map(({ code }) => code).filter(() => acknowledged),
-      );
+      const warnings = preview.warnings.map(({ code }) => code).filter(() => acknowledged);
+      const blob =
+        preview.preset === "epub"
+          ? await quiltorClient.application.documents.renderManuscriptExport(preview, warnings)
+          : await quiltorClient.application.documents.renderManuscriptDocx(preview, warnings);
       if (lifecycleGeneration.current !== lifecycle) return;
       stage = "save";
-      const saveStatus = await quiltorClient.application.documents.saveManuscriptDocx(
-        blob,
-        preview.fileName,
-      );
+      const saveStatus =
+        preview.preset === "epub"
+          ? await quiltorClient.application.documents.saveManuscriptExport(blob, preview.fileName)
+          : await quiltorClient.application.documents.saveManuscriptDocx(blob, preview.fileName);
       if (lifecycleGeneration.current !== lifecycle) return;
       if (saveStatus === "saved") setDownloaded(true);
     } catch (reason) {
@@ -124,7 +134,13 @@ export function ManuscriptExportDialog({
       setError(
         messageFor(
           reason,
-          stage === "render" ? "manuscriptExportRenderFailed" : "manuscriptExportSaveFailed",
+          preset === "epub"
+            ? stage === "render"
+              ? "manuscriptEpubRenderFailed"
+              : "manuscriptEpubSaveFailed"
+            : stage === "render"
+              ? "manuscriptExportRenderFailed"
+              : "manuscriptExportSaveFailed",
         ),
       );
     } finally {
@@ -139,13 +155,17 @@ export function ManuscriptExportDialog({
     <Dialog
       open
       size="wide"
-      title={t("manuscriptExportTitle")}
+      title={t(preset === "epub" ? "manuscriptEpubTitle" : "manuscriptExportTitle")}
       closeLabel={t("closeDialog")}
       onClose={exporting ? () => undefined : onClose}
     >
       <div className="manuscript-export-dialog">
         {error && <Alert tone="danger">{error}</Alert>}
-        {downloaded && <Alert tone="success">{t("manuscriptExportDownloaded")}</Alert>}
+        {downloaded && (
+          <Alert tone="success">
+            {t(preset === "epub" ? "manuscriptEpubDownloaded" : "manuscriptExportDownloaded")}
+          </Alert>
+        )}
         {previewing && (
           <p role="status" aria-live="polite">
             {t("manuscriptExportPreviewLoading")}
@@ -163,12 +183,36 @@ export function ManuscriptExportDialog({
               {t(
                 preset === "editor"
                   ? "manuscriptExportEditorDescription"
-                  : "manuscriptExportNormseiteDescription",
+                  : preset === "normseite"
+                    ? "manuscriptExportNormseiteDescription"
+                    : "manuscriptEpubDescription",
               )}
             </p>
-            <p>{t("manuscriptExportScope")}</p>
-            <p>{t("manuscriptExportPagination")}</p>
-            <p>{t("manuscriptExportNoExtras")}</p>
+            <p>{t(preset === "epub" ? "manuscriptEpubScope" : "manuscriptExportScope")}</p>
+            <p>
+              {t(preset === "epub" ? "manuscriptEpubPagination" : "manuscriptExportPagination")}
+            </p>
+            <p>{t(preset === "epub" ? "manuscriptEpubNoExtras" : "manuscriptExportNoExtras")}</p>
+            {preview.preset === "epub" && (
+              <section aria-labelledby="manuscript-export-metadata-title">
+                <h3 id="manuscript-export-metadata-title">{t("manuscriptEpubMetadata")}</h3>
+                <p>{t("manuscriptEpubMetadataHelp")}</p>
+                <dl className="manuscript-export-metadata">
+                  <div>
+                    <dt>{t("manuscriptEpubMetadataTitle")}</dt>
+                    <dd>{preview.metadata.title}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("manuscriptEpubMetadataAuthor")}</dt>
+                    <dd>{preview.metadata.author || t("manuscriptEpubMetadataNoAuthor")}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("manuscriptEpubMetadataLanguage")}</dt>
+                    <dd>{preview.metadata.language}</dd>
+                  </div>
+                </dl>
+              </section>
+            )}
             <dl className="manuscript-export-counts">
               <div>
                 <dt>{t("manuscriptExportManuscriptChapters")}</dt>
@@ -210,7 +254,13 @@ export function ManuscriptExportDialog({
                 aria-labelledby="manuscript-export-warnings-title"
               >
                 <h3 id="manuscript-export-warnings-title">{t("manuscriptExportWarnings")}</h3>
-                <p>{t("manuscriptExportWarningsHelp")}</p>
+                <p>
+                  {t(
+                    preset === "epub"
+                      ? "manuscriptEpubWarningsHelp"
+                      : "manuscriptExportWarningsHelp",
+                  )}
+                </p>
                 <ul>
                   {preview.warnings.map(({ code, count }) => (
                     <li key={code}>
@@ -238,10 +288,12 @@ export function ManuscriptExportDialog({
             labelOverflow="wrap"
             disabled={!warningsReady || previewing || exporting}
             loading={exporting}
-            loadingLabel={t("manuscriptExportRendering")}
+            loadingLabel={t(
+              preset === "epub" ? "manuscriptEpubRendering" : "manuscriptExportRendering",
+            )}
             onClick={() => void download()}
           >
-            {t("manuscriptExportDownload")}
+            {t(preset === "epub" ? "manuscriptEpubDownload" : "manuscriptExportDownload")}
           </Button>
         </div>
       </div>
