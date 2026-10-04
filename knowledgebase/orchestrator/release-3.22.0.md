@@ -4,6 +4,17 @@ Requested: 2026-10-04. Status: in progress. The owner requested commit, push, ta
 and then a local launch for inspection. The earlier minor-version preference is
 retained; the latest published release and main baseline are 3.21.0 / `36aaa46`.
 
+The [two newly reported defects](release-blockers-2026-10-04.md) have now received
+reviewed local corrections: occupied-map deletion is blocked, empty deletion
+cleans references, the mobile action is reachable, and image uploads gain bounded
+client validation and actionable diagnostics. The exact historic production upload
+condition remains unconfirmed even after proxy inspection; it is not labelled fixed
+or deployed. Build, 1,560 client tests, 1,102 Python tests (6 skips) and direct-dist
+browser checks passed. Final source integration and the full release preflight are
+next. VERSION remains 3.21.0. The previous preflight stopped before any version
+mutation. Accepted audit/knowledgebase commit `166e06d` is already pushed. The owner
+selected reuse of existing local projects.
+
 - **Was:** integrate the accepted EPUB/mobile/audit changes and coordination
   records, prepare 3.22.0 through the declared updater, push the release revision,
   obtain the release tag through the existing publication workflow and launch it locally.

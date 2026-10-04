@@ -1,4 +1,9 @@
-import type { PlaceMapsGateway, StoredMapImage } from "../application";
+import {
+  ApplicationGatewayError,
+  type PlaceMapsGateway,
+  type StoredMapImage,
+} from "../application";
+import { currentMessages } from "./locale";
 import { type HttpApplicationState, requestJson, withWorldQuery } from "./request";
 
 /**
@@ -11,12 +16,24 @@ import { type HttpApplicationState, requestJson, withWorldQuery } from "./reques
  */
 export function createPlaceMapsHttpGateway(state: HttpApplicationState): PlaceMapsGateway {
   return {
-    store: async (content: Blob) =>
-      requestJson<StoredMapImage>(withWorldQuery(state, "/api/place-maps"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: await base64(content) }),
-      }),
+    store: async (content: Blob) => {
+      try {
+        return await requestJson<StoredMapImage>(withWorldQuery(state, "/api/place-maps"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: await base64(content) }),
+        });
+      } catch (error) {
+        if (error instanceof ApplicationGatewayError && error.code === "request.invalid") {
+          throw new ApplicationGatewayError(currentMessages().placeMapInvalidRequest, error.code, {
+            category: error.category,
+            params: error.params,
+            retryable: error.retryable,
+          });
+        }
+        throw error;
+      }
+    },
     sourceUrl: (imageId: string) =>
       withWorldQuery(state, `/api/place-map?id=${encodeURIComponent(imageId)}`),
   };

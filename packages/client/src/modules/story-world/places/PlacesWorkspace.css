@@ -9,3 +9,10 @@
 .places-workspace .figure-layout.places-layout-empty {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* The fixed toast is also a direct grid child. Opt it out of the compact
+   canvas row's default block-axis stretch without changing the shared toast. */
+.places-workspace .story-world-toast {
+  align-self: end;
+  height: fit-content;
+}

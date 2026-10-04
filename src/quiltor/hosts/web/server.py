@@ -34,9 +34,9 @@ explicitly composed WebApplication; importing this module creates no sessions,
 stores, assistant process, or other product state.
 """
 
+import hmac
 import http.cookies
 import http.server
-import hmac
 import json
 import os
 import socketserver
@@ -44,19 +44,43 @@ import sys
 import threading
 import time
 import webbrowser
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import parse_qs, urlparse
 
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
 from quiltor.delivery.http import errors as http_errors
-from quiltor.infrastructure.platform.system import force_utf8_streams
-
-from quiltor.modules.identity import service as identity
 from quiltor.delivery.http import routes as api_routes
+from quiltor.infrastructure.platform.system import force_utf8_streams
+from quiltor.modules.identity import service as identity
 from quiltor.modules.identity.service import SESSION_COOKIE
 
 MAX_BODY = 16 * 1024 * 1024  # 16 MB limit per save request
 REQUEST_HEADER_TIMEOUT_SECONDS = 15.0
+
+RequestBodyRejectionReason = Literal[
+    "missing_length",
+    "invalid_length",
+    "too_large",
+    "content_type",
+    "utf8",
+    "json",
+]
+
+
+class RequestBodyRejected(ValueError):
+    """A JSON request the server can refuse without logging its contents."""
+
+    def __init__(self, reason: RequestBodyRejectionReason) -> None:
+        message = {
+            "missing_length": "invalid size: missing Content-Length",
+            "invalid_length": "invalid size",
+            "too_large": "invalid size",
+            "content_type": "invalid Content-Type",
+            "utf8": "invalid UTF-8",
+            "json": "invalid JSON",
+        }[reason]
+        super().__init__(message)
+        self.reason = reason
 
 
 # ------------------------------------------------- Local-mode request guard
@@ -242,24 +266,39 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def _read_json_body(self) -> Any:
         """Read and parse the request's JSON body, capped at MAX_BODY so a
-        client-controlled Content-Length can't force an unbounded read. Raises
-        ValueError/json.JSONDecodeError on an invalid size or malformed JSON --
-        callers that want a default instead of propagating wrap this themselves."""
+        client-controlled Content-Length can't force an unbounded read. Raises a
+        RequestBodyRejected with a safe reason bucket for invalid framing or
+        content; callers that want a default instead of propagating wrap it."""
         # An HTML form can only ever send text/plain, urlencoded or multipart,
         # so insisting on application/json is what makes cross-site form posts
         # impossible regardless of the Origin check -- see the guard comment at
         # the top of this file. Every in-tree client already sets it.
-        length = int(self.headers.get("Content-Length") or 0)
-        if length <= 0 or length > MAX_BODY:
-            raise ValueError("invalid size")
+        declared_length = self.headers.get("Content-Length")
+        if declared_length is None or not declared_length.strip():
+            raise RequestBodyRejected("missing_length")
+        try:
+            length = int(declared_length)
+        except ValueError as error:
+            raise RequestBodyRejected("invalid_length") from error
+        if length <= 0:
+            raise RequestBodyRejected("invalid_length")
+        if length > MAX_BODY:
+            raise RequestBodyRejected("too_large")
         body = self.rfile.read(length)
         media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
         if media_type != "application/json":
             # Drain the already bounded request body before sending the error response.
             # Closing a Windows socket with unread request bytes can reset the connection
             # and discard the JSON error response before the client receives it.
-            raise ValueError("invalid Content-Type")
-        return json.loads(body.decode("utf-8"))
+            raise RequestBodyRejected("content_type")
+        try:
+            decoded = body.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise RequestBodyRejected("utf8") from error
+        try:
+            return json.loads(decoded)
+        except json.JSONDecodeError as error:
+            raise RequestBodyRejected("json") from error
 
     def reject_foreign_request(self) -> bool:
         """True -- with a 403 already written -- when this request's Host or
@@ -523,13 +562,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 outcome="failure",
                 error_type=type(exc).__name__,
             )
-            self.application.observability.logger.event(
-                "error",
-                "http.request_failed",
-                method=self.command,
-                route=route,
-                error_type=type(exc).__name__,
-            )
+            fields = {
+                "method": self.command,
+                "route": route,
+                "error_type": type(exc).__name__,
+            }
+            if isinstance(exc, RequestBodyRejected):
+                fields["reason"] = exc.reason
+                fields["transfer_encoding_present"] = (
+                    self.headers.get("Transfer-Encoding") is not None
+                )
+            self.application.observability.logger.event("error", "http.request_failed", **fields)
             if self._response_status:
                 raise
             self.send_exception(exc)

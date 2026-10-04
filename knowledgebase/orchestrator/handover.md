@@ -8,6 +8,16 @@ The owner subsequently requested commit, push, tag and local startup. Follow
 [release 3.22.0 and local review](release-3.22.0.md) for the active delivery.
 The accepted audit below remains its evidence baseline; its earlier no-release
 boundary describes that completed assignment, not the newly authorized delivery.
+The owner then reported image-upload errors and destructive map deletion. Follow
+[the release blockers](release-blockers-2026-10-04.md) before restarting the updater.
+The three agents own the domain invariant, client/UI correction and production
+log investigation; the lead owns coordination/review. The user reaffirmed this
+division explicitly. Existing projects must be reused when local startup resumes.
+The map correction is now accepted locally, including true compact interaction
+and direct-dist save/reload checks. Upload prevention/diagnostics are accepted;
+the exact historical production parser condition remains unconfirmed after proxy
+inspection. Final build, 1,560 client tests and 1,102 Python tests (6 skips) passed.
+Source is frozen for clean integration and a fresh complete version preflight.
 
 ## Completed continuation — 2026-10-04
 

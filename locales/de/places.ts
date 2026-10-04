@@ -18,6 +18,16 @@ export const places = {
   placeChooseImage: "Bild hinterlegen",
   placeReplaceImage: "Bild austauschen",
   placeRemoveImage: "Bild entfernen",
+  placeMapImageTooLarge:
+    "Das Bild ist nach der Verarbeitung noch größer als 10 MiB. Wähle ein kleineres Bild.",
+  placeMapUnsupportedFormat:
+    "Dieses Bildformat wird nicht unterstützt. Wähle eine PNG-, JPEG- oder WebP-Datei.",
+  placeMapImageRejected:
+    "Das Bild kann nicht verwendet werden. Erlaubt sind PNG, JPEG und WebP bis 10 MiB und höchstens 20.000 Pixel je Seite.",
+  placeMapInvalidEncoding:
+    "Das Bild konnte nicht übertragen werden. Wähle es erneut aus und versuche es noch einmal.",
+  placeMapInvalidRequest:
+    "Das Bild konnte nicht übertragen werden. Versuche es erneut. Falls der Fehler bleibt, melde den Zeitpunkt.",
   placeMapActions: "Kartenaktionen",
   placeMapChrome: "Karte: {name}",
   placeMapInformation: "Karteninformationen",
@@ -47,6 +57,11 @@ export const places = {
   duplicatePlace: "Ort duplizieren",
   deletePlace: "Ort löschen",
   deletePlaceDescription: "„{name}“ und seine Verknüpfungen werden entfernt.",
+  deletePlaceBlockedTitle: "„{name}“ kann noch nicht gelöscht werden.",
+  deletePlaceBlockedOneChild:
+    "Darin befindet sich 1 weiterer Ort. Verschiebe oder lösche ihn zuerst.",
+  deletePlaceBlockedManyChildren:
+    "Darin befinden sich {n} weitere Orte. Verschiebe oder lösche sie zuerst.",
   nearestDistancesHint:
     "Pro Ort werden die drei nächsten Distanzen angezeigt. Klicke zwei Orte für eine weitere Strecke.",
   selectDistanceTargetHint: "Wähle den zweiten Ort für die gezielte Distanz.",

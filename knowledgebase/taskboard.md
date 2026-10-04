@@ -15,6 +15,8 @@ before delegating. No unscheduled row implies an agent is actively working on it
 - **Review**: a result exists but lead acceptance is outstanding.
 - **Blocked**: work cannot continue; name the dependency and next action.
 - **Deferred**: deliberately not scheduled; record the reopening condition.
+- **Mitigated locally**: tested prevention/diagnostics are accepted, while the
+  original incident's exact cause or production resolution is still unconfirmed.
 - **Done**: the stated scope has passed acceptance. Delivery is separately labelled
   local, published or deployed; one never implies the others.
 
@@ -142,6 +144,15 @@ the complete final CI result is recorded in the four-point closure plan.
   [code-quality evidence](orchestrator/followup-code-quality.md), including the
   failing/restored UTC mutation. Shared final frontend build and tests passed under CLOSE-02;
   full platform CI is accepted under CLOSE-03.
+
+## Newly reported release blockers
+
+See [release blockers](orchestrator/release-blockers-2026-10-04.md) for agent ownership and acceptance. Local corrections are accepted; release integration and full version preflight remain pending.
+
+| ID / status                             | Was                                                                        | Warum                                                                    | Wann erledigt                                                                                                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BUG-MAP-DELETE-01 · Done locally        | Refuse occupied-map deletion and preserve valid empty-place cleanup        | Prevent invisible places, invalid drafts and inaccessible mobile actions | Guards, reference cleanup, true compact interaction, screenshots and direct-dist save/reload checks accepted; release not yet published                                  |
+| BUG-IMAGE-UPLOAD-01 · Mitigated locally | Diagnose upload rejection; prevent oversized requests and explain failures | Production parser failures had no useful feedback or reason logging      | Client/backend changes and tests accepted; proxy rejection excluded; exact historical parser condition remains unconfirmed and no new production deployment has occurred |
 
 ## Current integration and coordination queue
 

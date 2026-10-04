@@ -17,26 +17,34 @@ from quiltor.application.place_maps import MapImageRejected
 from quiltor.delivery.http.routes import Request, get, save
 
 
+def _reject_upload(handler, app, error_code: str, error: Exception | None = None) -> None:
+    app.observability.logger.event("warning", "place_map.upload_rejected", error_code=error_code)
+    if error is not None:
+        handler.send_exception(error)
+    else:
+        handler.send_api_error(400, error_code=error_code)
+
+
 @save("/api/place-maps", world=True)
 def upload_place_map(handler, request: Request, app) -> None:
     payload = handler._read_json_body()
     if not isinstance(payload, dict):
-        return handler.send_api_error(400, error_code="place_map.invalid_request")
+        return _reject_upload(handler, app, "place_map.invalid_request")
     encoded = payload.get("data")
     if not isinstance(encoded, str) or not encoded:
-        return handler.send_api_error(400, error_code="place_map.invalid_request")
+        return _reject_upload(handler, app, "place_map.invalid_request")
     try:
         # `validate=True` so stray characters are a refusal rather than bytes
         # nobody intended; what arrives here is decided by the sender.
         content = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError):
-        return handler.send_api_error(400, error_code="place_map.invalid_encoding")
+        return _reject_upload(handler, app, "place_map.invalid_encoding")
 
     try:
         with app.lock:
             image = app.place_maps.store(content, request.db_path)
     except MapImageRejected as error:
-        return handler.send_exception(error)
+        return _reject_upload(handler, app, error.code, error)
 
     handler.send_json(
         {

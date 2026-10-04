@@ -95,4 +95,27 @@ describe("HTTP application errors", () => {
       message: expect.stringContaining(messageStart),
     });
   });
+
+  it.each([
+    ["place_map.image_rejected", "Das Bild kann nicht verwendet werden."],
+    ["place_map.invalid_encoding", "Das Bild konnte nicht übertragen werden."],
+    ["place_map.invalid_request", "Das Bild konnte nicht übertragen werden. Versuche es erneut."],
+  ])("gives %s its concrete image-upload message", async (code, messageStart) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { code, retryable: false } }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(requestJson("/api/place-maps")).rejects.toMatchObject({
+      code,
+      category: "invalid_request",
+      message: expect.stringContaining(messageStart),
+      retryable: false,
+    });
+  });
 });

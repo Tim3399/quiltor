@@ -32,6 +32,44 @@ function noteView(textbox: HTMLElement) {
 }
 
 describe("PlaceInspector", () => {
+  it("offers deletion only when its host owns the action", () => {
+    const onDelete = vi.fn();
+    const { rerender } = render(
+      <I18nProvider>
+        <PlaceInspector
+          selected={state.nodes[0]}
+          state={state}
+          onPatch={vi.fn()}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
+          onDelete={onDelete}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ort löschen" }));
+    expect(onDelete).toHaveBeenCalledWith(state.nodes[0]);
+
+    rerender(
+      <I18nProvider>
+        <PlaceInspector
+          selected={state.nodes[0]}
+          state={state}
+          onPatch={vi.fn()}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "Ort löschen" })).not.toBeInTheDocument();
+  });
+
   it("offers the same persistent display toggle through the inspector", () => {
     const onPlaceDisplayChange = vi.fn();
     render(

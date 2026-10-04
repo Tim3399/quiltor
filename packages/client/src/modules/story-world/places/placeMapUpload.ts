@@ -10,10 +10,52 @@
 /** Beyond this the extra pixels are invisible on any canvas the app draws. */
 export const MAX_STORED_EDGE = 4096;
 
+/** Matches the server's decoded-image ceiling, before base64 adds its third. */
+export const MAX_MAP_IMAGE_BYTES = 10 * 1024 * 1024;
+
 /** WebP at this quality is indistinguishable from the source for a map. */
 const RECODE_QUALITY = 0.9;
 
 export const ACCEPTED_MAP_TYPES = "image/png,image/jpeg,image/webp";
+
+export type PreparedMapImageIssue = "too_large" | "unsupported_format";
+
+/**
+ * Why prepared bytes cannot be sent, or null when the server can inspect them.
+ *
+ * Blob.type and the file name are hints supplied by the picker. The server
+ * decides from bytes, so the client checks the same stable signatures after
+ * optional recoding. Deeper header and dimension validation remains the
+ * server's responsibility.
+ */
+export async function preparedMapImageIssue(content: Blob): Promise<PreparedMapImageIssue | null> {
+  if (content.size > MAX_MAP_IMAGE_BYTES) return "too_large";
+  const header = new Uint8Array(await content.slice(0, 12).arrayBuffer());
+  if (
+    header.length >= 8 &&
+    header[0] === 0x89 &&
+    header[1] === 0x50 &&
+    header[2] === 0x4e &&
+    header[3] === 0x47 &&
+    header[4] === 0x0d &&
+    header[5] === 0x0a &&
+    header[6] === 0x1a &&
+    header[7] === 0x0a
+  ) {
+    return null;
+  }
+  if (header.length >= 2 && header[0] === 0xff && header[1] === 0xd8) return null;
+  if (header.length >= 12 && ascii(header, 0, "RIFF") && ascii(header, 8, "WEBP")) {
+    return null;
+  }
+  return "unsupported_format";
+}
+
+function ascii(bytes: Uint8Array, offset: number, expected: string): boolean {
+  return [...expected].every(
+    (character, index) => bytes[offset + index] === character.charCodeAt(0),
+  );
+}
 
 export async function prepareMapImage(file: Blob): Promise<Blob> {
   // Environments without these -- a test renderer, an old browser -- keep the

@@ -176,6 +176,11 @@ function ControlledPlaces({
   );
 }
 
+function pngBlob(size = 8): Blob {
+  const header = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  return new Blob([header, new Uint8Array(Math.max(0, size - header.length))]);
+}
+
 describe("PlacesWorkspace map overlays", () => {
   it("matches the 820px canvas breakpoint so the inspector never becomes a second grid row", () => {
     const matchMediaMock = vi.fn((query: string) => ({
@@ -421,7 +426,7 @@ describe("adding a map", () => {
     // The regression this pins: creating the place and then patching it read two
     // different copies of the state, and the patch landed on one that had never
     // heard of the place -- dropping it again, so choosing a file did nothing.
-    vi.spyOn(placeMapUpload, "askForMapImage").mockResolvedValue(new Blob(["x"]));
+    vi.spyOn(placeMapUpload, "askForMapImage").mockResolvedValue(pngBlob());
     vi.spyOn(placeMapUpload, "prepareMapImage").mockImplementation(async (file) => file);
     vi.spyOn(quiltorClient.application.placeMaps, "store").mockResolvedValue({
       id: "sha-of-the-map",
@@ -451,7 +456,7 @@ describe("adding a map", () => {
   });
 
   it("says so when the upload is refused instead of doing nothing", async () => {
-    vi.spyOn(placeMapUpload, "askForMapImage").mockResolvedValue(new Blob(["x"]));
+    vi.spyOn(placeMapUpload, "askForMapImage").mockResolvedValue(pngBlob());
     vi.spyOn(placeMapUpload, "prepareMapImage").mockImplementation(async (file) => file);
     vi.spyOn(quiltorClient.application.placeMaps, "store").mockRejectedValue(new Error("nope"));
 
@@ -460,6 +465,215 @@ describe("adding a map", () => {
 
     // A danger toast announces assertively, so it is an alert rather than a status.
     expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "an image over the prepared limit",
+      () => pngBlob(placeMapUpload.MAX_MAP_IMAGE_BYTES + 1),
+      "Das Bild ist nach der Verarbeitung noch größer als 10 MiB. Wähle ein kleineres Bild.",
+    ],
+    [
+      "unsupported prepared bytes",
+      () => new Blob(["not-an-image"]),
+      "Dieses Bildformat wird nicht unterstützt. Wähle eine PNG-, JPEG- oder WebP-Datei.",
+    ],
+  ])("rejects %s before upload", async (_name, prepared, message) => {
+    vi.spyOn(placeMapUpload, "askForMapImage").mockResolvedValue(pngBlob());
+    vi.spyOn(placeMapUpload, "prepareMapImage").mockImplementation(async () => prepared());
+    const store = vi.spyOn(quiltorClient.application.placeMaps, "store");
+
+    render(<ControlledPlaces initialState={{ nodes: [], edges: [] }} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Neue Karte" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(store).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleting places", () => {
+  const map = {
+    id: "map",
+    type: "ort" as const,
+    name: "Weltkarte",
+    x: 0,
+    y: 0,
+    mapImageId: "bild",
+  };
+  const child = {
+    id: "harbor",
+    type: "ort" as const,
+    name: "Hafen",
+    x: 0,
+    y: 0,
+    parentPlaceId: map.id,
+  };
+
+  const requestDeletion = async (placeId: string) => {
+    fireEvent.click(screen.getByTestId(`place-node-${placeId}`));
+    fireEvent.click(screen.getByRole("button", { name: "Ortsaktionen" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Ort löschen" }));
+  };
+
+  const useCompactLayout = () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === PLACE_COMPACT_MEDIA_QUERY,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  };
+
+  it("closes the compact inspector and announces why an occupied map is protected", async () => {
+    useCompactLayout();
+    const onChange = vi.fn();
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={onChange} />,
+    );
+
+    const mapNode = screen.getByTestId("place-node-map");
+    mapNode.focus();
+    fireEvent.click(mapNode);
+    expect(screen.getByRole("dialog", { name: "Orte-Inspector" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ort löschen" }));
+
+    expect(screen.queryByRole("dialog", { name: "Orte-Inspector" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog", { name: "Ort löschen" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "„Weltkarte“ kann noch nicht gelöscht werden.",
+    );
+    await waitFor(() => expect(mapNode).toHaveFocus());
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("moves compact deletion from the inspector into a focused confirmation", async () => {
+    useCompactLayout();
+    const onChange = vi.fn();
+    render(<ControlledPlaces initialState={{ nodes: [map], edges: [] }} onChange={onChange} />);
+
+    const mapNode = screen.getByTestId("place-node-map");
+    mapNode.focus();
+    fireEvent.click(mapNode);
+    fireEvent.click(screen.getByRole("button", { name: "Ort löschen" }));
+
+    expect(screen.queryByRole("dialog", { name: "Orte-Inspector" })).not.toBeInTheDocument();
+    const confirmation = screen.getByRole("alertdialog", { name: "Ort löschen" });
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    await waitFor(() => expect(cancel).toHaveFocus());
+
+    fireEvent.click(screen.getByRole("button", { name: "Ort löschen" }));
+    expect(confirmation).not.toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ nodes: [], edges: [], presence: [] }),
+    );
+  });
+
+  it("keeps an occupied map and its nested places reachable", async () => {
+    const onChange = vi.fn();
+    const grandchild = {
+      id: "dock",
+      type: "ort" as const,
+      name: "Kai",
+      x: 0,
+      y: 0,
+      parentPlaceId: child.id,
+    };
+    render(
+      <ControlledPlaces
+        initialState={{ nodes: [map, child, grandchild], edges: [] }}
+        onChange={onChange}
+      />,
+    );
+
+    await requestDeletion(map.id);
+
+    expect(screen.queryByRole("alertdialog", { name: "Ort löschen" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "„Weltkarte“ kann noch nicht gelöscht werden.",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Darin befindet sich 1 weiterer Ort. Verschiebe oder lösche ihn zuerst.",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("rechecks current contents before confirming a deletion", async () => {
+    const onChange = vi.fn();
+    const renderWorkspace = (value: FigureState) => (
+      <I18nProvider>
+        <PlacesWorkspace state={value} onChange={onChange} onOpen={vi.fn()} />
+      </I18nProvider>
+    );
+    const initial = { nodes: [map], edges: [] };
+    const { rerender } = render(renderWorkspace(initial));
+
+    await requestDeletion(map.id);
+    expect(screen.getByRole("alertdialog", { name: "Ort löschen" })).toBeInTheDocument();
+
+    rerender(renderWorkspace({ nodes: [map, child], edges: [] }));
+    fireEvent.click(screen.getByRole("button", { name: "Ort löschen" }));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog", { name: "Ort löschen" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Darin befindet sich 1 weiterer Ort. Verschiebe oder lösche ihn zuerst.",
+    );
+  });
+
+  it("still deletes an empty place and cleans up its references", async () => {
+    const onChange = vi.fn();
+    const other = { id: "other", type: "ort" as const, name: "Anderswo", x: 10, y: 10 };
+    const figure = { id: "figure", type: "person" as const, name: "Ada", x: 20, y: 20 };
+    render(
+      <I18nProvider>
+        <PlacesWorkspace
+          state={{
+            nodes: [map, other, figure],
+            edges: [
+              { id: "map-edge", from: map.id, to: other.id },
+              {
+                id: "other-edge",
+                from: other.id,
+                to: figure.id,
+                versions: [
+                  { momentId: "then", from: map.id, to: figure.id, active: true },
+                  { momentId: "now", from: other.id, to: figure.id, active: true },
+                ],
+              },
+            ],
+            timeline: [
+              { id: "then", title: "Damals" },
+              { id: "now", title: "Heute" },
+            ],
+            presence: [
+              { id: "at-map", elementId: "figure", placeId: map.id },
+              { id: "map-as-element", elementId: map.id, placeId: other.id },
+              { id: "elsewhere", elementId: "figure", placeId: other.id },
+            ],
+          }}
+          onChange={onChange}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    await requestDeletion(map.id);
+    fireEvent.click(screen.getByRole("button", { name: "Ort löschen" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodes: [other, figure],
+        edges: [
+          {
+            id: "other-edge",
+            from: other.id,
+            to: figure.id,
+            versions: [{ momentId: "now", from: other.id, to: figure.id, active: true }],
+          },
+        ],
+        presence: [{ id: "elsewhere", elementId: "figure", placeId: other.id }],
+      }),
+    );
   });
 });
 

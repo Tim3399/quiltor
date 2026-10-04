@@ -1,4 +1,4 @@
-import { ChevronsDownUp, ChevronsUpDown, MapPin, X } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, MapPin, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   Button,
@@ -28,6 +28,7 @@ export function PlaceInspector({
   onChooseMapImage,
   onRemoveMapImage,
   onPlaceDisplayChange,
+  onDelete,
 }: {
   selected: FigureNode | null;
   state: FigureState;
@@ -39,6 +40,7 @@ export function PlaceInspector({
   onChooseMapImage: (place: FigureNode) => void;
   onRemoveMapImage: (place: FigureNode) => void;
   onPlaceDisplayChange?: (place: FigureNode, display: "card" | "pin") => void;
+  onDelete?: (place: FigureNode) => void;
 }) {
   const { t } = useI18n();
   const [nameDraft, setNameDraft] = useState(selected?.name ?? "");
@@ -165,6 +167,16 @@ export function PlaceInspector({
               onImportantChange={(important) => onPatch({ important })}
               onPinnedChange={(pinned) => onPatch({ pinned })}
             />
+            {onDelete ? (
+              <Button
+                className="places-inspector-delete"
+                tone="danger"
+                icon={<Trash2 />}
+                onClick={() => onDelete(selected)}
+              >
+                {t("deletePlace")}
+              </Button>
+            ) : null}
           </SidePanelBody>
           {isMap ? null : <PlaceHistory place={selected} state={state} onOpen={onOpen} />}
         </>

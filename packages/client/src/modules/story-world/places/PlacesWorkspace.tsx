@@ -6,6 +6,7 @@ import { applicationErrorMessage, quiltorClient, type StoredMapImage } from "../
 import type { Workspace } from "../../../shared";
 import type { FigureNode, FigureState } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
+import { prunePresence } from "../figures/presence";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
 import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
@@ -18,7 +19,7 @@ import {
   type ActivePlaceMap,
 } from "./placeMapChromeModel";
 import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
-import { askForMapImage, prepareMapImage } from "./placeMapUpload";
+import { askForMapImage, preparedMapImageIssue, prepareMapImage } from "./placeMapUpload";
 import { PlaceToolbar } from "./PlaceToolbar";
 import { usePlaceCanvas } from "./usePlaceCanvas";
 import "./PlacesWorkspace.css";
@@ -72,6 +73,10 @@ function PlacesWorkspaceInner({
   const [measuring, setMeasuring] = useState(false);
   const [measureSelection, setMeasureSelection] = useState<string[]>([]);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
+  const [blockedDeletion, setBlockedDeletion] = useState<{
+    name: string;
+    childCount: number;
+  } | null>(null);
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia(PLACE_COMPACT_MEDIA_QUERY).matches,
   );
@@ -229,12 +234,20 @@ function PlacesWorkspaceInner({
     const file = await askForMapImage();
     if (!file) return null;
     try {
-      return await quiltorClient.application.placeMaps.store(await prepareMapImage(file));
+      const prepared = await prepareMapImage(file);
+      const issue = await preparedMapImageIssue(prepared);
+      if (issue) {
+        setMapError(
+          t(issue === "too_large" ? "placeMapImageTooLarge" : "placeMapUnsupportedFormat"),
+        );
+        return null;
+      }
+      return await quiltorClient.application.placeMaps.store(prepared);
     } catch (error) {
       setMapError(applicationErrorMessage(error));
       return null;
     }
-  }, []);
+  }, [t]);
 
   /** The frame a stored picture takes on the level, in flow units. */
   const mapFrame = (stored: StoredMapImage) => ({
@@ -369,16 +382,45 @@ function PlacesWorkspaceInner({
       ...state,
       mapScale: { unitsPer100px: 1, unitLabel: t("unitsDefault"), ...state.mapScale, ...patch },
     });
+  const blockDeletionWithContents = (place: FigureNode): boolean => {
+    const current = latestState.current;
+    const childCount = placesOnLevel(current.nodes, place.id).length;
+    if (!childCount) return false;
+    const currentPlace = current.nodes.find((node) => node.id === place.id);
+    setDeletePlace(null);
+    setBlockedDeletion({ name: currentPlace?.name ?? place.name, childCount });
+    return true;
+  };
+  const requestPlaceDeletion = (place: FigureNode | null) => {
+    if (!place) return;
+    if (compact) setSelectedId(null);
+    if (blockDeletionWithContents(place)) return;
+    setBlockedDeletion(null);
+    setDeletePlace(place);
+  };
   const removePlace = () => {
-    if (!deletePlace) return;
-    onChange({
-      ...state,
-      nodes: state.nodes.filter((node) => node.id !== deletePlace.id),
-      edges: state.edges.filter(
-        (edge) => edge.from !== deletePlace.id && edge.to !== deletePlace.id,
-      ),
-      presence: (state.presence ?? []).filter((entry) => entry.placeId !== deletePlace.id),
-    });
+    if (!deletePlace || blockDeletionWithContents(deletePlace)) return;
+    const current = latestState.current;
+    const remainingNodes = current.nodes.filter((node) => node.id !== deletePlace.id);
+    const next = {
+      ...current,
+      nodes: remainingNodes,
+      edges: current.edges
+        .filter((edge) => edge.from !== deletePlace.id && edge.to !== deletePlace.id)
+        .map((edge) =>
+          edge.versions
+            ? {
+                ...edge,
+                versions: edge.versions.filter(
+                  (version) => version.from !== deletePlace.id && version.to !== deletePlace.id,
+                ),
+              }
+            : edge,
+        ),
+      presence: prunePresence(current.presence ?? [], remainingNodes, current.timeline ?? []),
+    };
+    latestState.current = next;
+    onChange(next);
     setSelectedId(null);
     setDeletePlace(null);
   };
@@ -394,6 +436,7 @@ function PlacesWorkspaceInner({
       onChooseMapImage={chooseMapImage}
       onRemoveMapImage={removeMapImage}
       onPlaceDisplayChange={setPlaceDisplay}
+      onDelete={compact ? requestPlaceDeletion : undefined}
     />
   );
 
@@ -423,7 +466,7 @@ function PlacesWorkspaceInner({
         onDuplicate={() => {
           if (selected) setSelectedId(canvas.duplicatePlace(selected).id);
         }}
-        onDelete={() => setDeletePlace(selected)}
+        onDelete={() => requestPlaceDeletion(selected)}
       />
       <div
         className={`figure-layout${places.length ? "" : " places-layout-empty"}${
@@ -438,6 +481,22 @@ function PlacesWorkspaceInner({
             dismissLabel={t("closeMessage")}
             onDismiss={() => setMapError("")}
           />
+        )}
+        {blockedDeletion && (
+          <Toast
+            className="story-world-toast"
+            tone="warning"
+            title={t("deletePlaceBlockedTitle", { name: blockedDeletion.name })}
+            dismissLabel={t("closeMessage")}
+            onDismiss={() => setBlockedDeletion(null)}
+          >
+            {t(
+              blockedDeletion.childCount === 1
+                ? "deletePlaceBlockedOneChild"
+                : "deletePlaceBlockedManyChildren",
+              { n: blockedDeletion.childCount },
+            )}
+          </Toast>
         )}
         <PlaceCanvas
           controller={canvas}

@@ -18,6 +18,15 @@ export const places = {
   placeChooseImage: "Add a picture",
   placeReplaceImage: "Swap the picture",
   placeRemoveImage: "Remove the picture",
+  placeMapImageTooLarge:
+    "The image is still larger than 10 MiB after processing. Choose a smaller image.",
+  placeMapUnsupportedFormat:
+    "This image format is not supported. Choose a PNG, JPEG, or WebP file.",
+  placeMapImageRejected:
+    "The image cannot be used. PNG, JPEG, and WebP up to 10 MiB and 20,000 pixels per side are supported.",
+  placeMapInvalidEncoding: "The image could not be transferred. Choose it again and retry.",
+  placeMapInvalidRequest:
+    "The image could not be transferred. Try again. If the error persists, report the time it occurred.",
   placeMapActions: "Map actions",
   placeMapChrome: "Map: {name}",
   placeMapInformation: "Map information",
@@ -47,6 +56,9 @@ export const places = {
   duplicatePlace: "Duplicate place",
   deletePlace: "Delete place",
   deletePlaceDescription: "“{name}” and its links will be removed.",
+  deletePlaceBlockedTitle: "“{name}” cannot be deleted yet.",
+  deletePlaceBlockedOneChild: "It contains 1 other place. Move or delete that place first.",
+  deletePlaceBlockedManyChildren: "It contains {n} other places. Move or delete them first.",
   nearestDistancesHint:
     "Each place shows its three nearest distances. Select two places to add another one.",
   selectDistanceTargetHint: "Select the second place for the targeted distance.",

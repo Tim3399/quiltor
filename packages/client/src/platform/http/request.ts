@@ -109,6 +109,9 @@ function localizedStructuredErrorMessage(code: string | undefined): string | und
   if (code === "project_transfer.invalid_asset") return messages.errorProjectTransferInvalidAsset;
   if (code === "project_transfer.publication_failed")
     return messages.errorProjectTransferPublicationFailed;
+  if (code === "place_map.image_rejected") return messages.placeMapImageRejected;
+  if (code === "place_map.invalid_encoding") return messages.placeMapInvalidEncoding;
+  if (code === "place_map.invalid_request") return messages.placeMapInvalidRequest;
   if (code === "manuscript_import.invalid_file") return messages.errorManuscriptImportInvalidFile;
   if (code === "manuscript_import.limit_exceeded")
     return messages.errorManuscriptImportLimitExceeded;

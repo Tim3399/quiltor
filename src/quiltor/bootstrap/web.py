@@ -115,6 +115,7 @@ class SynchronizationRouteServices:
 @dataclass(frozen=True, slots=True)
 class PlaceMapRouteServices:
     place_maps: Any
+    observability: ObservabilityServices
     lock: threading.Lock
 
 
@@ -261,7 +262,7 @@ class WebApplication:
                 self.session_backup_token,
             )
         if path.startswith("/api/place-map"):
-            return PlaceMapRouteServices(self.application.place_maps, self.lock)
+            return PlaceMapRouteServices(self.application.place_maps, self.observability, self.lock)
         if path.startswith("/api/project-transfer"):
             return ProjectTransferRouteServices(self.application.project_transfer, self.lock)
         if path.startswith("/api/manuscript-import"):
