@@ -363,6 +363,133 @@ class ApplyVersionTests(VersionRepoTestCase):
 
 
 class PreflightContractTests(unittest.TestCase):
+    def test_browser_preflight_overrides_inherited_ai_endpoint(self):
+        server = MagicMock()
+        server.poll.return_value = 0
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(
+                release_preflight.os.environ,
+                {"QUILTOR_AI_URL": "http://model.example:11435"},
+            ),
+            patch.object(
+                release_preflight, "mkdtemp", return_value=str(Path(directory) / "browser-data")
+            ),
+            patch.object(release_preflight, "_free_loopback_port", return_value=48123),
+            patch.object(release_preflight.subprocess, "Popen", return_value=server) as popen,
+            patch.object(release_preflight, "_wait_for_server"),
+            patch.object(release_preflight, "_run"),
+        ):
+            release_preflight._run_browser_suite(Path(directory), python="python", npm="npm")
+
+        environment = popen.call_args.kwargs["env"]
+        self.assertEqual(environment["QUILTOR_AI_URL"], "http://127.0.0.1:1")
+        self.assertEqual(environment["QUILTOR_DATA_DIR"], str(Path(directory) / "browser-data"))
+
+    def test_browser_failure_and_cleanup_failure_keep_both_causes(self):
+        browser_error = release_preflight.PreflightError("browser gate failed")
+        cleanup_error = release_preflight.PreflightError("temporary data stayed locked")
+        server = MagicMock()
+        server.poll.return_value = 0
+        with (
+            patch.object(release_preflight, "mkdtemp", return_value="browser-data"),
+            patch.object(release_preflight, "_free_loopback_port", return_value=48123),
+            patch.object(release_preflight.subprocess, "Popen", return_value=server),
+            patch.object(release_preflight, "_wait_for_server"),
+            patch.object(release_preflight, "_run", side_effect=browser_error),
+            patch.object(
+                release_preflight, "_remove_temporary_data", side_effect=cleanup_error
+            ) as cleanup,
+            self.assertRaisesRegex(
+                release_preflight.PreflightError,
+                "browser gate failed.*Cleanup also failed: temporary data stayed locked",
+            ),
+        ):
+            release_preflight._run_browser_suite(Path("repo"), python="python", npm="npm")
+
+        cleanup.assert_called_once_with(Path("browser-data"))
+
+    def test_browser_failure_keeps_both_cleanup_failures_in_order(self):
+        browser_error = release_preflight.PreflightError("browser gate failed")
+        stop_error = release_preflight.PreflightError("server tree stayed alive")
+        data_error = release_preflight.PreflightError("temporary data stayed locked")
+        server = MagicMock()
+        cleanup_order = []
+
+        def fail_stop(value):
+            cleanup_order.append(("stop", value))
+            raise stop_error
+
+        def fail_data(value):
+            cleanup_order.append(("data", value))
+            raise data_error
+
+        with (
+            patch.object(release_preflight, "mkdtemp", return_value="browser-data"),
+            patch.object(release_preflight, "_free_loopback_port", return_value=48123),
+            patch.object(release_preflight.subprocess, "Popen", return_value=server),
+            patch.object(release_preflight, "_wait_for_server"),
+            patch.object(release_preflight, "_run", side_effect=browser_error),
+            patch.object(release_preflight, "_stop_server", side_effect=fail_stop) as stop,
+            patch.object(
+                release_preflight, "_remove_temporary_data", side_effect=fail_data
+            ) as cleanup,
+            self.assertRaisesRegex(
+                release_preflight.PreflightError,
+                (
+                    "browser gate failed.*Cleanup also failed: server tree stayed alive; "
+                    "temporary data stayed locked"
+                ),
+            ) as raised,
+        ):
+            release_preflight._run_browser_suite(Path("repo"), python="python", npm="npm")
+
+        self.assertIs(raised.exception.__cause__, browser_error)
+        stop.assert_called_once_with(server)
+        cleanup.assert_called_once_with(Path("browser-data"))
+        self.assertEqual(
+            cleanup_order,
+            [("stop", server), ("data", Path("browser-data"))],
+        )
+
+    def test_browser_failure_survives_successful_cleanup(self):
+        browser_error = release_preflight.PreflightError("browser gate failed")
+        server = MagicMock()
+        server.poll.return_value = 0
+        with (
+            patch.object(release_preflight, "mkdtemp", return_value="browser-data"),
+            patch.object(release_preflight, "_free_loopback_port", return_value=48123),
+            patch.object(release_preflight.subprocess, "Popen", return_value=server),
+            patch.object(release_preflight, "_wait_for_server"),
+            patch.object(release_preflight, "_run", side_effect=browser_error),
+            patch.object(release_preflight, "_remove_temporary_data") as cleanup,
+            self.assertRaises(release_preflight.PreflightError) as raised,
+        ):
+            release_preflight._run_browser_suite(Path("repo"), python="python", npm="npm")
+
+        self.assertIs(raised.exception, browser_error)
+        cleanup.assert_called_once_with(Path("browser-data"))
+
+    def test_successful_browser_gate_still_fails_on_cleanup_error(self):
+        cleanup_error = release_preflight.PreflightError("temporary data stayed locked")
+        server = MagicMock()
+        server.poll.return_value = 0
+        with (
+            patch.object(release_preflight, "mkdtemp", return_value="browser-data"),
+            patch.object(release_preflight, "_free_loopback_port", return_value=48123),
+            patch.object(release_preflight.subprocess, "Popen", return_value=server),
+            patch.object(release_preflight, "_wait_for_server"),
+            patch.object(release_preflight, "_run"),
+            patch.object(
+                release_preflight, "_remove_temporary_data", side_effect=cleanup_error
+            ) as cleanup,
+            self.assertRaises(release_preflight.PreflightError) as raised,
+        ):
+            release_preflight._run_browser_suite(Path("repo"), python="python", npm="npm")
+
+        self.assertIs(raised.exception, cleanup_error)
+        cleanup.assert_called_once_with(Path("browser-data"))
+
     def test_temporary_data_cleanup_retries_a_transient_windows_file_lock(self):
         directory = Path("locked-release-data")
         with (

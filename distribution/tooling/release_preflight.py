@@ -23,7 +23,7 @@ import urllib.request
 import uuid
 from importlib import metadata
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, mkdtemp
 
 from container_contract import reference as container_base_image
 
@@ -234,6 +234,66 @@ def _remove_preflight_images(docker: str, tags: list[str], repo_root: Path) -> N
         )
     except OSError:
         pass
+
+
+def _run_browser_suite(repo_root: Path, *, python: str, npm: str) -> None:
+    """Run browser gates without inheriting local inference or double-cleaning data."""
+
+    port = _free_loopback_port()
+    base_url = f"http://127.0.0.1:{port}"
+    server_command = [python, "apps/web/server.py", str(port), "--no-open"]
+    print("\n==> Start local server for browser suite", flush=True)
+    print("    " + " ".join(server_command), flush=True)
+    data_directory = Path(mkdtemp(prefix="quiltor-release-preflight-"))
+    server: subprocess.Popen[bytes] | None = None
+    primary_error: PreflightError | None = None
+    cleanup_errors: list[PreflightError] = []
+    try:
+        server_environment = os.environ.copy()
+        server_environment["QUILTOR_DATA_DIR"] = str(data_directory)
+        # Product/design browser gates do not exercise a real model. An explicit
+        # endpoint uses the existing external-runtime contract and prevents a
+        # checkout's installed multi-gigabyte model from starting in the preflight.
+        server_environment["QUILTOR_AI_URL"] = "http://127.0.0.1:1"
+        try:
+            server = subprocess.Popen(
+                server_command,
+                cwd=repo_root,
+                env=server_environment,
+            )
+        except OSError as error:
+            raise PreflightError(
+                f"The local server for Playwright could not start: {error}"
+            ) from error
+        _wait_for_server(server, f"{base_url}/api/version")
+        environment = os.environ.copy()
+        environment["PLAYWRIGHT_BASE_URL"] = base_url
+        _run("Playwright browser suite", [npm, "run", "test:e2e"], repo_root, environment)
+    except PreflightError as error:
+        primary_error = error
+    finally:
+        if server is not None:
+            try:
+                _stop_server(server)
+            except PreflightError as error:
+                cleanup_errors.append(error)
+        try:
+            _remove_temporary_data(data_directory)
+        except PreflightError as error:
+            cleanup_errors.append(error)
+
+    if primary_error is not None:
+        if cleanup_errors:
+            details = "; ".join(str(error) for error in cleanup_errors)
+            raise PreflightError(
+                f"{primary_error} Cleanup also failed: {details}"
+            ) from primary_error
+        raise primary_error
+    if cleanup_errors:
+        if len(cleanup_errors) == 1:
+            raise cleanup_errors[0]
+        details = "; ".join(str(error) for error in cleanup_errors)
+        raise PreflightError(f"Browser preflight cleanup failed: {details}") from cleanup_errors[0]
 
 
 def _built_wheel(directory: str | Path) -> Path:
@@ -596,32 +656,7 @@ def run_preflight(repo_root: Path = REPO_ROOT) -> None:
         environment=check_environment,
     )
 
-    port = _free_loopback_port()
-    base_url = f"http://127.0.0.1:{port}"
-    server_command = [python, "apps/web/server.py", str(port), "--no-open"]
-    print("\n==> Start local server for browser suite", flush=True)
-    print("    " + " ".join(server_command), flush=True)
-    with TemporaryDirectory(prefix="quiltor-release-preflight-") as data_directory:
-        server_environment = os.environ.copy()
-        server_environment["QUILTOR_DATA_DIR"] = data_directory
-        try:
-            server = subprocess.Popen(
-                server_command,
-                cwd=repo_root,
-                env=server_environment,
-            )
-        except OSError as error:
-            raise PreflightError(
-                f"The local server for Playwright could not start: {error}"
-            ) from error
-        try:
-            _wait_for_server(server, f"{base_url}/api/version")
-            environment = os.environ.copy()
-            environment["PLAYWRIGHT_BASE_URL"] = base_url
-            _run("Playwright browser suite", [npm, "run", "test:e2e"], repo_root, environment)
-        finally:
-            _stop_server(server)
-            _remove_temporary_data(Path(data_directory))
+    _run_browser_suite(repo_root, python=python, npm=npm)
 
     print("\nAll release preflight gates passed.", flush=True)
 

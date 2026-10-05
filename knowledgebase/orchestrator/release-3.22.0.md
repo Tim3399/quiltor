@@ -37,3 +37,49 @@ gate fail, so the requested tag will be produced through this supported sequence
 The coordinator owns Git integration and final acceptance. `epub_serializer` inspects
 the exact release environment before any version mutation. The author pilot remains
 deferred; production deployment is outside this request.
+
+## Full preflight continuation — 2026-10-05
+
+Reviewed source, distribution and coordination records were committed and pushed
+on `codex/roadmap-followup` as `77e5db61b5396ad9df25a61d624bbf8946c8b00a`.
+The supported updater then ran the full exact-toolchain preflight. Backend, CLI,
+format, Rust, all 1,560 frontend tests, production build/dist equality, package
+smoke and OCI gates passed. The browser matrix reached 531 cases and entered the
+design suite, but the process ultimately exited 1 during temporary-directory
+cleanup: Windows still held `llama-server.log` open (`WinError 32`). The final
+browser/design summaries and the owning child process were investigated before
+acceptance; no overall preflight pass is claimed. The updater left all five
+manifests at 3.21.0 and the working tree clean. This cleanup failure must be
+resolved and the supported preflight rerun before publication.
+
+Subsequent evidence: the 531-case product command returned 0, since its chained
+design command started; the exact pass/skip split was not retained. Three design
+failures were retained (compact-boundary dark chunks 09/11/12), with Chromium GPU
+process crashes. A local 4B inference runtime had unexpectedly started during the
+browser gate, and its log blocked cleanup. The relationship to the GPU failures
+is a resource-conflict hypothesis, not a proved root cause. The browser temporary
+directory was also cleaned twice, masking the primary failure.
+
+The frontend agent owns a bounded correction in `release_preflight.py` and
+`test_release.py`: explicitly select the existing external-AI endpoint mode to
+prevent local inference startup, perform one bounded cleanup path, and retain both
+primary gate and cleanup failures when both occur. No timeouts, assertions or
+failure gates may be relaxed. The lead will review and commit this correction,
+then require a fresh complete supported preflight. Original failure evidence is
+retained under `%TEMP%/quiltor-release-preflight-2026-10-04-evidence`.
+
+The two-file correction passed lead and independent diff review. The full
+`test_release` suite passed 76 tests before a final test-only addition; the final
+focused contract suite passed 12/12. Three mutations failed as intended for the
+AI override, duplicate cleanup and lost primary message. The added simultaneous
+browser/stop/data failure regression verifies all messages, original cause,
+exactly-once calls and stop-before-data ordering. Ruff formatting passed.
+The next complete updater run will persist stdout, stderr and exact exit status
+in a unique temporary evidence directory; no gate has been bypassed.
+
+Local-start status was rechecked: the former launcher/API/inference PIDs
+49392/38584/58520 are now absent and port 8010 has no listener. Their termination
+time/cause is not established; an unrelated Ollama process is not evidence about
+this tree. The startup agent still retains the ten active project IDs from the
+original 3.21.0 API for comparison. After publication it must revalidate ports and
+processes, start normally if free, and never kill those stale PID numbers.
