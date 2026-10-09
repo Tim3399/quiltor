@@ -5,8 +5,9 @@ Status update, 2026-10-09: coordinator and Critic review is complete. The
 implementation scope. The original proposals below are retained as evidence:
 SIM-01 is limited to three UTF-16 primitives; SIM-02 uses a narrow ordinary
 JSON POST function; SIM-05 is limited to local ordering. Shared export
-normalization and cross-module SQL deletion are deferred. No implementation
-has started.
+normalization and cross-module SQL deletion are deferred. The owner subsequently
+authorized implementation and patch release **3.22.1**; see the
+[active execution ledger](simplification-execution.md).
 
 Recorded 2026-10-09 from the user-owned Simplifier chat
 `01a11f95-5493-7f03-a412-0fd44816d15c`. Its inventory inspected `f3d4c4f` without

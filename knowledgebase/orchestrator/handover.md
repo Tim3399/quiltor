@@ -4,6 +4,13 @@ Recorded: 2026-10-03, coordinator setup. This is a dated evidence snapshot.
 
 ## Current planning — 2026-10-09
 
+Follow-up: implementation is now active and assigned to the Implementer/Dev team;
+see [execution](simplification-execution.md). Target release **3.22.1**, with
+commit/push/tag authorized after full local tests and verified green publication.
+The owner established a standing rule: assign every plan a release version and
+start accepted scopes directly after coordinator + Critic approval. The earlier
+planning-only status below is historical.
+
 The owner requested coordinator and Critic review of the six existing Simplifier
 proposals, followed by implementation planning for accepted scopes. Both reviews
 are complete: SIM-03/04/06 pass; SIM-01/02/05 are narrowed. See the authoritative
