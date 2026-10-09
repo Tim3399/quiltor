@@ -9,7 +9,7 @@ from typing import Any
 
 from quiltor.domain.storyboard import default_storyboard_document, valid_storyboard_document
 from quiltor.infrastructure.persistence.sqlite.codec import decode_extra, encode_extra
-from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
+from quiltor.infrastructure.persistence.sqlite.connection import connection
 
 
 _DOCUMENT_FIELDS = {"boards", "nodes", "edges"}
@@ -226,12 +226,8 @@ def save(
     if conn is not None:
         _sync(state, conn)
         return
-    database = connect(db_path)
-    try:
-        with database:
-            _sync(state, database)
-    finally:
-        database.close()
+    with connection(db_path) as database:
+        _sync(state, database)
 
 
 __all__ = ["load", "save"]
