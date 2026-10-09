@@ -1,19 +1,19 @@
 # Release 3.22.0 and local review
 
-Requested: 2026-10-04. Status: in progress. The owner requested commit, push, tag
-and then a local launch for inspection. The earlier minor-version preference is
-retained; the latest published release and main baseline are 3.21.0 / `36aaa46`.
+Requested: 2026-10-04. Updated: 2026-10-09. Status: complete, published and running
+locally. The owner requested commit, push, tag and then a local launch for
+inspection. Release 3.22.0 is published on `a8e9e69`; the earlier preparation
+baseline was 3.21.0 / `36aaa46`.
 
 The [two newly reported defects](release-blockers-2026-10-04.md) have now received
 reviewed local corrections: occupied-map deletion is blocked, empty deletion
 cleans references, the mobile action is reachable, and image uploads gain bounded
 client validation and actionable diagnostics. The exact historic production upload
 condition remains unconfirmed even after proxy inspection; it is not labelled fixed
-or deployed. Build, 1,560 client tests, 1,102 Python tests (6 skips) and direct-dist
-browser checks passed. Final source integration and the full release preflight are
-next. VERSION remains 3.21.0. The previous preflight stopped before any version
-mutation. Accepted audit/knowledgebase commit `166e06d` is already pushed. The owner
-selected reuse of existing local projects.
+or deployed. Build, 1,560 client tests and direct-dist browser checks passed.
+The subsequent full preflight, exact-revision CI, release build and publication
+also passed; see the dated evidence below. VERSION is 3.22.0. The owner selected
+reuse of existing local projects.
 
 - **Was:** integrate the accepted EPUB/mobile/audit changes and coordination
   records, prepare 3.22.0 through the declared updater, push the release revision,
@@ -100,3 +100,62 @@ The updater changed only the five declared version manifests from 3.21.0 to
 3.22.0. The lead reviewed the exact diff and `git diff --check` passed. Commit,
 main push, exact-revision CI/publication and the existing-project local launch
 remain the delivery steps; this local pass does not establish publication.
+
+## Published release — 2026-10-09
+
+The lead committed the reviewed version and preflight record as
+`a8e9e69309e493decb58f44d7cb0fcfe264a5130` (`chore: release v3.22.0`) and atomically
+pushed the work branch and fast-forward main. The publisher created the tag;
+no manual tag bypassed the build gate. Verified remote main and `v3.22.0` both
+resolve to that exact revision.
+
+- [Test 37902020511](https://github.com/Tim3399/quiltor/actions/runs/37902020511):
+  all 22 jobs successful without reruns.
+- [Release Build 37902020333](https://github.com/Tim3399/quiltor/actions/runs/37902020333):
+  successful, including the independent portable gate, Python package, both OCI
+  images and release manifest. Native installers are explicitly disabled by the
+  current release targets; their jobs were skipped as configured.
+- [Release Publish 37904909484](https://github.com/Tim3399/quiltor/actions/runs/37904909484):
+  successful. [v3.22.0](https://github.com/Tim3399/quiltor/releases/tag/v3.22.0)
+  was published at 2026-10-09 08:26:40 UTC, neither draft nor prerelease.
+
+Actual Linux portable-gate logs report 1,107 backend tests (2 platform skips),
+230 frontend files / 1,560 tests passed, product Playwright 338 passed / 193
+declared skips, and design Playwright 144 passed. The final preflight success
+line follows both browser suites. Windows local backend skips were 6; these
+platform-specific totals must not be conflated.
+
+The independent agent downloaded all three public release assets into a unique
+OS temporary directory and ran `release_manifest.py verify` against the exact
+source revision: exit 0. The lead inspected the actual manifest. Version,
+revision, wheel and sdist digests match both manifest and GitHub asset metadata:
+
+- Wheel SHA-256: `28e729d4c52bcfa879397e6cb69d6f1225becd66c82920095d40f51d953a0395`
+- sdist SHA-256: `77d64a1e1cb96d3623f15fb9c01f38fb1bdc823c9efe285940fe269e8135cb5c`
+- App image: `ghcr.io/tim3399/quiltor@sha256:ac7061789c07ea4ebac0b89b2dd827c71d9ce1e647304939342f290b04aed7e0`
+- Backup image: `ghcr.io/tim3399/quiltor-backup@sha256:e346462010e92e4d18292dbd73b3e524cf8b419b35779c6dacd6b9237fdb41df`
+
+No production deployment occurred. The historical upload rejection cause remains
+unconfirmed; published prevention/diagnostics are not proof of incident resolution.
+
+## Existing-project local launch — 2026-10-09
+
+After publication, the startup agent rechecked both free ports and started the
+documented `npm start` launcher in the product checkout with explicit child
+`QUILTOR_HOME`, `QUILTOR_DATA_DIR=repo/data`, API port 8010, API target and UI port 5173. The caller environment was restored. No stale PID was killed. The source
+checkout was the release revision at startup; subsequent coordinator edits affect
+only knowledgebase records.
+
+`http://127.0.0.1:5173/` returned HTTP 200. Direct API and frontend proxy both
+reported 3.22.0. All ten previously recorded active project IDs matched exactly;
+project names and contents were not read. Launcher, API, Vite and inference
+processes remained alive after a delayed check and were left running. Startup
+stderr was empty. The frontend has no embedded source-revision identity: the
+verified checkout, launcher command/log and served API version establish the
+available source evidence, not an unimplemented frontend attestation.
+
+Logs are outside the repository under
+`%LOCALAPPDATA%/CodexWork/quiltor/runtime-3.22.0`. Process IDs at verification were
+43280 (launcher), 43952 (API), 33972 (Vite), 26432 (inference); these are historical
+evidence, never authority for a later stop. The local browser open was queued in
+the owner's Codex chat. Release delivery and local-start acceptance are complete.

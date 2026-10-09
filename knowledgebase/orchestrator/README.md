@@ -7,9 +7,11 @@ Code corrections, expanded UI/zoom coverage, native platform references and
 independent safety review are accepted. Final Test run 37216539640 passed all
 22 jobs on `c5ba722f2c22b2526a48af2aae4c9f427fb75e05`. Consult the taskboard and
 [CI evidence](followup-ci-evidence.md) for exact scope and earlier failure evidence.
-New assignment: [release 3.22.0 and local review](release-3.22.0.md), explicitly
-requested after audit acceptance. Release integration is active; external EPUB CI
-validation and roadmap reconciliation remain separately queued. S17 remains deferred.
+Completed delivery (2026-10-09): [release 3.22.0 and local review](release-3.22.0.md).
+Exact-revision Test, Release Build and Release Publish passed; tag, public assets
+and the local instance with all ten existing projects are verified. External EPUB
+CI validation, roadmap reconciliation and read-only Simplifier candidates remain
+separately queued. S17 remains deferred; production was not upgraded.
 
 The owner has assigned development coordination to this agent. Delegate bounded
 work with **Was**, **Warum** and **Wann erledigt**: the requested change, its reason,

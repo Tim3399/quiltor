@@ -2,22 +2,28 @@
 
 Recorded: 2026-10-03, coordinator setup. This is a dated evidence snapshot.
 
-## Current delivery — 2026-10-04
+## Completed delivery — 2026-10-09
 
-The owner subsequently requested commit, push, tag and local startup. Follow
-[release 3.22.0 and local review](release-3.22.0.md) for the active delivery.
-The accepted audit below remains its evidence baseline; its earlier no-release
-boundary describes that completed assignment, not the newly authorized delivery.
-The owner then reported image-upload errors and destructive map deletion. Follow
-[the release blockers](release-blockers-2026-10-04.md) before restarting the updater.
-The three agents own the domain invariant, client/UI correction and production
-log investigation; the lead owns coordination/review. The user reaffirmed this
-division explicitly. Existing projects must be reused when local startup resumes.
-The map correction is now accepted locally, including true compact interaction
-and direct-dist save/reload checks. Upload prevention/diagnostics are accepted;
-the exact historical production parser condition remains unconfirmed after proxy
-inspection. Final build, 1,560 client tests and 1,102 Python tests (6 skips) passed.
-Source is frozen for clean integration and a fresh complete version preflight.
+[Release 3.22.0 and local review](release-3.22.0.md) is complete. Commit, remote
+main and publisher-created tag identify `a8e9e69309e493decb58f44d7cb0fcfe264a5130`.
+Test 37902020511 passed all 22 jobs; Release Build 37902020333 and Release Publish
+37904909484 succeeded without reruns. The public wheel/sdist were independently
+downloaded and verified against the manifest and exact revision. Native installer
+targets remain disabled as configured. The release ledger carries the complete
+commands, counts, digests and links.
+
+The documented local launcher is running at `http://127.0.0.1:5173/` with the
+existing data directory. Direct API and UI proxy report 3.22.0; the original ten
+active project IDs match exactly. Processes were left running. No production
+deployment occurred; last verified production remains 3.20.0.
+
+Occupied-map deletion is protected, valid empty deletion cleans references and
+the action works on compact screens. Upload prevention and diagnostics are
+published, but the exact historical production parser condition remains
+unconfirmed after app/proxy log inspection. Read-only
+[Simplifier candidates](simplification-candidates.md) are queued without an
+implementation assignment. S17 remains deferred. Subsequent historical sections
+retain their original acceptance boundaries; they do not override this delivery.
 
 ## Completed continuation — 2026-10-04
 

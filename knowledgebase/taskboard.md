@@ -1,7 +1,7 @@
 # Quiltor taskboard
 
-Updated: 2026-10-04. Maintainer: coordinator. Product baseline: 3.21.0; local
-unreleased changes exist. See [handover](orchestrator/handover.md) for evidence limits.
+Updated: 2026-10-09. Maintainer: coordinator. Published product baseline: 3.22.0
+(`a8e9e69`). See [handover](orchestrator/handover.md) for evidence limits.
 
 This is the coordination index for open, assigned, reviewed and completed work.
 Detailed requirements remain in their linked sources. Roadmap rows are grouped
@@ -15,7 +15,7 @@ before delegating. No unscheduled row implies an agent is actively working on it
 - **Review**: a result exists but lead acceptance is outstanding.
 - **Blocked**: work cannot continue; name the dependency and next action.
 - **Deferred**: deliberately not scheduled; record the reopening condition.
-- **Mitigated locally**: tested prevention/diagnostics are accepted, while the
+- **Mitigated**: tested prevention/diagnostics are accepted, while the
   original incident's exact cause or production resolution is still unconfirmed.
 - **Done**: the stated scope has passed acceptance. Delivery is separately labelled
   local, published or deployed; one never implies the others.
@@ -147,28 +147,40 @@ the complete final CI result is recorded in the four-point closure plan.
 
 ## Newly reported release blockers
 
-See [release blockers](orchestrator/release-blockers-2026-10-04.md) for agent ownership and acceptance. Local corrections are accepted; release integration and full version preflight remain pending.
+See [release blockers](orchestrator/release-blockers-2026-10-04.md) for agent ownership and acceptance. Corrections passed the full preflight and exact-revision CI and are published in 3.22.0. Production deployment remains separate.
 
-| ID / status                             | Was                                                                        | Warum                                                                    | Wann erledigt                                                                                                                                                            |
-| --------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| BUG-MAP-DELETE-01 · Done locally        | Refuse occupied-map deletion and preserve valid empty-place cleanup        | Prevent invisible places, invalid drafts and inaccessible mobile actions | Guards, reference cleanup, true compact interaction, screenshots and direct-dist save/reload checks accepted; release not yet published                                  |
-| BUG-IMAGE-UPLOAD-01 · Mitigated locally | Diagnose upload rejection; prevent oversized requests and explain failures | Production parser failures had no useful feedback or reason logging      | Client/backend changes and tests accepted; proxy rejection excluded; exact historical parser condition remains unconfirmed and no new production deployment has occurred |
+| ID / status                                 | Was                                                                        | Warum                                                                    | Wann erledigt                                                                                                                                                     |
+| ------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BUG-MAP-DELETE-01 · Done · Published        | Refuse occupied-map deletion and preserve valid empty-place cleanup        | Prevent invisible places, invalid drafts and inaccessible mobile actions | Guards, reference cleanup, true compact interaction, screenshots and direct-dist save/reload checks accepted; published in 3.22.0                                 |
+| BUG-IMAGE-UPLOAD-01 · Mitigated · Published | Diagnose upload rejection; prevent oversized requests and explain failures | Production parser failures had no useful feedback or reason logging      | Prevention/diagnostics published in 3.22.0; proxy rejection excluded; exact historical parser condition remains unconfirmed and no production deployment occurred |
 
 ## Current integration and coordination queue
 
-| ID / status / owner                    | Was                                                                                 | Warum                                                               | Wann erledigt                                                                                                                                                                 | Source / dependency / next action                                                                                                                                     |
-| -------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| COORD-01 · Done · Coordinator          | Establish durable coordination memory, taskboard and Was/Warum/Wann briefs          | Preserve decisions and prevent lost or duplicate work across agents | Source-linked board covers the inventory, local links resolve, formatting passes and the lead reviews the written records                                                     | Owner request 2026-10-03; inventory review, scoped formatting and local-link checks passed                                                                            |
-| COORD-02 · Done · `epub_browser_tests` | Independently inventory current roadmap states                                      | Separate open work from history, partial delivery and non-goals     | Return source locations, grouped open/completed/deferred work and conflicting text; no source edits                                                                           | Read-only inventory returned and reviewed 2026-10-03; incorporated below                                                                                              |
-| DOC-01 · Open · Coordinator            | Reconcile stale “next delivery” text and partial umbrella checkboxes                | Readers currently receive contradictory sequencing                  | R/S introductions match S13–S16 evidence; completed format slices remain credited and remaining requirements stay explicit                                                    | R:368–369, 506–523; S:21–23; update narrowly, preserve historical evidence                                                                                            |
-| MOBILE-01 · Done · Coordinator         | Accept existing responsive project-selector changes                                 | Compact project selection must remain usable                        | Source and behavior reviewed; Windows/Linux/macOS references restored and reviewed; native strict comparison and full CI passed                                               | Accepted in CLOSE-03; publication separately tracked in REL-S16                                                                                                       |
-| REL-S16 · In progress · Coordinator    | Integrate and publish the next minor delivery containing locally accepted EPUB work | Users cannot install uncommitted functionality                      | Agreed scope committed; version updated through declared updater; exact-revision required CI/release checks green; intended version published with verified artifacts and URL | Owner authorized commit/push/tag and local launch on 2026-10-04; prepare 3.22.0 through declared updater; see orchestrator/release-3.22.0.md; EXP-03 remains separate |
-| OPS-UPGRADE · Open · Coordinator       | Reconcile deployed server with the chosen release target                            | Published packages do not establish production state                | Record current deployed version; when deployment is in scope, verify backup, migration, application and public access for the chosen version                                  | Last verified production 3.20.0; published baseline 3.21.0; scope deployment separately                                                                               |
+| ID / status / owner                    | Was                                                                                 | Warum                                                               | Wann erledigt                                                                                                                                     | Source / dependency / next action                                                          |
+| -------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| COORD-01 · Done · Coordinator          | Establish durable coordination memory, taskboard and Was/Warum/Wann briefs          | Preserve decisions and prevent lost or duplicate work across agents | Source-linked board covers the inventory, local links resolve, formatting passes and the lead reviews the written records                         | Owner request 2026-10-03; inventory review, scoped formatting and local-link checks passed |
+| COORD-02 · Done · `epub_browser_tests` | Independently inventory current roadmap states                                      | Separate open work from history, partial delivery and non-goals     | Return source locations, grouped open/completed/deferred work and conflicting text; no source edits                                               | Read-only inventory returned and reviewed 2026-10-03; incorporated below                   |
+| DOC-01 · Open · Coordinator            | Reconcile stale “next delivery” text and partial umbrella checkboxes                | Readers currently receive contradictory sequencing                  | R/S introductions match S13–S16 evidence; completed format slices remain credited and remaining requirements stay explicit                        | R:368–369, 506–523; S:21–23; update narrowly, preserve historical evidence                 |
+| MOBILE-01 · Done · Coordinator         | Accept existing responsive project-selector changes                                 | Compact project selection must remain usable                        | Source and behavior reviewed; Windows/Linux/macOS references restored and reviewed; native strict comparison and full CI passed                   | Accepted in CLOSE-03; publication separately tracked in REL-S16                            |
+| REL-S16 · Done · Coordinator           | Integrate and publish the next minor delivery containing locally accepted EPUB work | Users cannot install uncommitted functionality                      | 3.22.0 committed/pushed/tagged; exact-revision Test/Build/Publish green; public assets verified; local app running with all ten existing projects | Release a8e9e69; see orchestrator/release-3.22.0.md; EXP-03 remains separate               |
+| OPS-UPGRADE · Open · Coordinator       | Reconcile deployed server with the chosen release target                            | Published packages do not establish production state                | Record current deployed version; when deployment is in scope, verify backup, migration, application and public access for the chosen version      | Last verified production 3.20.0; published baseline 3.22.0; scope deployment separately    |
 
 The active campaign above supersedes the earlier release-first queue ordering at
 the owner's request. Other chats' execution states have not been checked. Preserve
 the existing release work and select bounded corrections rather than opening
 unrelated product features.
+
+## Read-only simplification candidates — 2026-10-09
+
+The Simplifier returned these candidates against `f3d4c4f` without edits or tests.
+They are unassigned proposals, not accepted implementation. See the
+[scoped candidate record](orchestrator/simplification-candidates.md).
+
+| ID / status   | Was                                                           | Warum                                         | Wann erledigt                                                                                                                                |
+| ------------- | ------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| SIM-01 · Open | Share narrowly duplicated export normalization/UTF-16 helpers | Reduce divergent maintenance in DOCX and EPUB | Characterization and regression tests preserve archives, rejection order, messages and public imports; lead reviews diff                     |
+| SIM-02 · Open | Consider a narrow internal JSON POST helper                   | Reduce repeated adapter plumbing              | Preserve URLs, world selection, decoders, options and cancellation; excluded transport cases remain unchanged; focused tests and review pass |
+| SIM-03 · Open | Normalize FreeDict text once per relevant value               | Remove redundant text processing              | Blank-quote fallback, nested text, multiple heads and duplicates retain behavior; focused tests and review pass                              |
 
 ## Independent critic investigations
 
@@ -268,7 +280,7 @@ Use the source acceptance ledgers for their individual findings and detailed che
 | DONE-S13 · Done                  | Safe reviewed DOCX import                                                                     | Let authors bring existing manuscripts                     | Bounded parsing, counts/loss review and atomic new-world publication accepted    | S13 acceptance; published 3.21.0                                                                            |
 | DONE-S14 · Done                  | Markdown/TXT import with reviewed splits/folders                                              | Support text workflows with controlled chapter structure   | Text/order/format/source integrity and reviewed hierarchy accepted               | S14 acceptance; published 3.21.0                                                                            |
 | DONE-S15 · Done                  | DOCX editor and Normseite export                                                              | Exchange manuscripts with editors                          | Revision-bound export, warning review and Normseite calibration accepted         | S15 acceptance; published 3.21.0                                                                            |
-| S16 · Done locally               | Reviewed EPUB export                                                                          | Produce portable reflowable reading copies                 | Package/browser tests and local EPUBCheck passed; source preserved               | S16 acceptance and handover; unpublished, REL-S16 and EXP-03 remain open                                    |
+| S16 · Done · Published           | Reviewed EPUB export                                                                          | Produce portable reflowable reading copies                 | Package/browser tests and local EPUBCheck passed; source preserved               | Published in 3.22.0; pinned external EPUB CI validation remains EXP-03                                      |
 | DONE-WEBSITE · Done on test site | B825 Quiltor project showcase                                                                 | Present the product and its downloads                      | Project page, images and repository/release links verified in prior website task | [Test site](https://webside-test.bananenban.de/projekte/quiltor); regular-domain TLS issue remains external |
 
 ## Coverage and guardrails
@@ -287,10 +299,16 @@ Use the source acceptance ledgers for their individual findings and detailed che
 - P's 3.16.3 value is explicitly historical “at adoption,” not today's version.
   Earlier QF pending notes are likewise historical. Broad unchecked export/UX
   requirements do not erase the accepted DOCX/EPUB/design slices.
-- No current claim of physical-reader EPUB validation, fresh Linux/macOS execution
-  of local changes, successful new release pipelines or production above 3.20.0.
+- Exact-revision Linux/macOS/Windows CI and release pipelines passed for 3.22.0.
+  No physical-reader EPUB validation or production upgrade above 3.20.0 is claimed.
 
 ## Change log
+
+- 2026-10-09: Published 3.22.0 after the complete supported preflight and green
+  exact-revision Test/Release Build/Release Publish workflows. Verified public
+  assets and local startup with all ten original projects. Recorded the published
+  map fix and upload mitigation; production deployment remains separate. Queued
+  three read-only Simplifier candidates without assigning implementation.
 
 - 2026-10-03: Accepted the initial delegated quality batch locally after source,
   rendered and regression review. Retained additional coverage, lint, platform
