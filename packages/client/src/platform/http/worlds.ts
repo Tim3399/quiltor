@@ -1,7 +1,7 @@
 import type { WorldsGateway } from "../application";
 import type { WorldInfoWireV1 } from "../contracts/v1/worlds";
 import { decodeTrashedWorldInfoV1, decodeWorldInfoV1 } from "../contracts/v1/worlds";
-import { type HttpApplicationState, requestJson, selectWorld } from "./request";
+import { type HttpApplicationState, postJson, requestJson, selectWorld } from "./request";
 
 export function createWorldsHttpGateway(state: HttpApplicationState): WorldsGateway {
   return {
@@ -22,41 +22,20 @@ export function createWorldsHttpGateway(state: HttpApplicationState): WorldsGate
       };
     },
     open: async (id: string) => {
-      const wire = await requestJson<{ ok: boolean; world: WorldInfoWireV1 }>("/api/worlds/open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+      const wire = await postJson<{ ok: boolean; world: WorldInfoWireV1 }>("/api/worlds/open", {
+        id,
       });
       return { ...wire, world: decodeWorldInfoV1(wire.world) };
     },
     create: async (title: string, backupUrl: string) => {
-      const wire = await requestJson<{ ok: boolean; world: WorldInfoWireV1 }>(
-        "/api/worlds/create",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, backupUrl }),
-        },
-      );
+      const wire = await postJson<{ ok: boolean; world: WorldInfoWireV1 }>("/api/worlds/create", {
+        title,
+        backupUrl,
+      });
       return { ...wire, world: decodeWorldInfoV1(wire.world) };
     },
-    delete: (id: string) =>
-      requestJson<{ ok: boolean }>("/api/worlds/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      }),
-    restore: (id: string) =>
-      requestJson<{ ok: boolean }>("/api/worlds/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      }),
-    purge: (id: string) =>
-      requestJson<{ ok: boolean }>("/api/worlds/purge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      }),
+    delete: (id: string) => postJson<{ ok: boolean }>("/api/worlds/delete", { id }),
+    restore: (id: string) => postJson<{ ok: boolean }>("/api/worlds/restore", { id }),
+    purge: (id: string) => postJson<{ ok: boolean }>("/api/worlds/purge", { id }),
   };
 }

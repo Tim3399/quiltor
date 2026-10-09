@@ -175,6 +175,18 @@ export async function readJson(response: Response): Promise<unknown> {
   return response.json().catch(() => null);
 }
 
+/** Serialize before delegating, preserving synchronous JSON serialization errors. */
+export function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const init: RequestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+  // Preserve the caller's distinction between omitted and explicitly undefined signals.
+  if (arguments.length > 2) init.signal = signal;
+  return requestJson<T>(url, init);
+}
+
 /** Small shared HTTP boundary. Port-specific decoders remain with their owning adapter. */
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: "no-store", ...init });
