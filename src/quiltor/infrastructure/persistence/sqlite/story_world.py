@@ -6,7 +6,7 @@ import json
 import sqlite3
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from quiltor.domain.story_world.entity_resolution import normalize_entity_name
 from quiltor.domain.story_world.profile import LEGACY_PROFILE_FIELDS, normalize_profile
@@ -167,29 +167,17 @@ def _delete_missing_rows(
         database.executemany(f"DELETE FROM {table} WHERE {id_column}=?", removed)
 
 
-def _sync_connection_order(database: sqlite3.Connection, ordered_ids: list[str]) -> None:
-    current_ids = [row[0] for row in database.execute("SELECT id FROM connections ORDER BY rowid")]
+def _sync_row_order(
+    database: sqlite3.Connection,
+    table: Literal["connections", "presence_states"],
+    ordered_ids: list[str],
+) -> None:
+    current_ids = [row[0] for row in database.execute(f"SELECT id FROM {table} ORDER BY rowid")]
     if current_ids == ordered_ids or not ordered_ids:
         return
-    maximum = database.execute("SELECT COALESCE(MAX(rowid), 0) FROM connections").fetchone()[0]
+    maximum = database.execute(f"SELECT COALESCE(MAX(rowid), 0) FROM {table}").fetchone()[0]
     database.executemany(
-        "UPDATE connections SET rowid=? WHERE id=?",
-        [
-            (maximum + position + 1, connection_id)
-            for position, connection_id in enumerate(ordered_ids)
-        ],
-    )
-
-
-def _sync_presence_order(database: sqlite3.Connection, ordered_ids: list[str]) -> None:
-    current_ids = [
-        row[0] for row in database.execute("SELECT id FROM presence_states ORDER BY rowid")
-    ]
-    if current_ids == ordered_ids or not ordered_ids:
-        return
-    maximum = database.execute("SELECT COALESCE(MAX(rowid), 0) FROM presence_states").fetchone()[0]
-    database.executemany(
-        "UPDATE presence_states SET rowid=? WHERE id=?",
+        f"UPDATE {table} SET rowid=? WHERE id=?",
         [(maximum + position + 1, entry_id) for position, entry_id in enumerate(ordered_ids)],
     )
 
@@ -462,9 +450,9 @@ def _sync(state: dict[str, Any], database: sqlite3.Connection) -> None:
         moment_ids,
     )
     _delete_missing_rows(database, "presence_states", "id", set(presence_ids))
-    _sync_presence_order(database, presence_ids)
+    _sync_row_order(database, "presence_states", presence_ids)
     _delete_missing_rows(database, "connections", "id", set(ordered_connection_ids))
-    _sync_connection_order(database, ordered_connection_ids)
+    _sync_row_order(database, "connections", ordered_connection_ids)
     _delete_missing_rows(database, "figures", "id", ids)
     _delete_missing_rows(database, "timeline_moments", "id", moment_ids)
     canvas = state.get("canvasSize") or {"w": 2400, "h": 1600}
