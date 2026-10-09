@@ -83,3 +83,20 @@ time/cause is not established; an unrelated Ollama process is not evidence about
 this tree. The startup agent still retains the ten active project IDs from the
 original 3.21.0 API for comparison. After publication it must revalidate ports and
 processes, start normally if free, and never kill those stale PID numbers.
+
+## Supported preflight accepted — 2026-10-09
+
+The Oct 5 retry was interrupted before completion and is not acceptance evidence.
+On source revision `f3d4c4f25c7e7ed34bbbd2d5b8586dc59580b457`, the fresh supported
+`npm run set-version -- minor` run completed with exit 0 on Oct 9 at 09:56 CEST.
+All release gates passed: 1,107 backend tests (6 skips), 4 CLI tests, Rust checks,
+1,560 frontend tests, build/dist equality, package and OCI smoke checks, product
+Playwright (338 passed, 193 declared skips), and design Playwright (144 passed).
+The corrected browser cleanup completed without masking errors. Persistent local
+evidence is in `%TEMP%/quiltor-set-version-20261009-093312-06fefab6`, including
+stdout, stderr and the exact final exit status in `run.json`.
+
+The updater changed only the five declared version manifests from 3.21.0 to
+3.22.0. The lead reviewed the exact diff and `git diff --check` passed. Commit,
+main push, exact-revision CI/publication and the existing-project local launch
+remain the delivery steps; this local pass does not establish publication.
