@@ -841,5 +841,333 @@ class DocumentWireV1Tests(unittest.TestCase):
         writer.send_json.assert_called_once()
 
 
+class ChapterIntegerCanonicalizationTests(unittest.TestCase):
+    locations = ("active", "trash")
+    collections = ("noteReferences", "noteMarks", "mentions", "marks")
+
+    def fixture(self, location):
+        fixture = registered_fixture("application.manuscript-wire")
+        chapter = fixture["payload"]["chapters"][0]
+        chapter.update(
+            {
+                "body": "😀ab",
+                "note": "😀ab",
+                "noteReferences": [
+                    {
+                        "id": "reference-b",
+                        "target": {"kind": "entity", "id": "mara"},
+                        "from": 3.0,
+                        "to": 4.0,
+                        "surface": "b",
+                        "paragraph": 2.0,
+                        "offset": 3.0,
+                    },
+                    {
+                        "id": "reference-face",
+                        "target": {"kind": "entity", "id": "mara"},
+                        "from": 0.0,
+                        "to": 2.0,
+                        "surface": "😀",
+                    },
+                ],
+                "noteMarks": [
+                    {"from": 2.0, "to": 3.0, "kind": "bold"},
+                    {"from": 0.0, "to": 4.0, "kind": "heading", "level": 2.0},
+                ],
+                "mentions": [
+                    {
+                        "id": "mention-b",
+                        "elementId": "mara",
+                        "from": 3.0,
+                        "to": 4.0,
+                        "surface": "b",
+                        "source": "deterministic",
+                        "confidence": 1.0,
+                    },
+                    {
+                        "id": "mention-face",
+                        "elementId": "mara",
+                        "from": 0.0,
+                        "to": 2.0,
+                        "surface": "😀",
+                        "source": "deterministic",
+                        "confidence": 1.0,
+                    },
+                ],
+                "marks": [
+                    {"from": 2.0, "to": 3.0, "kind": "bold"},
+                    {"from": 0.0, "to": 2.0, "kind": "italic"},
+                ],
+                "extension": {"from": 0.0, "to": 2.0, "level": 2.0},
+                "treeItem": {"position": 1.0},
+            }
+        )
+        for collection in self.collections:
+            for item in chapter[collection]:
+                item["extension"] = {"from": 0.0}
+        if location == "trash":
+            deleted = fixture["payload"]["trash"][0]
+            chapter = deepcopy(chapter)
+            chapter["id"] = deleted["chapter"]["id"]
+            deleted["chapter"] = chapter
+        fixture["payload"]["trash"][0]["treeItem"]["position"] = 0.0
+        return fixture
+
+    def chapter(self, fixture, location):
+        payload = fixture["payload"]
+        return payload["chapters"][0] if location == "active" else payload["trash"][0]["chapter"]
+
+    def outputs(self, fixture):
+        yield "decode", lambda: decode_document_v1("manuscript", fixture).to_mapping()
+        yield (
+            "encode",
+            lambda: encode_document_v1("manuscript", fixture["payload"], fixture["revision"]),
+        )
+
+    def assert_rejected_without_mutation(self, fixture, message):
+        before = deepcopy(fixture)
+        for operation, produce in self.outputs(fixture):
+            with self.subTest(operation=operation):
+                with self.assertRaises(InvalidDocumentWireV1) as raised:
+                    produce()
+                self.assertEqual(str(raised.exception), message)
+                self.assertEqual(fixture, before)
+                self.assertEqual(repr(fixture), repr(before))
+
+    def test_active_and_trash_integer_types_sorting_extensions_and_detachment(self):
+        for location in self.locations:
+            fixture = self.fixture(location)
+            before = deepcopy(fixture)
+            expected = deepcopy(self.chapter(fixture, location))
+            for collection in self.collections:
+                for item in expected[collection]:
+                    for key in ("from", "to", "level"):
+                        if key in item:
+                            item[key] = int(item[key])
+            expected["noteMarks"].reverse()
+            for operation, produce in self.outputs(fixture):
+                with self.subTest(location=location, operation=operation):
+                    output = produce()
+                    chapter = self.chapter(output, location)
+                    self.assertEqual(chapter, expected)
+                    for collection in self.collections:
+                        for item in chapter[collection]:
+                            self.assertIs(type(item["from"]), int)
+                            self.assertIs(type(item["to"]), int)
+                            if "level" in item:
+                                self.assertIs(type(item["level"]), int)
+                            self.assertIs(type(item["extension"]["from"]), float)
+                    self.assertIs(type(chapter["noteReferences"][0]["paragraph"]), float)
+                    self.assertIs(type(chapter["noteReferences"][0]["offset"]), float)
+                    self.assertIs(type(chapter["mentions"][0]["confidence"]), float)
+                    self.assertIs(type(chapter["treeItem"]["position"]), float)
+                    self.assertIs(type(output["payload"]["trash"][0]["treeItem"]["position"]), int)
+                    chapter["extension"]["from"] = "changed"
+                    chapter["noteReferences"][0]["extension"]["from"] = "changed"
+                    self.assertEqual(fixture, before)
+                    self.assertEqual(repr(fixture), repr(before))
+                    self.assertIs(type(self.chapter(fixture, location)["marks"][0]["from"]), float)
+
+    def test_range_and_heading_integer_rejections_preserve_input(self):
+        for location in self.locations:
+            for collection in self.collections:
+                for key in ("from", "to"):
+                    for value, message in (
+                        *(
+                            (value, "document wire integer is invalid")
+                            for value in (
+                                True,
+                                False,
+                                None,
+                                "1",
+                                [],
+                                {},
+                                0.5,
+                                float("nan"),
+                                float("inf"),
+                            )
+                        ),
+                        (-1, "document wire integer is outside the safe range"),
+                        (MAX_SAFE_REVISION + 1, "document wire integer is outside the safe range"),
+                        (
+                            float(MAX_SAFE_REVISION + 1),
+                            "document wire integer is outside the safe range",
+                        ),
+                        (MAX_SAFE_REVISION, "document payload is invalid"),
+                    ):
+                        fixture = self.fixture(location)
+                        self.chapter(fixture, location)[collection][0][key] = value
+                        with self.subTest(
+                            location=location, collection=collection, key=key, value=value
+                        ):
+                            self.assert_rejected_without_mutation(fixture, message)
+                    fixture = self.fixture(location)
+                    del self.chapter(fixture, location)[collection][0][key]
+                    with self.subTest(location=location, collection=collection, missing=key):
+                        self.assert_rejected_without_mutation(
+                            fixture, "document payload is invalid"
+                        )
+                fixture = self.fixture(location)
+                self.chapter(fixture, location)[collection][0]["to"] = 0
+                with self.subTest(location=location, collection=collection, minimum="to"):
+                    self.assert_rejected_without_mutation(
+                        fixture, "document wire integer is outside the safe range"
+                    )
+            for value in (True, None, "2", 1.5, 0, 4, MAX_SAFE_REVISION):
+                fixture = self.fixture(location)
+                self.chapter(fixture, location)["noteMarks"][1]["level"] = value
+                message = (
+                    "document wire integer is outside the safe range"
+                    if type(value) is int
+                    else "document wire integer is invalid"
+                )
+                with self.subTest(location=location, level=value):
+                    self.assert_rejected_without_mutation(fixture, message)
+            fixture = self.fixture(location)
+            del self.chapter(fixture, location)["noteMarks"][1]["level"]
+            self.assert_rejected_without_mutation(fixture, "document payload is invalid")
+
+    def test_minimum_ranges_and_heading_level_endpoints_are_accepted(self):
+        for location in self.locations:
+            for level in (1.0, 3.0):
+                fixture = self.fixture(location)
+                chapter = self.chapter(fixture, location)
+                chapter.update({"body": "a", "note": "a"})
+                for collection in self.collections:
+                    item = deepcopy(chapter[collection][-1])
+                    item.update({"from": 0.0, "to": 1.0})
+                    if collection in ("noteReferences", "mentions"):
+                        item["surface"] = "a"
+                    if collection == "noteMarks":
+                        item["level"] = level
+                    chapter[collection] = [item]
+                for operation, produce in self.outputs(fixture):
+                    with self.subTest(location=location, level=level, operation=operation):
+                        result = self.chapter(produce(), location)
+                        for collection in self.collections:
+                            self.assertIs(type(result[collection][0]["from"]), int)
+                            self.assertIs(type(result[collection][0]["to"]), int)
+                        self.assertIs(type(result["noteMarks"][0]["level"]), int)
+
+    def test_absent_collections_and_malformed_containers_keep_existing_guards(self):
+        for location in self.locations:
+            for collection in self.collections:
+                fixture = self.fixture(location)
+                del self.chapter(fixture, location)[collection]
+                for operation, produce in self.outputs(fixture):
+                    with self.subTest(
+                        location=location, collection=collection, operation=operation
+                    ):
+                        self.assertNotIn(collection, self.chapter(produce(), location))
+                for value in (None, {}, "bad", 1, [None], ["bad"], [{}]):
+                    fixture = self.fixture(location)
+                    self.chapter(fixture, location)[collection] = value
+                    with self.subTest(location=location, collection=collection, value=value):
+                        self.assert_rejected_without_mutation(
+                            fixture, "document payload is invalid"
+                        )
+            for path in (
+                "/payload/chapters",
+                "/payload/chapters/0",
+                "/payload/trash",
+                "/payload/trash/0",
+                "/payload/trash/0/chapter",
+                "/payload/trash/0/treeItem",
+            ):
+                fixture = mutate(self.fixture(location), path, "set", None)
+                with self.subTest(location=location, path=path):
+                    self.assert_rejected_without_mutation(fixture, "document payload is invalid")
+
+    def test_astral_range_boundaries_are_checked_in_active_and_trash_chapters(self):
+        for location in self.locations:
+            for collection in self.collections:
+                for key in ("from", "to"):
+                    fixture = self.fixture(location)
+                    self.chapter(fixture, location)[collection][-1][key] = 1.0
+                    with self.subTest(location=location, collection=collection, key=key):
+                        self.assert_rejected_without_mutation(
+                            fixture, "document payload is invalid"
+                        )
+
+    def test_chapter_collection_error_precedence_is_unchanged(self):
+        for location in self.locations:
+            fixture = self.fixture(location)
+            chapter = self.chapter(fixture, location)
+            chapter["noteReferences"][0]["from"] = True
+            chapter["noteMarks"][0]["from"] = -1
+            chapter["mentions"][0]["from"] = True
+            chapter["marks"][0]["from"] = -1
+            for collection, message in (
+                ("noteReferences", "document wire integer is invalid"),
+                ("noteMarks", "document wire integer is outside the safe range"),
+                ("mentions", "document wire integer is invalid"),
+                ("marks", "document wire integer is outside the safe range"),
+            ):
+                with self.subTest(location=location, first_invalid=collection):
+                    self.assert_rejected_without_mutation(fixture, message)
+                chapter[collection] = []
+
+    def test_outer_traversal_and_trash_tree_position_error_precedence(self):
+        fixture = self.fixture("trash")
+        active = self.chapter(fixture, "active")
+        trash = self.chapter(fixture, "trash")
+        fixture["payload"]["bookLayout"]["version"] = True
+        active["noteReferences"][0]["from"] = -1
+        trash["noteReferences"][0]["from"] = True
+        fixture["payload"]["trash"][0]["treeItem"]["position"] = -1
+        for message, owner, key, restored in (
+            ("document wire integer is invalid", fixture["payload"]["bookLayout"], "version", 1),
+            ("document wire integer is outside the safe range", active, "noteReferences", []),
+            ("document wire integer is invalid", trash, "noteReferences", []),
+            (
+                "document wire integer is outside the safe range",
+                fixture["payload"]["trash"][0]["treeItem"],
+                "position",
+                0,
+            ),
+        ):
+            self.assert_rejected_without_mutation(fixture, message)
+            owner[key] = restored
+
+    def test_trash_tree_position_safe_integer_endpoints_remain_canonical(self):
+        for value in (0.0, MAX_SAFE_REVISION, float(MAX_SAFE_REVISION)):
+            fixture = self.fixture("trash")
+            fixture["payload"]["trash"][0]["treeItem"]["position"] = value
+            before = deepcopy(fixture)
+            for operation, produce in self.outputs(fixture):
+                with self.subTest(value=value, operation=operation):
+                    position = produce()["payload"]["trash"][0]["treeItem"]["position"]
+                    self.assertEqual(position, int(value))
+                    self.assertIs(type(position), int)
+                    self.assertEqual(repr(fixture), repr(before))
+        fixture["payload"]["trash"][0]["treeItem"]["position"] = MAX_SAFE_REVISION + 1
+        self.assert_rejected_without_mutation(
+            fixture, "document wire integer is outside the safe range"
+        )
+
+    def test_range_members_precede_later_members_and_heading_levels(self):
+        for location in self.locations:
+            for collection in self.collections:
+                fixture = self.fixture(location)
+                item = self.chapter(fixture, location)[collection][0]
+                item.update({"from": True, "to": -1})
+                with self.subTest(location=location, collection=collection):
+                    self.assert_rejected_without_mutation(
+                        fixture, "document wire integer is invalid"
+                    )
+                    item["from"] = 0.0
+                    self.assert_rejected_without_mutation(
+                        fixture, "document wire integer is outside the safe range"
+                    )
+            fixture = self.fixture(location)
+            heading = self.chapter(fixture, location)["noteMarks"][1]
+            heading.update({"to": -1, "level": True})
+            self.assert_rejected_without_mutation(
+                fixture, "document wire integer is outside the safe range"
+            )
+            heading["to"] = 4.0
+            self.assert_rejected_without_mutation(fixture, "document wire integer is invalid")
+
+
 if __name__ == "__main__":
     unittest.main()
