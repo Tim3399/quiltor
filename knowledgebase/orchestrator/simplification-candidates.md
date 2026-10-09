@@ -1,5 +1,13 @@
 # Read-only simplification candidates
 
+Status update, 2026-10-09: coordinator and Critic review is complete. The
+[final review and plan](simplification-review-plan.md) is authoritative for
+implementation scope. The original proposals below are retained as evidence:
+SIM-01 is limited to three UTF-16 primitives; SIM-02 uses a narrow ordinary
+JSON POST function; SIM-05 is limited to local ordering. Shared export
+normalization and cross-module SQL deletion are deferred. No implementation
+has started.
+
 Recorded 2026-10-09 from the user-owned Simplifier chat
 `01a11f95-5493-7f03-a412-0fd44816d15c`. Its inventory inspected `f3d4c4f` without
 edits, tests or an implementation assignment. The coordinator deferred all code

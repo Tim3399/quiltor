@@ -2,6 +2,18 @@
 
 Recorded: 2026-10-03, coordinator setup. This is a dated evidence snapshot.
 
+## Current planning — 2026-10-09
+
+The owner requested coordinator and Critic review of the six existing Simplifier
+proposals, followed by implementation planning for accepted scopes. Both reviews
+are complete: SIM-03/04/06 pass; SIM-01/02/05 are narrowed. See the authoritative
+[review and plan](simplification-review-plan.md) and the linked independent
+Critic report. Three phases and two future developer owners are planned; none
+is actively implementing. Shared export normalization and cross-module SQL
+deletion are deferred. Existing focused baselines passed (98 Python and 28
+TypeScript tests); missing characterization cases precede any refactor. Product
+source, release identity and the running local instance were not changed.
+
 ## Completed delivery — 2026-10-09
 
 [Release 3.22.0 and local review](release-3.22.0.md) is complete. Commit, remote

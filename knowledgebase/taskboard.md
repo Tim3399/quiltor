@@ -11,6 +11,8 @@ before delegating. No unscheduled row implies an agent is actively working on it
 ## Status and ownership
 
 - **Open**: unassigned work; the coordinator owns prioritization and scoping.
+- **Planned**: reviewed scope, sequence and acceptance conditions are recorded;
+  implementation has not started and the proposed developer is not yet assigned.
 - **In progress**: a named agent is actively assigned.
 - **Review**: a result exists but lead acceptance is outstanding.
 - **Blocked**: work cannot continue; name the dependency and next action.
@@ -170,21 +172,47 @@ the owner's request. Other chats' execution states have not been checked. Preser
 the existing release work and select bounded corrections rather than opening
 unrelated product features.
 
-## Read-only simplification candidates — 2026-10-09
+## Reviewed simplification plan — 2026-10-09
 
 The Simplifier returned SIM-01–03 against `f3d4c4f` and SIM-04–06 against
 `93e0f30` without edits or behavioral tests.
-They are unassigned proposals, not accepted implementation. See the
-[scoped candidate record](orchestrator/simplification-candidates.md).
+The coordinator and Critic reviewed all six. Three pass, three are narrowed;
+implementation has not started. The [final plan](orchestrator/simplification-review-plan.md)
+supersedes broader wording in the [original inventory](orchestrator/simplification-candidates.md).
+Planned owners are Dev 1 and Dev 2; neither has received an implementation task.
 
-| ID / status   | Was                                                                    | Warum                                         | Wann erledigt                                                                                                                                |
-| ------------- | ---------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| SIM-01 · Open | Share narrowly duplicated export normalization/UTF-16 helpers          | Reduce divergent maintenance in DOCX and EPUB | Characterization and regression tests preserve archives, rejection order, messages and public imports; lead reviews diff                     |
-| SIM-02 · Open | Consider a narrow internal JSON POST helper                            | Reduce repeated adapter plumbing              | Preserve URLs, world selection, decoders, options and cancellation; excluded transport cases remain unchanged; focused tests and review pass |
-| SIM-03 · Open | Normalize FreeDict text once per relevant value                        | Remove redundant text processing              | Blank-quote fallback, nested text, multiple heads and duplicates retain behavior; focused tests and review pass                              |
-| SIM-04 · Open | Reuse the Storyboard transaction context manager for owned connections | Remove duplicate connection management        | Own commit/rollback/close and untouched caller-owned transactions proven; focused storage tests and review pass                              |
-| SIM-05 · Open | Consolidate narrowly duplicated SQLite deletion/order synchronization  | Reduce divergent persistence maintenance      | Preserve ordering, rowids, references and transactions; cover empty/presence/save-deletion cases; serialize with SIM-04                      |
-| SIM-06 · Open | Share active/trash chapter normalization                               | Keep chapter normalization rules consistent   | Paired edge-case tests preserve types, bounds, ordering, extensions and input immutability; review passes                                    |
+| ID / status                | Was                                                               | Warum                                                       | Wann erledigt                                                                                                                     |
+| -------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| SIM-01 · Planned · Phase 2 | Share only the three pure UTF-16 helpers                          | Keep DOCX/EPUB offset rules consistent                      | Fixed-metadata archive equality, UTF-16 boundaries and unchanged errors/limits/imports; reviewed diff and suites                  |
+| SIM-02 · Planned · Phase 3 | Internal ordinary JSON POST function for 13 calls                 | Reduce duplicate transport setup                            | Exact fetch arguments, world selection, signal/error behavior and decoders preserved; focused and integrated gates                |
+| SIM-03 · Planned · Phase 1 | Normalize FreeDict text once per relevant element                 | Remove redundant extraction locally                         | Fallback, lazy POS, order/deduplication and independent result lists preserved; tests and review                                  |
+| SIM-04 · Planned · Phase 1 | Reuse the existing owned-connection context                       | Remove duplicate transaction management                     | Real commit/rollback/close evidence; borrowed connection and conn/db_path precedence unchanged; tests and review                  |
+| SIM-05 · Planned · Phase 3 | Local two-table order helper only                                 | Reduce local duplication without a generic SQL layer        | Same rowid transitions on reorder; no order-helper updates when unchanged; logical IDs, dependent rows and transactions preserved |
+| SIM-06 · Planned · Phase 2 | One private active/trash chapter normalization helper             | Keep chapter rules consistent                               | Paired encode/decode cases, actual integer types, errors/order/extensions/input immutability and cross-runtime fixtures pass      |
+| SIM-01-NORM · Deferred     | Reconsider shared export normalization only with new evidence     | Avoid unnecessary format/error policy abstraction           | Reopen only if a concrete maintenance need outweighs differing validation/error contracts; fresh Critic review                    |
+| SIM-05-DELETE · Deferred   | Reconsider cross-module ID-deletion helper only with new evidence | Avoid generic SQL machinery for two short correct functions | Reopen on demonstrated maintenance need with save-path deletion characterization and fresh review                                 |
+
+## Additional Simplifier intake, not yet reviewed
+
+These findings arrived after the six-item review scope was set. They are not
+covered by that acceptance and have no implementation owner. Full Was/Warum/Wann
+criteria, source locations, exclusions and ownership conflicts are in the
+[intake record](orchestrator/simplification-intake-2026-10-09.md).
+
+| ID / status                 | Review scope / Was                          | Warum                                             | Wann erledigt                                                                                         |
+| --------------------------- | ------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| SIM-07 · Open               | Place hierarchy duplicate validation        | Keep one invariant owner                          | Domain/wire contracts and failure order proven; coordinator/Critic disposition; serialize with SIM-06 |
+| SIM-08 · Open               | Field/Checkbox text and ARIA helpers        | Avoid divergent accessibility logic               | Edge cases and DOM/ref/ARIA contracts characterized; coordinator/Critic disposition                   |
+| SIM-09 · Open               | Release-tool archive JSON extraction        | Reduce bounded archive handling duplication       | Full archive/error matrix reviewed before any release-tool change                                     |
+| SIM-10 · Open               | Quality scanners' parser-session lifecycle  | Clarify shared resource ownership                 | Isolation, snapshots, syntax and disposal contracts proven; small design reviewed                     |
+| SIM-11 · Open               | Pure design-debt manifest comparison        | Reduce duplication while retaining CSS/JSX policy | Ordered diagnostics and count cases covered; serialize with SIM-10; no baseline rewrite               |
+| SIM-12 · Open               | Recovery callback error handling            | Reduce repeated local failure logic               | Both actions' failures and authorization/pending behavior characterized and reviewed                  |
+| SIM-13 · Open               | Shared import word-count rule               | Keep identical import semantics together          | All three consumers and Unicode cases reviewed; export semantics excluded                             |
+| SIM-14 · Open               | Rust formatting documentation               | Correct stale contributor guidance                | Confirm commands; scoped Markdown/link checks and review                                              |
+| SIM-15 · Open               | Commercial contact link target              | Make the contact link usable                      | Verify and narrowly correct link semantics; terms unchanged                                           |
+| SIM-16 · Open               | Export interval-clipping algorithm          | Assess another common pure algorithm              | Boundary/cursor cases characterized; separate review after SIM-01                                     |
+| SIM-17 · Open investigation | Scanner import/glob recognition differences | Avoid merging distinct acceptance contracts       | Both contracts characterized; explicit decision whether any extraction is justified                   |
+| SIM-18 · Open investigation | Visually-hidden CSS geometry differences    | Avoid accessibility/layout regressions            | Browser evidence establishes equivalence or rejects replacement                                       |
 
 ## Independent critic investigations
 
@@ -307,6 +335,12 @@ Use the source acceptance ledgers for their individual findings and detailed che
   No physical-reader EPUB validation or production upgrade above 3.20.0 is claimed.
 
 ## Change log
+
+- 2026-10-09: Coordinator and Critic completed SIM-01–06 review. Recorded three
+  unchanged and three narrowed planning approvals, two deferred portions and a
+  three-phase/two-developer plan. No implementation dispatched. Separately
+  registered newly arriving SIM-07–18 as unreviewed intake; they do not inherit
+  the six-item approval or its 98 Python / 28 TypeScript baseline results.
 
 - 2026-10-09: Published 3.22.0 after the complete supported preflight and green
   exact-revision Test/Release Build/Release Publish workflows. Verified public
