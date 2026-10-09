@@ -25,6 +25,83 @@ def document_xml(payload: bytes) -> ET.Element:
 
 
 class ManuscriptDocxExportTests(unittest.TestCase):
+    def test_utf16_spans_preserve_empty_bmp_astral_sparse_and_merged_ranges(self):
+        cases = (
+            ("", (), "", ""),
+            ("Äß中", ((0, 1, "bold"), (2, 3, "italic")), "Ä", "中"),
+            ("😀", ((0, 2, "bold"),), "😀", ""),
+            ("😀AB😀C", ((2, 4, "bold"), (3, 6, "italic")), "AB", "B😀"),
+            ("😀A\n\nB😀C", ((0, 3, "bold"), (3, 9, "bold"), (2, 8, "italic")), "😀AB😀C", "AB😀"),
+        )
+        for body, ranges, bold, italic in cases:
+            with self.subTest(body=body):
+                marks = tuple(
+                    {"from": start, "to": end, "kind": kind} for start, end, kind in ranges
+                )
+                result = serialize_docx([ExportChapter("Kapitel", body, marks)])
+                parsed = parse_docx("utf16.docx", result.content).chapters[0]
+                self.assertEqual(parsed.body, body)
+                for kind, expected in (("bold", bold), ("italic", italic)):
+                    actual = []
+                    for index, character in enumerate(body):
+                        offset = len(body[:index].encode("utf-16-le")) // 2
+                        if character != "\n" and any(
+                            mark["kind"] == kind and mark["from"] <= offset < mark["to"]
+                            for mark in parsed.marks
+                        ):
+                            actual.append(character)
+                    self.assertEqual("".join(actual), expected)
+        merged = ExportChapter(
+            "Kapitel",
+            cases[-1][0],
+            (
+                {"from": 0, "to": 9, "kind": "bold"},
+                {"from": 2, "to": 8, "kind": "italic"},
+            ),
+        )
+        self.assertEqual(result.content, serialize_docx([merged]).content)
+
+    def test_utf16_primitives_preserve_sparse_and_nonboundary_offset_behavior(self):
+        self.assertEqual(docx_export._utf16_len(""), 0)
+        self.assertEqual(docx_export._python_indexes("", {0, 1}), {0: 0})
+        self.assertEqual(docx_export._utf16_len("😀AB😀C"), 7)
+        self.assertEqual(
+            docx_export._python_indexes("😀AB😀C", {0, 1, 3, 5, 7, 99}), {0: 0, 3: 2, 7: 5}
+        )
+        encoded = "😀AB😀C".encode("utf-16-le")
+        self.assertEqual(
+            [docx_export._utf16_boundary(encoded, offset) for offset in (-1, 0, 1, 2, 5, 7, 99)],
+            [True, True, False, True, False, True, True],
+        )
+
+    def test_invalid_utf16_ranges_and_competing_errors_preserve_exact_messages(self):
+        for start, end in ((1, 2), (0, 1), (2, 3), (-1, 2), (0, 0)):
+            with (
+                self.subTest(start=start, end=end),
+                self.assertRaises(InvalidExportContent) as caught,
+            ):
+                serialize_docx(
+                    [ExportChapter("Kapitel", "😀", ({"from": start, "to": end, "kind": "bold"},))]
+                )
+            self.assertIs(type(caught.exception), InvalidExportContent)
+            self.assertEqual(str(caught.exception), "A DOCX mark range is invalid.")
+        invalid = ExportChapter("Bad\x00", "😀", ({"from": 1, "to": 2, "kind": "bold"},))
+        cases = (
+            ([invalid], DocxExportOptions("unknown"), "DOCX export options are invalid."),
+            ([invalid], None, "DOCX text contains an unrepresentable character."),
+            ([], DocxExportOptions("unknown"), "DOCX export options are invalid."),
+            (
+                [ExportChapter("Kapitel", "\ud800")],
+                None,
+                "DOCX text contains an unrepresentable character.",
+            ),
+        )
+        for chapters, options, message in cases:
+            with self.subTest(message=message), self.assertRaises(InvalidExportContent) as caught:
+                serialize_docx(chapters, options)
+            self.assertIs(type(caught.exception), InvalidExportContent)
+            self.assertEqual(str(caught.exception), message)
+
     def test_editor_round_trip_preserves_text_order_whitespace_and_utf16_marks(self):
         chapters = (
             ExportChapter(
