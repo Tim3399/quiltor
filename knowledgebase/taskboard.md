@@ -172,15 +172,19 @@ unrelated product features.
 
 ## Read-only simplification candidates — 2026-10-09
 
-The Simplifier returned these candidates against `f3d4c4f` without edits or tests.
+The Simplifier returned SIM-01–03 against `f3d4c4f` and SIM-04–06 against
+`93e0f30` without edits or behavioral tests.
 They are unassigned proposals, not accepted implementation. See the
 [scoped candidate record](orchestrator/simplification-candidates.md).
 
-| ID / status   | Was                                                           | Warum                                         | Wann erledigt                                                                                                                                |
-| ------------- | ------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| SIM-01 · Open | Share narrowly duplicated export normalization/UTF-16 helpers | Reduce divergent maintenance in DOCX and EPUB | Characterization and regression tests preserve archives, rejection order, messages and public imports; lead reviews diff                     |
-| SIM-02 · Open | Consider a narrow internal JSON POST helper                   | Reduce repeated adapter plumbing              | Preserve URLs, world selection, decoders, options and cancellation; excluded transport cases remain unchanged; focused tests and review pass |
-| SIM-03 · Open | Normalize FreeDict text once per relevant value               | Remove redundant text processing              | Blank-quote fallback, nested text, multiple heads and duplicates retain behavior; focused tests and review pass                              |
+| ID / status   | Was                                                                    | Warum                                         | Wann erledigt                                                                                                                                |
+| ------------- | ---------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| SIM-01 · Open | Share narrowly duplicated export normalization/UTF-16 helpers          | Reduce divergent maintenance in DOCX and EPUB | Characterization and regression tests preserve archives, rejection order, messages and public imports; lead reviews diff                     |
+| SIM-02 · Open | Consider a narrow internal JSON POST helper                            | Reduce repeated adapter plumbing              | Preserve URLs, world selection, decoders, options and cancellation; excluded transport cases remain unchanged; focused tests and review pass |
+| SIM-03 · Open | Normalize FreeDict text once per relevant value                        | Remove redundant text processing              | Blank-quote fallback, nested text, multiple heads and duplicates retain behavior; focused tests and review pass                              |
+| SIM-04 · Open | Reuse the Storyboard transaction context manager for owned connections | Remove duplicate connection management        | Own commit/rollback/close and untouched caller-owned transactions proven; focused storage tests and review pass                              |
+| SIM-05 · Open | Consolidate narrowly duplicated SQLite deletion/order synchronization  | Reduce divergent persistence maintenance      | Preserve ordering, rowids, references and transactions; cover empty/presence/save-deletion cases; serialize with SIM-04                      |
+| SIM-06 · Open | Share active/trash chapter normalization                               | Keep chapter normalization rules consistent   | Paired edge-case tests preserve types, bounds, ordering, extensions and input immutability; review passes                                    |
 
 ## Independent critic investigations
 
