@@ -61,6 +61,13 @@ assuming either document is correct.
 
 ## Working agreement
 
+- Standing owner instruction (2026-10-09): every implementation plan names one
+  explicit target release version. Once coordinator and Critic accept the plan,
+  begin its accepted scope directly without another owner confirmation. Internal
+  implementation/diff reviews remain required. For the current SIM-01–06 plan,
+  target 3.22.1 and commit/push/tag after complete local tests are authorized;
+  verify the green publication pipeline. Do not infer production deployment.
+
 - Use stable task IDs. Every task has a status, owner, Was, Warum, Wann erledigt,
   source and next action or dependency. Split broad roadmap groups before assigning
   implementation; do not give an agent an entire open-ended roadmap.

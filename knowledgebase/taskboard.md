@@ -174,23 +174,29 @@ unrelated product features.
 
 ## Reviewed simplification plan — 2026-10-09
 
+Target release: **3.22.1 (patch)**. Commit, push and publisher-created tag are
+authorized after complete local verification. Follow the execution ledger through
+green exact-revision release workflows and confirmed publication.
+
 The Simplifier returned SIM-01–03 against `f3d4c4f` and SIM-04–06 against
 `93e0f30` without edits or behavioral tests.
 The coordinator and Critic reviewed all six. Three pass, three are narrowed;
-implementation has not started. The [final plan](orchestrator/simplification-review-plan.md)
+the owner has now authorized implementation. The [final plan](orchestrator/simplification-review-plan.md)
 supersedes broader wording in the [original inventory](orchestrator/simplification-candidates.md).
-Planned owners are Dev 1 and Dev 2; neither has received an implementation task.
+The Implementer is assigned phase 1 for Dev 1 and Dev 2. Follow the
+[execution ledger](orchestrator/simplification-execution.md) for actual worktree
+bases, phase reviews and combined acceptance; later phases remain planned.
 
-| ID / status                | Was                                                               | Warum                                                       | Wann erledigt                                                                                                                     |
-| -------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| SIM-01 · Planned · Phase 2 | Share only the three pure UTF-16 helpers                          | Keep DOCX/EPUB offset rules consistent                      | Fixed-metadata archive equality, UTF-16 boundaries and unchanged errors/limits/imports; reviewed diff and suites                  |
-| SIM-02 · Planned · Phase 3 | Internal ordinary JSON POST function for 13 calls                 | Reduce duplicate transport setup                            | Exact fetch arguments, world selection, signal/error behavior and decoders preserved; focused and integrated gates                |
-| SIM-03 · Planned · Phase 1 | Normalize FreeDict text once per relevant element                 | Remove redundant extraction locally                         | Fallback, lazy POS, order/deduplication and independent result lists preserved; tests and review                                  |
-| SIM-04 · Planned · Phase 1 | Reuse the existing owned-connection context                       | Remove duplicate transaction management                     | Real commit/rollback/close evidence; borrowed connection and conn/db_path precedence unchanged; tests and review                  |
-| SIM-05 · Planned · Phase 3 | Local two-table order helper only                                 | Reduce local duplication without a generic SQL layer        | Same rowid transitions on reorder; no order-helper updates when unchanged; logical IDs, dependent rows and transactions preserved |
-| SIM-06 · Planned · Phase 2 | One private active/trash chapter normalization helper             | Keep chapter rules consistent                               | Paired encode/decode cases, actual integer types, errors/order/extensions/input immutability and cross-runtime fixtures pass      |
-| SIM-01-NORM · Deferred     | Reconsider shared export normalization only with new evidence     | Avoid unnecessary format/error policy abstraction           | Reopen only if a concrete maintenance need outweighs differing validation/error contracts; fresh Critic review                    |
-| SIM-05-DELETE · Deferred   | Reconsider cross-module ID-deletion helper only with new evidence | Avoid generic SQL machinery for two short correct functions | Reopen on demonstrated maintenance need with save-path deletion characterization and fresh review                                 |
+| ID / status                               | Was                                                               | Warum                                                       | Wann erledigt                                                                                                                     |
+| ----------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| SIM-01 · Done locally · Implementer/Dev 1 | Share only the three pure UTF-16 helpers                          | Keep DOCX/EPUB offset rules consistent                      | Fixed-metadata archive equality, UTF-16 boundaries and unchanged errors/limits/imports; reviewed diff and suites                  |
+| SIM-02 · Done locally · Phase 3           | Internal ordinary JSON POST function for 13 calls                 | Reduce duplicate transport setup                            | Exact fetch arguments, world selection, signal/error behavior and decoders preserved; focused and integrated gates                |
+| SIM-03 · Done locally · Dev 2             | Normalize FreeDict text once per relevant element                 | Remove redundant extraction locally                         | Fallback, lazy POS, order/deduplication and independent result lists preserved; tests and review                                  |
+| SIM-04 · Done locally · Dev 1             | Reuse the existing owned-connection context                       | Remove duplicate transaction management                     | Real commit/rollback/close evidence; borrowed connection and conn/db_path precedence unchanged; tests and review                  |
+| SIM-05 · Done locally · Phase 3           | Local two-table order helper only                                 | Reduce local duplication without a generic SQL layer        | Same rowid transitions on reorder; no order-helper updates when unchanged; logical IDs, dependent rows and transactions preserved |
+| SIM-06 · Done locally · Implementer/Dev 2 | One private active/trash chapter normalization helper             | Keep chapter rules consistent                               | Paired encode/decode cases, actual integer types, errors/order/extensions/input immutability and cross-runtime fixtures pass      |
+| SIM-01-NORM · Deferred                    | Reconsider shared export normalization only with new evidence     | Avoid unnecessary format/error policy abstraction           | Reopen only if a concrete maintenance need outweighs differing validation/error contracts; fresh Critic review                    |
+| SIM-05-DELETE · Deferred                  | Reconsider cross-module ID-deletion helper only with new evidence | Avoid generic SQL machinery for two short correct functions | Reopen on demonstrated maintenance need with save-path deletion characterization and fresh review                                 |
 
 ## Additional Simplifier intake, not yet reviewed
 

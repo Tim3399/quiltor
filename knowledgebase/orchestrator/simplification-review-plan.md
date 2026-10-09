@@ -1,9 +1,17 @@
 # Simplification review and implementation plan
 
+Target release: **3.22.1 (patch)**, assigned by the owner's follow-up on 2026-10-09.
+After implementation and complete local tests, commit, push and publication are
+authorized. The execution ledger tracks release completion. SIM-07–18 are excluded.
+
 Requested 2026-10-09: the coordinator and Critic review the existing six proposals;
 plan implementation only for proposals that pass. This request does not start
 implementation. Review baseline: `a7ce672`; product source equals released
 `a8e9e69` / 3.22.0. The initial working tree was clean.
+
+Subsequent owner instruction on 2026-10-09 authorizes implementation. The
+[execution ledger](simplification-execution.md) supersedes the historical
+not-started statements below; the reviewed scope and acceptance gates remain.
 
 ## Coordinator review
 
@@ -83,11 +91,11 @@ six-candidate decision or inherit its test evidence.
 
 ## Execution sequence
 
-The sequence incorporates both reviews. Developer labels identify future
-ownership, not active assignments. The
-coordinator sends one bounded Was/Warum/Wann brief at a time; workers do not
-delegate or edit another owner's files. The coordinator owns integration and
-generated `dist/`, so no parallel builds write the same checkout.
+The sequence incorporates both reviews. Current assignments and phase acceptance
+are recorded in the execution ledger. The Implementer dispatches bounded
+Was/Warum/Wann briefs to the existing Dev team. Dev 3 owns serial integration and
+generated `dist/` in its authorized checkout; the coordinator owns acceptance and
+release delivery. No parallel builds write the same checkout.
 
 | Phase                       | Planned owner | Task / Was                                                                 | Warum                                                                         | Wann erledigt                                                                                                                                 |
 | --------------------------- | ------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -145,6 +153,7 @@ generated `dist/`, so no parallel builds write the same checkout.
    migration, output difference or unavoidable cross-owner edit stops that slice
    for coordinator review. Do not absorb it as incidental cleanup. A refactor
    whose helper/parameters make its callers less clear is rejected or narrowed.
-6. Completion is reviewed implementation with valid combined checks and updated
-   taskboard. This plan does not authorize a version bump, tag, production
-   deployment or new release; those are separate delivery decisions.
+6. The owner's follow-up authorizes patch release 3.22.1 after complete local
+   verification. Use the supported updater and existing release pipeline;
+   require green exact-revision checks and a published matching tag/assets.
+   Keep production deployment separate. Update the taskboard with final evidence.
