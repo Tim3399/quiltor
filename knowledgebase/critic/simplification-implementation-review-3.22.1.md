@@ -307,3 +307,92 @@ SIM-05 at `ad57a5f` and SIM-02 at `bd7f5a0` satisfy their narrowed plans and are
 All six narrowed simplifications have now passed independent patch review. The rejected or deferred broader abstractions remain outside that acceptance, including cross-module SQL deletion and broader normalization helpers. If integration alters a reviewed diff, reassess the affected portion. The required `npm run build` and `npm test`, relevant backend checks and release checks still belong on the integrated revision; they were not rerun as full gates for this targeted review. Passing these patches does not establish that the release or the entire project is defect-free.
 
 The critic edited only this report for implementation review. No source/test edits, commits, pushes, tags or server actions were performed.
+
+## Release completion review: missing native exit status
+
+**Verdict: the logged preflight and five-file version transaction are supported; a captured native exit 0 for the complete updater invocation is not. The proposed bounded recovery and full rerun are justified to meet that explicit completion criterion. This is an external launcher/evidence defect, not a new rejection of the six product patches.**
+
+Reviewed run: `C:/Users/timra/AppData/Local/CodexWork/quiltor/dev3-version-updater/20261009T155634649Z-4e7b16a2b8f1457a88e27584e5400854`. Its `started.json` records `npm run set-version -- patch`, the integration checkout, launcher PID 26404, start time `2026-10-09T15:56:34.6754111Z`, and matching expected/actual revision `90332abc2cd19b6b2554441756350b529b467ea3`.
+
+### What the evidence establishes
+
+The critic inspected both retained logs, the saved original launcher, the corrected launcher currently on disk, the integration checkout's authoritative updater/preflight/Python resolver, and the actual version diff. At inspection, HEAD was still `90332ab`, with exactly five modified files: `VERSION`, `package.json`, `package-lock.json`, `Cargo.toml`, and `Cargo.lock`. The complete diff changes only their seven version entries from 3.22.0 to 3.22.1; no product, updater, preflight or resolver modification was present. `git -c safe.directory=C:/Users/timra/git/quiltor/quiltor-dev3-integration diff --check` passed.
+
+The logs contain these completed suite summaries:
+
+| Suite           | Recorded result                         |
+| --------------- | --------------------------------------- |
+| Backend         | 1134 tests run, OK, including 6 skipped |
+| CLI             | 4 tests run, OK                         |
+| Frontend        | 1598 passed across 230 files            |
+| Product browser | 338 passed, 193 skipped                 |
+| Design browser  | 144 passed                              |
+
+The stdout sequence also includes formatting, portable Rust checks, frontend build and committed-dist comparison, wheel/sdist builds, isolated wheel checks, and both container build/verification groups. The decisive final preflight marker is stdout line 2270, after the browser/design summaries, followed by the version transition and all five updated-file messages at lines 2271-2276 and the final commit guidance. An earlier identical preflight marker at line 230 occurs during backend test output and must not be mistaken for the real run's completion.
+
+This sequence has a concrete control-flow basis. `release_preflight.py:134-147` rejects a nonzero gate subprocess return code. `run_preflight` runs the declared checks, portable artifact builds and browser suite before printing its final success line at 661. Browser teardown failures are propagated before that point. `set_version.py:390-411` only proceeds after preflight returns and the validated five-file replacement succeeds. Its observed final guidance at lines 413-423 is followed by `return 0` and `SystemExit(main())`. The Node resolver forwards the Python status with `process.exit(run.status ?? 1)`.
+
+Consequently, the available evidence supports that the gates completed and the updater reached its normal success path after writing 3.22.1. It does not support calling the entire launcher invocation successful, nor does it turn pre-bump artifact checks into published/signed 3.22.1 release artifacts.
+
+### The missing observation
+
+The original external launcher clears `$LASTEXITCODE` at line 127, invokes Node/npm at line 128, reads `$LASTEXITCODE` at 129 and throws on null at 130, before writing the exit file at 131. The recorded `launcher-error.txt` identifies precisely that null-status exception. Its catch path sets the launcher result to 1. `updater.exitcode.txt` is absent.
+
+The saved artifacts contain no captured native exit status for the top-level updater process. The retained npm debug logs show exit 0 for subordinate build/test commands, but contain no `npm run set-version` log. Those subordinate results and the Python success-path messages do not substitute for the missing top-level observation. A process can reach its last normal application message without that message being an operating-system exit record. The exact reason PowerShell left the variable null was not independently reproduced by the critic; local/global exit-variable shadowing is the correction author's diagnosis, not an additional proven finding here.
+
+Do not manufacture the old exit file, infer its value from a later successful command, or describe the missing capture as a failed product gate. Without an independently retained process result, source inspection cannot retroactively supply the promised native-exit observation.
+
+### Recovery plan assessment
+
+The proposed recovery is proportionate and accepted with the following execution conditions:
+
+1. Preserve the original launcher, complete old logs, start/error records, exact five-file diff and current manifest bytes before restoration. Keep this run recorded as gates/version update completed with launcher completion failure.
+2. Correct only the external launcher's process-status capture. The inspected revision now starts Node/npm through `Start-Process -PassThru -WindowStyle Hidden`, redirects both logs, waits for exit, refreshes the retained process object and reads its `ExitCode` at lines 128-136. This removes dependence on `$LASTEXITCODE` for the updater. Static inspection supports the approach; isolated zero/nonzero child-process probes still need to demonstrate exact status propagation, log capture and failure handling through the actual corrected capture path. A null or unavailable result must remain failure, never default to zero.
+3. Before restoring anything, recheck HEAD, branch and the complete status/diff. Only the five generated manifests may differ, and only by the reviewed version transaction. Save them, then restore only those exact paths from `90332abc2cd19b6b2554441756350b529b467ea3`. Stop if concurrent or unexpected edits appear. Do not use a blanket reset/clean, change product code, commit a temporary rollback or alter Git history.
+4. Verify the checkout is completely clean at that revision and all version copies are again 3.22.0. Run the unchanged supported `npm run set-version -- patch` once through the corrected launcher with a new artifact directory and the same pinned toolchains. Run its complete preflight; do not call `apply_version` directly, reuse a partial gate selection, or apply another patch bump while 3.22.1 remains present.
+5. Accept completion only after observing and recording the actual native updater exit 0, successful launcher completion, fresh full-run logs, unchanged expected HEAD and the exact five-file 3.22.0-to-3.22.1 diff. Any new nonzero/null result remains unresolved; no automatic retry to 3.22.2 is authorized by this plan.
+
+The full rerun is necessary for the stated completion promise if the original process result cannot be recovered; it is not required because the existing successful gate evidence has become false. No supported resume/skip mode exists in the inspected updater, and its clean-tree/increasing-version guards explain why bounded restoration must precede repetition. The critic did not execute these recovery steps or either updater run.
+
+### Evidence identities and review limits
+
+SHA-256 values recorded during inspection:
+
+| Evidence                                      | SHA-256                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------ |
+| `Invoke-ApprovedVersionUpdater.original.ps1`  | `6f74b05a6d993f71e3193dedfc2808dcf3590f5cfd89ce4bef4dd9c295713f9b` |
+| Corrected `Invoke-ApprovedVersionUpdater.ps1` | `0974d064233db5fc0ca394983950829a8b66deb033053082f063192c355b0f33` |
+| Original run stdout                           | `d695a78b58ef678dc46515e4692c26cb060bfb4e7b538984f33b2dbd2060fa42` |
+| Original run stderr                           | `72c4d84021e3e7cf9be4d05e27d1aba9b21fa562a0179b8f557a5f94d8ef3675` |
+
+This addendum is a read-only diagnostic review plus an update to this report. The critic ran no product suite, launcher probe, updater, restoration, version bump or server action. The suite counts above are independently inspected original-run evidence, not fresh critic test executions. Product patch acceptance remains unchanged; release completion remains pending until the missing observation is satisfied.
+
+## CI recovery plan review: Windows dependency installation
+
+**Pass for one bounded retry of the demonstrated installation failure on unchanged SHA `9695cd4e72091a782377912a8bff08bab5f4f6d0`, after the remaining jobs finish. Any additional failed job must be classified from its own evidence before inclusion; a product assertion failure does not inherit this approval.**
+
+The coordinator reports that the second local updater run captured native exit 0 and launcher exit 0 and that the release commit reached main. That is subsequent context for the historical launcher review above; this short review independently checks the CI failure and recovery plan, not the second local run or live publication status.
+
+The critic read `job.json` and `job-log.raw.log` in `C:/Users/timra/AppData/Local/CodexWork/quiltor/dev3-ci-monitor-3.22.1/failed-job-113928073943`, and the two workflow definitions directly from the stated release commit. Test run `37961937563`, attempt 1, job `113928073943` is `Product on windows-2025 / shard 5 of 8`. Both job metadata and the checkout log identify the exact release SHA. Step 5 (`npm ci`) failed with exit 1; Chromium installation, unit tests, application installation/start and the product suite were all skipped. No product assertion ran in this job. The successful diagnostic-upload step found no test/server files and is not test evidence.
+
+The log records `EEXIST`, syscall `rename`, and an `ENOENT` message for movement from `C:\npm\cache\_cacache\tmp\b213b91f` into the content-addressed cache. It also records an `EPERM` cleanup warning under `node_modules`. These establish the failure stage and symptoms, not the underlying cause. In particular, setup-node reports `npm cache is not found` at raw-log line 131. A corrupted restored Actions cache, concurrent access, antivirus interference or a transient runner defect is therefore not an established diagnosis. The runner used Node 22.23.2 and npm 10.9.8 as expected.
+
+The unchanged workflow selects a GitHub-hosted Windows runner, enables npm caching and executes installation before unit/product tests. One new job attempt with the same SHA and unchanged workflow/lockfile is a reasonable way to obtain the missing test execution and check whether the install failure recurs. A new runner does not itself establish an empty npm cache or identical external state; retain the retry's runner identity, cache restore output, attempt/job IDs and full logs. Even a successful retry would establish success of that attempt, not prove the original root cause.
+
+After the remaining jobs finish, retry only the evidenced failed job(s) once. Preserve the first failure; make no speculative cache deletion, source/workflow change, force-install, version bump or manual tag. Require successful installation and actual unit/product execution in the replacement job, then assess the final Test result. If the same installation failure recurs, stop retries and inspect the npm debug log, cache provenance and workflow/runner environment. If a different failure appears, diagnose that failure rather than automatically retrying again.
+
+Release Build `37961937425` has a separate portable release gate: at this SHA, `release.yml:37-63` runs the full `release_preflight.py`. Its eventual outcome must be evaluated independently and does not turn the skipped Windows shard into a pass. No overall green CI or completed release is asserted here. The critic performed no CI action or product edit and only appended this review to the existing report.
+
+## CI recovery plan extension: Windows backend setup timeout
+
+**Pass to include job `113926686234` in the same one-time retry on unchanged SHA `9695cd4e72091a782377912a8bff08bab5f4f6d0`, after all remaining failures have been individually classified. This is a retry of a genuine failed backend run with an unresolved cause, not acceptance of a proven runner flake.**
+
+The critic inspected the job JSON and raw log in `C:/Users/timra/AppData/Local/CodexWork/quiltor/dev3-ci-monitor-3.22.1/failed-job-113926686234`, the test and route at the exact release revision, the world-creation call path, and Dev 3's retained file-identity evidence. In Test run `37961937563`, attempt 1, `Core on windows-2025` completed its backend step with exit 1: **1134 tests run in 311.946 seconds, errors=1, skipped=3**. The subsequent Portable core step was skipped. This job differs from the npm-install failure: its backend suite did execute, but the named test body did not.
+
+The error is in `ServerAssistantRouteTests.setUp`, at `test_server_assistant.py:134`, during `POST http://127.0.0.1:<assigned-port>/api/worlds/create` with `{"title":"Testwelt","backupUrl":""}`. The fixture starts a real server on loopback port 0 and uses the assigned port. `_request` at line 119 supplies `timeout=5`. The stack ends while reading the HTTP response status (`http.client._read_status` to `socket.recv_into`), before even the fixture's status-200 assertion and before the progress-authorization test body. It does not identify a failed authorization assertion, a connection refusal, or the server-side point at which time was spent.
+
+The route reads JSON, takes `app.lock`, invokes `app.worlds.create`, then sends JSON after releasing the lock. Creation goes through the world use case and SQLite repository into `world_catalog.create_world`, which initializes the world database and writes initial metadata/chapter/tree rows. The retained exact-base comparison confirms unchanged test/HTTP host/route files. However, unchanged entry points do not exclude timing or storage effects elsewhere in the process: the release changes the Story World and Storyboard persistence modules, and the client traceback contains no server stack, lock-wait measurement or storage timing. No concrete execution point inside a refactored helper is established either. The reported two successful complete local Windows runs and Linux backend success support trying once again, but do not explain this failure.
+
+One unchanged full-job retry is therefore a reasonable bounded diagnostic step without guessing at a product fix. Preserve attempt 1 and capture the new attempt/job/runner identity and complete logs. Success must cover the full backend suite and the previously skipped Portable core step, not only the named test. Do not increase the timeout, insert sleeps, skip tests, alter storage or reset caches to obtain green. A repeated setup timeout ends this retry allowance and requires targeted diagnosis of server scheduling, request handling, application-lock ownership, world creation/storage and fixture resource cleanup. A different failure also requires classification before further action. A successful repeat would establish that attempt's result, not retroactively prove an infrastructure-only cause.
+
+The critic made no CI mutation, ran no test or retry, and changed only this report. Existing product patch acceptance remains unchanged; final CI and publication acceptance remain separate.

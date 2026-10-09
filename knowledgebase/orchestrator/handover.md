@@ -4,14 +4,19 @@ Recorded: 2026-10-03, coordinator setup. This is a dated evidence snapshot.
 
 ## Current planning — 2026-10-09
 
-Follow-up: implementation is now active and assigned to the Implementer/Dev team;
-see [execution](simplification-execution.md). Target release **3.22.1**, with
-commit/push/tag authorized after full local tests and verified green publication.
+All six implementations are accepted by coordinator and Critic and published in
+**3.22.1**, release commit `9695cd4e72091a782377912a8bff08bab5f4f6d0`.
+The complete local preflight passed; Test 37961937563 attempt 2 passed all 22
+jobs. Release Build 37961937425 and Release Publish 37965077220 succeeded.
+Tag, public assets and OCI digests were independently verified. See
+[execution](simplification-execution.md) for recovery and final delivery evidence.
+The release checkout is `quiltor-dev3-integration`; the primary checkout remains
+on `codex/roadmap-followup` with 3.22.0 product sources and coordinator records.
 The owner established a standing rule: assign every plan a release version and
 start accepted scopes directly after coordinator + Critic approval. The earlier
 planning-only status below is historical.
 
-The owner requested coordinator and Critic review of the six existing Simplifier
+Historical planning snapshot: the owner requested coordinator and Critic review of the six existing Simplifier
 proposals, followed by implementation planning for accepted scopes. Both reviews
 are complete: SIM-03/04/06 pass; SIM-01/02/05 are narrowed. See the authoritative
 [review and plan](simplification-review-plan.md) and the linked independent
@@ -31,9 +36,11 @@ downloaded and verified against the manifest and exact revision. Native installe
 targets remain disabled as configured. The release ledger carries the complete
 commands, counts, digests and links.
 
-The documented local launcher is running at `http://127.0.0.1:5173/` with the
-existing data directory. Direct API and UI proxy report 3.22.0; the original ten
-active project IDs match exactly. Processes were left running. No production
+At the 3.22.0 delivery checkpoint, the documented local launcher was running at
+`http://127.0.0.1:5173/` with the existing data directory. Direct API and UI proxy
+reported 3.22.0; the original ten active project IDs matched exactly. A subsequent
+read-only check after 3.22.1 publication found both ports 5173 and 8010 offline;
+the shutdown cause is not established. No restart was performed. No production
 deployment occurred; last verified production remains 3.20.0.
 
 Occupied-map deletion is protected, valid empty deletion cleans references and

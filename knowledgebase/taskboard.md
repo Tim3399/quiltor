@@ -1,7 +1,7 @@
 # Quiltor taskboard
 
-Updated: 2026-10-09. Maintainer: coordinator. Published product baseline: 3.22.0
-(`a8e9e69`). See [handover](orchestrator/handover.md) for evidence limits.
+Updated: 2026-10-09. Maintainer: coordinator. Published product baseline: 3.22.1
+(`9695cd4`). See [handover](orchestrator/handover.md) for evidence limits.
 
 This is the coordination index for open, assigned, reviewed and completed work.
 Detailed requirements remain in their linked sources. Roadmap rows are grouped
@@ -165,7 +165,7 @@ See [release blockers](orchestrator/release-blockers-2026-10-04.md) for agent ow
 | DOC-01 · Open · Coordinator            | Reconcile stale “next delivery” text and partial umbrella checkboxes                | Readers currently receive contradictory sequencing                  | R/S introductions match S13–S16 evidence; completed format slices remain credited and remaining requirements stay explicit                        | R:368–369, 506–523; S:21–23; update narrowly, preserve historical evidence                 |
 | MOBILE-01 · Done · Coordinator         | Accept existing responsive project-selector changes                                 | Compact project selection must remain usable                        | Source and behavior reviewed; Windows/Linux/macOS references restored and reviewed; native strict comparison and full CI passed                   | Accepted in CLOSE-03; publication separately tracked in REL-S16                            |
 | REL-S16 · Done · Coordinator           | Integrate and publish the next minor delivery containing locally accepted EPUB work | Users cannot install uncommitted functionality                      | 3.22.0 committed/pushed/tagged; exact-revision Test/Build/Publish green; public assets verified; local app running with all ten existing projects | Release a8e9e69; see orchestrator/release-3.22.0.md; EXP-03 remains separate               |
-| OPS-UPGRADE · Open · Coordinator       | Reconcile deployed server with the chosen release target                            | Published packages do not establish production state                | Record current deployed version; when deployment is in scope, verify backup, migration, application and public access for the chosen version      | Last verified production 3.20.0; published baseline 3.22.0; scope deployment separately    |
+| OPS-UPGRADE · Open · Coordinator       | Reconcile deployed server with the chosen release target                            | Published packages do not establish production state                | Record current deployed version; when deployment is in scope, verify backup, migration, application and public access for the chosen version      | Last verified production 3.20.0; published baseline 3.22.1; scope deployment separately    |
 
 The active campaign above supersedes the earlier release-first queue ordering at
 the owner's request. Other chats' execution states have not been checked. Preserve
@@ -183,20 +183,22 @@ The Simplifier returned SIM-01–03 against `f3d4c4f` and SIM-04–06 against
 The coordinator and Critic reviewed all six. Three pass, three are narrowed;
 the owner has now authorized implementation. The [final plan](orchestrator/simplification-review-plan.md)
 supersedes broader wording in the [original inventory](orchestrator/simplification-candidates.md).
-The Implementer is assigned phase 1 for Dev 1 and Dev 2. Follow the
-[execution ledger](orchestrator/simplification-execution.md) for actual worktree
-bases, phase reviews and combined acceptance; later phases remain planned.
+All six implementations are accepted by coordinator and Critic. The complete
+supported local release preflight passed on the combined source; release commit
+`9695cd4` is on main and tag v3.22.1. All 22 final Test jobs, Release Build and Release Publish passed; public artifacts were independently verified. SIM-01–06 are Done and published in 3.22.1.
+Follow the [execution ledger](orchestrator/simplification-execution.md) for
+phase reviews, the documented launcher recovery and final delivery evidence.
 
-| ID / status                               | Was                                                               | Warum                                                       | Wann erledigt                                                                                                                     |
-| ----------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| SIM-01 · Done locally · Implementer/Dev 1 | Share only the three pure UTF-16 helpers                          | Keep DOCX/EPUB offset rules consistent                      | Fixed-metadata archive equality, UTF-16 boundaries and unchanged errors/limits/imports; reviewed diff and suites                  |
-| SIM-02 · Done locally · Phase 3           | Internal ordinary JSON POST function for 13 calls                 | Reduce duplicate transport setup                            | Exact fetch arguments, world selection, signal/error behavior and decoders preserved; focused and integrated gates                |
-| SIM-03 · Done locally · Dev 2             | Normalize FreeDict text once per relevant element                 | Remove redundant extraction locally                         | Fallback, lazy POS, order/deduplication and independent result lists preserved; tests and review                                  |
-| SIM-04 · Done locally · Dev 1             | Reuse the existing owned-connection context                       | Remove duplicate transaction management                     | Real commit/rollback/close evidence; borrowed connection and conn/db_path precedence unchanged; tests and review                  |
-| SIM-05 · Done locally · Phase 3           | Local two-table order helper only                                 | Reduce local duplication without a generic SQL layer        | Same rowid transitions on reorder; no order-helper updates when unchanged; logical IDs, dependent rows and transactions preserved |
-| SIM-06 · Done locally · Implementer/Dev 2 | One private active/trash chapter normalization helper             | Keep chapter rules consistent                               | Paired encode/decode cases, actual integer types, errors/order/extensions/input immutability and cross-runtime fixtures pass      |
-| SIM-01-NORM · Deferred                    | Reconsider shared export normalization only with new evidence     | Avoid unnecessary format/error policy abstraction           | Reopen only if a concrete maintenance need outweighs differing validation/error contracts; fresh Critic review                    |
-| SIM-05-DELETE · Deferred                  | Reconsider cross-module ID-deletion helper only with new evidence | Avoid generic SQL machinery for two short correct functions | Reopen on demonstrated maintenance need with save-path deletion characterization and fresh review                                 |
+| ID / status                       | Was                                                               | Warum                                                       | Wann erledigt                                                                                                                     |
+| --------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| SIM-01 · Done · Implementer/Dev 1 | Share only the three pure UTF-16 helpers                          | Keep DOCX/EPUB offset rules consistent                      | Fixed-metadata archive equality, UTF-16 boundaries and unchanged errors/limits/imports; reviewed diff and suites                  |
+| SIM-02 · Done · Phase 3           | Internal ordinary JSON POST function for 13 calls                 | Reduce duplicate transport setup                            | Exact fetch arguments, world selection, signal/error behavior and decoders preserved; focused and integrated gates                |
+| SIM-03 · Done · Dev 2             | Normalize FreeDict text once per relevant element                 | Remove redundant extraction locally                         | Fallback, lazy POS, order/deduplication and independent result lists preserved; tests and review                                  |
+| SIM-04 · Done · Dev 1             | Reuse the existing owned-connection context                       | Remove duplicate transaction management                     | Real commit/rollback/close evidence; borrowed connection and conn/db_path precedence unchanged; tests and review                  |
+| SIM-05 · Done · Phase 3           | Local two-table order helper only                                 | Reduce local duplication without a generic SQL layer        | Same rowid transitions on reorder; no order-helper updates when unchanged; logical IDs, dependent rows and transactions preserved |
+| SIM-06 · Done · Implementer/Dev 2 | One private active/trash chapter normalization helper             | Keep chapter rules consistent                               | Paired encode/decode cases, actual integer types, errors/order/extensions/input immutability and cross-runtime fixtures pass      |
+| SIM-01-NORM · Deferred            | Reconsider shared export normalization only with new evidence     | Avoid unnecessary format/error policy abstraction           | Reopen only if a concrete maintenance need outweighs differing validation/error contracts; fresh Critic review                    |
+| SIM-05-DELETE · Deferred          | Reconsider cross-module ID-deletion helper only with new evidence | Avoid generic SQL machinery for two short correct functions | Reopen on demonstrated maintenance need with save-path deletion characterization and fresh review                                 |
 
 ## Additional Simplifier intake, not yet reviewed
 

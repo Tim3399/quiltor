@@ -13,11 +13,15 @@ and the local instance with all ten existing projects are verified. External EPU
 CI validation, roadmap reconciliation and read-only Simplifier candidates remain
 separately queued. S17 remains deferred; production was not upgraded.
 
-Completed review (2026-10-09): the coordinator and Critic assessed SIM-01–06.
-The [implementation plan](simplification-review-plan.md) records the accepted
-narrow scopes, three phases, planned owners and required evidence. No developer
-has been dispatched; the broader normalization and SQL-deletion proposals are
-deferred.
+Completed delivery (2026-10-09): SIM-01–06 were implemented by the developer team,
+accepted by coordinator and Critic, and published in **3.22.1** at `9695cd4`.
+Complete local release checks and all 22 final CI Test jobs passed; Build,
+Publish, tag and public artifacts were verified. The [execution ledger](simplification-execution.md)
+retains original failures, approved recovery and final evidence. Broader
+normalization/deletion proposals and SIM-07–18 remain outside this scope.
+
+Standing owner rule: every implementation/recovery plan names its target release.
+After coordinator and Critic approval, execute the accepted scope directly.
 
 The owner has assigned development coordination to this agent. Delegate bounded
 work with **Was**, **Warum** and **Wann erledigt**: the requested change, its reason,
