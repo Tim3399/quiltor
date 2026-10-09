@@ -8,6 +8,16 @@ import { createHttpApplicationState } from "./request";
 
 const WORLD_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
+const savedStatus = {
+  ok: true as const,
+  endpoint: null,
+  changes: ["figures.json"],
+  changeCount: 1,
+  suggestedMessage: "Figuren sichern",
+  lastSuccessfulTransfer: null,
+  transferredSnapshotId: null,
+};
+
 function response(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -18,6 +28,76 @@ function response(body: unknown): Response {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("backup HTTP port", () => {
+  it("preserves exact POST requests for selected and unselected worlds", async () => {
+    const cases = [
+      {
+        name: "save snapshot",
+        invoke: (gateway: ReturnType<typeof createBackupHttpGateway>) =>
+          gateway.saveSnapshot("Neue Fassung", true),
+        response: { ok: true, log: ["saved"], status: savedStatus },
+        url: "/api/backup",
+        body: (worldId: string) =>
+          worldId
+            ? `{"message":"Neue Fassung","push":true,"worldId":"${worldId}"}`
+            : '{"message":"Neue Fassung","push":true}',
+      },
+      {
+        name: "begin login",
+        invoke: (gateway: ReturnType<typeof createBackupHttpGateway>) => gateway.beginLogin(),
+        response: { ok: true, authorizeUrl: "https://login.example.test" },
+        url: "/api/backup/login",
+        body: () => "{}",
+      },
+      {
+        name: "sign out",
+        invoke: (gateway: ReturnType<typeof createBackupHttpGateway>) => gateway.signOut(),
+        response: { ok: true, signedIn: false },
+        url: "/api/backup/logout",
+        body: () => "{}",
+      },
+      {
+        name: "restore",
+        invoke: (gateway: ReturnType<typeof createBackupHttpGateway>) =>
+          gateway.restore("snapshot-1.zip"),
+        response: { ok: true },
+        url: "/api/backups/restore",
+        body: (worldId: string) =>
+          worldId
+            ? `{"name":"snapshot-1.zip","worldId":"${worldId}"}`
+            : '{"name":"snapshot-1.zip"}',
+      },
+    ];
+
+    for (const worldId of ["world /?&", ""]) {
+      for (const requestCase of cases) {
+        const fetchMock = vi.fn().mockResolvedValue(response(requestCase.response));
+        vi.stubGlobal("fetch", fetchMock);
+        const state = createHttpApplicationState();
+        state.activeWorldId = worldId;
+
+        const request = requestCase.invoke(createBackupHttpGateway(state));
+        state.activeWorldId = "world-selected-after-request";
+
+        const query =
+          worldId && (requestCase.name === "begin login" || requestCase.name === "sign out")
+            ? `?world=${encodeURIComponent(worldId)}`
+            : "";
+        expect(fetchMock.mock.calls, requestCase.name).toStrictEqual([
+          [
+            `${requestCase.url}${query}`,
+            {
+              cache: "no-store",
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: requestCase.body(worldId),
+            },
+          ],
+        ]);
+        await expect(request).resolves.toBeDefined();
+      }
+    }
+  });
+
   it("scopes query operations to the selected world and preserves their route semantics", async () => {
     const statusWire = {
       ok: true,
@@ -64,15 +144,6 @@ describe("backup HTTP port", () => {
   });
 
   it("puts world ownership into snapshot and restore command bodies", async () => {
-    const savedStatus = {
-      ok: true as const,
-      endpoint: null,
-      changes: ["figures.json"],
-      changeCount: 1,
-      suggestedMessage: "Figuren sichern",
-      lastSuccessfulTransfer: null,
-      transferredSnapshotId: null,
-    };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(response({ ok: true, log: ["saved"], status: savedStatus }))
@@ -235,6 +306,91 @@ describe("backup HTTP port", () => {
       category: "unavailable",
       params: backupGatewayError.params,
       retryable: backupGatewayError.retryable,
+    });
+  });
+
+  it("preserves structured HTTP rejections for every POST operation", async () => {
+    const operations = [
+      (gateway: ReturnType<typeof createBackupHttpGateway>) =>
+        gateway.saveSnapshot("Sichern", false),
+      (gateway: ReturnType<typeof createBackupHttpGateway>) => gateway.beginLogin(),
+      (gateway: ReturnType<typeof createBackupHttpGateway>) => gateway.signOut(),
+      (gateway: ReturnType<typeof createBackupHttpGateway>) => gateway.restore("snapshot-1"),
+    ];
+
+    for (const invoke of operations) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              ok: false,
+              error: {
+                code: "backup.conflict",
+                params: { snapshot: "snapshot-1" },
+                retryable: true,
+              },
+            }),
+            { status: 409, headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+      );
+
+      await expect(
+        invoke(createBackupHttpGateway(createHttpApplicationState())),
+      ).rejects.toMatchObject({
+        code: "backup.conflict",
+        category: "conflict",
+        params: { snapshot: "snapshot-1" },
+        retryable: true,
+      });
+    }
+  });
+
+  it("preserves native fetch rejection identity for every POST operation", async () => {
+    const operations = [
+      (gateway: ReturnType<typeof createBackupHttpGateway>) =>
+        gateway.saveSnapshot("Sichern", false),
+      (gateway: ReturnType<typeof createBackupHttpGateway>) => gateway.beginLogin(),
+      (gateway: ReturnType<typeof createBackupHttpGateway>) => gateway.signOut(),
+      (gateway: ReturnType<typeof createBackupHttpGateway>) => gateway.restore("snapshot-1"),
+    ];
+
+    for (const error of [
+      new TypeError("fetch failed"),
+      new DOMException("cancelled", "AbortError"),
+    ]) {
+      for (const invoke of operations) {
+        vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+        await expect(invoke(createBackupHttpGateway(createHttpApplicationState()))).rejects.toBe(
+          error,
+        );
+      }
+    }
+  });
+
+  it("passes through undecoded login results and rejects malformed decoded POST results", async () => {
+    const passthrough = { ok: "not validated", extra: { retained: true } };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(passthrough))
+      .mockResolvedValueOnce(response(passthrough))
+      .mockResolvedValueOnce(new Response("not JSON", { status: 200 }))
+      .mockResolvedValueOnce(new Response("not JSON", { status: 200 }))
+      .mockResolvedValueOnce(response({ ok: true, log: "not-an-array", status: savedStatus }))
+      .mockResolvedValueOnce(response({ ok: true, warnings: ["unknown"] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const gateway = createBackupHttpGateway(createHttpApplicationState());
+
+    await expect(gateway.beginLogin()).resolves.toStrictEqual(passthrough);
+    await expect(gateway.signOut()).resolves.toStrictEqual(passthrough);
+    await expect(gateway.beginLogin()).resolves.toBeNull();
+    await expect(gateway.signOut()).resolves.toBeNull();
+    await expect(gateway.saveSnapshot("Sichern", false)).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+    await expect(gateway.restore("snapshot-1")).rejects.toMatchObject({
+      code: "invalid_response",
     });
   });
 
