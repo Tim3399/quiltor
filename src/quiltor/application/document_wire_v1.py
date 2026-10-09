@@ -207,6 +207,20 @@ def _canonical_note_mark_integers(owner: dict[str, Any]) -> None:
         marks.sort(key=lambda mark: (mark["from"], mark["to"], mark["kind"]))
 
 
+def _canonical_chapter_wire_integers(chapter: dict[str, Any]) -> None:
+    _canonical_note_reference_integers(chapter)
+    _canonical_note_mark_integers(chapter)
+    for collection in ("mentions", "marks"):
+        entries = chapter.get(collection)
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            _canonical_integer_field(entry, "from", minimum=0)
+            _canonical_integer_field(entry, "to", minimum=1)
+
+
 def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
     normalized = deepcopy(payload)
     if not isinstance(normalized, dict):
@@ -222,17 +236,7 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
             for chapter in chapters:
                 if not isinstance(chapter, dict):
                     continue
-                _canonical_note_reference_integers(chapter)
-                _canonical_note_mark_integers(chapter)
-                for collection in ("mentions", "marks"):
-                    entries = chapter.get(collection)
-                    if not isinstance(entries, list):
-                        continue
-                    for entry in entries:
-                        if not isinstance(entry, dict):
-                            continue
-                        _canonical_integer_field(entry, "from", minimum=0)
-                        _canonical_integer_field(entry, "to", minimum=1)
+                _canonical_chapter_wire_integers(chapter)
         trash = normalized.get("trash")
         if isinstance(trash, list):
             for entry in trash:
@@ -240,15 +244,7 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
                     continue
                 chapter = entry.get("chapter")
                 if isinstance(chapter, dict):
-                    _canonical_note_reference_integers(chapter)
-                    _canonical_note_mark_integers(chapter)
-                    for collection in ("mentions", "marks"):
-                        values = chapter.get(collection)
-                        if isinstance(values, list):
-                            for value in values:
-                                if isinstance(value, dict):
-                                    _canonical_integer_field(value, "from", minimum=0)
-                                    _canonical_integer_field(value, "to", minimum=1)
+                    _canonical_chapter_wire_integers(chapter)
                 tree_item = entry.get("treeItem")
                 if isinstance(tree_item, dict):
                     _canonical_integer_field(tree_item, "position", minimum=0)
