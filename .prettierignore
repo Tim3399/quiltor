@@ -10,3 +10,8 @@ models
 test-results
 playwright-report
 .pytest_cache
+
+# Agent team: role sources and the files team/sync.mjs generates from them
+.claude/agents
+.claude/output-styles
+team/roles
