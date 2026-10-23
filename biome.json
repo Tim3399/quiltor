@@ -41,7 +41,9 @@
       "**/*.tsx",
       "**/*.json",
       "**/*.jsonc",
-      "**/*.css"
+      "**/*.css",
+      "!team/roles.json",
+      "!.claude/settings.json"
     ]
   },
 
