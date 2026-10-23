@@ -1,0 +1,95 @@
+name: Layout audit
+
+permissions:
+  contents: read
+
+# Manual only. Captures every view, menu and dialog on mobile, tablet and desktop in both
+# colour modes, checks them with layout rules and (optionally) an AI review, and uploads the
+# report. Findings never fail the run; a technical failure does. See docs/LAYOUT_AUDIT.md.
+on:
+  workflow_dispatch:
+    inputs:
+      ai_review:
+        description: "Run the AI review (needs the ANTHROPIC_API_KEY secret)"
+        type: boolean
+        default: true
+
+jobs:
+  layout-audit:
+    runs-on: ubuntu-24.04
+    # Provisional until the first measured run.
+    timeout-minutes: 60
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.23.2"
+          cache: npm
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12.10"
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the client
+        run: npm run build
+
+      - name: Install the application
+        run: python -m pip install --quiet -e .
+
+      - name: Start the application
+        run: |
+          python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
+          for attempt in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:8010/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/quiltor-server.log"
+          exit 1
+
+      - name: Run the audit
+        env:
+          AI_REVIEW: ${{ inputs.ai_review }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ "$AI_REVIEW" = "true" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
+            npm run audit:layout:ai
+          else
+            if [ "$AI_REVIEW" = "true" ]; then
+              reason="the ANTHROPIC_API_KEY secret is not set"
+            else
+              reason="the ai_review input is off"
+            fi
+            echo "AI review skipped: $reason."
+            {
+              echo "> AI review skipped: $reason."
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            npm run audit:layout
+          fi
+
+      - name: Summarise the findings
+        if: always()
+        run: |
+          if [ -f test-results/layout-audit/summary.md ]; then
+            cat test-results/layout-audit/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The audit produced no summary; see the step log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the audit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: layout-audit
+          if-no-files-found: warn
+          path: |
+            test-results/layout-audit/
+            ${{ runner.temp }}/quiltor-server.log
