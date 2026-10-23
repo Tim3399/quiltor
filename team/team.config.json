@@ -1,0 +1,23 @@
+{
+  "kbRoot": "C:/Users/timra/git/quiltor-kb",
+  "targets": [
+    "claude"
+  ],
+  "devPool": 6,
+  "claude": {
+    "model": "opus",
+    "effortLevel": "medium",
+    "defaultMode": "auto"
+  },
+  "codex": {
+    "model": "gpt-6.1-sol",
+    "effort": "medium",
+    "reviewModel": "gpt-6.1-sol",
+    "webSearch": "cached",
+    "maxThreads": 4
+  },
+  "project": {
+    "name": "quiltor",
+    "testCommand": "npm test"
+  }
+}

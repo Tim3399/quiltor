@@ -1,0 +1,1 @@
+Team beitreten: Führe `node team/bootstrap.mjs claim` aus und befolge danach die ausgegebenen Schritte genau, ohne Rückfragen. Meldet das Skript, dass alle Rollen vergeben sind oder dieser Chat schon eine Rolle hat, tu nichts weiter.

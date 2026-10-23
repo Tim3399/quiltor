@@ -65,3 +65,5 @@ models/*.gguf
 models/embed/
 models/mlx/*
 !models/mlx/.gitkeep
+.claude/worktrees/
+.worktrees/

@@ -1,0 +1,25 @@
+{
+  "version": "0.1.0",
+  "files": {
+    "AGENTS.md": "726d669cdf97af7369e253a0e3220abb608196e8eb7d9e77cd66ddff1b616fea",
+    "CLAUDE.md": "1e249fd4fde76930f0f46321e8be667b787bd849ef39ef266fef4049f3e560bb",
+    "team/TEAM-BEITRETEN.txt": "6cf18e4f4dabac9214d6d5b2f6a367cec07ebe74205bb2d21a8625d0dae9e263",
+    "team/bootstrap.mjs": "a1cd48cf49a3d784ae145f5c233decba01ef80a78ea8c0c240b73bfbf6029a03",
+    "team/hooks/lib.mjs": "12ee82643626ea237e5b7e167954bc6fb6ed45df0e4dcfb30016330794723f4f",
+    "team/hooks/policy.mjs": "31b729be2e059a6680ac76c7cb0bfb726bc8765be0f7addd885ad722037dffa3",
+    "team/hooks/registry-title.mjs": "7f4b659a743fa4476cc4dbfc974a5c3e9f4f69a15e31e245a9fa69a2a3325885",
+    "team/hooks/selftest.mjs": "ad87f51667598af3b391fa01252cbf3f7433728e68e8c1ec526004a492282294",
+    "team/hooks/session-start.mjs": "53ed3f76df7df751634fb639f17be49f5c3e33b35cf29f0305a966b88f5f88c9",
+    "team/roles/_chat-basis.md": "01d9f07216f23f62a64623aad472dab468a22eab593d6eb3edb2f4c3753a4cc8",
+    "team/roles/advisor.md": "40c1bd75d835f0ea9ddd3bc2f852da932273ffa266bbdca27fc8c5495ccadb13",
+    "team/roles/critic.md": "818b63c1addbf0d9f221415c920b35e88cc7f884e26d20a2bd8e60e13544f0bb",
+    "team/roles/dev.md": "7cd67a51f6dd6c0f44eb8fd2c5e2d73b6ac9b624c1432bf71134473f3dd51cfd",
+    "team/roles/explorer.md": "f2691c178f9b4c2f874d10ba89de8dc6b6f65aeebe1dda2ba76f728f9ee57b8d",
+    "team/roles/implementer.md": "11b9ac393b4283a4a03b330a67faa5170e3be72460d566b23b6497403da5d021",
+    "team/roles/orchestrator.md": "bf01df0961270d1094077a0878fbb62f2d09e9058d75316e90e622dc7cb49c7f",
+    "team/roles/researcher.md": "8cf8a4292292b0de4abb87d4f0a95b464a56f74ae92677d4448342e0beb22e4a",
+    "team/roles/simplifier.md": "6fbce690175f1c771bbaf17b15d110c52e676eefddfddf2cf19f611cc5efff64",
+    "team/start-team.cmd": "54fd30a143c5debd48f76618d1b8bc1cf5e4a34f748ba86d46038f5e112cd912",
+    "team/sync.mjs": "a32b1bf9c5766bd14f19a23a2167a3e17b0dd6efec63143fde9967b0c7a783fd"
+  }
+}
