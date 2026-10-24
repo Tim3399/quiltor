@@ -164,7 +164,7 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
   ),
   component("SelectionField", "modules/assistant/AssistantProposalEditor.tsx", "assistant.proposals/dialog.bearbeiten/listbox", {
     role: "listbox",
-    name: "Element",
+    name: "Nach",
   }),
   component("BackupDialog", "modules/backup/BackupDialog.tsx", "overlay.backups", {
     role: "dialog",

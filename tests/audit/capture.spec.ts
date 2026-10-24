@@ -319,6 +319,31 @@ async function textScenario(s: Session): Promise<void> {
     await s.enumerate("assistant", toAssistant, { scope: assistant });
   });
 
+  // A world update returns proposals (mocked job): cards, claim classifier, proposal editor.
+  const toProposals = async () => {
+    await toAssistant();
+    const assistant = await openAssistant(s);
+    await s.tap(assistant.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }));
+    await expect(assistant.getByRole("button", { name: "Bearbeiten" }).first()).toBeVisible();
+  };
+  await s.step("assistant.proposals", async () => {
+    await toProposals();
+    const assistant = await openAssistant(s);
+    await s.view("assistant.proposals", "overlay");
+    await s.enumerate("assistant.proposals", toProposals, { scope: assistant });
+    await s.opened(
+      "assistant.proposals/dialog.bearbeiten",
+      "dialog",
+      async () => {
+        await toProposals();
+        await s.tap((await openAssistant(s)).getByRole("button", { name: "Bearbeiten" }).last());
+      },
+      async () => s.tap(assistant.getByRole("button", { name: "Bearbeiten" }).last()),
+      { enumerate: true },
+    );
+    await s.closeAll();
+  });
+
   // Editor: context menu, selection, entity mention card.
   await s.step("workspace.text/context-menu.editor", async () => {
     await base();
@@ -576,6 +601,20 @@ async function figuresScenario(s: Session): Promise<void> {
     async () => s.tap(inspector.getByRole("button", { name: "Beziehung löschen" }).first()),
   );
   await s.closeAll();
+
+  const edgePanel = page.locator(".figure-workspace").getByRole("region", { name: "Beziehung" }).first();
+  const toEdge = async () => {
+    await base();
+    await s.tap(page.locator(".figure-workspace").getByRole("button", { name: /^sucht/ }).first());
+    await expect(edgePanel).toBeVisible();
+  };
+  await s.step("figures.edge", async () => {
+    await toEdge();
+    await s.view("figures.edge");
+    await s.enumerate("figures.edge", toEdge, { scope: edgePanel });
+  });
+
+  // Last, because renaming changes the mocked world for every later step.
   await s.step("figures.inspector/dialog.rename-mentions", async () => {
     await toInspector();
     const name = inspector.getByRole("textbox", { name: "Name", exact: true });
@@ -584,17 +623,6 @@ async function figuresScenario(s: Session): Promise<void> {
       await name.press("Tab");
     });
     await s.closeAll();
-  });
-
-  const toEdge = async () => {
-    await base();
-    await s.tap(page.locator(".figure-workspace").getByRole("button", { name: /^sucht/ }).first());
-    await expect(page.getByRole("region", { name: "Beziehung" })).toBeVisible();
-  };
-  await s.step("figures.edge", async () => {
-    await toEdge();
-    await s.view("figures.edge");
-    await s.enumerate("figures.edge", toEdge, { scope: page.getByRole("region", { name: "Beziehung" }) });
   });
 }
 

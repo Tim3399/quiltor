@@ -405,6 +405,18 @@ export async function captureOpened(
   try {
     await markExisting(page);
     await open();
+    // When `open` went through a menu item, that menu is still closing; it is not the popup.
+    await page
+      .waitForFunction(
+        (mark) =>
+          !Array.from(document.querySelectorAll('[role="menu"]')).some((element) => {
+            const box = element.getBoundingClientRect();
+            return !element.hasAttribute(mark) && box.width > 0 && box.height > 0;
+          }),
+        POPUP_MARK,
+        { timeout: 1_500 },
+      )
+      .catch(() => undefined);
     const found = await findNewPopup(page, 4_000);
     if (!found) throw new Error(`No popup appeared for ${state}.`);
     const popup = await popupLocator(page, found);

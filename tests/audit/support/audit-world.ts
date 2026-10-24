@@ -11,9 +11,18 @@ import exportPreviewEpub from "../../../contracts/fixtures/application-api/manus
 import type { Manuscript } from "../../../packages/client/src/modules/manuscript";
 import type { FigureState } from "../../../packages/client/src/modules/story-world";
 import type { StoryboardState } from "../../../packages/client/src/modules/storyboard/model";
-import { decodeManuscriptV1 } from "../../../packages/client/src/platform/contracts/v1/manuscript";
-import { decodeStoryboardsV1 } from "../../../packages/client/src/platform/contracts/v1/storyboards";
-import { decodeStoryWorldV1 } from "../../../packages/client/src/platform/contracts/v1/storyWorld";
+import {
+  decodeManuscriptV1,
+  encodeManuscriptV1,
+} from "../../../packages/client/src/platform/contracts/v1/manuscript";
+import {
+  decodeStoryboardsV1,
+  encodeStoryboardsV1,
+} from "../../../packages/client/src/platform/contracts/v1/storyboards";
+import {
+  decodeStoryWorldV1,
+  encodeStoryWorldV1,
+} from "../../../packages/client/src/platform/contracts/v1/storyWorld";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
@@ -371,6 +380,42 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
       model: "audit-model",
     }),
   );
+  // A finished world extraction with proposals, so proposal cards, the claim classifier and the
+  // proposal editor exist (shape as in tests/e2e/assistant-proposal-retry.spec.ts).
+  await page.route("**/api/assistant/jobs", (route) =>
+    json(route, {
+      ok: true,
+      created: true,
+      job: {
+        id: "audit-job",
+        status: "completed",
+        error: "",
+        errorType: "",
+        cancelRequested: false,
+        createdAt: "2026-08-09T12:00:00Z",
+        result: {
+          ok: true,
+          message:
+            "Im Kapitel „Die Ankunft im Gezeitenhafen“ habe ich eine neue Figur und eine Beziehung gefunden.",
+          sources: [],
+          mode: "world_extraction",
+          extraction: { chapterIds: ["ankunft"], chapterCount: 1, groupCount: 1 },
+          proposals: [
+            {
+              kind: "create_element",
+              tempId: "new:joergensen",
+              element: { type: "person", name: "Hafenkapitän Jörgensen" },
+            },
+            {
+              kind: "create_relationship",
+              relationship: { from: "mara", to: "ilse", label: "misstraut heimlich", directed: true },
+            },
+          ],
+        },
+      },
+    }),
+  );
+  await page.route("**/api/assistant/progress*", (route) => json(route, { ok: true, progress: null }));
   await page.route("**/api/writing-assistance/status*", (route) =>
     json(route, {
       ok: true,
@@ -502,9 +547,23 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
   await page.route("**/api/backups/location*", (route) =>
     json(route, {
       ok: true,
-      databasePath: "C:/Users/Autorin/AppData/Roaming/Quiltor/quiltor.sqlite",
-      backupDirectory: "C:/Users/Autorin/AppData/Roaming/Quiltor/Sicherungen",
-      lastSuccessfulBackup: "2026-08-08T20:00:00Z",
+      storage: {
+        databasePath: "C:/Users/Autorin/AppData/Roaming/Quiltor/Welten/gezeitenatlas.sqlite3",
+        backupDirectory: "C:/Users/Autorin/AppData/Roaming/Quiltor/Sicherungen/Gezeitenatlas",
+        lastSuccessfulBackup: "2026-08-08T20:00:00Z",
+        scope: "application-host",
+        canOpenFolder: false,
+      },
+    }),
+  );
+  await page.route("**/api/backups/preview*", (route) =>
+    json(route, {
+      ok: true,
+      documents: {
+        manuscript: encodeManuscriptV1(auditManuscript(), 0),
+        figures: encodeStoryWorldV1(auditStoryWorld(), 0),
+        storyboards: encodeStoryboardsV1(auditStoryboards(), 0),
+      },
     }),
   );
   await page.route("**/api/sync*", (route) =>
