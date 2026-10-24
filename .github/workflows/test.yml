@@ -92,16 +92,17 @@ jobs:
       - name: Install the pinned Python formatter
         run: python -m pip install --quiet "ruff==0.16.4"
 
-      - name: Formatting contract
-        run: npm run check:format
-
       - name: Install the pinned workflow linter
         run: >-
           python -m pip install --quiet --require-hashes --only-binary=:all:
           -r distribution/lint-tools.requirements.txt
 
-      - name: Workflow security lint
-        run: npm run lint:zizmor
+      # The whole local gate, not a list of its parts: every linter that `npm run check`
+      # chains (formatting, zizmor, and whatever lint:* joins it later) runs here without
+      # this file having to name it. The job has what check needs -- npm ci, Python with
+      # ruff and zizmor, Rust with rustfmt.
+      - name: Check gates, formatting and linters
+        run: npm run check
 
       - name: Unit tests
         run: npx vitest run
