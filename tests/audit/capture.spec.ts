@@ -68,10 +68,19 @@ class Session {
   async enumerate(
     state: string,
     restore: () => Promise<void>,
-    options: { scope?: Locator; exclude?: string; viewportSpecific?: boolean } = {},
+    options: {
+      scope?: Locator;
+      exclude?: string;
+      viewportSpecific?: boolean;
+      specificTriggers?: RegExp;
+    } = {},
   ): Promise<void> {
     await enumeratePopups(
-      this.ctx(restore, { exclude: options.exclude, viewportSpecific: options.viewportSpecific }),
+      this.ctx(restore, {
+        exclude: options.exclude,
+        viewportSpecific: options.viewportSpecific,
+        specificTriggers: options.specificTriggers,
+      }),
       state,
       options.scope,
     );
@@ -211,7 +220,11 @@ async function textScenario(s: Session): Promise<void> {
   await s.step("workspace.text/navigation", async () => {
     const binder = await openNavigation(s);
     await s.view("workspace.text/navigation", s.layout === "compact" ? "overlay" : "view");
-    await s.enumerate("workspace.text/navigation", toNavigation, { scope: binder });
+    // Folder rows show rename and delete inline on touch layouts and a menu on wide ones.
+    await s.enumerate("workspace.text/navigation", toNavigation, {
+      scope: binder,
+      specificTriggers: /^Aktionen: /,
+    });
     await s.opened("text.binder/dialog.delete-chapter", "dialog", toNavigation, async () => {
       await s.tap(binder.getByRole("button", { name: /^Kapitelaktionen: / }).first());
       await s.tap(page.getByRole("menuitem", { name: "Kapitel löschen", exact: true }));
@@ -551,14 +564,26 @@ async function worldGateScenario(s: Session): Promise<void> {
 
 async function figuresScenario(s: Session): Promise<void> {
   const page = s.page;
-  const base = async () => {
+  const start = async () => {
     await s.openWorld();
     await s.workspace("Figuren");
   };
   const node = (id: string) => page.locator(`.figure-workspace .react-flow__node[data-id="${id}"]`);
-  await base();
+  await start();
   await s.view("workspace.figures");
-  await s.enumerate("workspace.figures", base);
+  await s.enumerate("workspace.figures", start);
+
+  // On a phone the time strip covers most of the canvas. Node interactions need the nodes on
+  // screen, so the later steps hide it and fit the view, as visual-baseline.spec.ts does.
+  const base = async () => {
+    await start();
+    if (s.layout !== "compact") return;
+    await s.tap(s.button("Ansicht"));
+    await s.tap(page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }));
+    await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
+    await s.tap(page.locator(".figure-workspace .react-flow__controls-fitview"));
+    await stillCanvas(page);
+  };
 
   await s.step("workspace.figures/context-menu.node", async () => {
     await base();
@@ -605,7 +630,13 @@ async function figuresScenario(s: Session): Promise<void> {
   const edgePanel = page.locator(".figure-workspace").getByRole("region", { name: "Beziehung" }).first();
   const toEdge = async () => {
     await base();
-    await s.tap(page.locator(".figure-workspace").getByRole("button", { name: /^sucht/ }).first());
+    const label = page.locator(".figure-workspace").getByRole("button", { name: /^sucht/ }).first();
+    if (await label.isVisible()) {
+      await s.tap(label);
+    } else {
+      // Zoomed out on a phone, edge labels are hidden; the edge itself still takes the click.
+      await page.locator('.figure-workspace [data-testid="rf__edge-e1"]').dispatchEvent("click");
+    }
     await expect(edgePanel).toBeVisible();
   };
   await s.step("figures.edge", async () => {
@@ -655,8 +686,16 @@ async function timelineScenario(s: Session): Promise<void> {
 
   const toLastMoment = async () => {
     await base();
-    // "Nachspiel" is the one moment no chapter refers to, so it may be deleted.
-    await s.tap(page.getByRole("button", { name: /^4 Nachspiel/ }));
+    // "Nachspiel" is the one moment no chapter refers to, so it may be deleted. Wide layouts list
+    // the moments as cards; on a phone only the stepper leads there.
+    const card = page.getByRole("button", { name: /^4 Nachspiel/ });
+    if (await appears(card, 500)) {
+      await s.tap(card);
+      return;
+    }
+    const next = s.button("Nächster Zeitpunkt");
+    for (let index = 0; index < 3; index += 1) await s.tap(next);
+    await expect(page.getByRole("heading", { name: "Nachspiel" })).toBeVisible();
   };
   await s.step("workspace.timeline/dialog.delete-moment", async () => {
     await toLastMoment();
@@ -677,23 +716,34 @@ async function placesScenario(s: Session): Promise<void> {
     await s.workspace("Orte");
   };
   const place = (id: string) => page.locator(`.places-flow-area .react-flow__node[data-id="${id}"]`);
+  // A place is selected by a click on its card's edge; the middle of a card can hold the
+  // button that opens the place as a level of its own.
+  const select = (id: string) => place(id).click({ position: { x: 8, y: 8 } });
   await base();
   await s.view("workspace.places");
-  await s.enumerate("workspace.places", base);
+  // At the fitted zoom of a phone the map draws without its chrome (level of detail), so the
+  // scale popover is reachable there only after zooming in -- see the expanded-map state.
+  await s.enumerate("workspace.places", base, { specificTriggers: /^Maßstab von / });
 
-  await s.step("workspace.places/expanded-map", async () => {
+  const chrome = page.locator(".place-map-chrome").first();
+  const toExpandedMap = async () => {
     await base();
-    await s.tap(place("archivort"));
-    await s.closeAll();
-    await stillCanvas(page);
-    await expect(page.locator(".place-map-chrome").first()).toBeVisible();
+    for (let index = 0; index < 6 && !(await chrome.isVisible()); index += 1) {
+      await s.tap(page.locator(".places-flow-area .react-flow__controls-zoomin"));
+      await stillCanvas(page);
+    }
+    await expect(chrome).toBeVisible();
+  };
+  await s.step("workspace.places/expanded-map", async () => {
+    await toExpandedMap();
     await s.view("workspace.places/expanded-map");
+    await s.enumerate("workspace.places/expanded-map", toExpandedMap, { scope: chrome });
   });
 
   // Selecting a place: side panel on wide screens, sheet up to 820 px (tablet included).
   const toSelected = async () => {
     await base();
-    await s.tap(place("insel"));
+    await select("insel");
     await expect(page.locator('[aria-label="Orte-Inspector"]').filter({ visible: true })).toBeVisible();
   };
   await s.step("places.selected", async () => {
@@ -705,12 +755,13 @@ async function placesScenario(s: Session): Promise<void> {
       "dialog",
       toSelected,
       async () => {
-        const actions = s.button("Ortsaktionen");
-        if (await actions.isEnabled().catch(() => false)) {
-          await s.tap(actions);
-          await s.tap(page.getByRole("menuitem", { name: "Ort löschen" }));
+        // The sheet on narrow layouts is modal and carries its own delete button.
+        const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
+        if (await sheet.isVisible().catch(() => false)) {
+          await s.tap(sheet.getByRole("button", { name: /löschen/ }).first());
         } else {
-          await s.tap(page.getByRole("dialog", { name: "Orte-Inspector" }).getByRole("button", { name: /löschen/ }).first());
+          await s.tap(s.button("Ortsaktionen"));
+          await s.tap(page.getByRole("menuitem", { name: "Ort löschen" }));
         }
       },
     );
@@ -722,12 +773,28 @@ async function placesScenario(s: Session): Promise<void> {
 
 async function storyboardScenario(s: Session): Promise<void> {
   const page = s.page;
-  const base = async () => {
+  const start = async () => {
     await s.openWorld();
     await s.workspace("Storyboard");
+    // Node editors mount after the canvas; their toolbars are enumerated.
+    await expect(
+      page.locator('.storyboard-flow .react-flow__node[data-id="story-note-1"]').getByRole("toolbar").first(),
+    ).toBeVisible();
+  };
+  const library = page.getByRole("complementary", { name: "Elementbibliothek" });
+  await start();
+  await s.view("workspace.storyboard");
+
+  // Below the wide layout the library covers the canvas; canvas steps close it first.
+  const base = async () => {
+    await start();
+    if (s.layout !== "wide" && (await appears(library, 500))) {
+      await s.tap(s.button("Elementbibliothek ein-/ausblenden"));
+      await expect(library).toBeHidden();
+      await stillCanvas(page);
+    }
   };
   await base();
-  await s.view("workspace.storyboard");
   await s.enumerate("workspace.storyboard", base);
 
   const toEdge = async () => {

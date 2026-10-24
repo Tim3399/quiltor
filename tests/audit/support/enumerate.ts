@@ -20,6 +20,8 @@ export type EnumerationContext = {
   depth?: number;
   /** Triggers inside elements matching this selector belong to another state and are skipped. */
   exclude?: string;
+  /** Trigger names whose popup exists only in some viewports by design. */
+  specificTriggers?: RegExp;
 };
 
 export type TriggerInfo = { name: string; haspopup: string; ordinal: number };
@@ -72,8 +74,16 @@ async function scanTriggers(
         if (element.closest('[inert], [aria-hidden="true"]')) return false;
         if (element.getAttribute("role") === "menuitem") return false;
         if (args.exclude && element.closest(args.exclude)) return false;
+        if (topModal && !topModal.contains(element)) return false;
         return !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true";
       };
+      // While a modal is open, everything outside the active one is out of reach. The client
+      // marks earlier modals inert, so the active one is the visible modal that is not.
+      const modals = Array.from(document.querySelectorAll('[aria-modal="true"]')).filter((element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && !element.closest('[inert], [aria-hidden="true"]');
+      });
+      const topModal = modals[modals.length - 1];
       const seen = new Map<string, number>();
       const found: { name: string; haspopup: string; ordinal: number }[] = [];
       for (const element of Array.from((root as Element).querySelectorAll(args.selector))) {
@@ -186,13 +196,14 @@ export async function popupLocator(page: Page, selector: string): Promise<Locato
     return { role: element.getAttribute("role"), label };
   });
   if (!description.role || !description.label) return marked;
-  return page
+  const semantic = page
     .getByRole(description.role as Parameters<Page["getByRole"]>[0], {
       name: description.label,
       exact: true,
     })
     .filter({ visible: true })
     .last();
+  return (await semantic.count()) > 0 ? semantic : marked;
 }
 
 /** Puts the mark from `selector` back on the popup, in case a re-render dropped it. */
@@ -310,7 +321,7 @@ export async function enumeratePopups(
         kind,
         trigger: ctx.rec.touch ? "tap" : "click",
         popupSelector,
-        viewportSpecific: ctx.viewportSpecific,
+        viewportSpecific: ctx.viewportSpecific || ctx.specificTriggers?.test(info.name),
       });
       result.opened += 1;
       result.states.push(childState);
