@@ -1,14 +1,13 @@
 import unittest
-from unittest.mock import patch
 
-from quiltor.modules.assistant.audit import validate_proposals
-from quiltor.modules.assistant.context import pack_chunks
-from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
-from quiltor.modules.assistant.references import resolve_reference
-from quiltor.modules.assistant.contract import existing_creation_target, task_contract
-from quiltor.modules.assistant.schemas import reply_schema
-from quiltor.modules.assistant.batch import _group_chapters_by_budget, _merge_accumulated
 from quiltor.domain.story_world.knowledge import KnowledgeChunk
+from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
+from quiltor.modules.assistant.audit import validate_proposals
+from quiltor.modules.assistant.batch import _group_chapters_by_budget, _merge_accumulated
+from quiltor.modules.assistant.context import pack_chunks
+from quiltor.modules.assistant.contract import existing_creation_target, task_contract
+from quiltor.modules.assistant.references import resolve_reference
+from quiltor.modules.assistant.schemas import reply_schema
 
 
 class AssistantEnhancementTests(unittest.TestCase):

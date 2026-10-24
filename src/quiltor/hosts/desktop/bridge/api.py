@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import base64
 import binascii
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any
 
 from quiltor.application.capabilities import Feature, FeatureAvailability
 
@@ -28,10 +29,8 @@ _INVALID_REQUEST_ID = "invalid-request"
 _REQUEST_FIELDS = {"version", "id", "operation", "payload"}
 _FILE_SAVE_FIELDS = {"name", "content", "encoding"}
 
-_Method = TypeVar("_Method", bound=Callable[..., Any])
 
-
-def _internal(method: _Method) -> _Method:
+def _internal[Method: Callable[..., Any]](method: Method) -> Method:
     """Keep host plumbing out of ``window.pywebview.api``."""
     method._serializable = False  # type: ignore[attr-defined]
     return method

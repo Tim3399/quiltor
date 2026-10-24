@@ -47,6 +47,6 @@ def spawn_logged(argv: list[str], data: Path, log_name: str) -> tuple[subprocess
     for why that needs doing at all.
     """
     log_path = data / log_name
-    log = open(log_path, "a", encoding="utf-8")
+    log = open(log_path, "a", encoding="utf-8")  # noqa: SIM115 - the child writes into it while it runs
     process = process_supervisor().spawn(argv, stdout=log, stderr=subprocess.STDOUT, text=True)
     return process, log_path

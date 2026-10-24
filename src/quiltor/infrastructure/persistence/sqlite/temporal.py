@@ -8,7 +8,6 @@ from typing import Any
 
 from quiltor.infrastructure.persistence.sqlite.codec import decode_extra
 
-
 FIELDS_KEY = "__quiltor_temporal_fields__"
 COLLECTIONS_KEY = "__quiltor_temporal_collections__"
 

@@ -12,7 +12,6 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-
 CASES = [
     {
         "name": "chapter-rag",
@@ -313,7 +312,7 @@ def main() -> None:
             }
         )
         print(
-            f"[{reports[-1]['passed'] and 'PASS' or 'FAIL'}] {case['name']} ({reports[-1]['seconds']}s) {kinds}",
+            f"[{(reports[-1]['passed'] and 'PASS') or 'FAIL'}] {case['name']} ({reports[-1]['seconds']}s) {kinds}",
             flush=True,
         )
     unchanged = request(args.base, "/api/state") == state_before

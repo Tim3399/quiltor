@@ -86,7 +86,7 @@ def sync_preview(handler, request: Request, app) -> None:
 def synchronize(handler, request: Request, app) -> None:
     try:
         payload = handler._read_json_body()
-    except Exception:  # noqa: BLE001 - malformed request bodies become validation errors
+    except Exception:
         payload = {}
     world = handler.world_from_body(request.session, payload)
     if world is None:

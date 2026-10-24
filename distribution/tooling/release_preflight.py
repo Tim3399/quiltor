@@ -9,6 +9,7 @@ both OCI images are portable release artifacts, not post-version best efforts.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import platform
@@ -161,7 +162,7 @@ def _wait_for_server(process: subprocess.Popen[bytes], url: str, timeout: float 
                 f"The local server for Playwright exited early with code {process.returncode}."
             )
         try:
-            with urllib.request.urlopen(url, timeout=0.5) as response:  # noqa: S310 - loopback only
+            with urllib.request.urlopen(url, timeout=0.5) as response:
                 if response.status < 500:
                     return
         except (OSError, urllib.error.URLError):
@@ -224,7 +225,7 @@ def _remove_temporary_data(directory: Path, timeout: float = 10.0) -> None:
 def _remove_preflight_images(docker: str, tags: list[str], repo_root: Path) -> None:
     """Best-effort cleanup of only the uniquely named images this run created."""
 
-    try:
+    with contextlib.suppress(OSError):
         subprocess.run(
             [docker, "image", "rm", "--force", *tags],
             cwd=repo_root,
@@ -232,8 +233,6 @@ def _remove_preflight_images(docker: str, tags: list[str], repo_root: Path) -> N
             stderr=subprocess.DEVNULL,
             check=False,
         )
-    except OSError:
-        pass
 
 
 def _run_browser_suite(repo_root: Path, *, python: str, npm: str) -> None:

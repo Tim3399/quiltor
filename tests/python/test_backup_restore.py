@@ -160,7 +160,7 @@ class RestoreTest(unittest.TestCase):
         conn.close()
 
     def test_a_restored_world_carries_the_snapshot_in_its_local_history(self):
-        _, ctx_a = self._seed_and_upload()
+        _, _ctx_a = self._seed_and_upload()
         store_b, home_b = self._machine("machine-b")
         ctx_b = self._world(store_b, home_b)
         entry = remote.snapshots(ctx_b, self.authorization)[-1]

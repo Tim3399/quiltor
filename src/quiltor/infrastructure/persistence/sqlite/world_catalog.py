@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 import shutil
 import sqlite3
@@ -208,10 +209,8 @@ def purge_world(
         paths.data / "manuscripts" / world_id,
         paths.data / "profiles" / world_id,
     ):
-        try:
+        with contextlib.suppress(FileNotFoundError):
             shutil.rmtree(directory)
-        except FileNotFoundError:
-            pass
     for database_file in (Path(f"{path}-wal"), Path(f"{path}-shm"), path):
         database_file.unlink(missing_ok=True)
     _purge_migration_copies(world_id, paths=paths)

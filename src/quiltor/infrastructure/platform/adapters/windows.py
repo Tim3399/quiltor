@@ -29,7 +29,7 @@ def app_directories() -> AppDirectories:
 
 
 def reveal_in_file_manager(path: Path) -> None:
-    os.startfile(str(path))
+    os.startfile(str(path))  # noqa: S606 - opens a local path with its default handler
 
 
 def spawn_flags() -> int:
@@ -122,7 +122,7 @@ def in_os_app_package() -> bool:
         length = wintypes.UINT(0)
         result = ctypes.windll.kernel32.GetCurrentPackageFullName(ctypes.byref(length), None)
         return result != appmodel_error_no_package
-    except Exception:
+    except Exception:  # noqa: BLE001 - any probe failure means "not packaged"
         return False
 
 

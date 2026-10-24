@@ -6,10 +6,9 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from collections.abc import Iterator
 from contextlib import closing
 from pathlib import Path
-from typing import Iterator
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -470,6 +469,7 @@ class ArchitectureContractTests(unittest.TestCase):
                         fixture["baselineSchemaVersion"] + 1,
                         schema.SCHEMA_VERSION + 1,
                     ),
+                    strict=False,
                 )
             ),
         )

@@ -21,12 +21,10 @@ Two entry points rather than one selector, because the questions differ:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import importlib.util
 import os
+from pathlib import Path
 
-from quiltor.infrastructure.platform import system
 from quiltor.infrastructure.pdf import (
     node_chromium,
     system_browser,
@@ -35,8 +33,9 @@ from quiltor.infrastructure.pdf import (
     webview2,
     wkwebview,
 )
-from quiltor.infrastructure.platform.ports.pdf import PdfRenderer
 from quiltor.infrastructure.pdf.tokens import RENDER_TOKEN_TTL
+from quiltor.infrastructure.platform import system
+from quiltor.infrastructure.platform.ports.pdf import PdfRenderer
 
 SYSTEM_BROWSER = "system_browser"
 

@@ -177,7 +177,7 @@ class CloudSyncRouteTests(_LiveSyncServer):
         ) -> None:
             try:
                 results[name] = self.request(method, path, **kwargs)
-            except BaseException as exc:  # noqa: BLE001 - returned to the test thread
+            except BaseException as exc:
                 failures.append(exc)
             finally:
                 done.set()

@@ -19,10 +19,11 @@ TOOLING_ROOT = REPO_ROOT / "distribution" / "tooling"
 sys.path.insert(0, str(PYINSTALLER_ROOT))
 sys.path.insert(0, str(TOOLING_ROOT))
 
-import bundle  # noqa: E402
 import artifact_profile  # noqa: E402
+import bundle  # noqa: E402
 import container_contract  # noqa: E402
 import profile_contract  # noqa: E402
+
 from quiltor import resources  # noqa: E402
 
 

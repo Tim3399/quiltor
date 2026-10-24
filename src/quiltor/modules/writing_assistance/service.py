@@ -54,7 +54,7 @@ class WritingAssistanceService:
             "results": list(self._lookup(language, mode, query.casefold())),
         }
 
-    @lru_cache(maxsize=512)
+    @lru_cache(maxsize=512)  # noqa: B019 - one service per process; install() clears it
     def _lookup(self, language: str, mode: str, query: str) -> tuple:
         return tuple(self.repository.lookup(language, mode, query))
 

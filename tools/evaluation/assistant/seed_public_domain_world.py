@@ -25,7 +25,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from quiltor.infrastructure.persistence.sqlite import manuscript as manuscript_store
 from quiltor.infrastructure.persistence.sqlite import world_catalog
 
-TITLE = "Quiltor Story-Testwelt – The Time Machine"
+TITLE = "Quiltor Story-Testwelt – The Time Machine"  # noqa: RUF001 - German title with a real en dash
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "the-time-machine.chapters.json"
 
 ATTRIBUTION = (

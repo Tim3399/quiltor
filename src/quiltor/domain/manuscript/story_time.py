@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 MAX_STORY_TIME_ID_LENGTH = 200
 
 

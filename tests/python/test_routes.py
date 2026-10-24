@@ -11,10 +11,8 @@ import re
 import unittest
 from pathlib import Path
 
-from quiltor.hosts.web import (
-    server,
-)  # imported for its side effect: routes are loaded at import time
 from quiltor.delivery.http import routes
+from quiltor.hosts.web import server  # noqa: F401 - side effect: routes load at import time
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 API_CLIENT_ROOT = REPO_ROOT / "packages" / "client" / "src" / "platform" / "http"

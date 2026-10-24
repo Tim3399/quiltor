@@ -32,17 +32,16 @@ from unittest.mock import MagicMock, patch
 
 from quiltor.application.backups import BackupGatewayError
 from quiltor.bootstrap import build_identity, build_web_application
-from quiltor.modules.identity import service as identity
+from quiltor.hosts.web import server
+from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.backup.adapters import OidcBackupLoginGateway
 from quiltor.infrastructure.backup.login import BackupLoginRuntime
-from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.platform.adapters.credentials import InMemoryCredentialVault
 from quiltor.infrastructure.platform.ports import AppDirectories
+from quiltor.modules.identity import service as identity
 from tests.python.fake_issuer import FakeIssuer
-from tests.python.test_backup_login import FakeBackupEndpoint
-
-from quiltor.hosts.web import server
 from tests.python.request_timeout import REQUEST_TIMEOUT
+from tests.python.test_backup_login import FakeBackupEndpoint
 
 
 class BackupRouteTestCase(unittest.TestCase):

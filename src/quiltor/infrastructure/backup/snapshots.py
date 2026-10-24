@@ -701,7 +701,7 @@ class SnapshotStore:
             "changes": changes[:60],
             "changeCount": len(changes),
             "suggestedMessage": _describe_changes(changes)
-            or f"Writing backup {datetime.now():%Y-%m-%d %H:%M}",  # noqa: DTZ005
+            or f"Writing backup {datetime.now():%Y-%m-%d %H:%M}",
         }
 
     def commit(
@@ -738,7 +738,7 @@ class SnapshotStore:
         manifest = build_manifest_files(sorted(current.items()))
         for payload in current.values():
             self._write_blob(ctx, payload)
-        created = datetime.now()  # noqa: DTZ005 - preserve released local timestamp format
+        created = datetime.now()  # local and naive: preserves the released timestamp format
         entry = {
             "format": FORMAT_VERSION,
             "encryption": ENCRYPTION_NONE,
@@ -978,7 +978,7 @@ class SnapshotStore:
                         else ""
                     )
                     metadata = database.execute(
-                        "SELECT typeof(body),length(CAST(body AS BLOB))"
+                        "SELECT typeof(body),length(CAST(body AS BLOB))"  # noqa: S608 - only constant column fragments are joined in
                         + extra_metadata
                         + " FROM chapters WHERE id=?",
                         (chapter_id,),
@@ -992,7 +992,7 @@ class SnapshotStore:
                     ):
                         return {"available": False, "exists": False, "text": "", "marks": []}
                     row = database.execute(
-                        "SELECT body"
+                        "SELECT body"  # noqa: S608 - only constant column fragments are joined in
                         + (",extra_json" if has_extra_json else "")
                         + " FROM chapters WHERE id=?",
                         (chapter_id,),

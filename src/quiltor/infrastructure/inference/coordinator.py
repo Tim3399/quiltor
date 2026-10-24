@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Callable
-
+from collections.abc import Callable
 
 Progress = Callable[[str, int], None]
 InstallOperation = Callable[[Progress], None]
@@ -37,7 +36,7 @@ class InstallationCoordinator:
                     operation(progress)
                 with self._lock:
                     self._state.update(running=False, phase="", percent=100, error="")
-            except (SystemExit, Exception) as error:
+            except (SystemExit, Exception) as error:  # noqa: BLE001 - any install failure is reported in the job state
                 with self._lock:
                     self._state.update(running=False, error=str(error))
 

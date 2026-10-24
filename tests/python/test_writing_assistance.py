@@ -6,20 +6,20 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 
+from quiltor.infrastructure.persistence.writing_assistance import (
+    SQLiteWritingAssistanceRepository,
+)
 from quiltor.infrastructure.writing_assistance.installer import (
     CoreWritingAssistanceInstaller,
     validate_checksum,
 )
-from quiltor.infrastructure.persistence.writing_assistance import (
-    SQLiteWritingAssistanceRepository,
-)
+from quiltor.modules.writing_assistance.grammar import UnavailableGrammar
 from quiltor.modules.writing_assistance.providers import (
     parse_freedict,
     parse_openthesaurus,
     parse_wiktionary,
 )
 from quiltor.modules.writing_assistance.service import WritingAssistanceService
-from quiltor.modules.writing_assistance.grammar import UnavailableGrammar
 
 
 class WritingAssistanceServiceTests(unittest.TestCase):
@@ -97,7 +97,7 @@ class WritingAssistanceServiceTests(unittest.TestCase):
         tei = io.BytesIO(
             b'<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><entry><form><orth>Haus</orth></form><gramGrp><pos>n</pos></gramGrp><sense><cit><quote>house</quote></cit></sense></entry></text></TEI>'
         )
-        self.assertEqual(list(parse_freedict(tei, "de-DE", "en-GB"))[0]["values"], ["house"])
+        self.assertEqual(next(iter(parse_freedict(tei, "de-DE", "en-GB")))["values"], ["house"])
 
     def test_checksum_validation_rejects_stale_data(self):
         path = Path(self.temp.name) / "source"

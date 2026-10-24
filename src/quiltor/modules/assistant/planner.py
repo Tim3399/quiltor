@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from quiltor.modules.assistant.contract import required_proposal_kinds
 from quiltor.modules.assistant.prompts import COMPLEX_ANALYSIS_REQUEST

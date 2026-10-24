@@ -362,7 +362,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         jar = http.cookies.SimpleCookie()
         try:
             jar.load(raw)
-        except Exception:
+        except Exception:  # noqa: BLE001 - an unreadable cookie header means "no cookie"
             return None
         morsel = jar.get(name)
         return morsel.value if morsel else None
@@ -450,7 +450,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             claims = self.application.identity.auth.verify_id_token(
                 tokens["id_token"], pending["nonce"]
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - any token exchange failure is logged and redirects with an error
             self.application.observability.logger.event(
                 "warning",
                 "identity.token_exchange_failed",
