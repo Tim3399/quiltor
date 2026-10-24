@@ -417,7 +417,9 @@ export function usePlaceCanvas({
   useEffect(() => {
     if (!expandRequest || framedExpansion.current === expandRequest || !surface) return;
     const map = maps.find((node) => node.id === expandRequest.id);
-    if (!map || !map.width || !map.height || !flow.current) return;
+    if (!map?.width || !map.height || !flow.current) return;
+    const width = map.width;
+    const height = map.height;
     // Wait until the map and the inspector's new canvas width have landed. The
     // map already has its real size; only the camera travels to reveal it.
     const settle = window.setTimeout(() => {
@@ -432,7 +434,7 @@ export function usePlaceCanvas({
       // fitBounds uses the canvas-wide maxZoom and has no per-call cap. The
       // public projection helper lets this one reveal stop at natural size.
       const viewport = getViewportForBounds(
-        { ...map.position, width: map.width!, height: map.height! },
+        { ...map.position, width, height },
         surface.width,
         surface.height,
         minZoom ?? 0.08,

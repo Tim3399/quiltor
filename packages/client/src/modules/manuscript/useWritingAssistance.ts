@@ -36,9 +36,7 @@ export function useWritingAssistance({
   current,
   manuscript,
   figures,
-  onChange,
   onUpdateCurrent,
-  onInspectorOpen,
   onShowWritingAid,
   onError,
 }: WritingAssistanceOptions) {
@@ -66,6 +64,7 @@ export function useWritingAssistance({
   const [grammarPhase, setGrammarPhase] = useState<
     "idle" | "checking" | "installing" | "unavailable" | "error"
   >("idle");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the vocabulary only reads `manuscript.words`; depending on the whole manuscript would rebuild it on every keystroke
   const vocabulary = useMemo(
     () => writingVocabulary(manuscript, figures),
     [manuscript.words, figures.nodes],
@@ -83,6 +82,7 @@ export function useWritingAssistance({
     [current, figures.nodes],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `selectionKey` is a trigger: switching the edited item resets all selection-bound state
   useEffect(() => {
     setSelection(null);
     setSelectionMenuOpen(false);
@@ -102,6 +102,7 @@ export function useWritingAssistance({
     return () => lookupRequest.current?.abort();
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the selection fields are triggers: a changed writing selection aborts the lookup that belongs to the old one
   useEffect(
     () => () => lookupRequest.current?.abort(),
     [
@@ -291,6 +292,7 @@ export function useWritingAssistance({
     setSelectedIssue(null);
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `checkGrammar` is recreated every render; the debounced check must restart only when the text, chapter, mode or availability changes
   useEffect(() => {
     if (manuscript.grammarMode !== "automatic" || !current?.body || !status?.grammar?.available)
       return;
@@ -301,6 +303,7 @@ export function useWritingAssistance({
     };
   }, [current?.id, current?.body, manuscript.grammarMode, status?.grammar?.available]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `liveSelection.from` is a trigger: selecting the same text elsewhere refills the query
   useEffect(() => {
     if (liveSelection?.text) setQuery(liveSelection.text);
   }, [liveSelection?.text, liveSelection?.from]);

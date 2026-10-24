@@ -2,12 +2,10 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { PRODUCT_NAME } from "../config/branding";
 import { quiltorClient } from "../platform";
 import {
-  availableLocales,
   defaultUiLocale,
   isUiLocale,
   localeManifest,
   messageCatalog,
-  messageCatalogs,
   type MessageKey,
   type UiLocale,
 } from "./catalogs";

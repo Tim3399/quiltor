@@ -44,6 +44,7 @@ vi.mock("./WorkspaceSurface", () => ({
     onFiguresChange: (value: FigureState) => void;
   }) => (
     <button
+      type="button"
       onClick={() =>
         onFiguresChange({
           ...figures,

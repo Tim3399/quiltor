@@ -93,20 +93,18 @@ function filterBody(body, target, form) {
     if (keep) out.push(line);
   }
   if (open) throw new Error("<!-- nur --> Block nicht geschlossen");
-  return (
-    out
-      .join("\n")
-      .replaceAll(KB_PLACEHOLDER, config.kbRoot)
-      .replace(/<DEV_POOL>/g, String(config.devPool))
-      .replace(/\n{3,}/g, "\n\n")
-      .trim() + "\n"
-  );
+  return `${out
+    .join("\n")
+    .replaceAll(KB_PLACEHOLDER, config.kbRoot)
+    .replace(/<DEV_POOL>/g, String(config.devPool))
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()}\n`;
 }
 
 function prefixed(head, prefix) {
   return Object.fromEntries(
     Object.entries(head)
-      .filter(([k]) => k.startsWith(prefix + "."))
+      .filter(([k]) => k.startsWith(`${prefix}.`))
       .map(([k, v]) => [k.slice(prefix.length + 1), v]),
   );
 }
@@ -118,7 +116,7 @@ const list = (v) =>
         .map((s) => s.trim())
         .filter(Boolean)
     : [];
-const yamlString = (s) => '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+const yamlString = (s) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 
 // ---------- Claude-Ausgaben ----------
 
@@ -135,8 +133,7 @@ function claudeAgent(role) {
 
 function claudeOutputStyle(role, chatBasis) {
   const style = role.head["chat.style"];
-  const body =
-    filterBody(role.body, "claude", "chat") + "\n" + filterBody(chatBasis, "claude", "chat");
+  const body = `${filterBody(role.body, "claude", "chat")}\n${filterBody(chatBasis, "claude", "chat")}`;
   const lines = [
     "---",
     `name: ${style}`,
@@ -170,13 +167,11 @@ function rolesJson(roles) {
         subagents: list(c.subagents),
       };
     });
-  return (
-    JSON.stringify(
-      { _hinweis: MARKER, devPool: config.devPool, kbRoot: config.kbRoot, testCommand, chats },
-      null,
-      2,
-    ) + "\n"
-  );
+  return `${JSON.stringify(
+    { _hinweis: MARKER, devPool: config.devPool, kbRoot: config.kbRoot, testCommand, chats },
+    null,
+    2,
+  )}\n`;
 }
 
 const SESSION_TOOLS_ALLOW = [
@@ -267,7 +262,7 @@ function claudeSettings(existing) {
     CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "3",
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "0",
   };
-  return JSON.stringify(s, null, 2) + "\n";
+  return `${JSON.stringify(s, null, 2)}\n`;
 }
 
 // ---------- Generieren ----------
@@ -352,7 +347,7 @@ if (missing.length) {
   if (checkOnly) console.log(`.gitignore fehlt: ${missing.join(", ")}`);
   else {
     const sep = ignoreText && !ignoreText.endsWith("\n") ? "\n" : "";
-    fs.writeFileSync(gitignore, ignoreText + sep + missing.join("\n") + "\n");
+    fs.writeFileSync(gitignore, `${ignoreText + sep + missing.join("\n")}\n`);
     console.log(`.gitignore ergänzt: ${missing.join(", ")}`);
   }
 }

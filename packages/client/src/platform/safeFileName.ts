@@ -1,4 +1,5 @@
 const MAX_FILE_NAME_BYTES = 255;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what a file name must not contain.
 const INVALID_FILE_CHARACTERS = /[<>:"/\\|?*\u0000-\u001f\u007f]/g;
 const WINDOWS_RESERVED_STEM = /^(?:con|prn|aux|nul|com(?:[1-9]|[¹²³])|lpt(?:[1-9]|[¹²³]))$/iu;
 const encoder = new TextEncoder();

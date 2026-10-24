@@ -606,8 +606,6 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   const manuscriptToolbar = page.getByRole("toolbar", { name: "Manuskript" });
   const toolbarActions = manuscriptToolbar.locator(".manuscript-toolbar-actions");
-  const toolbarGroups = manuscriptToolbar.getByRole("group");
-
   for (const width of [
     320, 360, 390, 406, 414, 500, 719, 720, 820, 821, 878, 900, 998, 1099, 1100, 1329, 1440,
   ]) {
@@ -2629,7 +2627,7 @@ test("Moving preserves every element across autosave and a reload", async ({ pag
   // creating a world no longer makes it the process's "active" one, so a request
   // that names none has no world at all and is answered with a 400.
   const initial = await page.request.get(`/api/state?world=${world.id}`);
-  const revision = initial.headers()["etag"] || '"0"';
+  const revision = initial.headers().etag || '"0"';
   const nodes = Array.from({ length: 12 }, (_, index) => ({
     id: `n${index}`,
     x: 100 + (index % 4) * 240,

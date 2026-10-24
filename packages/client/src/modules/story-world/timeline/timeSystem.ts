@@ -188,9 +188,6 @@ export function projectTime(systemValue: Partial<TimeSystem> | undefined, time: 
   if (system.kind === "gregorian") {
     const epoch = daysFromCivil(system.epochYear, system.epochMonth, system.epochDay);
     const date = civilFromDays(epoch + time - system.epochTime);
-    const year = String(date.year).padStart(4, "0");
-    const month = String(date.month).padStart(2, "0");
-    const day = String(date.day).padStart(2, "0");
     const template = system.displayFormat || "{year:04d}-{month:02d}-{day:02d}";
     result = formatTemplate(template, {
       year: date.year,

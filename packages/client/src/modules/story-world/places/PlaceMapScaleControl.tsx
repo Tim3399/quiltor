@@ -26,6 +26,7 @@ export function PlaceMapScaleControl({
   const { t } = useI18n();
   const anchor = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `anchorPositionKey` is a trigger: a moved anchor closes the editor
   useEffect(() => {
     // Opening the editor leaves the key unchanged; only a moved anchor closes it.
     setOpen(false);
