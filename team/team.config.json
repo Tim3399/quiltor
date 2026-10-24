@@ -1,8 +1,6 @@
 {
   "kbRoot": "C:/Users/timra/git/quiltor-kb",
-  "targets": [
-    "claude"
-  ],
+  "targets": ["claude"],
   "devPool": 6,
   "claude": {
     "model": "opus",
