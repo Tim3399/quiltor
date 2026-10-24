@@ -45,6 +45,9 @@ RUN mkdir -p /data && chown -R quiltor:quiltor /app /data
 
 # This container holds whole manuscripts and talks to Keycloak with a client
 # secret; it has no business running as root.
+# DL3066 (numeric user id) stays off for the reason given in the app Dockerfile: the name
+# is created above, and pinning a uid could lock existing /data volumes out.
+# hadolint ignore=DL3066
 USER quiltor
 
 VOLUME ["/data"]
