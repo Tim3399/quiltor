@@ -259,7 +259,7 @@ class FakeIssuer:
                         issuer.account = previous
                 return self._json({"error": "unsupported_grant_type"}, 400)
 
-            def log_message(self, *args) -> None:
+            def log_message(self, format, *args) -> None:
                 pass
 
         self._httpd = http.server.HTTPServer(("127.0.0.1", 0), Handler)

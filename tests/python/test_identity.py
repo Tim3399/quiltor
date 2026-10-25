@@ -9,6 +9,7 @@ server.py that it is not supposed to have.
 
 import os
 import unittest
+from typing import cast
 from unittest import mock
 
 from quiltor.bootstrap import build_identity
@@ -17,6 +18,7 @@ from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.modules.identity import service as identity
 from quiltor.modules.identity.auth import IdentityConfiguration
+from tests.python.narrowing import present
 
 
 def local_identity(master_token: str | None = None, gateway=None, render_tokens=None):
@@ -69,14 +71,14 @@ class LocalTokenTests(IdentityTestCase):
     def test_a_token_is_invented_when_the_environment_has_none(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("QUILTOR_MASTER_TOKEN", None)
-            local = build_identity(False)
+            local = cast(identity.LocalIdentity, build_identity(False))
         self.assertTrue(local.token)
         self.assertGreaterEqual(len(local.token), 32)
 
     def test_the_environment_overrides_the_generated_token(self):
         configured = "secure-local-token-" + "xY7_" * 8
         with mock.patch.dict(os.environ, {"QUILTOR_MASTER_TOKEN": configured}):
-            self.assertEqual(build_identity(False).token, configured)
+            self.assertEqual(cast(identity.LocalIdentity, build_identity(False)).token, configured)
 
     def test_a_short_configured_master_token_fails_closed(self):
         with mock.patch.dict(os.environ, {"QUILTOR_MASTER_TOKEN": "vorgegeben"}):
@@ -94,7 +96,9 @@ class LocalTokenTests(IdentityTestCase):
         credential, which is exactly what this design avoids."""
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("QUILTOR_MASTER_TOKEN", None)
-            self.assertNotEqual(build_identity(False).token, build_identity(False).token)
+            first = cast(identity.LocalIdentity, build_identity(False))
+            second = cast(identity.LocalIdentity, build_identity(False))
+            self.assertNotEqual(first.token, second.token)
 
     def test_the_local_user_owns_the_local_worlds(self):
         self.assertEqual(local_identity().master_sub, config.LOCAL_OWNER)
@@ -115,7 +119,7 @@ class LocalResolveTests(IdentityTestCase):
         handler = FakeHandler(
             "/api/worlds", headers={"Authorization": "Bearer geheim-123"}, loopback=False
         )
-        session = self.local.resolve(handler)
+        session = present(self.local.resolve(handler))
         self.assertIsNotNone(session)
         self.assertEqual(session.sub, self.local.master_sub)
 
@@ -144,7 +148,7 @@ class LocalResolveTests(IdentityTestCase):
 
     def test_a_loopback_request_is_the_local_user_without_any_token(self):
         handler = FakeHandler("/api/worlds", loopback=True)
-        session = self.local.resolve(handler)
+        session = present(self.local.resolve(handler))
         self.assertIsNotNone(session)
         self.assertEqual(session.sub, self.local.master_sub)
         # The cookie means the next request needs no shortcut at all.
@@ -161,7 +165,7 @@ class LocalResolveTests(IdentityTestCase):
         handler = FakeHandler(
             "/api/worlds", cookies={identity.SESSION_COOKIE: session_id}, loopback=True
         )
-        session = self.local.resolve(handler)
+        session = present(self.local.resolve(handler))
         self.assertEqual(session.sub, "alice")
         self.assertEqual(handler._pending_cookies, [])
 
@@ -178,7 +182,7 @@ class SharedBaseTests(IdentityTestCase):
                 handler = FakeHandler(
                     "/", cookies={identity.SESSION_COOKIE: session_id}, loopback=False
                 )
-                self.assertEqual(who.resolve(handler).sub, "alice")
+                self.assertEqual(present(who.resolve(handler)).sub, "alice")
 
     def test_a_render_token_resolves_for_both_implementations(self):
         for factory in (oidc_identity, local_identity):
@@ -187,7 +191,7 @@ class SharedBaseTests(IdentityTestCase):
             with self.subTest(identity=type(who).__name__):
                 token = who.issue_render_token("alice")
                 handler = FakeHandler(f"/?renderToken={token}", loopback=False)
-                session = who.resolve(handler)
+                session = present(who.resolve(handler))
                 self.assertEqual(session.sub, "alice")
                 self.assertTrue(any(identity.SESSION_COOKIE in v for v in handler.cookie_values))
 

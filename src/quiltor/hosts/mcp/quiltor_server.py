@@ -7,7 +7,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 SOURCE_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(SOURCE_ROOT))
@@ -636,7 +636,9 @@ def _proposal(
         patch = {
             key: patch[key] for key in ("label", "active", "directed") if key in patch
         } | appearance
-        current = _relationship_state_at(relationship, timeline, arguments["momentId"])
+        # Checked against the timeline's moment ids above.
+        moment_id = cast(str, arguments["momentId"])
+        current = _relationship_state_at(relationship, timeline, moment_id)
         satisfied = all(current.get(key) == value for key, value in patch.items())
         decision = _local_decision(
             "relationship_state",

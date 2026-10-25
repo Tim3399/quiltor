@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 from unittest.mock import MagicMock, patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -70,7 +70,7 @@ class PreviousNativeReleaseTests(unittest.TestCase):
             self._release("3.1.0"),
         ]
         selected = previous_release.select_previous(releases, "3.3.1", "macos-dmg")
-        self.assertIsNotNone(selected)
+        assert selected is not None
         self.assertEqual(selected.tag, "v3.2.9")
         self.assertEqual(selected.version, "3.2.9")
 
@@ -88,7 +88,7 @@ class PreviousNativeReleaseTests(unittest.TestCase):
             self._release("3.1.0"),
         ]
         selected = previous_release.select_previous(releases, "3.3.1", "macos-dmg")
-        self.assertIsNotNone(selected)
+        assert selected is not None
         self.assertEqual(selected.tag, "v3.1.0")
         self.assertEqual(selected.version, "3.1.0")
 
@@ -145,7 +145,7 @@ class PreviousNativeReleaseTests(unittest.TestCase):
             "3.3.1",
             "windows-installer",
         )
-        self.assertIsNotNone(selected)
+        assert selected is not None
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "previous.json"
             previous_release.write_metadata(selected, "windows-installer", output)
@@ -762,7 +762,7 @@ class ReleaseManifestTests(unittest.TestCase):
         return artifacts
 
     @staticmethod
-    def _attest_signatures(manifest: dict[str, object], artifact_root: Path) -> None:
+    def _attest_signatures(manifest: dict[str, Any], artifact_root: Path) -> None:
         for specification in manifest["signatures"]:
             artifact = artifact_root / specification["artifact"]
             release_manifest.attest_signature(
@@ -827,7 +827,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 root = Path(directory)
                 repo_root = self._target_root(root, *enabled)
                 artifact_root = root / "artifacts"
-                manifest = release_manifest.create(
+                manifest: dict[str, Any] = release_manifest.create(
                     "3.3.1",
                     "a" * 40,
                     self._images(),
@@ -902,7 +902,7 @@ class ReleaseManifestTests(unittest.TestCase):
             root = Path(directory)
             repo_root = self._target_root(root, "macos_direct", "windows_direct")
             artifact_root = root / "artifacts"
-            manifest = release_manifest.create(
+            manifest: dict[str, Any] = release_manifest.create(
                 "3.3.1",
                 "a" * 40,
                 self._images(),
@@ -932,7 +932,7 @@ class ReleaseManifestTests(unittest.TestCase):
     def test_verification_rejects_a_missing_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            manifest = release_manifest.create(
+            manifest: dict[str, Any] = release_manifest.create(
                 "3.3.1",
                 "a" * 40,
                 self._images(),
@@ -982,7 +982,7 @@ class ReleaseManifestTests(unittest.TestCase):
             root = Path(directory)
             repo_root = self._target_root(root, "macos_direct")
             artifact_root = root / "artifacts"
-            manifest = release_manifest.create(
+            manifest: dict[str, Any] = release_manifest.create(
                 "3.3.1",
                 "a" * 40,
                 self._images(),
@@ -1007,7 +1007,7 @@ class ReleaseManifestTests(unittest.TestCase):
             version = "3.3.1"
             revision = "a" * 40
             artifacts = self._artifacts(artifact_root, version, repo_root)
-            manifest = release_manifest.create(
+            manifest: dict[str, Any] = release_manifest.create(
                 version,
                 revision,
                 self._images(),
@@ -1025,7 +1025,7 @@ class ReleaseManifestTests(unittest.TestCase):
     def test_wheel_digest_is_verified_before_publication(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            manifest = release_manifest.create(
+            manifest: dict[str, Any] = release_manifest.create(
                 "3.3.1",
                 "a" * 40,
                 self._images(),
@@ -1051,7 +1051,8 @@ class ReleaseManifestTests(unittest.TestCase):
 
     def test_manifest_rejects_unnamed_or_misbound_oci_images(self):
         with self.assertRaisesRegex(release_manifest.ManifestError, "named"):
-            release_manifest.create("3.3.1", "a" * 40, self._images().values(), [])
+            # Deliberately the wrong shape: values without their image names.
+            release_manifest.create("3.3.1", "a" * 40, cast(Any, self._images().values()), [])
         swapped = self._images()
         swapped["web-self-hosted"], swapped["backup-service"] = (
             swapped["backup-service"],
@@ -1063,7 +1064,7 @@ class ReleaseManifestTests(unittest.TestCase):
     def test_loaded_manifest_rejects_role_contract_or_digest_retargeting(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            manifest = release_manifest.create(
+            manifest: dict[str, Any] = release_manifest.create(
                 "3.3.1", "a" * 40, self._images(), self._artifacts(root)
             )
             manifest_path = root / "release-manifest.json"
@@ -1388,7 +1389,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
         self.assertNotIn("pip install --no-deps --no-build-isolation -e .", self.build)
         self.assertIn("python -m build --no-isolation --outdir pkg-dist", self.build)
         self.assertGreaterEqual(self.build.count("--no-build-isolation"), 3)
-        toolchains = workflow_contract.toolchain_lock()
+        toolchains: dict[str, Any] = workflow_contract.toolchain_lock()
         release_toolchains = toolchains["releaseToolchains"]
         self.assertEqual(
             release_toolchains,
@@ -1489,7 +1490,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
             workflow_contract.resolved_runners({Path("matrix.yml"): unreadable})
 
     def test_dependency_locks_declare_reproducible_target_environments(self):
-        records = dependency_lock_contract.records()
+        records: list[dict[str, Any]] = dependency_lock_contract.records()
         self.assertEqual(
             {record["pythonEnvironment"]["role"] for record in records},
             {"release-build", "target-runtime"},
@@ -1755,7 +1756,8 @@ class ThirdPartyNoticeContractTests(unittest.TestCase):
             if line.lstrip().startswith("| `")
         }
         package_versions = {(row[0].casefold(), row[1]) for row in notice_rows}
-        for record in dependency_lock_contract.records():
+        lock_records: list[dict[str, Any]] = dependency_lock_contract.records()
+        for record in lock_records:
             lock = (REPO_ROOT / record["path"]).read_text(encoding="utf-8")
             for name, version in re.findall(
                 r"^([A-Za-z0-9_.-]+)(?:\[[^]]+\])?==([^\s\\]+)",

@@ -32,7 +32,8 @@ _FILE_SAVE_FIELDS = {"name", "content", "encoding"}
 
 def _internal[Method: Callable[..., Any]](method: Method) -> Method:
     """Keep host plumbing out of ``window.pywebview.api``."""
-    method._serializable = False  # type: ignore[attr-defined]
+    # pywebview reads this marker; setattr because functions declare no such attribute.
+    setattr(method, "_serializable", False)  # noqa: B010
     return method
 
 
@@ -87,7 +88,7 @@ class NativeBridge:
     @_internal
     def choose_path(self, name: str) -> str | None:
         """Show the native save panel and return the selected path."""
-        import webview
+        import webview  # pyright: ignore[reportMissingImports] -- desktop extra
 
         dialogs = getattr(webview, "FileDialog", None)
         chosen = self._window.create_file_dialog(

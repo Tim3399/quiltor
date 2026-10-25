@@ -78,7 +78,8 @@ def parse_version(text: str) -> tuple[int, int, int]:
             f"e.g. 2.15.0, or one of: {', '.join(BUMPS)}."
         )
 
-    return tuple(int(part) for part in parts)  # type: ignore[return-value]
+    major, minor, patch = (int(part) for part in parts)
+    return major, minor, patch
 
 
 def format_version(parts: tuple[int, int, int]) -> str:

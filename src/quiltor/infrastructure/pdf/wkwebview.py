@@ -37,6 +37,9 @@ numbers are part of those physical pages, so the native output needs no PDF
 post-processing.
 """
 
+# Optional platform imports cannot resolve where the type check runs: macOS-only renderer (pyobjc).
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 import queue

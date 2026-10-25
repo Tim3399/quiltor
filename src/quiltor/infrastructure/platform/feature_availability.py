@@ -17,7 +17,7 @@ class HostCapabilitySource:
         self.process_role = process_role
 
     def availability(self, feature: Feature) -> AxisAvailability:
-        unsupported = {
+        unsupported_by_host: dict[HostKind, set[Feature]] = {
             HostKind.MOBILE: {
                 Feature.CODE_DOWNLOAD,
                 Feature.EXTERNAL_PROCESS,
@@ -25,8 +25,9 @@ class HostCapabilitySource:
                 Feature.WRITING_ASSISTANCE_GRAMMAR,
                 Feature.SELF_UPDATE,
             },
-        }.get(self.host, set())
-        role_unsupported = {
+        }
+        unsupported = unsupported_by_host.get(self.host, set())
+        unsupported_by_role: dict[ProcessRole | None, set[Feature]] = {
             ProcessRole.MCP: {
                 Feature.ARBITRARY_FILE_ACCESS,
                 Feature.BACKGROUND_EXECUTION,
@@ -46,7 +47,8 @@ class HostCapabilitySource:
                 Feature.SELF_UPDATE,
                 Feature.WRITING_ASSISTANCE_GRAMMAR,
             },
-        }.get(self.process_role, set())
+        }
+        role_unsupported = unsupported_by_role.get(self.process_role, set())
         unsupported = unsupported | role_unsupported
         allowed = feature not in unsupported
         role = f"/{self.process_role.value}" if self.process_role else ""

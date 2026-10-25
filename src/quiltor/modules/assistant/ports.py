@@ -73,7 +73,16 @@ class AssistantInstallation(Protocol):
 
 @runtime_checkable
 class AssistantJobStore(Protocol):
-    def submit(self, **kwargs: Any) -> tuple[dict[str, Any], bool]: ...
+    def submit(
+        self,
+        *,
+        owner_sub: str,
+        world_id: str,
+        idempotency_key: str,
+        intent: dict[str, Any],
+        execution: dict[str, Any],
+        progress_id: str | None = None,
+    ) -> tuple[dict[str, Any], bool]: ...
 
     def get(self, job_id: str, owner_sub: str, world_id: str) -> dict[str, Any] | None: ...
 

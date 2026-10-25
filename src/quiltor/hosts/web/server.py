@@ -44,7 +44,7 @@ import sys
 import threading
 import time
 import webbrowser
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import parse_qs, urlparse
 
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
@@ -141,7 +141,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     @property
     def application(self) -> WebApplication:
-        return self.server.application
+        return cast(Server, self.server).application
 
     def __init__(self, request, client_address, server):
         # Only the built Vite client is public; databases and mirrors stay private.
@@ -350,7 +350,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         finally:
             self._sent_connection_header = False
 
-    def log_message(self, fmt, *args):
+    def log_message(self, format, *args):
         pass  # Suppress default noise; meaningful operations are logged explicitly.
 
     # ---------- Auth helpers ----------
@@ -562,7 +562,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 outcome="failure",
                 error_type=type(exc).__name__,
             )
-            fields = {
+            fields: dict[str, Any] = {
                 "method": self.command,
                 "route": route,
                 "error_type": type(exc).__name__,

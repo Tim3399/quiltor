@@ -24,16 +24,20 @@ Usage:
     python3 src/quiltor/resources/sidecars/inference/mlx/bridge.py --model /path/to/mlx/model/dir --port 11435
 """
 
+# Optional platform imports cannot resolve where the type check runs: runs only inside the MLX sidecar venv (llguidance, mlx, mlx_lm).
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import sys
 import threading
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import Any, cast
 
 STATE: dict[str, Any] = {
     "ready": False,
@@ -265,5 +269,6 @@ def main() -> None:
 if __name__ == "__main__":
     for stream in (sys.stdout, sys.stderr):
         if stream and stream.encoding and stream.encoding.lower() != "utf-8":
-            stream.reconfigure(encoding="utf-8")
+            # The interpreter's standard streams are TextIOWrapper; typeshed says TextIO.
+            cast(io.TextIOWrapper, stream).reconfigure(encoding="utf-8")
     main()

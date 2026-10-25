@@ -7,6 +7,7 @@ from pathlib import Path
 from quiltor.infrastructure.persistence.assistant_progress import (
     SQLiteAssistantProgressStore,
 )
+from tests.python.narrowing import present
 
 
 class AssistantProgressStoreTests(unittest.TestCase):
@@ -30,7 +31,7 @@ class AssistantProgressStoreTests(unittest.TestCase):
             {"titles": "Alice's secret chapter"},
         )
         self.assertEqual(
-            self.store.read("alice", "world-a", "same-id")["labelParams"]["titles"],
+            present(self.store.read("alice", "world-a", "same-id"))["labelParams"]["titles"],
             "Alice's secret chapter",
         )
         self.assertIsNone(self.store.read("bob", "world-a", "same-id"))
@@ -40,7 +41,7 @@ class AssistantProgressStoreTests(unittest.TestCase):
         self.store.start("alice", "world-a", "progress", 3)
         self.store.update("alice", "world-a", "progress", 2, "chapterGroupLabel", {"index": 2})
         restarted = SQLiteAssistantProgressStore(self.path, clock=lambda: self.now)
-        self.assertEqual(restarted.read("alice", "world-a", "progress")["done"], 2)
+        self.assertEqual(present(restarted.read("alice", "world-a", "progress"))["done"], 2)
 
     def test_expired_progress_is_pruned_without_cross_scope_effects(self) -> None:
         self.store.start("alice", "world-a", "old", 1)

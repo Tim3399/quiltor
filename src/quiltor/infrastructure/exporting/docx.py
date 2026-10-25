@@ -39,9 +39,12 @@ class ExportChapter:
     marks: tuple[dict[str, Any], ...] = ()
 
 
+DocxPreset = Literal["editor", "normseite"]
+
+
 @dataclass(frozen=True, slots=True)
 class DocxExportOptions:
-    preset: Literal["editor", "normseite"] = "editor"
+    preset: DocxPreset = "editor"
     page_numbers: bool = True
 
 

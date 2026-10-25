@@ -7,6 +7,7 @@ import secrets
 import threading
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import cast
 
 from quiltor import resources
 from quiltor.application.assistant import AssistantAuditUseCases
@@ -31,7 +32,7 @@ from quiltor.infrastructure.backup.authorization import EndpointBoundBackupAutho
 from quiltor.infrastructure.backup.login import BackupLoginRuntime
 from quiltor.infrastructure.backup.sync_state import JsonSyncStateStore
 from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
-from quiltor.infrastructure.exporting.docx import DocxExportOptions, serialize_docx
+from quiltor.infrastructure.exporting.docx import DocxExportOptions, DocxPreset, serialize_docx
 from quiltor.infrastructure.exporting.epub import EpubExportOptions, serialize_epub
 from quiltor.infrastructure.identity import (
     InMemoryRenderTokenStore,
@@ -181,7 +182,8 @@ def build_application_services(
         manuscript_export=ManuscriptExportUseCases(
             documents,
             lambda chapters, preset: (
-                serialize_docx(chapters, DocxExportOptions(preset=preset)).content
+                # ManuscriptExportUseCases validates the preset before it renders.
+                serialize_docx(chapters, DocxExportOptions(preset=cast(DocxPreset, preset))).content
             ),
             lambda chapters, metadata, digest: (
                 serialize_epub(

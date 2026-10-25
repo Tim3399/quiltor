@@ -9,7 +9,7 @@ import unittest
 import urllib.parse
 from contextlib import contextmanager, suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import ClassVar
+from typing import cast
 from unittest.mock import patch
 
 import jwt
@@ -28,6 +28,12 @@ from quiltor.modules.identity.auth import (
 )
 
 
+class _LoopbackServer(ThreadingHTTPServer):
+    routes: dict[tuple[str, str], tuple[int, dict[str, str], bytes]]
+    requests: list[tuple[str, str, bytes]]
+    base_url: str
+
+
 class _LoopbackHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         self._respond()
@@ -39,8 +45,9 @@ class _LoopbackHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         request_body = self.rfile.read(length) if length else b""
         path = urllib.parse.urlsplit(self.path).path
-        self.server.requests.append((self.command, path, request_body))
-        status, headers, response_body = self.server.routes.get(
+        server = cast(_LoopbackServer, self.server)
+        server.requests.append((self.command, path, request_body))
+        status, headers, response_body = server.routes.get(
             (self.command, path),
             (404, {"Content-Type": "application/json"}, b"{}"),
         )
@@ -54,17 +61,17 @@ class _LoopbackHandler(BaseHTTPRequestHandler):
         with suppress(BrokenPipeError, ConnectionResetError):
             self.wfile.write(response_body)
 
-    def log_message(self, _format: str, *_args) -> None:
+    def log_message(self, format: str, *args) -> None:
         pass
 
 
 @contextmanager
 def _loopback_server():
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _LoopbackHandler)
+    server = _LoopbackServer(("127.0.0.1", 0), _LoopbackHandler)
     server.daemon_threads = True
     server.routes = {}
     server.requests = []
-    host, port = server.server_address
+    host, port = server.server_address[:2]
     server.base_url = f"http://{host}:{port}"
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -158,6 +165,7 @@ class IdentityRuntimeTests(unittest.TestCase):
         self.assertEqual(query["code_challenge_method"], ["S256"])
         self.assertEqual(query["nonce"], [self.runtime._pending[state]["nonce"]])
         pending = self.runtime.consume_pending_login(state)
+        assert pending is not None
         self.assertEqual(pending["redirect_uri"], "https://app.test/auth/callback")
         self.assertIsNone(self.runtime.consume_pending_login(state))
 
@@ -171,13 +179,17 @@ class IdentityRuntimeTests(unittest.TestCase):
         refreshed = self.runtime.refresh_tokens("refresh")
         self.assertEqual(exchanged["access_token"], "access")
         self.assertEqual(refreshed["refresh_token"], "refresh")
-        exchange_fields = urllib.parse.parse_qs(self.transport.calls[-2][1].decode("ascii"))
+        exchange_body = self.transport.calls[-2][1]
+        assert exchange_body is not None
+        exchange_fields = urllib.parse.parse_qs(exchange_body.decode("ascii"))
         self.assertEqual(exchange_fields["code_verifier"], ["verifier"])
         self.assertEqual(exchange_fields["client_secret"], ["client-secret"])
 
     def test_session_lifecycle_and_owner_reuse_are_instance_scoped(self) -> None:
         first = self.runtime.create_session("alice", "a@example.test", "Alice")
-        self.assertEqual(self.runtime.get_session(first).sub, "alice")
+        session = self.runtime.get_session(first)
+        assert session is not None
+        self.assertEqual(session.sub, "alice")
         owner_a, _ = self.runtime.owner_session("local-owner")
         owner_b, _ = self.runtime.owner_session("local-owner")
         self.assertEqual(owner_a, owner_b)
@@ -207,6 +219,7 @@ class IdentityRuntimeTests(unittest.TestCase):
 
     def test_logout_url_comes_from_discovery(self) -> None:
         url = self.runtime.end_session_url(post_logout_redirect_uri="https://app.test/")
+        assert url is not None
         self.assertTrue(url.startswith("https://issuer.test/logout?"))
 
 
@@ -506,7 +519,8 @@ class DiscoveryTrustTests(unittest.TestCase):
         }
 
         class Transport:
-            document: ClassVar[dict[str, str]] = dict(base)
+            def __init__(self) -> None:
+                self.document = dict(base)
 
             def request(self, *args, **kwargs):
                 return dict(self.document)

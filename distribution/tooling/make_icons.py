@@ -104,7 +104,7 @@ def _write_ico(master: Image.Image) -> None:
 def _write_iconset(master: Image.Image) -> None:
     ICONSET_DIR.mkdir(parents=True, exist_ok=True)
     for name, px in ICONSET_SIZES.items():
-        master.resize((px, px), Image.LANCZOS).save(ICONSET_DIR / name)
+        master.resize((px, px), Image.Resampling.LANCZOS).save(ICONSET_DIR / name)
     print(f"Wrote {ICONSET_DIR} ({len(ICONSET_SIZES)} images)")
 
 
@@ -112,7 +112,7 @@ def _write_tray_png(master: Image.Image) -> None:
     target = OUT_DIR / "tray.png"
     # 64px source: crisp when a HiDPI tray/menu-bar host downscales it, small
     # enough that bundling it in the frozen app costs nothing worth mentioning.
-    master.resize((64, 64), Image.LANCZOS).save(target)
+    master.resize((64, 64), Image.Resampling.LANCZOS).save(target)
     print(f"Wrote {target}")
 
 

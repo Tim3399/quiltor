@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 from quiltor.hosts.desktop import app
@@ -180,7 +180,8 @@ class NativeBridgeTests(unittest.TestCase):
         self.assertNotIn("private traceback detail", json.dumps(response))
 
     def test_a_weird_dialog_value_never_reaches_path_or_javascript(self):
-        self.bridge.choose_path = lambda _name: {"path": "C:/private/book.md"}
+        # Deliberately the wrong shape: a dict where the dialog returns a path or None.
+        cast(Any, self.bridge).choose_path = lambda _name: {"path": "C:/private/book.md"}
 
         response = self._save("Kapitel.md", b"Text", "weird-dialog")
 

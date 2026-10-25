@@ -62,6 +62,7 @@ from quiltor.application.backups import (
 )
 from quiltor.application.backups import WorldBackupContext as BackupContext
 from quiltor.application.history import HistoryRevisionNotFound
+from quiltor.application.history.types import HistoryContext
 from quiltor.domain.text_offsets import utf16_offsets_to_indices
 
 FORMAT_VERSION = CURRENT_FORMAT_VERSION
@@ -346,15 +347,17 @@ def _word_diff(old: str, new: str) -> list[str]:
     """One text with removals as [-this-] and additions as {+that+}, inline.
     The History dialog parses exactly these markers (markWords() in
     packages/client/src/modules/history/HistoryDialog.tsx), so the shape is a contract."""
-    matcher = difflib.SequenceMatcher(None, _tokenize(old), _tokenize(new), autojunk=False)
+    old_tokens = _tokenize(old)
+    new_tokens = _tokenize(new)
+    matcher = difflib.SequenceMatcher(None, old_tokens, new_tokens, autojunk=False)
     out: list[str] = []
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag in ("delete", "replace"):
-            out.append("[-" + "".join(matcher.a[i1:i2]) + "-]")
+            out.append("[-" + "".join(old_tokens[i1:i2]) + "-]")
         if tag in ("insert", "replace"):
-            out.append("{+" + "".join(matcher.b[j1:j2]) + "+}")
+            out.append("{+" + "".join(new_tokens[j1:j2]) + "+}")
         if tag == "equal":
-            out.append("".join(matcher.a[i1:i2]))
+            out.append("".join(old_tokens[i1:i2]))
     # Markers must not straddle a line break, or a single changed paragraph would
     # swallow every following line into one unreadable block.
     return "".join(out).replace("\n", "\n\x00").split("\x00")
@@ -422,7 +425,7 @@ class SnapshotStore:
 
     # ----------------------------------------------------------------- storage
 
-    def _blob_path(self, ctx: BackupContext, digest: str) -> Path:
+    def _blob_path(self, ctx: HistoryContext, digest: str) -> Path:
         # Two-character shard: a long-lived history can hold tens of thousands of
         # blobs, and some filesystems degrade badly with that many siblings.
         if not DIGEST_RE.fullmatch(digest):
@@ -452,7 +455,7 @@ class SnapshotStore:
         staged.replace(target)
         return digest
 
-    def _read_blob(self, ctx: BackupContext, digest: str) -> bytes:
+    def _read_blob(self, ctx: HistoryContext, digest: str) -> bytes:
         path = self._blob_path(ctx, digest)
         _assert_contained(ctx.root, path)
         try:
@@ -467,7 +470,7 @@ class SnapshotStore:
             )
         return payload
 
-    def _index_path(self, ctx: BackupContext) -> Path:
+    def _index_path(self, ctx: HistoryContext) -> Path:
         path = ctx.root / "index.jsonl"
         _assert_contained(ctx.root, path)
         return path
@@ -572,14 +575,14 @@ class SnapshotStore:
         finally:
             staged.unlink(missing_ok=True)
 
-    def entries(self, ctx: BackupContext) -> list[dict[str, Any]]:
+    def entries(self, ctx: HistoryContext) -> list[dict[str, Any]]:
         path = self._index_path(ctx)
         if not path.exists():
             return []
         found, _ = self._parse_index(ctx, path.read_bytes())
         return found
 
-    def _parse_index(self, ctx: BackupContext, payload: bytes) -> tuple[list[dict[str, Any]], int]:
+    def _parse_index(self, ctx: HistoryContext, payload: bytes) -> tuple[list[dict[str, Any]], int]:
         """Return validated entries and the byte boundary before any torn tail."""
 
         lines = payload.splitlines(keepends=True)
@@ -624,7 +627,7 @@ class SnapshotStore:
             index.flush()
             os.fsync(index.fileno())
 
-    def _resolve(self, ctx: BackupContext, ref: str) -> dict[str, Any] | None:
+    def _resolve(self, ctx: HistoryContext, ref: str) -> dict[str, Any] | None:
         entries = self.entries(ctx)
         if not entries:
             return None
@@ -636,7 +639,7 @@ class SnapshotStore:
 
     # ------------------------------------------------------------- world state
 
-    def _collect(self, ctx: BackupContext) -> dict[str, bytes]:
+    def _collect(self, ctx: HistoryContext) -> dict[str, bytes]:
         """The world exactly as it stands right now: the database plus the
         human-readable mirrors, read straight from where they live. There is no
         staging copy to keep in sync."""
@@ -761,6 +764,7 @@ class SnapshotStore:
         self._append_entry(ctx, entry)
         log.append("Snapshot created.")
 
+        warning = None
         if push:
             warning = self._push(ctx, entry, authorization, snapshot_created=True)
             log.append("Snapshot uploaded to the backup endpoint.")
@@ -807,7 +811,7 @@ class SnapshotStore:
 
         return self._push(ctx, entry, authorization, snapshot_created=False)
 
-    def history(self, ctx: BackupContext, limit: int = 40) -> list[dict[str, str]]:
+    def history(self, ctx: HistoryContext, limit: int = 40) -> list[dict[str, str]]:
         entries = self.entries(ctx)[-limit:]
         return [
             {
@@ -820,7 +824,7 @@ class SnapshotStore:
         ]
 
     def diff(
-        self, ctx: BackupContext, ref: str, text_only: bool = True, word_diff: bool = True
+        self, ctx: HistoryContext, ref: str, text_only: bool = True, word_diff: bool = True
     ) -> dict[str, Any]:
         if ref in ("", "WORK", None):
             new_files = {path: payload for path, payload in self._collect(ctx).items()}
@@ -931,7 +935,7 @@ class SnapshotStore:
         }
 
     def chapter_version(
-        self, ctx: BackupContext, ref: str, chapter_index: int, filename: str
+        self, ctx: HistoryContext, ref: str, chapter_index: int, filename: str
     ) -> dict[str, Any]:
         entry = self._resolve(ctx, ref)
         if entry is None and ref not in ("", "WORK", "HEAD", None):
@@ -947,7 +951,7 @@ class SnapshotStore:
 
     def _chapter_record(
         self,
-        ctx: BackupContext,
+        ctx: HistoryContext,
         entry: dict[str, Any] | None,
         chapter_id: str,
     ) -> dict[str, Any]:
@@ -1008,7 +1012,7 @@ class SnapshotStore:
 
     def chapter_comparison(
         self,
-        ctx: BackupContext,
+        ctx: HistoryContext,
         ref: str,
         chapter_id: str,
     ) -> dict[str, Any]:

@@ -22,8 +22,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from quiltor.infrastructure.persistence.sqlite import config, world_catalog
 from quiltor.infrastructure.persistence.sqlite import manuscript as manuscript_store
-from quiltor.infrastructure.persistence.sqlite import world_catalog
 
 TITLE = "Quiltor Story-Testwelt – The Time Machine"  # noqa: RUF001 - German title with a real en dash
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "the-time-machine.chapters.json"
@@ -40,13 +40,15 @@ def main() -> None:
     chapters = json.loads(FIXTURE.read_text(encoding="utf-8"))
     manuscript = {"chapters": chapters, "note": ATTRIBUTION}
 
+    paths = config.SQLitePaths.from_data_directory(config.DATA)
     existing = next(
-        (world for world in world_catalog.list_worlds() if world["title"] == TITLE),
+        (world for world in world_catalog.list_worlds(paths=paths) if world["title"] == TITLE),
         None,
     )
-    world = existing or world_catalog.create_world(TITLE)
-    world_catalog.activate_world(world["id"])
-    manuscript_store.save(manuscript)
+    world = existing or world_catalog.create_world(TITLE, paths=paths)
+    # There is no process-wide active world any more; write into this world's database.
+    database = world_catalog.world_db_path(world["id"], paths=paths)
+    manuscript_store.save(manuscript, db_path=database)
     words = sum(len(chapter["body"].split()) for chapter in chapters)
     print(f"{world['id']}  ({len(chapters)} chapters, {words} words)")
 

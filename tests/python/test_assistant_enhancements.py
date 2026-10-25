@@ -8,6 +8,7 @@ from quiltor.modules.assistant.context import pack_chunks
 from quiltor.modules.assistant.contract import existing_creation_target, task_contract
 from quiltor.modules.assistant.references import resolve_reference
 from quiltor.modules.assistant.schemas import reply_schema
+from tests.python.narrowing import present
 
 
 class AssistantEnhancementTests(unittest.TestCase):
@@ -43,7 +44,7 @@ class AssistantEnhancementTests(unittest.TestCase):
                 "references": ["element:mara", "element:tarek"],
             }
         ]
-        result = resolve_reference("Ändere ihr Profil.", history, figures)
+        result = present(resolve_reference("Ändere ihr Profil.", history, figures))
         self.assertEqual(
             {item["id"] for item in result["clarification"]["candidates"]}, {"mara", "tarek"}
         )

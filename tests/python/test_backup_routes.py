@@ -28,6 +28,7 @@ import time
 import unittest
 import urllib.parse
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.application.backups import BackupGatewayError
@@ -36,10 +37,12 @@ from quiltor.hosts.web import server
 from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.backup.adapters import OidcBackupLoginGateway
 from quiltor.infrastructure.backup.login import BackupLoginRuntime
+from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.platform.adapters.credentials import InMemoryCredentialVault
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity import service as identity
 from tests.python.fake_issuer import FakeIssuer
+from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
 from tests.python.test_backup_login import FakeBackupEndpoint
 
@@ -111,7 +114,7 @@ class BackupRouteTestCase(unittest.TestCase):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join(timeout=5)
-        self.app.identity.auth.clear()
+        cast(StdlibIdentityGateway, self.app.identity.auth).clear()
         self.app.close()
         self.environment.stop()
         backup_login.close()
@@ -365,26 +368,26 @@ class HostedTokenTests(BackupRouteTestCase):
         # deployment that is the same realm the endpoint trusts, which is
         # exactly why the session's token is usable there at all.
         session_id = self.app.identity.auth.create_session("hosted-person", "", "")
-        session = self.app.identity.auth.get_session(session_id)
+        session = present(self.app.identity.auth.get_session(session_id))
         self.issuer.sign_in_as("hosted-person")
         granted = self.issuer._grant("quiltor.backup")
         self.app.identity.auth.store_session_tokens(
             session.session_id, {**granted, "expires_in": 0}
         )  # already lapsed
-        stale = self.app.identity.auth.get_session(session_id).access_token
+        stale = present(self.app.identity.auth.get_session(session_id)).access_token
 
         fresh = self.app.session_backup_token(session)
         self.assertTrue(fresh)
         self.assertNotEqual(fresh, stale, "the lapsed token was handed out unchanged")
         self.assertGreater(
-            self.app.identity.auth.get_session(session_id).access_expires_at,
+            present(self.app.identity.auth.get_session(session_id)).access_expires_at,
             time.time(),
             "the renewed token was filed without an expiry, so it lapses instantly",
         )
 
     def test_a_dead_refresh_token_clears_the_session_rather_than_pretending(self):
         session_id = self.app.identity.auth.create_session("hosted-person", "", "")
-        session = self.app.identity.auth.get_session(session_id)
+        session = present(self.app.identity.auth.get_session(session_id))
         self.app.identity.auth.store_session_tokens(
             session.session_id,
             {"access_token": "stale", "refresh_token": "no-such-thing", "expires_in": 0},

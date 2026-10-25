@@ -8,6 +8,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = REPO_ROOT / "distribution" / "dependency-locks.json"
@@ -322,7 +323,10 @@ def records(repo_root: Path = REPO_ROOT) -> list[dict[str, object]]:
 
 
 def for_profile(profile: str, repo_root: Path = REPO_ROOT) -> list[dict[str, object]]:
-    return [record for record in records(repo_root) if profile in record["profiles"]]
+    # records() validated each record's profile list.
+    return [
+        record for record in records(repo_root) if profile in cast(list[str], record["profiles"])
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,5 +1,6 @@
 import copy
 import unittest
+from typing import Any, cast
 
 from quiltor.application.story_world import StoryWorldUseCases
 from quiltor.domain.story_world import (
@@ -13,6 +14,7 @@ from quiltor.domain.story_world import (
     ensure_timeline_moment,
     require_current_world_revision,
 )
+from tests.python.narrowing import present
 
 
 def _world():
@@ -136,8 +138,8 @@ class ElementEnsureTests(unittest.TestCase):
         self.assertTrue(existing.operation_satisfied)
         self.assertEqual(update.outcome, "update")
         self.assertFalse(update.operation_satisfied)
-        self.assertEqual(update.canonical["name"], "Ada Stern")
-        self.assertEqual(update.canonical["label"], "Navigatorin")
+        self.assertEqual(present(update.canonical)["name"], "Ada Stern")
+        self.assertEqual(present(update.canonical)["label"], "Navigatorin")
 
     def test_colliding_name_or_alias_is_never_silently_reused(self):
         world = _world()
@@ -224,9 +226,9 @@ class RelationshipEnsureTests(unittest.TestCase):
             },
         )
         self.assertEqual((unchanged.outcome, unchanged.resolved_id), ("unchanged", "ada-ben"))
-        self.assertEqual(unchanged.canonical["from"], "ben")
-        self.assertEqual(unchanged.canonical["to"], "ada")
-        self.assertNotIn("directed", unchanged.canonical)
+        self.assertEqual(present(unchanged.canonical)["from"], "ben")
+        self.assertEqual(present(unchanged.canonical)["to"], "ada")
+        self.assertNotIn("directed", present(unchanged.canonical))
 
         update = ensure_relationship(
             context,
@@ -256,7 +258,7 @@ class RelationshipEnsureTests(unittest.TestCase):
         )
         decision = ensure_relationship(context, candidate)
         self.assertEqual(decision.outcome, "unchanged")
-        self.assertTrue(decision.resolved_id.startswith("staged:relationships:"))
+        self.assertTrue(present(decision.resolved_id).startswith("staged:relationships:"))
 
     def test_ambiguous_or_missing_endpoints_are_not_create_decisions(self):
         world = _world()
@@ -340,7 +342,7 @@ class PresenceEnsureTests(unittest.TestCase):
         )
         self.assertEqual(unchanged.outcome, "unchanged")
         self.assertEqual(moved.outcome, "update")
-        self.assertEqual(moved.canonical["placeId"], "cove")
+        self.assertEqual(present(moved.canonical)["placeId"], "cove")
 
     def test_raw_staged_presence_is_detected_and_same_logical_key_replaces_it(self):
         first = {"kind": "set_presence", "elementId": "ben", "placeId": "harbor"}
@@ -355,7 +357,7 @@ class PresenceEnsureTests(unittest.TestCase):
             {"elementId": "ben", "placeId": "cove"},
         )
         self.assertEqual(decision.outcome, "unchanged")
-        self.assertTrue(decision.resolved_id.startswith("staged:presence:"))
+        self.assertTrue(present(decision.resolved_id).startswith("staged:presence:"))
 
     def test_unknown_moment_or_non_place_never_creates_presence(self):
         context = build_resolution_context(_world(), 7)
@@ -406,11 +408,15 @@ class ResolutionProofTests(unittest.TestCase):
             require_current_world_revision(decision.proof, 8)
         with self.assertRaises(TypeError):
             require_current_world_revision(
-                {
-                    "checked": True,
-                    "status": "not_found",
-                    "worldRevision": 7,
-                },
+                # Deliberately a plain dict, not a ResolutionProof.
+                cast(
+                    Any,
+                    {
+                        "checked": True,
+                        "status": "not_found",
+                        "worldRevision": 7,
+                    },
+                ),
                 7,
             )
         with self.assertRaises(TypeError):

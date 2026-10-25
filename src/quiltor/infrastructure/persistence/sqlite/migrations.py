@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Mapping
+from typing import Any
 
 from quiltor.domain.story_world.profile import (
     LEGACY_PROFILE_FIELDS,
@@ -162,6 +163,7 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
                         "WHERE figure_id=? ORDER BY position",
                         (figure_id,),
                     ).fetchall()
+                    profile_extensions: Any
                     try:
                         profile_extensions = json.loads(profile[6])
                     except (TypeError, ValueError):

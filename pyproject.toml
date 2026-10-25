@@ -182,3 +182,21 @@ ignore = [
 "services/backup-server/server.py" = ["E402"]
 "src/quiltor/hosts/mcp/quiltor_server.py" = ["E402"]
 "tools/evaluation/assistant/seed_*.py" = ["E402"]
+
+# pyright, pinned in package.json; run it with `npm run lint:pyright`. See
+# docs/quality/linting.md for what it checks and why each setting is here.
+[tool.pyright]
+include = ["src/quiltor", "apps/web", "tools", "distribution/tooling", "tests/python"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+# strict where the code is new and small enough to hold to it. src/quiltor/domain and
+# application would add ~1,200 findings in strict mode, almost all untyped JSON dicts;
+# that is a migration of its own, not part of introducing the gate.
+strict = ["tools/dev/run_pyright.py", "tests/python/narrowing.py", "tests/python/module_loader.py"]
+# Analyse this checkout's sources rather than the editable install (which points at the
+# main checkout from a worktree), and resolve the release tooling the tests put on
+# sys.path at runtime.
+extraPaths = ["src", "distribution/tooling", "distribution/desktop/pyinstaller"]
+# Bare `# type: ignore` is not honoured: a suppression has to be
+# `# pyright: ignore[<rule>]` and so names the rule it silences.
+enableTypeIgnoreComments = false

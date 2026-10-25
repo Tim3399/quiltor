@@ -11,6 +11,7 @@ from quiltor.modules.assistant import (
     validate_world,
     verify_task_contract,
 )
+from tests.python.narrowing import present
 
 FIGURES = {
     "nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}],
@@ -114,7 +115,9 @@ class AssistantPlanningTests(unittest.TestCase):
         }
         question = "Lege ein Tier an. Tarek Venn hat einen kleinen Corgi."
         self.assertEqual(
-            existing_creation_target(question, figures, task_contract(question, figures))["id"],
+            present(existing_creation_target(question, figures, task_contract(question, figures)))[
+                "id"
+            ],
             "corgi",
         )
 
@@ -253,6 +256,8 @@ class AssistantPlanningTests(unittest.TestCase):
         death = runtime._forced_proposal(
             "Markiere Nima Nox am Zeitpunkt trial als verstorben.", "[]", figures
         )
+        update = present(update)
+        state = present(state)
         self.assertEqual(update["kind"], "update_element")
         self.assertEqual(state["kind"], "set_relationship_at_moment")
         self.assertFalse(state["patch"]["directed"])

@@ -2,6 +2,7 @@ import ast
 import inspect
 import unittest
 from pathlib import Path
+from typing import Any, cast
 
 from quiltor.application.story_world import StoryWorldReadTools
 from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
@@ -90,21 +91,23 @@ class AssistantRuntimeArchitectureTests(unittest.TestCase):
                     if module == "quiltor.infrastructure" or module.startswith(
                         "quiltor.infrastructure."
                     ):
-                        violations.append(f"{path.name}:{node.lineno}:{module}")
+                        # Only Import and ImportFrom nodes produce modules above.
+                        line = cast(ast.stmt, node).lineno
+                        violations.append(f"{path.name}:{line}:{module}")
         self.assertEqual(violations, [])
 
 
 class _Progress:
-    def start(self, *args):
+    def start(self, *args, **kwargs):
         pass
 
-    def update(self, *args):
+    def update(self, *args, **kwargs):
         pass
 
-    def finish(self, *args):
+    def finish(self, *args, **kwargs):
         pass
 
-    def read(self, *args):
+    def read(self, *args, **kwargs):
         return None
 
 
@@ -271,7 +274,8 @@ class CrossTurnReferenceResolutionCharacterizationTests(unittest.TestCase):
 
 
 class AssistantRuntimeCompleteTests(unittest.TestCase):
-    def _runtime(self, *replies, tokens=0):
+    # `Any`: the tests replace runtime members and read the fakes' recordings back.
+    def _runtime(self, *replies, tokens=0) -> tuple[Any, FakeInference]:
         inference = FakeInference(replies, tokens)
         read_tools = _ReadTools()
         return (

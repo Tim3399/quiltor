@@ -32,6 +32,7 @@ class Entitlement:
 class EntitlementProvider(Protocol):
     def entitlement(self, product_id: str) -> Entitlement:
         """Resolve the current user's entitlement without changing it."""
+        ...
 
 
 __all__ = ["Entitlement", "EntitlementProvider", "EntitlementState"]
