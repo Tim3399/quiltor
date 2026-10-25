@@ -57,6 +57,7 @@ export function Popover({
 }: PopoverProps) {
   const panel = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   closeRef.current = onClose;
   const compactViewport = useCompactLayout();
   const compact = compactMode === "sheet" && compactViewport;
@@ -134,6 +135,7 @@ export function Popover({
   }, [open, compact, anchorRef, updatePosition]);
 
   if (!open) return null;
+  // eslint-disable-next-line react-hooks/refs -- the portal container is an element mounted before the popover opens; it does not change while open
   const portalContainer = portalContainerRef?.current ?? document.body;
   if (compact) {
     return createPortal(

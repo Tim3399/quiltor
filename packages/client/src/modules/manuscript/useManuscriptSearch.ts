@@ -27,7 +27,9 @@ export function useManuscriptSearch({
   const [activeIndex, setActiveIndex] = useState(0);
   const latestChapters = useRef(chapters);
   const onCurrentIdRef = useRef(onCurrentId);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestChapters.current = chapters;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   onCurrentIdRef.current = onCurrentId;
   const matches = useMemo(() => manuscriptSearchMatches(chapters, query), [chapters, query]);
   const activeMatch = matches[activeIndex] ?? null;
@@ -55,6 +57,7 @@ export function useManuscriptSearch({
         match.from === requestedSearch.from &&
         match.to === requestedSearch.to,
     );
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setQuery(requestedQuery);
     setActiveIndex(requested >= 0 ? requested : 0);
     if (requestedChapters.some((chapter) => chapter.id === targetId))
@@ -63,6 +66,7 @@ export function useManuscriptSearch({
 
   useEffect(() => {
     if (!query) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setActiveIndex((index) => Math.min(index, Math.max(0, matches.length - 1)));
   }, [matches.length, query]);
 

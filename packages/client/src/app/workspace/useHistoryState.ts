@@ -73,7 +73,9 @@ export function useHistoryState<T>() {
     change,
     undo,
     redo,
+    // eslint-disable-next-line react-hooks/refs -- every history change also bumps timelineVersion state, so this render already sees the updated stacks
     canUndo: past.current.length > 0,
+    // eslint-disable-next-line react-hooks/refs -- every history change also bumps timelineVersion state, so this render already sees the updated stacks
     canRedo: future.current.length > 0,
   };
 }

@@ -102,6 +102,7 @@ export function useAssistantConversation({
     if (!pending?.jobId) return;
 
     sendLockRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setSending(true);
     const controller = new AbortController();
     abortRef.current = controller;
