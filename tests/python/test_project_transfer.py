@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from quiltor.application.document_wire_v1 import decode_document_v1
+from quiltor.application.document_wire_v1 import DocumentKind, decode_document_v1
 from quiltor.application.project_transfer import (
     InvalidProjectArchive,
     InvalidProjectAsset,
@@ -31,13 +31,14 @@ from quiltor.infrastructure.persistence.sqlite import (
     world_catalog,
 )
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
+from tests.python.narrowing import present
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "contracts" / "fixtures" / "application-api"
 PNG = (ROOT / "distribution/assets/icons/icon.iconset/icon_128x128.png").read_bytes()
 
 
-def fixture(kind: str, directory: str) -> dict:
+def fixture(kind: DocumentKind, directory: str) -> dict:
     wire = json.loads((FIXTURES / directory / "wire.v1.json").read_text(encoding="utf-8"))
     return decode_document_v1(kind, wire).payload
 
@@ -148,7 +149,8 @@ class ProjectTransferTests(unittest.TestCase):
                 self.assertEqual(manuscript.load(imported_db), manuscript.load(self.database))
                 self.assertEqual(story_world.load(imported_db), story_world.load(self.database))
                 self.assertEqual(storyboards.load(imported_db), storyboards.load(self.database))
-                self.assertEqual(place_map_images.content(self.image.id, imported_db).data, PNG)
+                image = present(place_map_images.content(self.image.id, imported_db))
+                self.assertEqual(image.data, PNG)
                 self.assertFalse((destination_paths.data / "history" / imported.id).exists())
                 self.assertEqual(
                     tuple(

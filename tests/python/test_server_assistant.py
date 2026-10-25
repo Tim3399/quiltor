@@ -12,6 +12,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import AssistantServices, build_identity, build_web_application
@@ -29,6 +30,7 @@ from quiltor.infrastructure.persistence.sqlite import (
 )
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.assistant.jobs import AssistantJobRunner
+from quiltor.modules.identity.service import LocalIdentity
 
 
 class _UnavailableInference:
@@ -137,7 +139,7 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
         self.assertEqual(status, 200, body)
         self.world_id = body["world"]["id"]
         self.db_path = self.app.application.worlds.open(
-            self.world_id, self.app.identity.master_sub
+            self.world_id, cast(LocalIdentity, self.app.identity).master_sub
         ).paths.documents.database
 
     def _submit(self, body: dict, *, key: str = "test-request"):
@@ -151,7 +153,7 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
     def _wait(self, response: dict) -> dict:
         return self.app.assistant_jobs.wait(
             response["job"]["id"],
-            self.app.identity.master_sub,
+            cast(LocalIdentity, self.app.identity).master_sub,
             self.world_id,
             timeout=3,
         )
@@ -372,10 +374,10 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
     def test_progress_endpoint_is_bound_to_the_authorized_world(self):
         progress_id = "shared-progress-id"
         self.app.assistant.progress.start(
-            self.app.identity.master_sub, self.world_id, progress_id, 2
+            cast(LocalIdentity, self.app.identity).master_sub, self.world_id, progress_id, 2
         )
         self.app.assistant.progress.update(
-            self.app.identity.master_sub,
+            cast(LocalIdentity, self.app.identity).master_sub,
             self.world_id,
             progress_id,
             1,

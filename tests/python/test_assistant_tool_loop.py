@@ -11,6 +11,7 @@ from quiltor.modules.assistant.tool_loop import (
     MAX_TOOL_ROUNDS,
     run_tool_loop,
 )
+from tests.python.narrowing import present
 
 
 def catalog():
@@ -133,7 +134,7 @@ class AssistantToolLoopTests(unittest.TestCase):
             MAX_CALLS_PER_ROUND,
         )
         self.assertFalse(any(word in names for word in ("apply", "delete", "write")))
-        self.assertEqual(result.final["message"], "done")
+        self.assertEqual(present(result.final)["message"], "done")
 
     def test_read_results_are_bounded_untrusted_context_before_final(self):
         executed = []
@@ -152,7 +153,7 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertEqual(result.tool_rounds, 1)
         self.assertEqual(result.tool_calls, 1)
         self.assertIsNone(result.failure)
-        self.assertEqual(result.final["message"], "resolved")
+        self.assertEqual(present(result.final)["message"], "resolved")
         second_messages = calls[1][0]["messages"]
         self.assertIn("untrusted story data", second_messages[-1]["content"])
         self.assertIn('"resolvedId":"tarek"', second_messages[-1]["content"])

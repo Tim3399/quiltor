@@ -41,7 +41,7 @@ def figure_state(name: str) -> dict:
 def storyboard_state(title: str) -> dict:
     state = default_storyboard_document()
     state["boards"][0]["title"] = title
-    return state
+    return dict(state)
 
 
 class DocumentTransactionSafetyTests(unittest.TestCase):

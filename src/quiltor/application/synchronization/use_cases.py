@@ -10,7 +10,7 @@ from contextlib import nullcontext, suppress
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from quiltor.application.backups import (
     BackupAuthorization,
@@ -20,7 +20,7 @@ from quiltor.application.backups import (
     SnapshotHistory,
     WorldBackupContext,
 )
-from quiltor.application.document_wire_v1 import encode_document_v1
+from quiltor.application.document_wire_v1 import DocumentKind, encode_document_v1
 from quiltor.application.documents import DocumentRepository
 from quiltor.application.synchronization.errors import (
     SyncConflict,
@@ -361,7 +361,8 @@ class SynchronizationUseCases:
                 account_id,
                 head,
                 local,
-                int(expected_generation),
+                # Validated above for every action that reaches the publish path.
+                int(cast(int, expected_generation)),
                 owner_sub,
                 local_lock,
             )
@@ -646,12 +647,13 @@ class SynchronizationUseCases:
                 entry,
                 fetch=fetch,
             )
-            documents = {
-                kind: self._documents.load(kind, temporary.database)
-                for kind in ("manuscript", "figures", "storyboards")
+            kinds: tuple[DocumentKind, ...] = ("manuscript", "figures", "storyboards")
+            documents: dict[str, dict[str, Any]] = {
+                kind: self._documents.load(kind, temporary.database) for kind in kinds
             }
-            for kind, document in documents.items():
-                encode_document_v1(kind, document)
+            for document_kind, document in documents.items():
+                # Keys come from `kinds` just above.
+                encode_document_v1(cast(DocumentKind, document_kind), document)
             target_fingerprint = self.fingerprint(temporary)
             return documents, cached_blobs, target_fingerprint
 

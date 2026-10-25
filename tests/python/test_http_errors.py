@@ -2,6 +2,7 @@ import ast
 import json
 import unittest
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 from quiltor.application.backups import BackupGatewayError
@@ -108,7 +109,7 @@ class StructuredHttpErrorTests(unittest.TestCase):
             handler._response_status = status
             responses.append((payload, status))
 
-        handler.send_json = capture
+        cast(Any, handler).send_json = capture
         handler._dispatch({}, on_miss=lambda: None)
 
         self.assertEqual(responses[0][1], 500)

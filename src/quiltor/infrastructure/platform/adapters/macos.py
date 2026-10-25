@@ -30,7 +30,8 @@ def app_directories() -> AppDirectories:
 
 def reveal_in_file_manager(path: Path) -> None:
     try:
-        from AppKit import NSURL, NSWorkspace
+        # macOS-only pyobjc; does not resolve where the type check runs.
+        from AppKit import NSURL, NSWorkspace  # pyright: ignore[reportMissingImports]
     except ImportError:
         subprocess.run(["open", str(path)], check=False)
         return

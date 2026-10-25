@@ -21,12 +21,15 @@ class GrammarBackend(Protocol):
         always answer, including when the backend cannot do anything: the UI
         decides what to show from this, so an exception here would take the
         whole status route down with it."""
+        ...
 
     def install(self) -> dict:
         """Set the backend up, or raise explaining why that is not possible."""
+        ...
 
     def check(self, language: str, text: str, custom_words: list[str]) -> dict:
         """Proofread `text`, or raise."""
+        ...
 
     def close(self) -> None:
         """Release anything held. Must tolerate being called when nothing was

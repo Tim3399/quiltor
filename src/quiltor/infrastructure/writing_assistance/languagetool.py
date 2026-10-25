@@ -14,6 +14,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import cast
 
 from quiltor.infrastructure.platform import process_supervisor, system
 from quiltor.modules.writing_assistance.grammar.contract import (
@@ -135,7 +136,8 @@ class LanguageToolManager:
                 self.port = candidate.getsockname()[1]
             self.process = process_supervisor().spawn(
                 [
-                    self.java,
+                    # `available` above implies a Java executable was found.
+                    cast(str, self.java),
                     "-cp",
                     str(self.server_jar),
                     "org.languagetool.server.HTTPServer",

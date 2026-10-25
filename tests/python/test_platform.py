@@ -8,6 +8,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.infrastructure.platform import directories
@@ -276,10 +277,12 @@ class DependencyBoundaryTests(unittest.TestCase):
                 elif isinstance(node, ast.ImportFrom) and node.module:
                     names = [node.module]
                 for name in names:
+                    # Only Import and ImportFrom nodes produce names above.
+                    line = cast(ast.stmt, node).lineno
                     if name == "backend" or name.startswith("backend."):
-                        offenders.append(f"{path.relative_to(REPO_ROOT)}:{node.lineno} {name}")
+                        offenders.append(f"{path.relative_to(REPO_ROOT)}:{line} {name}")
                     if name == "hosts" or name.startswith("hosts."):
-                        offenders.append(f"{path.relative_to(REPO_ROOT)}:{node.lineno} {name}")
+                        offenders.append(f"{path.relative_to(REPO_ROOT)}:{line} {name}")
         self.assertEqual(offenders, [])
 
 

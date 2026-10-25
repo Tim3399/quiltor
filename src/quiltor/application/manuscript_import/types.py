@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 MAX_DOCX_BYTES = 8 * 1024 * 1024
 MAX_IMPORT_BYTES = MAX_DOCX_BYTES
@@ -56,7 +56,7 @@ class ParsedUnitManuscript:
     warnings: tuple[dict[str, Any], ...]
 
 
-class ManuscriptImportRepository:
+class ManuscriptImportRepository(Protocol):
     def preview(self, file_name: str, content: bytes, selection: Any = None) -> dict: ...
 
     def publish(

@@ -139,7 +139,7 @@ def main() -> None:
     server_thread.start()
     _wait_until_ready(port)
 
-    import webview
+    import webview  # pyright: ignore[reportMissingImports] -- desktop extra
 
     from quiltor.hosts.desktop.bridge import NativeBridge
 

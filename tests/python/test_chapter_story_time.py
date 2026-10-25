@@ -10,31 +10,35 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
+from quiltor.application.backups import BackupRepository
 from quiltor.application.documents import (
     DocumentLocation,
     DocumentUseCases,
     InvalidChapterStoryTime,
 )
+from quiltor.application.telemetry import UseCaseObserver
 from quiltor.domain.manuscript import story_time_anchor_issue, valid_story_time_reference
 from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocumentRepository
 from quiltor.infrastructure.persistence.sqlite import manuscript, revisions, schema, story_world
 from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
+from tests.python.narrowing import present
 
 
 class _Observer:
-    def observe(self, *_args):
+    def observe(self, *_args, **_kwargs):
         return nullcontext()
 
 
 class _Backups:
-    def backup_if_due(self, *_args):
+    def backup_if_due(self, *_args, **_kwargs):
         return False
 
-    def mirror_manuscript(self, *_args):
+    def mirror_manuscript(self, *_args, **_kwargs):
         return None
 
-    def mirror_story_world(self, *_args):
+    def mirror_story_world(self, *_args, **_kwargs):
         return None
 
 
@@ -139,11 +143,13 @@ class ChapterStoryTimeDomainTests(unittest.TestCase):
             ]
         }
         self.assertEqual(
-            story_time_anchor_issue(reversed_range, _timeline()).reason,
+            present(story_time_anchor_issue(reversed_range, _timeline())).reason,
             "reversed_range",
         )
         unknown = {"chapters": [{"id": "lost", "storyTime": {"startMomentId": "missing"}}]}
-        self.assertEqual(story_time_anchor_issue(unknown, _timeline()).reason, "unknown_moment")
+        self.assertEqual(
+            present(story_time_anchor_issue(unknown, _timeline())).reason, "unknown_moment"
+        )
 
     def test_equal_times_follow_incoming_array_order_not_stale_positions(self):
         world = {
@@ -175,7 +181,7 @@ class ChapterStoryTimeDomainTests(unittest.TestCase):
             ]
         }
         self.assertIsNone(story_time_anchor_issue(forward, world))
-        self.assertEqual(story_time_anchor_issue(reverse, world).reason, "reversed_range")
+        self.assertEqual(present(story_time_anchor_issue(reverse, world)).reason, "reversed_range")
 
 
 class ChapterStoryTimePersistenceTests(unittest.TestCase):
@@ -193,8 +199,8 @@ class ChapterStoryTimePersistenceTests(unittest.TestCase):
         story_world.save(_timeline(), db_path=self.database)
         self.documents = DocumentUseCases(
             SQLiteDocumentRepository(),
-            _Backups(),
-            _Observer(),
+            cast(BackupRepository, _Backups()),
+            cast(UseCaseObserver, _Observer()),
         )
 
     def tearDown(self):
@@ -286,8 +292,8 @@ class ChapterStoryTimePersistenceTests(unittest.TestCase):
 
                 documents = DocumentUseCases(
                     _CoordinatedRepository(first),
-                    _Backups(),
-                    _Observer(),
+                    cast(BackupRepository, _Backups()),
+                    cast(UseCaseObserver, _Observer()),
                 )
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     futures = {

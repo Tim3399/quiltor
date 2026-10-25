@@ -19,6 +19,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import build_identity, build_web_application
@@ -179,7 +180,8 @@ class ForeignRequestTests(_LiveLocalServerTestCase):
 class BodyContentTypeTests(_LiveLocalServerTestCase):
     def test_an_invalid_content_type_drains_the_bounded_body_before_responding(self):
         body = b'{"title":"Testwelt"}'
-        handler = object.__new__(server.Handler)
+        # A bare handler: headers is a plain dict for the parts this test exercises.
+        handler: Any = object.__new__(server.Handler)
         handler.headers = {
             "Content-Type": "text/plain",
             "Content-Length": str(len(body)),

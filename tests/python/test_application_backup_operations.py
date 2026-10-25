@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock
 
 from quiltor.application.backups import BackupUseCases, WorldBackupContext
+from quiltor.application.backups.ports import SnapshotHistory
 from quiltor.application.documents import DocumentLocation
 from quiltor.application.telemetry import UseCaseObserver
-from quiltor.application.worlds import WorldPaths
+from quiltor.application.worlds import WorldPaths, WorldRepository
+from tests.python.narrowing import present
 
 
 class _FreshWorlds:
@@ -46,7 +50,7 @@ class _FreshWorlds:
 
 class _Snapshots:
     def __init__(self) -> None:
-        self.restored: tuple[WorldBackupContext, dict, object] | None = None
+        self.restored: tuple[WorldBackupContext, dict, Callable[[str], bytes] | None] | None = None
 
     def context(
         self,
@@ -85,11 +89,12 @@ class ApplicationBackupOperationTests(unittest.TestCase):
                 "manuscript": 0,
                 "figures": 0,
             }
+            # Partial fakes: only what restore_remote reaches is implemented.
             backups = BackupUseCases(
-                worlds,
+                cast(WorldRepository, worlds),
                 documents,
                 MagicMock(),
-                snapshots,
+                cast(SnapshotHistory, snapshots),
                 remote,
                 MagicMock(),
                 UseCaseObserver(MagicMock(), MagicMock()),
@@ -113,10 +118,9 @@ class ApplicationBackupOperationTests(unittest.TestCase):
             )
             self.assertEqual(result["snapshot"], "snapshot-1")
             self.assertEqual(result["title"], "Remote title")
-            self.assertIsNotNone(snapshots.restored)
-            context, _, fetch = snapshots.restored
+            context, _, fetch = present(snapshots.restored)
             self.assertEqual(context.endpoint_url, "https://backup.test")
-            self.assertEqual(fetch("digest"), b"blob")
+            self.assertEqual(present(fetch)("digest"), b"blob")
 
 
 if __name__ == "__main__":

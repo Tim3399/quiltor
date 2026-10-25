@@ -19,14 +19,17 @@ import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from typing import ClassVar
+from typing import ClassVar, cast
 from unittest.mock import MagicMock, patch
 
-from quiltor.bootstrap import build_identity, build_web_application
+from quiltor.bootstrap import WebApplication, build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity import service as identity
+
+# Construction-only tests pass no application; the server never routes a request.
+_NO_APPLICATION = cast(WebApplication, None)
 
 
 class ProbeHandler(server.Handler):
@@ -76,6 +79,11 @@ class ProbeHandler(server.Handler):
         self._respond(403, b"rejected")
 
 
+def _address(httpd: server.Server) -> tuple[str, int]:
+    """The IPv4 (host, port) these tests bind; socketserver types it more widely."""
+    return cast(tuple[str, int], httpd.server_address)
+
+
 class ServerConnectionTests(unittest.TestCase):
     def setUp(self):
         ProbeHandler.handled = []
@@ -83,7 +91,7 @@ class ServerConnectionTests(unittest.TestCase):
 
     def start_probe_server(self):
         application = SimpleNamespace(public_assets=Path.cwd())
-        httpd = server.Server(("127.0.0.1", 0), ProbeHandler, application)
+        httpd = server.Server(("127.0.0.1", 0), ProbeHandler, cast(WebApplication, application))
         thread = threading.Thread(
             target=httpd.serve_forever,
             kwargs={"poll_interval": 0.01},
@@ -159,7 +167,7 @@ class ServerConnectionTests(unittest.TestCase):
             thread.join(timeout=2)
 
         self.addCleanup(stop)
-        connection = http.client.HTTPConnection(*httpd.server_address, timeout=2)
+        connection = http.client.HTTPConnection(*_address(httpd), timeout=2)
         self.addCleanup(connection.close)
 
         connection.request("GET", "/asset.js")
@@ -179,7 +187,7 @@ class ServerConnectionTests(unittest.TestCase):
 
     def test_bodyless_http11_gets_reuse_one_connection_for_static_and_api(self):
         httpd = self.start_probe_server()
-        connection = http.client.HTTPConnection(*httpd.server_address, timeout=2)
+        connection = http.client.HTTPConnection(*_address(httpd), timeout=2)
         self.addCleanup(connection.close)
 
         connection.request("GET", "/asset.js")
@@ -211,7 +219,7 @@ class ServerConnectionTests(unittest.TestCase):
         for method, headers in cases:
             with self.subTest(method=method, headers=headers):
                 httpd = self.start_probe_server()
-                connection = http.client.HTTPConnection(*httpd.server_address, timeout=2)
+                connection = http.client.HTTPConnection(*_address(httpd), timeout=2)
                 connection.request(method, "/probe", headers=headers)
                 response = connection.getresponse()
                 response.read()
@@ -222,7 +230,7 @@ class ServerConnectionTests(unittest.TestCase):
 
     def test_http10_get_explicitly_closes(self):
         httpd = self.start_probe_server()
-        with socket.create_connection(httpd.server_address, timeout=2) as client:
+        with socket.create_connection(_address(httpd), timeout=2) as client:
             client.sendall(b"GET /probe HTTP/1.0\r\nHost: localhost\r\n\r\n")
             response = self._read_to_close(client)
 
@@ -231,7 +239,7 @@ class ServerConnectionTests(unittest.TestCase):
 
     def test_expect_continue_only_advertises_close_on_the_final_response(self):
         httpd = self.start_probe_server()
-        with socket.create_connection(httpd.server_address, timeout=2) as client:
+        with socket.create_connection(_address(httpd), timeout=2) as client:
             client.sendall(
                 b"POST /reject HTTP/1.1\r\n"
                 b"Host: localhost\r\n"
@@ -247,7 +255,7 @@ class ServerConnectionTests(unittest.TestCase):
 
     def test_connection_header_tracking_is_scoped_to_one_header_block(self):
         httpd = self.start_probe_server()
-        with socket.create_connection(httpd.server_address, timeout=2) as client:
+        with socket.create_connection(_address(httpd), timeout=2) as client:
             client.sendall(
                 b"POST /header-blocks HTTP/1.1\r\n"
                 b"Host: localhost\r\n"
@@ -263,7 +271,7 @@ class ServerConnectionTests(unittest.TestCase):
 
     def test_rejected_post_does_not_parse_unread_body_as_a_second_request(self):
         httpd = self.start_probe_server()
-        with socket.create_connection(httpd.server_address, timeout=2) as client:
+        with socket.create_connection(_address(httpd), timeout=2) as client:
             client.sendall(
                 b"POST /reject HTTP/1.1\r\n"
                 b"Host: localhost\r\n"
@@ -278,7 +286,7 @@ class ServerConnectionTests(unittest.TestCase):
 
     def test_request_state_is_reset_before_head_and_malformed_requests(self):
         httpd = self.start_probe_server()
-        connection = http.client.HTTPConnection(*httpd.server_address, timeout=2)
+        connection = http.client.HTTPConnection(*_address(httpd), timeout=2)
         self.addCleanup(connection.close)
         connection.request("GET", "/prime-state")
         first = connection.getresponse()
@@ -293,7 +301,7 @@ class ServerConnectionTests(unittest.TestCase):
         self.assertIsNone(head.getheader("X-Probe-Redirect"))
         self.assertEqual(ProbeHandler.state_before_head, [([], None, 0)])
 
-        with socket.create_connection(httpd.server_address, timeout=2) as client:
+        with socket.create_connection(_address(httpd), timeout=2) as client:
             client.sendall(
                 b"GET /prime-state HTTP/1.1\r\nHost: localhost\r\n\r\n"
                 b"GET /bad HTTP/1.1\r\nHost: localhost\r\nX-Long: " + (b"x" * 65537) + b"\r\n\r\n"
@@ -309,13 +317,13 @@ class ServerConnectionTests(unittest.TestCase):
             httpd = self.start_probe_server()
             for partial_request in (b"", b"GET / HTTP/1.1\r\nHost:"):
                 with self.subTest(partial_request=partial_request):
-                    with socket.create_connection(httpd.server_address, timeout=2) as client:
+                    with socket.create_connection(_address(httpd), timeout=2) as client:
                         if partial_request:
                             client.sendall(partial_request)
                         client.settimeout(1)
                         self.assertEqual(client.recv(1), b"")
 
-            connection = http.client.HTTPConnection(*httpd.server_address, timeout=2)
+            connection = http.client.HTTPConnection(*_address(httpd), timeout=2)
             self.addCleanup(connection.close)
             connection.request("GET", "/probe")
             response = connection.getresponse()
@@ -339,17 +347,18 @@ class ServerConnectionTests(unittest.TestCase):
             return original_listen(self) if backlog is None else original_listen(self, backlog)
 
         with patch.object(socket.socket, "listen", listen_spy):
-            httpd = server.Server(("127.0.0.1", 0), server.Handler, None)
+            httpd = server.Server(("127.0.0.1", 0), server.Handler, _NO_APPLICATION)
             httpd.server_close()
 
         self.assertEqual(len(passed_backlogs), 1)
-        self.assertIsNotNone(passed_backlogs[0])
+        backlog = passed_backlogs[0]
+        assert backlog is not None
         # Five is socketserver's default and the reason Windows refused.
-        self.assertGreater(passed_backlogs[0], socketserver.TCPServer.request_queue_size)
-        self.assertGreaterEqual(passed_backlogs[0], 128)
+        self.assertGreater(backlog, socketserver.TCPServer.request_queue_size)
+        self.assertGreaterEqual(backlog, 128)
 
     def test_a_disconnected_browser_does_not_produce_a_traceback(self):
-        httpd = server.Server(("127.0.0.1", 0), server.Handler, None)
+        httpd = server.Server(("127.0.0.1", 0), server.Handler, _NO_APPLICATION)
         self.addCleanup(httpd.server_close)
 
         for error in (
@@ -361,7 +370,7 @@ class ServerConnectionTests(unittest.TestCase):
                 self.assertEqual(self._error_log(httpd, error), "")
 
     def test_an_unexpected_error_remains_visible(self):
-        httpd = server.Server(("127.0.0.1", 0), server.Handler, None)
+        httpd = server.Server(("127.0.0.1", 0), server.Handler, _NO_APPLICATION)
         self.addCleanup(httpd.server_close)
 
         self.assertIn("ValueError", self._error_log(httpd, ValueError("broken")))
@@ -373,7 +382,8 @@ class ServerConnectionTests(unittest.TestCase):
         try:
             raise error
         except Exception:
-            httpd.handle_error(None, ("127.0.0.1", 0))
+            # No request object: handle_error only reads the exception being handled.
+            httpd.handle_error(cast(socket.socket, None), ("127.0.0.1", 0))
         finally:
             sys.stderr = previous
         return buffer.getvalue()

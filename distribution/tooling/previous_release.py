@@ -42,7 +42,8 @@ def semantic_version(value: str) -> tuple[int, int, int]:
     match = _VERSION.fullmatch(value.strip())
     if match is None:
         raise PreviousReleaseError(f"invalid semantic version: {value!r}")
-    return tuple(int(part) for part in match.groups())  # type: ignore[return-value]
+    major, minor, patch = (int(part) for part in match.groups())
+    return major, minor, patch
 
 
 def canonical_name(kind: str, version: tuple[int, int, int]) -> str:

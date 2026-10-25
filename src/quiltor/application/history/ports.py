@@ -8,11 +8,12 @@ from quiltor.application.history.types import HistoryContext
 
 
 class HistoryReader(Protocol):
-    def history(self, context: HistoryContext, limit: int = 40) -> list[dict[str, str]]: ...
+    def history(self, context: HistoryContext, /, limit: int = 40) -> list[dict[str, str]]: ...
 
     def diff(
         self,
         context: HistoryContext,
+        /,
         ref: str,
         text_only: bool = True,
         word_diff: bool = True,
@@ -21,6 +22,7 @@ class HistoryReader(Protocol):
     def chapter_version(
         self,
         context: HistoryContext,
+        /,
         ref: str,
         chapter_index: int,
         filename: str,
@@ -29,6 +31,7 @@ class HistoryReader(Protocol):
     def chapter_comparison(
         self,
         context: HistoryContext,
+        /,
         ref: str,
         chapter_id: str,
     ) -> dict[str, Any]: ...

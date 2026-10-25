@@ -119,10 +119,15 @@ jobs:
           python -m pip install --quiet --require-hashes --only-binary=:all:
           -r distribution/lint-tools.requirements.txt
 
+      # pyright resolves typer, PyJWT and markdown-it-py through this interpreter;
+      # without the project's dependencies every third-party import is unresolved.
+      - name: Install the project for the type check
+        run: python -m pip install --quiet -e .
+
       # The whole local gate, not a list of its parts: every linter that `npm run check`
       # chains (formatting, zizmor, and whatever lint:* joins it later) runs here without
       # this file having to name it. The job has what check needs -- npm ci, Python with
-      # ruff and zizmor, Rust with rustfmt.
+      # ruff, zizmor and the project for pyright, Rust with rustfmt.
       - name: Check gates, formatting and linters
         run: npm run check
 

@@ -183,7 +183,8 @@ def valid_figures(payload: Any) -> bool:
     if not _acyclic_place_levels(payload["nodes"]):
         return False
     ids: list[str] = []
-    kinds: dict[str, str] = {}
+    # Keyed by node id, but looked up with unvalidated JSON values (a missing placeId).
+    kinds: dict[object, str] = {}
     for node in payload["nodes"]:
         if not isinstance(node, dict) or not isinstance(node.get("id"), str) or not node["id"]:
             return False

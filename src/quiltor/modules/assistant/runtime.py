@@ -24,6 +24,9 @@ from quiltor.modules.assistant.proposals import forced_proposal
 class AssistantRuntime:
     """Own model lifecycle and wire pure assistant policies to runtime ports."""
 
+    # Set per request by completion.complete_request; declared for CompletionRuntime.
+    _invocation_metrics: list[dict[str, Any]]
+
     def __init__(
         self,
         base: Path,

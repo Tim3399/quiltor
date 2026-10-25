@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+from typing import Any, cast
 
 from quiltor.application.story_world import (
     MAX_READ_TOOL_CALLS,
@@ -266,7 +267,7 @@ class ReadToolExecutionTests(unittest.TestCase):
             world_revision=17,
         )
         invalid = StoryWorldReadTools().execute_many(
-            None,
+            cast(Any, None),  # deliberately not a sequence
             manuscript=self.manuscript,
             figures=self.figures,
             world_revision=17,

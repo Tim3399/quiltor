@@ -10,6 +10,7 @@ from quiltor.application.manuscript_export import ExportLimitExceeded, InvalidEx
 from quiltor.infrastructure.exporting import epub as epub_export
 from quiltor.infrastructure.exporting.docx import ExportChapter
 from quiltor.infrastructure.exporting.epub import EpubExportOptions, serialize_epub
+from tests.python.narrowing import present
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
 OPF = "{http://www.idpf.org/2007/opf}"
@@ -118,7 +119,7 @@ class ManuscriptEpubExportTests(unittest.TestCase):
         )
         files = archive_files(exported.content)
         chapter = ET.fromstring(files["EPUB/chapter-00001.xhtml"])
-        heading = chapter.find(f".//{XHTML}h1")
+        heading = present(chapter.find(f".//{XHTML}h1"))
         self.assertIsNotNone(heading)
         self.assertEqual(heading.text, None)
         self.assertEqual(chapter.findtext(f".//{XHTML}head/{XHTML}title"), "Kapitel 1")
@@ -154,8 +155,7 @@ class ManuscriptEpubExportTests(unittest.TestCase):
         )
         exported = serialize_epub([ExportChapter("Title", body, marks)], self.options)
         chapter = ET.fromstring(archive_files(exported.content)["EPUB/chapter-00001.xhtml"])
-        paragraph = chapter.find(f".//{XHTML}p")
-        self.assertIsNotNone(paragraph)
+        paragraph = present(chapter.find(f".//{XHTML}p"))
         self.assertEqual(visible_text(paragraph), body)
         self.assertEqual(len(chapter.findall(f".//{XHTML}strong")), 1_000)
         self.assertEqual(len(chapter.findall(f".//{XHTML}em")), 1_000)

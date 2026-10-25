@@ -28,6 +28,7 @@ from quiltor.infrastructure.backup.login import BackupLoginRuntime
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.adapters.credentials import RestrictedFileCredentialVault
 from tests.python.fake_issuer import FakeIssuer
+from tests.python.narrowing import present
 
 REDIRECT = "http://127.0.0.1:53682/backup/callback"
 SCOPE = "quiltor.backup"
@@ -78,7 +79,7 @@ class FakeBackupEndpoint:
                 self.end_headers()
                 self.wfile.write(body)
 
-            def log_message(self, *args) -> None:
+            def log_message(self, format, *args) -> None:
                 pass
 
         self._httpd = http.server.HTTPServer(("127.0.0.1", 0), Handler)
@@ -133,8 +134,7 @@ class BackupLoginTestCase(unittest.TestCase):
         return backup_login.complete(code, state, REDIRECT)
 
     def _stored(self) -> dict:
-        secret = self.vault.read(backup_login.VAULT_SERVICE, backup_login.VAULT_ACCOUNT)
-        self.assertIsNotNone(secret)
+        secret = present(self.vault.read(backup_login.VAULT_SERVICE, backup_login.VAULT_ACCOUNT))
         return json.loads(secret)
 
 
@@ -531,7 +531,7 @@ class EndpointAuthorizationTests(BackupLoginTestCase):
             "bound-secret",
         )
         parsed = urllib.parse.urlsplit(self.base)
-        different_port = f"http://{parsed.hostname}:{parsed.port + 1}/tenant/quiltor"
+        different_port = f"http://{parsed.hostname}:{present(parsed.port) + 1}/tenant/quiltor"
         for endpoint in (different_port, f"{self.base}/tenant/other"):
             with self.subTest(endpoint=endpoint):
                 with self.assertRaises(PermissionError):
