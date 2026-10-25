@@ -147,8 +147,16 @@ code change). Any known vulnerability fails the gate, whatever its severity.
   regenerate the locks with `distribution/tooling/regenerate_dependency_locks.py`. Only
   when no fix exists, add an exception to `osv-scanner.toml` with the advisory id, a
   reason and an `ignoreUntil` date, and list it below.
+- **Python fixes newer than the lock cut-off:** the locks resolve only releases before
+  `generator.excludeNewer` in `distribution/dependency-locks.json`. A fix released later
+  goes into `generator.excludeNewerPackages`: that one package gets its own cut-off, with
+  the fixed version, the reason and the advisory ids beside it. The global cut-off stays,
+  so no other dependency moves. `dependency_lock_contract.py` lists the reviewed set
+  (`EXPECTED_PACKAGE_EXCEPTIONS`) and checks that every lock pins exactly that version.
+  Today: pyjwt 2.15.0, pillow 13.0.0, setuptools 84.1.0. An entry is removed once the
+  global cut-off passes its date.
 
-Exceptions: none.
+Exceptions (`osv-scanner.toml`): none.
 
 ## cargo-deny
 

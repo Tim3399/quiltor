@@ -212,7 +212,7 @@ class EmbeddedProfileTests(unittest.TestCase):
         )
         self.assertIn("p['id']=='web-self-hosted'", dockerfile)
         self.assertIn("distribution/web/self-hosted/requirements.lock", dockerfile)
-        self.assertIn("pyjwt==2.13.0", requirements)
+        self.assertIn("pyjwt==2.15.0", requirements)
         self.assertIn("import jwt, cryptography", dockerfile)
         self.assertIn(
             "src/quiltor/infrastructure/platform/quiltor-build-profile.json", dockerignore
