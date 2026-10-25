@@ -38,6 +38,7 @@
   },
   "lintTools": {
     "zizmor": "1.31.1",
+    "typos": "1.51.1",
     "actionlint": {
       "version": "1.7.12",
       "downloadUrl": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",

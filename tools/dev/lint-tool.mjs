@@ -5,18 +5,19 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 /*
  * Runs one of the linters for the files outside the code: zizmor and actionlint for the
- * workflows, hadolint for the Dockerfiles, shellcheck for the shell scripts -- and the two
- * dependency scanners: osv-scanner for every lockfile, cargo-deny for the Rust workspace.
+ * workflows, hadolint for the Dockerfiles, shellcheck for the shell scripts -- the two
+ * dependency scanners: osv-scanner for every lockfile, cargo-deny for the Rust workspace --
+ * and typos for spelling in code, comments and English docs.
  *
- *   node tools/dev/lint-tool.mjs <zizmor|actionlint|hadolint|shellcheck|osv-scanner|cargo-deny>
+ *   node tools/dev/lint-tool.mjs <zizmor|actionlint|hadolint|shellcheck|osv-scanner|cargo-deny|typos>
  *
- * All six are single binaries. The versions live in distribution/toolchains.json
+ * All seven are single binaries. The versions live in distribution/toolchains.json
  * (lintTools), and a tool that reports another version is refused rather than run: a
  * different release audits differently, and a green local run would then promise nothing
  * about CI.
  *
- * zizmor comes from PyPI (distribution/lint-tools.requirements.txt) and is part of
- * `npm run check`, so a missing zizmor is an error, like a missing ruff. Its wheel installs
+ * zizmor and typos come from PyPI (distribution/lint-tools.requirements.txt) and are part of
+ * `npm run check`, so a missing one is an error, like a missing ruff. Their wheels install
  * only an executable and no Python module, which is why this does not go through
  * tools/dev/python.mjs: there is nothing to `import`. Instead it looks in the scripts
  * directory of the same interpreters python.mjs would try, then on PATH.
@@ -29,7 +30,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WINDOWS = process.platform === "win32";
 const ARM = process.arch === "arm64";
-const TOOLS = ["zizmor", "actionlint", "hadolint", "shellcheck", "osv-scanner", "cargo-deny"];
+const TOOLS = [
+  "zizmor",
+  "actionlint",
+  "hadolint",
+  "shellcheck",
+  "osv-scanner",
+  "cargo-deny",
+  "typos",
+];
+// The tools that come from PyPI and therefore sit in an interpreter's scripts directory.
+const PYPI_TOOLS = new Set(["zizmor", "typos"]);
 
 const { lintTools } = JSON.parse(
   readFileSync(resolve(ROOT, "distribution/toolchains.json"), "utf8"),
@@ -86,7 +97,7 @@ function releaseAsset(name, version) {
 /** The line a person runs to get the pinned version of a tool. */
 export function installHint(name) {
   const version = pinnedVersion(name);
-  if (name === "zizmor") {
+  if (PYPI_TOOLS.has(name)) {
     const python = WINDOWS ? "py -3.12" : "python3.12";
     return (
       `${python} -m pip install --require-hashes --only-binary=:all: ` +
@@ -139,11 +150,12 @@ const VERSION_FLAG = {
   shellcheck: "--version",
   "osv-scanner": "--version",
   "cargo-deny": "--version",
+  typos: "--version",
 };
 
 /** Where a tool is and what it reports, or `{ missing: true }`. */
 export function locate(name) {
-  const path = onPath(name, name === "zizmor" ? pythonScriptDirs() : []);
+  const path = onPath(name, PYPI_TOOLS.has(name) ? pythonScriptDirs() : []);
   if (!path) return { missing: true, text: "not found" };
   const run = spawnSync(path, [VERSION_FLAG[name]], { encoding: "utf8" });
   const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
@@ -222,6 +234,10 @@ function argumentsFor(name) {
     // --locked: the same graph every Cargo gate builds. deny.toml is found on its own.
     case "cargo-deny":
       return { args: ["--locked", "check"] };
+    // Which words are German and which files are generated is decided in _typos.toml. typos
+    // skips what the ignore files exclude, so untracked scratch output does not count.
+    case "typos":
+      return { args: ["--config", "_typos.toml"] };
     default:
       return undefined;
   }
@@ -237,7 +253,7 @@ function main(argv) {
   const expected = pinnedVersion(name);
   const found = locate(name);
   if (found.missing) {
-    if (name !== "zizmor" && !process.env.CI) {
+    if (!PYPI_TOOLS.has(name) && !process.env.CI) {
       console.log(`${name} not installed, runs in CI. To run it here: ${installHint(name)}`);
       return 0;
     }

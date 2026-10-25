@@ -517,3 +517,56 @@ sidecar from the runtime image's own lockfile (see the `Dockerfile`), not from t
 is invisible to knip. Prefer reaching it from a Node script through package resolution, the way
 `tools/dev/run-pyright.mjs` resolves `pyright/package.json`, so knip sees the use. Only when
 that is not possible, list it in `ignoreDependencies` with the caller as the reason.
+
+## typos
+
+Spelling in code, comments, identifiers, test titles and English documentation. It finds
+transposed letters, doubled letters and the like, and it is the check behind the three language sweeps
+described in `CLAUDE.md`: a typo in a name or a message costs time when someone searches for
+it.
+
+- **Version:** 1.51.1, pinned in `distribution/toolchains.json` (`lintTools.typos`) and,
+  hash-checked for every wheel, in `distribution/lint-tools.requirements.txt`.
+  `tools/dev/lint-tool.mjs` refuses any other version.
+- **Install:** the same line as for zizmor,
+  `py -3.12 -m pip install --require-hashes --only-binary=:all: -r distribution/lint-tools.requirements.txt`.
+- **Run:** `npm run lint:typos`. Part of `npm run check`, and of the `frontend` CI job through
+  it. A missing typos is an error, not a skip.
+- **Configuration:** `_typos.toml`, with the reason next to every entry.
+- **Why not `tools/dev/python.mjs`:** like zizmor, the wheel installs an executable and no
+  Python module.
+
+typos checks English and cannot tell a German word from a misspelled one. German content is
+kept out of its way in four layers, narrowest first; nothing is excluded because a file has
+many findings, and no German word is allowed everywhere: a global German word also lets
+through the English typo it resembles (a German "style" is one keystroke from "still").
+
+1. **`extend-ignore-re`, exact strings.** String literals on one line that contain a German
+   letter (prompts, messages, example requests), quoted German phrases without one, outside
+   the tests, deliberate misspellings the tests feed in (`Helo world`), commit hashes in
+   documents, and the cut-off stems in the prompt regexes (`analysier\w*`). The layout audit's
+   German mock world and the umlaut table of its `slug()` are covered the same way, by the
+   fixture phrases and the `.replace(/ü/g, "ue")` lines themselves, so the English code around
+   them stays checked.
+2. **`extend-words`, code words.** Persisted or third-party names that are not misspellings:
+   `objekt` (an enum value of the story-world contract and the SQLite schema, renamed only
+   with a migration and a new contract version), `datas` (PyInstaller's keyword), `lod`
+   (level of detail), `opf` (EPUB package format). Nothing German.
+3. **`[type.germantest]`, German vocabulary in tests.** The words of the German interface
+   text, assertion strings and fixture prose, allowed only in test, story and spec files and
+   the contract fixtures. typos gives each file one type, and a custom type wins over the
+   built-in `py`, `ts` or `json` only through file-name globs (`test_*.py`, `*.test.tsx`,
+   `*.spec.ts`, `*.v[0-9].json`, ...); a path glob such as `tests/**` never matches.
+4. **`[files] extend-exclude`, whole files.** `locales/de/**` (the interface), `dist/**`
+   (build output), the generated agent files (`.claude/agents`, `.claude/output-styles`,
+   `team/roles`, the same list as `.prettierignore`), `team/**` (the agent-team tooling is
+   written in German), German documents (`README.md`, `DESIGN.md`, `docs/ERSTE-SCHRITTE.md`,
+   `docs/design/FRONTEND_STYLEGUIDE.md`, `docs/plans/**`, `packages/client/src/design/README.md`),
+   the German manuscripts under `tools/documentation` and `tools/evaluation`,
+   `tests/fixtures/**`, and the two fixture scripts that are nothing but German sentences
+   (`tools/documentation/readme_fixture.mjs`,
+   `tools/evaluation/assistant/seed_synthetic_world.py`).
+
+When a new German test string trips typos, add the word to `[type.germantest.extend-words]`.
+German text outside the tests is ignored by its phrase, never by a global word. Never rename a persisted
+field or a contract field to satisfy it; an exception with its reason goes in `_typos.toml`.

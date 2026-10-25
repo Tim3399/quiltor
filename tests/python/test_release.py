@@ -1238,7 +1238,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_cross_platform_product_sharding(mutated)
 
-    def test_browser_worker_defaults_are_bounded_and_overrideable(self):
+    def test_browser_worker_defaults_are_bounded_and_overridable(self):
         product = (REPO_ROOT / "playwright.config.ts").read_text(encoding="utf-8")
         design = (REPO_ROOT / "playwright.design.config.ts").read_text(encoding="utf-8")
         resolver = (REPO_ROOT / "tests/playwright/workers.ts").read_text(encoding="utf-8")

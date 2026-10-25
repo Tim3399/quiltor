@@ -14,7 +14,7 @@
 
 import type { ChapterOverscrollDirection } from "./chapterOverscroll";
 
-/** Far enough that it cannot be a mis-swipe, short enough for one thumb. */
+/** Far enough that it cannot be a stray swipe, short enough for one thumb. */
 export const CHAPTER_TOUCH_THRESHOLD_PX = 72;
 
 export interface ChapterTouchPoint {
