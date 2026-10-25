@@ -47,8 +47,9 @@
   margin: var(--space-12) 0 0;
 }
 
-.manuscript-import-counts__help {
-  margin-top: var(--space-8) !important;
+/* Two classes, so the margin wins over `.manuscript-import-preview p`. */
+.manuscript-import-preview .manuscript-import-counts__help {
+  margin-top: var(--space-8);
   color: var(--soft);
   line-height: 1.5;
 }

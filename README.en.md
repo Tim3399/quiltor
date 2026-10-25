@@ -212,7 +212,7 @@ Quiltor is under active development. Its focus is a calm writing workflow, a con
 
 ---
 
-# Quick start
+## Quick start
 
 For authors: [installation and first writing tasks (German)](docs/ERSTE-SCHRITTE.md).
 The commands below describe running from source.
@@ -238,11 +238,11 @@ CLI/Python packaging, local desktop builds, and Docker deployment are also imple
 
 ---
 
-# Technical documentation
+## Technical documentation
 
 The following sections cover installation, the local runtime, authentication, backup, desktop/Docker operation, MCP, development, and architecture.
 
-## Contents
+### Contents
 
 - [Installation options](#installation-options)
 - [Platform and distribution status](#platform-and-distribution-status)
@@ -262,9 +262,9 @@ The following sections cover installation, the local runtime, authentication, ba
 
 ---
 
-## Installation options
+### Installation options
 
-### Run directly from the repository
+#### Run directly from the repository
 
 The built web client already lives in `dist/`. Node dependencies are not required for normal editing and local storage.
 
@@ -282,7 +282,7 @@ python3 apps/web/server.py 8080 --no-open  # do not open a browser
 python3 apps/web/server.py --print-token   # show this run's access token
 ```
 
-### Python wheel / pip / pipx
+#### Python wheel / pip / pipx
 
 The release pipeline builds a Python wheel and source distribution for GitHub Releases. Install the wheel attached to the release you choose; the repository does not currently configure publication to PyPI.
 
@@ -315,7 +315,7 @@ from package resources; it does not fall back to an incidental source checkout.
 Capability selection remains separate: without the extra it deterministically
 uses the typed unavailable renderer.
 
-### Development
+#### Development
 
 A run directly from the **source checkout** instead uses the bundled JavaScript
 renderer. Frontend development and this PDF path require Node.js, the project
@@ -353,7 +353,7 @@ On Windows, use `py -3.12 apps/web/server.py 8010 --no-open`.
 `QUILTOR_API_PORT` and `QUILTOR_DEV_PORT` override the development launcher ports;
 `PLAYWRIGHT_BASE_URL` overrides the product test target.
 
-### Platform and distribution status
+#### Platform and distribution status
 
 Build profiles describe implementation status, not a promise that an artifact exists for every release.
 
@@ -373,7 +373,7 @@ The Python web host can run on Linux; that is separate from the unfinished nativ
 
 ---
 
-## Local assistant and runtime contract
+### Local assistant and runtime contract
 
 The assistant searches chapters, notes, profiles, elements, relationships, and timeline states. Read-only questions may also retrieve storyboard notes, with planning provenance kept separate from manuscript and canonical world context. Answers may cite clickable project sources.
 
@@ -406,7 +406,7 @@ Or connect an already running local endpoint:
 QUILTOR_AI_URL=http://127.0.0.1:11435 python3 apps/web/server.py
 ```
 
-### Runtime contract
+#### Runtime contract
 
 `QUILTOR_AI_URL` is **not a generic OpenAI-provider integration**. The runtime must implement Quiltor's stable local contract:
 
@@ -420,7 +420,7 @@ POST /v1/chat/completions
 
 The bundled runtime backends currently use an 8192-token context window. Requests to the bundled runtime remain on loopback.
 
-### Real local-assistant test
+#### Real local-assistant test
 
 ```bash
 npm run test:assistant:local
@@ -432,7 +432,7 @@ The test starts the runtime, fixture world, and Quiltor inside an isolated tempo
 
 ---
 
-## MCP
+### MCP
 
 `src/quiltor/hosts/mcp/quiltor_server.py` exposes retrieval and world maintenance as an MCP server.
 
@@ -455,7 +455,7 @@ configuration works on Windows, macOS, and Linux.
 
 ---
 
-## German writing tools
+### German writing tools
 
 Manuscripts using writing language `de-DE` currently have local:
 
@@ -502,7 +502,7 @@ Sources, versions, checksums, licenses, and attribution are recorded in the inst
 
 ---
 
-## Local access and authentication
+### Local access and authentication
 
 There is no "authentication off" mode. Every request has an identity; locally, that identity is simply the person at the machine.
 
@@ -532,7 +532,7 @@ The automatically generated token:
 
 An instance bound to `0.0.0.0` without OIDC cannot rely on the local loopback identity and therefore requires a token. For a persistent web deployment, OIDC/Keycloak is the intended path.
 
-### Troubleshooting
+#### Troubleshooting
 
 | Symptom                                     | Fix                                                                                                  |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -545,7 +545,7 @@ An instance bound to `0.0.0.0` without OIDC cannot rely on the local loopback id
 
 ---
 
-## Desktop app
+### Desktop app
 
 Quiltor can be built as a standalone macOS or Windows desktop application, with a native window and no separate Python installation required on the target machine. Direct build profiles currently target macOS arm64 and Windows x86_64.
 
@@ -606,13 +606,13 @@ More details and the complete target matrix: [`distribution/README.md`](distribu
 
 ---
 
-## Docker and web demo
+### Docker and web demo
 
 Quiltor can run as a small multi-user deployment behind a reverse proxy. In this mode an existing Keycloak instance authenticates users, and each signed-in person sees only their own worlds.
 
 Quiltor ships **no Keycloak of its own**.
 
-### Keycloak client for the web instance
+#### Keycloak client for the web instance
 
 Recommended settings:
 
@@ -662,7 +662,7 @@ against its committed SHA-256 during the build.
 
 Sessions live in process memory. Restarting the container therefore signs web users out.
 
-### Prebuilt container images
+#### Prebuilt container images
 
 A version bump in `VERSION` on `main` triggers the release pipeline. Its configured image tags are:
 
@@ -675,7 +675,7 @@ Use the release assets and completed workflow runs to check which version is ava
 
 ---
 
-## CLI
+### CLI
 
 The `quiltor` CLI is available in pip/pipx installations.
 
@@ -714,7 +714,7 @@ For Docker, environment variables remain the primary configuration path.
 
 ---
 
-## Backup and Keycloak
+### Backup and Keycloak
 
 Keycloak has two separate roles in Quiltor:
 
@@ -728,7 +728,7 @@ Keycloak has two separate roles in Quiltor:
 
 Both may use the same realm, but they are technically separate.
 
-### Backup server: confidential client
+#### Backup server: confidential client
 
 Example name:
 
@@ -744,7 +744,7 @@ Settings:
 
 The backup server validates incoming access tokens through Keycloak Token Introspection.
 
-### Quiltor: public backup client
+#### Quiltor: public backup client
 
 Example:
 
@@ -762,7 +762,7 @@ Settings:
 
 The changing loopback port is intentional. Native applications are expected to support dynamic loopback ports under RFC 8252, so the Keycloak client must not be restricted to one fixed port.
 
-### `quiltor.backup` scope
+#### `quiltor.backup` scope
 
 The supplied backup endpoint requires this scope by default:
 
@@ -774,7 +774,7 @@ This prevents an arbitrary valid token from the same realm from being enough. Th
 
 A realm role may additionally be used to make the scope available only to selected accounts.
 
-### Backup-server variables
+#### Backup-server variables
 
 | Variable                            | Purpose                                      |
 | ----------------------------------- | -------------------------------------------- |
@@ -809,7 +809,7 @@ GET /.well-known/oauth-protected-resource
 
 Quiltor reads that metadata before sign-in.
 
-### Backup troubleshooting
+#### Backup troubleshooting
 
 | Symptom                                                     | Likely cause                                                      |
 | ----------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -820,7 +820,7 @@ Quiltor reads that metadata before sign-in.
 
 ---
 
-## Local data, history, and restore
+### Local data, history, and restore
 
 - Every world has its own SQLite file under `data/worlds/`.
 - SQLite is the authoritative data source.
@@ -832,7 +832,7 @@ Quiltor reads that metadata before sign-in.
 - Remote backup is optional.
 - World content, models, backups, and history are excluded from public version control.
 
-### Notes for upgrading older versions
+#### Notes for upgrading older versions
 
 Current builds always use an identity. Locally, the local identity takes over; non-loopback instances without OIDC require a token.
 
@@ -842,7 +842,7 @@ The server no longer has one process-wide "open world" state, so restoring a wor
 
 ---
 
-## Keyboard controls
+### Keyboard controls
 
 | Shortcut                         | Action                       |
 | -------------------------------- | ---------------------------- |
@@ -856,7 +856,7 @@ The server no longer has one process-wide "open world" state, so restoring a wor
 
 ---
 
-## Development and quality
+### Development and quality
 
 The [project engineering profile](docs/PROJECT_PROFILE.md) is the operational reference for
 formatter ownership, startup, agent instructions and pending requirements. After setup, `npm start`
@@ -923,7 +923,7 @@ files, so passing them does not verify the built application.
 
 Browser/E2E tests cover core workspaces, desktop/compact layouts, light/dark mode, autosave, conflicts, and accessibility.
 
-### Developer tools
+#### Developer tools
 
 ```bash
 # Inspect the actual browser layout with an isolated fixture world; requires npm start.
@@ -940,7 +940,7 @@ The mutation helper restores the file afterwards and succeeds only if the test c
 fails. The baseline contact sheet serves on port 4180. Platform-specific screenshots are
 kept separately because font rasterisation differs; changed baselines need visual review.
 
-### Language and internationalization
+#### Language and internationalization
 
 Developer-facing code, identifiers, comments, docstrings, logs, errors, test titles, and
 diagnostics should be **English**, as specified in [`CLAUDE.md`](CLAUDE.md). German UI
@@ -973,7 +973,7 @@ The script creates a fictional demo world, checks API responses, and captures th
 
 ---
 
-## Architecture
+### Architecture
 
 ```text
 apps/                        visible shells and native project roots
@@ -1043,7 +1043,7 @@ author-owned planning data.
 
 ---
 
-## Status and license
+### Status and license
 
 Quiltor is under active development. The current five-workspace workflow is
 implemented; deeper evidence/provenance, persistent findings, incremental analysis, and
@@ -1058,7 +1058,7 @@ It is offered under your choice of:
 
 See [LICENSE](LICENSE).
 
-### Free without asking
+#### Free without asking
 
 - noncommercial use: personal projects, hobby work, study, teaching, research, charities, and public institutions
 - commercial use under the PolyForm Small Business License: fewer than 100 employees/independent contractors and less than USD 1,000,000 total revenue in the previous tax year
@@ -1067,7 +1067,7 @@ Self-employed authors are effectively always within the small-business threshold
 
 Commercial use above that threshold requires an individual agreement:
 
-**tim.ratermann@outlook.de**
+**<tim.ratermann@outlook.de>**
 
 Details: [COMMERCIAL.md](COMMERCIAL.md)
 

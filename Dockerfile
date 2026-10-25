@@ -22,6 +22,11 @@ RUN test "$NODE_BASE_IMAGE" = \
 FROM ${WEB_RUNTIME_BASE_IMAGE} AS web-runtime-base
 
 ARG WEB_RUNTIME_BASE_IMAGE
+# DL3008 (pin apt versions) stays off here. The base is pinned by digest, and the Ubuntu
+# archive drops superseded package versions, so an `=<version>` pin breaks the build on the
+# next security update instead of making it reproducible. The Python assertion below pins
+# the one package whose version the runtime depends on.
+# hadolint ignore=DL3008
 RUN test "$WEB_RUNTIME_BASE_IMAGE" = \
     "ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517" \
     && apt-get update \
@@ -160,6 +165,10 @@ ENV PYTHONUNBUFFERED=1
 # /data must be owned by that user *before* VOLUME is declared, since Docker seeds a
 # freshly created volume's ownership from whatever is at that path in the image.
 RUN mkdir -p /data/assistant && chown -R quiltor:quiltor /app /data
+# DL3066 (numeric user id) stays off: `quiltor` is created by useradd in this image, so
+# the name always resolves. A numeric USER would mean pinning the uid, and existing /data
+# volumes are owned by the uid useradd assigned -- a different pin would lock them out.
+# hadolint ignore=DL3066
 USER quiltor
 
 # Exercise the exact production path as the unprivileged runtime user. This

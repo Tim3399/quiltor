@@ -19,7 +19,7 @@ versioned full-document contracts remain supported during the migration.
 
 Controllers depend on context-specific application ports. Authorization belongs
 to the application layer; the domain receives an actor only if a concrete audit
-or domain rule needs one. A generic <code>PrincipalId</code> never enters domain
+or domain rule needs one. A generic `PrincipalId` never enters domain
 commands.
 
 ```mermaid
@@ -101,7 +101,7 @@ WorldTransaction --> WorldCommitRepository : CommitPlan
 WorldCommitRepository --> OperationResult : CommitReceipt mapped to
 ```
 
-<code>WorldTransaction</code> is an operation-scoped consistency boundary, not
+`WorldTransaction` is an operation-scoped consistency boundary, not
 an in-memory copy of the entire world. The use case declares its read and write
 set:
 
@@ -114,7 +114,7 @@ set:
   and commits all affected changes atomically.
 
 Domain events may be used internally to derive changes or durable work, but they
-are not part of the public <code>OperationResult</code>. UI callers receive
+are not part of the public `OperationResult`. UI callers receive
 revisions, touched IDs and, where useful, a bounded updated read model. They do
 not become coupled to internal event schemas or projection jobs.
 
@@ -199,9 +199,9 @@ making unrelated manuscript, layout and planning changes conflict. A
 cross-document operation expects and advances every aggregate revision it
 actually changes.
 
-Cross-document rules therefore belong to <code>WorldConsistencyPolicy</code>,
+Cross-document rules therefore belong to `WorldConsistencyPolicy`,
 but the policy receives only the facts required by the rule. It does not require
-a global <code>WorldProjectSnapshot</code>.
+a global `WorldProjectSnapshot`.
 
 Queries follow the same scoping rule. A context-specific query service reads a
 chapter, Story World projection or reference view directly; no generic query
@@ -244,11 +244,11 @@ ManuscriptDocument --> ManuscriptTreePolicy : guards structure
 ```
 
 Writing locale, project dictionary and symbol palette belong to
-<code>ProjectSettings</code>, not manuscript content. Theme, panel layout and
-selected inference provider are <code>UserPreferences</code>. Keeping these
+`ProjectSettings`, not manuscript content. Theme, panel layout and
+selected inference provider are `UserPreferences`. Keeping these
 separate prevents UI configuration from changing a manuscript revision.
 
-The current full <code>ManuscriptDocument</code> remains a valid versioned wire
+The current full `ManuscriptDocument` remains a valid versioned wire
 contract. Chapter-level loading may be introduced behind the application port
 when measured manuscript size or mobile memory budgets require it; it is not a
 prerequisite for the first migration step.
@@ -357,13 +357,13 @@ MapDefinition --> WorldAssetId : project-local asset
 
 Persisted author layout includes placements, locks, favourites and map
 calibration. Viewport zoom, pan, hover and selection are ephemeral client state
-and do not belong in <code>StoryWorldLayout</code>.
+and do not belong in `StoryWorldLayout`.
 
 ### Importing project-local assets
 
 A platform document handle is a temporary import capability, never a domain
-reference. <code>AssetImportService</code> copies the selected content into the
-world's asset store and returns a stable <code>WorldAssetId</code>. Backup,
+reference. `AssetImportService` copies the selected content into the
+world's asset store and returns a stable `WorldAssetId`. Backup,
 restore and export include those project-local assets.
 
 ```mermaid
@@ -402,7 +402,7 @@ MapDefinition --> WorldAssetId : stores
 
 Desktop paths, Apple security-scoped bookmarks and Android document URIs end at
 the platform/import boundary. They are not serialized into
-<code>MapDefinition</code>.
+`MapDefinition`.
 
 ## Storyboard ownership and canon boundary
 
@@ -526,22 +526,22 @@ the UI.
 
 ## Current names to proposed responsibilities
 
-| Current code                                               | Proposed owner or transition                              |
-| ---------------------------------------------------------- | --------------------------------------------------------- |
-| <code>Manuscript</code>                                    | <code>ManuscriptDocument</code>                           |
-| <code>FigureState</code>                                   | <code>StoryWorldDocument</code> wire contract             |
-| <code>FigureNode</code>                                    | <code>WorldElement</code> plus board/map placements       |
-| <code>FigureEdge</code>                                    | <code>WorldRelationship</code>                            |
-| <code>PresenceEntry</code>                                 | <code>PresenceRecord</code>                               |
-| canvas/map coordinates and lock/favourite fields           | persisted <code>StoryWorldLayout</code> placement values  |
-| viewport zoom, pan, hover and selection                    | ephemeral client view state                               |
-| <code>tree.py</code> functions                             | <code>ManuscriptTreePolicy</code>                         |
-| Storyboard domain values and SQLite document mapping       | independent non-canonical <code>StoryboardDocument</code> |
-| story-time validation plus counterpart loading             | scoped use case plus <code>WorldConsistencyPolicy</code>  |
-| <code>resolve_before_create.py</code> decisions and proofs | proposal resolution and acceptance policies               |
-| direct UI proposal mutation                                | <code>AcceptAssistantProposalUseCase</code>               |
-| selected map file path or URI                              | <code>AssetImportService</code> to project-local asset ID |
-| existing versioned full-document <code>save()</code>       | retained v1 use cases during incremental migration        |
+| Current code                                         | Proposed owner or transition                       |
+| ---------------------------------------------------- | -------------------------------------------------- |
+| `Manuscript`                                         | `ManuscriptDocument`                               |
+| `FigureState`                                        | `StoryWorldDocument` wire contract                 |
+| `FigureNode`                                         | `WorldElement` plus board/map placements           |
+| `FigureEdge`                                         | `WorldRelationship`                                |
+| `PresenceEntry`                                      | `PresenceRecord`                                   |
+| canvas/map coordinates and lock/favourite fields     | persisted `StoryWorldLayout` placement values      |
+| viewport zoom, pan, hover and selection              | ephemeral client view state                        |
+| `tree.py` functions                                  | `ManuscriptTreePolicy`                             |
+| Storyboard domain values and SQLite document mapping | independent non-canonical `StoryboardDocument`     |
+| story-time validation plus counterpart loading       | scoped use case plus `WorldConsistencyPolicy`      |
+| `resolve_before_create.py` decisions and proofs      | proposal resolution and acceptance policies        |
+| direct UI proposal mutation                          | `AcceptAssistantProposalUseCase`                   |
+| selected map file path or URI                        | `AssetImportService` to project-local asset ID     |
+| existing versioned full-document `save()`            | retained v1 use cases during incremental migration |
 
 ## Intent and use-case families
 

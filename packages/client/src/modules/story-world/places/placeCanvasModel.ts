@@ -1,9 +1,8 @@
 import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
-import type { FigureNode, MapScale } from "../model";
+import type { FigureNode } from "../model";
 import { cropOf, type ImageCrop } from "./placeImageCrop";
 import type { PlaceMeasurementPoint } from "./placeMeasurementGraph";
-import { formatDistance } from "./placeMap";
 import type { PlaceGroundNode } from "./PlaceGround";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
 import {

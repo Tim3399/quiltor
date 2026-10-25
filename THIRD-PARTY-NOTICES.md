@@ -82,7 +82,7 @@ Development-only test and build packages are not shipped in `dist/`.
 | `regenerator-runtime`                 | 0.13.11 | MIT          |
 | `scheduler`                           | 0.27.0  | MIT          |
 | `source-map`                          | 0.6.1   | BSD-3-Clause |
-| `source-map-js`                       | 1.2.1   | BSD-3-Clause |
+| `source-map-js`                       | 1.2.2   | BSD-3-Clause |
 | `style-mod`                           | 4.1.3   | MIT          |
 | `type`                                | 2.7.3   | ISC          |
 | `use-sync-external-store`             | 1.6.0   | MIT          |

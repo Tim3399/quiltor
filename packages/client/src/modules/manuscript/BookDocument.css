@@ -1,3 +1,4 @@
+/* biome-ignore-all lint/complexity/noImportantStyles: print overrides must beat the screen layout and the page styles Paged.js injects. */
 .print-document {
   color: var(--print-ink);
 }

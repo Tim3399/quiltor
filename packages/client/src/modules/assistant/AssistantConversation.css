@@ -217,7 +217,6 @@
   font: var(--font-code);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  word-break: break-word;
 }
 .assistant-proposal-editor {
   display: grid;

@@ -167,6 +167,7 @@ try {
         }),
         "Delete screenshot world",
       );
+      // biome-ignore lint/correctness/noUnsafeFinally: a screenshot world left behind in the library must fail the run, even over an earlier capture error; the inner finally still closes the browser.
       if (deleted.ok !== true) throw new Error("Screenshot world deletion was not acknowledged.");
       console.log(`Deleted screenshot world ${worldId}.`);
     }

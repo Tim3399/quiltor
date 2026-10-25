@@ -101,7 +101,8 @@ verify_dmg() {
 
 install_dmg() {
   local dmg="$1"
-  local mountpoint="$WORK/mount-$(date +%s)-$RANDOM"
+  local mountpoint
+  mountpoint="$WORK/mount-$(date +%s)-$RANDOM"
   mkdir -p "$mountpoint"
   ACTIVE_MOUNT="$mountpoint"
   hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mountpoint" >/dev/null
@@ -167,6 +168,9 @@ launch_and_probe() {
   wait "$ACTIVE_PID" 2>/dev/null || true
   ACTIVE_PID=""
   assert_port_free
+  # Not pgrep: `pgrep -f` reads the pattern as a regular expression, and this has to be a
+  # fixed-string match on an install path.
+  # shellcheck disable=SC2009
   if ps -axo command= | grep -F "$INSTALLED_APP/Contents/MacOS/" | grep -v grep >/dev/null; then
     echo "an installed Quiltor process survived the launch check" >&2
     exit 1

@@ -39,6 +39,12 @@ export type PlacesWorkspaceProps = {
 /** Mirrors StoryGraph.css, where the inspector column collapses at 820px. */
 export const PLACE_COMPACT_MEDIA_QUERY = "(max-width: 820px)";
 
+/** The frame a stored picture takes on the level, in flow units. */
+const mapFrame = (stored: StoredMapImage) => ({
+  mapWidth: DEFAULT_MAP_WIDTH,
+  mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),
+});
+
 export function PlacesWorkspace(props: PlacesWorkspaceProps) {
   return (
     <ReactFlowProvider>
@@ -248,12 +254,6 @@ function PlacesWorkspaceInner({
       return null;
     }
   }, [t]);
-
-  /** The frame a stored picture takes on the level, in flow units. */
-  const mapFrame = (stored: StoredMapImage) => ({
-    mapWidth: DEFAULT_MAP_WIDTH,
-    mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),
-  });
 
   /**
    * Give a place a picture, or swap the one it has.
