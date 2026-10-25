@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = REPO_ROOT / "services/backup-server/artifact-contract.json"
@@ -79,7 +80,8 @@ def load_contract(path: Path = CONTRACT_PATH) -> dict[str, object]:
 def verify_tree(root: Path, path: Path = CONTRACT_PATH) -> None:
     document = load_contract(path)
     files = {item.relative_to(root).as_posix() for item in root.rglob("*") if item.is_file()}
-    expected = set(document["payload"])
+    # load_contract checked that the payload is a list of names.
+    expected = set(cast(list[str], document["payload"]))
     if files != expected:
         raise ValueError(
             "Backup-service payload drift "

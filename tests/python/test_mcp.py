@@ -3,6 +3,7 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import call, patch
 
 from quiltor.application.documents.types import VersionedDocument
@@ -11,6 +12,7 @@ from quiltor.bootstrap.application import build_assistant_services
 from quiltor.hosts.mcp.quiltor_server import TOOLS, _proposal, _world, call_tool, respond
 from quiltor.modules.assistant import tool_loop
 from quiltor.modules.assistant.ports import AssistantReadToolExecutor
+from tests.python.narrowing import present
 
 
 def story_world() -> dict:
@@ -158,11 +160,12 @@ class McpTest(unittest.TestCase):
             services = build_assistant_services(
                 base=Path("."),
                 data=Path("."),
-                assistant=object(),
+                # Opaque stand-ins: the patched factories only pass them along.
+                assistant=cast(Any, object()),
                 lock=threading.Lock(),
-                observability=SimpleNamespace(logger=object(), metrics=object()),
-                capabilities=object(),
-                inference=object(),
+                observability=cast(Any, SimpleNamespace(logger=object(), metrics=object())),
+                capabilities=cast(Any, object()),
+                inference=cast(Any, object()),
             )
         self.assertIs(services.runtime, runtime)
         self.assertIs(services.jobs, jobs)
@@ -341,11 +344,11 @@ class McpTest(unittest.TestCase):
             )
 
     def test_initialize_explains_confirmation_boundary(self):
-        result = respond({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+        result = present(respond({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}))
         self.assertIn("Confirm proposals", result["result"]["instructions"])
 
     def test_initialize_advertises_the_product_version_source_of_truth(self):
-        result = respond({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+        result = present(respond({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}))
         expected = (
             (Path(__file__).resolve().parents[2] / "VERSION").read_text(encoding="utf-8").strip()
         )
@@ -566,7 +569,7 @@ class McpTest(unittest.TestCase):
             },
         }
         with patch("quiltor.hosts.mcp.quiltor_server._world", return_value=({}, figures, 18)):
-            response = respond(request)
+            response = present(respond(request))
         self.assertTrue(response["result"]["isError"])
         self.assertIn("ambiguous", response["result"]["content"][0]["text"])
 

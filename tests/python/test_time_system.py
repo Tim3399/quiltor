@@ -1,4 +1,6 @@
 import unittest
+from collections.abc import Mapping
+from typing import Any, cast
 
 from quiltor.domain.story_world.time_system import (
     CalendarDate,
@@ -7,6 +9,12 @@ from quiltor.domain.story_world.time_system import (
     format_time,
     time_to_calendar_date,
 )
+
+
+def _projected(time: int, system: Mapping[str, Any]) -> CalendarDate:
+    projected = time_to_calendar_date(time, system)
+    assert projected is not None, f"no calendar date for time {time}"
+    return projected
 
 
 class TimeSystemTest(unittest.TestCase):
@@ -49,33 +57,32 @@ class TimeSystemTest(unittest.TestCase):
         self.assertEqual(format_time(0, {"kind": "relative"}), "t0")
         self.assertEqual(format_time(27, {"kind": "relative"}), "t+27")
         with self.assertRaises(TypeError):
-            add_time(0, 1.5)
+            add_time(0, cast(int, 1.5))  # deliberately not an int
 
     def test_gregorian_epoch_projects_both_directions_and_roundtrips(self):
         system = self.gregorian()
-        projected = time_to_calendar_date(4, system)
+        projected = _projected(4, system)
         self.assertEqual(
             (projected.year, projected.month, projected.day, projected.weekday),
             (2026, 8, 22, 5),
         )
-        before = time_to_calendar_date(-1, system)
+        before = _projected(-1, system)
         self.assertEqual((before.year, before.month, before.day), (2026, 8, 17))
         for time in (-365, -1, 0, 4, 365):
-            projected = time_to_calendar_date(time, system)
-            self.assertIsNotNone(projected)
+            projected = _projected(time, system)
             self.assertEqual(calendar_date_to_time(projected, system), time)
 
     def test_custom_calendar_rolls_month_year_and_negative_time(self):
         system = self.custom()
         self.assertEqual(
-            time_to_calendar_date(2, system),
+            _projected(2, system),
             CalendarDate(417, 2, 1, 0, "Ember", "Emb", "Firstday", "First"),
         )
-        self.assertEqual(time_to_calendar_date(4, system).year, 418)
-        before = time_to_calendar_date(-2, system)
+        self.assertEqual(_projected(4, system).year, 418)
+        before = _projected(-2, system)
         self.assertEqual((before.year, before.month, before.day), (416, 2, 2))
         for time in range(-12, 13):
-            projected = time_to_calendar_date(time, system)
+            projected = _projected(time, system)
             self.assertEqual(calendar_date_to_time(projected, system), time)
 
     def test_custom_format_uses_month_weekday_and_era_without_changing_time(self):
@@ -83,7 +90,7 @@ class TimeSystemTest(unittest.TestCase):
         self.assertEqual(format_time(0, system), "Second 2 Frostfall, 417 AF")
         changed = {**system, "eraAbbreviation": "NE"}
         self.assertEqual(format_time(0, changed), "Second 2 Frostfall, 417 NE")
-        self.assertEqual(calendar_date_to_time(time_to_calendar_date(0, changed), changed), 0)
+        self.assertEqual(calendar_date_to_time(_projected(0, changed), changed), 0)
 
     def test_calendar_projection_rejects_abstract_units_and_invalid_custom_dates(self):
         with self.assertRaises(ValueError):
