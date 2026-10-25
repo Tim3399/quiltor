@@ -11,7 +11,11 @@
     // (.prettierignore). The generator writes them, so fixes belong in its templates, not here.
     ".claude/agents/**",
     ".claude/output-styles/**",
-    "team/roles/**"
+    "team/roles/**",
+    // German manuscripts a test feeds to the importer. They are author material and serve as
+    // input (CLAUDE.md, "The German half"), so their structure, such as a second `#` chapter, is
+    // deliberate and not a documentation defect.
+    "tests/fixtures/manuscript-import/**"
   ],
   "config": {
     "default": true,
