@@ -192,6 +192,14 @@ code change). Any known vulnerability fails the gate, whatever its severity.
   (`EXPECTED_PACKAGE_EXCEPTIONS`) and checks that every lock pins exactly that version.
   Today: pyjwt 2.15.0, pillow 13.0.0, setuptools 84.1.0. An entry is removed once the
   global cut-off passes its date.
+- **npm fixes outside a parent's range:** when the fixed version lies outside the range a
+  parent declares, an `overrides` entry in `package.json` pins it. Today: `katex` 0.18.2
+  (GHSA-238p-pmpm-9mq7), pulled in by markdownlint-cli2 → markdownlint →
+  micromark-extension-math, which declares `^0.16.0`. markdownlint registers only the math
+  syntax extension (`math()` in `markdownlint/lib/micromark-parse.mjs`); katex is imported
+  solely by the extension's HTML renderer, which markdownlint never calls, so the major
+  jump cannot change lint results. Remove the entry once micromark-extension-math accepts a
+  fixed katex.
 
 Exceptions (`osv-scanner.toml`): none.
 
