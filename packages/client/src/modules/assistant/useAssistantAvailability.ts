@@ -63,6 +63,7 @@ export function useAssistantAvailability() {
         if (state.running) {
           hadRunningRef.current = true;
           if (!installPollRef.current)
+            // eslint-disable-next-line react-hooks/immutability -- pollInstall re-arms itself from its own async result, after the declaration has completed
             installPollRef.current = window.setInterval(pollInstall, INSTALL_POLL_MS);
         } else {
           window.clearInterval(installPollRef.current);

@@ -94,6 +94,7 @@ export function ManuscriptExportDialog({
   }, [messageFor, onSave, preset]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads the preview on mount and when its inputs change; setState runs after the async request
     void loadPreview();
     return () => {
       requestGeneration.current += 1;

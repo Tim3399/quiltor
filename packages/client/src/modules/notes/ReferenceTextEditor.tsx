@@ -252,9 +252,13 @@ export function ReferenceTextEditor({
     heading: null,
   });
 
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   changeRef.current = onChange;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   openReferenceRef.current = onOpenReference;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   candidatesRef.current = candidates;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   marksRef.current = normalizeNoteMarks(value, marks);
 
   const publishMarks = (nextMarks: NoteMark[], view = viewRef.current) => {

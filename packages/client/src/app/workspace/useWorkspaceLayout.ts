@@ -31,6 +31,7 @@ export function useWorkspaceLayout(worldId: string | undefined, workspace: Works
   // biome-ignore lint/correctness/useExhaustiveDependencies: loads the stored layout only when the key changes; re-running on `mode` would overwrite the viewport adjustment below with the stored layout
   useEffect(() => {
     if (!storageKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
       setLayout(defaults(mode));
       return;
     }
@@ -48,6 +49,7 @@ export function useWorkspaceLayout(worldId: string | undefined, workspace: Works
   }, [storageKey, layout]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `storageKey` is a trigger: a freshly loaded layout must get the viewport constraints applied again
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setLayout((current) =>
       mode === "compact"
         ? { ...current, navigationOpen: false, inspectorOpen: false }

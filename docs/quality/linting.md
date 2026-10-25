@@ -166,6 +166,64 @@ Not selected at all:
 Every other exception is a single-line `# noqa: <code> - <reason>`. `BLE001` is selected,
 so each remaining `except Exception` in product code says why it is broad.
 
+## ESLint (React Compiler rules)
+
+ESLint checks `packages/client/src/**/*.{ts,tsx}` with `eslint-plugin-react-hooks` and nothing
+else. Biome stays the general linter; ESLint is here only because Biome does not know the
+React Compiler rules (purity, immutability, refs, set-state-in-effect and the rest).
+Configuration: `eslint.config.mjs`. Versions are pinned in `package.json`.
+
+Run it locally:
+
+```bash
+npm run lint:eslint
+```
+
+It is part of `npm run check`. `--max-warnings 0` makes warnings fail the gate too.
+
+### Parser: Babel, not typescript-eslint
+
+typescript-eslint does not run with TypeScript 7.0.2: its peer range ends below 6.1, and the
+`typescript` 7 package no longer ships a JavaScript compiler API. The react-hooks rules
+are syntactic, so `@babel/eslint-parser` with Babel's `typescript` and `jsx` syntax
+plugins is enough. Switch to typescript-eslint once it supports TypeScript 7
+(typescript-eslint issue 10940).
+
+Babel is configured inline only, with `configFile: false` and `babelrc: false`; there is no
+`babel.config.*` or `.babelrc`, so Vite and Vitest never pick it up. With both set to
+false the parser ignores presets and reads only `parserOpts.plugins`, which is why the
+config names the syntax plugins per file extension (`.ts`: `typescript`; `.tsx`:
+`typescript`, `jsx`) and no presets are installed.
+
+### Rule set
+
+All rules of the plugin's `recommended-latest` config, except:
+
+| Rule                          | Why                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `react-hooks/rules-of-hooks`  | Biome already enforces it as `lint/correctness/useHookAtTopLevel`         |
+| `react-hooks/exhaustive-deps` | Biome already enforces it as `lint/correctness/useExhaustiveDependencies` |
+
+Active: `static-components`, `use-memo`, `void-use-memo`, `preserve-manual-memoization`,
+`incompatible-library`, `immutability`, `globals`, `refs`, `set-state-in-effect`,
+`error-boundaries`, `purity`, `set-state-in-render`, `unsupported-syntax`, `config`,
+`gating`. Unused disable directives are errors.
+
+### Exceptions
+
+The existing code had 109 findings when the gate was introduced. None was rewritten,
+because each rewrite would change when a value or state update lands. Each one carries a
+single-line `// eslint-disable-next-line react-hooks/<rule> -- <reason>`. Most are two
+patterns:
+
+- **latest-value refs** (`ref.current = value` during render) so callbacks and effects read
+  the newest prop without re-subscribing;
+- **state resets in an effect** when a trigger such as an id or an `open` flag changes.
+
+The rest are refs read inside callbacks that run after render, which the compiler's
+analysis cannot tell apart from render-time reads. New code should follow the rules
+instead of adding to this list.
+
 ## stylelint
 
 **What it checks.** Every `.css` file outside generated output, with `stylelint-config-recommended`

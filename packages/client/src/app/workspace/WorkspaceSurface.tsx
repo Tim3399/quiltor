@@ -109,6 +109,7 @@ export function WorkspaceSurface({
         currentChapterId={currentChapterId}
         onCurrentChapterId={onCurrentChapterId}
         sessionState={
+          // eslint-disable-next-line react-hooks/refs -- the stored session is read once to seed the editor; it is written only by captureManuscriptSession and must not trigger a re-render
           manuscriptSession.current?.worldId === worldId ? manuscriptSession.current.state : null
         }
         onSessionStateChange={captureManuscriptSession}
