@@ -6,11 +6,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
 from typing import cast
 
+import path_filter
 from browser_payload_digest import load_contract as load_browser_payload_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -496,7 +498,7 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         )
 
     required_shard_evidence = (
-        "needs: frontend",
+        "needs: [plan, frontend]",
         "fail-fast: false",
         "if: matrix.product_shard != ''",
         "PRODUCT_SHARD: ${{ matrix.product_shard }}",
@@ -525,23 +527,28 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
             "browser E2E shards must collect both suite results in shell and fail closed"
         )
     # The pull-request smoke test on Windows and macOS is acceptable only because Linux runs
-    # the complete product and design suites on every event.
-    if re.search(r"^    if:", shards, re.MULTILINE) or "full_matrix" in shards:
+    # the complete product and design suites whenever any browser suite runs. The one way the
+    # Linux slots may drop out is the path filter's browser group, and validate_path_filter
+    # holds that group true in full mode. Any other condition, and any mention of the matrix
+    # plan, stays red.
+    conditions = re.findall(r"^    if:[^\n]*", shards, re.MULTILINE)
+    if conditions != [LINUX_BROWSER_GUARD] or "full_matrix" in shards:
         raise WorkflowContractError(
-            "the Linux browser slots must run on every event, independent of the matrix plan"
+            "the Linux browser slots may only drop out through the path filter's browser group: "
+            + LINUX_BROWSER_GUARD.strip()
         )
 
     required_aggregator_evidence = (
-        "needs: browser-e2e-shards",
-        "if: always()",
-        "SHARD_RESULT: ${{ needs.browser-e2e-shards.result }}",
-        'if [ "$SHARD_RESULT" != "success" ]; then',
-        "exit 1",
+        "      - browser-e2e-shards\n",
+        "    if: always()\n",
+        "RESULT_BROWSER_E2E_SHARDS: ${{ needs['browser-e2e-shards'].result }}",
+        'require browser-e2e-shards "$RESULT_BROWSER_E2E_SHARDS" "$SELECTED_BROWSER_E2E_SHARDS"',
+        'exit "$status"',
     )
     for evidence in required_aggregator_evidence:
         if evidence not in aggregator:
             raise WorkflowContractError(
-                f"stable browser-e2e aggregator is missing fail-closed evidence: {evidence}"
+                "stable browser-e2e aggregator is missing fail-closed evidence: " + evidence.strip()
             )
     if "continue-on-error" in aggregator or "strategy:" in aggregator:
         raise WorkflowContractError(
@@ -616,8 +623,13 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("cross-platform browser shards must fail closed")
 
 
-FULL_MATRIX_GUARD = "if: needs.plan.outputs.full_matrix == 'true'"
-REDUCED_MATRIX_GUARD = "if: needs.plan.outputs.full_matrix != 'true'"
+LINUX_BROWSER_GUARD = "    if: needs.plan.outputs.run_browser == 'true'"
+FULL_MATRIX_GUARD = (
+    "if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'"
+)
+REDUCED_MATRIX_GUARD = (
+    "if: needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser == 'true'"
+)
 FULL_MATRIX_DECISION = (
     "FULL_MATRIX: ${{ inputs.full_matrix == true "
     "|| (github.event_name == 'push' && github.ref == 'refs/heads/main') "
@@ -652,15 +664,33 @@ def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
 
     plan = _job_body(workflow, "plan")
     for evidence in (
-        "permissions: {}",
         "full_matrix: ${{ steps.decide.outputs.full_matrix }}",
         FULL_MATRIX_DECISION,
         'echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"',
     ):
         if evidence not in plan:
             raise WorkflowContractError(f"the plan job is missing its matrix decision: {evidence}")
-    if "uses:" in plan:
-        raise WorkflowContractError("the plan job must decide without checkout or actions")
+    # T-33 decided without checkout or actions. The path filter (T-37) needs exactly two:
+    # a sparse checkout of its configuration and itself, and the locked Python to run it,
+    # both only on a pull request in reduced mode. validate_path_filter holds the rest.
+    for step in re.split(r"^      - ", plan, flags=re.MULTILINE)[1:]:
+        if "uses:" in step and f"if: {PATH_FILTER_CONDITION}\n" not in step:
+            raise WorkflowContractError(
+                "the plan job may use actions only for the path filter, on its condition"
+            )
+    uses = re.findall(r"uses:\s+([^\s@]+)@", plan)
+    if sorted(uses) != ["actions/checkout", "actions/setup-python"]:
+        raise WorkflowContractError(
+            "the plan job may use only checkout and setup-python, once each, for the path filter"
+        )
+    permissions = re.search(r"^    permissions:\n((?:      .*\n)*)", plan, re.MULTILINE)
+    granted = (
+        re.findall(r"^      ([a-z-]+):", permissions.group(1), re.MULTILINE) if permissions else []
+    )
+    if granted != ["contents"] or "      contents: read" not in plan:
+        raise WorkflowContractError(
+            "the plan job may read the repository contents and nothing else"
+        )
 
     for name, body in _job_blocks(workflow):
         if name != "plan" and "github.event_name" in body:
@@ -671,6 +701,182 @@ def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("the full cross-platform matrix must run on the plan decision")
     if REDUCED_MATRIX_GUARD not in _job_body(workflow, "cross-platform-smoke"):
         raise WorkflowContractError("the cross-platform smoke test must run on the reduced matrix")
+
+
+PATH_FILTER_CONDITION = (
+    "steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'"
+)
+PATH_FILTER_COMMAND = (
+    'run: python distribution/tooling/path_filter.py plan --merge HEAD --output "$GITHUB_OUTPUT"'
+)
+PATH_FILTER_SPARSE = (
+    "          sparse-checkout-cone-mode: false\n"
+    "          sparse-checkout: |\n"
+    "            .github/test-paths.json\n"
+    "            distribution/tooling/path_filter.py\n"
+)
+# Which plan output lets each job of test.yml run. The first is the job's `if:`, the second
+# what the browser-e2e gate compares a skip with. Every job other than plan and browser-e2e
+# must be listed: a new job has to be placed in a group before it can land.
+FILTERED_JOBS = {
+    "backend": (
+        "needs.plan.outputs.run_python == 'true'",
+        "needs.plan.outputs.run_python != 'false'",
+    ),
+    "portable-core": (
+        "needs.plan.outputs.run_rust == 'true'",
+        "needs.plan.outputs.run_rust != 'false'",
+    ),
+    "frontend": (
+        "needs.plan.outputs.run_checks == 'true'",
+        "needs.plan.outputs.run_checks != 'false'",
+    ),
+    "workflow-docker-shell-lint": (
+        "needs.plan.outputs.run_lint == 'true'",
+        "needs.plan.outputs.run_lint != 'false'",
+    ),
+    "browser-e2e-shards": (
+        "needs.plan.outputs.run_browser == 'true'",
+        "needs.plan.outputs.run_browser != 'false'",
+    ),
+    "visual-baseline-reach": (
+        "needs.plan.outputs.run_browser == 'true'",
+        "needs.plan.outputs.run_browser != 'false'",
+    ),
+    "cross-platform-native": (
+        "needs.plan.outputs.run_python == 'true' || needs.plan.outputs.run_rust == 'true'",
+        "needs.plan.outputs.run_python != 'false' || needs.plan.outputs.run_rust != 'false'",
+    ),
+    "cross-platform-browser": (
+        FULL_MATRIX_GUARD.removeprefix("if: "),
+        "needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser != 'false'",
+    ),
+    "cross-platform-smoke": (
+        REDUCED_MATRIX_GUARD.removeprefix("if: "),
+        "needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser != 'false'",
+    ),
+}
+CLIENT_STEPS = ("Unit tests", "Type-check and build", "dist/ matches the sources")
+
+
+def plan_output_expression(group: str) -> str:
+    """The one allowed form of a run_<group> output: full mode first, only 'false' reduces."""
+
+    return (
+        f"${{{{ steps.decide.outputs.full_matrix == 'true' && 'true' || "
+        f"(steps.filter.outputs.run_{group} == 'false' && 'false' || 'true') }}}}"
+    )
+
+
+def _env_name(job: str) -> str:
+    return job.upper().replace("-", "_")
+
+
+def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = None) -> None:
+    """
+    Pull requests run the job groups their paths need; everything else runs everything.
+
+    .github/test-paths.json is the only place that maps paths to groups. It must cover every
+    tracked file, and the plan job may only turn a group off on a pull request in reduced
+    mode. Every other job reads only the plan's outputs, and browser-e2e lets a job be
+    skipped only when the plan did not select it.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    triggers = workflow.partition("\njobs:")[0]
+    if re.search(r"^\s+paths(?:-ignore)?:", triggers, re.MULTILINE):
+        raise WorkflowContractError(
+            "test.yml may not filter paths in its triggers; a skipped workflow reports nothing"
+        )
+    try:
+        config = path_filter.load_config(REPO_ROOT / ".github" / "test-paths.json")
+        files = tracked if tracked is not None else path_filter.tracked_paths(REPO_ROOT)
+    except path_filter.PathFilterError as error:
+        raise WorkflowContractError(f"the path filter configuration is invalid: {error}") from error
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise WorkflowContractError(f"cannot list tracked files: {error}") from error
+    errors = path_filter.coverage_errors(config, files)
+    if errors:
+        raise WorkflowContractError(
+            "test-paths.json does not cover the repository: " + "; ".join(errors[:5])
+        )
+
+    plan = _job_body(workflow, "plan")
+    outputs = re.findall(r"^      (run_[a-z0-9_]+): ([^\n]+)$", plan, re.MULTILINE)
+    expected = [(f"run_{group}", plan_output_expression(group)) for group in config.groups]
+    if sorted(outputs) != sorted(expected):
+        raise WorkflowContractError(
+            "the plan job needs one run_<group> output per test-paths group, each "
+            "true in full mode and false only on the filter's literal 'false'"
+        )
+    if plan.count(f"if: {PATH_FILTER_CONDITION}\n") != 3:
+        raise WorkflowContractError(
+            "the path filter's checkout, Python and run must each be guarded by: "
+            + PATH_FILTER_CONDITION
+        )
+    for evidence in (
+        "      - id: filter\n",
+        PATH_FILTER_COMMAND,
+        "          fetch-depth: 2\n",
+        PATH_FILTER_SPARSE,
+        "          persist-credentials: false\n",
+    ):
+        if evidence not in plan:
+            raise WorkflowContractError(f"the path filter step is missing: {evidence.strip()}")
+
+    groups_read = set(re.findall(r"needs\.plan\.outputs\.run_([a-z0-9_]+)", workflow))
+    if groups_read - set(config.groups):
+        raise WorkflowContractError(
+            "test.yml reads plan outputs no group declares: "
+            + ", ".join(sorted(groups_read - set(config.groups)))
+        )
+
+    jobs = dict(_job_blocks(workflow))
+    unplaced = set(jobs) - set(FILTERED_JOBS) - {"plan", "browser-e2e"}
+    if unplaced:
+        raise WorkflowContractError(
+            "test.yml jobs without a path-filter group: " + ", ".join(sorted(unplaced))
+        )
+    for name, (condition, _) in FILTERED_JOBS.items():
+        body = jobs.get(name)
+        if body is None:
+            raise WorkflowContractError(f"workflow is missing the {name} job")
+        if not re.search(r"^    needs: (?:plan|\[plan, [a-z0-9-]+\])$", body, re.MULTILINE):
+            raise WorkflowContractError(f"test.yml:{name} must need the plan job")
+        if re.findall(r"^    if: ([^\n]*)$", body, re.MULTILINE) != [condition]:
+            raise WorkflowContractError(f"test.yml:{name} must run on exactly: if: {condition}")
+    for step in CLIENT_STEPS:
+        guarded = f"      - name: {step}\n        if: needs.plan.outputs.run_client == 'true'\n"
+        if guarded not in jobs["frontend"]:
+            raise WorkflowContractError(f"the frontend step {step!r} must run on run_client")
+
+    aggregator = jobs["browser-e2e"]
+    needs = re.search(r"^    needs:\n((?:      - .*\n)*)", aggregator, re.MULTILINE)
+    listed = re.findall(r"^      - ([a-z0-9-]+)$", needs.group(1), re.MULTILINE) if needs else []
+    if sorted(listed) != sorted(["plan", *FILTERED_JOBS]):
+        raise WorkflowContractError("browser-e2e must need the plan and every filtered job")
+    for evidence in (
+        "    if: always()\n",
+        "          PLAN_RESULT: ${{ needs.plan.result }}\n",
+        '          require plan "$PLAN_RESULT" true\n',
+        '            if [ "$2" = "success" ]; then\n',
+        '            elif [ "$2" = "skipped" ] && [ "$3" = "false" ]; then\n',
+        "              status=1\n",
+        '          exit "$status"\n',
+    ):
+        if evidence not in aggregator:
+            raise WorkflowContractError(f"browser-e2e is missing its gate: {evidence.strip()}")
+    for name, (_, selection) in FILTERED_JOBS.items():
+        env = _env_name(name)
+        for evidence in (
+            f"          RESULT_{env}: ${{{{ needs['{name}'].result }}}}\n",
+            f"          SELECTED_{env}: ${{{{ {selection} }}}}\n",
+            f'          require {name} "$RESULT_{env}" "$SELECTED_{env}"\n',
+        ):
+            if evidence not in aggregator:
+                raise WorkflowContractError(f"browser-e2e does not gate {name}: {evidence.strip()}")
+    if "continue-on-error" in workflow:
+        raise WorkflowContractError("test.yml may not use continue-on-error")
 
 
 CHECK_RUNNER = "node tools/dev/run-check.mjs"
@@ -855,6 +1061,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_browser_e2e_sharding(sources)
         validate_cross_platform_browser_sharding(sources)
         validate_full_matrix_switch(sources)
+        validate_path_filter(sources)
         validate_frontend_gates_once(sources)
         validate_test_caches(sources)
         validate_native_release_targets(sources)

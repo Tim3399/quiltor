@@ -234,9 +234,11 @@ Why this cut:
 
 ### The pull-request smoke test
 
-**Linux stays complete on every pull request** -- product 1/3–3/3, design 1/4–4/4 and the layout
-audit rules. That is the condition for running only a smoke test on Windows and macOS, and
-`workflow_contract.py` fails if the Linux slots get a job-level `if:` or read the matrix plan.
+**Linux stays complete on every pull request that runs browser suites at all** -- product
+1/3–3/3, design 1/4–4/4 and the layout audit rules. That is the condition for running only a
+smoke test on Windows and macOS. `workflow_contract.py` fails if the Linux slots read the matrix
+plan or get any job-level `if:` other than the path filter's browser group (see "Path filter",
+"The one exception to Linux complete").
 
 On Windows and macOS a pull request runs `npx vitest run` and these product specs (test.yml,
 `cross-platform-smoke`, "Product smoke specs"):
@@ -279,3 +281,128 @@ Every check that ran for a commit on main still runs for it, in the same or a me
 
 On pull requests the product and design suites on macOS and Windows shrink to the smoke specs.
 That is the reduction the brief allows; main still runs them in full.
+
+## Path filter
+
+A pull request runs the job groups its changed paths need (T-37). `.github/test-paths.json` is
+the only place that maps paths to groups; `distribution/tooling/path_filter.py` evaluates it in
+the `plan` job and `workflow_contract.py` checks it.
+
+### Groups
+
+| Group     | What it runs                                                                                         |
+| --------- | ---------------------------------------------------------------------------------------------------- |
+| `checks`  | the `frontend` job up to `npm run check`: contracts, architecture, design, i18n, formatting, linters |
+| `python`  | `backend`, and `Core on …` (backend suite on macOS and Windows)                                      |
+| `rust`    | `portable-core`, and `Core on …` (cargo test on macOS and Windows)                                   |
+| `client`  | the `frontend` steps after `npm run check`: unit tests, `tsc -b` and `vite build`, dist/ comparison  |
+| `browser` | the 4 Linux browser slots, `visual-baseline-reach`, and Browser on … (main) or Smoke on … (PR)       |
+| `lint`    | `workflow-docker-shell-lint`: actionlint, hadolint, shellcheck, osv-scanner                          |
+
+Why these six and not one per directory: a group is a set of jobs or steps that can be left out
+together. `server`, `workflows` and `docker` are rules, not groups -- they select existing groups:
+
+| Rule                  | Paths (abridged)                                                                        | Groups                          | Why                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
+| filter, test-workflow | `.github/test-paths.json`, `path_filter.py`, `test.yml`                                 | all                             | a change to the filter or to a job is only proven by running everything it could skip |
+| project               | `VERSION`, `package*.json`, `pyproject.toml`, `Cargo.*`, toolchains                     | all                             | versions and toolchains every job installs or compares                                |
+| server                | `src/quiltor/**` except `hosts/cli`, `hosts/desktop`, `hosts/mcp`; `apps/web/server.py` | checks, python, client, browser | the product browser suite talks to this Python on :8010                               |
+| python                | the other hosts, `tests/python/**`, `distribution/**`, `contracts/**`                   | checks, python                  | Python outside the web server, and what the backend suite reads                       |
+| client                | `packages/client/**`, `apps/web` front end, `locales/**`, `dist/**`, build configs      | checks, client, browser         | the client, its build and the committed dist/                                         |
+| browser               | `tests/e2e/**`, `tests/design/**`, Playwright configs, `tools/audit/**`                 | checks, browser                 | the browser suites and the audit rules slot 4 runs                                    |
+| rust                  | `crates/**`, `rust-toolchain.toml`, `deny.toml`                                         | checks, rust, lint              | the portable core; osv-scanner reads `Cargo.lock`'s crates                            |
+| workflows             | `.github/**` other than the above                                                       | checks, python, lint            | actionlint, zizmor (in check) and `workflow_contract.py` (in the backend suite)       |
+| docker                | `Dockerfile`, `.dockerignore`, `docker-compose.yml`                                     | checks, python, lint            | hadolint and the image contracts in the backend suite                                 |
+| architecture-docs     | `docs/architecture/**`, `docs/quality/**`, top-level `*.md`, READMEs                    | checks, python                  | the backend suite reads these documents                                               |
+| docs                  | other `docs/**/*.md`, `LICENSE`, `knowledgebase/**`, `team/**`, `.claude/**`            | checks                          | prose: formatting, markdownlint and typos only                                        |
+
+A path takes the union of every rule it matches. Three narrow rules add `python` where the backend
+suite reads a file of another group: the HTTP client in `packages/client/src/platform/http`
+(`test_routes.py`), one image and `dist/index.html`, and the Playwright configs.
+
+**Not tested** (with the reason the contract demands): `docs/screenshots/*.png` -- README images
+no gate reads. A path may not be both in a rule and on this list.
+
+### Full mode bypasses the filter
+
+In full mode (push to main, `workflow_dispatch` with the default, `workflow_call` without input
+or with `true`) every `run_<group>` output is `'true'` and the filter step does not run: no
+checkout, no paths read. A documentation-only push to main runs everything (F-35-10). Each output
+has the same form, and the contract allows no other:
+
+```text
+run_<group> = full_matrix == 'true' ? 'true' : (filter wrote 'false' ? 'false' : 'true')
+```
+
+### Fail-safe
+
+Only a finished filter that wrote a literal `'false'` switches a group off. Everything else runs
+everything:
+
+- a path no rule and no untested entry matches (the step logs `::notice::` with the paths);
+- an empty change list;
+- a diff that cannot be read, or a `HEAD` that is not a merge commit (`::warning::`);
+- a filter step that did not run or wrote nothing -- the output expression then falls to `'true'`;
+- a reduced run that is not a pull request (`workflow_dispatch` with `false`): nothing to diff.
+
+The paths come from `git diff --name-only --no-renames HEAD^1 HEAD` on the merge commit GitHub
+builds for the pull request, checked out sparse (the configuration and the script only) and two
+commits deep. That is exactly what the pull request changes against the current base, with no
+API page limit, so "more files than the API returns" cannot happen; a rename counts as both
+paths. A crash of the script itself fails `plan`, every job is skipped and `browser-e2e` is red.
+
+### The plan job, loosened
+
+T-33 held `plan` to "no checkout, no actions, `permissions: {}`". T-37 loosens exactly that far:
+`contents: read`, `actions/checkout` and `actions/setup-python` (both already in the lock), all
+three filter steps guarded by `full_matrix != 'true' && github.event_name == 'pull_request'`. The
+contract fails on any other action, permission or condition. No new action, no token use beyond
+the checkout (`persist-credentials: false`).
+
+### The gate: `browser-e2e`
+
+`browser-e2e` keeps its name (no branch-protection change) and now gates every filtered job. It
+needs `plan` and all nine filtered jobs, runs `if: always()`, and per job passes only `success`,
+or `skipped` when the plan did not select it. A selection is written as `!= 'false'`, so a
+missing plan output counts as selected and its skip is red. Failure, cancellation, a failed plan
+and any other skip are red. `FILTERED_JOBS` in `workflow_contract.py` is the list; a new job in
+test.yml without an entry fails the contract, so T-35 (F-35-1) extends the same list.
+
+Side effect: `browser-e2e` now waits for the slowest job (on main, the Windows slots) and turns
+red when any filtered job does, not only a browser slot.
+
+### The one exception to "Linux complete"
+
+|                      | Before (T-33)                              | After (T-37)                                                                                                |
+| -------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Linux browser slots  | no job-level `if:`, never read the plan    | exactly `if: needs.plan.outputs.run_browser == 'true'`, never read `full_matrix`                            |
+| Can they be skipped? | no                                         | only on a pull request whose paths select no `browser` group; in full mode `run_browser` is always `'true'` |
+| Contract mutation    | adding `if: …full_matrix == 'true'` is red | still red; `run_browser && full_matrix != 'true'`, another group, or no condition are red too               |
+
+### Example pull requests
+
+| Pull request changes                          | Jobs that run                                                                                                           |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `docs/plans/x.md` (documentation)             | plan, frontend (`npm run check` only), browser-e2e                                                                      |
+| `tests/python/…`, `src/quiltor/hosts/cli/…`   | plan, backend, frontend (check only), Core on macOS/Windows, browser-e2e                                                |
+| `src/quiltor/delivery/http/…` (server Python) | plan, backend, frontend (all steps), Core on …, Linux browser slots 1–4, visual-baseline-reach, Smoke on …, browser-e2e |
+| `packages/client/src/…` (client)              | plan, frontend (all steps), Linux browser slots 1–4, visual-baseline-reach, Smoke on …, browser-e2e                     |
+| `.github/workflows/release.yml`               | plan, backend, frontend (check only), workflow-docker-shell-lint, Core on …, browser-e2e                                |
+| an unknown path, or `test.yml`                | everything of the reduced matrix                                                                                        |
+
+`test_release.py` (`PathFilterContractTests.test_truth_table`) computes these rows from the real
+expressions in test.yml and the real configuration.
+
+### Before and after
+
+| Pull request kind | Jobs before (T-33) | Jobs after (T-37) | Wall clock after push |
+| ----------------- | ------------------ | ----------------- | --------------------- |
+| documentation     | 15                 | 3                 | open                  |
+| Python, no server | 15                 | 6                 | open                  |
+| server Python     | 15                 | 13                | open                  |
+| client            | 15                 | 10                | open                  |
+| workflows only    | 15                 | 7                 | open                  |
+| main, release     | 23                 | 23                | unchanged by design   |
+
+Job counts include `plan` and `browser-e2e`, with each matrix slot as one job. The timings are
+open until a push with the user's approval.
