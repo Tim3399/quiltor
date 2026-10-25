@@ -5,6 +5,30 @@ finding turns the gate red. There is no baseline. A rule is switched off or down
 with a reason, written as a comment in the tool's configuration where the format allows one,
 and in this file otherwise.
 
+## How `npm run check` runs the linters
+
+`npm run check` is `node tools/dev/run-check.mjs`. It runs the 17 links that used to be one
+`&&` chain side by side (at most the core count, capped at 6; `QUILTOR_CHECK_JOBS=<n>`
+overrides). Each link is still an npm script of its own, so one can be run alone
+(`npm run lint:knip`). The list of links is `LINKS` in the runner and nowhere else.
+
+- **Output.** Buffered per link and printed at the end in the fixed order of `LINKS`: a header
+  with status and duration for every link, the output of the red ones, and a summary naming
+  all red links. The exit code is 1 when any link is red; a red link no longer hides the ones
+  behind it.
+- **Why parallel is safe.** No link writes into the tree: the format links only check, ruff
+  and biome do not fix, and the `node --test` links write nothing. eslint, pyright and knip
+  keep their caches in separate places. The shared resource is the CPU, hence the cap.
+- **Tests.** `tools/dev/run-check.test.mjs` (fake links: all green, one red, several red, the
+  cap) and a contract that `LINKS` equals the former chain, each link once, and that every
+  link is an npm script. It runs with `test:audit-tools`, which gained `tools/dev/*.test.mjs`:
+  that script is the existing `node --test` run in `check` for repository tooling.
+- **CI.** The `frontend` job still calls `npm run check`. The runner spawns children with
+  piped output and no stdin, uses no TTY features and sets `NO_COLOR`.
+- **Duration** (Windows, 16 cores, three runs each): sequential 110 / 107 / 106 s, median
+  107 s; parallel 67 / 87 / 79 s, median 79 s. The longest link, `check:design-system`,
+  bounds the run.
+
 ## Biome
 
 **What it checks.** `biome lint` with Biome's `recommended` preset, on every file the `files`
