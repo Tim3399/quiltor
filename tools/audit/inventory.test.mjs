@@ -102,6 +102,7 @@ test("ignores popup words in comments and strings", () => {
     "// <ConfirmDialog /> is documented here",
     '/* <Popover> and createPortal( and role="menu" */',
     'const label = "<Sheet> opens a Dialog";',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source text that the scanner must read as a template literal
     "const text = `<MenuItem> ${1} createPortal(x)`;",
     "export function Quiet() { return <p>{label}</p>; }",
   ].join("\n");
@@ -109,6 +110,7 @@ test("ignores popup words in comments and strings", () => {
 });
 
 test("still finds code inside a template substitution", () => {
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source text that the scanner must read as a template literal
   const source = "export function A() { return `${createPortal(x, y)}`; }";
   assert.deepEqual(patternsOf(source), ["createPortal"]);
 });
