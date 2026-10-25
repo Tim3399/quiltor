@@ -1,0 +1,22 @@
+# zizmor configuration. zizmor finds this file on its own (.github/zizmor.yml).
+# See docs/quality/linting.md for what the audit covers and how to run it.
+
+rules:
+  template-injection:
+    ignore:
+      # Release Build, "Create the manifest from required and explicitly enabled artifacts".
+      # tests/python/test_release.py asserts these `${{ }}` expressions literally (the web
+      # and backup image references, and the wheel and sdist names), so the step cannot move
+      # them into `env:` without rewriting that contract. Every value is a job output this
+      # workflow produced itself: the version passed profile_contract.py check-release and
+      # the monotonic check, the image references are `<repository>@sha256:<64 hex>` bound
+      # by a regex in their own jobs. The workflow runs only on push to main and dispatch.
+      # Line numbers are deliberate: an edit that moves the step makes zizmor fail again,
+      # and the ignore has to be re-justified.
+      - release.yml:494
+      - release.yml:496
+      - release.yml:497
+      - release.yml:498
+      - release.yml:499
+      - release.yml:502
+      - release.yml:505
