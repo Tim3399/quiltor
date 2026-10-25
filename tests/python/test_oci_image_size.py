@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -18,7 +19,7 @@ import oci_image_size  # noqa: E402
 import workflow_contract  # noqa: E402
 
 
-def fixture(name: str) -> dict[str, object]:
+def fixture(name: str) -> dict[str, Any]:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 

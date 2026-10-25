@@ -2,10 +2,12 @@ import importlib.util
 import os
 import tempfile
 import unittest
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 TYPER_AVAILABLE = importlib.util.find_spec("typer") is not None
-if TYPER_AVAILABLE:
+# The class below is skipped without typer, so these names are bound wherever they run.
+if TYPE_CHECKING or TYPER_AVAILABLE:
     from quiltor.hosts.cli import main as cli
     from quiltor.infrastructure.platform.runtime_target import ProcessRole
 

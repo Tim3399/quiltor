@@ -8,8 +8,10 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.application.capabilities import Feature
@@ -187,7 +189,7 @@ class DownloadResumeTest(unittest.TestCase):
                 content_length=len(remaining),
                 content_range=f"bytes 30-49/{len(full_content)}",
             )
-            requests: list[object] = []
+            requests: list[urllib.request.Request] = []
 
             def fake_urlopen(request, timeout=30):
                 requests.append(request)
@@ -281,12 +283,13 @@ class DownloadResumeTest(unittest.TestCase):
         policy = transfer._ArtifactRedirect(_artifact(b"payload"))
         request = transfer.urllib.request.Request("https://example.test/model.gguf")
         with self.assertRaisesRegex(ValueError, "trusted HTTPS origins"):
+            # The policy reads only the target URL; no response body or headers exist.
             policy.redirect_request(
                 request,
-                None,
+                cast(Any, None),
                 302,
                 "Found",
-                {},
+                cast(Any, {}),
                 "https://untrusted.example/payload",
             )
 
@@ -295,10 +298,10 @@ class DownloadResumeTest(unittest.TestCase):
         self.assertIsNone(
             transfer._NoRedirect().redirect_request(
                 request,
-                None,
+                cast(Any, None),
                 302,
                 "Found",
-                {},
+                cast(Any, {}),
                 "https://example.test/other",
             )
         )
@@ -352,7 +355,7 @@ class InstallerLogTests(unittest.TestCase):
             url,
             400,
             "Bad Request",
-            {},
+            cast(Any, {}),
             io.BytesIO(b'{"error":"Invalid limit for index tree pagination"}'),
         )
         opener = MagicMock()
@@ -787,7 +790,7 @@ class InstallAsyncTest(unittest.TestCase):
             self.assertTrue(self._start())
             self._wait_until_idle()
 
-        state = self.coordinator.read()
+        state: dict[str, Any] = self.coordinator.read()
         self.assertFalse(state["running"])
         self.assertIn("no network", state["error"])
 

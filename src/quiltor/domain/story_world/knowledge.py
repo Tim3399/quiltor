@@ -59,7 +59,7 @@ def moment_order(timeline: list[dict[str, Any]], moment_id: Any) -> int:
     return -2
 
 
-def _parts(text: str, limit: int = 1400) -> list[str]:
+def _parts(text: str | None, limit: int = 1400) -> list[str]:
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text or "") if part.strip()]
     result: list[str] = []
     current = ""

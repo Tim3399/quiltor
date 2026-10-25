@@ -17,6 +17,7 @@ from quiltor.delivery.http.routes import Request
 from quiltor.delivery.http.routes import worlds as world_routes
 from quiltor.hosts.mcp import quiltor_server as mcp
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
+from tests.python.narrowing import present
 
 
 class _Handler:
@@ -47,7 +48,7 @@ class ApplicationDeliveryParityTest(unittest.TestCase):
         with patch.object(mcp, "WORLDS", operations):
             mcp_result = mcp.call_tool("list_worlds", {})
 
-        self.assertEqual(handler.payload["worlds"], mcp_result["worlds"])
+        self.assertEqual(present(handler.payload)["worlds"], mcp_result["worlds"])
         self.assertEqual(operations.owners, ["alice", None])
 
 

@@ -232,7 +232,7 @@ class BackupProtocolTest(unittest.TestCase):
                 self.send_response(200)
                 self.end_headers()
 
-            def log_message(self, *_args):
+            def log_message(self, format, *_args):
                 pass
 
         destination = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Destination)
@@ -246,7 +246,7 @@ class BackupProtocolTest(unittest.TestCase):
                 self.send_header("Location", f"{destination_url}/stolen")
                 self.end_headers()
 
-            def log_message(self, *_args):
+            def log_message(self, format, *_args):
                 pass
 
         redirect = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Redirect)
