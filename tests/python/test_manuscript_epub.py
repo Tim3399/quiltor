@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 import zipfile
 from io import BytesIO
+from typing import Any, cast
 from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
@@ -39,6 +40,7 @@ class ManuscriptEpubExportTests(unittest.TestCase):
             ("😀AB😀C", ((2, 4, "bold"), (3, 6, "italic")), "AB", "B😀"),
             ("😀A\n\nB😀C", ((0, 3, "bold"), (3, 9, "bold"), (2, 8, "italic")), "😀AB😀C", "AB😀"),
         )
+        result = None
         for body, ranges, bold, italic in cases:
             with self.subTest(body=body):
                 marks = tuple(
@@ -62,7 +64,7 @@ class ManuscriptEpubExportTests(unittest.TestCase):
                 {"from": 2, "to": 8, "kind": "italic"},
             ),
         )
-        self.assertEqual(result.content, serialize_epub([merged], self.options).content)
+        self.assertEqual(present(result).content, serialize_epub([merged], self.options).content)
 
     def test_utf16_primitives_preserve_sparse_and_nonboundary_offset_behavior(self):
         self.assertEqual(epub_export._utf16_len(""), 0)
@@ -92,7 +94,8 @@ class ManuscriptEpubExportTests(unittest.TestCase):
         invalid = ExportChapter("Bad\x00", "😀", ({"from": 1, "to": 2, "kind": "bold"},))
         invalid_metadata = EpubExportOptions(language="not a tag", modified="invalid")
         cases = (
-            ([invalid], "invalid", "EPUB export options are invalid."),
+            # Deliberately not EpubExportOptions, to test the rejection.
+            ([invalid], cast(Any, "invalid"), "EPUB export options are invalid."),
             ([invalid], invalid_metadata, "EPUB text contains an unrepresentable character."),
             (
                 [ExportChapter("Kapitel", "😀", ({"from": 1, "to": 2, "kind": "bold"},))],

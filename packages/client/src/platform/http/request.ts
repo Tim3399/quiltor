@@ -176,14 +176,18 @@ export async function readJson(response: Response): Promise<unknown> {
 }
 
 /** Serialize before delegating, preserving synchronous JSON serialization errors. */
-export function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+export function postJson<T>(
+  url: string,
+  body: unknown,
+  ...optional: [signal?: AbortSignal]
+): Promise<T> {
   const init: RequestInit = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   };
   // Preserve the caller's distinction between omitted and explicitly undefined signals.
-  if (arguments.length > 2) init.signal = signal;
+  if (optional.length > 0) init.signal = optional[0];
   return requestJson<T>(url, init);
 }
 
