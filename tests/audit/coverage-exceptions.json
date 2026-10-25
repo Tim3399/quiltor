@@ -1,0 +1,4 @@
+{
+  "$comment": "Inventory components the layout audit deliberately does not reach. Every entry needs a reason; tests/audit/support/merge.ts reads this file.",
+  "exceptions": []
+}
