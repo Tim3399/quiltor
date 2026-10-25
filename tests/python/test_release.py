@@ -1501,6 +1501,15 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_frontend_gates_once(mutated)
 
+    def test_check_links_come_from_the_chain_or_the_parallel_runner(self):
+        chain = "npm run check:contracts && npm run lint:biome"
+        self.assertEqual(workflow_contract._check_links(chain), {"check:contracts", "lint:biome"})
+        runner_links = workflow_contract._check_links(workflow_contract.CHECK_RUNNER)
+        for gate in ("check:contracts", "check:i18n", "check:platform", "lint:typos"):
+            with self.subTest(gate=gate):
+                self.assertIn(gate, runner_links)
+        self.assertNotIn("build", runner_links)
+
     def test_test_workflow_caches_npm_only(self):
         sources = workflow_contract._workflow_sources()
         workflow_contract.validate_test_caches(sources)

@@ -673,6 +673,28 @@ def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("the cross-platform smoke test must run on the reduced matrix")
 
 
+CHECK_RUNNER = "node tools/dev/run-check.mjs"
+
+
+def _check_links(check_script: str) -> set[str]:
+    """
+    The npm scripts `npm run check` runs.
+
+    `check` is either a chain of `npm run <script>` links or the parallel runner, whose LINKS
+    array is then the only list of them.
+    """
+
+    if check_script.strip() == CHECK_RUNNER:
+        runner = (REPO_ROOT / "tools" / "dev" / "run-check.mjs").read_text(encoding="utf-8")
+        array = re.search(r"export const LINKS = \[(.*?)\];", runner, re.DOTALL)
+        if array is None:
+            raise WorkflowContractError("tools/dev/run-check.mjs must export its LINKS array")
+        return set(re.findall(r'"([a-z0-9:-]+)"', array.group(1)))
+    return {
+        link.strip()[8:] for link in check_script.split("&&") if link.strip().startswith("npm run ")
+    }
+
+
 def validate_frontend_gates_once(sources: dict[Path, str]) -> None:
     """
     The frontend job runs the check:* gates once, through `npm run check`, not again in build.
@@ -687,9 +709,8 @@ def validate_frontend_gates_once(sources: dict[Path, str]) -> None:
     links = [link.strip() for link in scripts["build"].split("&&")]
     gates = [link for link in links if re.fullmatch(r"npm run check:[a-z0-9:-]+", link)]
     tail = [link for link in links if link not in gates]
-    missing = [
-        gate for gate in gates if not re.search(rf"\b{re.escape(gate[8:])}\b", scripts["check"])
-    ]
+    check_links = _check_links(scripts["check"])
+    missing = [gate for gate in gates if gate[8:] not in check_links]
     if missing:
         raise WorkflowContractError(
             "package.json build runs gates that check does not: " + ", ".join(missing)
