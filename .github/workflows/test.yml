@@ -86,6 +86,11 @@ jobs:
       - name: Install the pinned Python formatter
         run: python -m pip install --quiet "ruff==0.16.4"
 
+      # pyright resolves typer, PyJWT and markdown-it-py through this interpreter;
+      # without the project's dependencies every third-party import is unresolved.
+      - name: Install the project for the type check
+        run: python -m pip install --quiet -e .
+
       - name: Formatting contract
         run: npm run check:format
 

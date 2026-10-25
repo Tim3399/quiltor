@@ -9,8 +9,9 @@
     "probe": "node tools/dev/probe.mjs",
     "doctor": "node tools/dev/doctor.mjs",
     "mutate": "node tools/dev/mutate.mjs",
-    "check": "npm run check:contracts && npm run check:architecture && npm run check:design && npm run check:design-system && npm run check:i18n && npm run check:platform && npm run check:format && npm run lint:ruff",
+    "check": "npm run check:contracts && npm run check:architecture && npm run check:design && npm run check:design-system && npm run check:i18n && npm run check:platform && npm run check:format && npm run lint:ruff && npm run lint:pyright",
     "lint:ruff": "node tools/dev/python.mjs --needs ruff -m ruff check .",
+    "lint:pyright": "node tools/dev/python.mjs --needs typer tools/dev/run_pyright.py",
     "start": "node tools/dev/start-workshop.mjs",
     "dev": "vite",
     "build": "npm run check:contracts && npm run check:architecture && npm run check:design && npm run check:design-system && npm run check:i18n && npm run check:platform && tsc -b && vite build",
@@ -66,6 +67,7 @@
     "@vitejs/plugin-react": "6.0.4",
     "jsdom": "29.1.1",
     "prettier": "3.9.6",
+    "pyright": "1.1.414",
     "typescript": "7.0.2",
     "vite": "8.1.5",
     "vitest": "4.1.11"
