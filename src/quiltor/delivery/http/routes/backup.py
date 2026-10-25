@@ -240,7 +240,7 @@ def _page(handler, message: str, code: int) -> None:
         "<h1>Die Anmeldung ist nicht angekommen</h1>"
         f"<p>{html.escape(message)}</p>"
         '<p><a href="/">Zurück zu Quiltor</a></p>'
-    ).encode("utf-8")
+    ).encode()
     handler.send_response(code)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
@@ -269,7 +269,7 @@ def _endpoint_for(request: Request, app) -> str:
             # BackupContext already falls back to the account-wide endpoint when
             # the world names none (SnapshotStore.context), so this is resolved.
             return app.backups.endpoint_for_world(world_id, request.session.sub)
-        except Exception:
+        except Exception:  # noqa: S110 - falls through to the default on purpose, see above
             pass
     return app.backups.default_endpoint()
 

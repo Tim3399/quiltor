@@ -360,7 +360,7 @@ class SnapshotStoreTest(unittest.TestCase):
             ),
         )
         bodies = ("Text", "Text", "Text", "Text", "😀Text", "Text")
-        for index, (extra_json, body) in enumerate(zip(invalid_marks, bodies)):
+        for index, (extra_json, body) in enumerate(zip(invalid_marks, bodies, strict=False)):
             with self.subTest(index=index):
                 ctx = self._world(f"world-invalid-{index}")
                 with closing(sqlite3.connect(ctx.database)) as database, database:

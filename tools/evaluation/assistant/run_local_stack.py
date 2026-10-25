@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import socket
 import subprocess
@@ -11,7 +12,6 @@ import sys
 import tempfile
 import time
 import urllib.request
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -34,7 +34,7 @@ def wait_for(url: str, process: subprocess.Popen[str], timeout: int, label: str)
             with urllib.request.urlopen(url, timeout=1) as response:
                 if response.status == 200:
                     return
-        except Exception:
+        except Exception:  # noqa: BLE001 - any probe failure means "not ready yet"
             time.sleep(0.25)
     raise RuntimeError(f"{label} did not become ready within {timeout} seconds")
 

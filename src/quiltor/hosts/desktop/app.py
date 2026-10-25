@@ -31,9 +31,9 @@ if not getattr(sys, "frozen", False):
     if _SOURCE_ROOT not in sys.path:
         sys.path.insert(0, _SOURCE_ROOT)
 
-from quiltor import resources  # noqa: E402
-from quiltor.infrastructure.platform import directories  # noqa: E402
-from quiltor.infrastructure.platform.constants import APP_NAME  # noqa: E402
+from quiltor import resources
+from quiltor.infrastructure.platform import directories
+from quiltor.infrastructure.platform.constants import APP_NAME
 
 DEFAULT_PORT = 8843
 
@@ -45,7 +45,8 @@ def _redirect_null_streams() -> None:
     file objects before anything downstream touches them."""
     for name in ("stdin", "stdout", "stderr"):
         if getattr(sys, name, None) is None:
-            setattr(sys, name, open(os.devnull, "r" if name == "stdin" else "w"))
+            stream = open(os.devnull, "r" if name == "stdin" else "w")  # noqa: SIM115 - lives as long as the process
+            setattr(sys, name, stream)
 
 
 def keep_pywebview_downloads_off(webview) -> None:

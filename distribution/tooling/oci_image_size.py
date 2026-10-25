@@ -8,9 +8,9 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BUDGET_CONTRACT = REPO_ROOT / "distribution" / "containers" / "image-size-budgets.json"

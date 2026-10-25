@@ -197,7 +197,7 @@ class LanguageToolManager:
             seed = f"{start}:{length}:{rule.get('id', '')}:{index}".encode()
             issues.append(
                 {
-                    "id": hashlib.sha1(seed).hexdigest()[:16],
+                    "id": hashlib.sha1(seed, usedforsecurity=False).hexdigest()[:16],
                     "from": start,
                     "to": start + length,
                     "ruleId": str(rule.get("id", "")),

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from quiltor.application.errors import PdfExportUnavailable
 
-
 MESSAGE = (
     "PDF export is unavailable in this Python installation. "
     "Use the desktop app or the self-hosted container image."

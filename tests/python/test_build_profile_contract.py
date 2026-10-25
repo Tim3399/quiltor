@@ -5,22 +5,22 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from quiltor.modules.writing_assistance import grammar
-from quiltor.modules.writing_assistance.grammar import contract as grammar_contract
 from quiltor.application.capabilities import (
     Feature,
     FeatureAvailability,
     StaticCapabilitySource,
 )
 from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
-from quiltor.infrastructure.writing_assistance import (
-    LanguageToolManager,
-    build_writing_assistance,
-)
 from quiltor.infrastructure.inference import installer, select
 from quiltor.infrastructure.inference.runtimes import bundled_runtime_dir, llamacpp
 from quiltor.infrastructure.platform import capabilities
 from quiltor.infrastructure.platform.runtime_target import DistributionChannel, parse_profile
+from quiltor.infrastructure.writing_assistance import (
+    LanguageToolManager,
+    build_writing_assistance,
+)
+from quiltor.modules.writing_assistance import grammar
+from quiltor.modules.writing_assistance.grammar import contract as grammar_contract
 
 
 def profile_document(distribution: str, *, sandboxed: bool, code: bool, process: bool):

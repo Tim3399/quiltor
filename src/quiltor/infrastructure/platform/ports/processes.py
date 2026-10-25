@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
-from typing import IO, Any, Protocol, Sequence, runtime_checkable
+from typing import IO, Any, Protocol, runtime_checkable
 
 
 @runtime_checkable

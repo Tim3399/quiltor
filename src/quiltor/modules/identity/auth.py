@@ -9,8 +9,9 @@ import hmac
 import json
 import re
 import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 SESSION_TTL = 24 * 60 * 60
 PENDING_LOGIN_TTL = 10 * 60
@@ -264,12 +265,12 @@ def validate_master_token(token: str) -> None:
 
 __all__ = [
     "ALLOWED_ID_TOKEN_ALGORITHMS",
-    "IdentityConfiguration",
-    "InvalidTokenSignature",
     "MAX_CLOCK_SKEW_SECONDS",
     "PENDING_LOGIN_TTL",
     "RESERVED_SUBJECT_PREFIX",
     "SESSION_TTL",
+    "IdentityConfiguration",
+    "InvalidTokenSignature",
     "SessionData",
     "decode_id_token_claims",
     "decode_id_token_header",

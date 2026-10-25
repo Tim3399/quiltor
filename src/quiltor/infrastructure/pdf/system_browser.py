@@ -28,7 +28,7 @@ def render(url: str, timeout: int = 90) -> bytes:
         for channel in CHANNELS:
             try:
                 browser = p.chromium.launch(channel=channel, headless=True)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - try the next browser channel, keep the last error
                 last_error = exc
                 continue
             try:

@@ -1,19 +1,19 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import os
-import gzip
 import tarfile
 import zipfile
 from pathlib import Path
 
+from quiltor.infrastructure.persistence.writing_assistance import initialize, insert
 from quiltor.modules.writing_assistance.providers import (
     parse_freedict,
     parse_openthesaurus,
     parse_wiktionary,
 )
 from quiltor.modules.writing_assistance.registry import MANIFEST_VERSION
-from quiltor.infrastructure.persistence.writing_assistance import initialize, insert
 
 # A small immediately usable offline core. Full upstream importers live in providers/
 # and write the exact same normalized schema; distributions may replace this database.
@@ -117,21 +117,23 @@ def install_from_sources(path: Path, sources: dict[str, Path], source_manifest: 
     conn = initialize(temporary, MANIFEST_VERSION)
     count = 0
     try:
-        with zipfile.ZipFile(sources["openthesaurus"]) as archive:
-            with archive.open("openthesaurus.txt") as lines:
-                for item in parse_openthesaurus(lines):
-                    insert(
-                        conn,
-                        item["language"],
-                        item["mode"],
-                        item["query"],
-                        item["lemma"],
-                        item["part_of_speech"],
-                        item["meaning"],
-                        item["values"],
-                        item["source"],
-                    )
-                    count += 1
+        with (
+            zipfile.ZipFile(sources["openthesaurus"]) as archive,
+            archive.open("openthesaurus.txt") as lines,
+        ):
+            for item in parse_openthesaurus(lines):
+                insert(
+                    conn,
+                    item["language"],
+                    item["mode"],
+                    item["query"],
+                    item["lemma"],
+                    item["part_of_speech"],
+                    item["meaning"],
+                    item["values"],
+                    item["source"],
+                )
+                count += 1
         with gzip.open(sources["wiktionary"], "rt", encoding="utf-8") as lines:
             for item in parse_wiktionary(lines):
                 insert(

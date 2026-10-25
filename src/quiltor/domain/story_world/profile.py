@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any
 
-
 LEGACY_PROFILE_FIELDS: tuple[tuple[str, str], ...] = (
     ("alter", "Alter"),
     ("rolle", "Rolle in der Geschichte"),

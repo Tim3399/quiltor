@@ -134,7 +134,7 @@ class DocxParserTests(unittest.TestCase):
             "<w:softHyphen/><w:t>C</w:t></w:r></w:p>"
         )
         parsed = parse_docx("Defaults.docx", docx(document(body), styles=styles))
-        self.assertEqual(parsed.chapters[0].body, "A‑B\u00adC")
+        self.assertEqual(parsed.chapters[0].body, "A\u2011B\u00adC")
         self.assertEqual(parsed.warnings, ({"code": "formatting", "count": 1},))
 
     def test_fails_closed_on_unsupported_visible_run_content(self):

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
-from typing import Any, Callable
+from typing import Any
 
 from quiltor.domain.story_world.knowledge import KnowledgeChunk
 from quiltor.modules.assistant.ports import TokenCountCache
@@ -31,7 +32,10 @@ def pack_chunks(
     trace: list[dict[str, Any]] | None = None,
 ) -> list[KnowledgeChunk]:
     """Pack in priority order; include a useful excerpt when one chunk is oversized."""
-    count = lambda text: cache.count(url, text, lambda value: counter(url, value))
+
+    def count(text):
+        return cache.count(url, text, lambda value: counter(url, value))
+
     kept: list[KnowledgeChunk] = []
     used = 0
     for chunk in chunks:

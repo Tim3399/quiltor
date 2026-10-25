@@ -7,12 +7,12 @@ need to infer one axis from another (for example, a store build from the OS).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Mapping, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from quiltor.modules.commerce.contract import EntitlementProvider, EntitlementState
-
 
 FREE_LOCAL_PRODUCT = "quiltor.free.local"
 
@@ -116,10 +116,10 @@ class FeatureAvailability:
 
 
 __all__ = [
+    "FREE_LOCAL_PRODUCT",
     "AxisAvailability",
     "CapabilitySource",
     "EffectiveCapabilities",
-    "FREE_LOCAL_PRODUCT",
     "Feature",
     "FeatureAvailability",
     "StaticCapabilitySource",

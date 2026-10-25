@@ -500,7 +500,10 @@ def complete_request(
         item for item in known_context.values() if item.id not in {chunk.id for chunk in forced}
     ]
     context_candidates = forced + rest[: max(0, limit - len(forced))]
-    counter = lambda _identity, text: runtime.inference.count_tokens(text)
+
+    def counter(_identity, text):
+        return runtime.inference.count_tokens(text)
+
     context = pack_chunks(
         context_candidates,
         runtime.url,
