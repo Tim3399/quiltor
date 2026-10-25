@@ -8,6 +8,7 @@ export function useFlushedEffect(
   load: () => void | Promise<void>,
   onError: (error: unknown) => void,
 ) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: callers pass `load` and `onError` as inline closures; depending on them would refetch on every render, so only a new `flush` reruns the load
   useEffect(() => {
     let cancelled = false;
     void flush()

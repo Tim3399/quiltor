@@ -70,6 +70,7 @@ export function PlaceNode({
   const pendingFocusLabel = useRef<string | null>(null);
   const previousPin = useRef(data.pin);
   const [displayTransition, setDisplayTransition] = useState<"card" | "pin" | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pin state and size are triggers: the replacement button only exists after the node re-renders in its new form
   useEffect(() => {
     const label = pendingFocusLabel.current;
     if (!label) return;

@@ -119,6 +119,7 @@ export function resolveRelationship(
         timeline.findIndex((moment) => moment.id === b.momentId),
     );
   return versions.reduce<FigureEdge & { active: boolean }>(
+    // biome-ignore lint/performance/noAccumulatingSpread: a relationship has a handful of versions, and a fresh object per step keeps `base` untouched.
     (current, version) => ({ ...current, ...version, id: edge.id, active: version.active }),
     base,
   );

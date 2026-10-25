@@ -58,7 +58,7 @@ const hint = start("local_orch", "Orchestrator", "claude-haiku-5-5", "compact").
   .additionalContext;
 expect(
   "Startup: Rolle erkannt",
-  hint.includes("Rolle orchestrator") ? "allow" : "deny: " + hint,
+  hint.includes("Rolle orchestrator") ? "allow" : `deny: ${hint}`,
   "allow",
 );
 expect(
