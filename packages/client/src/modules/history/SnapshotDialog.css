@@ -74,7 +74,6 @@
   font: var(--font-code);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  word-break: break-word;
 }
 .snapshot-output {
   max-width: 100%;
@@ -86,5 +85,4 @@
   font: var(--font-code);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  word-break: break-word;
 }

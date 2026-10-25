@@ -158,9 +158,9 @@ do not infer motivation during the session.
 After all tasks, ask these fixed, non-leading questions in German:
 
 > Was war für dich am schwersten zu finden oder zu verstehen?
-
+>
 > Gab es einen Moment, in dem du deinen Text oder deine Änderungen für gefährdet gehalten hast?
-
+>
 > Welche eine Änderung würde deinen nächsten Arbeitsgang am meisten erleichtern?
 
 ## Analysis and exit criteria
