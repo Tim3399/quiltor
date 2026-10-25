@@ -17,7 +17,6 @@ from quiltor.infrastructure.persistence.sqlite.schema import SCHEMA_VERSION
 from quiltor.infrastructure.persistence.sqlite.temporal import migrate_legacy_state
 from quiltor.infrastructure.persistence.sqlite.time_system import ensure_primary
 
-
 _GERMAN_KEYS = {"notizen": "notes", "gerichtet": "directed"}
 
 

@@ -791,7 +791,7 @@ def respond(request: dict[str, Any]) -> dict[str, Any] | None:
                     "structuredContent": result,
                 },
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - a failing tool becomes a JSON-RPC error, never a dead server
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -815,7 +815,7 @@ def main() -> None:
             answer = respond(json.loads(line))
             if answer is not None:
                 print(json.dumps(answer, ensure_ascii=False), flush=True)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - a malformed request becomes a JSON-RPC parse error
             print(
                 json.dumps(
                     {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": str(exc)}}

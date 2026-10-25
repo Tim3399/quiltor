@@ -8,7 +8,7 @@ def _text(element):
 
 
 def parse_freedict(source, source_language: str, target_language: str):
-    root = ET.parse(source).getroot()
+    root = ET.parse(source).getroot()  # noqa: S314 - the installer verifies the archive digest first
     for entry in root.findall(".//{*}entry"):
         heads = [_text(item) for item in entry.findall(".//{*}orth") if _text(item)]
         translations = [_text(item) for item in entry.findall(".//{*}quote") if _text(item)]

@@ -18,6 +18,7 @@
   .place-node-shell[data-map-clipped="true"],
   .place-node-pin[data-map-clipped="true"]
 ) {
+  /* biome-ignore lint/complexity/noImportantStyles: React Flow sets pointer-events inline on its node wrapper (see above). */
   pointer-events: none !important;
 }
 
@@ -206,12 +207,14 @@
   }
 }
 
+/* biome-ignore-start lint/complexity/noImportantStyles: React Flow's stylesheet places handles by side; the pin anchors its handle at its foot instead. */
 .place-node-pin__handle {
   left: 50% !important;
   top: auto !important;
   bottom: 0 !important;
   transform: translate(-50%, 50%) !important;
 }
+/* biome-ignore-end lint/complexity/noImportantStyles: end of the handle override. */
 
 @media (pointer: coarse) {
   .place-node-pin__action {
@@ -337,6 +340,8 @@
   right: var(--space-4);
   bottom: var(--space-4);
   margin: 0;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 .place-node-shell .story-node .place-node__enter + .place-node__enter {
@@ -345,11 +350,6 @@
 
 /* They speak up only once the card is meant: a surface full of places should not consist
    of nothing but buttons. */
-.place-node-shell .story-node .place-node__enter {
-  opacity: 0;
-  transition: opacity var(--motion-fast) var(--ease-standard);
-}
-
 .place-node-shell .story-node:hover .place-node__enter,
 .place-node-shell .story-node.selected .place-node__enter,
 .place-node-shell .story-node:focus-within .place-node__enter {

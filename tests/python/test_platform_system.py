@@ -163,9 +163,13 @@ class NoOsBranchingOutsideThePlatformPackageTests(unittest.TestCase):
         hits = []
         for node in ast.walk(tree):
             # sys.platform
-            if isinstance(node, ast.Attribute) and node.attr == "platform":
-                if isinstance(node.value, ast.Name) and node.value.id == "sys":
-                    hits.append(f"line {node.lineno}: sys.platform")
+            if (
+                isinstance(node, ast.Attribute)
+                and node.attr == "platform"
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "sys"
+            ):
+                hits.append(f"line {node.lineno}: sys.platform")
             # platform.system() / platform.machine() / ...
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 target = node.func

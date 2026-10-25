@@ -158,7 +158,7 @@ class FakeIssuer:
             ),
         }
 
-    def start(self) -> "FakeIssuer":
+    def start(self) -> FakeIssuer:
         issuer = self
 
         class Handler(http.server.BaseHTTPRequestHandler):

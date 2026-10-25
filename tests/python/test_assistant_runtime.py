@@ -165,7 +165,10 @@ class ConversationMessagesTests(unittest.TestCase):
     def test_keeps_recent_history_within_the_real_token_budget(self):
         history = [{"role": "user", "content": f"turn {i}"} for i in range(6)]
         calls = []
-        counter = lambda text: calls.append(text) or CONVERSATION_HISTORY_TOKEN_BUDGET // 3
+
+        def counter(text):
+            return calls.append(text) or CONVERSATION_HISTORY_TOKEN_BUDGET // 3
+
         result = _messages(history, counter)
         # Budget fits exactly 3 messages of that size -- the 3 most recent, oldest-first in the output.
         self.assertEqual([item["content"] for item in result], ["turn 3", "turn 4", "turn 5"])

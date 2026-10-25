@@ -40,8 +40,10 @@ for (let at = 0; at < args.length; at += 1) {
   const word = args[at];
   if (WORKSPACES[word]) workspace = WORKSPACES[word];
   else if (VIEWPORTS[word]) project = VIEWPORTS[word];
-  else if (word === "--wait") wait = args[(at += 1)];
-  else rest.push(word);
+  else if (word === "--wait") {
+    at += 1;
+    wait = args[at];
+  } else rest.push(word);
 }
 
 const expression = rest.join(" ").trim();

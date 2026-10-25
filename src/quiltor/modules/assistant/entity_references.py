@@ -8,8 +8,9 @@ results into the existing clarification wire shape.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from quiltor.domain.story_world.entity_resolution import ResolutionResult, resolve_entity
 

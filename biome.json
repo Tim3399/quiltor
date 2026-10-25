@@ -46,6 +46,28 @@
       "!.claude/settings.json"
     ]
   },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noDescendingSpecificity": "off"
+      }
+    }
+  },
+
+  "overrides": [
+    {
+      "includes": ["tests/**", "**/*.test.ts", "**/*.test.tsx", "**/*.test.mjs", "**/*.spec.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    }
+  ],
 
   "javascript": {
     "formatter": {

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import hmac
+import json
 import math
 import secrets
 import ssl
@@ -17,10 +17,10 @@ from dataclasses import replace
 from typing import Any
 
 from quiltor.modules.identity.auth import (
-    IdentityConfiguration,
-    InvalidTokenSignature,
     PENDING_LOGIN_TTL,
     SESSION_TTL,
+    IdentityConfiguration,
+    InvalidTokenSignature,
     SessionData,
     decode_id_token_header,
     pkce_challenge,
@@ -415,10 +415,10 @@ class StdlibIdentityGateway:
                 expected_nonce=expected_nonce,
                 allowed_algorithms=self.configuration.allowed_id_token_algorithms,
             )
-        except InvalidTokenSignature:
+        except InvalidTokenSignature as error:
             rotated = self._load_jwks(selected_issuer, force_refresh=True).get(kid)
             if rotated is None:
-                raise ValueError("No trusted verification key matches the ID token.")
+                raise ValueError("No trusted verification key matches the ID token.") from error
             return verify_id_token(
                 id_token,
                 rotated,
@@ -542,7 +542,7 @@ class StdlibIdentityGateway:
             try:
                 tokens = self.refresh_tokens(current.refresh_token)
                 updated = self.store_session_tokens(session_id, tokens)
-            except Exception:
+            except Exception:  # noqa: BLE001 - a failed refresh clears the access token and returns no token
                 with self._lock:
                     latest = self._sessions.get(session_id)
                     if latest is not None:
@@ -585,7 +585,7 @@ class StdlibIdentityGateway:
     ) -> str | None:
         try:
             document = self.discover()
-        except Exception:
+        except Exception:  # noqa: BLE001 - an unreachable discovery document means no end-session endpoint
             return None
         endpoint = document.get("end_session_endpoint")
         if not endpoint:

@@ -8,8 +8,9 @@ import sys
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping, TextIO
+from typing import Any, TextIO
 
 
 class _JsonFormatter(logging.Formatter):

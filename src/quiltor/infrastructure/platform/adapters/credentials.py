@@ -11,7 +11,6 @@ import subprocess
 import threading
 from ctypes import wintypes
 from pathlib import Path
-from typing import Any
 
 from quiltor.infrastructure.platform import directories, system
 from quiltor.infrastructure.platform.ports import CredentialVault, CredentialVaultError

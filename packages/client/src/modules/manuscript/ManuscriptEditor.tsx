@@ -139,6 +139,7 @@ export function ManuscriptEditor({
     issuesRef = useRef(issues),
     entitiesRef = useRef(entities || []);
   const readOnlyRef = useRef(readOnly);
+  // eslint-disable-next-line react-hooks/refs -- a stable Compartment created once per mount; reading the ref's initial value is intended
   const editableCompartment = useRef(new Compartment()).current;
   const savedLiveState = useRef<{
     anchor: number;
@@ -148,14 +149,22 @@ export function ManuscriptEditor({
   } | null>(null);
   const wasReadOnly = useRef(readOnly);
   const [completion, setCompletion] = useState<EditorCompletion | null>(null);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   changeRef.current = onChange;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   selectionRef.current = onSelection;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   viewSelectionRef.current = onViewSelectionChange;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   selectionMenuRef.current = onSelectionMenu;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   issueRef.current = onIssue;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   openEntityRef.current = onOpenEntity;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   describeEntityRef.current = describeEntity;
   const describeMentionRef = useRef(describeMention);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   describeMentionRef.current = describeMention;
   // The card is React's, rendered through the node CodeMirror hands over, so
   // the design system owns it the same way it owns every other surface.
@@ -163,11 +172,17 @@ export function ManuscriptEditor({
     host: HTMLElement;
     entity: FigureNode;
   } | null>(null);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   vocabularyRef.current = vocabulary;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   mentionsRef.current = mentions || [];
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   marksRef.current = marks || [];
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   issuesRef.current = issues;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   entitiesRef.current = entities || [];
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   readOnlyRef.current = readOnly;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: The editor view is created once; controlled document updates are synchronized by the value effect below.
@@ -572,6 +587,7 @@ export function ManuscriptEditor({
         scrollTop: instance.scrollDOM.scrollTop,
         scrollLeft: instance.scrollDOM.scrollLeft,
       };
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
       setCompletion(null);
       setMentionCard(null);
       selectionRef.current(null);

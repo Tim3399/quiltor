@@ -19,10 +19,11 @@ TOOLING_ROOT = REPO_ROOT / "distribution" / "tooling"
 sys.path.insert(0, str(PYINSTALLER_ROOT))
 sys.path.insert(0, str(TOOLING_ROOT))
 
-import bundle  # noqa: E402
 import artifact_profile  # noqa: E402
+import bundle  # noqa: E402
 import container_contract  # noqa: E402
 import profile_contract  # noqa: E402
+
 from quiltor import resources  # noqa: E402
 
 
@@ -211,7 +212,7 @@ class EmbeddedProfileTests(unittest.TestCase):
         )
         self.assertIn("p['id']=='web-self-hosted'", dockerfile)
         self.assertIn("distribution/web/self-hosted/requirements.lock", dockerfile)
-        self.assertIn("pyjwt==2.13.0", requirements)
+        self.assertIn("pyjwt==2.15.0", requirements)
         self.assertIn("import jwt, cryptography", dockerfile)
         self.assertIn(
             "src/quiltor/infrastructure/platform/quiltor-build-profile.json", dockerignore

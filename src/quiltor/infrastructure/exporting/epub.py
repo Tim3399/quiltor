@@ -196,8 +196,7 @@ def _validate_text(value: str) -> None:
         codepoint = ord(character)
         if (
             character == "\r"
-            or codepoint < 0x20
-            and character not in {"\t", "\n"}
+            or (codepoint < 0x20 and character not in {"\t", "\n"})
             or 0xD800 <= codepoint <= 0xDFFF
             or codepoint in {0xFFFE, 0xFFFF}
         ):

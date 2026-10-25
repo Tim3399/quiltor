@@ -51,19 +51,12 @@
   min-width: 0;
   font-size: var(--font-size-metadata);
   overflow-wrap: anywhere;
+  color: var(--muted);
 }
 .ui-checkbox__error {
   min-width: 0;
   font-size: var(--font-size-body-compact);
   overflow-wrap: anywhere;
-}
-
-.ui-checkbox__description,
-.ui-checkbox__hint {
-  color: var(--muted);
-}
-
-.ui-checkbox__error {
   color: var(--error-text);
 }
 

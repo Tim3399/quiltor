@@ -89,6 +89,15 @@ def command_for(
         "--cache-dir",
         str(UV_CACHE),
     ]
+    # Security fixes released after the global cut-off: each named package gets its own,
+    # later date (dependency_lock_contract.py lists the reviewed set and why).
+    package_exceptions = generator.get("excludeNewerPackages", {})
+    if not isinstance(package_exceptions, dict):
+        raise RegenerationError("excludeNewerPackages must map package names to exceptions")
+    for package, exception in sorted(package_exceptions.items()):
+        if not isinstance(exception, dict) or not isinstance(exception.get("excludeNewer"), str):
+            raise RegenerationError(f"excludeNewerPackages.{package} has no excludeNewer date")
+        command.extend(("--exclude-newer-package", f"{package}={exception['excludeNewer']}"))
     if generator.get("onlyBinary") is True:
         command.extend(("--only-binary", ":all:"))
     python_platform = str(record["pythonPlatform"])

@@ -6,8 +6,8 @@ Answers: **Which client boundary owns an open world, and how do responsive
 drafts, undo and persistence cooperate without becoming a second domain?**
 
 This view fixes ownership and dependency direction without prescribing one
-React class for every box. <code>WorldEditorSession</code> is the reference name;
-<code>WorldSession</code> is an acceptable shorter implementation name.
+React class for every box. `WorldEditorSession` is the reference name;
+`WorldSession` is an acceptable shorter implementation name.
 
 The client owns editable drafts, interaction state and presentation history. It
 does not own canonical domain rules. Existing versioned full-document
@@ -18,7 +18,7 @@ introduced where they add concrete value.
 
 Runtime dependencies are injected once. The application gateway is a small
 composition of context-specific ports, not a universal
-<code>execute(anyCommand)</code> facade.
+`execute(anyCommand)` facade.
 
 ```mermaid
 classDiagram
@@ -174,13 +174,13 @@ HistoryCoordinator --> FeatureHistory : when Story World feature focused
 HistoryCoordinator --> StoryboardHistory : when Storyboard focused
 ```
 
-<code>ChapterDraftBuffer</code> keeps typing responsive and coalesces editor
-transactions before persistence. <code>TextHistory</code> preserves editor-native
-selection and composition behavior. <code>FeatureHistory</code> records
+`ChapterDraftBuffer` keeps typing responsive and coalesces editor
+transactions before persistence. `TextHistory` preserves editor-native
+selection and composition behavior. `FeatureHistory` records
 reversible figure, place, timeline and layout deltas.
-<code>StoryboardHistory</code> independently records board, node, edge and
+`StoryboardHistory` independently records board, node, edge and
 note-card planning changes. The
-<code>HistoryCoordinator</code> only routes global undo/redo to the focused
+`HistoryCoordinator` only routes global undo/redo to the focused
 context; it does not merge those histories into a world-wide event stack.
 
 The current snapshot histories may remain behind these interfaces until editor
@@ -547,13 +547,13 @@ AssistantController --> AssistantApplicationGateway : ask or author decision
 
 The projection ownership is intentionally split:
 
-| Projection or data                     | Owner                               | Consumers                                        |
-| -------------------------------------- | ----------------------------------- | ------------------------------------------------ |
-| <code>ManuscriptReadModel</code>       | <code>ManuscriptSessionStore</code> | manuscript UI and client projections             |
-| <code>StoryWorldReadModel</code>       | <code>StoryWorldDraftStore</code>   | Figures, Places, Timeline and client projections |
-| <code>StoryboardReadModel</code>       | <code>StoryboardDraftStore</code>   | Storyboard UI and client reference candidates    |
-| client reference/search index          | client projection services          | navigation, notes, backlinks and search UI       |
-| canonical Assistant context/read tools | application/core-side projections   | Assistant orchestration only                     |
+| Projection or data                     | Owner                             | Consumers                                        |
+| -------------------------------------- | --------------------------------- | ------------------------------------------------ |
+| `ManuscriptReadModel`                  | `ManuscriptSessionStore`          | manuscript UI and client projections             |
+| `StoryWorldReadModel`                  | `StoryWorldDraftStore`            | Figures, Places, Timeline and client projections |
+| `StoryboardReadModel`                  | `StoryboardDraftStore`            | Storyboard UI and client reference candidates    |
+| client reference/search index          | client projection services        | navigation, notes, backlinks and search UI       |
+| canonical Assistant context/read tools | application/core-side projections | Assistant orchestration only                     |
 
 Client search may include unsaved drafts because it is a presentation feature.
 The shipped candidate projection includes Storyboard boards and lets note cards
@@ -677,34 +677,34 @@ sequenceDiagram
     Session-->>Drawer: final status
 ```
 
-The client maps the selected UI action to an <code>AuthorDecision</code>. It does
+The client maps the selected UI action to an `AuthorDecision`. It does
 not translate that decision into document mutations and never clones and
-mutates <code>StoryWorldDocument</code>. Authorization, proof freshness and the
+mutates `StoryWorldDocument`. Authorization, proof freshness and the
 canonical mutation path remain application responsibilities.
 
 ## Current code to proposed responsibility
 
-| Current code                                                                                                                               | Proposed responsibility or transition                                                                                            |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| mutable exported <code>quiltorClient</code>                                                                                                | immutable dependencies supplied by <code>QuiltorClientProvider</code>                                                            |
-| <code>Application.tsx</code>                                                                                                               | thin app composition plus <code>WorldEditorSession</code>                                                                        |
-| <code>useWorldSession</code>                                                                                                               | initial load and session lifecycle; no domain reconciliation policy                                                              |
-| manuscript <code>useHistoryState</code> snapshots                                                                                          | <code>ChapterDraftBuffer</code> plus <code>TextHistory</code>                                                                    |
-| Story World <code>useHistoryState</code> snapshots                                                                                         | <code>StoryWorldDraftStore</code> plus <code>FeatureHistory</code>                                                               |
-| Storyboard <code>useHistoryState</code> snapshots                                                                                          | <code>StoryboardDraftStore</code> plus <code>StoryboardHistory</code>                                                            |
-| global keyboard undo routing                                                                                                               | <code>HistoryCoordinator</code> routes to focused history                                                                        |
-| three independent <code>useAutosave</code> hooks                                                                                           | three explicit save lanes with one aggregated status coordinator                                                                 |
-| full document props and unrestricted <code>onChange</code>                                                                                 | feature selectors and focused controller operations                                                                              |
-| duplicate reference builders in app and search                                                                                             | one client reference projection consumed by client search                                                                        |
-| direct <code>applyAssistantProposals(FigureState)</code>                                                                                   | application-side proposal acceptance                                                                                             |
-| versioned full-document load/save contracts                                                                                                | retained transition adapters; replaced incrementally where measured                                                              |
-| History-log <code>SnapshotInfo</code> contains display metadata but no parent reference                                                    | retain a display/selection read model; direct-parent resolution stays behind the server History port                             |
-| <code>useChapterHistory</code> calls <code>chapterComparison(selectedRef, current.id)</code> and consumes both status-bearing records      | proposed <code>ChapterHistoryController</code> retains Manuscript revision/chapter selection without deriving snapshot adjacency |
-| server <code>HistoryReader.chapter_comparison</code> is implemented by <code>SnapshotStore</code> over read-only immutable snapshot SQLite | retain server History ownership of direct-parent resolution, stable-ID lookup and explicit availability/existence                |
-| History-owned <code>versionDiff.ts::diffVersionText</code> preserves exact input and returns stable segments                               | proposed <code>ChapterTextDiffProjection</code> role; the class name remains optional until its phase gate is enforced           |
-| <code>ChapterHistoryPanel</code> renders semantic <code>del</code>/<code>ins</code> and an unavailable-comparison state                    | retain Manuscript presentation ownership and Design-owned semantic diff/status tokens                                            |
-| binder root indentation encoded in row-specific CSS                                                                                        | local binder layout rule over <code>data-binder-depth</code>; no manuscript-tree or persistence change                           |
-| 850 ms chapter overscroll hold                                                                                                             | manuscript-local pure interaction policy with a tested 425 ms threshold                                                          |
+| Current code                                                                                                         | Proposed responsibility or transition                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| mutable exported `quiltorClient`                                                                                     | immutable dependencies supplied by `QuiltorClientProvider`                                                            |
+| `Application.tsx`                                                                                                    | thin app composition plus `WorldEditorSession`                                                                        |
+| `useWorldSession`                                                                                                    | initial load and session lifecycle; no domain reconciliation policy                                                   |
+| manuscript `useHistoryState` snapshots                                                                               | `ChapterDraftBuffer` plus `TextHistory`                                                                               |
+| Story World `useHistoryState` snapshots                                                                              | `StoryWorldDraftStore` plus `FeatureHistory`                                                                          |
+| Storyboard `useHistoryState` snapshots                                                                               | `StoryboardDraftStore` plus `StoryboardHistory`                                                                       |
+| global keyboard undo routing                                                                                         | `HistoryCoordinator` routes to focused history                                                                        |
+| three independent `useAutosave` hooks                                                                                | three explicit save lanes with one aggregated status coordinator                                                      |
+| full document props and unrestricted `onChange`                                                                      | feature selectors and focused controller operations                                                                   |
+| duplicate reference builders in app and search                                                                       | one client reference projection consumed by client search                                                             |
+| direct `applyAssistantProposals(FigureState)`                                                                        | application-side proposal acceptance                                                                                  |
+| versioned full-document load/save contracts                                                                          | retained transition adapters; replaced incrementally where measured                                                   |
+| History-log `SnapshotInfo` contains display metadata but no parent reference                                         | retain a display/selection read model; direct-parent resolution stays behind the server History port                  |
+| `useChapterHistory` calls `chapterComparison(selectedRef, current.id)` and consumes both status-bearing records      | proposed `ChapterHistoryController` retains Manuscript revision/chapter selection without deriving snapshot adjacency |
+| server `HistoryReader.chapter_comparison` is implemented by `SnapshotStore` over read-only immutable snapshot SQLite | retain server History ownership of direct-parent resolution, stable-ID lookup and explicit availability/existence     |
+| History-owned `versionDiff.ts::diffVersionText` preserves exact input and returns stable segments                    | proposed `ChapterTextDiffProjection` role; the class name remains optional until its phase gate is enforced           |
+| `ChapterHistoryPanel` renders semantic `del`/`ins` and an unavailable-comparison state                               | retain Manuscript presentation ownership and Design-owned semantic diff/status tokens                                 |
+| binder root indentation encoded in row-specific CSS                                                                  | local binder layout rule over `data-binder-depth`; no manuscript-tree or persistence change                           |
+| 850 ms chapter overscroll hold                                                                                       | manuscript-local pure interaction policy with a tested 425 ms threshold                                               |
 
 ## Enforced dependency direction
 

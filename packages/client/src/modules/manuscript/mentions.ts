@@ -27,20 +27,19 @@ export function scanEntityMentions(
     const key = name.toLocaleLowerCase("de-DE");
     groups.set(key, [...(groups.get(key) || []), node]);
   }
-  const names = [...groups.keys()].sort(
-    (a, b) => b.length - a.length || a.localeCompare(b, "de-DE"),
+  const entries = [...groups].sort(
+    ([a], [b]) => b.length - a.length || a.localeCompare(b, "de-DE"),
   );
   const folded = text.toLocaleLowerCase("de-DE"),
     occupied: Array<[number, number]> = [];
   const mentions: EntityMention[] = [],
     ambiguous: AmbiguousMentionCandidate[] = [];
-  for (const name of names) {
-    let from = 0;
-    while ((from = folded.indexOf(name, from)) >= 0) {
+  for (const [name, matches] of entries) {
+    let from = folded.indexOf(name);
+    while (from >= 0) {
       const to = from + name.length;
       const overlaps = occupied.some(([start, end]) => from < end && to > start);
       if (!overlaps && boundary(text, from, to)) {
-        const matches = groups.get(name)!;
         occupied.push([from, to]);
         if (matches.length === 1)
           mentions.push({
@@ -60,7 +59,7 @@ export function scanEntityMentions(
             elementIds: matches.map((node) => node.id),
           });
       }
-      from = Math.max(to, from + 1);
+      from = folded.indexOf(name, Math.max(to, from + 1));
     }
   }
   mentions.sort((a, b) => a.from - b.from || b.to - a.to);

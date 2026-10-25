@@ -114,6 +114,7 @@ export function HistoryDialog({
   );
   useEffect(() => {
     if (!ready) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setResult(null);
     void quiltorClient.application.history
       .diff(selected, word, all)
@@ -135,6 +136,7 @@ export function HistoryDialog({
     [result, word],
   );
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setOpen(new Set(segments.length <= 2 ? segments.map((segment) => segment.path) : []));
   }, [segments]);
   const toggle = (path: string) =>

@@ -8,10 +8,12 @@ import re
 from typing import Any
 
 from quiltor.domain.story_world.entity_resolution import resolve_entity
+
+# Re-exported for quiltor.modules.assistant.
 from quiltor.domain.story_world.integrity import (
-    presence_consistency_issues,
-    validate_world,
+    presence_consistency_issues as presence_consistency_issues,
 )
+from quiltor.domain.story_world.integrity import validate_world as validate_world
 from quiltor.modules.assistant.contract import _normal, required_proposal_kinds
 from quiltor.modules.assistant.entity_references import resolved_entity_id
 from quiltor.modules.assistant.relationship_appearance import normalize_relationship_appearance

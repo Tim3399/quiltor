@@ -7,7 +7,7 @@ function LanguageProbe() {
   const { locale, setLocale, t } = useI18n();
   return (
     <>
-      <button onClick={() => setLocale(locale === "de" ? "en" : "de")}>
+      <button type="button" onClick={() => setLocale(locale === "de" ? "en" : "de")}>
         {t("languageChoice")}
       </button>
       <article data-testid="manuscript-content">Eigener Romantext bleibt unverändert.</article>

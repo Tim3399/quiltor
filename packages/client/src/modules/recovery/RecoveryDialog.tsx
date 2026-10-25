@@ -58,10 +58,13 @@ export function RecoveryDialog({
   } | null>(null);
   const currentDocuments = useRef({ manuscript, figures, storyboards });
   const currentPersisted = useRef(persisted);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   currentDocuments.current = { manuscript, figures, storyboards };
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   currentPersisted.current = persisted;
 
-  useEffect(() => setAuthorized(null), [manuscript, figures, storyboards, persisted]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the documents are triggers: any change to them revokes an earlier authorization
+  useEffect(() => setAuthorized(null), [manuscript, figures, storyboards, persisted]); // eslint-disable-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
 
   const run = async (
     action: RecoveryAction,

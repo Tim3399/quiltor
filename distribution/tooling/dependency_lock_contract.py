@@ -20,6 +20,18 @@ EXPECTED_GENERATOR = {
     "excludeNewer": "2026-08-22T00:00:00Z",
     "onlyBinary": False,
 }
+# Security fixes released after `excludeNewer`. Only these packages may resolve past the
+# global cut-off, each to its own date and to exactly the fixed version; the advisories and
+# the reason are recorded next to them in dependency-locks.json. Moving `excludeNewer`
+# instead would update every other dependency as well. An entry is removed once the global
+# cut-off passes its date.
+EXPECTED_PACKAGE_EXCEPTIONS = {
+    "pyjwt": ("2026-09-24T00:00:00Z", "2.15.0"),
+    "pillow": ("2026-10-17T00:00:00Z", "13.0.0"),
+    "setuptools": ("2026-10-19T20:30:00Z", "84.1.0"),
+}
+EXCEPTION_FIELDS = {"excludeNewer", "version", "reason", "advisories"}
+ADVISORY_ID = re.compile(r"(?:CVE-\d{4}-\d+|GHSA(?:-[23456789cfghjmpqrvwx]{4}){3})")
 EXPECTED_LOCKS = {
     "native-build-bootstrap": {
         "profiles": ["macos-direct", "windows-direct"],
@@ -196,6 +208,40 @@ def validate_lock(path: Path) -> set[str]:
     return packages
 
 
+def _package_exceptions(value: object) -> dict[str, str]:
+    """The per-package cut-off exceptions, checked against EXPECTED_PACKAGE_EXCEPTIONS."""
+    if not isinstance(value, dict) or set(value) != set(EXPECTED_PACKAGE_EXCEPTIONS):
+        raise DependencyLockError("dependency-lock package exceptions are not the reviewed set")
+    versions: dict[str, str] = {}
+    for package, (cut_off, version) in EXPECTED_PACKAGE_EXCEPTIONS.items():
+        entry = value[package]
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != EXCEPTION_FIELDS
+            or entry["excludeNewer"] != cut_off
+            or entry["version"] != version
+            or not isinstance(entry["reason"], str)
+            or not entry["reason"].strip()
+            or not isinstance(entry["advisories"], list)
+            or not entry["advisories"]
+            or not all(
+                isinstance(advisory, str) and ADVISORY_ID.fullmatch(advisory)
+                for advisory in entry["advisories"]
+            )
+        ):
+            raise DependencyLockError(f"dependency-lock exception for {package} is invalid")
+        versions[package] = version
+    return versions
+
+
+def _pinned_version(path: Path, package: str) -> str | None:
+    for line in path.read_text(encoding="utf-8").splitlines():
+        name, separator, version = line.partition("==")
+        if separator and name.strip().lower() == package:
+            return version.split()[0].rstrip("\\").strip()
+    return None
+
+
 def records(repo_root: Path = REPO_ROOT) -> list[dict[str, object]]:
     contract_path = repo_root / "distribution" / "dependency-locks.json"
     try:
@@ -208,12 +254,16 @@ def records(repo_root: Path = REPO_ROOT) -> list[dict[str, object]]:
         "locks",
     }:
         raise DependencyLockError("dependency-lock contract has missing or unknown fields")
+    generator = document["generator"]
     if (
         document["schemaVersion"] != 2
-        or document["generator"] != EXPECTED_GENERATOR
+        or not isinstance(generator, dict)
+        or {key: value for key, value in generator.items() if key != "excludeNewerPackages"}
+        != EXPECTED_GENERATOR
         or not isinstance(document["locks"], list)
     ):
         raise DependencyLockError("unsupported dependency-lock contract schema")
+    pinned_exceptions = _package_exceptions(generator.get("excludeNewerPackages"))
     toolchains = json.loads(
         (repo_root / "distribution" / "toolchains.json").read_text(encoding="utf-8")
     )
@@ -261,6 +311,12 @@ def records(repo_root: Path = REPO_ROOT) -> list[dict[str, object]]:
         exact = expected.get("packages")
         if isinstance(exact, set) and packages != exact:
             raise DependencyLockError(f"dependency-lock {name} package allowlist drift")
+        for package, version in pinned_exceptions.items():
+            pin = _pinned_version(path, package)
+            if pin is not None and pin != version:
+                raise DependencyLockError(
+                    f"dependency-lock {name} pins {package}=={pin}; its exception allows {version}"
+                )
         canonical.append(dict(record))
     return canonical
 

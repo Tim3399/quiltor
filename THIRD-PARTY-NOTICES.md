@@ -82,7 +82,7 @@ Development-only test and build packages are not shipped in `dist/`.
 | `regenerator-runtime`                 | 0.13.11 | MIT          |
 | `scheduler`                           | 0.27.0  | MIT          |
 | `source-map`                          | 0.6.1   | BSD-3-Clause |
-| `source-map-js`                       | 1.2.1   | BSD-3-Clause |
+| `source-map-js`                       | 1.2.2   | BSD-3-Clause |
 | `style-mod`                           | 4.1.3   | MIT          |
 | `type`                                | 2.7.3   | ISC          |
 | `use-sync-external-store`             | 1.6.0   | MIT          |
@@ -108,7 +108,7 @@ the five bundled book fonts and Paged.js ship in
   and WebKit are not bundled. The image starts from the exact Ubuntu digest in
   `distribution/containers/base-images.json`; Ubuntu and Chromium components
   remain subject to their respective licenses and bundled component notices.
-- **PyJWT 2.13.0** — MIT License. Copyright (c) 2015-2022 José Padilla. It is
+- **PyJWT 2.15.0** — MIT License. Copyright (c) 2015-2022 José Padilla. It is
   included in the self-hosted image and resolved as a core Python dependency
   for packaged hosts.
 - **cryptography 50.0.0** — dual-licensed under Apache License 2.0 or the
@@ -144,14 +144,14 @@ signed native artifact and OCI dependency auditable from one bundled document.
 | `packaging`                               | 26.3        | Apache-2.0 OR BSD-2-Clause                 |
 | `pathspec`                                | 1.1.1       | MPL-2.0                                    |
 | `pefile`                                  | 2024.8.26   | MIT                                        |
-| `pillow`                                  | 12.3.0      | MIT-CMU                                    |
+| `pillow`                                  | 13.0.0      | MIT-CMU                                    |
 | `pluggy`                                  | 1.6.0       | MIT                                        |
 | `proxy-tools`                             | 0.1.0       | MIT                                        |
 | `pycparser`                               | 3.0         | BSD-3-Clause                               |
 | `pygments`                                | 2.21.0      | BSD-2-Clause                               |
 | `pyinstaller`                             | 6.22.0      | GPL-2.0-or-later WITH Bootloader-exception |
 | `pyinstaller-hooks-contrib`               | 2026.6      | Apache-2.0 OR GPL-2.0                      |
-| `pyjwt`                                   | 2.13.0      | MIT                                        |
+| `pyjwt`                                   | 2.15.0      | MIT                                        |
 | `pyobjc-core`                             | 12.2.2      | MIT                                        |
 | `pyobjc-framework-cocoa`                  | 12.2.2      | MIT                                        |
 | `pyobjc-framework-quartz`                 | 12.2.2      | MIT                                        |
@@ -163,7 +163,7 @@ signed native artifact and OCI dependency auditable from one bundled document.
 | `pywebview`                               | 6.2.1       | BSD-3-Clause                               |
 | `pywin32-ctypes`                          | 0.2.3       | BSD-3-Clause                               |
 | `rich`                                    | 15.0.0      | MIT                                        |
-| `setuptools`                              | 84.0.0      | MIT                                        |
+| `setuptools`                              | 84.1.0      | MIT                                        |
 | `shellingham`                             | 1.5.4       | ISC                                        |
 | `six`                                     | 1.17.0      | MIT                                        |
 | `trove-classifiers`                       | 2026.6.1.19 | Apache-2.0                                 |

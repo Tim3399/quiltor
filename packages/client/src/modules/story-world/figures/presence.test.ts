@@ -143,7 +143,6 @@ describe("presence resolution", () => {
 
 describe("place history", () => {
   const kai: FigureNode = { id: "kai", x: 0, y: 100, name: "Kai", type: "person" };
-  const nodes = [ada, kai, arcene, hafen];
   const presence: PresenceEntry[] = [
     { id: "p1", elementId: "ada", placeId: "arcene" },
     { id: "p2", elementId: "ada", placeId: "hafen", momentId: "betrayal" },

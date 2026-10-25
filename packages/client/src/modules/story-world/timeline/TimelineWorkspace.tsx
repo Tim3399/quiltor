@@ -87,6 +87,7 @@ export function TimelineWorkspace({
   const { locale, t } = useI18n();
   const timeline = state.timeline || [];
   const latestTimeline = useRef(timeline);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestTimeline.current = timeline;
   const [selectedId, setSelectedId] = useState<string | null>(
     () => targetId || timeline[0]?.id || null,
@@ -111,6 +112,7 @@ export function TimelineWorkspace({
       setSelectedId(targetId);
   }, [targetId, targetRequestId]);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     if (!selectedId && timeline.length) setSelectedId(timeline[0].id);
   }, [selectedId, timeline]);
   useEffect(() => {
@@ -118,6 +120,7 @@ export function TimelineWorkspace({
     const base = timeline[selectedIndex - 1] || timeline[selectedIndex + 1];
     if (!base) return;
     const delta = timeOfMoment(selected, selectedIndex) - timeOfMoment(base);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setRelativeBaseId(base.id);
     setRelativeDirection(delta < 0 ? "before" : "after");
     setRelativeAmount(Math.abs(delta));

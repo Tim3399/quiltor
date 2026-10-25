@@ -139,7 +139,7 @@ class AssistantEntityResolutionTests(unittest.TestCase):
         ]
         results = [
             validate_proposals([proposal], FIGURES, question)[0]
-            for proposal, question in zip(proposals, questions)
+            for proposal, question in zip(proposals, questions, strict=False)
         ]
         self.assertEqual(results[0]["elementId"], "tarek")
         self.assertEqual(results[1]["elementId"], "mara")

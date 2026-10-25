@@ -55,7 +55,7 @@ export function NoteEditor({
   const focusTrigger = useRef<HTMLButtonElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: changing the stable owner must close an overlay that still belongs to the previous owner.
-  useEffect(() => setFocusOpen(false), [ownerKey]);
+  useEffect(() => setFocusOpen(false), [ownerKey]); // eslint-disable-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
 
   const openFocus = () => {
     onFocusRequest?.(owner);
