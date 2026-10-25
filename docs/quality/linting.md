@@ -544,7 +544,10 @@ through the English typo it resembles (a German "style" is one keystroke from "s
 1. **`extend-ignore-re`, exact strings.** String literals on one line that contain a German
    letter (prompts, messages, example requests), quoted German phrases without one, outside
    the tests, deliberate misspellings the tests feed in (`Helo world`), commit hashes in
-   documents, and the cut-off stems in the prompt regexes (`analysier\w*`).
+   documents, and the cut-off stems in the prompt regexes (`analysier\w*`). The layout audit's
+   German mock world and the umlaut table of its `slug()` are covered the same way, by the
+   fixture phrases and the `.replace(/ü/g, "ue")` lines themselves, so the English code around
+   them stays checked.
 2. **`extend-words`, code words.** Persisted or third-party names that are not misspellings:
    `objekt` (an enum value of the story-world contract and the SQLite schema, renamed only
    with a migration and a new contract version), `datas` (PyInstaller's keyword), `lod`
