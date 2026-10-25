@@ -11,7 +11,8 @@ const viewportNames = Object.keys(AUDIT_VIEWPORTS) as ViewportName[];
 
 // All data comes from route mocks, so the server only serves dist/ and parallel workers do not
 // contend for worlds. Half the cores keeps screenshots and analysis from starving each other.
-const workers = Number(process.env.QUILTOR_AUDIT_WORKERS) || Math.max(2, Math.floor(cpus().length / 2));
+const workers =
+  Number(process.env.QUILTOR_AUDIT_WORKERS) || Math.max(2, Math.floor(cpus().length / 2));
 
 export default defineConfig({
   testDir: "./tests/audit",

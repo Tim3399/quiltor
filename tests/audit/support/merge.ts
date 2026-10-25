@@ -27,19 +27,19 @@ import {
 } from "./types.ts";
 
 export type InventoryItem = { component: string; file: string; patterns: string[] };
-export type CoverageException = { component: string; file: string; reason: string };
+type CoverageException = { component: string; file: string; reason: string };
 
 const ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
-export const EXCEPTIONS_FILE = join(ROOT, "tests/audit/coverage-exceptions.json");
+const EXCEPTIONS_FILE = join(ROOT, "tests/audit/coverage-exceptions.json");
 
-export async function loadInventory(root = ROOT): Promise<InventoryItem[]> {
+async function loadInventory(root = ROOT): Promise<InventoryItem[]> {
   const module = (await import(pathToFileURL(join(root, "tools/audit/inventory.mjs")).href)) as {
     buildInventory: (rootDir?: string) => InventoryItem[] | Promise<InventoryItem[]>;
   };
   return await module.buildInventory(root);
 }
 
-export function loadExceptions(file = EXCEPTIONS_FILE): CoverageException[] {
+function loadExceptions(file = EXCEPTIONS_FILE): CoverageException[] {
   const data = JSON.parse(readFileSync(file, "utf8")) as { exceptions: CoverageException[] };
   return data.exceptions;
 }
@@ -66,7 +66,7 @@ function describeEvidence(entry: CoverageMapEntry): string {
  * Coverage per inventory component plus every view and overlay of the coverage map. A component
  * counts as reached only when its DOM evidence was observed in a captured state.
  */
-export function computeCoverage(
+function computeCoverage(
   inventory: InventoryItem[],
   map: CoverageMapEntry[],
   observed: Map<string, string>,
@@ -117,10 +117,11 @@ export function computeCoverage(
  * Every state must exist in both themes and, unless marked viewportSpecific, in all three
  * viewports. A gap that no failure explains yet is recorded as a failure, so it is never silent.
  */
-export function matrixGaps(entries: Entry[], failures: Failure[]): Failure[] {
+function matrixGaps(entries: Entry[], failures: Failure[]): Failure[] {
   const viewports = Object.keys(AUDIT_VIEWPORTS) as ViewportName[];
   const byState = new Map<string, Entry[]>();
-  for (const entry of entries) byState.set(entry.state, [...(byState.get(entry.state) ?? []), entry]);
+  for (const entry of entries)
+    byState.set(entry.state, [...(byState.get(entry.state) ?? []), entry]);
   const explained = (state: string, viewport: string, theme: string) =>
     failures.some(
       (failure) =>
@@ -220,8 +221,12 @@ export async function mergeAuditParts(run?: string): Promise<Manifest | null> {
 export function summarize(manifest: Manifest): string {
   const count = (items: { [key: string]: unknown }[], key: string) => {
     const counts = new Map<string, number>();
-    for (const item of items) counts.set(String(item[key]), (counts.get(String(item[key])) ?? 0) + 1);
-    return [...counts].sort().map(([name, value]) => `${name}=${value}`).join(" ");
+    for (const item of items)
+      counts.set(String(item[key]), (counts.get(String(item[key])) ?? 0) + 1);
+    return [...counts]
+      .sort()
+      .map(([name, value]) => `${name}=${value}`)
+      .join(" ");
   };
   const states = new Set(manifest.entries.map((entry) => entry.state));
   const findings = [...manifest.findings, ...manifest.entries.flatMap((entry) => entry.findings)];

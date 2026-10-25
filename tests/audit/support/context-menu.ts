@@ -2,14 +2,14 @@
 // real long-press through CDP first, then Shift+F10 and the ContextMenu key as fallbacks.
 import type { Locator, Page } from "@playwright/test";
 
-export type ContextMenuTrigger = "right-click" | "long-press" | "shift+f10" | "contextmenu-key";
-export type Point = { x: number; y: number };
+type ContextMenuTrigger = "right-click" | "long-press" | "shift+f10" | "contextmenu-key";
+type Point = { x: number; y: number };
 
 /** Longer than any long-press threshold in the client (figure nodes use 550 ms). */
-export const LONG_PRESS_MS = 900;
+const LONG_PRESS_MS = 900;
 
 /** A touch that stays put for LONG_PRESS_MS, dispatched as real touch input through CDP. */
-export async function longPress(page: Page, point: Point): Promise<void> {
+async function longPress(page: Page, point: Point): Promise<void> {
   const session = await page.context().newCDPSession(page);
   try {
     const touchPoints = [{ x: point.x, y: point.y, id: 1, radiusX: 1, radiusY: 1, force: 1 }];
@@ -83,7 +83,10 @@ export async function wordPoint(container: Locator, word: string): Promise<Point
       range.setEnd(node, index + needle.length);
       (node.parentElement as HTMLElement).scrollIntoView({ block: "center" });
       const rect = range.getBoundingClientRect();
-      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+      return {
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + rect.height / 2),
+      };
     }
     return null;
   }, word);

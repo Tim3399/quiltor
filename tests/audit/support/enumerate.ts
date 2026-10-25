@@ -24,9 +24,9 @@ export type EnumerationContext = {
   specificTriggers?: RegExp;
 };
 
-export type TriggerInfo = { name: string; haspopup: string; ordinal: number };
+type TriggerInfo = { name: string; haspopup: string; ordinal: number };
 
-export function slug(text: string): string {
+function slug(text: string): string {
   return (
     text
       .toLowerCase()
@@ -64,7 +64,9 @@ async function scanTriggers(
           if (text) return text;
         }
         return (
-          (element.textContent ?? "").replace(/\s+/g, " ").trim() || element.getAttribute("title") || ""
+          (element.textContent ?? "").replace(/\s+/g, " ").trim() ||
+          element.getAttribute("title") ||
+          ""
         );
       };
       const usable = (element: Element) => {
@@ -75,14 +77,20 @@ async function scanTriggers(
         if (element.getAttribute("role") === "menuitem") return false;
         if (args.exclude && element.closest(args.exclude)) return false;
         if (topModal && !topModal.contains(element)) return false;
-        return !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true";
+        return (
+          !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true"
+        );
       };
       // While a modal is open, everything outside the active one is out of reach. The client
       // marks earlier modals inert, so the active one is the visible modal that is not.
-      const modals = Array.from(document.querySelectorAll('[aria-modal="true"]')).filter((element) => {
-        const box = element.getBoundingClientRect();
-        return box.width > 0 && box.height > 0 && !element.closest('[inert], [aria-hidden="true"]');
-      });
+      const modals = Array.from(document.querySelectorAll('[aria-modal="true"]')).filter(
+        (element) => {
+          const box = element.getBoundingClientRect();
+          return (
+            box.width > 0 && box.height > 0 && !element.closest('[inert], [aria-hidden="true"]')
+          );
+        },
+      );
       const topModal = modals[modals.length - 1];
       const seen = new Map<string, number>();
       const found: { name: string; haspopup: string; ordinal: number }[] = [];
@@ -91,7 +99,11 @@ async function scanTriggers(
         const label = name(element);
         const ordinal = seen.get(label) ?? 0;
         seen.set(label, ordinal + 1);
-        const info = { name: label, haspopup: element.getAttribute("aria-haspopup") ?? "true", ordinal };
+        const info = {
+          name: label,
+          haspopup: element.getAttribute("aria-haspopup") ?? "true",
+          ordinal,
+        };
         if (args.pick && args.pick.info.name === label && args.pick.info.ordinal === ordinal) {
           element.setAttribute(args.mark, args.pick.token);
           return [info];
@@ -142,7 +154,9 @@ async function findNewPopup(page: Page, timeout = 2_500): Promise<string | null>
         const candidates = Array.from(document.querySelectorAll(selector)).filter((element) => {
           if (element.hasAttribute(mark)) return false;
           const box = element.getBoundingClientRect();
-          return box.width > 0 && box.height > 0 && getComputedStyle(element).visibility !== "hidden";
+          return (
+            box.width > 0 && box.height > 0 && getComputedStyle(element).visibility !== "hidden"
+          );
         });
         // The outermost new element is the popup; a compact sheet wraps its menu.
         const outer = candidates.find(
@@ -150,7 +164,8 @@ async function findNewPopup(page: Page, timeout = 2_500): Promise<string | null>
         );
         if (!outer) return false;
         outer.setAttribute(mark, value);
-        for (const inner of candidates) if (inner !== outer) inner.setAttribute(mark, `${value}-inner`);
+        for (const inner of candidates)
+          if (inner !== outer) inner.setAttribute(mark, `${value}-inner`);
         return true;
       },
       { roles: POPUP_ROLES, mark: POPUP_MARK, value: id },
@@ -160,7 +175,13 @@ async function findNewPopup(page: Page, timeout = 2_500): Promise<string | null>
       // only a popup that stays counts.
       await page.waitForTimeout(200);
       const selector = `[${POPUP_MARK}="${id}"]`;
-      if (await page.locator(selector).isVisible().catch(() => false)) return selector;
+      if (
+        await page
+          .locator(selector)
+          .isVisible()
+          .catch(() => false)
+      )
+        return selector;
       await page.evaluate(
         ({ mark, value }) => {
           for (const element of Array.from(document.querySelectorAll(`[${mark}^="${value}"]`))) {
@@ -180,7 +201,7 @@ async function findNewPopup(page: Page, timeout = 2_500): Promise<string | null>
  * A locator for an opened popup by role and accessible name. Dialogs that load data re-render
  * their root, which drops the attribute mark; the role and name survive that.
  */
-export async function popupLocator(page: Page, selector: string): Promise<Locator> {
+async function popupLocator(page: Page, selector: string): Promise<Locator> {
   const marked = page.locator(selector).first();
   const description = await marked.evaluate((element) => {
     const labelledBy = element.getAttribute("aria-labelledby");
@@ -274,7 +295,7 @@ async function closePopup(ctx: EnumerationContext, selector: string): Promise<vo
   if (await popup.isVisible().catch(() => false)) await ctx.restore();
 }
 
-export type EnumerationResult = { opened: number; states: string[] };
+type EnumerationResult = { opened: number; states: string[] };
 
 /**
  * Opens every popup trigger visible in `scope` (default: the whole page), captures it, descends

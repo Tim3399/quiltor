@@ -5,7 +5,7 @@
 // manifest instead of failing the test: the audit reports, it does not block.
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { type AuditWorldOptions, mockAuditWorld } from "./support/audit-world";
-import { centerOf, type Point, openContextMenu, wordPoint } from "./support/context-menu";
+import { centerOf, openContextMenu, wordPoint } from "./support/context-menu";
 import {
   activate,
   captureOpened,
@@ -14,7 +14,12 @@ import {
   settle,
 } from "./support/enumerate";
 import { AuditRecorder } from "./support/recorder";
-import { AUDIT_VIEWPORTS, type EntryKind, type ThemeName, type ViewportName } from "./support/types";
+import {
+  AUDIT_VIEWPORTS,
+  type EntryKind,
+  type ThemeName,
+  type ViewportName,
+} from "./support/types";
 
 type Layout = "compact" | "regular" | "wide";
 
@@ -50,7 +55,9 @@ class Session {
       this.rec.fail(state, error);
       if (process.env.QUILTOR_AUDIT_DEBUG) {
         await this.page
-          .screenshot({ path: `test-results/layout-audit/debug/${this.viewport}-${this.rec.theme}-${state.replace(/[^\w.-]+/g, "_")}.png` })
+          .screenshot({
+            path: `test-results/layout-audit/debug/${this.viewport}-${this.rec.theme}-${state.replace(/[^\w.-]+/g, "_")}.png`,
+          })
           .catch(() => undefined);
       }
     }
@@ -114,15 +121,18 @@ class Session {
 
   // ---- World and workspace navigation ---------------------------------------------------------
 
-  async openWorld(options: { failSaves?: boolean } = {}): Promise<void> {
-    void options;
+  async openWorld(): Promise<void> {
     await this.page.goto("/?world=gezeitenatlas");
     await expect(this.page.getByLabel("Kapiteltext")).toBeVisible({ timeout: 30_000 });
   }
 
   async workspace(name: "Text" | "Figuren" | "Timeline" | "Orte" | "Storyboard"): Promise<void> {
     await this.closeAll();
-    await this.tap(this.page.getByRole("navigation", { name: "Arbeitsbereich" }).getByRole("button", { name, exact: true }));
+    await this.tap(
+      this.page
+        .getByRole("navigation", { name: "Arbeitsbereich" })
+        .getByRole("button", { name, exact: true }),
+    );
     const evidence: Record<typeof name, Locator> = {
       Text: this.page.getByLabel("Kapiteltext"),
       Figuren: this.page.getByRole("region", { name: "Figuren und Beziehungen" }),
@@ -238,7 +248,8 @@ async function textScenario(s: Session): Promise<void> {
         await toNavigation();
         await s.tap(page.locator(BINDER).getByRole("button", { name: "Papierkorb", exact: true }));
       },
-      async () => s.tap(page.locator(BINDER).getByRole("button", { name: "Papierkorb", exact: true })),
+      async () =>
+        s.tap(page.locator(BINDER).getByRole("button", { name: "Papierkorb", exact: true })),
       { enumerate: true },
     );
     await s.closeAll();
@@ -272,7 +283,8 @@ async function textScenario(s: Session): Promise<void> {
       "text.inspector/dialog.note-focus",
       "dialog",
       toNoteFocus,
-      async () => s.tap(page.locator(INSPECTOR).getByRole("button", { name: "Notiz im Fokus öffnen" })),
+      async () =>
+        s.tap(page.locator(INSPECTOR).getByRole("button", { name: "Notiz im Fokus öffnen" })),
       { enumerate: true },
     );
     if (focusDialog) {
@@ -311,9 +323,15 @@ async function textScenario(s: Session): Promise<void> {
           ["Eigene Begriffe verwalten", "text.insert/sheet.terms"],
         ] as const) {
           await toTab();
-          await s.opened(sheet, "dialog", toTab, async () => s.tap(page.getByRole("button", { name: label })), {
-            enumerate: true,
-          });
+          await s.opened(
+            sheet,
+            "dialog",
+            toTab,
+            async () => s.tap(page.getByRole("button", { name: label })),
+            {
+              enumerate: true,
+            },
+          );
           await s.closeAll();
         }
       }
@@ -354,6 +372,22 @@ async function textScenario(s: Session): Promise<void> {
       async () => s.tap(assistant.getByRole("button", { name: "Bearbeiten" }).last()),
       { enumerate: true },
     );
+    // On a phone the editor opens inside the assistant sheet, which the client then marks inert
+    // as the earlier modal; its fields cannot be operated. Recorded, so the missing listbox
+    // states are explained instead of silent.
+    const inert = await page
+      .locator(".assistant-drawer-sheet [role='dialog'] [role='combobox']")
+      .first()
+      .evaluate((element) => Boolean(element.closest("[inert]")))
+      .catch(() => false);
+    if (inert) {
+      s.rec.fail(
+        "assistant.proposals/dialog.bearbeiten",
+        new Error(
+          "The proposal editor opens inside the assistant sheet, which is inert while the editor is open; its listboxes (Von, Nach) cannot be opened.",
+        ),
+      );
+    }
     await s.closeAll();
   });
 
@@ -413,10 +447,16 @@ async function textScenario(s: Session): Promise<void> {
       await s.tap(page.getByRole("menuitem", { name: item }));
     };
     await base();
-    await s.opened(state, "dialog", toExport, async () => {
-      await s.tap(s.button("Buch exportieren"));
-      await s.tap(page.getByRole("menuitem", { name: item }));
-    }, { enumerate: true });
+    await s.opened(
+      state,
+      "dialog",
+      toExport,
+      async () => {
+        await s.tap(s.button("Buch exportieren"));
+        await s.tap(page.getByRole("menuitem", { name: item }));
+      },
+      { enumerate: true },
+    );
   }
 
   // Focus mode.
@@ -466,13 +506,23 @@ async function overlayScenario(s: Session): Promise<void> {
   await s.view("workspace.text/shell");
   await s.enumerate("workspace.text/shell", base, { scope: page.locator("header.app-bar") });
 
-  const viaMehr = async (state: string, item: string, extra?: (dialog: Locator) => Promise<void>) => {
+  const viaMehr = async (
+    state: string,
+    item: string,
+    extra?: (dialog: Locator) => Promise<void>,
+  ) => {
     const open = async () => s.mehr(item);
     await base();
-    const dialog = await s.opened(state, "dialog", async () => {
-      await base();
-      await open();
-    }, open, { enumerate: true });
+    const dialog = await s.opened(
+      state,
+      "dialog",
+      async () => {
+        await base();
+        await open();
+      },
+      open,
+      { enumerate: true },
+    );
     if (dialog && extra) await s.step(`${state}/extra`, () => extra(dialog));
     await s.closeAll();
   };
@@ -521,10 +571,16 @@ async function saveErrorScenario(s: Session): Promise<void> {
   await toError();
   await s.view("save-error");
   await s.enumerate("save-error", toError, { scope: page.locator("header.app-bar") });
-  await s.opened("save-error/dialog.recovery", "dialog", async () => {
-    await toError();
-    await s.tap(s.button("Entwurf retten"));
-  }, async () => s.tap(s.button("Entwurf retten")), { enumerate: true });
+  await s.opened(
+    "save-error/dialog.recovery",
+    "dialog",
+    async () => {
+      await toError();
+      await s.tap(s.button("Entwurf retten"));
+    },
+    async () => s.tap(s.button("Entwurf retten")),
+    { enumerate: true },
+  );
 }
 
 // ---- World gate --------------------------------------------------------------------------------
@@ -533,7 +589,9 @@ async function worldGateScenario(s: Session): Promise<void> {
   const page = s.page;
   const base = async () => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible({
+      timeout: 30_000,
+    });
   };
   await base();
   await s.view("world-gate");
@@ -547,10 +605,16 @@ async function worldGateScenario(s: Session): Promise<void> {
   ];
   for (const [label, state] of dialogs) {
     await base();
-    const dialog = await s.opened(state, "dialog", async () => {
-      await base();
-      await s.tap(s.button(label));
-    }, async () => s.tap(s.button(label)), { enumerate: true });
+    const dialog = await s.opened(
+      state,
+      "dialog",
+      async () => {
+        await base();
+        await s.tap(s.button(label));
+      },
+      async () => s.tap(s.button(label)),
+      { enumerate: true },
+    );
     if (dialog && label === "Papierkorb") {
       await s.opened("world-gate/sheet.trash/dialog.purge", "dialog", base, async () =>
         s.tap(dialog.getByRole("button", { name: "Endgültig löschen" }).first()),
@@ -627,10 +691,16 @@ async function figuresScenario(s: Session): Promise<void> {
   );
   await s.closeAll();
 
-  const edgePanel = page.locator(".figure-workspace").getByRole("region", { name: "Beziehung" }).first();
+  const edgePanel = page
+    .locator(".figure-workspace")
+    .getByRole("region", { name: "Beziehung" })
+    .first();
   const toEdge = async () => {
     await base();
-    const label = page.locator(".figure-workspace").getByRole("button", { name: /^sucht/ }).first();
+    const label = page
+      .locator(".figure-workspace")
+      .getByRole("button", { name: /^sucht/ })
+      .first();
     if (await label.isVisible()) {
       await s.tap(label);
     } else {
@@ -649,10 +719,15 @@ async function figuresScenario(s: Session): Promise<void> {
   await s.step("figures.inspector/dialog.rename-mentions", async () => {
     await toInspector();
     const name = inspector.getByRole("textbox", { name: "Name", exact: true });
-    await s.opened("figures.inspector/dialog.rename-mentions", "dialog", () => toInspector(), async () => {
-      await name.fill("Mara Vennhoff");
-      await name.press("Tab");
-    });
+    await s.opened(
+      "figures.inspector/dialog.rename-mentions",
+      "dialog",
+      () => toInspector(),
+      async () => {
+        await name.fill("Mara Vennhoff");
+        await name.press("Tab");
+      },
+    );
     await s.closeAll();
   });
 }
@@ -674,7 +749,9 @@ async function timelineScenario(s: Session): Promise<void> {
     // The first moment changes no relationship; "Alle Beziehungen" lists every card.
     await s.tap(page.getByRole("radio", { name: "Alle Beziehungen" }));
     await s.tap(page.locator(".relationship-change-card").first());
-    await expect(page.getByRole(s.layout === "compact" ? "dialog" : "complementary", { name: "Beziehung" })).toBeVisible();
+    await expect(
+      page.getByRole(s.layout === "compact" ? "dialog" : "complementary", { name: "Beziehung" }),
+    ).toBeVisible();
   };
   await s.step("timeline.relationship", async () => {
     await toRelationship();
@@ -715,7 +792,8 @@ async function placesScenario(s: Session): Promise<void> {
     await s.openWorld();
     await s.workspace("Orte");
   };
-  const place = (id: string) => page.locator(`.places-flow-area .react-flow__node[data-id="${id}"]`);
+  const place = (id: string) =>
+    page.locator(`.places-flow-area .react-flow__node[data-id="${id}"]`);
   // A place is selected by a click on its card's edge; the middle of a card can hold the
   // button that opens the place as a level of its own.
   const select = (id: string) => place(id).click({ position: { x: 8, y: 8 } });
@@ -744,27 +822,24 @@ async function placesScenario(s: Session): Promise<void> {
   const toSelected = async () => {
     await base();
     await select("insel");
-    await expect(page.locator('[aria-label="Orte-Inspector"]').filter({ visible: true })).toBeVisible();
+    await expect(
+      page.locator('[aria-label="Orte-Inspector"]').filter({ visible: true }),
+    ).toBeVisible();
   };
   await s.step("places.selected", async () => {
     await toSelected();
     await s.view("places.selected", s.layout === "wide" ? "view" : "overlay");
     await s.enumerate("places.selected", toSelected, { viewportSpecific: true });
-    await s.opened(
-      "places.selected/dialog.delete-place",
-      "dialog",
-      toSelected,
-      async () => {
-        // The sheet on narrow layouts is modal and carries its own delete button.
-        const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
-        if (await sheet.isVisible().catch(() => false)) {
-          await s.tap(sheet.getByRole("button", { name: /löschen/ }).first());
-        } else {
-          await s.tap(s.button("Ortsaktionen"));
-          await s.tap(page.getByRole("menuitem", { name: "Ort löschen" }));
-        }
-      },
-    );
+    await s.opened("places.selected/dialog.delete-place", "dialog", toSelected, async () => {
+      // The sheet on narrow layouts is modal and carries its own delete button.
+      const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
+      if (await sheet.isVisible().catch(() => false)) {
+        await s.tap(sheet.getByRole("button", { name: /löschen/ }).first());
+      } else {
+        await s.tap(s.button("Ortsaktionen"));
+        await s.tap(page.getByRole("menuitem", { name: "Ort löschen" }));
+      }
+    });
     await s.closeAll();
   });
 }
@@ -778,7 +853,10 @@ async function storyboardScenario(s: Session): Promise<void> {
     await s.workspace("Storyboard");
     // Node editors mount after the canvas; their toolbars are enumerated.
     await expect(
-      page.locator('.storyboard-flow .react-flow__node[data-id="story-note-1"]').getByRole("toolbar").first(),
+      page
+        .locator('.storyboard-flow .react-flow__node[data-id="story-note-1"]')
+        .getByRole("toolbar")
+        .first(),
     ).toBeVisible();
   };
   const library = page.getByRole("complementary", { name: "Elementbibliothek" });
@@ -805,11 +883,15 @@ async function storyboardScenario(s: Session): Promise<void> {
   await s.step("storyboard.edge", async () => {
     await toEdge();
     await s.view("storyboard.edge");
-    await s.enumerate("storyboard.edge", toEdge, { scope: page.getByRole("region", { name: "Verbindung" }) });
+    await s.enumerate("storyboard.edge", toEdge, {
+      scope: page.getByRole("region", { name: "Verbindung" }),
+    });
   });
 
   const focusButton = () =>
-    page.locator('.storyboard-flow .react-flow__node[data-id="story-note-1"]').getByRole("button", { name: "Notiz im Fokus öffnen" });
+    page
+      .locator('.storyboard-flow .react-flow__node[data-id="story-note-1"]')
+      .getByRole("button", { name: "Notiz im Fokus öffnen" });
   await base();
   await s.opened(
     "workspace.storyboard/dialog.note-focus",
@@ -835,20 +917,24 @@ async function storyboardScenario(s: Session): Promise<void> {
 
 // ---- Test registration -------------------------------------------------------------------------
 
-const SCENARIOS: { name: string; world?: AuditWorldOptions; run: (s: Session) => Promise<void> }[] = [
-  { name: "world-gate", run: worldGateScenario },
-  { name: "text", run: textScenario },
-  { name: "overlays", run: overlayScenario },
-  { name: "save-error", world: { failSaves: true }, run: saveErrorScenario },
-  { name: "figures", run: figuresScenario },
-  { name: "timeline", run: timelineScenario },
-  { name: "places", run: placesScenario },
-  { name: "storyboard", run: storyboardScenario },
-];
+const SCENARIOS: { name: string; world?: AuditWorldOptions; run: (s: Session) => Promise<void> }[] =
+  [
+    { name: "world-gate", run: worldGateScenario },
+    { name: "text", run: textScenario },
+    { name: "overlays", run: overlayScenario },
+    { name: "save-error", world: { failSaves: true }, run: saveErrorScenario },
+    { name: "figures", run: figuresScenario },
+    { name: "timeline", run: timelineScenario },
+    { name: "places", run: placesScenario },
+    { name: "storyboard", run: storyboardScenario },
+  ];
 
 for (const scenario of SCENARIOS) {
   test(`audit capture: ${scenario.name}`, async ({ page }, testInfo) => {
-    const { viewport, theme } = testInfo.project.metadata as { viewport: ViewportName; theme: ThemeName };
+    const { viewport, theme } = testInfo.project.metadata as {
+      viewport: ViewportName;
+      theme: ThemeName;
+    };
     const rec = new AuditRecorder(page, testInfo.project.name, scenario.name, viewport, theme);
     await page.addInitScript((selected) => {
       localStorage.setItem("quiltor-theme", selected);

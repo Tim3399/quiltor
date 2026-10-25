@@ -2,10 +2,10 @@
 // style of mockWorkshop (tests/e2e/visual-baseline.spec.ts). Long German compounds are on purpose:
 // they are what stresses narrow viewports. Nothing here reaches the real server's worlds.
 import type { Page, Route } from "@playwright/test";
-import exportPreview from "../../../contracts/fixtures/application-api/manuscript-export/preview.v1.json" with {
+import exportPreviewEpub from "../../../contracts/fixtures/application-api/manuscript-export/preview.epub.v1.json" with {
   type: "json",
 };
-import exportPreviewEpub from "../../../contracts/fixtures/application-api/manuscript-export/preview.epub.v1.json" with {
+import exportPreview from "../../../contracts/fixtures/application-api/manuscript-export/preview.v1.json" with {
   type: "json",
 };
 import type { Manuscript } from "../../../packages/client/src/modules/manuscript";
@@ -30,7 +30,7 @@ import {
   fulfillStoryWorld,
 } from "../../e2e/support/application-api";
 
-export const AUDIT_WORLD = {
+const AUDIT_WORLD = {
   id: "gezeitenatlas",
   title: "Der gläserne Gezeitenatlas der Nordmeerküsten",
   backupUrl: "https://backup.example.com",
@@ -55,14 +55,22 @@ const OPENING =
 
 function mention(id: string, elementId: string, text: string, surface: string) {
   const from = text.indexOf(surface);
-  return { id, elementId, from, to: from + surface.length, surface, source: "deterministic" as const, confidence: 1 };
+  return {
+    id,
+    elementId,
+    from,
+    to: from + surface.length,
+    surface,
+    source: "deterministic" as const,
+    confidence: 1,
+  };
 }
 
 const filler = (topic: string) =>
   `${topic} Die Möwen kreisten über den Landungsbrücken, und die Flut stieg langsam an. ` +
   "Hinter den Speichern lag die Altstadt mit ihren schiefen Giebeln und engen Gassen. ".repeat(6);
 
-export function auditManuscript(): Manuscript {
+function auditManuscript(): Manuscript {
   return {
     chapters: [
       {
@@ -101,8 +109,20 @@ export function auditManuscript(): Manuscript {
       folders: [{ id: "teil-eins", title: "Erster Teil: Küstenvermessungsunterlagen" }],
       items: [
         { id: "i-teil", kind: "folder", folderId: "teil-eins", position: 0 },
-        { id: "i-ankunft", kind: "chapter", chapterId: "ankunft", parentFolderId: "teil-eins", position: 0 },
-        { id: "i-archiv", kind: "chapter", chapterId: "archiv", parentFolderId: "teil-eins", position: 1 },
+        {
+          id: "i-ankunft",
+          kind: "chapter",
+          chapterId: "ankunft",
+          parentFolderId: "teil-eins",
+          position: 0,
+        },
+        {
+          id: "i-archiv",
+          kind: "chapter",
+          chapterId: "archiv",
+          parentFolderId: "teil-eins",
+          position: 1,
+        },
         { id: "i-sturm", kind: "chapter", chapterId: "sturm", position: 1 },
         { id: "i-zurueck", kind: "chapter", chapterId: "zurueck", position: 2 },
       ],
@@ -129,7 +149,7 @@ export function auditManuscript(): Manuscript {
   };
 }
 
-export function auditStoryWorld(): FigureState {
+function auditStoryWorld(): FigureState {
   return {
     nodes: [
       {
@@ -159,7 +179,15 @@ export function auditStoryWorld(): FigureState {
         label: "Leuchtturmwärterin",
         sub: "Kennt jede Untiefe.",
       },
-      { id: "mowe", x: 760, y: 140, type: "tier", name: "Kapitän Möwe", label: "Tier", sub: "Stiehlt Fisch." },
+      {
+        id: "mowe",
+        x: 760,
+        y: 140,
+        type: "tier",
+        name: "Kapitän Möwe",
+        label: "Tier",
+        sub: "Stiehlt Fisch.",
+      },
       {
         id: "gilde",
         x: 300,
@@ -220,11 +248,24 @@ export function auditStoryWorld(): FigureState {
         color: "gold",
         versions: [{ momentId: "t-sturm", active: true, label: "misstraut" }],
       },
-      { id: "e3", from: "ilse", to: "gilde", label: "gehört zur", directed: true, lineStyle: "dashed" },
+      {
+        id: "e3",
+        from: "ilse",
+        to: "gilde",
+        label: "gehört zur",
+        directed: true,
+        lineStyle: "dashed",
+      },
       { id: "e4", from: "mowe", to: "kompass", label: "stiehlt", directed: true },
     ],
     timeline: [
-      { id: "t-ankunft", title: "Ankunft", time: 0, date: "1847-09-03", note: "Mara erreicht den Hafen." },
+      {
+        id: "t-ankunft",
+        title: "Ankunft",
+        time: 0,
+        date: "1847-09-03",
+        note: "Mara erreicht den Hafen.",
+      },
       { id: "t-archiv", title: "Lesesaal", time: 1, note: "Das Archiv öffnet." },
       { id: "t-sturm", title: "Sturmflutwarnungsbekanntmachung", time: 3, note: "Der Wind dreht." },
       // No chapter refers to this moment, so the timeline lets it be deleted (confirm dialog).
@@ -238,7 +279,7 @@ export function auditStoryWorld(): FigureState {
   };
 }
 
-export function auditStoryboards(): StoryboardState {
+function auditStoryboards(): StoryboardState {
   return {
     boards: [
       { id: "main-storyboard", title: "Handlungsbogen" },
@@ -332,42 +373,66 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
 
   await page.route("**/api/version", (route) => json(route, { ok: true, version: "audit" }));
   await page.route("**/api/whoami", (route) =>
-    json(route, { ok: true, sub: "autorin", email: "autorin@example.com", name: "Autorin", multiUser: true }),
+    json(route, {
+      ok: true,
+      sub: "autorin",
+      email: "autorin@example.com",
+      name: "Autorin",
+      multiUser: true,
+    }),
   );
-  await page.route("**/api/worlds", (route) => json(route, { ok: true, worlds: [AUDIT_WORLD, ...OTHER_WORLDS] }));
+  await page.route("**/api/worlds", (route) =>
+    json(route, { ok: true, worlds: [AUDIT_WORLD, ...OTHER_WORLDS] }),
+  );
   await page.route("**/api/worlds/open", (route) => json(route, { ok: true, world: AUDIT_WORLD }));
   await page.route("**/api/worlds/trash*", (route) =>
     json(route, {
       ok: true,
-      worlds: [{ ...OTHER_WORLDS[1], id: "alt", title: "Verworfene Küstenchronik", deletedAt: "2026-08-02T08:00:00Z" }],
+      worlds: [
+        {
+          ...OTHER_WORLDS[1],
+          id: "alt",
+          title: "Verworfene Küstenchronik",
+          deletedAt: "2026-08-02T08:00:00Z",
+        },
+      ],
     }),
   );
 
   const failSave = (route: Route) =>
-    json(route, { ok: false, error: { code: "storage.unavailable", category: "unavailable", params: {} } }, 503);
+    json(
+      route,
+      { ok: false, error: { code: "storage.unavailable", category: "unavailable", params: {} } },
+      503,
+    );
   await page.route("**/api/manuscript?*", (route) => {
-    if (route.request().method() === "GET") return fulfillManuscript(route, manuscript, revisions.manuscript);
+    if (route.request().method() === "GET")
+      return fulfillManuscript(route, manuscript, revisions.manuscript);
     if (options.failSaves) return failSave(route);
     manuscript = decodeManuscriptV1(route.request().postDataJSON()).document as Manuscript;
     revisions.manuscript += 1;
     return fulfillDocumentSave(route, revisions.manuscript);
   });
   await page.route("**/api/state?*", (route) => {
-    if (route.request().method() === "GET") return fulfillStoryWorld(route, storyWorld, revisions.state);
+    if (route.request().method() === "GET")
+      return fulfillStoryWorld(route, storyWorld, revisions.state);
     if (options.failSaves) return failSave(route);
     storyWorld = decodeStoryWorldV1(route.request().postDataJSON()).document;
     revisions.state += 1;
     return fulfillDocumentSave(route, revisions.state);
   });
   await page.route("**/api/storyboards?*", (route) => {
-    if (route.request().method() === "GET") return fulfillStoryboards(route, storyboards, revisions.storyboards);
+    if (route.request().method() === "GET")
+      return fulfillStoryboards(route, storyboards, revisions.storyboards);
     if (options.failSaves) return failSave(route);
     storyboards = decodeStoryboardsV1(route.request().postDataJSON()).document;
     revisions.storyboards += 1;
     return fulfillDocumentSave(route, revisions.storyboards);
   });
 
-  await page.route("**/api/place-map?*", (route) => route.fulfill({ contentType: "image/svg+xml", body: MAP_IMAGE }));
+  await page.route("**/api/place-map?*", (route) =>
+    route.fulfill({ contentType: "image/svg+xml", body: MAP_IMAGE }),
+  );
 
   await page.route("**/api/assistant/status*", (route) =>
     json(route, {
@@ -408,14 +473,21 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
             },
             {
               kind: "create_relationship",
-              relationship: { from: "mara", to: "ilse", label: "misstraut heimlich", directed: true },
+              relationship: {
+                from: "mara",
+                to: "ilse",
+                label: "misstraut heimlich",
+                directed: true,
+              },
             },
           ],
         },
       },
     }),
   );
-  await page.route("**/api/assistant/progress*", (route) => json(route, { ok: true, progress: null }));
+  await page.route("**/api/assistant/progress*", (route) =>
+    json(route, { ok: true, progress: null }),
+  );
   await page.route("**/api/writing-assistance/status*", (route) =>
     json(route, {
       ok: true,
@@ -496,14 +568,29 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
     json(route, {
       ok: true,
       commits: [
-        { hash: "a".repeat(40), shortHash: "aaaaaaa", date: "2026-08-08T20:00:00Z", subject: "Kapitel über die Sturmflutnacht ergänzt" },
-        { hash: "b".repeat(40), shortHash: "bbbbbbb", date: "2026-08-07T09:00:00Z", subject: "Figuren angelegt" },
+        {
+          hash: "a".repeat(40),
+          shortHash: "aaaaaaa",
+          date: "2026-08-08T20:00:00Z",
+          subject: "Kapitel über die Sturmflutnacht ergänzt",
+        },
+        {
+          hash: "b".repeat(40),
+          shortHash: "bbbbbbb",
+          date: "2026-08-07T09:00:00Z",
+          subject: "Figuren angelegt",
+        },
       ],
     }),
   );
   await page.route("**/api/history", (route) => json(route, { ok: true, commits: [] }));
   await page.route("**/api/history/diff*", (route) =>
-    json(route, { ok: true, diff: HISTORY_DIFF, newFiles: ["kapitel/05-nachspiel.md"], mode: "word" }),
+    json(route, {
+      ok: true,
+      diff: HISTORY_DIFF,
+      newFiles: ["kapitel/05-nachspiel.md"],
+      mode: "word",
+    }),
   );
 
   const backupStatus = {
@@ -536,13 +623,30 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
     json(route, {
       ok: true,
       backups: [
-        { name: "quiltor-2026-08-08T20-00-00.sqlite", created: "2026-08-08T20:00:00Z", size: 182_000 },
-        { name: "quiltor-2026-08-07T09-00-00.sqlite", created: "2026-08-07T09:00:00Z", size: 176_400 },
+        {
+          name: "quiltor-2026-08-08T20-00-00.sqlite",
+          created: "2026-08-08T20:00:00Z",
+          size: 182_000,
+        },
+        {
+          name: "quiltor-2026-08-07T09-00-00.sqlite",
+          created: "2026-08-07T09:00:00Z",
+          size: 176_400,
+        },
       ],
     }),
   );
   await page.route("**/api/backups", (route) =>
-    json(route, { ok: true, backups: [{ name: "quiltor-2026-08-08T20-00-00.sqlite", created: "2026-08-08T20:00:00Z", size: 182_000 }] }),
+    json(route, {
+      ok: true,
+      backups: [
+        {
+          name: "quiltor-2026-08-08T20-00-00.sqlite",
+          created: "2026-08-08T20:00:00Z",
+          size: 182_000,
+        },
+      ],
+    }),
   );
   await page.route("**/api/backups/location*", (route) =>
     json(route, {
@@ -577,7 +681,13 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
       baseGeneration: 3,
       remote: { generation: 3, snapshotId: "snap-1" },
       lastSyncedAt: "2026-08-07T09:00:00Z",
-      account: { accountId: "autorin", access: "read-write", usedBytes: 1_200_000, limitBytes: 50_000_000, deleteAfter: null },
+      account: {
+        accountId: "autorin",
+        access: "read-write",
+        usedBytes: 1_200_000,
+        limitBytes: 50_000_000,
+        deleteAfter: null,
+      },
     }),
   );
   return {

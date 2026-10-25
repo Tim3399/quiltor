@@ -25,7 +25,7 @@ import {
   type ViewportName,
 } from "./types.ts";
 
-export type CaptureOptions = {
+type CaptureOptions = {
   kind: EntryKind;
   trigger?: string;
   viewportSpecific?: boolean;
@@ -40,7 +40,13 @@ export class AuditRecorder {
   private readonly page: Page;
   private readonly seenIds = new Set<string>();
 
-  constructor(page: Page, project: string, scenario: string, viewport: ViewportName, theme: ThemeName) {
+  constructor(
+    page: Page,
+    project: string,
+    scenario: string,
+    viewport: ViewportName,
+    theme: ThemeName,
+  ) {
     this.page = page;
     this.viewport = viewport;
     this.theme = theme;
@@ -81,7 +87,11 @@ export class AuditRecorder {
       const snapshot = await this.page.locator("body").ariaSnapshot().catch(String);
       mkdirSync(join(AUDIT_DIR, "aria"), { recursive: true });
       writeFileSync(
-        join(AUDIT_DIR, "aria", `${screenshotPath(entryId(state, this.viewport, this.theme)).slice(6)}.txt`),
+        join(
+          AUDIT_DIR,
+          "aria",
+          `${screenshotPath(entryId(state, this.viewport, this.theme)).slice(6)}.txt`,
+        ),
         snapshot,
       );
     }
@@ -142,7 +152,7 @@ export class AuditRecorder {
       theme: this.theme,
       // Playwright messages carry ANSI colour codes and long call logs.
       error: message
-        .replace(/\u001b\[[0-9;]*m/g, "")
+        .replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "")
         .split("\n")
         .slice(0, 6)
         .join("\n"),
