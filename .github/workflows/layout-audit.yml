@@ -17,8 +17,11 @@ on:
 jobs:
   layout-audit:
     runs-on: ubuntu-24.04
-    # Provisional until the first measured run.
-    timeout-minutes: 60
+    # A full local run without the AI review takes about 3 minutes (682 screenshots, 6 projects).
+    # The job also installs, builds and starts the server, and a hosted runner is slower than a
+    # desk; the AI review adds API round trips. 30 minutes leaves room for all of that and still
+    # stops a hung run early.
+    timeout-minutes: 30
     env:
       PYTHONPATH: src
     steps:
