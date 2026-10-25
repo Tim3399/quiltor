@@ -236,3 +236,109 @@ TypeScript, Python, Rust, and the workflows themselves (`actions`). It runs on p
 - **Not local:** CodeQL has no npm script. Results appear under _Security → Code scanning_
   on GitHub. For a private repository that needs GitHub Advanced Security (Code Security)
   to be enabled in the repository settings; without it the upload step fails.
+
+## stylelint
+
+**What it checks.** Every `.css` file outside generated output, with `stylelint-config-recommended`
+as the base. `dist/` is committed build output and is ignored, together with the other vendored
+or generated folders Biome skips (`stylelint.config.mjs`). No stylistic rule is enabled:
+formatting belongs to Biome, so none can disagree with it.
+
+**How to run it.**
+
+```bash
+npm run lint:stylelint
+```
+
+It is part of `npm run check` and so of the `frontend` CI job. Both packages are exact-pinned
+devDependencies. `npx stylelint "<glob>" --fix` applies the safe fixes; read the diff, because
+a fix can move a declaration across the cascade.
+
+**Biome comparison.** Biome's CSS rules are active and cover most of the recommended preset. A
+stylelint rule that does the same job is switched off in `stylelint.config.mjs`, next to the
+Biome rule that replaces it, so a finding is never reported twice:
+
+| stylelint rule                                      | Biome rule (active)                                |
+| --------------------------------------------------- | -------------------------------------------------- |
+| `at-rule-no-unknown`                                | `suspicious/noUnknownAtRules`                      |
+| `block-no-empty`                                    | `suspicious/noEmptyBlock`                          |
+| `custom-property-no-missing-var-function`           | `correctness/noMissingVarFunction`                 |
+| `declaration-block-no-duplicate-custom-properties`  | `suspicious/noDuplicateCustomProperties`           |
+| `declaration-block-no-duplicate-properties`         | `suspicious/noDuplicateProperties`                 |
+| `declaration-block-no-shorthand-property-overrides` | `suspicious/noShorthandPropertyOverrides`          |
+| `font-family-no-duplicate-names`                    | `suspicious/noDuplicateFontNames`                  |
+| `font-family-no-missing-generic-family-keyword`     | `a11y/useGenericFontNames`                         |
+| `keyframe-block-no-duplicate-selectors`             | `suspicious/noDuplicateSelectorsKeyframeBlock`     |
+| `keyframe-declaration-no-important`                 | `suspicious/noImportantInKeyframe`                 |
+| `media-feature-name-no-unknown`                     | `correctness/noUnknownMediaFeatureName`            |
+| `media-type-no-deprecated`                          | `complexity/noDeprecatedMediaType`                 |
+| `named-grid-areas-no-invalid`                       | `correctness/noInvalidGridAreas`                   |
+| `no-duplicate-at-import-rules`                      | `suspicious/noDuplicateAtImportRules`              |
+| `no-invalid-position-at-import-rule`                | `correctness/noInvalidPositionAtImportRule`        |
+| `no-irregular-whitespace`                           | `suspicious/noIrregularWhitespace`                 |
+| `property-no-unknown`                               | `correctness/noUnknownProperty`                    |
+| `selector-anb-no-unmatchable`                       | `correctness/noUnmatchableAnbSelector`             |
+| `selector-pseudo-class-no-unknown`                  | `correctness/noUnknownPseudoClass`                 |
+| `selector-pseudo-element-no-unknown`                | `correctness/noUnknownPseudoElement`               |
+| `selector-type-no-unknown`                          | `correctness/noUnknownTypeSelector`                |
+| `no-descending-specificity`                         | `style/noDescendingSpecificity` (off in Biome too) |
+
+What stylelint adds on top, because Biome has no active rule for it: `no-duplicate-selectors`
+(Biome's `noDuplicateSelectors` is a nursery rule and not enabled), `property-no-deprecated`,
+`declaration-property-value-keyword-no-deprecated`, `declaration-property-value-no-unknown`,
+`at-rule-no-deprecated`, `function-calc-no-unspaced-operator`, `media-query-no-invalid`,
+`color-no-invalid-hex` and the other recommended rules not listed above.
+
+**Rules that are off, and why.** Everything in the table is off because Biome already reports
+it. The one rule that is off in both tools is `no-descending-specificity`, for the reason given
+in the Biome section: it compares selectors that can never match the same element, and
+reordering stylesheets to satisfy it moves the cascade without fixing anything.
+
+**Corrections made when the gate was introduced** (none changes what is rendered):
+
+- `clip: rect(0, 0, 0, 0)` in four visually-hidden rules became `clip-path: inset(50%)`, the
+  replacement for the deprecated property; the box is 1px, `overflow: hidden`, so it hides the
+  same pixels.
+- `word-break: break-word` was dropped where `overflow-wrap: anywhere` sits next to it; the
+  deprecated keyword is defined as exactly that.
+- Duplicate selectors were merged where no rule in between could target the same element with
+  equal specificity; one dead `color` in `FigureInspector.css` (always overridden by a later
+  rule of the same selector) was removed.
+
+## markdownlint
+
+**What it checks.** The structure of every Markdown file: heading levels and a single title,
+fenced code blocks with a language, blank lines around lists and fences, bare URLs, inline HTML.
+It runs `markdownlint-cli2` with the default rule set.
+
+**How to run it.**
+
+```bash
+npm run lint:markdown
+```
+
+It is part of `npm run check` and of the `frontend` CI job. Configuration is in
+`.markdownlint-cli2.jsonc`, with a reason next to every deviation.
+
+**Files that are not linted.** `.claude/agents`, `.claude/output-styles` and `team/roles`:
+`team/sync.mjs` generates them from role sources, and `.prettierignore` skips them for the same
+reason. Nothing else is excluded; German texts pass because the rules look at structure, not at
+language.
+
+**Rules that are off, and why.**
+
+| Rule                   | Setting         | Reason                                                                                                  |
+| ---------------------- | --------------- | ------------------------------------------------------------------------------------------------------- |
+| `MD013` line length    | off             | Prettier never rewraps prose, and table rows and URLs cannot be wrapped; a fixed limit only adds noise. |
+| `MD060` table style    | off             | Prettier formats and pads tables, which this rule reads as a different style.                           |
+| `MD024` duplicate head | `siblings_only` | The same heading under different parents is fine.                                                       |
+| `MD026` punctuation    | `,;:` only      | Headings are sometimes full sentences ending in a full stop.                                            |
+| `MD033` inline HTML    | `<a>` allowed   | `<a id="...">` creates the named anchors other documents link to; Markdown has no syntax for it.        |
+| `MD036` emphasis       | off             | A bold line on its own is a tagline or a version line here, not a pseudo-heading.                       |
+
+**Corrections made when the gate was introduced.** In `docs/TODO.md`, `README.md` and
+`README.en.md` the extra `#` headings (several top-level parts in one file) moved one level
+down, with their sub-headings; heading text is unchanged, so anchors stay the same. `<code>`
+in two architecture views became backticks, two fences in `CLAUDE.md` got a language, the
+blank line between consecutive quotes in `docs/plans/author-pilot.md` became a quote
+continuation, and a bare e-mail address became an autolink.

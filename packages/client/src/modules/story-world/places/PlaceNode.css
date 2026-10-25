@@ -340,6 +340,8 @@
   right: var(--space-4);
   bottom: var(--space-4);
   margin: 0;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 .place-node-shell .story-node .place-node__enter + .place-node__enter {
@@ -348,11 +350,6 @@
 
 /* They speak up only once the card is meant: a surface full of places should not consist
    of nothing but buttons. */
-.place-node-shell .story-node .place-node__enter {
-  opacity: 0;
-  transition: opacity var(--motion-fast) var(--ease-standard);
-}
-
 .place-node-shell .story-node:hover .place-node__enter,
 .place-node-shell .story-node.selected .place-node__enter,
 .place-node-shell .story-node:focus-within .place-node__enter {
