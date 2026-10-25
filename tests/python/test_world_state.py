@@ -13,7 +13,6 @@ from quiltor.domain.story_world.world_state import (
     state_diff,
 )
 
-
 FIXTURE = json.loads(
     (Path(__file__).parents[2] / "contracts/fixtures/story-world/world-state.v1.json").read_text(
         encoding="utf-8"

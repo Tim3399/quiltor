@@ -1,8 +1,8 @@
 import ast
 import json
 import unittest
-from unittest.mock import MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from quiltor.application.backups import BackupGatewayError
 from quiltor.application.documents import RevisionConflict

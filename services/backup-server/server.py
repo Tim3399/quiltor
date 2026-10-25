@@ -395,10 +395,8 @@ def _atomic_write(target: Path, payload: bytes) -> None:
             os.fsync(handle.fileno())
         staged.replace(target)
     finally:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             staged.unlink()
-        except FileNotFoundError:
-            pass
 
 
 def _read_json_response(request: urllib.request.Request | str, maximum: int) -> dict:
@@ -411,7 +409,7 @@ def _read_json_response(request: urllib.request.Request | str, maximum: int) -> 
         raise ValueError("OIDC response exceeds its size limit.")
     document = json.loads(payload.decode("utf-8"))
     if not isinstance(document, dict):
-        raise ValueError("OIDC response must be a JSON object.")  # noqa: TRY004
+        raise ValueError("OIDC response must be a JSON object.")
     return document
 
 
@@ -902,7 +900,9 @@ def _storage_process_lock():
                 raise ValueError(
                     "Backup storage is in use; stop the server before maintenance."
                 ) from exc
-            unlock = lambda: msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+
+            def unlock():
+                return msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
         else:
             import fcntl
 
@@ -912,7 +912,10 @@ def _storage_process_lock():
                 raise ValueError(
                     "Backup storage is in use; stop the server before maintenance."
                 ) from exc
-            unlock = lambda: fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+            def unlock():
+                return fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
         try:
             yield
         finally:

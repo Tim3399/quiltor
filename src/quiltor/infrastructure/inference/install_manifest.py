@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-
 DigestAlgorithm = Literal["sha256", "git-sha1"]
 
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -330,10 +329,10 @@ def safe_relative_path(value: str):
 
 
 __all__ = [
-    "ArtifactManifest",
     "HUGGINGFACE_TREE_PAGE_LIMIT",
     "LLAMA_CPP_RELEASE",
     "MAX_HUGGINGFACE_TREE_PAGES",
+    "ArtifactManifest",
     "github_release_api_url",
     "github_runtime_artifact",
     "huggingface_artifacts",

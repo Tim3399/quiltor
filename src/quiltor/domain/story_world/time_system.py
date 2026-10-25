@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Mapping
+from typing import Any
 
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
@@ -176,7 +177,7 @@ def format_time(time_value: int, system: Mapping[str, Any]) -> str:
             raise TypeError("Canonical time must be an integer.")
         return "t0" if time_value == 0 else f"t{time_value:+d}"
     projected = time_to_calendar_date(time_value, system)
-    assert projected is not None
+    assert projected is not None  # noqa: S101 - type narrowing, not a runtime check
     era_name = str(system.get("eraName", ""))
     era_abbreviation = str(system.get("eraAbbreviation", ""))
     values = _FormatValues(

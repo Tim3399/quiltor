@@ -89,9 +89,7 @@ def _valid_place_level(node: dict) -> bool:
     for key in ("mapWidth", "mapHeight"):
         if key in node and (not _number(node[key]) or node[key] <= 0):
             return False
-    if "mapScale" in node and not _valid_map_scale(node["mapScale"]):
-        return False
-    return True
+    return not ("mapScale" in node and not _valid_map_scale(node["mapScale"]))
 
 
 def _valid_map_scale(scale: object) -> bool:

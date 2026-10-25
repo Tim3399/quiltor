@@ -66,7 +66,7 @@ _alive: list[object] = []
 def render(url: str, timeout: int = 90) -> bytes:
     """Render `url` to PDF bytes. Safe to call from any thread."""
     try:
-        import AppKit
+        import AppKit  # noqa: F401 - availability probe for the desktop extra
         import Foundation
     except ImportError as exc:  # pragma: no cover - depends on the desktop extra
         raise RuntimeError(UNAVAILABLE) from exc

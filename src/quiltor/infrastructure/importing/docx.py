@@ -114,7 +114,7 @@ def _read_xml(archive: zipfile.ZipFile, name: str) -> ET.Element:
     if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
         raise InvalidManuscriptFile("DTD and entity declarations are not allowed in DOCX XML.")
     try:
-        root = ET.fromstring(payload)
+        root = ET.fromstring(payload)  # noqa: S314 - DTD and entity declarations are rejected above
     except (ET.ParseError, RecursionError) as error:
         raise InvalidManuscriptFile("A DOCX XML part is malformed.") from error
     nodes = 0
@@ -436,7 +436,7 @@ def _paragraph(paragraph: ET.Element, styles: _StyleBook, warnings: Counter):
             if child.tag == f"{W}tab"
             else "\n"
             if child.tag in {f"{W}br", f"{W}cr"}
-            else "‑"
+            else "\u2011"
             if child.tag == f"{W}noBreakHyphen"
             else "\u00ad"
             if child.tag == f"{W}softHyphen"

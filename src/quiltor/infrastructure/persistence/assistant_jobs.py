@@ -29,7 +29,7 @@ import sqlite3
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -71,7 +71,7 @@ PRAGMA user_version = 1;
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _request_hash(intent: dict[str, Any]) -> str:
@@ -177,7 +177,7 @@ class AssistantJobStore:
                     )
                 conn.commit()
                 public = self._public(existing)
-                assert public is not None
+                assert public is not None  # noqa: S101 - type narrowing, not a runtime check
                 return public, False
 
             job_id = uuid.uuid4().hex
@@ -202,7 +202,7 @@ class AssistantJobStore:
             row = conn.execute("SELECT * FROM assistant_jobs WHERE id=?", (job_id,)).fetchone()
             conn.commit()
             public = self._public(row)
-            assert public is not None
+            assert public is not None  # noqa: S101 - type narrowing, not a runtime check
             return public, True
 
     def get(self, job_id: str, owner_sub: str, world_id: str) -> dict[str, Any] | None:
@@ -260,7 +260,7 @@ class AssistantJobStore:
             ).fetchone()
             conn.commit()
             public = self._public(claimed)
-            assert public is not None and claimed is not None
+            assert public is not None and claimed is not None  # noqa: S101 - type narrowing, not a runtime check
             public["_ownerSub"] = claimed["owner_sub"]
             public["_worldId"] = claimed["world_id"]
             return public
@@ -430,7 +430,7 @@ class AssistantJobStore:
             )
 
     def prune(self) -> None:
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=JOB_RETENTION_DAYS)).isoformat()
+        cutoff = (datetime.now(UTC) - timedelta(days=JOB_RETENTION_DAYS)).isoformat()
         with self._connection() as conn:
             conn.execute(
                 """

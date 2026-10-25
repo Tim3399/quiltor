@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import sqlite3
 import tempfile
@@ -90,7 +89,7 @@ class BackupManifestSecurityTests(unittest.TestCase):
             "C:/drive.md",
             "\\\\server\\share.md",
             "profiles/%2e%2e.md",
-            "profiles/fullwidth／slash.md",
+            "profiles/fullwidth\uff0fslash.md",
             "profiles/trailing.md ",
             "profiles/CON.md",
         )

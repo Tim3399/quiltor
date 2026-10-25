@@ -6,7 +6,7 @@ import hashlib
 import json
 import tempfile
 import threading
-from contextlib import nullcontext
+from contextlib import nullcontext, suppress
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -553,15 +553,13 @@ class SynchronizationUseCases:
                     raise SyncGatewayFailure(
                         "sync.recovery_required", status=503
                     ) from rollback_error
-                try:
+                with suppress(OSError):
                     self._state.save(
                         context.root.name,
                         context.endpoint_url,
                         account_id,
                         saved_before,
                     )
-                except OSError:
-                    pass
                 raise
         baseline = self._baseline(head, local, last_synced_at=_now())
         warnings: list[str] = []

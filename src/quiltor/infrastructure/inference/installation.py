@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.infrastructure.inference import installer

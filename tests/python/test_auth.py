@@ -7,8 +7,9 @@ import threading
 import time
 import unittest
 import urllib.parse
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import ClassVar
 from unittest.mock import patch
 
 import jwt
@@ -20,8 +21,8 @@ from quiltor.infrastructure.identity.runtime import (
     StdlibIdentityGateway,
 )
 from quiltor.modules.identity.auth import (
-    IdentityConfiguration,
     PENDING_LOGIN_TTL,
+    IdentityConfiguration,
     decode_id_token_claims,
     validate_claims,
 )
@@ -48,12 +49,10 @@ class _LoopbackHandler(BaseHTTPRequestHandler):
             self.send_header(name, value)
         self.send_header("Content-Length", str(len(response_body)))
         self.end_headers()
-        try:
+        # An oversized-response rejection deliberately closes the connection
+        # after reading its bounded prefix.
+        with suppress(BrokenPipeError, ConnectionResetError):
             self.wfile.write(response_body)
-        except (BrokenPipeError, ConnectionResetError):
-            # An oversized-response rejection deliberately closes the connection
-            # after reading its bounded prefix.
-            pass
 
     def log_message(self, _format: str, *_args) -> None:
         pass
@@ -507,7 +506,7 @@ class DiscoveryTrustTests(unittest.TestCase):
         }
 
         class Transport:
-            document = dict(base)
+            document: ClassVar[dict[str, str]] = dict(base)
 
             def request(self, *args, **kwargs):
                 return dict(self.document)

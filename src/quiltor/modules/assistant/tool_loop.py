@@ -323,7 +323,7 @@ def run_tool_loop(
                 tool_calls,
                 result_tokens,
             )
-        for index, (call, envelope) in enumerate(zip(calls, envelopes)):
+        for index, (call, envelope) in enumerate(zip(calls, envelopes, strict=False)):
             if (
                 not isinstance(envelope, dict)
                 or envelope.get("name") != call["name"]
@@ -379,7 +379,7 @@ def run_tool_loop(
                 result_tokens,
             )
 
-        for entry, serialized_envelope in zip(attempt_entries, serialized_envelopes):
+        for entry, serialized_envelope in zip(attempt_entries, serialized_envelopes, strict=False):
             entry.update(
                 {
                     "ok": True,

@@ -37,6 +37,7 @@ starts a release.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -275,14 +276,12 @@ def _commit_targets(
             try:
                 rollback = _stage_bytes(repo_root / name, originals[name])
                 _replace(rollback, repo_root / name)
-            except Exception as rollback_error:  # pragma: no cover - catastrophic filesystem fault
+            except Exception as rollback_error:  # pragma: no cover - catastrophic filesystem fault  # noqa: BLE001 - best-effort rollback must keep restoring the remaining files
                 rollback_errors.append(f"{name}: {rollback_error}")
             finally:
                 if rollback is not None:
-                    try:
+                    with contextlib.suppress(OSError):
                         rollback.unlink(missing_ok=True)
-                    except OSError:
-                        pass
         if rollback_errors:
             raise RuntimeError(
                 "version transaction failed and rollback was incomplete: "
@@ -291,10 +290,8 @@ def _commit_targets(
         raise
     finally:
         for temporary in staged.values():
-            try:
+            with contextlib.suppress(OSError):
                 temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 def apply_version(version: str, repo_root: Path = REPO_ROOT) -> list[str]:

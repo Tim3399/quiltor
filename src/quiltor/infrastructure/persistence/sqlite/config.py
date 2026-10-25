@@ -8,7 +8,6 @@ from pathlib import Path
 
 from quiltor import resources
 
-
 BASE = resources.source_root()
 # QUILTOR_DATA_DIR wins outright (Docker sets it explicitly); QUILTOR_HOME is
 # the packaged CLI's per-user default. Tests and embedded hosts may relocate
@@ -30,7 +29,7 @@ class SQLitePaths:
     worlds: Path
 
     @classmethod
-    def from_data_directory(cls, data: Path) -> "SQLitePaths":
+    def from_data_directory(cls, data: Path) -> SQLitePaths:
         root = data.expanduser().resolve()
         return cls(
             data=root,
@@ -40,7 +39,7 @@ class SQLitePaths:
         )
 
     @classmethod
-    def from_environment(cls) -> "SQLitePaths":
+    def from_environment(cls) -> SQLitePaths:
         home = Path(os.environ.get("QUILTOR_HOME", str(BASE)))
         data = Path(os.environ.get("QUILTOR_DATA_DIR", str(home / "data")))
         return cls.from_data_directory(data)
@@ -58,6 +57,6 @@ __all__ = [
     "DATA",
     "DB",
     "LOCAL_OWNER",
-    "SQLitePaths",
     "WORLDS",
+    "SQLitePaths",
 ]

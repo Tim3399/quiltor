@@ -47,7 +47,6 @@ from quiltor.modules.assistant.runtime import AssistantRuntime
 
 __all__ = [
     "ASSISTANT_REPLY_LANGUAGES",
-    "AssistantRuntime",
     "BATCH_GROUP_TOKEN_BUDGET",
     "BROAD_SCOPE_REQUEST",
     "CONTEXT_SAFETY_MARGIN",
@@ -57,6 +56,7 @@ __all__ = [
     "MUTATION_REQUEST",
     "PROSE_REQUEST",
     "SYSTEM_PROMPT",
+    "AssistantRuntime",
     "audit_message",
     "audit_reply",
     "batch_summary_reply",

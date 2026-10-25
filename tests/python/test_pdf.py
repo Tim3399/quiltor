@@ -13,6 +13,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from quiltor.application.errors import PdfExportUnavailable
+from quiltor.delivery.http.routes import Request
+from quiltor.delivery.http.routes.documents import book_pdf
 from quiltor.infrastructure import pdf
 from quiltor.infrastructure.pdf import (
     book_document,
@@ -24,9 +27,6 @@ from quiltor.infrastructure.pdf import (
     webview2,
     wkwebview,
 )
-from quiltor.application.errors import PdfExportUnavailable
-from quiltor.delivery.http.routes import Request
-from quiltor.delivery.http.routes.documents import book_pdf
 
 
 class DesktopRendererSelectionTests(unittest.TestCase):

@@ -283,7 +283,9 @@ def download_asset(repository: str, asset: dict[str, Any], token: str, output: P
                     or parsed.hostname is None
                     or not parsed.hostname.endswith(".githubusercontent.com")
                 ):
-                    raise PreviousReleaseError("GitHub asset redirect left its trusted host")
+                    raise PreviousReleaseError(
+                        "GitHub asset redirect left its trusted host"
+                    ) from redirect
                 # Never forward the repository token to the signed object URL.
                 response = urllib.request.urlopen(
                     urllib.request.Request(
@@ -310,7 +312,7 @@ def download_asset(repository: str, asset: dict[str, Any], token: str, output: P
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
 

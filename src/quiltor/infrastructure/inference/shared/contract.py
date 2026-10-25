@@ -14,7 +14,6 @@ from quiltor.modules.assistant.ports import (
     InferenceValidationError,
 )
 
-
 DEFAULT_CHAT_TIMEOUT_SECONDS = 600
 
 
@@ -99,7 +98,7 @@ def invoke_chat(
                 )
                 .strip()
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - an unreadable error body is replaced by the reason
             body = ""
 
         detail = body[:1000] if body else str(exc.reason)
@@ -156,7 +155,7 @@ def check_health(url: str, timeout: float = 0.7) -> bool:
             timeout=timeout,
         ) as response:
             return response.status == 200
-    except Exception:
+    except Exception:  # noqa: BLE001 - any probe failure means "not ready"
         return False
 
 
@@ -196,7 +195,7 @@ def count_tokens(
                 )
                 .strip()
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - an unreadable error body is replaced by the reason
             body = ""
 
         detail = body[:1000] if body else str(exc.reason)

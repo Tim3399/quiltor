@@ -15,7 +15,7 @@ ever selected.
 from __future__ import annotations
 
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 
 from quiltor.infrastructure.pdf.book_document import RENDER_STATE_JS, render_state
 
@@ -46,10 +46,9 @@ def printable_window(url: str, timeout: int):
         _wait_until_rendered(window, timeout)
         yield window
     finally:
-        try:
+        # A failing destroy must never mask the real error.
+        with suppress(Exception):
             window.destroy()
-        except Exception:  # noqa: BLE001 - never mask the real error
-            pass
 
 
 def _wait_until_rendered(window, timeout: int) -> None:
@@ -68,7 +67,7 @@ def _wait_until_rendered(window, timeout: int) -> None:
                 return
             if state == "error":
                 raise RuntimeError("The book view reported a pagination error.")
-        except Exception:  # noqa: BLE001 - the page may not be loaded yet
+        except Exception:
             if state == "error":
                 raise
         time.sleep(POLL_INTERVAL_SECONDS)

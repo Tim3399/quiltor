@@ -31,6 +31,7 @@ import hashlib
 import json
 import sys
 import threading
+from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -55,15 +56,13 @@ def _resolve_apply_bitmask() -> Any:
     # packages are guaranteed present.
     try:
         from llguidance.mlx import apply_token_bitmask as metal_apply
-    except Exception:
+    except Exception:  # noqa: BLE001 - the Metal kernel module is optional
         metal_apply = None
 
     def apply(logits: Any, bitmask: Any) -> Any:
         if metal_apply is not None:
-            try:
+            with suppress(Exception):
                 return metal_apply(logits, bitmask)
-            except Exception:
-                pass
         # Falls back to the pure-numpy path if the Metal kernel module is
         # ever unavailable or incompatible with the installed MLX build --
         # slower, but correct, and it keeps the assistant working instead
@@ -195,7 +194,7 @@ def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 -- match BaseHTTPRequestHandler's signature
+    def log_message(self, format: str, *args: Any) -> None:
         print(f"MLX bridge: {self.address_string()} - {format % args}", flush=True)
 
     def _send_json(self, status: int, body: dict[str, Any]) -> None:

@@ -31,7 +31,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import platform
 import re
 import shutil
 import stat
@@ -40,16 +39,17 @@ import sys
 import tempfile
 import time
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from quiltor import resources
 from quiltor.infrastructure.inference.archive import extract_archive, locate_expected_files
 from quiltor.infrastructure.inference.install_manifest import (
-    ArtifactManifest,
     LLAMA_CPP_RELEASE,
     MAX_HUGGINGFACE_TREE_PAGES,
+    ArtifactManifest,
     github_release_api_url,
     github_runtime_artifact,
     huggingface_artifacts,
@@ -84,7 +84,7 @@ class InstallerPaths:
     mlx_models: Path
 
     @classmethod
-    def from_home(cls, home: Path) -> "InstallerPaths":
+    def from_home(cls, home: Path) -> InstallerPaths:
         root = home.expanduser().resolve()
         runtime = root / "runtime"
         models = root / "models"
@@ -124,9 +124,7 @@ def is_configured(home: Path | None = None) -> bool:
     paths = installer_paths(home)
     if llamacpp.resolve_binary(paths.home).exists() and list(paths.models.glob("*.gguf")):
         return True
-    if _venv_python(paths.mlx_venv).exists():
-        return True
-    return False
+    return bool(_venv_python(paths.mlx_venv).exists())
 
 
 def ensure_installed(home: Path | None = None) -> None:
@@ -156,7 +154,7 @@ def ensure_installed(home: Path | None = None) -> None:
         return
     try:
         install(runtime, home=home)
-    except (SystemExit, Exception) as exc:
+    except (SystemExit, Exception) as exc:  # noqa: BLE001 - a flaky download must not take the server down
         # Also catches network/subprocess failures (URLError, OSError,
         # CalledProcessError, ...) from download()/install_mlx_runtime() -- a
         # flaky connection during setup must not take the whole server down.
@@ -399,10 +397,6 @@ def install_mlx_runtime(
         raise SystemExit(
             "MLX is only supported on Apple Silicon Macs. Use --runtime llamacpp instead."
         )
-    if sys.version_info < (3, 10):
-        raise SystemExit(
-            f"MLX requires Python 3.10+; this interpreter is {platform.python_version()}. Install a newer Python and re-run."
-        )
     venv_python = _venv_python(selected.mlx_venv)
     if venv_python.exists():
         print(f"MLX runtime already present at {venv_python}, skipping")
@@ -518,7 +512,7 @@ def smoke_test_mlx(
                     if response.status == 200:
                         ready = True
                         break
-            except Exception:
+            except Exception:  # noqa: BLE001, S110 - a failed readiness probe is retried
                 pass
             time.sleep(1)
         if not ready:
