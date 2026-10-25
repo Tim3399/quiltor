@@ -201,7 +201,8 @@ code change). Any known vulnerability fails the gate, whatever its severity.
   jump cannot change lint results. Remove the entry once micromark-extension-math accepts a
   fixed katex.
 
-Exceptions (`osv-scanner.toml`): none.
+Exceptions (`osv-scanner.toml` in the root, passed with `--config` so it covers every lock,
+including the Python locks under `distribution/`): none.
 
 ## cargo-deny
 

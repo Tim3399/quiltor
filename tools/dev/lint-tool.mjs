@@ -209,7 +209,16 @@ function argumentsFor(name) {
     case "shellcheck":
       return { args: trackedFiles("*.sh", "**/*.sh") };
     case "osv-scanner":
-      return { args: ["scan", "source", ...osvLockfiles().flatMap((lock) => ["-L", lock])] };
+      return {
+        args: [
+          "scan",
+          "source",
+          // One config for every lock; by default osv-scanner looks next to each lockfile.
+          "--config",
+          resolve(ROOT, "osv-scanner.toml"),
+          ...osvLockfiles().flatMap((lock) => ["-L", lock]),
+        ],
+      };
     // --locked: the same graph every Cargo gate builds. deny.toml is found on its own.
     case "cargo-deny":
       return { args: ["--locked", "check"] };
