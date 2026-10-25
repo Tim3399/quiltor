@@ -329,3 +329,43 @@ down, with their sub-headings; heading text is unchanged, so anchors stay the sa
 in two architecture views became backticks, two fences in `CLAUDE.md` got a language, the
 blank line between consecutive quotes in `docs/plans/author-pilot.md` became a quote
 continuation, and a bare e-mail address became an autolink.
+
+## knip
+
+[knip](https://knip.dev) 6 finds unused files, unused exports and exported types, and
+dependencies that are unused or missing from `package.json`. It is pinned exactly as a
+devDependency.
+
+```bash
+npm run lint:knip
+```
+
+It is part of `npm run check` and of the `frontend` CI job. Configuration is in `knip.jsonc`,
+with a reason next to every entry. knip's plugins for Vite, Vitest, Playwright, ESLint,
+Stylelint, markdownlint, Biome, Prettier and TypeScript turn on by themselves from
+`package.json`, so their configs, specs and test files count as used without being listed.
+
+**Entry points added by hand.**
+
+| Pattern                                                                  | Reason                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tools/**/*.mjs`                                                         | Run from npm scripts, CI, Python and by hand; nothing imports them.                                                                                                                        |
+| `team/**/*.mjs`                                                          | Agent-team hooks and bootstrap, started by Claude Code hooks and `team/start-team.cmd`.                                                                                                    |
+| `src/quiltor/resources/sidecars/**/*.mjs`                                | The PDF sidecar, a package resource the Python server starts.                                                                                                                              |
+| `playwright*.config.ts`, `vite*.config.ts`                               | A pattern, not a list, so a new config (for example an audit config) is covered without an edit.                                                                                           |
+| `packages/client/src/design/{primitives,components,patterns}/*/index.ts` | The design-system Public API. `check_design_public_api.mjs` requires every runtime export of a component in its `index.ts`, so these exports stay even when no product code uses them yet. |
+
+**Ignored.** `dist/**` is build output. The dependency `playwright` is resolved by the PDF
+sidecar from the runtime image's own lockfile (see the `Dockerfile`), not from this package.
+
+**Exports kept on purpose.** An export knip would report but something needs carries a
+`/** @public <reason> */` tag, which knip honours:
+
+- `ManuscriptImportSourceProvenance` in `modules/manuscript/model.ts` — declaration emit has to
+  name it in the return type of an exported function (TS4058 otherwise).
+- `fulfillStoryboards` in `tests/e2e/support/application-api.ts` —
+  `tools/quality/e2e_world_lifecycle.test.mjs` asserts the export by source text.
+
+**Tools that run outside Node.** A devDependency that only a Python script or a CI step calls
+(for example `pyright` through `tools/dev/run_pyright.py`) is invisible to knip. List it in
+`ignoreDependencies` with the caller as the reason.
