@@ -146,6 +146,19 @@ extend-ignore-re = [
   "Favorit entfernen",
   "\"Januar\"",
 
+  # The layout audit's German mock world (tests/audit/support/audit-world.ts): fixture ids
+  # and fixture prose without a German letter. Narrow on purpose -- the file also holds
+  # English route-mocking code, which stays checked.
+  "\"(t-|i-)?archiv(ort)?\"",
+  "Eine Szene, die noch",
+  "Ein Anfang, der nicht",
+  "Wer hat sie dort versteckt",
+  "habe ich eine neue Figur",
+
+  # The umlaut transliteration table of slug() in tests/audit/support/enumerate.ts:
+  # .replace(/ä/g, "ae") ... Only the replacement strings, not "ue" in general.
+  '\.replace\(/[äöüÄÖÜß]/g, "(ae|oe|ue|ss|Ae|Oe|Ue)"\)',
+
   # The regular expressions that recognise German and English commands in a prompt. They
   # list stems, cut off on purpose ("analysier\\w*", "konsisten\\w*", "[Ll]ege").
   "analysier\\\\w\\*",
