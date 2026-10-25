@@ -118,7 +118,7 @@ if (mismatches === 0) {
 
 /*
  * The lint tools for workflows, Dockerfiles and shell scripts, and the dependency scanners.
- * They do not decide the exit code: the release does not depend on them. zizmor is needed
+ * They do not decide the exit code: the release does not depend on them. zizmor and typos are needed
  * by `npm run check`; the others run in CI, and locally only when they are installed.
  */
 console.log("\nLint tools (distribution/toolchains.json, lintTools):\n");
@@ -129,11 +129,12 @@ for (const name of [
   "shellcheck",
   "osv-scanner",
   "cargo-deny",
+  "typos",
 ]) {
   const expected = pinnedVersion(name);
   const found = locate(name);
   const matches = !found.missing && found.text === expected;
-  const role = name === "zizmor" ? "npm run check" : "CI; local if installed";
+  const role = name === "zizmor" || name === "typos" ? "npm run check" : "CI; local if installed";
   console.log(
     `${matches ? "  ok " : "  -- "}${name.padEnd(11)} wants ${expected.padEnd(9)} has ${found.text}   (${role})`,
   );

@@ -1,0 +1,175 @@
+# typos configuration -- spelling in code, comments, identifiers and English documentation.
+#
+#   npm run lint:typos        (part of `npm run check`; see docs/quality/linting.md)
+#
+# typos checks English. It cannot tell a German word from a misspelled English one, so
+# German content is kept out of its way, in three layers, narrowest first:
+#   1. [default.extend-ignore-re]: exact strings -- quoted German, deliberate misspellings,
+#      commit hashes.
+#   2. [default.extend-words]: single words that are not misspellings here. Either they are
+#      code (a persisted value, a third-party API name, an acronym), or they are German
+#      vocabulary from the interface text, assertion strings and fixture prose that sits in
+#      the sources. A word is only listed when it is implausible as an English typo; a
+#      German word that is also a plausible typo (brach/branch, fiel/file, bord/board) is
+#      ignored by its phrase in layer 1 instead.
+#   3. [files] extend-exclude: files that are German as a whole, or generated.
+# Nothing here hides an English file because it has many findings.
+
+[files]
+extend-exclude = [
+  # The interface itself: German product text (CLAUDE.md, "Language").
+  "locales/de/**",
+
+  # Build output. Minified bundles contain the German interface text and every identifier
+  # of the sources; the sources are the thing to check.
+  "dist/**",
+
+  # Generated from team/roles by team/sync.mjs (the same list as .prettierignore). The
+  # sources in team/ are excluded below.
+  ".claude/agents/**",
+  ".claude/output-styles/**",
+  "team/roles/**",
+
+  # The agent-team tooling is written in German: hook comments, messages and the join
+  # instructions are read by the team, not by a developer of the product.
+  "team/**",
+
+  # German documents, written for the author or for the German-speaking team.
+  "README.md",
+  "DESIGN.md",
+  "docs/ERSTE-SCHRITTE.md",
+  "docs/design/FRONTEND_STYLEGUIDE.md",
+  "docs/plans/**",
+  "packages/client/src/design/README.md",
+
+  # German manuscripts and fixture prose used as input: an author's material, not code
+  # (CLAUDE.md). The two scripts are data tables of German sentences and nothing else.
+  "tools/documentation/**/*.md",
+  "tools/evaluation/**/*.md",
+  "tests/fixtures/**",
+  "tools/documentation/readme_fixture.mjs",
+  "tools/evaluation/assistant/seed_synthetic_world.py",
+]
+
+[default]
+extend-ignore-re = [
+  # Commit hashes quoted in documents ("13dbe50" reads as "dbe").
+  "\\b[0-9a-f]{7,40}\\b",
+
+  # CLAUDE.md names the transliterations it tells the reader to grep for.
+  "`ae`/`oe`/`ue`",
+  # ... and quotes German phrases and persisted field names that were once German.
+  "`elementeVerborgen`",
+  "mischt benannte und unbenannte Geometrie",
+
+  # A SQL keyword in the plural: "UPDATEs" is split as UPDAT + Es.
+  "\\bUPDATEs\\b",
+  # "PNGs" is split as PN + Gs.
+  "\\bPNGs\\b",
+
+  # Deliberate misspellings: the grammar and autocomplete tests feed them in on purpose.
+  "\\bHelo\\b",
+  "suggest\\(\"Trak\"",
+  # Unicode character name in a fixture id (CYRILLIC LETTER TJE).
+  "cyrillic-tje",
+
+  # German phrases whose words are also plausible English typos. Each one is quoted from
+  # the interface text, an assertion or a fixture sentence.
+  "Anna (packte|brach)\\b",
+  "an Bord\\b",
+  "für deine Ideen",
+  "Mögliche Wege",
+  "\\$\\{days\\} Tage",
+  "Die Leinwand passt\\b",
+  "title\": \"Offen\"",
+  "name: \"Relativ\"",
+  "das Menue\\b",
+  "Mara fand die Karte",
+  "Mara legt die Briefe",
+  "Corvin habe eine",
+  "\\bIch habe\\b",
+  "Deshalb habe ich\\b",
+  "Verbindungen im Diagramm",
+  "\"Orte LOD-Welt\"",
+  "LEINWAND_TOLERANZ",
+  "Bleibt offen",
+  "Handlungszeit offen",
+  "noch offen\\?",
+  "\\$\\{offen \\?",
+  "name: \"Offen\"",
+  "deine (Daten|Welt)",
+  "Regen fiel",
+  "\\d Tage\\b",
+  ">Relativ<",
+  "Wege einblenden",
+  "Legende der",
+  "Favorit entfernen",
+  "\"Januar\"",
+
+  # The regular expressions that recognise German and English commands in a prompt. They
+  # list stems, cut off on purpose ("analysier\\w*", "konsisten\\w*", "[Ll]ege").
+  "analysier\\\\w\\*",
+  "onsisten\\\\w\\*",
+  "\\[Ll\\]ege",
+  "\\[Cc\\]reate",
+]
+
+[default.extend-words]
+# --- code, not prose -------------------------------------------------------------------
+# Persisted value: the element type "objekt" is an enum member of the story-world contract
+# (contracts/**/*.schema.json) and a column value in the SQLite schema. Renaming it needs a
+# migration of every stored document and a new contract version.
+objekt = "objekt"
+# PyInstaller's own keyword in quiltor.spec and its API (`datas`, `binaries`).
+datas = "datas"
+# Level of detail, the name of the zoom stages in the canvas code and its tests.
+lod = "lod"
+# Open Packaging Format, the EPUB package document.
+opf = "opf"
+
+# --- German vocabulary in the sources --------------------------------------------------
+ist = "ist"
+oder = "oder"
+als = "als"
+ein = "ein"
+titel = "titel"
+archiv = "archiv"
+aktion = "aktion"
+vor = "vor"
+lokale = "lokale"
+lokal = "lokal"
+lokales = "lokales"
+sie = "sie"
+falke = "falke"
+modell = "modell"
+ende = "ende"
+ordner = "ordner"
+suche = "suche"
+unter = "unter"
+assistent = "assistent"
+alle = "alle"
+elemente = "elemente"
+produkt = "produkt"
+prozess = "prozess"
+startet = "startet"
+beginn = "beginn"
+relevante = "relevante"
+szene = "szene"
+paket = "paket"
+referenz = "referenz"
+variante = "variante"
+normale = "normale"
+stil = "stil"
+feld = "feld"
+funktion = "funktion"
+separat = "separat"
+offener = "offener"
+autor = "autor"
+charakter = "charakter"
+aktive = "aktive"
+plattform = "plattform"
+vertikal = "vertikal"
+dokument = "dokument"
+geometrie = "geometrie"
+worte = "worte"
+toleranz = "toleranz"

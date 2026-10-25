@@ -514,3 +514,53 @@ sidecar from the runtime image's own lockfile (see the `Dockerfile`), not from t
 is invisible to knip. Prefer reaching it from a Node script through package resolution, the way
 `tools/dev/run-pyright.mjs` resolves `pyright/package.json`, so knip sees the use. Only when
 that is not possible, list it in `ignoreDependencies` with the caller as the reason.
+
+## typos
+
+Spelling in code, comments, identifiers, test titles and English documentation. It finds
+transposed letters, doubled letters and the like, and it is the check behind the three language sweeps
+described in `CLAUDE.md`: a typo in a name or a message costs time when someone searches for
+it.
+
+- **Version:** 1.51.1, pinned in `distribution/toolchains.json` (`lintTools.typos`) and,
+  hash-checked for every wheel, in `distribution/lint-tools.requirements.txt`.
+  `tools/dev/lint-tool.mjs` refuses any other version.
+- **Install:** the same line as for zizmor,
+  `py -3.12 -m pip install --require-hashes --only-binary=:all: -r distribution/lint-tools.requirements.txt`.
+- **Run:** `npm run lint:typos`. Part of `npm run check`, and of the `frontend` CI job through
+  it. A missing typos is an error, not a skip.
+- **Configuration:** `_typos.toml`, with the reason next to every entry.
+- **Why not `tools/dev/python.mjs`:** like zizmor, the wheel installs an executable and no
+  Python module.
+
+typos checks English and cannot tell a German word from a misspelled one. German content is
+kept out of its way in three layers, narrowest first; nothing is excluded because a file has
+many findings.
+
+1. **`extend-ignore-re`, exact strings.** Quoted German phrases whose words are plausible
+   English typos (`Anna brach auf`, `an Bord`, `für deine Ideen`), deliberate misspellings the
+   tests feed in (`Helo world`), commit hashes in documents, and the cut-off stems in the
+   prompt regexes (`analysier\w*`).
+2. **`extend-words`, single words.** Persisted or third-party names that are not
+   misspellings: `objekt` (an enum value of the story-world contract and the SQLite schema,
+   renamed only with a migration and a new contract version), `datas` (PyInstaller's keyword),
+   `lod` (level of detail), `opf` (EPUB package format). Then German vocabulary from the
+   interface text, assertion strings and fixture prose that sits in the sources (`ist`,
+   `oder`, `titel`, ...). A German word is listed only when it is implausible as an English
+   typo; one that is also a plausible typo (for example the past tense of an everyday verb) is
+   ignored by its phrase in layer 1 instead. `extend-words` is global because typos cannot
+   scope it to a path: its file types are exclusive, so a `.py` or `.ts` file never reaches a
+   custom type.
+3. **`[files] extend-exclude`, whole files.** `locales/de/**` (the interface), `dist/**`
+   (build output), the generated agent files (`.claude/agents`, `.claude/output-styles`,
+   `team/roles`, the same list as `.prettierignore`), `team/**` (the agent-team tooling is
+   written in German), German documents (`README.md`, `DESIGN.md`, `docs/ERSTE-SCHRITTE.md`,
+   `docs/design/FRONTEND_STYLEGUIDE.md`, `docs/plans/**`, `packages/client/src/design/README.md`),
+   the German manuscripts under `tools/documentation` and `tools/evaluation`,
+   `tests/fixtures/**`, and the two fixture scripts that are nothing but German sentences
+   (`tools/documentation/readme_fixture.mjs`,
+   `tools/evaluation/assistant/seed_synthetic_world.py`).
+
+When a new German test string trips typos, add the word to `extend-words` if it is clearly
+German and not a plausible English typo, otherwise ignore the phrase. Never rename a persisted
+field or a contract field to satisfy it; an exception with its reason goes in `_typos.toml`.
