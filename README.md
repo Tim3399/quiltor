@@ -228,7 +228,7 @@ Quiltor befindet sich in aktiver Entwicklung. Der Schwerpunkt liegt auf einem ru
 
 ---
 
-# Schnellstart
+## Schnellstart
 
 Ohne technische Vorkenntnisse: [Installation und erste Schreibaufgaben](docs/ERSTE-SCHRITTE.md).
 Die folgenden Befehle beschreiben den Start aus dem Quellcode.
@@ -255,11 +255,11 @@ Alternativ stehen CLI/Python-Pakete, Desktop-Builds und Docker-Betrieb zur Verf�
 
 ---
 
-# Technische Dokumentation
+## Technische Dokumentation
 
 Die folgenden Abschnitte beschreiben Installation, lokale Runtime, Authentifizierung, Backup, Desktop-/Docker-Betrieb, MCP, Entwicklung und Architektur.
 
-## Inhaltsübersicht
+### Inhaltsübersicht
 
 - [Installationswege](#installationswege)
 - [Lokaler Assistent und Runtime-Vertrag](#lokaler-assistent-und-runtime-vertrag)
@@ -278,9 +278,9 @@ Die folgenden Abschnitte beschreiben Installation, lokale Runtime, Authentifizie
 
 ---
 
-## Installationswege
+### Installationswege
 
-### Direkt aus dem Repository
+#### Direkt aus dem Repository
 
 Der gebaute Web-Client liegt bereits in `dist/`. Für Editor und lokale Speicherung sind keine Node-Abhängigkeiten erforderlich.
 
@@ -298,7 +298,7 @@ python3 apps/web/server.py 8080 --no-open  # Browser nicht automatisch öffnen
 python3 apps/web/server.py --print-token   # Zugriffstoken dieses Starts anzeigen
 ```
 
-### Python-Wheel / pip / pipx
+#### Python-Wheel / pip / pipx
 
 Die Release-Pipeline baut ein Python-Wheel und ein Source-Archiv für [GitHub Releases](https://github.com/Tim3399/quiltor/releases). Das gewünschte Paket aus den tatsächlich vorhandenen Release-Artefakten installieren; eine Veröffentlichung auf PyPI ist derzeit nicht eingerichtet.
 
@@ -331,7 +331,7 @@ aus den Paketressourcen auf; er fällt nicht auf einen zufällig vorhandenen
 Quellbaum zurück. Die Capability-Auswahl bleibt davon getrennt: ohne Extra wird
 deterministisch der typisierte Nicht-verfügbar-Renderer verwendet.
 
-### Entwicklung
+#### Entwicklung
 
 Ein Start direkt aus dem **Quellbaum** nutzt dagegen das mitgelieferte
 JavaScript-Render-Skript. Für Frontend-Entwicklung und diesen PDF-Pfad werden
@@ -363,7 +363,7 @@ npm run dev
 python3 apps/web/server.py 8010 --no-open
 ```
 
-### Werkzeuge für den Alltag
+#### Werkzeuge für den Alltag
 
 | Befehl                                                  | Wofür                                                                                                                                                 |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -379,7 +379,7 @@ dort sehen aus wie Befunde, ohne welche zu sein.
 
 ---
 
-## Lokaler Assistent und Runtime-Vertrag
+### Lokaler Assistent und Runtime-Vertrag
 
 Der Assistent durchsucht Kapitel, Notizen, Profile, Elemente, Beziehungen und Timeline-Zustände als lokalen Wissenskorpus. Antworten können auf anklickbare Projektquellen verweisen.
 
@@ -410,7 +410,7 @@ Oder ein bereits laufender lokaler Endpoint:
 QUILTOR_AI_URL=http://127.0.0.1:11435 python3 apps/web/server.py
 ```
 
-### Runtime-Vertrag
+#### Runtime-Vertrag
 
 `QUILTOR_AI_URL` ist **keine allgemeine OpenAI-Provider-Integration**. Die Runtime muss Quiltors stabilen lokalen Vertrag erfüllen:
 
@@ -424,7 +424,7 @@ POST /v1/chat/completions
 
 Die gebündelten Runtime-Backends verwenden aktuell ein Kontextfenster von 8192 Tokens. Anfragen an die gebündelte Runtime bleiben auf Loopback.
 
-### Lokalen Assistenten real testen
+#### Lokalen Assistenten real testen
 
 ```bash
 npm run test:assistant:local
@@ -436,7 +436,7 @@ Der Test startet Runtime, Testwelt und Quiltor in einem isolierten temporären V
 
 ---
 
-## MCP
+### MCP
 
 `src/quiltor/hosts/mcp/quiltor_server.py` stellt Retrieval und Weltpflege als MCP-Server bereit.
 
@@ -459,7 +459,7 @@ Projektkonfiguration unter Windows, macOS und Linux.
 
 ---
 
-## Deutsche Schreibwerkzeuge
+### Deutsche Schreibwerkzeuge
 
 Für Manuskripte mit Schreibsprache `de-DE` stehen lokal zur Verfügung:
 
@@ -506,7 +506,7 @@ Quellen, Versionen, Checksummen, Lizenzen und Attributionen stehen im Installati
 
 ---
 
-## Lokaler Zugriff und Authentifizierung
+### Lokaler Zugriff und Authentifizierung
 
 Es gibt keinen Modus „Authentifizierung aus“. Jede Anfrage besitzt eine Identität; lokal ist diese Identität einfach die Person an diesem Rechner.
 
@@ -536,7 +536,7 @@ Das automatisch generierte Token:
 
 Eine Instanz auf `0.0.0.0` ohne OIDC kann sich nicht auf die lokale Loopback-Identität verlassen und verlangt daher ein Token. Für dauerhafte Web-Bereitstellung ist OIDC/Keycloak der vorgesehene Weg.
 
-### Problembehebung
+#### Problembehebung
 
 | Symptom                                           | Lösung                                                                                                   |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -549,7 +549,7 @@ Eine Instanz auf `0.0.0.0` ohne OIDC kann sich nicht auf die lokale Loopback-Ide
 
 ---
 
-## Desktop-App
+### Desktop-App
 
 Quiltor kann unter macOS und Windows als eigenständige Fensteranwendung gebaut werden – ohne Browser-Tab und ohne separate Python-Installation auf dem Zielsystem. Die direkten Profile unterstützen derzeit macOS auf Apple Silicon und Windows x86_64.
 
@@ -613,13 +613,13 @@ Weitere Details und die vollständige Zielmatrix: [`distribution/README.md`](dis
 
 ---
 
-## Docker und Web-Demo
+### Docker und Web-Demo
 
 Quiltor kann als kleine Mehrbenutzer-Instanz hinter einem Reverse Proxy betrieben werden. In diesem Modus authentifiziert eine bestehende Keycloak-Instanz die Nutzer; jede Person sieht nur ihre eigenen Welten.
 
 Quiltor bringt **kein eigenes Keycloak** mit.
 
-### Keycloak-Client für die Web-Instanz
+#### Keycloak-Client für die Web-Instanz
 
 Empfohlene Einstellungen:
 
@@ -676,7 +676,7 @@ zusätzlich gegen die festgeschriebene SHA-256-Prüfsumme geprüft.
 
 Sitzungen liegen im Prozessspeicher. Ein Container-Neustart meldet Web-Nutzer daher ab.
 
-### Fertige Container-Images
+#### Fertige Container-Images
 
 Ein Versions-Bump in `VERSION` auf `main` löst die Release-Pipeline aus. Images werden unter:
 
@@ -689,7 +689,7 @@ veröffentlicht.
 
 ---
 
-## CLI
+### CLI
 
 Das `quiltor`-CLI ist bei pip/pipx-Installationen verfügbar.
 
@@ -728,7 +728,7 @@ Für Docker bleiben Umgebungsvariablen der primäre Konfigurationsweg.
 
 ---
 
-## Backup und Keycloak
+### Backup und Keycloak
 
 Keycloak kommt in zwei voneinander getrennten Rollen vor:
 
@@ -742,7 +742,7 @@ Keycloak kommt in zwei voneinander getrennten Rollen vor:
 
 Die beiden Wege dürfen dieselbe Realm verwenden, sind aber technisch getrennt.
 
-### Backup-Server: vertraulicher Client
+#### Backup-Server: vertraulicher Client
 
 Beispielname:
 
@@ -758,7 +758,7 @@ Einstellungen:
 
 Der Backup-Server validiert eingehende Access-Tokens über Keycloak Token Introspection.
 
-### Quiltor: öffentlicher Backup-Client
+#### Quiltor: öffentlicher Backup-Client
 
 Beispiel:
 
@@ -776,7 +776,7 @@ Einstellungen:
 
 Der wechselnde Loopback-Port ist beabsichtigt. Native Anwendungen sollen nach RFC 8252 dynamische Loopback-Ports verwenden können; deshalb darf der Keycloak-Client nicht auf einen einzigen festen Port eingeschränkt werden.
 
-### Scope `quiltor.backup`
+#### Scope `quiltor.backup`
 
 Der bereitgestellte Backup-Endpunkt verlangt standardmäßig den Scope:
 
@@ -788,7 +788,7 @@ Dadurch reicht nicht irgendein gültiges Token derselben Realm. Nur ein Token, d
 
 Optional kann zusätzlich eine Realm-Rolle verwendet werden, um den Scope nur ausgewählten Konten verfügbar zu machen.
 
-### Backup-Server-Variablen
+#### Backup-Server-Variablen
 
 | Variable                            | Zweck                                       |
 | ----------------------------------- | ------------------------------------------- |
@@ -823,7 +823,7 @@ GET /.well-known/oauth-protected-resource
 
 Quiltor liest diese Metadaten vor dem Login.
 
-### Backup-Fehlerdiagnose
+#### Backup-Fehlerdiagnose
 
 | Symptom                                              | Wahrscheinliche Ursache                                                    |
 | ---------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -834,7 +834,7 @@ Quiltor liest diese Metadaten vor dem Login.
 
 ---
 
-## Lokale Daten, Verlauf und Wiederherstellung
+### Lokale Daten, Verlauf und Wiederherstellung
 
 - Jede Welt besitzt eine eigene SQLite-Datei unter `data/worlds/`.
 - SQLite ist die maßgebliche Datenquelle.
@@ -846,7 +846,7 @@ Quiltor liest diese Metadaten vor dem Login.
 - Remote-Backup ist optional.
 - Weltinhalte, Modelle, Backups und Verlauf werden nicht öffentlich versioniert.
 
-### Hinweise beim Upgrade älterer Versionen
+#### Hinweise beim Upgrade älterer Versionen
 
 Aktuelle Builds verwenden immer eine Identität. Lokal übernimmt die lokale Identität; nicht auf Loopback gebundene Instanzen ohne OIDC benötigen ein Token.
 
@@ -856,7 +856,7 @@ Der Server besitzt keinen globalen Zustand „diese Welt ist gerade geöffnet“
 
 ---
 
-## Bedienung
+### Bedienung
 
 | Kürzel                             | Aktion                            |
 | ---------------------------------- | --------------------------------- |
@@ -870,7 +870,7 @@ Der Server besitzt keinen globalen Zustand „diese Welt ist gerade geöffnet“
 
 ---
 
-## Entwicklung und Qualität
+### Entwicklung und Qualität
 
 Der verbindliche [Projektstandard](docs/PROJECT_PROFILE.md) dokumentiert Formatter-Zuständigkeiten,
 Startbefehle, Agentenregeln und noch offene Anforderungen. Nach der Einrichtung startet `npm start`
@@ -951,7 +951,7 @@ Das Skript legt eine fiktive Demo-Welt an, prüft die API-Antworten und nimmt di
 
 ---
 
-## Architektur
+### Architektur
 
 ```text
 apps/                        sichtbare Shells und native Projektwurzeln
@@ -1017,7 +1017,7 @@ Aktuell bleibt Python/SQLite die maßgebliche Speicherimplementierung. Manuskrip
 
 ---
 
-## Status und Lizenz
+### Status und Lizenz
 
 Quiltor befindet sich in aktiver Entwicklung.
 
@@ -1030,7 +1030,7 @@ Es gilt wahlweise:
 
 Siehe [LICENSE](LICENSE).
 
-### Kostenlos ohne Rückfrage
+#### Kostenlos ohne Rückfrage
 
 - nicht-kommerzielle Nutzung: private Projekte, Hobby, Studium, Lehre, Forschung, gemeinnützige Organisationen und öffentliche Einrichtungen
 - kommerzielle Nutzung im Rahmen der PolyForm Small Business License: weniger als 100 Mitarbeitende/freie Mitarbeitende und weniger als 1.000.000 USD Umsatz im vorherigen Steuerjahr
@@ -1039,7 +1039,7 @@ Selbstständige Autorinnen und Autoren fallen praktisch immer unter diese Small-
 
 Für kommerzielle Nutzung oberhalb dieser Grenze ist eine individuelle Vereinbarung erforderlich:
 
-**tim.ratermann@outlook.de**
+**<tim.ratermann@outlook.de>**
 
 Details: [COMMERCIAL.md](COMMERCIAL.md)
 
