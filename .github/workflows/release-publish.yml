@@ -1,7 +1,11 @@
 name: Release Publish
 
 on:
-  workflow_run:
+  # workflow_run is the hand-off from Release Build and stays. zizmor flags it because the
+  # triggering run's inputs are untrusted; the publish job never checks out or executes
+  # them unverified: it re-reads the run through the API, requires release.yml on main at
+  # the current main head, and only then checks out that exact SHA.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: ["Release Build"]
     types: [completed]
   workflow_dispatch:
@@ -63,6 +67,7 @@ jobs:
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ steps.build.outputs.sha }}
           fetch-depth: 0
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -98,11 +103,13 @@ jobs:
             gh run download "$RUN_ID" --name windows-installer --dir release-assets
           fi
       - name: Verify manifest, revision and every expected artifact
+        env:
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
         run: >-
           python distribution/tooling/release_manifest.py verify
           --manifest release-assets/release-manifest.json
           --artifact-dir release-assets
-          --source-revision "${{ steps.build.outputs.sha }}"
+          --source-revision "$BUILD_SHA"
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -112,11 +119,12 @@ jobs:
       - name: Create a draft release from the verified build
         env:
           GH_TOKEN: ${{ github.token }}
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
         run: |
           set -euo pipefail
           VERSION="$(python -c "import json; print(json.load(open('release-assets/release-manifest.json'))['version'])")"
           MAIN_SHA="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
-          [ "${{ steps.build.outputs.sha }}" = "$MAIN_SHA" ] \
+          [ "$BUILD_SHA" = "$MAIN_SHA" ] \
             || { echo "::error::main moved to $MAIN_SHA before draft creation"; exit 1; }
           python distribution/tooling/previous_release.py \
             --check-not-older --current-version "$VERSION"
@@ -133,21 +141,22 @@ jobs:
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             [ "$(gh release view "v$VERSION" --json isDraft --jq .isDraft)" = true ] \
               || { echo "::error::v$VERSION is already published"; exit 1; }
-            [ "$(git rev-list -n 1 "v$VERSION")" = "${{ steps.build.outputs.sha }}" ] \
+            [ "$(git rev-list -n 1 "v$VERSION")" = "$BUILD_SHA" ] \
               || { echo "::error::existing draft points at another revision"; exit 1; }
             gh release upload "v$VERSION" --clobber "${ASSETS[@]}"
           else
-            gh release create "v$VERSION" --target "${{ steps.build.outputs.sha }}" \
+            gh release create "v$VERSION" --target "$BUILD_SHA" \
               --title "v$VERSION" --generate-notes --draft "${ASSETS[@]}"
           fi
       - name: Promote immutable images and publish the draft
         env:
           GH_TOKEN: ${{ github.token }}
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
         run: |
           set -euo pipefail
           VERSION="$(python -c "import json; print(json.load(open('release-assets/release-manifest.json'))['version'])")"
           MAIN_SHA="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
-          [ "${{ steps.build.outputs.sha }}" = "$MAIN_SHA" ] \
+          [ "$BUILD_SHA" = "$MAIN_SHA" ] \
             || { echo "::error::main moved to $MAIN_SHA before publication"; exit 1; }
           python distribution/tooling/previous_release.py \
             --check-not-older --current-version "$VERSION"

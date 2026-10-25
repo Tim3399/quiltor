@@ -133,9 +133,7 @@ def _valid_place_level(node: dict) -> bool:
         ):
             return False
     scale = node.get("mapScale")
-    if scale is not None and not _valid_map_scale(scale):
-        return False
-    return True
+    return not (scale is not None and not _valid_map_scale(scale))
 
 
 def _valid_map_scale(scale: object) -> bool:

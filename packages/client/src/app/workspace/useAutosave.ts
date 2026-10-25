@@ -20,6 +20,7 @@ export function useAutosave<T>(
   const dirty = useRef(false);
   const initialized = useRef(false);
   const acceptedReplacement = useRef<T | null>(null);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latest.current = value;
 
   const flush = useCallback((): Promise<void> => {
@@ -52,6 +53,7 @@ export function useAutosave<T>(
     return pending.current;
   }, [save, t]);
   const flushRef = useRef(flush);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   flushRef.current = flush;
 
   useEffect(() => {

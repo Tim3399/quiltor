@@ -67,7 +67,7 @@ def is_apple_silicon() -> bool:
             timeout=5,
         )
         return result.returncode == 0 and result.stdout.strip() == "1"
-    except Exception:
+    except Exception:  # noqa: BLE001 - any probe failure means "not available"
         return False
 
 

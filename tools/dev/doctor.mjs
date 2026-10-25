@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { installHint, locate, pinnedVersion } from "./lint-tool.mjs";
 
 /*
  * What the release preflight expects, and what is actually installed here.
@@ -113,6 +114,30 @@ if (mismatches === 0) {
       "tools than CI uses cannot be retraced.",
   );
   console.log("Everyday work -- npm start, npm test, the check gates -- is untouched by it.");
+}
+
+/*
+ * The lint tools for workflows, Dockerfiles and shell scripts, and the dependency scanners.
+ * They do not decide the exit code: the release does not depend on them. zizmor is needed
+ * by `npm run check`; the others run in CI, and locally only when they are installed.
+ */
+console.log("\nLint tools (distribution/toolchains.json, lintTools):\n");
+for (const name of [
+  "zizmor",
+  "actionlint",
+  "hadolint",
+  "shellcheck",
+  "osv-scanner",
+  "cargo-deny",
+]) {
+  const expected = pinnedVersion(name);
+  const found = locate(name);
+  const matches = !found.missing && found.text === expected;
+  const role = name === "zizmor" ? "npm run check" : "CI; local if installed";
+  console.log(
+    `${matches ? "  ok " : "  -- "}${name.padEnd(11)} wants ${expected.padEnd(9)} has ${found.text}   (${role})`,
+  );
+  if (!matches) console.log(`         ${installHint(name)}`);
 }
 
 process.exitCode = mismatches === 0 ? 0 : 1;

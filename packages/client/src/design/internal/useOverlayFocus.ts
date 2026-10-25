@@ -12,6 +12,7 @@ export function useOverlayFocus(
   returnFocusRef?: RefObject<HTMLElement | null>,
 ) {
   const onCloseRef = useRef(onClose);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   onCloseRef.current = onClose;
 
   useEffect(() => {

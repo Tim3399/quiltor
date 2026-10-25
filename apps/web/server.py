@@ -16,7 +16,6 @@ from quiltor.bootstrap.web import build_web_application  # noqa: E402
 from quiltor.hosts.web.server import main  # noqa: E402
 from quiltor.infrastructure.pdf import server_renderer  # noqa: E402
 
-
 if __name__ == "__main__":
     main(
         application=build_web_application(

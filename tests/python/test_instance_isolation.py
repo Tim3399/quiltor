@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 from quiltor.bootstrap import build_identity
 from quiltor.bootstrap.web import build_web_application
-from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.infrastructure.persistence.sqlite import config
+from quiltor.infrastructure.platform.ports import AppDirectories
 
 
 def _directories(root: Path) -> AppDirectories:

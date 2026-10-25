@@ -6,9 +6,10 @@ import hashlib
 import json
 import re
 import unicodedata
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any
 
 CURRENT_FORMAT_VERSION = 2
 SUPPORTED_FORMAT_VERSIONS = frozenset({1, CURRENT_FORMAT_VERSION})
@@ -322,7 +323,6 @@ def build_manifest_files(files: Iterable[tuple[str, bytes]]) -> dict[str, dict[s
 
 
 __all__ = [
-    "BackupContractError",
     "CURRENT_FORMAT_VERSION",
     "DATABASE_NAME",
     "DIGEST_RE",
@@ -330,6 +330,7 @@ __all__ = [
     "MAX_BLOB_BYTES",
     "MAX_MANIFEST_BYTES",
     "MAX_TOTAL_BYTES",
+    "BackupContractError",
     "ManifestFile",
     "ValidatedBackupManifest",
     "build_manifest_files",

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, Sequence
-
+from typing import Any, Literal
 
 ResolutionStatus = Literal["resolved", "ambiguous", "not_found"]
 ENTITY_ALIAS_NORMALIZATION_V1 = "quiltor.story-world.alias-ascii-v1"

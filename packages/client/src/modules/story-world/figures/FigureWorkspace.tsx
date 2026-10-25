@@ -77,6 +77,7 @@ function FigureWorkspaceInner({
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const latestState = useRef(state);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestState.current = state;
 
   const selected = state.nodes.find((node) => node.id === selectedId) ?? null;
@@ -113,6 +114,7 @@ function FigureWorkspaceInner({
     onConnectionError: setConnectionError,
   });
   const centerOnNode = useRef(canvas.centerOnNode);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   centerOnNode.current = canvas.centerOnNode;
 
   useEffect(() => {
@@ -149,6 +151,7 @@ function FigureWorkspaceInner({
       ? timeline.findIndex((moment) => moment.id === activeMomentId)
       : -1;
     if (index >= timeline.length - 1) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
       setPlaying(false);
       return;
     }

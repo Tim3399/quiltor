@@ -12,11 +12,11 @@ import unittest
 from unittest import mock
 
 from quiltor.bootstrap import build_identity
-from quiltor.modules.identity import service as identity
-from quiltor.modules.identity.auth import IdentityConfiguration
+from quiltor.infrastructure.identity import InMemoryRenderTokenStore, SQLiteOwnerIdentityStore
 from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.persistence.sqlite import config
-from quiltor.infrastructure.identity import InMemoryRenderTokenStore, SQLiteOwnerIdentityStore
+from quiltor.modules.identity import service as identity
+from quiltor.modules.identity.auth import IdentityConfiguration
 
 
 def local_identity(master_token: str | None = None, gateway=None, render_tokens=None):

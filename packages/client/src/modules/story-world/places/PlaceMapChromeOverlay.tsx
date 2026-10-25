@@ -165,6 +165,7 @@ export function PlaceMapChromeOverlay({
           safe.footer,
         )
       : undefined;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   layoutWidth.current = layout?.width ?? 0;
   const visualClip =
     map && layout

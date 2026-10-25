@@ -39,6 +39,12 @@ export type PlacesWorkspaceProps = {
 /** Mirrors StoryGraph.css, where the inspector column collapses at 820px. */
 export const PLACE_COMPACT_MEDIA_QUERY = "(max-width: 820px)";
 
+/** The frame a stored picture takes on the level, in flow units. */
+const mapFrame = (stored: StoredMapImage) => ({
+  mapWidth: DEFAULT_MAP_WIDTH,
+  mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),
+});
+
 export function PlacesWorkspace(props: PlacesWorkspaceProps) {
   return (
     <ReactFlowProvider>
@@ -81,6 +87,7 @@ function PlacesWorkspaceInner({
     () => typeof matchMedia === "function" && matchMedia(PLACE_COMPACT_MEDIA_QUERY).matches,
   );
   const latestState = useRef(state);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestState.current = state;
 
   const places = useMemo(() => placesOnLevel(state.nodes, levelId), [state.nodes, levelId]);
@@ -88,6 +95,7 @@ function PlacesWorkspaceInner({
   useEffect(() => {
     // Clear invalid identities as state changes, so undo cannot resurrect a
     // stale activation when several maps later reappear on this level.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setActiveMapState((current) => {
       if (!activeMap) return undefined;
       if (current && current.levelId === levelId && current.mapId === activeMap.id) return current;
@@ -119,6 +127,7 @@ function PlacesWorkspaceInner({
   useEffect(() => {
     if (!levelId) return;
     if (!state.nodes.some((node) => node.id === levelId && node.type === "ort"))
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
       setLevelId(undefined);
   }, [state.nodes, levelId]);
   // Looked up across the world rather than in the level's own list: a place
@@ -132,6 +141,7 @@ function PlacesWorkspaceInner({
   const selectedMap = selected?.mapImageId ? selected : null;
   // Crop belongs to the active surface, including while a child is selected.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     if (adjustingId && adjustingId !== activeMap?.id) setAdjustingId(undefined);
   }, [adjustingId, activeMap]);
   const selectPlace = useCallback(
@@ -249,12 +259,6 @@ function PlacesWorkspaceInner({
     }
   }, [t]);
 
-  /** The frame a stored picture takes on the level, in flow units. */
-  const mapFrame = (stored: StoredMapImage) => ({
-    mapWidth: DEFAULT_MAP_WIDTH,
-    mapHeight: Math.max(1, Math.round((DEFAULT_MAP_WIDTH * stored.height) / stored.width)),
-  });
-
   /**
    * Give a place a picture, or swap the one it has.
    *
@@ -318,6 +322,7 @@ function PlacesWorkspaceInner({
   }, [canvas, levelId, pickStoredImage, t]);
 
   const centerOnPlace = useRef(canvas.centerOnPlace);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   centerOnPlace.current = canvas.centerOnPlace;
 
   useEffect(() => {

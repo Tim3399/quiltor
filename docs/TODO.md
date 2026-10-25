@@ -36,11 +36,11 @@ results or an acceptance claim.
 
 ---
 
-# Product direction
+## Product direction
 
 Quiltor is writing software for people who want to write themselves.
 
-## P0 repository architecture cutover
+### P0 repository architecture cutover
 
 The repository/folder cutover is complete. Enforced boundaries live under
 `docs/architecture/`; further application, persistence, Assistant and portable
@@ -96,7 +96,7 @@ The product must keep four boundaries stable:
 
 ---
 
-# Product model
+## Product model
 
 Quiltor should converge on five primary pages:
 
@@ -120,7 +120,7 @@ The Storyboard is intended to be the **fifth and final major workspace**. Future
 
 ---
 
-# Roadmap overview
+## Roadmap overview
 
 There are two parallel product tracks:
 
@@ -146,7 +146,7 @@ They meet through a shared reference/evidence model.
 
 ---
 
-# P0 — Preserve the product invariant
+## P0 — Preserve the product invariant
 
 This is not a feature; it is a permanent release gate.
 
@@ -164,11 +164,11 @@ No future feature should pass review if it removes creative writing from the aut
 
 ---
 
-# P0 — Canon and temporal state foundation
+## P0 — Canon and temporal state foundation
 
 The current UI already behaves as if Timeline, Presence and temporal Relationships form one world state. The data model should catch up before more state semantics are added.
 
-## Normalize temporal world data
+### Normalize temporal world data
 
 - [x] Replace destructive figure aggregate rewrites with stable transactional upsert/sync persistence.
 - [x] Persist timeline moments as first-class data.
@@ -189,7 +189,7 @@ The current UI already behaves as if Timeline, Presence and temporal Relationshi
 - [x] Add referential integrity for element/place/moment/relationship IDs.
 - [x] Keep unknown state distinct from false / inactive state.
 
-## Timeline Time System / calendars
+### Timeline Time System / calendars
 
 - [x] Add Time System configuration directly to the Timeline workspace.
 - [x] Support:
@@ -210,7 +210,7 @@ The current UI already behaves as if Timeline, Presence and temporal Relationshi
 - Advanced leap rules, moons and multiple simultaneous calendars remain later work and are not
   part of the P0 calendar projection.
 
-## Canonical World State
+### Canonical World State
 
 - [x] Add a deterministic `WorldState(t)` resolver based on canonical signed timeline coordinates.
 - [x] Support state:
@@ -222,14 +222,14 @@ The current UI already behaves as if Timeline, Presence and temporal Relationshi
 - [x] Project existing relationship, death and presence state into the same snapshot model.
 - [x] Make the resolver independent of the LLM.
 
-## Story time vs manuscript order
+### Story time vs manuscript order
 
 - [x] Allow a chapter to optionally reference the story-time moment/range it represents.
 - [x] Keep chapter order independent from chronological world order.
 - [x] Support unanchored chapters.
 - [x] Support flashbacks without rearranging the world timeline.
 
-### Why P0
+#### Why P0
 
 This foundation is required for reliable:
 
@@ -242,11 +242,11 @@ This foundation is required for reliable:
 
 ---
 
-# P0 — Resolve-first world tools
+## P0 — Resolve-first world tools
 
 The assistant already generates constrained proposals. The next step is to stop asking the model to solve identity integrity by prompt alone.
 
-## Canonical entity resolution
+### Canonical entity resolution
 
 - [x] Build one resolver for world entities.
 - [x] Resolve exact names.
@@ -261,7 +261,7 @@ The assistant already generates constrained proposals. The next step is to stop 
   - `not_found`.
 - [x] Never silently merge two plausible entities.
 
-## Resolve before create
+### Resolve before create
 
 - [x] New manuscript-driven entity proposals require a prior resolution result.
 - [x] Exact/alias matches block duplicate creation.
@@ -274,7 +274,7 @@ The assistant already generates constrained proposals. The next step is to stop 
 - Preserve the same invariant when later ownership / membership / knowledge state is modeled.
 - [x] Prefer idempotent `ensure_*` semantics where suitable.
 
-## Tool loop
+### Tool loop
 
 - [x] Give the local assistant bounded read/resolve tools before proposal creation.
 - [x] Keep read tools side-effect free.
@@ -283,7 +283,7 @@ The assistant already generates constrained proposals. The next step is to stop 
 
 ---
 
-# P0 — Manuscript → World Model
+## P0 — Manuscript → World Model
 
 This is the primary AI use case.
 
@@ -291,7 +291,7 @@ This is the primary AI use case.
 
 The author should not have to manually reproduce the book in a Story Bible.
 
-## World discovery workflow
+### World discovery workflow
 
 - [x] Add **Update world from manuscript**.
 - [x] Support:
@@ -316,7 +316,7 @@ The author should not have to manually reproduce the book in a Story Bible.
 - [x] Carry earlier accepted/discovered entities through later chapter batches.
 - [x] Re-running analysis must not multiply the same entities/events.
 
-## Review
+### Review
 
 - [x] Group proposals by domain:
   - Elements;
@@ -333,7 +333,7 @@ The author should not have to manually reproduce the book in a Story Bible.
   - Disambiguate.
 - [x] Accepted groups remain one undoable operation where they belong together.
 
-## Claim vs canon
+### Claim vs canon
 
 - [x] Do not automatically promote every manuscript statement to objective truth.
 - [x] Start distinguishing:
@@ -345,7 +345,7 @@ The author should not have to manually reproduce the book in a Story Bible.
   - unresolved / ambiguous.
 - [x] Uncertain epistemic status requires review.
 
-### First useful slice
+#### First useful slice
 
 Do not wait for the generalized state engine to ship a first version. Start with the proposal kinds Quiltor already understands:
 
@@ -359,7 +359,7 @@ Then extend extraction as new state dimensions become available.
 
 ---
 
-## Next delivery after P0
+### Next delivery after P0
 
 Hierarchical chapter organization, the Figure / entity workspace overhaul and the first usable
 **P1 Storyboard** slice are complete. Explicit overlap ordering is now shipped; the deliberately
@@ -373,7 +373,7 @@ Recurring problems of comparable products are collected in
 
 ---
 
-# P1 — HIGH PRIORITY: Import existing manuscripts
+## P1 — HIGH PRIORITY: Import existing manuscripts
 
 Most authors arrive with a manuscript that already exists. Import is the moment they decide
 whether to switch, and comparable products lose trust exactly here: a LivingWriter import shrank a
@@ -381,7 +381,7 @@ whether to switch, and comparable products lose trust exactly here: a LivingWrit
 from the editor. Evidence:
 [`competitor pain points`](research/competitor-pain-points.md#2-import-that-silently-drops-text).
 
-## Formats
+### Formats
 
 - [x] DOCX — bounded manuscript import with Heading 1 chapter detection, reviewed merging,
       bold/italic text and explicit loss warnings; see [S13](plans/roadmap-followup-sprints.md).
@@ -392,7 +392,7 @@ from the editor. Evidence:
 - [ ] Scrivener `.scriv` projects — Scrivener is the tool most authors switch from.
 - Papyrus `.pap` stays out of scope; Papyrus exports DOCX and RTF.
 
-## Trustworthy import
+### Trustworthy import
 
 - [x] Preview detected DOCX/Markdown chapters and TXT paragraphs before anything is written.
 - [x] Correct chapter boundaries by splitting at a source paragraph or merging adjacent chapters;
@@ -414,13 +414,13 @@ from the editor. Evidence:
 - [ ] Import into a new world or append to an existing manuscript; one undo step either way.
 - [ ] Create a snapshot before importing into an existing world.
 
-## After import
+### After import
 
 - [ ] Offer **Update world from manuscript** directly after import, so figures, places and timeline
       fill themselves instead of being re-entered.
 - [ ] Show progress and keep the manuscript usable while a whole-book scan runs.
 
-## Editor round-trip (later)
+### Editor round-trip (later)
 
 - [ ] Re-import a DOCX that came back from an editor with tracked changes into the existing chapters
       without losing notes, references, story-time anchors or folder structure.
@@ -430,14 +430,14 @@ Do not prioritize Google Docs / Word add-ins before product-market fit.
 
 ---
 
-# P1 — Intuitiveness: Quiltor must not feel overwhelming
+## P1 — Intuitiveness: Quiltor must not feel overwhelming
 
 Five workspaces, a signed time axis, calendars, presence and an assistant are a lot to meet at once.
 Scrivener's compile, the Papyrus timeline and Aeon Timeline's terminology show how powerful features
 go unused when they feel like configuration. Evidence:
 [`competitor pain points`](research/competitor-pain-points.md#7-complexity-and-learning-curve).
 
-## Test with authors, not only by review
+### Test with authors, not only by review
 
 - [ ] Run moderated think-aloud sessions with about five authors per round who have never used
       Quiltor.
@@ -455,7 +455,7 @@ go unused when they feel like configuration. Evidence:
 - [ ] Repeat the round after the design overhaul and after each major workflow change.
 - [ ] Keep the findings with the change each one caused.
 
-## UI/UX review
+### UI/UX review
 
 - [ ] Heuristic review of every workspace: visible state, recognition over recall, consistency,
       error prevention and recovery.
@@ -468,7 +468,7 @@ go unused when they feel like configuration. Evidence:
 - [ ] Writing a first sentence requires no setup of world, timeline or assistant.
 - [ ] Without an installed model, assistant surfaces explain what is missing instead of failing.
 
-## Let the assistant take over bookkeeping
+### Let the assistant take over bookkeeping
 
 - [ ] List every manual maintenance task in Quiltor and classify it:
   - deterministic and automatic;
@@ -483,7 +483,7 @@ go unused when they feel like configuration. Evidence:
 
 ---
 
-# P1 — Better export
+## P1 — Better export
 
 Today Quiltor exports print PDFs and Markdown chapters/books, and its portable project archive can
 transfer a complete current project into a new project copy. Authors still need editor, agent,
@@ -492,7 +492,7 @@ understands (Scrivener) and exports that break later (EPUB rejected on upload, c
 missing in DOCX). Evidence:
 [`competitor pain points`](research/competitor-pain-points.md#3-export-and-compile-as-a-configuration-maze).
 
-## Formats
+### Formats
 
 - [x] DOCX manuscript for editors and agents, with review before download (S15, released in 3.21.0).
 - [x] German standard manuscript page (`Normseite`) as a one-click preset (S15, released in 3.21.0).
@@ -501,7 +501,7 @@ missing in DOCX). Evidence:
 - [x] Markdown chapter and book export for portability.
 - [ ] World data (figures, places, timeline) in a readable format.
 
-## Presets instead of a compile designer
+### Presets instead of a compile designer
 
 - [ ] Named presets (manuscript for an editor, Normseite, e-book, paperback) with few, clear options:
       title page, chapter numbering, scene separator, font.
@@ -513,7 +513,7 @@ missing in DOCX). Evidence:
 - [ ] Carry chapter numbers, titles, italics and scene separators into every format, in the binder's
       flattened order.
 
-## Verify before the author uploads
+### Verify before the author uploads
 
 - [ ] Validate EPUB output against the EPUB 3 specification in the release suite.
       S16 includes package/semantic regression tests in the backend suite and passed
@@ -527,11 +527,11 @@ missing in DOCX). Evidence:
 
 ---
 
-# P1 — Shared Notes system
+## P1 — Shared Notes system
 
 Notes should become a first-class writer workflow, not small textareas scattered through the UI.
 
-## One Notes primitive
+### One Notes primitive
 
 - [x] Create one reusable note editor for all currently shipped note owners:
   - figure/entity notes;
@@ -550,7 +550,7 @@ Notes should become a first-class writer workflow, not small textareas scattered
 - [x] Undo/redo consistent with the owning workspace.
 - [x] Large comfortable editing surface.
 
-## Focus Mode
+### Focus Mode
 
 - [x] Every substantial note can open in **Focus Mode**.
 - [x] Focus Mode uses nearly the full writing surface.
@@ -559,7 +559,7 @@ Notes should become a first-class writer workflow, not small textareas scattered
 - [x] Keyboard-accessible close/return.
 - [x] Do not create a second independent document when entering focus.
 
-## `@` references
+### `@` references
 
 - [x] Typing `@` opens keyboard-accessible entity/reference autocomplete.
 - [x] Reuse the same world-search candidate index used elsewhere.
@@ -573,7 +573,7 @@ Notes should become a first-class writer workflow, not small textareas scattered
 - [x] Clicking a reference navigates to the original object.
 - [x] References survive entity renames because they store IDs, not only visible names.
 
-## Backlinks
+### Backlinks
 
 - [x] Show where an object is referenced across every currently shipped source:
   - [x] notes;
@@ -585,18 +585,18 @@ Notes should become a first-class writer workflow, not small textareas scattered
 
 ---
 
-# P1 — Figure / entity workspace overhaul
+## P1 — Figure / entity workspace overhaul
 
 The current figure profile is useful but too prescriptive and the notes area is too small.
 
-## Notes-first profile
+### Notes-first profile
 
 - [x] Make Notes the only default long-form profile field.
 - [x] Give Notes a much larger working area.
 - [x] Add Focus Mode.
 - [x] Keep Notes easy to reach from the entity inspector.
 
-## Flexible fields
+### Flexible fields
 
 - [x] Stop forcing all new entities to show:
   - Age;
@@ -610,7 +610,7 @@ The current figure profile is useful but too prescriptive and the notes area is 
 - [x] Allow optional fields to be removed.
 - [x] Preserve existing 3.0.2 data during migration.
 
-## Entity navigation
+### Entity navigation
 
 - [x] Add reference/backlink section.
 - [x] Keep relationships and timeline history directly reachable.
@@ -618,7 +618,7 @@ The current figure profile is useful but too prescriptive and the notes area is 
 
 ---
 
-# P1 — Storyboard: fifth and final major page
+## P1 — Storyboard: fifth and final major page
 
 Storyboard is not a second canon system and not a generic drawing application.
 
@@ -638,7 +638,7 @@ board and selected card. Ordering acceptance now covers overlapping cards,
 persisted z-indices and wheel zoom over card content. Palette acceptance drags a
 blank Note to a deliberate canvas position and verifies reload persistence.
 
-## Core canvas
+### Core canvas
 
 - [x] Add `Storyboard` to the primary workspace navigation.
 - [x] Support multiple boards.
@@ -652,7 +652,7 @@ blank Note to a deliberate canvas position and verifies reload persistence.
 - [x] Undo/redo.
 - [x] Autosave.
 
-## Node types for v1
+### Node types for v1
 
 Keep the node model intentionally small:
 
@@ -671,7 +671,7 @@ Reference targets can point to:
 
 Do not build separate copies of those objects inside Storyboard.
 
-## Note cards
+### Note cards
 
 - [x] Storyboard text is a normal Quiltor Note.
 - [x] Drag a Note onto the canvas.
@@ -680,7 +680,7 @@ Do not build separate copies of those objects inside Storyboard.
 - [x] Open the note in the shared Notes Focus Mode.
 - [x] Use `@` references inside the note.
 
-## Search → Drag & Drop
+### Search → Drag & Drop
 
 This is a **required v1 feature**, not a later enhancement.
 
@@ -691,7 +691,7 @@ This is a **required v1 feature**, not a later enhancement.
 - [x] Double-click/open a reference node to navigate to the source workspace.
 - [x] Reuse the same search candidate/index layer as global search and `@` autocomplete.
 
-## Boards inside boards
+### Boards inside boards
 
 - [x] A board reference opens another Storyboard.
 - [x] Allow arbitrarily deep board linking.
@@ -704,7 +704,7 @@ This is a **required v1 feature**, not a later enhancement.
   - loose problems;
   - random ideas.
 
-## Canon boundary
+### Canon boundary
 
 - [x] Storyboard references mean **relevant to this idea**, not “this is true”.
 - [x] Storyboard connections are visual/planning connections, not canonical relationships.
@@ -712,7 +712,7 @@ This is a **required v1 feature**, not a later enhancement.
 - [x] Reality checks do not treat Storyboard content as canon.
 - [x] AI must label Storyboard context as planning context.
 
-## AI inside Storyboard
+### AI inside Storyboard
 
 Keep this deliberately narrow.
 
@@ -733,12 +733,12 @@ Not useful / do not build:
 
 ---
 
-# P1 — NEXT: Hierarchical chapter organization
+## P1 — NEXT: Hierarchical chapter organization
 
 The manuscript frontend must support a real hierarchical binder, not only a flat
 chapter list with one optional grouping level.
 
-## Folder tree
+### Folder tree
 
 - [x] Allow chapters to be placed inside folders.
 - [x] Allow folders to contain other folders.
@@ -759,7 +759,7 @@ chapter list with one optional grouping level.
 - [x] Allow folders to be collapsed/expanded in the binder.
 - [x] Preserve open/collapsed state as UI preference where useful.
 
-## Manuscript semantics
+### Manuscript semantics
 
 The folder tree is organizational metadata. It must not alter manuscript prose.
 
@@ -779,7 +779,7 @@ The folder tree is organizational metadata. It must not alter manuscript prose.
 - [x] Empty folders are valid.
 - [x] Folder depth must not leak into chapter identity or canon.
 
-## Continuous chapter navigation / overscroll switching
+### Continuous chapter navigation / overscroll switching
 
 The manuscript should feel like one continuous book while still keeping chapters as
 clear editing units.
@@ -822,7 +822,7 @@ Example at the bottom of a chapter:
 The interaction should reinforce that Quiltor is one manuscript, not a set of isolated
 documents, without turning the editor into uncontrolled infinite scrolling.
 
-## Cross-workspace integration
+### Cross-workspace integration
 
 - [x] Storyboard can reference a chapter regardless of folder depth.
 - [x] Search shows useful folder/breadcrumb context for chapters.
@@ -852,13 +852,13 @@ Manuscript
 This is a general author workflow and remains independent from any future DM/campaign
 mode.
 
-# P1 — Evidence / Provenance
+## P1 — Evidence / Provenance
 
 Quiltor should be able to answer:
 
 > **Why do we think this is true?**
 
-## Evidence sources
+### Evidence sources
 
 - [ ] Add provenance for AI-extracted canon proposals.
 - [ ] Track:
@@ -871,7 +871,7 @@ Quiltor should be able to answer:
 - [ ] Keep manual facts visibly manual.
 - [ ] Mark stale text evidence when its source revision no longer matches.
 
-## Navigation
+### Navigation
 
 - [ ] Evidence opens the original source.
 - [ ] Evidence links must never point to invented/nonexistent spans.
@@ -881,11 +881,11 @@ This should reuse concepts from manuscript mentions/references where possible, b
 
 ---
 
-# P1 — Generalized State Facts
+## P1 — Generalized State Facts
 
 Once `WorldState(t)` is stable, extend beyond relationship/presence/death.
 
-## v1 state dimensions
+### v1 state dimensions
 
 - [ ] ownership
 - [ ] membership
@@ -915,17 +915,17 @@ Requirements:
 
 ---
 
-# P1 — Chapter Reality Check
+## P1 — Chapter Reality Check
 
 This is the second major LLM use case after manuscript → world extraction.
 
-## Trigger
+### Trigger
 
 - [ ] Reality Check for current chapter.
 - [ ] Reality Check for selected chapters.
 - [ ] Optional check after meaningful author action, never an intrusive every-keystroke AI loop.
 
-## Deterministic first
+### Deterministic first
 
 Check structured state without the LLM wherever possible:
 
@@ -937,7 +937,7 @@ Check structured state without the LLM wherever possible:
 - [ ] exclusive ownership conflicts;
 - [ ] knowledge before acquisition.
 
-## Semantic second
+### Semantic second
 
 Use the LLM only for things requiring interpretation:
 
@@ -947,7 +947,7 @@ Use the LLM only for things requiring interpretation:
 - [ ] world-rule contradiction;
 - [ ] other contextual contradiction candidates.
 
-## Output
+### Output
 
 - [ ] Finding explains the issue.
 - [ ] Shows exact evidence.
@@ -960,7 +960,7 @@ Use the LLM only for things requiring interpretation:
 
 ---
 
-# P1 — Persistent Findings
+## P1 — Persistent Findings
 
 A reality check should not disappear when chat closes.
 
@@ -981,13 +981,13 @@ Start with a compact Findings surface before considering a new major page. Story
 
 ---
 
-# P2 — Retrieval v2
+## P2 — Retrieval v2
 
 Do not make embeddings the default response to every retrieval problem.
 
 The current lexical retriever is small, deterministic and testable. Improve it in measured steps.
 
-## Benchmark first
+### Benchmark first
 
 - [ ] Create realistic retrieval fixtures in German and English.
 - [ ] Include:
@@ -1000,7 +1000,7 @@ The current lexical retriever is small, deterministic and testable. Improve it i
   - evidence lookup.
 - [ ] Measure Recall@k / relevant-source rate.
 
-## FTS5 / BM25
+### FTS5 / BM25
 
 - [ ] Evaluate SQLite FTS5.
 - [ ] BM25 ranking.
@@ -1011,7 +1011,7 @@ The current lexical retriever is small, deterministic and testable. Improve it i
   - source/evidence kind.
 - [ ] Keep graph/world-state expansion.
 
-## Embeddings only if measured
+### Embeddings only if measured
 
 - [ ] Add a semantic fallback/hybrid score only if the benchmark proves it useful.
 - [ ] Compare local llama.cpp embedding mode vs lightweight ONNX approach.
@@ -1022,7 +1022,7 @@ The current lexical retriever is small, deterministic and testable. Improve it i
 
 ---
 
-# P2 — Incremental manuscript analysis
+## P2 — Incremental manuscript analysis
 
 Whole-book work must scale beyond re-running everything.
 
@@ -1036,7 +1036,7 @@ Whole-book work must scale beyond re-running everything.
 
 ---
 
-# P2 — More writing languages
+## P2 — More writing languages
 
 Interface language and manuscript writing language are different concepts.
 
@@ -1054,7 +1054,7 @@ Interface language and manuscript writing language are different concepts.
 
 ---
 
-# P2 — Story math and temporal constraints
+## P2 — Story math and temporal constraints
 
 After the basic resolver is stable:
 
@@ -1070,7 +1070,7 @@ Custom fantasy calendars come after these semantics are proven.
 
 ---
 
-# P2 — Series / Universe canon
+## P2 — Series / Universe canon
 
 Later, after single-book state works reliably:
 
@@ -1083,7 +1083,7 @@ Later, after single-book state works reliably:
 
 ---
 
-# P2 — MCP/API Story Intelligence
+## P2 — MCP/API Story Intelligence
 
 Keep MCP proposal-only for mutations.
 
@@ -1107,7 +1107,7 @@ Never add:
 
 ---
 
-# P2 — Device sync and cloud storage (optional subscription)
+## P2 — Device sync and cloud storage (optional subscription)
 
 Quiltor stays fully usable on one device without an account. Manual synchronization is implemented,
 but no managed subscription or billing flow is offered. Comparable products show what must not
@@ -1116,7 +1116,7 @@ offline work from two devices, and cloud-first apps lock authors out when the lo
 fails. Evidence:
 [`competitor pain points`](research/competitor-pain-points.md#4-sync-between-devices).
 
-## Principles
+### Principles
 
 - [x] The local world stays authoritative and fully usable offline.
 - [x] Manual sync runs through Quiltor's own revision-aware service, never by placing the SQLite
@@ -1129,7 +1129,7 @@ Remote authentication, quota, read-only policy and outages cannot block local wr
 restore, export or import. The cancellation requirement remains open because there is no billing or
 subscription lifecycle to exercise.
 
-## Behaviour
+### Behaviour
 
 - [ ] Sync per document revision (manuscript, story world, storyboard), reusing the existing revision
       checks.
@@ -1145,7 +1145,7 @@ The accepted implementation synchronizes a whole-project semantic snapshot on de
 run in the background or merge non-overlapping chapter text, so the broader per-document and merge
 items remain open.
 
-## Storage foundation: snapshot units, end-to-end encryption, retention
+### Storage foundation: snapshot units, end-to-end encryption, retention
 
 If a managed subscription is offered, cloud backup is intended to be its first paid part; no paid
 offer exists today. Sync builds on the same storage. Every snapshot stores the whole world database
@@ -1156,7 +1156,7 @@ Remote publication is explicit and `encryption` must be `none`. The reference se
 operator-configured account expiry and purge; this is separate from the snapshot retention
 and end-to-end encryption design below.
 
-### Decisions
+#### Decisions
 
 - Keycloak stays the identity provider for the hosted web app and the store apps.
 - One backup client for every host: the Python process on desktop, in store apps and in the hosted
@@ -1170,7 +1170,7 @@ and end-to-end encryption design below.
 - Automatic snapshots at most every 10 minutes, plus an upload queue for every snapshot that is not
   on the server yet.
 
-### Phase 1 — Snapshot format v3: units instead of the database (local, plaintext)
+#### Phase 1 — Snapshot format v3: units instead of the database (local, plaintext)
 
 - [ ] Split a snapshot into canonical JSON units (sorted keys, compact, UTF-8) built from the v1
       document contracts (`application/document_wire_v1.py`), so equal content yields the same blob:
@@ -1225,7 +1225,7 @@ and end-to-end encryption design below.
 adds only that chapter unit and `manuscript/index.json` (asserted by blob count);
 `tests/e2e/history-design.spec.ts` stays green; the change is proven with `tools/dev/mutate.mjs`.
 
-### Phase 2 — Local retention and automatic snapshots
+#### Phase 2 — Local retention and automatic snapshots
 
 - [ ] Pure, standard-library `retained(items, now) -> frozenset[str]` in
       `application/backup_retention.py`: keep everything with `at >= now - 30 days`, the newest
@@ -1251,7 +1251,7 @@ adds only that chapter unit and `manuscript/index.json` (asserted by blob count)
 **Exit:** the retention fixture is green; crash tests pass at every thinning step; autosave creates
 at most one snapshot per 10 minutes; History shows each snapshot's kind.
 
-### Phase 3 — End-to-end encryption and upload queue
+#### Phase 3 — End-to-end encryption and upload queue
 
 - [ ] Account key: 32 random bytes per Keycloak `sub`, wrapped twice: by a passphrase key derived
       with Argon2id (`cryptography` 50.0.0 ships `kdf.argon2`, so no new dependency) and by a
@@ -1302,7 +1302,7 @@ sentence); swapped blobs, a wrong world AAD or an altered envelope fail closed; 
 restores with the passphrase and with the recovery key; unchanged chapters are not uploaded again;
 the hosted web flow works with the session key.
 
-### Phase 4 — Server retention, garbage collection and usage
+#### Phase 4 — Server retention, garbage collection and usage
 
 - [ ] The server records `receivedAt` per envelope and applies `backup_retention.retained` to it, so
       client clocks and forged `created` values do not matter.
@@ -1320,7 +1320,7 @@ the hosted web flow works with the session key.
 **Exit:** GC tests pass with a frozen clock; an upload during GC loses nothing; reported usage
 matches the disk.
 
-### Out of scope here
+#### Out of scope here
 
 - Sync conflicts and merging (see Behaviour).
 - Buying and unlocking the subscription, e.g. mapping a store receipt to a Keycloak role.
@@ -1328,7 +1328,7 @@ matches the disk.
 - Retention for the rotating SQLite copies.
 - Pricing.
 
-### Risks
+#### Risks
 
 - Restoring through documents instead of a database file: stricter validators could later reject old
   snapshots. Keep the units on the v1 document contract and keep fixtures of older snapshots in the
@@ -1337,19 +1337,19 @@ matches the disk.
 - Compressing before encrypting reveals each unit's size; acceptable and documented.
 - The hosted web app is not end-to-end encrypted, and the browser says so.
 
-## Subscription hygiene
+### Subscription hygiene
 
 - [ ] Remind before renewal; cancelling is as easy as subscribing.
 - [x] Configured storage limits are shown plainly and never block local writing.
 
-## Host-folder safety
+### Host-folder safety
 
 - [ ] Warn when the data or backup directory lies inside OneDrive, iCloud Drive or Dropbox, where
       online-only placeholders make projects appear lost.
 
 ---
 
-# Consideration — stronger assistant for power users (subscription)
+## Consideration — stronger assistant for power users (subscription)
 
 The local model stays the default and keeps every assistant feature working. A subscription could
 additionally offer a stronger hosted model for authors who run large whole-book analyses. Quiltor is
@@ -1368,7 +1368,7 @@ Conditions if it is built:
 
 ---
 
-# P3 — Productization after core workflow proves itself
+## P3 — Productization after core workflow proves itself
 
 The repository already has strong packaging, auth, backup and CI foundations. Do not divert core product work into generic infrastructure unless a real release blocker appears.
 
@@ -1382,7 +1382,7 @@ Later:
 - [ ] signed/notarized release polish where required;
 - [ ] closed pilot with long-form authors.
 
-## Uploaded background map for Places — nice to have
+### Uploaded background map for Places — nice to have
 
 - [ ] Let the author upload an image as the background of the Places canvas.
 - [ ] Resize/move the map as one frame while anchored places retain their relative image positions.
@@ -1392,11 +1392,11 @@ Later:
 
 ---
 
-# Research / quality track
+## Research / quality track
 
 Run this alongside product work.
 
-## Continuity benchmark
+### Continuity benchmark
 
 - [ ] Build `quiltor-continuity-bench`.
 - [ ] Include supported errors:
@@ -1423,7 +1423,7 @@ Run this alongside product work.
   - retrieval Recall@k;
   - full vs incremental equivalence.
 
-### Non-negotiable benchmark gates
+#### Non-negotiable benchmark gates
 
 - [ ] 100% of displayed evidence links resolve to real sources.
 - [ ] No AI canon mutation without confirmation.
@@ -1432,7 +1432,7 @@ Run this alongside product work.
 
 ---
 
-# Candidates from competitor research
+## Candidates from competitor research
 
 Not prioritized. Each item answers a recurring complaint in
 [`competitor pain points`](research/competitor-pain-points.md); decide per item before it moves into
@@ -1462,11 +1462,11 @@ a milestone.
 
 ---
 
-# Suggested implementation sequence
+## Suggested implementation sequence
 
 This is the recommended order, not a promise of version numbers.
 
-## Milestone A — Domain foundation
+### Milestone A — Domain foundation
 
 1. Stable persistence + temporal storage normalization.
 2. Signed canonical timeline (`t<0`, `t=0`, `t>0`).
@@ -1480,7 +1480,7 @@ This is the recommended order, not a promise of version numbers.
 
 ---
 
-## Milestone B — Writer workflow foundation
+### Milestone B — Writer workflow foundation
 
 1. Shared Notes primitive.
 2. Notes Focus Mode.
@@ -1492,7 +1492,7 @@ This is the recommended order, not a promise of version numbers.
 
 ---
 
-## Milestone C — Storyboard
+### Milestone C — Storyboard
 
 1. Fifth workspace + persisted boards.
 2. Note/reference/board/group nodes.
@@ -1506,7 +1506,7 @@ This is the recommended order, not a promise of version numbers.
 
 ---
 
-## Milestone D — Automatic story bookkeeping
+### Milestone D — Automatic story bookkeeping
 
 1. Bounded read/resolve assistant tool loop.
 2. **Update world from manuscript**.
@@ -1519,7 +1519,7 @@ This is the recommended order, not a promise of version numbers.
 
 ---
 
-## Milestone E — Reality / Continuity
+### Milestone E — Reality / Continuity
 
 1. Deterministic rule engine.
 2. Chapter story-time anchors.
@@ -1532,7 +1532,7 @@ This is the recommended order, not a promise of version numbers.
 
 ---
 
-## Milestone F — Scale and adoption
+### Milestone F — Scale and adoption
 
 1. Retrieval benchmark.
 2. FTS5/BM25.
@@ -1546,7 +1546,7 @@ Import is no longer part of this milestone; it moved forward to the high-priorit
 
 ---
 
-# Explicit non-goals
+## Explicit non-goals
 
 Do not build these into the near-term roadmap:
 
@@ -1564,7 +1564,7 @@ Do not build these into the near-term roadmap:
 
 ---
 
-# Definition of a rounded Quiltor product
+## Definition of a rounded Quiltor product
 
 The core product feels complete when an author can:
 

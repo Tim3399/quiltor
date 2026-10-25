@@ -23,8 +23,11 @@ jobs:
           set -euo pipefail
           [ "$GITHUB_REF" = "refs/heads/main" ] \
             || { echo "::error::Release Build must run on refs/heads/main, not $GITHUB_REF"; exit 1; }
+      # Keeps the checkout token: the next step fetches origin/main to compare heads. This
+      # job uploads no artifact, so the persisted credential cannot leave the runner.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: true # zizmor: ignore[artipacked]
           fetch-depth: 0
       - name: Require the current main head
         run: |
@@ -42,6 +45,8 @@ jobs:
       PYTHONPATH: src
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.23.2"
@@ -72,6 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -104,6 +110,8 @@ jobs:
       image: ${{ steps.immutable.outputs.value }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           package-manager-cache: false # runs a script out of tools/, never npm ci
@@ -128,10 +136,12 @@ jobs:
             || { echo "::error::the committed Node 22.23.2 base image must be sha256-pinned"; exit 1; }
           REPOSITORY="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           BUILD_TAG="$REPOSITORY:build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
-          echo "repository=$REPOSITORY" >> "$GITHUB_OUTPUT"
-          echo "tag=$BUILD_TAG" >> "$GITHUB_OUTPUT"
-          echo "runtime_base_image=$WEB_RUNTIME_BASE_IMAGE" >> "$GITHUB_OUTPUT"
-          echo "node_base_image=$NODE_BASE_IMAGE" >> "$GITHUB_OUTPUT"
+          {
+            echo "repository=$REPOSITORY"
+            echo "tag=$BUILD_TAG"
+            echo "runtime_base_image=$WEB_RUNTIME_BASE_IMAGE"
+            echo "node_base_image=$NODE_BASE_IMAGE"
+          } >> "$GITHUB_OUTPUT"
       - id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
@@ -171,6 +181,8 @@ jobs:
       image: ${{ steps.immutable.outputs.value }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"
@@ -217,6 +229,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"
@@ -245,6 +259,8 @@ jobs:
       QUILTOR_REQUIRE_SIGNING: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.23.2"
@@ -281,6 +297,8 @@ jobs:
           security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           rm -f "$RUNNER_TEMP/certificate.p12"
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
+          # Unquoted on purpose: each existing keychain must arrive as its own argument.
+          # shellcheck disable=SC2046
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1)"
           [ -n "$IDENTITY" ] || { echo "::error::no valid Developer ID identity"; exit 1; }
@@ -290,23 +308,26 @@ jobs:
           echo "QUILTOR_NOTARY_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
       - run: bash distribution/desktop/macos/direct/build.sh
       - name: Verify and attest the signed notarized DMG
+        env:
+          RELEASE_VERSION: ${{ needs.version-check.outputs.version }}
         run: |
           set -euo pipefail
-          ARTIFACT="distribution/artifacts/macos-direct/Quiltor-${{ needs.version-check.outputs.version }}.dmg"
+          ARTIFACT="distribution/artifacts/macos-direct/Quiltor-$RELEASE_VERSION.dmg"
           codesign --verify --strict --verbose=2 "$ARTIFACT"
           xcrun stapler validate "$ARTIFACT"
           python distribution/tooling/release_manifest.py attest-signature \
             --artifact "$ARTIFACT" \
-            --version "${{ needs.version-check.outputs.version }}" \
+            --version "$RELEASE_VERSION" \
             --source-revision "$GITHUB_SHA" \
             --profile macos-direct --verified --notarized \
             --output "$ARTIFACT.signature.json"
       - name: Smoke native install, upgrade, launch and uninstall
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.version-check.outputs.version }}
         run: |
           bash distribution/desktop/macos/direct/smoke-install.sh \
-            "distribution/artifacts/macos-direct/Quiltor-${{ needs.version-check.outputs.version }}.dmg"
+            "distribution/artifacts/macos-direct/Quiltor-$RELEASE_VERSION.dmg"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: macos-dmg
@@ -326,6 +347,8 @@ jobs:
       QUILTOR_REQUIRE_SIGNING: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.23.2"
@@ -375,11 +398,13 @@ jobs:
         run: ./distribution/desktop/windows/direct/build.ps1
       - name: Attest the verified Authenticode installer
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.version-check.outputs.version }}
         run: |
-          $artifact = "distribution/artifacts/windows-direct/Quiltor-Setup-${{ needs.version-check.outputs.version }}.exe"
+          $artifact = "distribution/artifacts/windows-direct/Quiltor-Setup-$env:RELEASE_VERSION.exe"
           python distribution/tooling/release_manifest.py attest-signature `
             --artifact $artifact `
-            --version "${{ needs.version-check.outputs.version }}" `
+            --version "$env:RELEASE_VERSION" `
             --source-revision $env:GITHUB_SHA `
             --profile windows-direct --verified `
             --output "$artifact.signature.json"
@@ -388,10 +413,11 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.version-check.outputs.version }}
         run: >-
           ./distribution/desktop/windows/direct/smoke-install.ps1
           -CurrentInstaller
-          "distribution/artifacts/windows-direct/Quiltor-Setup-${{ needs.version-check.outputs.version }}.exe"
+          "distribution/artifacts/windows-direct/Quiltor-Setup-$env:RELEASE_VERSION.exe"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: windows-installer
@@ -439,6 +465,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"

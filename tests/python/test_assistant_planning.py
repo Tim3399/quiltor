@@ -3,15 +3,14 @@ import unittest
 from quiltor.modules.assistant import (
     AssistantRuntime,
     complete_compound_proposals,
+    existing_creation_target,
     presence_consistency_issues,
     required_proposal_kinds,
-    existing_creation_target,
     task_contract,
     validate_proposals,
     validate_world,
     verify_task_contract,
 )
-
 
 FIGURES = {
     "nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}],

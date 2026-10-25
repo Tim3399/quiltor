@@ -13,7 +13,6 @@ from quiltor.domain.story_world.entity_resolution import (
 from quiltor.infrastructure.persistence.sqlite import config, revisions, schema, story_world
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
-
 FIXTURE = json.loads(
     (
         Path(__file__).parents[2] / "contracts/fixtures/story-world/entity-resolution.v3.json"

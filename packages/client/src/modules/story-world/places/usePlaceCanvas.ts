@@ -144,6 +144,7 @@ export function usePlaceCanvas({
   const flow = useRef<ReactFlowInstance<PlaceFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestState.current = state;
 
   const level = useMemo(
@@ -200,6 +201,7 @@ export function usePlaceCanvas({
     ];
   }, [boundToGround, levelGround]);
   const latestGround = useRef(levelGround);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestGround.current = levelGround;
 
   // Arriving on a level should show what is on it, at the size it deserves:
@@ -211,8 +213,11 @@ export function usePlaceCanvas({
   // left, which is what a plain timeout ends up doing.
   const pendingFit = useRef(false);
   const previousLevel = useRef(levelId);
+  // eslint-disable-next-line react-hooks/refs -- render-time change detection of levelId; only flags a pending fit consumed by a later effect
   if (previousLevel.current !== levelId) {
+    // eslint-disable-next-line react-hooks/refs -- render-time change detection of levelId; only flags a pending fit consumed by a later effect
     previousLevel.current = levelId;
+    // eslint-disable-next-line react-hooks/refs -- render-time change detection of levelId; only flags a pending fit consumed by a later effect
     pendingFit.current = true;
   }
 
@@ -249,15 +254,19 @@ export function usePlaceCanvas({
   );
   const [nodes, setFlowNodes] = useState<PlaceFlowNode[]>(derivedNodes);
   const latestDerivedNodes = useRef(derivedNodes);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestDerivedNodes.current = derivedNodes;
   // Read inside a change handler, where the render's own `nodes` would be the
   // list from before the gesture started.
   const latestFlowNodes = useRef(nodes);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestFlowNodes.current = nodes;
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
   useEffect(() => {
     void levelId;
     if (dragSession.current) dragSession.current.cancelled = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setDragPreview(null);
     setLivePosition(null);
   }, [levelId]);
@@ -265,6 +274,7 @@ export function usePlaceCanvas({
   useEffect(() => {
     if (dragPreviewId && !state.nodes.some((node) => node.id === dragPreviewId)) {
       if (dragSession.current) dragSession.current.cancelled = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
       setDragPreview(null);
       setLivePosition(null);
       setFlowNodes(latestDerivedNodes.current);
@@ -301,6 +311,7 @@ export function usePlaceCanvas({
     }
     displayModes.current = next;
     if (changed.size === 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setMeasured((known) => {
       const clean = new Map(known);
       for (const id of changed) clean.delete(id);
@@ -339,6 +350,7 @@ export function usePlaceCanvas({
   // for the next node change.
   const laidOutMaps = useMemo(() => places.filter(isExpandedMap), [places]);
   const latestMaps = useRef(laidOutMaps);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestMaps.current = laidOutMaps;
   const pins = useMemo(
     () =>
@@ -417,7 +429,9 @@ export function usePlaceCanvas({
   useEffect(() => {
     if (!expandRequest || framedExpansion.current === expandRequest || !surface) return;
     const map = maps.find((node) => node.id === expandRequest.id);
-    if (!map || !map.width || !map.height || !flow.current) return;
+    if (!map?.width || !map.height || !flow.current) return;
+    const width = map.width;
+    const height = map.height;
     // Wait until the map and the inspector's new canvas width have landed. The
     // map already has its real size; only the camera travels to reveal it.
     const settle = window.setTimeout(() => {
@@ -432,7 +446,7 @@ export function usePlaceCanvas({
       // fitBounds uses the canvas-wide maxZoom and has no per-call cap. The
       // public projection helper lets this one reveal stop at natural size.
       const viewport = getViewportForBounds(
-        { ...map.position, width: map.width!, height: map.height! },
+        { ...map.position, width, height },
         surface.width,
         surface.height,
         minZoom ?? 0.08,
@@ -452,7 +466,8 @@ export function usePlaceCanvas({
   const edges = useMemo(
     () =>
       measuring
-        ? createPlaceMeasurementEdges({
+        ? // eslint-disable-next-line react-hooks/refs -- the ref is read inside a callback that runs after render, not during render
+          createPlaceMeasurementEdges({
             points: measurablePoints,
             selection: measureSelection,
             scaleFor: (from, to) => {
@@ -493,6 +508,7 @@ export function usePlaceCanvas({
     [fitTargets],
   );
   const latestFitOptions = useRef(fitViewOptions);
+  // eslint-disable-next-line react-hooks/immutability, react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestFitOptions.current = fitViewOptions;
 
   /**

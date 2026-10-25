@@ -11,14 +11,15 @@ import http.client
 import io
 import json
 import os
-from pathlib import Path
 import socket
 import socketserver
 import sys
 import tempfile
 import threading
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import build_identity, build_web_application
@@ -29,8 +30,8 @@ from quiltor.modules.identity import service as identity
 
 
 class ProbeHandler(server.Handler):
-    handled: list["ProbeHandler"] = []
-    state_before_head: list[tuple[list, object, int]] = []
+    handled: ClassVar[list["ProbeHandler"]] = []
+    state_before_head: ClassVar[list[tuple[list, object, int]]] = []
 
     def _respond(self, code: int = 200, body: bytes = b"ok") -> None:
         self.send_response(code)

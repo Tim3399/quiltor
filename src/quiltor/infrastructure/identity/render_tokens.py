@@ -62,4 +62,4 @@ class InMemoryRenderTokenStore:
                 self._tokens[token] = (entry[0], self._clock() - 1)
 
 
-__all__ = ["InMemoryRenderTokenStore", "MAX_RENDER_TOKENS"]
+__all__ = ["MAX_RENDER_TOKENS", "InMemoryRenderTokenStore"]

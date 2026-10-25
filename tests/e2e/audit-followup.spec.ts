@@ -193,7 +193,7 @@ async function expectContained(locator: Locator, page: Page) {
   ).toBeLessThanOrEqual(await page.evaluate(() => innerWidth + 1));
 }
 
-async function expectFrameContained(locator: Locator, page: Page) {
+async function expectFrameContained(locator: Locator, _page: Page) {
   await expect(locator).toBeVisible();
   const geometry = await locator.evaluate((element) => {
     const rect = element.getBoundingClientRect();

@@ -31,7 +31,7 @@ class AppDirectories:
     logs: Path
     temp: Path
 
-    def ensure(self) -> "AppDirectories":
+    def ensure(self) -> AppDirectories:
         for directory in (
             self.data,
             self.config,

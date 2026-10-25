@@ -14,6 +14,7 @@ import { createHttpApplicationGateway } from "../../packages/client/src/platform
 const platform = createPlatformGateway();
 configureQuiltorClient(createQuiltorClient(platform, createHttpApplicationGateway(platform)));
 
+// biome-ignore lint/style/noNonNullAssertion: #root is part of the static index.html this entry is built into.
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <I18nProvider>

@@ -29,16 +29,11 @@
 .ui-field__hint {
   margin: 0;
   font-size: var(--font-size-metadata);
+  color: var(--muted);
 }
 .ui-field__error {
   margin: 0;
   font-size: var(--font-size-body-compact);
-}
-.ui-field__description,
-.ui-field__hint {
-  color: var(--muted);
-}
-.ui-field__error {
   color: var(--error-text);
 }
 .ui-field > input,

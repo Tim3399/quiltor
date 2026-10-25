@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
+from quiltor.hosts.web import server
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
-from quiltor.hosts.web import server
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
 

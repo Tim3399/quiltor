@@ -95,6 +95,7 @@ export function BookContent({
 }
 
 function printedRuns(paragraph: { text: string; from: number }, marks: Chapter["marks"]) {
+  // biome-ignore-start lint/suspicious/noArrayIndexKey: runs are derived from the paragraph text and rebuilt whole; they hold no state, and their position is their only identity.
   return markedSegments(paragraph.text, paragraph.from, marks).map((segment, index) => {
     const text = segment.text.replace(/\n/g, " ");
     if (segment.bold && segment.italic)
@@ -107,4 +108,5 @@ function printedRuns(paragraph: { text: string; from: number }, marks: Chapter["
     if (segment.italic) return <em key={index}>{text}</em>;
     return <Fragment key={index}>{text}</Fragment>;
   });
+  // biome-ignore-end lint/suspicious/noArrayIndexKey: end of the printed runs.
 }

@@ -66,7 +66,7 @@ class _Preset:
 
 _PRESETS = {
     "editor": _Preset("Times New Roman", 360, "auto", 1440, 1440, 1440, 1440, 720),
-    # Word needs two extra twips beyond the nominal 60 × 144 grid before its
+    # Word needs two extra twips beyond the nominal 60 × 144 grid before its  # noqa: RUF003 - a real multiplication sign
     # fixed-pitch line breaker accepts the sixtieth Courier New 12 pt glyph.
     # Calibration still rejects a 61st glyph. Word also reserves a hidden footer
     # clearance at 720 twips; 598 is the closest measured footer position that
@@ -93,7 +93,7 @@ def serialize_docx(
     document = _document_xml(normalized, preset, options.page_numbers)
     if len(document) > MAX_DOCUMENT_XML_BYTES:
         raise ExportLimitExceeded("The generated manuscript XML exceeds the safe limit.")
-    if sum(1 for _node in ET.fromstring(document).iter()) > MAX_XML_NODES:
+    if sum(1 for _node in ET.fromstring(document).iter()) > MAX_XML_NODES:  # noqa: S314 - parses the XML this module just generated
         raise ExportLimitExceeded("The generated DOCX contains too many XML nodes.")
     members = {
         "[Content_Types].xml": _content_types(options.page_numbers),
@@ -160,8 +160,7 @@ def _validate_text(value: str) -> None:
         codepoint = ord(character)
         if (
             character == "\r"
-            or codepoint < 0x20
-            and character not in {"\t", "\n"}
+            or (codepoint < 0x20 and character not in {"\t", "\n"})
             or 0xD800 <= codepoint <= 0xDFFF
             or codepoint in {0xFFFE, 0xFFFF}
         ):

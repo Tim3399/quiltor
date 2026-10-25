@@ -71,7 +71,7 @@ both halves. `PLAYWRIGHT_BASE_URL` overrides the suite's end of it.
 A test that is green after a fix proves nothing on its own — it might have been green
 before. Undo the fix and watch the test fail:
 
-```
+```bash
 node tools/dev/mutate.mjs <file> --from "<text>" --to "<text>" -- <command>
 ```
 
@@ -93,7 +93,7 @@ on one machine that was Inkscape's bundled 3.12.12, which has neither ruff nor t
 A version check would have waved it through. Go through the launcher instead, naming what
 the command depends on:
 
-```
+```bash
 node tools/dev/python.mjs --needs ruff -m ruff format --check .
 ```
 

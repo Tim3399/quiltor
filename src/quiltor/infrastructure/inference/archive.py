@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import shutil
 import stat
 import tarfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
 from quiltor.infrastructure.inference.install_manifest import safe_relative_path
-
 
 MAX_ARCHIVE_FILES = 20_000
 MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024

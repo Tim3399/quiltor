@@ -8,17 +8,17 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
+from quiltor.application.backups import BackupAuthorization
 from quiltor.application.capabilities import (
     FREE_LOCAL_PRODUCT,
     Feature,
     FeatureAvailability,
     StaticCapabilitySource,
 )
-from quiltor.bootstrap import build_feature_availability
-from quiltor.application.backups import BackupAuthorization
 from quiltor.application.observability import Diagnostics, Metrics, StructuredLogger
-from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
+from quiltor.bootstrap import build_feature_availability
 from quiltor.infrastructure.backup.adapters import HttpRemoteBackupGateway
+from quiltor.infrastructure.commerce import FreeLocalEntitlementProvider
 from quiltor.infrastructure.inference.engine import LocalInferenceEngine
 from quiltor.infrastructure.observability import (
     InMemoryMetrics,
@@ -40,8 +40,8 @@ from quiltor.infrastructure.platform.runtime_target import (
     ReleaseChannel,
     RuntimeTarget,
 )
-from quiltor.modules.commerce.contract import Entitlement, EntitlementState
 from quiltor.modules.assistant.ports import InferenceUnavailableError
+from quiltor.modules.commerce.contract import Entitlement, EntitlementState
 
 
 class _Entitlements:

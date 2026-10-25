@@ -22,7 +22,7 @@ from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.platform.adapters.credentials import default_credential_vault
 from quiltor.infrastructure.platform.ports import CredentialVault
-from quiltor.modules.identity.auth import IdentityConfiguration, PENDING_LOGIN_TTL
+from quiltor.modules.identity.auth import PENDING_LOGIN_TTL, IdentityConfiguration
 
 DEFAULT_CLIENT_ID = "quiltor-desktop"
 DEFAULT_SCOPE = "quiltor.backup"
@@ -137,7 +137,7 @@ class BackupLoginRuntime:
             issuer, scope = self.issuer_for(base)
             self._gateway(issuer).discover()
             result = (issuer, scope, True)
-        except Exception:
+        except Exception:  # noqa: BLE001 - a failed discovery probe is cached as "not available"
             result = ("", "", False)
         with self._lock:
             self._probes[base] = (self._clock(), result)
@@ -291,7 +291,7 @@ class BackupLoginRuntime:
             # been verified and subject-bound; the already verified account is
             # intentionally retained.
             return updated
-        except Exception:
+        except Exception:  # noqa: BLE001 - a failed refresh means no refreshed session
             return None
 
     def access_token(self, base_url: str) -> str:
@@ -423,10 +423,10 @@ class BackupLoginRuntime:
 
 
 __all__ = [
-    "BackupLoginRuntime",
     "DEFAULT_CLIENT_ID",
     "DEFAULT_SCOPE",
     "PENDING_TTL",
     "VAULT_ACCOUNT",
     "VAULT_SERVICE",
+    "BackupLoginRuntime",
 ]

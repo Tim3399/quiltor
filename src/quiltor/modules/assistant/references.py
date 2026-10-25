@@ -54,8 +54,10 @@ def resolve_reference(
         if item.get("id")
         and (
             re.search(rf"(?<!\w){re.escape(str(item['id']))}(?!\w)", question, re.IGNORECASE)
-            or bool(str(item.get("title") or "").strip())
-            and str(item.get("title") or "").casefold() in folded
+            or (
+                bool(str(item.get("title") or "").strip())
+                and str(item.get("title") or "").casefold() in folded
+            )
         )
     ]
     explicit_ids = list(dict.fromkeys([*explicit_entity_ids, *explicit_moment_ids]))

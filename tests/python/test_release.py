@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -725,7 +726,7 @@ class PreflightContractTests(unittest.TestCase):
 
 
 class ReleaseManifestTests(unittest.TestCase):
-    MARKERS = {
+    MARKERS: ClassVar[dict[str, str]] = {
         "macos_direct": "distribution/release-targets/macos-direct.enabled",
         "windows_direct": "distribution/release-targets/windows-direct.enabled",
     }
@@ -1733,7 +1734,7 @@ class ThirdPartyNoticeContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         expected = {
-            "pyjwt": ("2.13.0", "MIT License"),
+            "pyjwt": ("2.15.0", "MIT License"),
             "cryptography": ("50.0.0", "Apache License 2.0"),
             "cffi": ("2.1.1", "MIT-0"),
             "pycparser": ("3.0", "3-Clause BSD License"),
