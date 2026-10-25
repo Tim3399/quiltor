@@ -215,7 +215,7 @@ def mirror_profiles(state, profile_dir: Path) -> None:
                     + (f" — {e['label']}" if e.get("label") else "")
                 )
         if relationships:
-            lines += ["## Verbindungen im Diagramm", ""] + relationships + [""]
+            lines += ["## Verbindungen im Diagramm", "", *relationships, ""]
 
         text = "\n".join(lines).rstrip() + "\n"
         path = profile_dir / fname

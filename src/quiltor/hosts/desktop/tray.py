@@ -11,8 +11,8 @@ tray and keep running in the background" feature, just quick actions while open)
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from quiltor.infrastructure.platform.constants import APP_NAME
 from quiltor.infrastructure.platform.system import (
@@ -23,7 +23,7 @@ from quiltor.infrastructure.platform.system import (
 
 def start_tray_icon(
     icon_path: Path, data_dir: Path, show_window: Callable[[], None], quit_app: Callable[[], None]
-) -> "pystray.Icon | None":  # noqa: F821
+) -> pystray.Icon | None:  # noqa: F821
     """Starts the tray icon and returns it (so callers can .stop() it on quit), or
     None if pystray/PIL aren't available -- the desktop app works fine without a
     tray icon, so a missing optional dependency shouldn't block startup."""

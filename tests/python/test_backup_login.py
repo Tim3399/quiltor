@@ -23,9 +23,9 @@ from unittest.mock import patch
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from quiltor.application.backups import BackupAuthorization
+from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.backup.login import BackupLoginRuntime
 from quiltor.infrastructure.persistence.sqlite import config
-from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.platform.adapters.credentials import RestrictedFileCredentialVault
 from tests.python.fake_issuer import FakeIssuer
 

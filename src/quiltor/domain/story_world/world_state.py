@@ -13,7 +13,6 @@ from typing import Any, Literal
 
 from quiltor.domain.story_world.validation import valid_figures
 
-
 UNKNOWN = "unknown"
 Phase = Literal["before", "at", "after"]
 WorldState = dict[str, Any]

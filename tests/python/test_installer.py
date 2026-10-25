@@ -1,8 +1,8 @@
 import contextlib
 import hashlib
 import io
-import stat
 import re
+import stat
 import tarfile
 import tempfile
 import threading
@@ -14,13 +14,13 @@ from unittest.mock import MagicMock, patch
 
 from quiltor.application.capabilities import Feature
 from quiltor.bootstrap import build_feature_availability
-from quiltor.infrastructure.inference import installer
-from quiltor.infrastructure.inference.coordinator import InstallationCoordinator
+from quiltor.infrastructure.inference import installer, transfer
 from quiltor.infrastructure.inference.archive import extract_archive, locate_expected_files
+from quiltor.infrastructure.inference.coordinator import InstallationCoordinator
 from quiltor.infrastructure.inference.install_manifest import (
-    ArtifactManifest,
     HUGGINGFACE_TREE_PAGE_LIMIT,
     LLAMA_CPP_RELEASE,
+    ArtifactManifest,
     github_runtime_artifact,
     huggingface_artifacts,
     huggingface_tree_api_url,
@@ -28,7 +28,6 @@ from quiltor.infrastructure.inference.install_manifest import (
     safe_relative_path,
 )
 from quiltor.infrastructure.inference.installation import LocalAssistantInstallation
-from quiltor.infrastructure.inference import transfer
 
 
 class _FakeResponse:

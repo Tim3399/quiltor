@@ -142,7 +142,7 @@ def load(database: sqlite3.Connection) -> dict[str, Any]:
     if row is None:
         ensure_primary(database)
         row = database.execute("SELECT * FROM time_systems WHERE is_primary=1").fetchone()
-    assert row is not None
+    assert row is not None  # noqa: S101 - type narrowing, not a runtime check
     system = decode_extra(row["extra_json"])
     system.update(
         id=row["id"],

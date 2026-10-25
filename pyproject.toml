@@ -130,3 +130,55 @@ extend-exclude = [
 indent-style = "space"
 quote-style = "double"
 line-ending = "lf"
+
+# ---------------------------------------------------------------- Linting
+
+[tool.ruff.lint]
+# An explicit rule set instead of Ruff's moving default, so a ruff bump cannot change
+# what the gate means. Pinned to ruff 0.16.4 in distribution/toolchains.json.
+#   E4/E7/E9  pycodestyle errors that are not formatting (imports, statements, syntax)
+#   F         pyflakes: unused imports/variables, undefined names
+#   B         bugbear: likely bugs and sharp edges
+#   UP        pyupgrade, relative to target-version py312
+#   RUF       Ruff-specific rules
+#   PERF      avoidable performance overhead in loops
+#   SIM       simplifiable constructs
+#   I         import sorting, so imports never churn in diffs
+#   S         bandit security checks; tests are exempt below
+#   BLE       blind `except Exception`; each remaining site carries a reasoned noqa
+select = ["E4", "E7", "E9", "F", "B", "UP", "RUF", "PERF", "SIM", "I", "S", "BLE"]
+ignore = [
+  # S603/S607: every subprocess call here takes an argument list (never shell=True) and
+  # launches a known tool (git, node, powershell, pandoc ...). Flagging each call site
+  # as "untrusted input" would only produce noqa noise; shell=True stays caught by S602.
+  "S603",
+  "S607",
+  # S310: every urlopen target is a fixed constant or an operator-configured endpoint
+  # (the backup base URL is scheme-checked in infrastructure/backup/remote.py); no
+  # request input chooses the URL.
+  "S310",
+  # UP042: str() and format() of a StrEnum member give its value, of a `(str, Enum)` member
+  # "Class.member". Switching would change behaviour, not just spelling.
+  "UP042",
+  # PERF401: every remaining hit is an append inside nested loops with conditions (AST
+  # walks, file scans). A comprehension there is harder to read and the gain is nil.
+  "PERF401",
+]
+
+# Not selected, deliberately:
+#   TRY   style opinions (TRY003 alone is 1000+ hits on ordinary messages) and TRY004
+#         would change which exception type callers see.
+#   PT    the suites use unittest, not pytest.
+#   ANN, D, COM, ...  annotation/docstring/comma style is owned by the formatter and review.
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use assert, fixed throwaway credentials, temp paths and subprocesses by design.
+# SIM117: mock-heavy tests nest `with patch(...)` blocks on purpose; merging them into one
+# 100-column statement makes the setup harder to read. BLE001: tests catch broadly to assert.
+"tests/**" = ["S", "SIM117", "BLE001"]
+# Request boundary: any exception inside a handler becomes an error response.
+"src/quiltor/delivery/http/routes/*.py" = ["BLE001"]
+# Entry-point scripts put the source tree on sys.path before they can import from it.
+"services/backup-server/server.py" = ["E402"]
+"src/quiltor/hosts/mcp/quiltor_server.py" = ["E402"]
+"tools/evaluation/assistant/seed_*.py" = ["E402"]

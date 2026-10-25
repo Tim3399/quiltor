@@ -160,11 +160,11 @@ def _delete_missing_rows(
 ) -> None:
     removed = [
         (row[0],)
-        for row in database.execute(f"SELECT {id_column} FROM {table}")
+        for row in database.execute(f"SELECT {id_column} FROM {table}")  # noqa: S608 - table and column are module constants
         if row[0] not in retained_ids
     ]
     if removed:
-        database.executemany(f"DELETE FROM {table} WHERE {id_column}=?", removed)
+        database.executemany(f"DELETE FROM {table} WHERE {id_column}=?", removed)  # noqa: S608 - table and column are module constants
 
 
 def _sync_connection_order(database: sqlite3.Connection, ordered_ids: list[str]) -> None:

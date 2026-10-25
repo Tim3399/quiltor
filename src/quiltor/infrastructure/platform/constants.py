@@ -4,4 +4,4 @@ APP_NAME = "Quiltor"
 APPLICATION_ID = "app.quiltor.desktop"
 CREDENTIAL_SERVICE = "app.quiltor.credentials"
 
-__all__ = ["APP_NAME", "APPLICATION_ID", "CREDENTIAL_SERVICE"]
+__all__ = ["APPLICATION_ID", "APP_NAME", "CREDENTIAL_SERVICE"]

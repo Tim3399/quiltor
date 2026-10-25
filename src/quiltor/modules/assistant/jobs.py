@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import suppress
 from typing import Any
 
 from quiltor.application.observability import Metrics, StructuredLogger
@@ -252,16 +253,15 @@ class AssistantJobRunner:
                 continue
             try:
                 self._execute(job)
-            except Exception as exc:
-                try:
+            except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the worker
+                # Recording the failure is best effort.
+                with suppress(Exception):
                     self.store.finish_failure(
                         str(job["id"]),
                         str(exc),
                         classify_assistant_error(exc),
                         assistant_error_status(exc),
                     )
-                except Exception:
-                    pass
                 self.metrics.increment("assistant_jobs_failed", error=type(exc).__name__)
                 self.structured_logger.event(
                     "error",
@@ -349,7 +349,7 @@ class AssistantJobRunner:
                     sources=len(result.get("sources", [])),
                     proposals=len(result.get("proposals", [])),
                 )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the worker
             interaction_id = ""
             if (
                 not self.store.cancel_requested(job_id)
@@ -363,7 +363,7 @@ class AssistantJobRunner:
                         owner_sub=owner_sub,
                         world_id=world_id,
                     )
-                except Exception as log_exc:
+                except Exception as log_exc:  # noqa: BLE001 - a failed interaction log must not mask the job error
                     self.structured_logger.event(
                         "error",
                         "assistant.interaction_log_failed",

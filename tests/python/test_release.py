@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -725,7 +726,7 @@ class PreflightContractTests(unittest.TestCase):
 
 
 class ReleaseManifestTests(unittest.TestCase):
-    MARKERS = {
+    MARKERS: ClassVar[dict[str, str]] = {
         "macos_direct": "distribution/release-targets/macos-direct.enabled",
         "windows_direct": "distribution/release-targets/windows-direct.enabled",
     }

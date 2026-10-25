@@ -10,12 +10,12 @@ import ssl
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 from quiltor.infrastructure.inference.install_manifest import ArtifactManifest
-
 
 MAX_METADATA_BYTES = 4 * 1024 * 1024
 MAX_REDIRECTS = 3
@@ -80,7 +80,7 @@ def _origin(value: str) -> tuple[str, str, int]:
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
 
@@ -93,7 +93,7 @@ class _ArtifactRedirect(urllib.request.HTTPRedirectHandler):
         }
         self._hops = 0
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         self._hops += 1
         destination = urljoin(req.full_url, newurl)
         parsed = urlsplit(destination)

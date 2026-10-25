@@ -294,7 +294,7 @@ def _install_llm_step() -> None:
     )
     try:
         installation.install_selected("auto")
-    except (SystemExit, Exception) as exc:
+    except (SystemExit, Exception) as exc:  # noqa: BLE001 - setup failures of any kind end in a message, not a traceback
         # Also catches network/subprocess failures the installer surfaces as
         # SystemExit (e.g. an unsupported platform) -- see ensure_installed().
         typer.echo(f"! Setup failed: {exc}", err=True)
@@ -336,7 +336,7 @@ def _install_writing_assistance_step() -> None:
             typer.echo(f"Downloading and setting up LanguageTool {grammar['version']} locally …")
             installed = service.install_grammar()
             typer.echo(f"✓ LanguageTool {installed['version']} installed.")
-    except (SystemExit, Exception) as exc:
+    except (SystemExit, Exception) as exc:  # noqa: BLE001 - setup failures of any kind end in a message, not a traceback
         typer.echo(f"! Writing tools setup failed: {exc}", err=True)
         typer.echo("Quiltor will continue with browser spellchecking. Retry with: quiltor install")
     finally:

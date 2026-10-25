@@ -11,7 +11,6 @@ from quiltor.domain.storyboard import default_storyboard_document, valid_storybo
 from quiltor.infrastructure.persistence.sqlite.codec import decode_extra, encode_extra
 from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
 
-
 _DOCUMENT_FIELDS = {"boards", "nodes", "edges"}
 _BOARD_FIELDS = {"id", "title"}
 _NODE_FIELDS = {
@@ -98,11 +97,11 @@ def _delete_missing_rows(
 ) -> None:
     removed = [
         (row[0],)
-        for row in database.execute(f"SELECT id FROM {table}")
+        for row in database.execute(f"SELECT id FROM {table}")  # noqa: S608 - table is a module constant
         if row[0] not in retained_ids
     ]
     if removed:
-        database.executemany(f"DELETE FROM {table} WHERE id=?", removed)
+        database.executemany(f"DELETE FROM {table} WHERE id=?", removed)  # noqa: S608 - table is a module constant
 
 
 def _node_extra(node: dict[str, Any]) -> str:
