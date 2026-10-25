@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { requestJson } from "./request";
+import { postJson, requestJson } from "./request";
 
 const revisionConflictFixture = JSON.parse(
   readFileSync(
@@ -10,6 +10,83 @@ const revisionConflictFixture = JSON.parse(
 ) as Record<string, unknown>;
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("JSON POST delegation", () => {
+  it("serializes before starting fetch and omits an unsupplied signal", async () => {
+    const body = { title: "Neue Welt", nested: { enabled: true } };
+    const fetchMock = vi.fn(() => {
+      body.nested.enabled = false;
+      return Promise.resolve(new Response('{"ok":true}', { status: 200 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = postJson<{ ok: boolean }>("/api/example?world=first", body);
+
+    expect(fetchMock.mock.calls).toStrictEqual([
+      [
+        "/api/example?world=first",
+        {
+          cache: "no-store",
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: '{"title":"Neue Welt","nested":{"enabled":true}}',
+        },
+      ],
+    ]);
+    await expect(request).resolves.toEqual({ ok: true });
+  });
+
+  it.each([undefined, new AbortController().signal])(
+    "preserves an explicitly supplied signal including undefined: %s",
+    async (signal) => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const request = postJson("/api/example", {}, signal);
+
+      expect(fetchMock.mock.calls).toStrictEqual([
+        [
+          "/api/example",
+          {
+            cache: "no-store",
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+            signal,
+          },
+        ],
+      ]);
+      expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(signal);
+      await expect(request).resolves.toEqual({ ok: true });
+    },
+  );
+
+  it("throws a serialization error synchronously before delegating", () => {
+    const failure = new Error("Serialization failed");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = {
+      toJSON: () => {
+        throw failure;
+      },
+    };
+
+    expect(() => postJson("/api/example", body)).toThrow(failure);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("throws for circular and BigInt bodies before starting a request", () => {
+    const circular: { self?: unknown } = {};
+    circular.self = circular;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const body of [circular, { value: 1n }]) {
+      expect(() => postJson("/api/example", body)).toThrow(TypeError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  });
+});
 
 describe("HTTP application errors", () => {
   it("maps HTTP authorization to a transport-neutral stable code", async () => {

@@ -10,7 +10,13 @@ import { decodeManuscriptV1 } from "../contracts/v1/manuscript";
 import { decodeStoryboardsV1 } from "../contracts/v1/storyboards";
 import { decodeStoryWorldV1 } from "../contracts/v1/storyWorld";
 import { currentMessages } from "./locale";
-import { type HttpApplicationState, requestJson, withWorldBody, withWorldQuery } from "./request";
+import {
+  type HttpApplicationState,
+  postJson,
+  requestJson,
+  withWorldBody,
+  withWorldQuery,
+} from "./request";
 
 function backupStatus(value: unknown) {
   try {
@@ -113,26 +119,16 @@ export function createBackupHttpGateway(state: HttpApplicationState): BackupGate
     status: async () =>
       backupStatus(await requestJson<BackupStatusWireV1>(withWorldQuery(state, "/api/backup"))),
     saveSnapshot: async (message: string, upload: boolean) => {
-      const wire = await requestJson<unknown>("/api/backup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(withWorldBody(state, { message, push: upload })),
-      });
+      const wire = await postJson<unknown>(
+        "/api/backup",
+        withWorldBody(state, { message, push: upload }),
+      );
       return snapshotResult(wire);
     },
     loginStatus: () => requestJson<BackupLoginStatus>(withWorldQuery(state, "/api/backup/login")),
-    beginLogin: () =>
-      requestJson<BackupLoginStart>(withWorldQuery(state, "/api/backup/login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      }),
+    beginLogin: () => postJson<BackupLoginStart>(withWorldQuery(state, "/api/backup/login"), {}),
     signOut: () =>
-      requestJson<{ ok: true; signedIn: false }>(withWorldQuery(state, "/api/backup/logout"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      }),
+      postJson<{ ok: true; signedIn: false }>(withWorldQuery(state, "/api/backup/logout"), {}),
     list: () =>
       requestJson<{
         ok: true;
@@ -148,11 +144,7 @@ export function createBackupHttpGateway(state: HttpApplicationState): BackupGate
       ),
     restore: async (name: string) =>
       restoreResult(
-        await requestJson<unknown>("/api/backups/restore", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(withWorldBody(state, { name })),
-        }),
+        await postJson<unknown>("/api/backups/restore", withWorldBody(state, { name })),
       ),
   };
 }

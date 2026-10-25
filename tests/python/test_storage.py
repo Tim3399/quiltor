@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from quiltor.infrastructure.persistence import mirror
 from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
@@ -301,6 +302,255 @@ class StorageTest(unittest.TestCase):
     def tearDown(self):
         config.DATA, config.DB, config.BACKUPS, config.WORLDS = self.original
         self.temp.cleanup()
+
+    def test_reordering_edges_and_presence_preserves_exact_rowids_and_dependents(self):
+        schema.initialize()
+        story_world.save(temporal_figure_state())
+        original = story_world.load()
+        reordered = copy.deepcopy(original)
+        reordered["edges"].reverse()
+        reordered["presence"].reverse()
+        with sqlite_connection() as conn:
+            for table in ("connections", "presence_states"):
+                conn.execute(
+                    f"CREATE TABLE dependent_{table}("
+                    f"owner_id TEXT PRIMARY KEY REFERENCES {table}(id) ON DELETE CASCADE, "
+                    "value TEXT NOT NULL)"
+                )
+                conn.execute(f"INSERT INTO dependent_{table} SELECT id, 'kept' FROM {table}")
+            before = {
+                table: table_rows_with_rowid(conn, table)
+                for table in ("connections", "presence_states", "relationship_states")
+            }
+        self.assertEqual([row[0] for row in before["connections"]], [1, 2])
+        self.assertEqual([row[0] for row in before["presence_states"]], [1, 2, 3])
+
+        with sqlite_connection() as conn:
+            statements = []
+            conn.set_trace_callback(statements.append)
+            story_world.save(reordered, conn=conn)
+            after = {
+                table: table_rows_with_rowid(conn, table)
+                for table in ("connections", "presence_states", "relationship_states")
+            }
+            self.assertEqual([row[0] for row in after["connections"]], [3, 4])
+            self.assertEqual([row[0] for row in after["presence_states"]], [4, 5, 6])
+            for table in ("connections", "presence_states"):
+                self.assertEqual(
+                    [row[1:] for row in after[table]], [row[1:] for row in reversed(before[table])]
+                )
+                self.assertEqual(
+                    [
+                        tuple(row)
+                        for row in conn.execute(
+                            f"SELECT * FROM dependent_{table} ORDER BY owner_id"
+                        )
+                    ],
+                    sorted((row[1], "kept") for row in before[table]),
+                )
+            self.assertEqual(after["relationship_states"], before["relationship_states"])
+            self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+            operations = [
+                sql
+                for sql in statements
+                if sql
+                in (
+                    "SELECT id FROM presence_states",
+                    "SELECT id FROM presence_states ORDER BY rowid",
+                    "SELECT COALESCE(MAX(rowid), 0) FROM presence_states",
+                    "SELECT id FROM connections",
+                    "SELECT id FROM connections ORDER BY rowid",
+                    "SELECT COALESCE(MAX(rowid), 0) FROM connections",
+                    "SELECT id FROM figures",
+                    "SELECT id FROM timeline_moments",
+                )
+                or sql.startswith(
+                    ("UPDATE presence_states SET rowid=", "UPDATE connections SET rowid=")
+                )
+            ]
+            self.assertEqual(
+                operations,
+                [
+                    "SELECT id FROM presence_states",
+                    "SELECT id FROM presence_states ORDER BY rowid",
+                    "SELECT COALESCE(MAX(rowid), 0) FROM presence_states",
+                    "UPDATE presence_states SET rowid=4 WHERE id='presence-ada-storm'",
+                    "UPDATE presence_states SET rowid=5 WHERE id='presence-ben-start'",
+                    "UPDATE presence_states SET rowid=6 WHERE id='presence-ada-base'",
+                    "SELECT id FROM connections",
+                    "SELECT id FROM connections ORDER BY rowid",
+                    "SELECT COALESCE(MAX(rowid), 0) FROM connections",
+                    "UPDATE connections SET rowid=3 WHERE id='edge-ben-harbor'",
+                    "UPDATE connections SET rowid=4 WHERE id='edge-ada-ben'",
+                    "SELECT id FROM figures",
+                    "SELECT id FROM timeline_moments",
+                ],
+            )
+        self.assertEqual(story_world.load(), reordered)
+
+    def test_unchanged_inserted_removed_and_empty_orders_avoid_rowid_updates(self):
+        schema.initialize()
+        story_world.save(temporal_figure_state())
+        unchanged = story_world.load()
+        inserted = copy.deepcopy(unchanged)
+        inserted["edges"].append({"id": "edge-new", "from": "figure-ada", "to": "place-harbor"})
+        inserted["presence"].append(
+            {
+                "id": "presence-new",
+                "elementId": "figure-ben",
+                "placeId": "place-harbor",
+                "momentId": "moment-storm",
+            }
+        )
+        removed = copy.deepcopy(inserted)
+        removed["edges"].pop(0)
+        removed["presence"].pop(0)
+        empty = copy.deepcopy(removed)
+        empty["edges"] = []
+        empty["presence"] = []
+        for label, state in (
+            ("unchanged", unchanged),
+            ("inserted", inserted),
+            ("removed", removed),
+            ("empty", empty),
+        ):
+            with self.subTest(stage=label), sqlite_connection() as conn:
+                before = {
+                    table: dict(conn.execute(f"SELECT id,rowid FROM {table}"))
+                    for table in ("connections", "presence_states")
+                }
+                statements = []
+                conn.set_trace_callback(statements.append)
+                story_world.save(state, conn=conn)
+                self.assertFalse(
+                    any(
+                        sql.startswith(
+                            ("UPDATE connections SET rowid=", "UPDATE presence_states SET rowid=")
+                        )
+                        for sql in statements
+                    )
+                )
+                self.assertNotIn("SELECT COALESCE(MAX(rowid), 0) FROM connections", statements)
+                self.assertNotIn("SELECT COALESCE(MAX(rowid), 0) FROM presence_states", statements)
+                if label == "removed":
+                    delete_order_positions = [
+                        statements.index(sql)
+                        for sql in (
+                            "DELETE FROM presence_states WHERE id='presence-ada-base'",
+                            "SELECT id FROM presence_states ORDER BY rowid",
+                            "DELETE FROM connections WHERE id='edge-ada-ben'",
+                            "SELECT id FROM connections ORDER BY rowid",
+                        )
+                    ]
+                    self.assertEqual(delete_order_positions, sorted(delete_order_positions))
+                for table, collection in (
+                    ("connections", "edges"),
+                    ("presence_states", "presence"),
+                ):
+                    after = dict(conn.execute(f"SELECT id,rowid FROM {table} ORDER BY rowid"))
+                    self.assertEqual(list(after), [entry["id"] for entry in state[collection]])
+                    self.assertEqual(
+                        {key: value for key, value in after.items() if key in before[table]},
+                        {key: value for key, value in before[table].items() if key in after},
+                    )
+                if label == "inserted":
+                    self.assertEqual(
+                        conn.execute(
+                            "SELECT rowid FROM connections WHERE id='edge-new'"
+                        ).fetchone()[0],
+                        3,
+                    )
+                    self.assertEqual(
+                        conn.execute(
+                            "SELECT rowid FROM presence_states WHERE id='presence-new'"
+                        ).fetchone()[0],
+                        4,
+                    )
+                self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+        loaded = story_world.load()
+        self.assertEqual(loaded["edges"], [])
+        self.assertEqual(loaded["presence"], [])
+
+    def test_borrowed_save_success_and_late_failure_leave_all_writes_for_caller_rollback(self):
+        schema.initialize()
+        story_world.save(temporal_figure_state())
+        original = story_world.load()
+        for fail in (False, True):
+            with self.subTest(failure=fail), sqlite_connection() as conn:
+                before = {
+                    table: table_rows_with_rowid(conn, table)
+                    for table in ("connections", "presence_states")
+                }
+                changed = copy.deepcopy(original)
+                changed["edges"].reverse()
+                changed["presence"].reverse()
+                if fail:
+                    changed["canvasSize"]["w"] = "not-an-integer"
+                conn.execute("INSERT INTO meta(key,value) VALUES('caller-write','pending')")
+                statements = []
+                conn.set_trace_callback(statements.append)
+                if fail:
+                    with self.assertRaises(ValueError):
+                        story_world.save(changed, conn=conn)
+                else:
+                    story_world.save(changed, conn=conn)
+                self.assertNotIn("COMMIT", statements)
+                self.assertNotIn("ROLLBACK", statements)
+                self.assertTrue(conn.in_transaction)
+                self.assertEqual(
+                    conn.execute("SELECT value FROM meta WHERE key='caller-write'").fetchone()[0],
+                    "pending",
+                )
+                self.assertEqual(
+                    [row[0] for row in table_rows_with_rowid(conn, "connections")], [3, 4]
+                )
+                self.assertEqual(
+                    [row[0] for row in table_rows_with_rowid(conn, "presence_states")], [4, 5, 6]
+                )
+                conn.rollback()
+                self.assertIsNone(
+                    conn.execute("SELECT value FROM meta WHERE key='caller-write'").fetchone()
+                )
+                for table in before:
+                    self.assertEqual(table_rows_with_rowid(conn, table), before[table])
+            self.assertEqual(story_world.load(), original)
+
+    def test_owned_save_late_failure_rolls_back_real_order_changes(self):
+        schema.initialize()
+        story_world.save(temporal_figure_state())
+        original = story_world.load()
+        changed = copy.deepcopy(original)
+        changed["edges"].reverse()
+        changed["presence"].reverse()
+        changed["canvasSize"]["w"] = "not-an-integer"
+        original_connect = sqlite3.connect
+        statements = []
+        opened = []
+
+        def observed_connect(*args, **kwargs):
+            conn = original_connect(*args, **kwargs)
+            conn.set_trace_callback(statements.append)
+            opened.append(conn)
+            return conn
+
+        with patch.object(sqlite3, "connect", side_effect=observed_connect):
+            with self.assertRaises(ValueError):
+                story_world.save(changed)
+        self.assertEqual(len(opened), 1)
+        self.assertIn("UPDATE connections SET rowid=3 WHERE id='edge-ben-harbor'", statements)
+        self.assertIn(
+            "UPDATE presence_states SET rowid=4 WHERE id='presence-ada-storm'", statements
+        )
+        self.assertIn("ROLLBACK", statements)
+        self.assertNotIn("COMMIT", statements)
+        with self.assertRaises(sqlite3.ProgrammingError):
+            opened[0].execute("SELECT 1")
+        self.assertEqual(story_world.load(), original)
+        with sqlite_connection() as conn:
+            self.assertEqual([row[0] for row in table_rows_with_rowid(conn, "connections")], [1, 2])
+            self.assertEqual(
+                [row[0] for row in table_rows_with_rowid(conn, "presence_states")], [1, 2, 3]
+            )
 
     def create_world(self, title, backup_url="", owner_sub=None):
         return world_catalog.create_world(title, backup_url, owner_sub=owner_sub, paths=self.paths)

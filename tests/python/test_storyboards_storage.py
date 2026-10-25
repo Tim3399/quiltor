@@ -13,8 +13,9 @@ import math
 import sqlite3
 import tempfile
 import unittest
-from contextlib import closing
+from contextlib import closing, contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 from quiltor.domain.storyboard import valid_storyboard_document
 from quiltor.infrastructure.persistence.sqlite import config, revisions, schema, storyboards
@@ -180,6 +181,133 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
     def tearDown(self) -> None:
         config.DB = self.original_db
         self.temp.cleanup()
+
+    @contextmanager
+    def _observe_opened_connections(self):
+        opened = []
+        statements = []
+        original_connect = sqlite3.connect
+
+        def observed_connect(*args, **kwargs):
+            database = original_connect(*args, **kwargs)
+            database.set_trace_callback(statements.append)
+            opened.append(database)
+            return database
+
+        with patch.object(sqlite3, "connect", side_effect=observed_connect):
+            yield opened, statements
+
+    def test_owned_save_commits_real_writes_and_closes_connection(self) -> None:
+        schema.initialize(self.database)
+        state = realistic_storyboards()
+
+        with self._observe_opened_connections() as (opened, statements):
+            storyboards.save(state, db_path=self.database)
+
+        self.assertEqual(len(opened), 1)
+        self.assertIn("COMMIT", statements)
+        self.assertNotIn("ROLLBACK", statements)
+        with self.assertRaises(sqlite3.ProgrammingError):
+            opened[0].execute("SELECT 1")
+        self.assertEqual(storyboards.load(self.database), state)
+
+    def test_owned_save_failure_after_real_write_rolls_back_and_closes_connection(self) -> None:
+        schema.initialize(self.database)
+        original = realistic_storyboards()
+        storyboards.save(original, db_path=self.database)
+        changed = copy.deepcopy(original)
+        changed["boards"][0]["title"] = "Pending title"
+        failure = RuntimeError("sync failed after board write")
+
+        with self._observe_opened_connections() as (opened, statements):
+
+            def fail_after_write(node):
+                self.assertEqual(
+                    opened[0]
+                    .execute("SELECT title FROM storyboards WHERE id='main-storyboard'")
+                    .fetchone()[0],
+                    "Pending title",
+                )
+                raise failure
+
+            with patch.object(storyboards, "_node_extra", side_effect=fail_after_write):
+                with self.assertRaises(RuntimeError) as caught:
+                    storyboards.save(changed, db_path=self.database)
+
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(len(opened), 1)
+        self.assertIn("ROLLBACK", statements)
+        self.assertNotIn("COMMIT", statements)
+        with self.assertRaises(sqlite3.ProgrammingError):
+            opened[0].execute("SELECT 1")
+        self.assertEqual(storyboards.load(self.database), original)
+
+    def test_borrowed_save_preserves_caller_transaction_and_overrides_invalid_path(self) -> None:
+        schema.initialize(self.database)
+        original = storyboards.load(self.database)
+        state = realistic_storyboards()
+        invalid_path = self.database / "not-a-directory.sqlite3"
+
+        with closing(sqlite3.connect(self.database)) as database:
+            database.execute("INSERT INTO meta(key,value) VALUES('caller-write','pending')")
+            statements = []
+            database.set_trace_callback(statements.append)
+            with self._observe_opened_connections() as (opened, _):
+                storyboards.save(state, conn=database, db_path=invalid_path)
+            self.assertEqual(opened, [])
+            self.assertNotIn("COMMIT", statements)
+            self.assertNotIn("ROLLBACK", statements)
+            self.assertTrue(database.in_transaction)
+            self.assertEqual(
+                database.execute(
+                    "SELECT title FROM storyboards WHERE id='main-storyboard'"
+                ).fetchone()[0],
+                state["boards"][0]["title"],
+            )
+            self.assertEqual(
+                database.execute("SELECT value FROM meta WHERE key='caller-write'").fetchone()[0],
+                "pending",
+            )
+            database.rollback()
+            self.assertIsNone(
+                database.execute("SELECT value FROM meta WHERE key='caller-write'").fetchone()
+            )
+        self.assertEqual(storyboards.load(self.database), original)
+
+    def test_borrowed_save_failure_preserves_prior_and_sync_writes_for_caller_rollback(
+        self,
+    ) -> None:
+        schema.initialize(self.database)
+        original = storyboards.load(self.database)
+        state = realistic_storyboards()
+        failure = RuntimeError("sync failed after board write")
+
+        with closing(sqlite3.connect(self.database)) as database:
+            database.execute("INSERT INTO meta(key,value) VALUES('caller-write','pending')")
+            statements = []
+            database.set_trace_callback(statements.append)
+            with patch.object(storyboards, "_node_extra", side_effect=failure):
+                with self.assertRaises(RuntimeError) as caught:
+                    storyboards.save(state, conn=database, db_path=self.database / "invalid")
+            self.assertIs(caught.exception, failure)
+            self.assertNotIn("COMMIT", statements)
+            self.assertNotIn("ROLLBACK", statements)
+            self.assertTrue(database.in_transaction)
+            self.assertEqual(
+                database.execute(
+                    "SELECT title FROM storyboards WHERE id='main-storyboard'"
+                ).fetchone()[0],
+                state["boards"][0]["title"],
+            )
+            self.assertEqual(
+                database.execute("SELECT value FROM meta WHERE key='caller-write'").fetchone()[0],
+                "pending",
+            )
+            database.rollback()
+            self.assertIsNone(
+                database.execute("SELECT value FROM meta WHERE key='caller-write'").fetchone()
+            )
+        self.assertEqual(storyboards.load(self.database), original)
 
     def test_schema_v10_migrates_to_v11_once_without_touching_existing_revisions(self) -> None:
         with closing(sqlite3.connect(self.database)) as legacy:
