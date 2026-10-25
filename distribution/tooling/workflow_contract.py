@@ -524,6 +524,12 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         raise WorkflowContractError(
             "browser E2E shards must collect both suite results in shell and fail closed"
         )
+    # The pull-request smoke test on Windows and macOS is acceptable only because Linux runs
+    # the complete product and design suites on every event.
+    if re.search(r"^    if:", shards, re.MULTILINE) or "full_matrix" in shards:
+        raise WorkflowContractError(
+            "the Linux browser slots must run on every event, independent of the matrix plan"
+        )
 
     required_aggregator_evidence = (
         "needs: browser-e2e-shards",
@@ -613,8 +619,9 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
 FULL_MATRIX_GUARD = "if: needs.plan.outputs.full_matrix == 'true'"
 REDUCED_MATRIX_GUARD = "if: needs.plan.outputs.full_matrix != 'true'"
 FULL_MATRIX_DECISION = (
-    "FULL_MATRIX: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') "
-    "|| inputs.full_matrix == true }}"
+    "FULL_MATRIX: ${{ inputs.full_matrix == true "
+    "|| (github.event_name == 'push' && github.ref == 'refs/heads/main') "
+    "|| (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}"
 )
 
 
@@ -636,11 +643,11 @@ def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
             re.MULTILINE,
         )
         body = block.group(1) if block else ""
-        if not re.search(
-            r"^      full_matrix:\n(?:        .*\n)*?        type: boolean$", body, re.MULTILINE
-        ):
+        field = re.search(r"^      full_matrix:\n((?:        .*\n)*)", body, re.MULTILINE)
+        fields = field.group(1) if field else ""
+        if "        type: boolean\n" not in fields or "        default: true\n" not in fields:
             raise WorkflowContractError(
-                f"test.yml {trigger} must declare the boolean input full_matrix"
+                f"test.yml {trigger} must declare the boolean input full_matrix, default true"
             )
 
     plan = _job_body(workflow, "plan")

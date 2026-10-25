@@ -61,16 +61,28 @@ job there at 19.8 minutes.
 
 ## Playwright install, split
 
-| Runner       | System dependencies                                                     | Browser download | Step total | Jobs sampled |
-| ------------ | ----------------------------------------------------------------------- | ---------------- | ---------- | ------------ |
-| ubuntu-24.04 | 15–65 s (apt)                                                           | 7–10 s           | 24–73 s    | 7            |
-| windows-2025 | 125–250 s (`Install-WindowsFeature` Media Foundation, "Restart Needed") | 10–27 s          | 136–277 s  | 9            |
-| macos-15     | 1–4 s                                                                   | 9–12 s           | 10–16 s    | 4            |
+| Runner       | System dependencies                                   | Browser download | Step total | Jobs sampled |
+| ------------ | ----------------------------------------------------- | ---------------- | ---------- | ------------ |
+| ubuntu-24.04 | 15–65 s (apt)                                         | 7–10 s           | 24–73 s    | 7            |
+| windows-2025 | 125–250 s (`Install-WindowsFeature` Media Foundation) | 10–27 s          | 136–277 s  | 9            |
+| macos-15     | 1–4 s                                                 | 9–12 s           | 10–16 s    | 4            |
 
 The browser download is 7–27 seconds everywhere. A browser cache can save at most that much per
 job. The expensive part is the system half: on Windows, `--with-deps` enables a Windows feature
 on every run, which no cache can carry across runners -- 3 to 4 minutes in each of the ten Windows
 browser jobs.
+
+**The system half cannot be skipped on either system; the runner images lack what it installs.**
+
+- **windows-2025:** in all 9 sampled jobs `Install-WindowsFeature` reported
+  `Success True, Exit Code Success, Feature Result {Media Foundation}`. A feature that is already
+  present reports `NoChangeNeeded` and an empty result; this one is installed fresh every time. A
+  fail-closed check for Media Foundation in front of a plain `playwright install chromium` would
+  therefore fail every Windows job.
+- **ubuntu-24.04:** in all 5 sampled jobs apt installed 9–10 new packages, the same set each time:
+  `fonts-freefont-ttf fonts-ipafont-gothic fonts-tlwg-loma-otf fonts-unifont fonts-wqy-zenhei
+xfonts-cyrillic xfonts-encodings xfonts-scalable xfonts-utils`. These are fonts. Without them
+  text renders with other fallbacks, which changes what the Linux visual baselines compare.
 
 ## Runner queue
 
@@ -84,12 +96,21 @@ those four waited 16–20 minutes:
 | 37113154094 (push, release 2026-10-03) | Product on macos-15                    | 20.2  |
 | 37216539640 (dispatch, 2026-10-04)     | Product on macos-15                    | 20.3  |
 
-Three of the four are release pushes. The Test workflow starts up to 22 jobs, and a push that
-changes `VERSION` starts Release Build alongside it; together they exceed the number of jobs the
-account runs at once, and the last jobs to be scheduled wait until a whole earlier job has
-finished -- about 20 minutes. The fourth case is a macOS job in a dispatch run with no release
-beside it; macOS runners are scarcer than Linux and Windows ones. Between releases the queue is
-practically zero.
+Three of the four are release pushes, but **the account's concurrency limit does not explain
+them**. Counting every job of every workflow that ran around those pushes (Test, Release Build,
+Release Publish, Generate visual baselines, Distribution Contracts), minute by minute:
+
+| Push               | Peak, all workflows | Peak Windows | Peak macOS | Waiting job and when it started                                                      |
+| ------------------ | ------------------- | ------------ | ---------- | ------------------------------------------------------------------------------------ |
+| release 2026-10-09 | 15                  | 8            | 2          | Core on windows-2025: queued from 16:50, while no Windows job ran at all until 16:53 |
+| release 2026-10-03 | 18                  | 10           | 2          | Product on macos-15: queued 20 min while 1–2 macOS jobs ran                          |
+
+GitHub documents 20 concurrent jobs and 5 macOS jobs for the Free plan; the account's plan is not
+readable with the token used here. Both peaks stay under those numbers, Windows ran ten jobs at
+once on 2026-10-03 (so there is no lower Windows cap), and the macOS job waited with three macOS
+slots free. The waits look like runner supply on GitHub's side rather than this repository's
+load: a job sometimes gets its runner about 20 minutes late, whatever else is running. Between
+releases they are as rare as during them -- four in about 200 starts.
 
 ## Release Build, per job
 
@@ -112,8 +133,8 @@ The portable release gate is 21 of the 24 minutes; the artifact jobs after it ta
 - **The longest path is frontend (3.5) followed by the longest browser job** -- Design on
   windows-2025 (14 min of tests with one worker) or Product on macos-15 (13 min). Sharding those
   shortens the run; adding shards elsewhere does not.
-- **Queue time only appears when Test and Release Build run together.** Fewer concurrent jobs per
-  run keep a release push under the concurrency limit.
+- **Queue time is rare and not caused by the concurrency limit.** The measured peaks (15 and 18
+  jobs across all workflows) stay under the documented 20; the four long waits happened anyway.
 
 ## Caches
 
@@ -148,13 +169,35 @@ not the system half (see "Playwright install, split").
 Two shapes of the Test workflow, decided by the `plan` job in one place:
 
 ```text
-full_matrix = (push && refs/heads/main) || inputs.full_matrix == true
+full_matrix =
+     inputs.full_matrix == true
+  || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+  || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false')
 ```
 
-A push to main always gets the full matrix. `workflow_dispatch` defaults to it; `workflow_call`
-(prepared for a release caller, unused so far) asks for it explicitly. A pull request gets the
-reduced matrix. No job but `plan` reads `github.event_name`; `workflow_contract.py` checks the
-inputs, the expression and that rule.
+Fail-safe: the matrix is reduced only for a pull request or an explicit `full_matrix: false`.
+Both inputs (`workflow_dispatch`, and `workflow_call` prepared for a release caller) default to
+`true`. An explicit `true` wins even when a caller came from a pull request, because in a called
+workflow `github.event_name` is the caller's event.
+
+The last term compares the input as text on purpose. GitHub's `==` converts operands of different
+types to numbers, so a missing input (`null`) _equals_ `false`, and the plain
+`inputs.full_matrix != false` would reduce the matrix exactly when the input has gone missing.
+`format('{0}', null)` is `''`, which is not `'false'`.
+
+No job but `plan` reads `github.event_name`. `workflow_contract.py` checks both inputs (boolean,
+default true), the expression and that rule. `test_release.py` evaluates the expression from
+test.yml with GitHub's comparison rules for these cases:
+
+| Case                                  | Result  |
+| ------------------------------------- | ------- |
+| push to main                          | full    |
+| workflow_call without input           | full    |
+| workflow_call with `true`, from a PR  | full    |
+| workflow_dispatch with the default    | full    |
+| workflow_dispatch with `false`        | reduced |
+| pull request                          | reduced |
+| workflow_call with `false`, from a PR | reduced |
 
 | Jobs                                                                | Full (main, dispatch, call) | Reduced (pull request) |
 | ------------------------------------------------------------------- | --------------------------- | ---------------------- |
@@ -171,7 +214,10 @@ Why this cut:
   on windows-2025 (18 min with setup) and Product on macos-15 (13.5). Each Windows slot now runs a
   product shard 1/8 and a design shard 1/8 -- about 6.4 + 1.7 minutes of tests plus 4 of setup --
   and each macOS slot half of both suites, about 10.5 minutes. Linux product shards split by test
-  instead of by file, which evens slot 1 (12.4 min of tests) out with slots 2 and 3 (6.5).
+  instead of by file (`PLAYWRIGHT_FULLY_PARALLEL=1`), which evens slot 1 (12.4 min of tests) out
+  with slots 2 and 3 (6.5). Windows has run the whole product suite that way for a long time, so
+  the tests do not depend on each other's order there. **Should the first CI run show
+  order-dependent failures on Linux anyway, they belong to T-34 (flakes), not back into T-33.**
 - **Windows keeps eight slots.** Chromium exhausted the Windows runner's network buffers after
   more than 115 product tests, even with serialized contexts. Eight runners keep each product
   process at about 66 of the current 531 tests, as before; the design shard runs as its own
@@ -181,16 +227,36 @@ Why this cut:
   dependencies every time. Now each slot pays once. The unit tests ran in every one of the nine
   cross-platform product jobs; they now run once per system.
 - **Pull requests leave the expensive runners free.** A pull request runs everything on Linux,
-  the backend and Rust suites on all three systems, and one smoke runner per system: unit tests
-  and the product specs where the systems differ most -- the pixel comparison against that
-  system's baselines, opening a world and a chapter, manuscript import and export (51 of 531 tests). That is 15 jobs instead
-  of 23, and 4 instead of 13 on Windows and macOS.
-- **Queue time on main.** The full matrix starts one Windows/macOS job fewer than before (10
-  instead of 11) and adds the seconds-long `plan` job, so the peak barely moves: about 15–16
-  concurrent jobs after `frontend`, against 16–17 before. What changes is that the browser jobs
-  end sooner and free their runners earlier. Whether a release push now stays clear of the
-  account's concurrency limit shows up only in the measurement after the first push; the reliable
-  fix is to stop running the release gate's suites next to these (T-35).
+  the backend and Rust suites on all three systems, and one smoke runner per system (below). That
+  is 15 jobs instead of 23, and 4 instead of 13 on Windows and macOS.
+- **Concurrent jobs on a main push.** The full matrix starts one Windows/macOS job fewer than
+  before (10 instead of 11) plus the seconds-long `plan` job. Peak after `frontend`: the 4 Linux slots, the 10
+  Windows/macOS slots and Core on windows-2025 (still running), about 15; with the 2–3 Release
+  Build jobs of a release push, about 18. Measured before: 18 at the 2026-10-03 release. The
+  documented limit is 20 (5 macOS; the full matrix uses 3). The peak stays under it, as it already
+  did -- see "Runner queue" for why that does not remove the occasional 20-minute wait.
+
+### The pull-request smoke test
+
+**Linux stays complete on every pull request** -- product 1/3–3/3, design 1/4–4/4 and the layout
+audit rules. That is the condition for running only a smoke test on Windows and macOS, and
+`workflow_contract.py` fails if the Linux slots get a job-level `if:` or read the matrix plan.
+
+On Windows and macOS a pull request runs `npx vitest run` and these product specs (test.yml,
+`cross-platform-smoke`, "Product smoke specs"):
+
+| Spec                                      | Tests | Why this one shows a system difference                                                                              |
+| ----------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
+| `tests/e2e/visual-baseline.spec.ts`       | 15    | Compares pixels against that system's own baseline set -- font rasterisation and native controls differ per system. |
+| `tests/e2e/world-gate-responsive.spec.ts` | 6     | Creates and opens a world: file creation, locks and paths in the data directory, at several window sizes.           |
+| `tests/e2e/chapter-navigation.spec.ts`    | 3     | Opens and switches chapters, which writes and reads the manuscript files.                                           |
+| `tests/e2e/manuscript-import.spec.ts`     | 9     | Imports manuscript files: file pickers, path separators and text encodings, where Windows differs most.             |
+| `tests/e2e/manuscript-export.spec.ts`     | 18    | Exports to files: file names, line endings and encodings of what is written.                                        |
+| **Total**                                 | 51    | of 531 product tests; Windows ran out of network buffers above 115 in one process                                   |
+
+Left out on purpose: `workspaces.spec.ts` (126 tests, more than the Windows limit on its own) and
+the design suite, whose system differences the visual baseline already samples. Everything left
+out runs on main in the full matrix.
 
 ### Checks before and after
 

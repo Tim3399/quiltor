@@ -1099,6 +1099,119 @@ class ReleaseManifestTests(unittest.TestCase):
             )
 
 
+def _github_number(value):
+    if value is None:
+        return 0.0
+    if isinstance(value, bool):
+        return 1.0 if value else 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if text == "":
+        return 0.0
+    try:
+        return float(text)
+    except ValueError:
+        return float("nan")
+
+
+def _github_equal(left, right):
+    """GitHub expression equality: same type compares directly, otherwise both become numbers."""
+    if type(left) is type(right) and left is not None:
+        if isinstance(left, str):
+            return left.casefold() == right.casefold()
+        return left == right
+    if left is None and right is None:
+        return True
+    return _github_number(left) == _github_number(right)
+
+
+def _github_truthy(value):
+    if value is None or value is False or value == "":
+        return False
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value == value and value != 0
+    return True
+
+
+def evaluate_github_expression(expression, context):
+    """Evaluate the subset of GitHub expressions the plan job uses: ==, !=, &&, ||, (), format."""
+    tokens = re.findall(r"'[^']*'|==|!=|&&|\|\||[(),]|[A-Za-z_][A-Za-z0-9_.]*", expression)
+    position = 0
+
+    def peek():
+        return tokens[position] if position < len(tokens) else None
+
+    def take(expected=None):
+        nonlocal position
+        token = tokens[position]
+        if expected is not None and token != expected:
+            raise ValueError(f"expected {expected}, found {token}")
+        position += 1
+        return token
+
+    def primary():
+        token = take()
+        if token == "(":
+            value = disjunction()
+            take(")")
+            return value
+        if token.startswith("'"):
+            return token[1:-1]
+        if token in ("true", "false"):
+            return token == "true"
+        if token == "null":
+            return None
+        if token == "format":
+            take("(")
+            template = primary()
+            arguments = []
+            while peek() == ",":
+                take(",")
+                arguments.append(comparison())
+            take(")")
+            for index, argument in enumerate(arguments):
+                text = (
+                    ""
+                    if argument is None
+                    else str(argument).lower()
+                    if isinstance(argument, bool)
+                    else str(argument)
+                )
+                template = template.replace("{" + str(index) + "}", text)
+            return template
+        return context.get(token)
+
+    def comparison():
+        left = primary()
+        while peek() in ("==", "!="):
+            operator = take()
+            equal = _github_equal(left, primary())
+            left = equal if operator == "==" else not equal
+        return left
+
+    def conjunction():
+        left = comparison()
+        while peek() == "&&":
+            take()
+            right = comparison()
+            left = right if _github_truthy(left) else left
+        return left
+
+    def disjunction():
+        left = conjunction()
+        while peek() == "||":
+            take()
+            right = conjunction()
+            left = left if _github_truthy(left) else right
+        return left
+
+    value = disjunction()
+    if position != len(tokens):
+        raise ValueError(f"unparsed tail: {tokens[position:]}")
+    return value
+
+
 class WorkflowBoundaryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -1187,6 +1300,13 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "missing fail-closed shard evidence",
             ),
             (
+                "Linux slots skipped on a reduced matrix",
+                "    name: Browser E2E / slot ${{ matrix.slot }} of 4\n    needs: frontend\n",
+                "    name: Browser E2E / slot ${{ matrix.slot }} of 4\n    needs: frontend\n"
+                "    if: needs.plan.outputs.full_matrix == 'true'\n",
+                "must run on every event",
+            ),
+            (
                 "non-stable aggregator dependency",
                 "needs: browser-e2e-shards",
                 "needs: frontend",
@@ -1246,6 +1366,53 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_cross_platform_browser_sharding(mutated)
 
+    def test_matrix_decision_truth_table(self):
+        plan = workflow_contract._job_body(TEST_WORKFLOW.read_text(encoding="utf-8"), "plan")
+        decision = re.search(r"FULL_MATRIX: \$\{\{ (.+) \}\}", plan)
+        self.assertIsNotNone(decision, "the plan job has no FULL_MATRIX expression")
+        assert decision is not None
+        expression = decision.group(1)
+        cases = (
+            ("push to main", "push", "refs/heads/main", None, True),
+            ("workflow_call without input", "push", "refs/heads/main", None, True),
+            (
+                "workflow_call from a branch without input",
+                "workflow_dispatch",
+                "refs/heads/x",
+                None,
+                True,
+            ),
+            (
+                "workflow_call with true from a pull request",
+                "pull_request",
+                "refs/pull/1/merge",
+                True,
+                True,
+            ),
+            ("workflow_dispatch with the default", "workflow_dispatch", "refs/heads/x", True, True),
+            ("workflow_dispatch with false", "workflow_dispatch", "refs/heads/x", False, False),
+            ("pull request", "pull_request", "refs/pull/1/merge", None, False),
+            (
+                "workflow_call with false from a pull request",
+                "pull_request",
+                "refs/pull/1/merge",
+                False,
+                False,
+            ),
+        )
+        for name, event, ref, full_matrix, expected in cases:
+            with self.subTest(name=name):
+                context = {
+                    "github.event_name": event,
+                    "github.ref": ref,
+                    "inputs.full_matrix": full_matrix,
+                }
+                self.assertIs(
+                    _github_truthy(evaluate_github_expression(expression, context)), expected
+                )
+        # The reason for format(): GitHub coerces a missing input to equal false.
+        self.assertTrue(evaluate_github_expression("inputs.full_matrix == false", {}))
+
     def test_push_to_main_always_runs_the_full_matrix(self):
         sources = workflow_contract._workflow_sources()
         workflow_contract.validate_full_matrix_switch(sources)
@@ -1259,9 +1426,21 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "workflow_call input is not boolean",
-                '        description: "Run the full matrix (release mode)"\n        type: boolean',
-                '        description: "Run the full matrix (release mode)"\n        type: string',
+                'reduce only on purpose"\n        type: boolean',
+                'reduce only on purpose"\n        type: string',
                 "workflow_call must declare the boolean input full_matrix",
+            ),
+            (
+                "workflow_call reduces by default",
+                'reduce only on purpose"\n        type: boolean\n        default: true',
+                'reduce only on purpose"\n        type: boolean\n        default: false',
+                "workflow_call must declare the boolean input full_matrix, default true",
+            ),
+            (
+                "a missing input counts as false",
+                "format('{0}', inputs.full_matrix) != 'false'",
+                "inputs.full_matrix != false",
+                "plan job is missing its matrix decision",
             ),
             (
                 "workflow_dispatch input removed",

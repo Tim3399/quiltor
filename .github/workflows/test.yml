@@ -23,18 +23,21 @@ on:
   workflow_call:
     inputs:
       full_matrix:
-        description: "Run the full matrix (release mode)"
+        description: "Run the full matrix (release mode); reduce only on purpose"
         type: boolean
-        default: false
+        default: true
 
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # The only place that decides between the full and the reduced matrix. A push to main always
-  # gets the full one; anything else gets it when its input asks. Jobs read the output, never
-  # github.event_name -- workflow_contract.py holds both in place.
+  # The only place that decides between the full and the reduced matrix. Fail-safe: the matrix
+  # is reduced only for a pull request or an explicit `full_matrix: false`. An explicit true
+  # wins even when a caller came from a pull request (in a called workflow, github.event_name is
+  # the caller's event). The input is compared as text because GitHub coerces a missing input
+  # (null) to equal false; format() turns it into '' and keeps the default full. Jobs read the
+  # output, never github.event_name -- workflow_contract.py holds both in place.
   plan:
     name: Plan the matrix
     runs-on: ubuntu-24.04
@@ -44,7 +47,7 @@ jobs:
     steps:
       - id: decide
         env:
-          FULL_MATRIX: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || inputs.full_matrix == true }}
+          FULL_MATRIX: ${{ inputs.full_matrix == true || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}
         run: echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"
 
   backend:
