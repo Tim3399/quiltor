@@ -10,6 +10,7 @@ import re
 import sys
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from dependency_lock_contract import for_profile as dependency_locks_for_profile
 from dependency_lock_contract import records as dependency_lock_records
@@ -383,7 +384,7 @@ def attest_signature(
     return record
 
 
-def _verify_signature_records(manifest: dict[str, object], artifact_dir: Path) -> None:
+def _verify_signature_records(manifest: dict[str, Any], artifact_dir: Path) -> None:
     for specification in manifest["signatures"]:
         artifact = artifact_dir / specification["artifact"]
         record_path = artifact_dir / specification["record"]
@@ -419,7 +420,8 @@ def verify(
     expected_revision: str | None = None,
     repo_root: Path = REPO_ROOT,
 ) -> dict[str, object]:
-    manifest = load(path, repo_root)
+    # load() validated the manifest's shape; the loops below index into it.
+    manifest: dict[str, Any] = load(path, repo_root)
     if expected_revision and manifest["sourceRevision"] != expected_revision:
         raise ManifestError(
             f"manifest revision {manifest['sourceRevision']} does not match {expected_revision}"
@@ -495,10 +497,11 @@ def main(argv: list[str] | None = None, *, repo_root: Path = REPO_ROOT) -> int:
                 output=args.output,
             )
         elif args.command == "images":
-            for image in load(args.manifest, repo_root)["images"]:
+            loaded: dict[str, Any] = load(args.manifest, repo_root)
+            for image in loaded["images"]:
                 print("\t".join((image["name"], image["role"], image["ref"], image["digest"])))
         elif args.command == "files":
-            manifest = load(args.manifest, repo_root)
+            manifest: dict[str, Any] = load(args.manifest, repo_root)
             for artifact in manifest["artifacts"]:
                 print(artifact["name"])
             for signature in manifest["signatures"]:

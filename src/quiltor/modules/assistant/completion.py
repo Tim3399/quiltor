@@ -828,7 +828,8 @@ def complete_request(
                 else "A matching entry already exists, so I did not propose a duplicate change."
             )
     known = {chunk.id: chunk.public() for chunk in context}
-    raw_citations = parsed.get("citations") if isinstance(parsed.get("citations"), list) else []
+    citations_value = parsed.get("citations")
+    raw_citations = citations_value if isinstance(citations_value, list) else []
     parsed["citations"] = list(dict.fromkeys(source for source in raw_citations if source in known))
     discarded_citations = len(raw_citations) - len(parsed["citations"])
     parsed["sources"] = [known[source] for source in parsed["citations"]]

@@ -13,6 +13,7 @@ from quiltor.modules.assistant.jobs import (
     AssistantJobRunner,
     IdempotencyConflict,
 )
+from tests.python.narrowing import present
 
 WORLD_ID = "a" * 32
 
@@ -108,6 +109,9 @@ class TestMetrics:
 
     def observe(self, name, value, **labels):
         pass
+
+    def snapshot(self):
+        return {}
 
 
 def create_runner(
@@ -207,12 +211,12 @@ class AssistantJobStoreTests(unittest.TestCase):
             intent=intent("hello"),
             execution=execution("hello"),
         )
-        claimed = self.store.claim_next()
+        claimed = present(self.store.claim_next())
         self.assertEqual(claimed["id"], job["id"])
         self.assertEqual(claimed["status"], "running")
 
         self.store.recover_interrupted()
-        recovered = self.store.get(job["id"], "user", WORLD_ID)
+        recovered = present(self.store.get(job["id"], "user", WORLD_ID))
         self.assertEqual(recovered["status"], "queued")
         self.assertIsNone(recovered["startedAt"])
 
@@ -224,7 +228,7 @@ class AssistantJobStoreTests(unittest.TestCase):
             intent=intent("hello"),
             execution=execution("hello"),
         )
-        cancelled = self.store.cancel(job["id"], "user", WORLD_ID)
+        cancelled = present(self.store.cancel(job["id"], "user", WORLD_ID))
         self.assertEqual(cancelled["status"], "cancelled")
         self.assertTrue(cancelled["cancelRequested"])
 
@@ -238,7 +242,7 @@ class AssistantJobStoreTests(unittest.TestCase):
         )
         self.store.claim_next()
         result = {"ok": True, "message": "done", "proposals": [], "sources": []}
-        terminal = self.store.finish_success(job["id"], result, "interaction-1")
+        terminal = present(self.store.finish_success(job["id"], result, "interaction-1"))
 
         self.assertEqual(terminal["status"], "completed")
         self.assertEqual(terminal["result"], result)
@@ -301,7 +305,7 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     execution=execution("second"),
                 )
                 time.sleep(0.15)
-                queued = runner.get(second["id"], "user", WORLD_ID)
+                queued = present(runner.get(second["id"], "user", WORLD_ID))
                 self.assertEqual(queued["status"], "queued")
                 self.assertEqual(assistant.max_active, 1)
 
@@ -453,8 +457,10 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     execution=execution("second"),
                 )
                 time.sleep(0.15)
-                self.assertEqual(runner.get(first["id"], "user", WORLD_ID)["status"], "running")
-                self.assertEqual(runner.get(second["id"], "user", WORLD_ID)["status"], "queued")
+                first_state = present(runner.get(first["id"], "user", WORLD_ID))
+                second_state = present(runner.get(second["id"], "user", WORLD_ID))
+                self.assertEqual(first_state["status"], "running")
+                self.assertEqual(second_state["status"], "queued")
                 self.assertEqual(assistant.max_active, 1)
 
                 assistant.release_first.set()

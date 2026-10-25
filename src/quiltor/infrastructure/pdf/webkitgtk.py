@@ -15,6 +15,9 @@ building its own view, because a WebKitGTK view needs a running GTK main loop
 and pywebview already owns one.
 """
 
+# Optional platform imports cannot resolve where the type check runs: Linux-only renderer (system PyGObject).
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 import queue

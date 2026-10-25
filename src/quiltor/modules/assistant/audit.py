@@ -107,6 +107,8 @@ def validate_proposals(
     seen_temporary: set[str] = set()
     result = []
     required = required_proposal_kinds(question)
+    # Rebound below to cleaned copies of different shapes.
+    proposal: dict[str, Any]
     for proposal in value[:20]:
         if not isinstance(proposal, dict) or proposal.get("kind") not in allowed:
             continue
@@ -172,7 +174,7 @@ def validate_proposals(
             if element_id is None or not isinstance(proposal.get("patch"), dict):
                 continue
             patch = proposal["patch"]
-            clean_patch = {
+            clean_patch: dict[str, Any] = {
                 key: str(patch[key])[:limit]
                 for key, limit in (("name", 160), ("label", 160), ("sub", 1000))
                 if isinstance(patch.get(key), str)

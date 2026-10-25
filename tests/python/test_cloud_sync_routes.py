@@ -9,12 +9,14 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.hosts.web import server
+from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.platform.ports import AppDirectories
-from quiltor.modules.identity.service import SESSION_COOKIE
+from quiltor.modules.identity.service import SESSION_COOKIE, LocalIdentity
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
 
@@ -102,7 +104,7 @@ class _LiveSyncServer(unittest.TestCase):
         self.httpd.server_close()
         self.server_thread.join(timeout=5)
         self.assertFalse(self.server_thread.is_alive(), "the test server did not stop")
-        self.application.identity.auth.clear()
+        cast(StdlibIdentityGateway, self.application.identity.auth).clear()
         self.application.close()
         self.environment.stop()
         self.temp.cleanup()
@@ -353,7 +355,7 @@ class CloudSyncRouteTests(_LiveSyncServer):
         )
         args, kwargs = synchronize.call_args
         self.assertEqual(args[0].root.name, world_id)
-        self.assertEqual(args[1], self.application.identity.master_sub)
+        self.assertEqual(args[1], cast(LocalIdentity, self.application.identity).master_sub)
         self.assertEqual(args[3], "use-remote")
         self.assertEqual(kwargs["expected_generation"], 7)
         self.assertEqual(kwargs["expected_local_fingerprint"], "b" * 64)
@@ -402,7 +404,7 @@ class CloudSyncRouteTests(_LiveSyncServer):
         )
         args, kwargs = synchronize.call_args
         self.assertEqual(args[0].root.name, world_id)
-        self.assertEqual(args[1], self.application.identity.master_sub)
+        self.assertEqual(args[1], cast(LocalIdentity, self.application.identity).master_sub)
         self.assertEqual(args[3], "keep-local")
         self.assertEqual(kwargs["expected_generation"], 7)
         self.assertEqual(kwargs["expected_local_fingerprint"], "a" * 64)

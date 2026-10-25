@@ -21,7 +21,7 @@ class SQLiteDocumentRepository:
     def exists(self, database: Path) -> bool:
         return database.is_file()
 
-    def revision_checkpoint(self, database: Path) -> dict[DocumentKind, int]:
+    def revision_checkpoint(self, database: Path) -> dict[str, int]:
         if not database.is_file():
             return {"manuscript": 0, "figures": 0, "storyboards": 0}
         return {

@@ -341,15 +341,23 @@ EDGES = [
 def main() -> None:
     config.DATA.mkdir(parents=True, exist_ok=True)
     schema.initialize()
+    paths = config.SQLitePaths.from_data_directory(config.DATA)
     existing = next(
-        (world for world in world_catalog.list_worlds() if world["title"] == TITLE),
+        (world for world in world_catalog.list_worlds(paths=paths) if world["title"] == TITLE),
         None,
     )
-    world = existing or world_catalog.create_world(TITLE)
-    world_catalog.activate_world(world["id"])
-    manuscript.save(MANUSCRIPT)
+    world = existing or world_catalog.create_world(TITLE, paths=paths)
+    # There is no process-wide active world any more; write into this world's database.
+    database = world_catalog.world_db_path(world["id"], paths=paths)
+    manuscript.save(MANUSCRIPT, db_path=database)
     story_world.save(
-        {"nodes": NODES, "edges": EDGES, "timeline": TIMELINE, "canvasSize": {"w": 1800, "h": 1200}}
+        {
+            "nodes": NODES,
+            "edges": EDGES,
+            "timeline": TIMELINE,
+            "canvasSize": {"w": 1800, "h": 1200},
+        },
+        db_path=database,
     )
     print(world["id"])
 

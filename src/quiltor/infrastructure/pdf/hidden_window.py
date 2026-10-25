@@ -31,7 +31,7 @@ def printable_window(url: str, timeout: int):
     session.
     """
     try:
-        import webview
+        import webview  # pyright: ignore[reportMissingImports] -- desktop extra
     except ImportError as exc:  # pragma: no cover - desktop extra only
         raise RuntimeError("PDF export requires the desktop components (pywebview).") from exc
 

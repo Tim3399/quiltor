@@ -8,7 +8,6 @@ a self-hoster actually has to reimplement.
 
 import hashlib
 import http.server
-import importlib.util
 import json
 import os
 import sqlite3
@@ -24,6 +23,7 @@ from quiltor.application.backups import BackupAuthorization, BackupGatewayError
 from quiltor.infrastructure.backup import SnapshotStore, remote
 from quiltor.infrastructure.backup.adapters import HttpRemoteBackupGateway
 from tests.python.fake_issuer import FakeIssuer
+from tests.python.module_loader import load_module_from_path
 
 REFERENCE_SERVER = Path(__file__).resolve().parents[2] / "services" / "backup-server" / "server.py"
 
@@ -39,9 +39,7 @@ def _load_reference_server(root: Path, issuer_url: str):
     """Imported by path: services/backup-server is deliberately independent, since
     product modules may not depend on the deployed service implementation."""
     os.environ["QUILTOR_BACKUP_ROOT"] = str(root)
-    spec = importlib.util.spec_from_file_location("quiltor_backup_reference", REFERENCE_SERVER)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = load_module_from_path("quiltor_backup_reference", REFERENCE_SERVER)
     # Reassigned after import, the same way ROOT always was: the module reads its
     # configuration once, so a test points it somewhere instead of arranging the
     # environment before the import.
@@ -234,7 +232,7 @@ class BackupProtocolTest(unittest.TestCase):
                 self.send_response(200)
                 self.end_headers()
 
-            def log_message(self, *_args):
+            def log_message(self, format, *_args):
                 pass
 
         destination = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Destination)
@@ -248,7 +246,7 @@ class BackupProtocolTest(unittest.TestCase):
                 self.send_header("Location", f"{destination_url}/stolen")
                 self.end_headers()
 
-            def log_message(self, *_args):
+            def log_message(self, format, *_args):
                 pass
 
         redirect = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Redirect)

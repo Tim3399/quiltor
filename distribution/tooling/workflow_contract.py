@@ -9,6 +9,7 @@ import re
 import sys
 import tomllib
 from pathlib import Path
+from typing import cast
 
 from browser_payload_digest import load_contract as load_browser_payload_contract
 
@@ -204,7 +205,8 @@ def validate_toolchains(sources: dict[Path, str], contract: dict[str, object]) -
     npm = str(release_toolchains["npm"])
     python = str(release_toolchains["python"])
     rust = str(release_toolchains["rust"])
-    tools = contract["pythonBuildTools"]
+    # toolchain_lock() validated this as a name-to-version mapping.
+    tools = cast(dict[str, str], contract["pythonBuildTools"])
     native_tools = contract.get("nativePackagingTools")
     hosted_runners = contract.get("hostedRunners")
     if not isinstance(native_tools, dict) or not isinstance(native_tools.get("innoSetup"), dict):

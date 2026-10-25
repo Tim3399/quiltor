@@ -25,6 +25,9 @@ Two consequences worth stating, because both are easy to get wrong:
     the second page reads "2".
 """
 
+# Optional platform imports cannot resolve where the type check runs: macOS-only page stamping (pyobjc).
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 POINTS_PER_INCH = 72

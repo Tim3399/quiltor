@@ -1,10 +1,12 @@
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock
 
 from quiltor.bootstrap import build_identity
 from quiltor.bootstrap.web import build_web_application
+from quiltor.infrastructure.inference.installation import LocalAssistantInstallation
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
 
@@ -50,10 +52,13 @@ class WebApplicationInstanceIsolationTests(unittest.TestCase):
                     first_app.assistant_installation,
                     second_app.assistant_installation,
                 )
-                self.assertIsNot(
-                    first_app.assistant_installation.coordinator,
-                    second_app.assistant_installation.coordinator,
+                first_installation = cast(
+                    LocalAssistantInstallation, first_app.assistant_installation
                 )
+                second_installation = cast(
+                    LocalAssistantInstallation, second_app.assistant_installation
+                )
+                self.assertIsNot(first_installation.coordinator, second_installation.coordinator)
             finally:
                 first_app.close()
                 second_app.close()

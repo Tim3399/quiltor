@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from quiltor.application.backups import BackupAuthorization
@@ -78,7 +79,7 @@ class EffectiveCapabilityTests(unittest.TestCase):
     def test_every_axis_can_independently_disable_a_feature(self) -> None:
         for axis in ("host", "platform", "distribution"):
             with self.subTest(axis=axis):
-                values = {"host": True, "platform": True, "distribution": True}
+                values: dict[str, Any] = {"host": True, "platform": True, "distribution": True}
                 values[axis] = False
                 service, _ = self._service(**values)
                 result = service.evaluate(Feature.LOCAL_INFERENCE)

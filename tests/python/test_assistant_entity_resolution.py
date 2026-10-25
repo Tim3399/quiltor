@@ -11,6 +11,7 @@ from quiltor.modules.assistant.contract import (
 from quiltor.modules.assistant.proposal_resolution import resolve_proposals
 from quiltor.modules.assistant.proposals import forced_proposal
 from quiltor.modules.assistant.references import resolve_reference
+from tests.python.narrowing import present
 
 FIGURES = {
     "nodes": [
@@ -102,12 +103,15 @@ class AssistantEntityResolutionTests(unittest.TestCase):
         }
         contract = task_contract(question, FIGURES)
         self.assertEqual(validate_proposals([raw], FIGURES, question), [])
-        self.assertEqual(existing_creation_target(question, FIGURES, contract)["id"], "tarek")
+        target = present(existing_creation_target(question, FIGURES, contract))
+        self.assertEqual(target["id"], "tarek")
 
     def test_ambiguous_create_preflight_returns_all_candidates(self):
         figures = colliding_figures()
         question = "Lege Der Falke als Figur an."
-        resolution = creation_target_resolution(question, figures, task_contract(question, figures))
+        resolution = present(
+            creation_target_resolution(question, figures, task_contract(question, figures))
+        )
         self.assertEqual(resolution.status, "ambiguous")
         self.assertEqual(
             {candidate.element_id for candidate in resolution.candidates}, {"tarek", "falke"}
@@ -153,6 +157,8 @@ class AssistantEntityResolutionTests(unittest.TestCase):
         relationship = forced_proposal(
             "Schlage eine Beziehung von Der Falke zu Die Eule vor.", "[]", FIGURES
         )
+        update = present(update)
+        relationship = present(relationship)
         self.assertEqual(update["elementId"], "tarek")
         self.assertEqual(relationship["relationship"]["from"], "tarek")
         self.assertEqual(relationship["relationship"]["to"], "mara")
@@ -170,6 +176,7 @@ class AssistantEntityResolutionTests(unittest.TestCase):
             [],
             colliding_figures(),
         )
+        result = present(result)
         self.assertEqual(
             {item["id"] for item in result["clarification"]["candidates"]},
             {"tarek", "falke"},
@@ -225,7 +232,7 @@ class AssistantEntityResolutionTests(unittest.TestCase):
         self.assertEqual(result.proposals, [])
         self.assertEqual(result.decisions[0].outcome, "ambiguous")
         self.assertEqual(
-            {item["id"] for item in result.clarification["candidates"]},
+            {item["id"] for item in present(result.clarification)["candidates"]},
             {"tarek", "falke"},
         )
 
@@ -393,7 +400,7 @@ class AssistantEntityResolutionTests(unittest.TestCase):
         self.assertEqual(result.proposals, [])
         self.assertEqual(result.decisions[0].outcome, "ambiguous")
         self.assertIsNotNone(result.clarification)
-        self.assertEqual(result.clarification["candidates"], [])
+        self.assertEqual(present(result.clarification)["candidates"], [])
 
     def test_relationship_reuses_existing_id_behind_model_temp_reference(self):
         result = resolve_proposals(

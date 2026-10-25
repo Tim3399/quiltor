@@ -23,6 +23,9 @@
   "ignoreDependencies": [
     // The PDF sidecar resolves playwright from the runtime image's own lockfile (Dockerfile, pinned to the
     // same version as @playwright/test); it is not a dependency of this package.
-    "playwright"
+    "playwright",
+    // `npm run lint:pyright` runs it through tools/dev/run_pyright.py, a Python script, so knip
+    // never sees an import of it.
+    "pyright"
   ]
 }

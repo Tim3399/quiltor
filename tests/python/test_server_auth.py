@@ -7,13 +7,18 @@ import time
 import unittest
 import urllib.parse
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
+from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenStore
+from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
+from quiltor.modules.identity.service import LocalIdentity
+from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
 
@@ -32,6 +37,15 @@ def _directories(root: Path) -> AppDirectories:
         logs=root / "logs",
         temp=root / "temp",
     )
+
+
+# The suite builds the real adapters, and reaches past the ports to reset and expire them.
+def _render_tokens(application) -> InMemoryRenderTokenStore:
+    return cast(InMemoryRenderTokenStore, application.identity.render_tokens)
+
+
+def _sessions(application) -> StdlibIdentityGateway:
+    return cast(StdlibIdentityGateway, application.identity.auth)
 
 
 def _build_test_application(selected_identity, directories: AppDirectories):
@@ -75,8 +89,8 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         self.application = _build_test_application(selected_identity, self.directories)
         self.assertEqual(self.application.data_directory, root.resolve())
         self.application.prepare()
-        self.auth = self.application.identity.auth
-        self.application.identity.render_tokens.clear()
+        self.auth = _sessions(self.application)
+        _render_tokens(self.application).clear()
 
         self.discovery = {
             "authorization_endpoint": "https://kc.example.com/auth",
@@ -226,7 +240,7 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         wants. Kept on the session, it is what server._backup_token hands to the
         uploader -- and why a hosted user never meets a second login."""
         session_value = self._login("user-alice")
-        session = self.auth.get_session(session_value)
+        session = present(self.auth.get_session(session_value))
         self.assertEqual(session.access_token, "at")
         self.assertEqual(
             session.refresh_token,
@@ -382,10 +396,10 @@ class RenderTokenTests(unittest.TestCase):
         self.application = _build_test_application(
             build_identity(False), _directories(Path(self.temp.name))
         )
-        self.application.identity.render_tokens.clear()
+        _render_tokens(self.application).clear()
 
     def tearDown(self):
-        self.application.identity.render_tokens.clear()
+        _render_tokens(self.application).clear()
         self.application.close()
         self.environment_patch.stop()
         self.temp.cleanup()
@@ -404,7 +418,7 @@ class RenderTokenTests(unittest.TestCase):
 
     def test_expired_token_does_not_redeem(self):
         token = self.application.issue_render_token("user-alice")
-        self.application.identity.render_tokens.expire(token)
+        _render_tokens(self.application).expire(token)
         self.assertIsNone(self.application.redeem_render_token(token))
 
 
@@ -466,7 +480,7 @@ class LocalIdentityServerTest(unittest.TestCase):
 
         self.application = _build_test_application(build_identity(False), self.directories)
         self.application.prepare()
-        self.token = self.application.identity.token
+        self.token = cast(LocalIdentity, self.application.identity).token
 
         self.httpd = server.Server(("127.0.0.1", 0), server.Handler, self.application)
         self.port = self.httpd.server_address[1]
@@ -477,7 +491,7 @@ class LocalIdentityServerTest(unittest.TestCase):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join(timeout=5)
-        self.application.identity.auth.clear()
+        _sessions(self.application).clear()
         self.application.close()
         self.environment_patch.stop()
         self.temp.cleanup()
@@ -507,7 +521,8 @@ class LocalIdentityServerTest(unittest.TestCase):
         self.assertEqual(body["sub"], config.LOCAL_OWNER)
 
     def test_https_public_url_forces_secure_cookie_without_trusting_forwarded_headers(self):
-        handler = server.Handler.__new__(server.Handler)
+        # A bare handler: only cookie_secure() runs, so headers can be a plain dict.
+        handler: Any = server.Handler.__new__(server.Handler)
         handler.server = self.httpd
         handler.headers = {}
         self.application.public_url = "https://quiltor.example.test"

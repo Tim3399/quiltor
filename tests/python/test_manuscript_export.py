@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 import zipfile
 from io import BytesIO
+from typing import Any, cast
 from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
@@ -15,6 +16,7 @@ from quiltor.infrastructure.exporting.docx import (
     serialize_docx,
 )
 from quiltor.infrastructure.importing.docx import parse_docx
+from tests.python.narrowing import present
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
@@ -95,12 +97,12 @@ class ManuscriptDocxExportTests(unittest.TestCase):
         editor_root = document_xml(editor)
         norm_root = document_xml(normseite)
 
-        editor_margin = editor_root.find(f".//{W}pgMar")
+        editor_margin = present(editor_root.find(f".//{W}pgMar"))
         self.assertEqual(
             {name: editor_margin.get(f"{W}{name}") for name in ("left", "right", "top", "bottom")},
             {"left": "1440", "right": "1440", "top": "1440", "bottom": "1440"},
         )
-        norm_margin = norm_root.find(f".//{W}pgMar")
+        norm_margin = present(norm_root.find(f".//{W}pgMar"))
         self.assertEqual(
             {name: norm_margin.get(f"{W}{name}") for name in ("left", "right", "top", "bottom")},
             {"left": "1701", "right": "1563", "top": "1417", "bottom": "1021"},
@@ -225,11 +227,12 @@ class ManuscriptDocxExportTests(unittest.TestCase):
         with self.assertRaises(InvalidExportContent):
             serialize_docx([])
         with self.assertRaises(InvalidExportContent):
-            serialize_docx([ExportChapter("Title", "")], DocxExportOptions("unknown"))
+            # Deliberately outside DocxPreset.
+            serialize_docx([ExportChapter("Title", "")], DocxExportOptions(cast(Any, "unknown")))
         with self.assertRaises(InvalidExportContent):
             serialize_docx(
                 [ExportChapter("Title", "")],
-                DocxExportOptions([]),  # type: ignore[arg-type]
+                DocxExportOptions(cast(Any, [])),
             )
         with (
             patch("quiltor.infrastructure.exporting.docx.MAX_PARAGRAPHS", 1),

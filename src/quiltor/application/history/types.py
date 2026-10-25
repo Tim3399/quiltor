@@ -13,11 +13,21 @@ class HistoryContext(Protocol):
     application slice importing the other's port or concrete data class.
     """
 
-    root: Path
-    database: Path
-    manuscripts: Path
-    profiles: Path
-    title: str
+    # Read-only, so the frozen WorldBackupContext dataclass satisfies it.
+    @property
+    def root(self) -> Path: ...
+
+    @property
+    def database(self) -> Path: ...
+
+    @property
+    def manuscripts(self) -> Path: ...
+
+    @property
+    def profiles(self) -> Path: ...
+
+    @property
+    def title(self) -> str: ...
 
 
 __all__ = ["HistoryContext"]

@@ -7,6 +7,7 @@ import tempfile
 import unittest
 import urllib.error
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import patch
 
 from quiltor.application.backups import BackupAuthorization, BackupGatewayError
@@ -25,9 +26,11 @@ class LocalRemoteIndependenceTests(unittest.TestCase):
         failures = {
             "unreachable": urllib.error.URLError("unreachable"),
             "timeout": TimeoutError("timed out"),
-            "expired-token": urllib.error.HTTPError(endpoint, 401, "Unauthorized", {}, None),
+            "expired-token": urllib.error.HTTPError(
+                endpoint, 401, "Unauthorized", cast(Any, {}), None
+            ),
             "quota-exhausted": urllib.error.HTTPError(
-                endpoint, 507, "Insufficient Storage", {}, None
+                endpoint, 507, "Insufficient Storage", cast(Any, {}), None
             ),
         }
         for label, failure in failures.items():

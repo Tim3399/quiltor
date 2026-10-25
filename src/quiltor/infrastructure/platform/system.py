@@ -7,7 +7,9 @@ build profile in :mod:`quiltor.infrastructure.platform.runtime_target`.
 
 from __future__ import annotations
 
+import io
 import sys
+from typing import cast
 
 from quiltor.infrastructure.platform.adapters import linux, macos, windows
 from quiltor.infrastructure.platform.constants import APP_NAME
@@ -39,7 +41,8 @@ machine_arch = _impl.machine_arch
 def force_utf8_streams() -> None:
     for stream in (sys.stdout, sys.stderr):
         if stream and stream.encoding and stream.encoding.lower() != "utf-8":
-            stream.reconfigure(encoding="utf-8")
+            # The interpreter's standard streams are TextIOWrapper; typeshed says TextIO.
+            cast(io.TextIOWrapper, stream).reconfigure(encoding="utf-8")
 
 
 __all__ = [

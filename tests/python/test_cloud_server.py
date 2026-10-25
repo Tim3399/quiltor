@@ -3,7 +3,6 @@
 import concurrent.futures
 import datetime
 import hashlib
-import importlib.util
 import json
 import os
 import socket
@@ -17,6 +16,7 @@ from pathlib import Path
 
 from quiltor.application.backup_manifest import build_manifest_files, manifest_identifier
 from tests.python.fake_issuer import FakeIssuer
+from tests.python.module_loader import load_module_from_path
 
 REFERENCE_SERVER = Path(__file__).resolve().parents[2] / "services" / "backup-server" / "server.py"
 TOKEN = "cloud-token"
@@ -25,9 +25,7 @@ ACCOUNT = "cloud-account"
 
 def _load_server(root: Path, issuer_url: str):
     os.environ["QUILTOR_BACKUP_ROOT"] = str(root)
-    spec = importlib.util.spec_from_file_location("quiltor_cloud_reference", REFERENCE_SERVER)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = load_module_from_path("quiltor_cloud_reference", REFERENCE_SERVER)
     module.ROOT = root
     module.ISSUER = issuer_url
     module.CLIENT_ID = "quiltor-backup"

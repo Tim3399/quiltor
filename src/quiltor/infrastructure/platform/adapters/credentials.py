@@ -70,8 +70,10 @@ class RestrictedFileCredentialVault:
         payload = json.dumps({"version": 1, "secrets": secrets}, ensure_ascii=False).encode()
         handle = os.open(str(self.path), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
         try:
-            if hasattr(os, "fchmod"):
-                os.fchmod(handle, 0o600)
+            # POSIX only; typeshed does not declare it for Windows.
+            fchmod = getattr(os, "fchmod", None)
+            if fchmod is not None:
+                fchmod(handle, 0o600)
             os.write(handle, payload)
         finally:
             os.close(handle)
