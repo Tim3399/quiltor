@@ -16,7 +16,7 @@ import time
 import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
@@ -163,7 +163,8 @@ class BackupLoginRuntime:
                 self._probing[base] = running
                 running.start()
         if stamped is None and ours:
-            running.join(PROBE_PATIENCE)
+            # `ours` means the branch above just started this thread.
+            cast(threading.Thread, running).join(PROBE_PATIENCE)
             with self._lock:
                 stamped = self._probes.get(base)
         return stamped[1] if stamped is not None else ("", "", None)

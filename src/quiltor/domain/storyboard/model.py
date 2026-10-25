@@ -8,7 +8,7 @@ canvas library.
 from __future__ import annotations
 
 from math import isfinite
-from typing import Any, Literal, NotRequired, Required, TypedDict
+from typing import Any, Literal, NotRequired, Required, TypedDict, TypeGuard
 
 from quiltor.domain.notes import valid_note_marks
 
@@ -187,7 +187,7 @@ def _valid_node(value: Any, board_ids: set[str]) -> bool:
     )
 
 
-def _valid_target(value: Any, allowed: set[str]) -> bool:
+def _valid_target(value: Any, allowed: set[str]) -> TypeGuard[dict[str, Any]]:
     if not isinstance(value, dict):
         return False
     kind = value.get("kind")
@@ -291,7 +291,7 @@ def _utf16_offsets_to_indices(text: str, offsets: tuple[int, int]) -> tuple[int,
     return found[offsets[0]], found[offsets[1]]
 
 
-def _non_empty_id(value: Any) -> bool:
+def _non_empty_id(value: Any) -> TypeGuard[str]:
     return isinstance(value, str) and 1 <= len(value) <= MAX_ID_LENGTH and value == value.strip()
 
 

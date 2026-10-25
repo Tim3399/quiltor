@@ -8,6 +8,7 @@ import platform
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import cast
 
 from quiltor.infrastructure.platform.constants import APP_NAME
 from quiltor.infrastructure.platform.ports import AppDirectories
@@ -94,7 +95,9 @@ def bind_child_lifetime(process: object) -> None:
         ctypes.byref(info),
         ctypes.sizeof(info),
     )
-    handle = kernel32.OpenProcess(process_terminate | process_set_quota, False, process.pid)
+    # The port takes `object` so other adapters accept anything; here it is a Popen.
+    pid = cast("subprocess.Popen[bytes]", process).pid
+    handle = kernel32.OpenProcess(process_terminate | process_set_quota, False, pid)
     if handle:
         kernel32.AssignProcessToJobObject(job, handle)
         kernel32.CloseHandle(handle)

@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from quiltor.application.document_wire_v1 import encode_document_v1
+from quiltor.application.document_wire_v1 import DocumentKind, encode_document_v1
 from quiltor.domain.manuscript import story_time_anchor_issue
 from quiltor.infrastructure.persistence.sqlite import manuscript, story_world, storyboards
 
 
 def validate_backup_documents(database: Path) -> dict[str, dict[str, Any]]:
-    documents = {
+    documents: dict[DocumentKind, dict[str, Any]] = {
         "manuscript": manuscript.load(database),
         "figures": story_world.load(database),
         "storyboards": storyboards.load(database),

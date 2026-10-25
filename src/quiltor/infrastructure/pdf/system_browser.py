@@ -21,7 +21,8 @@ CHANNELS = ("chrome", "msedge")
 
 
 def render(url: str, timeout: int = 90) -> bytes:
-    from playwright.sync_api import sync_playwright  # local import: `desktop` extra only
+    # local import: `desktop` extra only
+    from playwright.sync_api import sync_playwright  # pyright: ignore[reportMissingImports]
 
     last_error: Exception | None = None
     with sync_playwright() as p:

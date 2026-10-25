@@ -35,17 +35,21 @@ class SnapshotHistory(Protocol):
         profiles: Path,
         title: str = "",
     ) -> WorldBackupContext: ...
-    def status(self, context: WorldBackupContext) -> dict[str, Any]: ...
-    def entries(self, context: WorldBackupContext) -> list[dict[str, Any]]: ...
+    # `context` is positional-only: SnapshotStore names it `ctx`, and no caller passes it
+    # by keyword.
+    def status(self, context: WorldBackupContext, /) -> dict[str, Any]: ...
+    def entries(self, context: WorldBackupContext, /) -> list[dict[str, Any]]: ...
     def upload(
         self,
         context: WorldBackupContext,
+        /,
         entry: dict[str, Any],
         authorization: BackupAuthorization,
     ) -> str | None: ...
     def commit(
         self,
         context: WorldBackupContext,
+        /,
         message: str,
         push: bool,
         authorization: BackupAuthorization | None = None,
@@ -53,6 +57,7 @@ class SnapshotHistory(Protocol):
     def restore(
         self,
         context: WorldBackupContext,
+        /,
         entry: dict[str, Any],
         fetch: Callable[[str], bytes] | None = None,
     ) -> dict[str, Any]: ...

@@ -346,15 +346,17 @@ def _word_diff(old: str, new: str) -> list[str]:
     """One text with removals as [-this-] and additions as {+that+}, inline.
     The History dialog parses exactly these markers (markWords() in
     packages/client/src/modules/history/HistoryDialog.tsx), so the shape is a contract."""
-    matcher = difflib.SequenceMatcher(None, _tokenize(old), _tokenize(new), autojunk=False)
+    old_tokens = _tokenize(old)
+    new_tokens = _tokenize(new)
+    matcher = difflib.SequenceMatcher(None, old_tokens, new_tokens, autojunk=False)
     out: list[str] = []
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag in ("delete", "replace"):
-            out.append("[-" + "".join(matcher.a[i1:i2]) + "-]")
+            out.append("[-" + "".join(old_tokens[i1:i2]) + "-]")
         if tag in ("insert", "replace"):
-            out.append("{+" + "".join(matcher.b[j1:j2]) + "+}")
+            out.append("{+" + "".join(new_tokens[j1:j2]) + "+}")
         if tag == "equal":
-            out.append("".join(matcher.a[i1:i2]))
+            out.append("".join(old_tokens[i1:i2]))
     # Markers must not straddle a line break, or a single changed paragraph would
     # swallow every following line into one unreadable block.
     return "".join(out).replace("\n", "\n\x00").split("\x00")
@@ -761,6 +763,7 @@ class SnapshotStore:
         self._append_entry(ctx, entry)
         log.append("Snapshot created.")
 
+        warning = None
         if push:
             warning = self._push(ctx, entry, authorization, snapshot_created=True)
             log.append("Snapshot uploaded to the backup endpoint.")
