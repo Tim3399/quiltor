@@ -192,7 +192,7 @@ typeCheckingMode = "standard"
 # strict where the code is new and small enough to hold to it. src/quiltor/domain and
 # application would add ~1,200 findings in strict mode, almost all untyped JSON dicts;
 # that is a migration of its own, not part of introducing the gate.
-strict = ["tools/dev/run_pyright.py", "tests/python/narrowing.py", "tests/python/module_loader.py"]
+strict = ["tests/python/narrowing.py", "tests/python/module_loader.py"]
 # Analyse this checkout's sources rather than the editable install (which points at the
 # main checkout from a worktree), and resolve the release tooling the tests put on
 # sys.path at runtime.

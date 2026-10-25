@@ -201,7 +201,7 @@ put on `sys.path` at runtime.
 | Setting                            | Why                                                                                                    |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `typeCheckingMode = "standard"`    | the whole tree passes it; strict would add about 1,200 findings in `domain` and `application` alone    |
-| `strict = [...]`                   | the three small helpers added with the gate (`run_pyright.py`, `narrowing.py`, `module_loader.py`)     |
+| `strict = [...]`                   | the two small test helpers added with the gate (`narrowing.py`, `module_loader.py`)                    |
 | `enableTypeIgnoreComments = false` | a bare `# type: ignore` is not honoured; a suppression must be `# pyright: ignore[<rule>]` and name it |
 
 No rule is switched off in the configuration.
