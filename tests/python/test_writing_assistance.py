@@ -22,6 +22,7 @@ from quiltor.modules.writing_assistance.providers import (
     parse_wiktionary,
 )
 from quiltor.modules.writing_assistance.service import WritingAssistanceService
+from tests.python.narrowing import present
 
 
 class WritingAssistanceServiceTests(unittest.TestCase):
@@ -182,7 +183,7 @@ class FreeDictParserTests(unittest.TestCase):
             <TEI><entry><orth>Haus</orth><pos/><pos> \t </pos>
               <pos> n <hi>common</hi> noun </pos><quote>house</quote></entry></TEI>
         """)
-        root.find("entry").append(UnreadablePos("pos"))
+        present(root.find("entry")).append(UnreadablePos("pos"))
         with patch(
             "quiltor.modules.writing_assistance.providers.freedict.ET.parse",
             return_value=ET.ElementTree(root),

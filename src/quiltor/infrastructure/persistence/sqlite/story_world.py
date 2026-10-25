@@ -167,17 +167,32 @@ def _delete_missing_rows(
         database.executemany(f"DELETE FROM {table} WHERE {id_column}=?", removed)  # noqa: S608 - table and column are module constants
 
 
+_ROW_ORDER_STATEMENTS: dict[str, tuple[str, str, str]] = {
+    "connections": (
+        "SELECT id FROM connections ORDER BY rowid",
+        "SELECT COALESCE(MAX(rowid), 0) FROM connections",
+        "UPDATE connections SET rowid=? WHERE id=?",
+    ),
+    "presence_states": (
+        "SELECT id FROM presence_states ORDER BY rowid",
+        "SELECT COALESCE(MAX(rowid), 0) FROM presence_states",
+        "UPDATE presence_states SET rowid=? WHERE id=?",
+    ),
+}
+
+
 def _sync_row_order(
     database: sqlite3.Connection,
     table: Literal["connections", "presence_states"],
     ordered_ids: list[str],
 ) -> None:
-    current_ids = [row[0] for row in database.execute(f"SELECT id FROM {table} ORDER BY rowid")]
+    select_ids, select_maximum, update_rowid = _ROW_ORDER_STATEMENTS[table]
+    current_ids = [row[0] for row in database.execute(select_ids)]
     if current_ids == ordered_ids or not ordered_ids:
         return
-    maximum = database.execute(f"SELECT COALESCE(MAX(rowid), 0) FROM {table}").fetchone()[0]
+    maximum = database.execute(select_maximum).fetchone()[0]
     database.executemany(
-        f"UPDATE {table} SET rowid=? WHERE id=?",
+        update_rowid,
         [(maximum + position + 1, entry_id) for position, entry_id in enumerate(ordered_ids)],
     )
 

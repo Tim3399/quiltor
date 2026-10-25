@@ -35,6 +35,7 @@ class ManuscriptDocxExportTests(unittest.TestCase):
             ("😀AB😀C", ((2, 4, "bold"), (3, 6, "italic")), "AB", "B😀"),
             ("😀A\n\nB😀C", ((0, 3, "bold"), (3, 9, "bold"), (2, 8, "italic")), "😀AB😀C", "AB😀"),
         )
+        result = None
         for body, ranges, bold, italic in cases:
             with self.subTest(body=body):
                 marks = tuple(
@@ -61,7 +62,7 @@ class ManuscriptDocxExportTests(unittest.TestCase):
                 {"from": 2, "to": 8, "kind": "italic"},
             ),
         )
-        self.assertEqual(result.content, serialize_docx([merged]).content)
+        self.assertEqual(present(result).content, serialize_docx([merged]).content)
 
     def test_utf16_primitives_preserve_sparse_and_nonboundary_offset_behavior(self):
         self.assertEqual(docx_export._utf16_len(""), 0)
@@ -88,10 +89,15 @@ class ManuscriptDocxExportTests(unittest.TestCase):
             self.assertIs(type(caught.exception), InvalidExportContent)
             self.assertEqual(str(caught.exception), "A DOCX mark range is invalid.")
         invalid = ExportChapter("Bad\x00", "😀", ({"from": 1, "to": 2, "kind": "bold"},))
+        # "unknown" is deliberately not a DocxPreset, to test the rejection.
         cases = (
-            ([invalid], DocxExportOptions("unknown"), "DOCX export options are invalid."),
+            (
+                [invalid],
+                DocxExportOptions(cast(Any, "unknown")),
+                "DOCX export options are invalid.",
+            ),
             ([invalid], None, "DOCX text contains an unrepresentable character."),
-            ([], DocxExportOptions("unknown"), "DOCX export options are invalid."),
+            ([], DocxExportOptions(cast(Any, "unknown")), "DOCX export options are invalid."),
             (
                 [ExportChapter("Kapitel", "\ud800")],
                 None,
