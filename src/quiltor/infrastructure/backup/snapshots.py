@@ -62,6 +62,7 @@ from quiltor.application.backups import (
 )
 from quiltor.application.backups import WorldBackupContext as BackupContext
 from quiltor.application.history import HistoryRevisionNotFound
+from quiltor.application.history.types import HistoryContext
 from quiltor.domain.text_offsets import utf16_offsets_to_indices
 
 FORMAT_VERSION = CURRENT_FORMAT_VERSION
@@ -424,7 +425,7 @@ class SnapshotStore:
 
     # ----------------------------------------------------------------- storage
 
-    def _blob_path(self, ctx: BackupContext, digest: str) -> Path:
+    def _blob_path(self, ctx: HistoryContext, digest: str) -> Path:
         # Two-character shard: a long-lived history can hold tens of thousands of
         # blobs, and some filesystems degrade badly with that many siblings.
         if not DIGEST_RE.fullmatch(digest):
@@ -454,7 +455,7 @@ class SnapshotStore:
         staged.replace(target)
         return digest
 
-    def _read_blob(self, ctx: BackupContext, digest: str) -> bytes:
+    def _read_blob(self, ctx: HistoryContext, digest: str) -> bytes:
         path = self._blob_path(ctx, digest)
         _assert_contained(ctx.root, path)
         try:
@@ -469,7 +470,7 @@ class SnapshotStore:
             )
         return payload
 
-    def _index_path(self, ctx: BackupContext) -> Path:
+    def _index_path(self, ctx: HistoryContext) -> Path:
         path = ctx.root / "index.jsonl"
         _assert_contained(ctx.root, path)
         return path
@@ -574,14 +575,14 @@ class SnapshotStore:
         finally:
             staged.unlink(missing_ok=True)
 
-    def entries(self, ctx: BackupContext) -> list[dict[str, Any]]:
+    def entries(self, ctx: HistoryContext) -> list[dict[str, Any]]:
         path = self._index_path(ctx)
         if not path.exists():
             return []
         found, _ = self._parse_index(ctx, path.read_bytes())
         return found
 
-    def _parse_index(self, ctx: BackupContext, payload: bytes) -> tuple[list[dict[str, Any]], int]:
+    def _parse_index(self, ctx: HistoryContext, payload: bytes) -> tuple[list[dict[str, Any]], int]:
         """Return validated entries and the byte boundary before any torn tail."""
 
         lines = payload.splitlines(keepends=True)
@@ -626,7 +627,7 @@ class SnapshotStore:
             index.flush()
             os.fsync(index.fileno())
 
-    def _resolve(self, ctx: BackupContext, ref: str) -> dict[str, Any] | None:
+    def _resolve(self, ctx: HistoryContext, ref: str) -> dict[str, Any] | None:
         entries = self.entries(ctx)
         if not entries:
             return None
@@ -638,7 +639,7 @@ class SnapshotStore:
 
     # ------------------------------------------------------------- world state
 
-    def _collect(self, ctx: BackupContext) -> dict[str, bytes]:
+    def _collect(self, ctx: HistoryContext) -> dict[str, bytes]:
         """The world exactly as it stands right now: the database plus the
         human-readable mirrors, read straight from where they live. There is no
         staging copy to keep in sync."""
@@ -810,7 +811,7 @@ class SnapshotStore:
 
         return self._push(ctx, entry, authorization, snapshot_created=False)
 
-    def history(self, ctx: BackupContext, limit: int = 40) -> list[dict[str, str]]:
+    def history(self, ctx: HistoryContext, limit: int = 40) -> list[dict[str, str]]:
         entries = self.entries(ctx)[-limit:]
         return [
             {
@@ -823,7 +824,7 @@ class SnapshotStore:
         ]
 
     def diff(
-        self, ctx: BackupContext, ref: str, text_only: bool = True, word_diff: bool = True
+        self, ctx: HistoryContext, ref: str, text_only: bool = True, word_diff: bool = True
     ) -> dict[str, Any]:
         if ref in ("", "WORK", None):
             new_files = {path: payload for path, payload in self._collect(ctx).items()}
@@ -934,7 +935,7 @@ class SnapshotStore:
         }
 
     def chapter_version(
-        self, ctx: BackupContext, ref: str, chapter_index: int, filename: str
+        self, ctx: HistoryContext, ref: str, chapter_index: int, filename: str
     ) -> dict[str, Any]:
         entry = self._resolve(ctx, ref)
         if entry is None and ref not in ("", "WORK", "HEAD", None):
@@ -950,7 +951,7 @@ class SnapshotStore:
 
     def _chapter_record(
         self,
-        ctx: BackupContext,
+        ctx: HistoryContext,
         entry: dict[str, Any] | None,
         chapter_id: str,
     ) -> dict[str, Any]:
@@ -1011,7 +1012,7 @@ class SnapshotStore:
 
     def chapter_comparison(
         self,
-        ctx: BackupContext,
+        ctx: HistoryContext,
         ref: str,
         chapter_id: str,
     ) -> dict[str, Any]:

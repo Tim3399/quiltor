@@ -15,7 +15,6 @@ from quiltor.application.backups import BackupUseCases
 from quiltor.application.capabilities import FeatureAvailability
 from quiltor.application.documents import DocumentUseCases
 from quiltor.application.history import HistoryUseCases
-from quiltor.application.history.ports import HistoryReader
 from quiltor.application.manuscript_export import ManuscriptExportUseCases
 from quiltor.application.manuscript_import import ManuscriptImportUseCases
 from quiltor.application.place_maps import PlaceMapUseCases
@@ -202,9 +201,7 @@ def build_application_services(
             OidcBackupLoginGateway(backup_login),
             observer,
         ),
-        # SnapshotStore annotates its context as WorldBackupContext, the one value every
-        # caller passes; HistoryReader states the narrower structural HistoryContext.
-        history=HistoryUseCases(cast(HistoryReader, history), local_backups.safe_name),
+        history=HistoryUseCases(history, local_backups.safe_name),
         assistant=AssistantAuditUseCases(worlds, documents),
         story_world=StoryWorldUseCases(),
         synchronization=synchronization,
