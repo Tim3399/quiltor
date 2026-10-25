@@ -37,6 +37,7 @@ export function FocusPanels({
   const chapters = orderedChapters(manuscript);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     if (!focus) setHelpersOpen(false);
   }, [focus]);
 

@@ -51,6 +51,7 @@ export function Tabs({
   const id = useId();
   const [focusedValue, setFocusedValue] = useState(value);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
   useEffect(() => setFocusedValue(value), [value]);
 
   return (

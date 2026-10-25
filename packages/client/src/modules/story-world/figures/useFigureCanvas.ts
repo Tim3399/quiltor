@@ -90,6 +90,7 @@ export function useFigureCanvas({
   const flow = useRef<ReactFlowInstance<FigureFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   const latestState = useRef(state);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestState.current = state;
 
   useEffect(() => {
@@ -116,6 +117,7 @@ export function useFigureCanvas({
     [state.nodes, zoomTier, viewportZoom],
   );
   const nodeContext = useRef({ timeline, activeMomentId, guestsByPlace });
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   nodeContext.current = { timeline, activeMomentId, guestsByPlace };
   const [nodes, setFlowNodes] = useState<FigureFlowNode[]>(() =>
     applyFigureNodeContext(derivedNodes, timeline, activeMomentId, guestsByPlace),
@@ -132,6 +134,7 @@ export function useFigureCanvas({
     );
   }, [derivedNodes]);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setFlowNodes((current) =>
       applyFigureNodeContext(current, timeline, activeMomentId, guestsByPlace),
     );

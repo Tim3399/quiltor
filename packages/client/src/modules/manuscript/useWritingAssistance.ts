@@ -45,6 +45,7 @@ export function useWritingAssistance({
   const lookupRequest = useRef<AbortController | null>(null);
   const grammarRequest = useRef<AbortController | null>(null);
   const currentRef = useRef(current);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   currentRef.current = current;
   const [symbolPicker, setSymbolPicker] = useState(false);
   const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
@@ -84,6 +85,7 @@ export function useWritingAssistance({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `selectionKey` is a trigger: switching the edited item resets all selection-bound state
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setSelection(null);
     setSelectionMenuOpen(false);
     setWritingSelection(null);
@@ -305,6 +307,7 @@ export function useWritingAssistance({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `liveSelection.from` is a trigger: selecting the same text elsewhere refills the query
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     if (liveSelection?.text) setQuery(liveSelection.text);
   }, [liveSelection?.text, liveSelection?.from]);
 

@@ -70,6 +70,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   const hasVisibleMinimap = minimapProps !== false && minimapVisible;
   const surface = useRef<HTMLDivElement>(null);
   const reportSurface = useRef(onSurfaceResize);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   reportSurface.current = onSurfaceResize;
 
   useEffect(() => {
