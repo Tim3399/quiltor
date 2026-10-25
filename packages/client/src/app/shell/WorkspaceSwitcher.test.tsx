@@ -33,7 +33,7 @@ describe("WorkspaceSwitcher", () => {
     const css = readFileSync(join(process.cwd(), "packages/client/src/app/AppShell.css"), "utf8");
 
     expect(css).toMatch(
-      /@media \(max-width: 719px\)[\s\S]*?\.app-bar \.workspace-switch\s*\{[^}]*flex:\s*1 1 0;[^}]*justify-content:\s*safe center;/s,
+      /@media \(max-width: 719px\)[\s\S]*?\.app-bar \.workspace-switch\s*\{[^}]*flex:\s*0 0 auto;[^}]*justify-content:\s*safe center;/s,
     );
     expect(css).not.toMatch(
       /\.app-bar \.workspace-switch\s*\{[^}]*(?:overflow|overscroll|scrollbar)/s,
