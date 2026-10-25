@@ -5,11 +5,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 /*
  * Runs one of the linters for the files outside the code: zizmor and actionlint for the
- * workflows, hadolint for the Dockerfiles, shellcheck for the shell scripts.
+ * workflows, hadolint for the Dockerfiles, shellcheck for the shell scripts -- and the two
+ * dependency scanners: osv-scanner for every lockfile, cargo-deny for the Rust workspace.
  *
- *   node tools/dev/lint-tool.mjs <zizmor|actionlint|hadolint|shellcheck>
+ *   node tools/dev/lint-tool.mjs <zizmor|actionlint|hadolint|shellcheck|osv-scanner|cargo-deny>
  *
- * All four are single binaries. The versions live in distribution/toolchains.json
+ * All six are single binaries. The versions live in distribution/toolchains.json
  * (lintTools), and a tool that reports another version is refused rather than run: a
  * different release audits differently, and a green local run would then promise nothing
  * about CI.
@@ -20,7 +21,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  * tools/dev/python.mjs: there is nothing to `import`. Instead it looks in the scripts
  * directory of the same interpreters python.mjs would try, then on PATH.
  *
- * actionlint, hadolint and shellcheck are standalone downloads. Without them this says so
+ * actionlint, hadolint, shellcheck, osv-scanner and cargo-deny are standalone downloads. Without them this says so
  * and exits 0 -- CI installs them by version and checksum and runs them there. In CI a
  * missing binary is an error, so a broken install step cannot pass as a clean lint.
  */
@@ -28,6 +29,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WINDOWS = process.platform === "win32";
 const ARM = process.arch === "arm64";
+const TOOLS = ["zizmor", "actionlint", "hadolint", "shellcheck", "osv-scanner", "cargo-deny"];
 
 const { lintTools } = JSON.parse(
   readFileSync(resolve(ROOT, "distribution/toolchains.json"), "utf8"),
@@ -59,6 +61,23 @@ function releaseAsset(name, version) {
         : `shellcheck-v${version}.${os}.${ARM ? "aarch64" : "x86_64"}.tar.xz`;
       return `https://github.com/koalaman/shellcheck/releases/download/v${version}/${file}`;
     }
+    case "osv-scanner": {
+      const file = `${os}_${ARM ? "arm64" : "amd64"}${WINDOWS ? ".exe" : ""}`;
+      return `https://github.com/google/osv-scanner/releases/download/v${version}/osv-scanner_${file}`;
+    }
+    case "cargo-deny": {
+      const cpu = ARM ? "aarch64" : "x86_64";
+      const triple = WINDOWS
+        ? `${cpu}-pc-windows-msvc`
+        : os === "darwin"
+          ? `${cpu}-apple-darwin`
+          : `${cpu}-unknown-linux-musl`;
+      // cargo-deny tags its releases without the leading "v".
+      return (
+        `https://github.com/EmbarkStudios/cargo-deny/releases/download/${version}/` +
+        `cargo-deny-${version}-${triple}.tar.gz`
+      );
+    }
     default:
       throw new Error(`no release asset for ${name}`);
   }
@@ -75,8 +94,10 @@ export function installHint(name) {
     );
   }
   const file = WINDOWS ? `${name}.exe` : name;
-  // hadolint's release asset is the executable itself; the other two are archives.
-  const step = name === "hadolint" ? `save it as ${file}` : `unpack ${file} from it`;
+  // hadolint's and osv-scanner's release assets are the executable itself; the others are
+  // archives.
+  const bare = name === "hadolint" || name === "osv-scanner";
+  const step = bare ? `save it as ${file}` : `unpack ${file} from it`;
   return `download ${releaseAsset(name, version)}, ${step} and put it on PATH`;
 }
 
@@ -116,6 +137,8 @@ const VERSION_FLAG = {
   actionlint: "-version",
   hadolint: "--version",
   shellcheck: "--version",
+  "osv-scanner": "--version",
+  "cargo-deny": "--version",
 };
 
 /** Where a tool is and what it reports, or `{ missing: true }`. */
@@ -135,6 +158,22 @@ function trackedFiles(...patterns) {
   });
   if (run.status !== 0) throw new Error(`git ls-files failed: ${run.stderr}`);
   return run.stdout.split("\0").filter(Boolean);
+}
+
+/*
+ * Every lockfile a release depends on. The Python locks come from the lock contract, so a
+ * lock added there is scanned without touching this list. Their names end in .lock, which
+ * osv-scanner does not recognise on its own, hence the explicit requirements.txt parser.
+ */
+function osvLockfiles() {
+  const { locks } = JSON.parse(
+    readFileSync(resolve(ROOT, "distribution/dependency-locks.json"), "utf8"),
+  );
+  return [
+    "package-lock.json",
+    "Cargo.lock",
+    ...locks.map((lock) => `requirements.txt:${lock.path}`),
+  ];
 }
 
 /** The arguments each tool gets. Kept here so a local run and CI run the same command. */
@@ -169,6 +208,11 @@ function argumentsFor(name) {
       };
     case "shellcheck":
       return { args: trackedFiles("*.sh", "**/*.sh") };
+    case "osv-scanner":
+      return { args: ["scan", "source", ...osvLockfiles().flatMap((lock) => ["-L", lock])] };
+    // --locked: the same graph every Cargo gate builds. deny.toml is found on its own.
+    case "cargo-deny":
+      return { args: ["--locked", "check"] };
     default:
       return undefined;
   }
@@ -178,7 +222,7 @@ function main(argv) {
   const [name] = argv;
   const setup = argumentsFor(name);
   if (!setup || argv.length !== 1) {
-    console.error("usage: node tools/dev/lint-tool.mjs <zizmor|actionlint|hadolint|shellcheck>");
+    console.error(`usage: node tools/dev/lint-tool.mjs <${TOOLS.join("|")}>`);
     return 2;
   }
   const expected = pinnedVersion(name);

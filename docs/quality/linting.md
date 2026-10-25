@@ -128,3 +128,66 @@ Not selected at all:
 
 Every other exception is a single-line `# noqa: <code> - <reason>`. `BLE001` is selected,
 so each remaining `except Exception` in product code says why it is broad.
+
+## osv-scanner
+
+Checks every lockfile a release depends on against the OSV advisory database:
+`package-lock.json`, `Cargo.lock` and the hash-locked Python release locks listed in
+`distribution/dependency-locks.json` (read from there, so a new lock is scanned without a
+code change). Any known vulnerability fails the gate, whatever its severity.
+
+- **Version:** 2.7.0, pinned with download URL and SHA-256 in `distribution/toolchains.json`
+  (`lintTools["osv-scanner"]`).
+- **Run:** `npm run lint:osv`. Local and CI behaviour as for actionlint; in CI it runs in the
+  `workflow-docker-shell-lint` job. It needs network access to `osv.dev`.
+- **Python locks:** their names end in `.lock`, so the runner passes them as
+  `requirements.txt:<path>`; otherwise osv-scanner would not recognise them.
+- **A finding:** update the dependency when a fixed version exists. npm: the exact pin in
+  `package.json` for a direct dependency, `npm update <name>` for a transitive one. Python:
+  regenerate the locks with `distribution/tooling/regenerate_dependency_locks.py`. Only
+  when no fix exists, add an exception to `osv-scanner.toml` with the advisory id, a
+  reason and an `ignoreUntil` date, and list it below.
+
+Exceptions: none.
+
+## cargo-deny
+
+Checks the Rust workspace (`Cargo.lock`): RustSec advisories, the licenses of every crate,
+duplicate versions and where crates come from.
+
+- **Version:** 0.20.2, pinned with download URL and SHA-256 in `distribution/toolchains.json`
+  (`lintTools["cargo-deny"]`).
+- **Config:** `deny.toml`, with a comment on every section.
+- **Run:** `npm run lint:cargo-deny` (`cargo-deny --locked check`). Local and CI behaviour as
+  for actionlint; in CI it runs in the `portable-core` job, which already has the pinned
+  Rust toolchain that `cargo metadata` needs.
+- **Advisories:** vulnerable, unmaintained, unsound and yanked crates all fail. An exception
+  goes into `[advisories] ignore` with id, reason and expiry date.
+- **Licenses:** permissive licenses only (MIT, MIT-0, Apache-2.0, BSD-2/3-Clause, ISC,
+  Unicode-3.0), the ones `THIRD-PARTY-NOTICES.md` already accepts in the other ecosystems.
+  Quiltor's own PolyForm license is allowed for the two workspace crates only. A new
+  license needs a decision and a line in `THIRD-PARTY-NOTICES.md`.
+- **Sources:** crates.io only; any git dependency or other registry fails.
+
+Rule relaxed:
+
+- **`bans.wildcards = "allow"`**: the only wildcard is `quiltor-ffi`'s path dependency on
+  `quiltor-core`. `allow-wildcard-paths` would cover it only if both crates said
+  `publish = false`. A registry wildcard cannot change the build unnoticed, because every
+  Cargo gate runs with `--locked`. Back to `deny` once the crates carry `publish = false`.
+
+## CodeQL
+
+Static analysis of Quiltor's own code in `.github/workflows/codeql.yml`: JavaScript and
+TypeScript, Python, Rust, and the workflows themselves (`actions`). It runs on push to
+`main`, on every pull request and weekly (Monday 04:17 UTC), with the default query suite.
+
+- **Version:** `github/codeql-action` v4.39.1, pinned by SHA in `.github/actions.lock.json`.
+- **Build mode:** `none` for all four languages. Nothing is built or installed, so no
+  project code runs in the job.
+- **Permissions:** `permissions: {}` at workflow level. The `analyze` job has
+  `contents: read` and `security-events: write`, the latter only to upload the results.
+- **Excluded:** `dist/`. It is built from `packages/client/src`, which is analysed itself.
+- **Not local:** CodeQL has no npm script. Results appear under _Security → Code scanning_
+  on GitHub. For a private repository that needs GitHub Advanced Security (Code Security)
+  to be enabled in the repository settings; without it the upload step fails.
