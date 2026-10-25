@@ -6,7 +6,7 @@ import { type ImageCrop, movedCrop, zoomedCrop } from "./placeImageCrop";
 import "./PlacePlate.css";
 import "./PlaceMapNode.css";
 
-export type PlaceMapNodeData = {
+type PlaceMapNodeData = {
   place: FigureNode;
   /** This sheet's top-left corner on the level, in flow units. */
   origin: { x: number; y: number };

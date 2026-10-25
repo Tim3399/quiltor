@@ -314,18 +314,6 @@ export function addChapterItem(
   return normalizePositions(next);
 }
 
-export function removeChapterItem(
-  structure: ManuscriptStructure,
-  chapterId: string,
-): ManuscriptStructure {
-  return normalizePositions({
-    folders: structure.folders,
-    items: structure.items.filter(
-      (item) => item.kind !== "chapter" || item.chapterId !== chapterId,
-    ),
-  });
-}
-
 export function renameFolder(
   structure: ManuscriptStructure,
   folderId: string,

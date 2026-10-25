@@ -3,14 +3,14 @@ import { defaultLocaleCatalog as de, localePackages } from "../../../../locales"
 export type MessageKey = keyof typeof de;
 export type MessageCatalog = Record<MessageKey, string>;
 export type UiLocale = string;
-export type LocaleDirection = "ltr" | "rtl";
+type LocaleDirection = "ltr" | "rtl";
 export type LocaleManifest = {
   locale: UiLocale;
   name: string;
   direction: LocaleDirection;
 };
 
-export const messageCatalogs = Object.fromEntries(
+const messageCatalogs = Object.fromEntries(
   localePackages.map(({ manifest, catalog }) => [manifest.locale, catalog]),
 ) as Record<UiLocale, MessageCatalog>;
 

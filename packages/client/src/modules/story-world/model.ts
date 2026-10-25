@@ -6,7 +6,7 @@ import type {
   NoteReference,
 } from "../../shared";
 
-export interface ProfileExtra {
+interface ProfileExtra {
   k: string;
   v: string;
   [key: string]: unknown;
@@ -149,16 +149,16 @@ export interface TimelineMoment {
 }
 
 export type TimeSystemKind = "relative" | "gregorian" | "custom";
-export type TimeSystemUnit = "day" | "abstract";
+type TimeSystemUnit = "day" | "abstract";
 
-export interface CalendarMonth {
+interface CalendarMonth {
   name: string;
   shortName: string;
   dayCount: number;
   [key: string]: unknown;
 }
 
-export interface CalendarWeekday {
+interface CalendarWeekday {
   name: string;
   shortName: string;
   [key: string]: unknown;

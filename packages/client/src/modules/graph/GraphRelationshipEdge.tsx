@@ -34,7 +34,7 @@ export type GraphEdgeLabelBadge = "kinship" | "temporal";
 type GraphLabelNode = Pick<Node, "id" | "position"> &
   Partial<Pick<Node, "data" | "measured" | "width" | "height" | "style">>;
 
-export type GraphRelationshipEdgeData = {
+type GraphRelationshipEdgeData = {
   [key: string]: unknown;
   labelPlacement?: { x: number; y: number };
   labelSize?: GraphSize;

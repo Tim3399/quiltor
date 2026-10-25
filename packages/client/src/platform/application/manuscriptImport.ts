@@ -28,7 +28,7 @@ export interface ManuscriptImportChapter {
   marks: ManuscriptImportMark[];
 }
 
-export interface ManuscriptImportUnit {
+interface ManuscriptImportUnit {
   index: number;
   text: string;
   marks: ManuscriptImportMark[];
@@ -62,7 +62,7 @@ export interface ManuscriptImportSource {
   content: Blob;
 }
 
-export interface ManuscriptImportRequest extends ManuscriptImportSelection {
+interface ManuscriptImportRequest extends ManuscriptImportSelection {
   source: ManuscriptImportSource;
   sourceSha256: string;
   acknowledgedWarnings: ManuscriptImportWarningCode[];

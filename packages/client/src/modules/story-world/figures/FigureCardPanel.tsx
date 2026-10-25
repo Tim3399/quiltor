@@ -17,7 +17,7 @@ const ALIAS_SOURCE_KEYS = {
   import: "aliasSourceImport",
 } as const;
 
-export function validateFigureAlias(
+function validateFigureAlias(
   value: string,
   figure: FigureNode,
   ignoredAlias?: EntityAlias,

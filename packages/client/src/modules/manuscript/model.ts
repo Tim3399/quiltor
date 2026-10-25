@@ -3,7 +3,7 @@ import type { BookLayoutSettings } from "./bookLayout";
 
 export type WritingLocale = "de-DE";
 
-export type ManuscriptImportWarningCode =
+type ManuscriptImportWarningCode =
   | "images"
   | "hyperlinks"
   | "headers_footers"
@@ -32,6 +32,7 @@ interface ManuscriptImportSourceProvenanceBase {
   [key: string]: unknown;
 }
 
+/** @public Named by declaration emit for exported return types (TS4058). */
 export type ManuscriptImportSourceProvenance = ManuscriptImportSourceProvenanceBase &
   ({ version: 1; format: "docx" } | { version: 2; format: "docx" | "markdown" | "txt" });
 
@@ -111,7 +112,7 @@ export interface ChapterTrashEntry {
   [key: string]: unknown;
 }
 
-export type GrammarMode = "manual" | "automatic";
+type GrammarMode = "manual" | "automatic";
 
 export type WritingIssue = {
   id: string;

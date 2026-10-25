@@ -1,6 +1,6 @@
 import { normalizeMarks, type TextMark, type TextMarkKind } from "../manuscript";
 
-export type VersionDiffKind = "unchanged" | "added" | "removed";
+type VersionDiffKind = "unchanged" | "added" | "removed";
 
 export interface VersionDiffSegment {
   kind: VersionDiffKind;
@@ -11,14 +11,14 @@ export type VersionTextChange =
   | { kind: "added"; from: number; to: number; text: string }
   | { kind: "removed"; at: number; text: string };
 
-export interface VersionEqualSpan {
+interface VersionEqualSpan {
   previousFrom: number;
   previousTo: number;
   selectedFrom: number;
   selectedTo: number;
 }
 
-export interface VersionFormattingChange {
+interface VersionFormattingChange {
   kind: "format-added" | "format-removed";
   markKind: TextMarkKind;
   from: number;

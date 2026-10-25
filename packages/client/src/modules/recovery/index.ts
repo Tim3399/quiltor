@@ -1,8 +1,5 @@
 export { RecoveryDialog } from "./RecoveryDialog";
-export {
-  conflictRecoveryJson,
-  manuscriptText,
-  type PersistedRecoveryDocuments,
-  recoveryJson,
-  type RecoveryDocuments,
+export type {
+  PersistedRecoveryDocuments,
+  RecoveryDocuments,
 } from "./recoveryExport";

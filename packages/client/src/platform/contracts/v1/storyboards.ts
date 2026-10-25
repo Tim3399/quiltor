@@ -39,19 +39,19 @@ const NODE_KINDS = ["note", "reference", "storyboard", "group"] as const;
 const TARGET_KINDS = ["entity", "place", "timeline", "chapter", "storyboard"] as const;
 const REFERENCE_TARGET_KINDS = ["entity", "place", "timeline", "chapter"] as const;
 
-export interface StoryboardBoardWireV1 {
+interface StoryboardBoardWireV1 {
   id: string;
   title: string;
   [key: string]: unknown;
 }
 
-export interface StoryboardTargetWireV1 {
+interface StoryboardTargetWireV1 {
   kind: (typeof TARGET_KINDS)[number];
   id: string;
   [key: string]: unknown;
 }
 
-export interface StoryboardNodeWireV1 {
+interface StoryboardNodeWireV1 {
   id: string;
   boardId: string;
   kind: (typeof NODE_KINDS)[number];
@@ -68,7 +68,7 @@ export interface StoryboardNodeWireV1 {
   [key: string]: unknown;
 }
 
-export interface StoryboardEdgeWireV1 {
+interface StoryboardEdgeWireV1 {
   id: string;
   boardId: string;
   sourceNodeId: string;
@@ -80,7 +80,7 @@ export interface StoryboardEdgeWireV1 {
   [key: string]: unknown;
 }
 
-export interface StoryboardsPayloadWireV1 {
+interface StoryboardsPayloadWireV1 {
   boards: StoryboardBoardWireV1[];
   nodes: StoryboardNodeWireV1[];
   edges: StoryboardEdgeWireV1[];

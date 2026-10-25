@@ -11,7 +11,7 @@ export interface VersionedDocumentGateway<T> {
   saveExpected(data: T, expectedRevision: number): Promise<DocumentSaveResult>;
 }
 
-export interface DocumentSaveResult {
+interface DocumentSaveResult {
   ok: boolean;
   zeit: string;
   revision: number;

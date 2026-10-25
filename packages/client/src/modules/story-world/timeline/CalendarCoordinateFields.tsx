@@ -4,7 +4,7 @@ import type { TimelineMoment, TimeSystem } from "../model";
 import { calendarDayCount, gregorianMonthLabel } from "./timelinePresentation";
 import type { CalendarCoordinate } from "./timeSystem";
 
-export type CalendarPrecision = NonNullable<TimelineMoment["precision"]>;
+type CalendarPrecision = NonNullable<TimelineMoment["precision"]>;
 
 export interface CalendarCoordinateFieldsProps {
   system: TimeSystem;
