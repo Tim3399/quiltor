@@ -1,0 +1,61 @@
+# cargo-deny: advisories, licenses and sources of the Rust workspace.
+#
+#   npm run lint:cargo-deny
+#
+# The version is pinned in distribution/toolchains.json (lintTools.cargo-deny). See
+# docs/quality/linting.md for what each section checks and why.
+
+[graph]
+# Every target a release builds for: Linux, macOS and Windows hosts plus the mobile
+# targets the FFI crate is compiled for. A dependency that only enters on one of them is
+# still checked.
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "aarch64-apple-ios",
+  "aarch64-linux-android",
+]
+all-features = true
+
+[advisories]
+# Any RustSec advisory (vulnerability, unmaintained, unsound, yanked) fails the gate.
+# An exception goes into `ignore` with the advisory id, a reason and an expiry date.
+version = 2
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+ignore = []
+
+[licenses]
+version = 2
+# The licenses third-party crates may carry. Today the workspace has no third-party
+# crates, so the list holds the permissive licenses THIRD-PARTY-NOTICES.md already
+# accepts for the other ecosystems. Adding one is a decision, not a formality: the
+# notice file has to list the crate too.
+allow = ["MIT", "MIT-0", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0"]
+confidence-threshold = 0.93
+# Quiltor's own license. It is not on the allow list because no dependency may carry it;
+# it applies to the two workspace crates only.
+exceptions = [
+  { allow = ["PolyForm-Noncommercial-1.0.0", "PolyForm-Small-Business-1.0.0"], crate = "quiltor-core" },
+  { allow = ["PolyForm-Noncommercial-1.0.0", "PolyForm-Small-Business-1.0.0"], crate = "quiltor-ffi" },
+]
+# An allowed license nobody uses is a warning, not an error: the list is a policy.
+unused-allowed-license = "allow"
+
+[bans]
+multiple-versions = "deny"
+# Allowed, with a reason: the only wildcard is quiltor-ffi's path dependency on
+# quiltor-core. allow-wildcard-paths would cover it only if both crates said
+# `publish = false`, which they do not today. A registry wildcard cannot slip through
+# unnoticed either: every build runs `cargo --locked` against the committed Cargo.lock.
+# Once the crates carry `publish = false`, set this to "deny" with allow-wildcard-paths.
+wildcards = "allow"
+
+[sources]
+# crates.io only. A git dependency or another registry fails the gate.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

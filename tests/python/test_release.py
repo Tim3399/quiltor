@@ -1734,7 +1734,7 @@ class ThirdPartyNoticeContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         expected = {
-            "pyjwt": ("2.13.0", "MIT License"),
+            "pyjwt": ("2.15.0", "MIT License"),
             "cryptography": ("50.0.0", "Apache License 2.0"),
             "cffi": ("2.1.1", "MIT-0"),
             "pycparser": ("3.0", "3-Clause BSD License"),

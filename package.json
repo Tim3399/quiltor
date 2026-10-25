@@ -17,6 +17,8 @@
     "lint:actionlint": "node tools/dev/lint-tool.mjs actionlint",
     "lint:hadolint": "node tools/dev/lint-tool.mjs hadolint",
     "lint:shellcheck": "node tools/dev/lint-tool.mjs shellcheck",
+    "lint:osv": "node tools/dev/lint-tool.mjs osv-scanner",
+    "lint:cargo-deny": "node tools/dev/lint-tool.mjs cargo-deny",
     "start": "node tools/dev/start-workshop.mjs",
     "dev": "vite",
     "build": "npm run check:contracts && npm run check:architecture && npm run check:design && npm run check:design-system && npm run check:i18n && npm run check:platform && tsc -b && vite build",
@@ -82,7 +84,10 @@
     "stylelint": "17.16.0",
     "stylelint-config-recommended": "18.0.0",
     "typescript": "7.0.2",
-    "vite": "8.1.5",
-    "vitest": "4.1.11"
+    "vite": "8.1.6",
+    "vitest": "4.1.12"
+  },
+  "overrides": {
+    "katex": "0.18.2"
   }
 }
