@@ -204,6 +204,128 @@
       "canonical": "integer"
     },
     {
+      "id": "note-mark-heading-level-integral-float",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteMarks/0/level",
+      "value": 2.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "mark-integral-float",
+      "operation": "set",
+      "path": "/payload/chapters/0/marks/0/from",
+      "value": 5.0,
+      "expect": "accept",
+      "canonical": "integer"
+    },
+    {
+      "id": "trash-note-reference-integral-floats",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter",
+      "value": {
+        "id": "chapter-deleted-draft",
+        "inBook": false,
+        "title": "Verworfener Prolog",
+        "body": "Mara fand die Karte früher.",
+        "note": "Hinweis",
+        "noteReferences": [
+          {
+            "id": "trash-note-reference",
+            "target": { "kind": "entity", "id": "mara" },
+            "from": 0.0,
+            "to": 7.0,
+            "surface": "Hinweis",
+            "paragraph": true,
+            "offset": 9007199254740992
+          }
+        ],
+        "extensionNote": { "preserved": true }
+      },
+      "expect": "accept"
+    },
+    {
+      "id": "trash-note-mark-integral-floats",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter",
+      "value": {
+        "id": "chapter-deleted-draft",
+        "inBook": false,
+        "title": "Verworfener Prolog",
+        "body": "Mara fand die Karte früher.",
+        "note": "Titel",
+        "noteMarks": [{ "from": 0.0, "to": 5.0, "kind": "heading", "level": 2.0 }],
+        "extensionNote": { "preserved": true }
+      },
+      "expect": "accept"
+    },
+    {
+      "id": "trash-mention-integral-floats",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/mentions",
+      "value": [
+        {
+          "id": "trash-mention-mara",
+          "elementId": "mara",
+          "from": 0.0,
+          "to": 4.0,
+          "surface": "Mara",
+          "source": "deterministic",
+          "confidence": 1
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "trash-mark-integral-floats",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/marks",
+      "value": [{ "from": 0.0, "to": 4.0, "kind": "bold" }],
+      "expect": "accept"
+    },
+    {
+      "id": "trash-note-references-null",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/noteReferences",
+      "value": null,
+      "expect": "reject"
+    },
+    {
+      "id": "trash-note-marks-null",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/noteMarks",
+      "value": null,
+      "expect": "reject"
+    },
+    {
+      "id": "trash-mentions-null",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/mentions",
+      "value": null,
+      "expect": "reject"
+    },
+    {
+      "id": "trash-marks-null",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/marks",
+      "value": null,
+      "expect": "reject"
+    },
+    {
+      "id": "legacy-note-reference-integer-fields-ignored",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteReferences/0/paragraph",
+      "value": true,
+      "expect": "accept"
+    },
+    {
+      "id": "legacy-note-reference-offset-ignored",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteReferences/0/offset",
+      "value": 9007199254740992,
+      "expect": "accept"
+    },
+    {
       "id": "note-mark-invalid-heading-level",
       "operation": "set",
       "path": "/payload/chapters/0/noteMarks/0/level",
@@ -235,6 +357,172 @@
       "operation": "set",
       "path": "/payload/chapters/0/mentions/0/from",
       "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "note-mark-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteMarks/0/from",
+      "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "mark-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/chapters/0/marks/0/from",
+      "value": true,
+      "expect": "reject"
+    },
+    {
+      "id": "trash-note-reference-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter",
+      "value": {
+        "id": "chapter-deleted-draft",
+        "body": "Mara fand die Karte früher.",
+        "note": "Hinweis",
+        "noteReferences": [
+          {
+            "id": "trash-note-reference",
+            "target": { "kind": "entity", "id": "mara" },
+            "from": true,
+            "to": 7,
+            "surface": "Hinweis"
+          }
+        ]
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "trash-note-mark-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter",
+      "value": {
+        "id": "chapter-deleted-draft",
+        "body": "Mara fand die Karte früher.",
+        "note": "Text",
+        "noteMarks": [{ "from": true, "to": 4, "kind": "bold" }]
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "trash-mention-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/mentions",
+      "value": [
+        {
+          "id": "trash-mention",
+          "elementId": "mara",
+          "from": true,
+          "to": 1,
+          "surface": "M",
+          "source": "deterministic",
+          "confidence": 1
+        }
+      ],
+      "expect": "reject"
+    },
+    {
+      "id": "trash-mark-bool-is-not-integer",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/marks",
+      "value": [{ "from": true, "to": 1, "kind": "bold" }],
+      "expect": "reject"
+    },
+    {
+      "id": "note-reference-below-minimum",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteReferences/0/from",
+      "value": -1,
+      "expect": "reject"
+    },
+    {
+      "id": "trash-note-reference-below-minimum",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter",
+      "value": {
+        "id": "chapter-deleted-draft",
+        "body": "Mara fand die Karte früher.",
+        "note": "Hinweis",
+        "noteReferences": [
+          {
+            "id": "trash-note-reference",
+            "target": { "kind": "entity", "id": "mara" },
+            "from": -1,
+            "to": 7,
+            "surface": "Hinweis"
+          }
+        ]
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "note-mark-above-max-safe",
+      "operation": "set",
+      "path": "/payload/chapters/0/noteMarks/0/to",
+      "value": 9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "trash-note-mark-above-max-safe",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter",
+      "value": {
+        "id": "chapter-deleted-draft",
+        "body": "Mara fand die Karte früher.",
+        "note": "Text",
+        "noteMarks": [{ "from": 0, "to": 9007199254740992, "kind": "bold" }]
+      },
+      "expect": "reject"
+    },
+    {
+      "id": "mention-below-minimum",
+      "operation": "set",
+      "path": "/payload/chapters/0/mentions/0/from",
+      "value": -1,
+      "expect": "reject"
+    },
+    {
+      "id": "trash-mention-below-minimum",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/mentions",
+      "value": [
+        {
+          "id": "trash-mention",
+          "elementId": "mara",
+          "from": -1,
+          "to": 1,
+          "surface": "M",
+          "source": "deterministic",
+          "confidence": 1
+        }
+      ],
+      "expect": "reject"
+    },
+    {
+      "id": "mark-above-max-safe",
+      "operation": "set",
+      "path": "/payload/chapters/0/marks/0/to",
+      "value": 9007199254740992,
+      "expect": "reject"
+    },
+    {
+      "id": "trash-mark-above-max-safe",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter/marks",
+      "value": [{ "from": 0, "to": 9007199254740992, "kind": "bold" }],
+      "expect": "reject"
+    },
+    {
+      "id": "trash-note-mark-invalid-heading-level",
+      "operation": "set",
+      "path": "/payload/trash/0/chapter",
+      "value": {
+        "id": "chapter-deleted-draft",
+        "body": "Mara fand die Karte früher.",
+        "note": "Titel",
+        "noteMarks": [{ "from": 0, "to": 5, "kind": "heading", "level": 4 }]
+      },
       "expect": "reject"
     },
     {
