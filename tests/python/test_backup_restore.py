@@ -5,7 +5,6 @@ history, no blobs, and no per-world endpoint setting to read. Everything has to
 come from QUILTOR_BACKUP_URL and the endpoint itself.
 """
 
-import importlib.util
 import os
 import sqlite3
 import tempfile
@@ -18,6 +17,7 @@ from quiltor.application.backups import BackupAuthorization
 from quiltor.infrastructure.backup import SnapshotStore, remote
 from quiltor.infrastructure.backup.adapters import HttpRemoteBackupGateway
 from tests.python.fake_issuer import FakeIssuer
+from tests.python.module_loader import load_module_from_path
 
 REFERENCE_SERVER = Path(__file__).resolve().parents[2] / "services" / "backup-server" / "server.py"
 # ACCOUNT is the token's subject, which the endpoint reads off the token rather
@@ -27,11 +27,7 @@ TOKEN, ACCOUNT = "test-token", "tester"
 
 def _load_reference_server(root: Path, issuer_url: str):
     os.environ["QUILTOR_BACKUP_ROOT"] = str(root)
-    spec = importlib.util.spec_from_file_location(
-        "quiltor_backup_reference_restore", REFERENCE_SERVER
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = load_module_from_path("quiltor_backup_reference_restore", REFERENCE_SERVER)
     module.ROOT = root
     module.ISSUER = issuer_url
     module.CLIENT_ID = "quiltor-backup"

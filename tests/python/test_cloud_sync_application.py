@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import tempfile
 import threading
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.application.backup_manifest import BackupContractError
@@ -18,6 +19,7 @@ from quiltor.application.synchronization import (
     SyncGatewayFailure,
     SynchronizationUseCases,
 )
+from quiltor.application.worlds import WorldRepository
 from quiltor.infrastructure.backup import remote as remote_transport
 from quiltor.infrastructure.backup.adapters import HttpRemoteBackupGateway
 from quiltor.infrastructure.backup.snapshots import SnapshotStore
@@ -26,11 +28,16 @@ from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocument
 from quiltor.infrastructure.persistence.sqlite import revisions, schema
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 from tests.python.fake_issuer import FakeIssuer
+from tests.python.module_loader import load_module_from_path
 
 REFERENCE_SERVER = Path(__file__).resolve().parents[2] / "services" / "backup-server" / "server.py"
 
 
 class _Worlds:
+    # Set by each test after construction.
+    database: Path
+    context: WorldBackupContext
+
     def open(self, world_id, owner_sub):
         del world_id, owner_sub
         context = self.context
@@ -61,8 +68,8 @@ class _Remote:
         self.access = "read-write"
         self.account_id = "account-a"
         self.lose_next_cas_response = False
-        self.on_push = None
-        self.on_fetch = None
+        self.on_push: Callable[[], None] | None = None
+        self.on_fetch: Callable[[], None] | None = None
 
     def default_endpoint(self):
         return "http://127.0.0.1:9911"
@@ -180,7 +187,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
             worlds.context = context
             history = SnapshotStore(base / "history", self.remote)
             sync = SynchronizationUseCases(
-                worlds,
+                cast(WorldRepository, worlds),
                 self.documents,
                 history,
                 self.remote,
@@ -255,7 +262,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         ):
             service._validated_remote_documents(context, {"title": "Remote"}, self.authorization)
 
-        self.assertIsNotNone(captured)
+        assert captured is not None
         self.assertEqual(captured.root.parent.parent, aliased_root.resolve())
 
     def test_offline_delete_and_edit_conflict_without_resurrecting_or_mutating(self):
@@ -306,7 +313,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         worlds.database = context.database
         worlds.context = context
         service = SynchronizationUseCases(
-            worlds,
+            cast(WorldRepository, worlds),
             self.documents,
             SnapshotStore(context.root.parent, self.remote),
             self.remote,
@@ -325,7 +332,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         worlds.context = context
         durable = JsonSyncStateStore(context.database.parent / "publish-final-state")
         service = SynchronizationUseCases(
-            worlds,
+            cast(WorldRepository, worlds),
             self.documents,
             SnapshotStore(context.root.parent, self.remote),
             self.remote,
@@ -338,7 +345,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         self.assertEqual(result["state"], "unlinked")
         self.assertEqual(result["warnings"], ["sync.state_not_saved"])
         restarted = SynchronizationUseCases(
-            worlds,
+            cast(WorldRepository, worlds),
             self.documents,
             SnapshotStore(context.root.parent, self.remote),
             self.remote,
@@ -353,7 +360,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         worlds.context = context
         history = SnapshotStore(context.root.parent, self.remote)
         service = SynchronizationUseCases(
-            worlds,
+            cast(WorldRepository, worlds),
             self.documents,
             history,
             self.remote,
@@ -456,7 +463,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         history = SnapshotStore(context_b.root.parent, self.remote)
         durable_state = JsonSyncStateStore(context_b.database.parent / "sync")
         service = SynchronizationUseCases(
-            worlds,
+            cast(WorldRepository, worlds),
             self.documents,
             history,
             self.remote,
@@ -499,7 +506,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
             self.documents.revision_checkpoint(context_b.database),
         )
         restarted = SynchronizationUseCases(
-            worlds, self.documents, history, self.remote, durable_state
+            cast(WorldRepository, worlds), self.documents, history, self.remote, durable_state
         )
         recovered = restarted.status(context_b, "owner", self.authorization)
         self.assertEqual(recovered["state"], "synced")
@@ -511,7 +518,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         worlds.database = context_b.database
         worlds.context = context_b
         service = SynchronizationUseCases(
-            worlds,
+            cast(WorldRepository, worlds),
             self.documents,
             SnapshotStore(context_b.root.parent, self.remote),
             self.remote,
@@ -541,7 +548,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         worlds.context = context_b
         history = SnapshotStore(context_b.root.parent, self.remote)
         service = SynchronizationUseCases(
-            worlds,
+            cast(WorldRepository, worlds),
             self.documents,
             history,
             self.remote,
@@ -578,7 +585,7 @@ class CloudSyncApplicationTest(unittest.TestCase):
         worlds.context = context_b
         history = SnapshotStore(context_b.root.parent, self.remote)
         service = SynchronizationUseCases(
-            worlds,
+            cast(WorldRepository, worlds),
             self.documents,
             history,
             self.remote,
@@ -725,9 +732,7 @@ class CloudSyncRealServerTest(unittest.TestCase):
         self.issuer = FakeIssuer().start()
         self.issuer.issue("sync-token", sub="sync-account")
         os.environ["QUILTOR_BACKUP_ROOT"] = str(self.root / "served")
-        spec = importlib.util.spec_from_file_location("sync_reference_server", REFERENCE_SERVER)
-        self.reference = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.reference)
+        self.reference = load_module_from_path("sync_reference_server", REFERENCE_SERVER)
         self.reference.ROOT = self.root / "served"
         self.reference.ISSUER = self.issuer.url
         self.reference.CLIENT_ID = "quiltor-backup"
@@ -771,7 +776,7 @@ class CloudSyncRealServerTest(unittest.TestCase):
             self.devices[name] = (
                 context,
                 SynchronizationUseCases(
-                    worlds,
+                    cast(WorldRepository, worlds),
                     self.documents,
                     history,
                     self.remote,

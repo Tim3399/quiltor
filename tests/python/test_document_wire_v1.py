@@ -4,6 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from threading import RLock
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.application import (
@@ -12,8 +13,9 @@ from quiltor.application import (
     decode_document_v1,
     encode_document_v1,
 )
+from quiltor.application.document_wire_v1 import DocumentKind
 from quiltor.application.documents.types import DocumentSaveResult
-from quiltor.delivery.http.routes import documents
+from quiltor.delivery.http.routes import Request, documents
 from quiltor.domain.story_world.entity_resolution import (
     ENTITY_ALIAS_ASCII_UPPERCASE_V1,
     ENTITY_ALIAS_NORMALIZATION_V1,
@@ -92,6 +94,13 @@ def at_pointer(value, path: str):
     return current
 
 
+_WIRE_CONTRACTS: tuple[tuple[DocumentKind, str], ...] = (
+    ("manuscript", "application.manuscript-wire"),
+    ("figures", "application.story-world-wire"),
+    ("storyboards", "application.storyboards-wire"),
+)
+
+
 class DocumentWireV1Tests(unittest.TestCase):
     def test_book_layout_round_trips_extensions_and_rejects_invalid_geometry(self):
         fixture = registered_fixture("application.manuscript-wire")
@@ -166,11 +175,7 @@ class DocumentWireV1Tests(unittest.TestCase):
             )
 
     def test_registered_differential_corpora_match_python_runtime(self):
-        for kind, contract_name in (
-            ("manuscript", "application.manuscript-wire"),
-            ("figures", "application.story-world-wire"),
-            ("storyboards", "application.storyboards-wire"),
-        ):
+        for kind, contract_name in _WIRE_CONTRACTS:
             corpus = registered_differential(contract_name)
             base = json.loads((CONTRACTS / corpus["baseFixture"]).read_text(encoding="utf-8"))
             with self.subTest(contract=contract_name):
@@ -215,16 +220,15 @@ class DocumentWireV1Tests(unittest.TestCase):
 
     def test_every_optional_presence_case_is_enforced_at_http_save_and_read_boundaries(self):
         with patch("builtins.print"):
-            for kind, contract_name in (
-                ("manuscript", "application.manuscript-wire"),
-                ("figures", "application.story-world-wire"),
-                ("storyboards", "application.storyboards-wire"),
-            ):
+            for kind, contract_name in _WIRE_CONTRACTS:
                 corpus = registered_differential(contract_name)
                 base = json.loads((CONTRACTS / corpus["baseFixture"]).read_text(encoding="utf-8"))
-                request = SimpleNamespace(
-                    db_path="world.sqlite3",
-                    world=SimpleNamespace(document_location="world-location"),
+                request = cast(
+                    Request,
+                    SimpleNamespace(
+                        db_path="world.sqlite3",
+                        world=SimpleNamespace(document_location="world-location"),
+                    ),
                 )
                 for presence in corpus["optionalPresence"]:
                     prepared = base
@@ -322,9 +326,12 @@ class DocumentWireV1Tests(unittest.TestCase):
         corpus = registered_differential("application.manuscript-wire")
         base = json.loads((CONTRACTS / corpus["baseFixture"]).read_text(encoding="utf-8"))
         cases = {case["id"]: case for case in corpus["cases"] if case["id"].startswith("utf16-")}
-        request = SimpleNamespace(
-            db_path="world.sqlite3",
-            world=SimpleNamespace(document_location="world-location"),
+        request = cast(
+            Request,
+            SimpleNamespace(
+                db_path="world.sqlite3",
+                world=SimpleNamespace(document_location="world-location"),
+            ),
         )
         with patch("builtins.print"):
             for case in cases.values():
@@ -355,11 +362,7 @@ class DocumentWireV1Tests(unittest.TestCase):
                     self.assertTrue(writer.send_api_error.called, case["id"])
 
     def test_registered_fixtures_round_trip_through_runtime_producer_and_consumer(self):
-        for kind, contract_name in (
-            ("manuscript", "application.manuscript-wire"),
-            ("figures", "application.story-world-wire"),
-            ("storyboards", "application.storyboards-wire"),
-        ):
+        for kind, contract_name in _WIRE_CONTRACTS:
             with self.subTest(kind=kind):
                 fixture = registered_fixture(contract_name)
                 decoded = decode_document_v1(kind, fixture)
@@ -778,9 +781,12 @@ class DocumentWireV1Tests(unittest.TestCase):
 
         operations = MagicMock()
         app = SimpleNamespace(lock=RLock(), documents=operations)
-        request = SimpleNamespace(
-            db_path="world.sqlite3",
-            world=SimpleNamespace(document_location="world-location"),
+        request = cast(
+            Request,
+            SimpleNamespace(
+                db_path="world.sqlite3",
+                world=SimpleNamespace(document_location="world-location"),
+            ),
         )
         for candidate in malformed:
             writer = SimpleNamespace(
@@ -813,9 +819,12 @@ class DocumentWireV1Tests(unittest.TestCase):
         )
         operations.save_with_status.return_value = DocumentSaveResult(fixture["revision"] + 1)
         app = SimpleNamespace(lock=RLock(), documents=operations)
-        request = SimpleNamespace(
-            db_path="world.sqlite3",
-            world=SimpleNamespace(document_location="world-location"),
+        request = cast(
+            Request,
+            SimpleNamespace(
+                db_path="world.sqlite3",
+                world=SimpleNamespace(document_location="world-location"),
+            ),
         )
         reader = SimpleNamespace(send_json=MagicMock())
 
