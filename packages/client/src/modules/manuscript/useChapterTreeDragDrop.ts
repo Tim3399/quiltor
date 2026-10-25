@@ -4,7 +4,7 @@ import type { ManuscriptStructure, ManuscriptTreeItem } from "./model";
 
 export const CHAPTER_TREE_DRAG_TYPE = "application/x-quiltor-binder-item";
 
-export interface ChapterTreeDestination {
+interface ChapterTreeDestination {
   key: string;
   parentFolderId?: string;
   beforeItemId?: string;

@@ -8,7 +8,7 @@
  */
 
 /** Beyond this the extra pixels are invisible on any canvas the app draws. */
-export const MAX_STORED_EDGE = 4096;
+const MAX_STORED_EDGE = 4096;
 
 /** Matches the server's decoded-image ceiling, before base64 adds its third. */
 export const MAX_MAP_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -16,7 +16,7 @@ export const MAX_MAP_IMAGE_BYTES = 10 * 1024 * 1024;
 /** WebP at this quality is indistinguishable from the source for a map. */
 const RECODE_QUALITY = 0.9;
 
-export const ACCEPTED_MAP_TYPES = "image/png,image/jpeg,image/webp";
+const ACCEPTED_MAP_TYPES = "image/png,image/jpeg,image/webp";
 
 export type PreparedMapImageIssue = "too_large" | "unsupported_format";
 

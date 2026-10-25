@@ -1,6 +1,6 @@
 import type { WorldInfo } from "../../modules/story-world";
 
-export type TrashedWorldInfo = WorldInfo & { deletedAt: string };
+type TrashedWorldInfo = WorldInfo & { deletedAt: string };
 
 export interface WorldsGateway {
   select(id: string): void;

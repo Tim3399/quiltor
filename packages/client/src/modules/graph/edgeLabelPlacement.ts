@@ -260,12 +260,6 @@ function pathPointAt(geometry: PathGeometry, ratio: number): GraphPoint {
   return geometry.segments.at(-1)?.to ?? { x: 0, y: 0 };
 }
 
-/** Resolve an arc-length ratio against the same M/L/Q path used by BaseEdge. */
-export function graphPathPointAt(pathData: string, ratio: number): GraphPoint | null {
-  const geometry = parsePath(pathData);
-  return geometry ? pathPointAt(geometry, ratio) : null;
-}
-
 function nearestPathRatio(geometry: PathGeometry, point: GraphPoint): number {
   let traversed = 0;
   let nearestRatio = 0.5;

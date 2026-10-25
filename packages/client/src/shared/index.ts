@@ -12,25 +12,18 @@ export {
 } from "./graphEdgeLineStyle";
 export {
   cloneNoteMarks,
-  NOTE_HEADING_LEVELS,
-  NOTE_MARK_KINDS,
   type NoteHeadingLevel,
   type NoteMark,
-  type NoteMarkKind,
 } from "./noteMark";
 export {
   LEGACY_PROFILE_FIELD_KEYS,
-  LEGACY_PROFILE_FIELD_LABELS,
   type LegacyProfileFieldKey,
-  type LegacyProfileFieldLabel,
-  type NormalizableProfile,
-  type NormalizableProfileField,
   normalizeProfile,
   normalizeProfileFields,
 } from "./profileNormalization";
 export { relativeTime } from "./relativeTime";
 export type { SavePhase } from "./save";
-export { IS_APPLE_OS, shortcut, undoShortcut } from "./shortcut";
+export { shortcut } from "./shortcut";
 export type { Theme, ThemePreference } from "./theme";
 export type {
   TextSearchTarget,
@@ -41,7 +34,6 @@ export type {
 } from "./workspace";
 export type { NoteReference, WorldReferenceTarget } from "./worldReference";
 export {
-  NOTE_REFERENCE_SURFACE_MAX_LENGTH,
   normalizeNoteReferenceSurface,
   worldReferenceKey,
 } from "./worldReference";

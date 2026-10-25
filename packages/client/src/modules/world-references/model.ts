@@ -56,7 +56,7 @@ interface WorldReferenceBacklinkBase {
 }
 
 /** A reverse link backed by an exact author-owned text range. */
-export interface WorldReferenceTextBacklink extends WorldReferenceBacklinkBase {
+interface WorldReferenceTextBacklink extends WorldReferenceBacklinkBase {
   origin: "text";
   surface: string;
   from: number;
@@ -64,7 +64,7 @@ export interface WorldReferenceTextBacklink extends WorldReferenceBacklinkBase {
 }
 
 /** A reverse link represented by a direct Storyboard reference card, without a fake text span. */
-export interface WorldReferenceCardBacklink extends WorldReferenceBacklinkBase {
+interface WorldReferenceCardBacklink extends WorldReferenceBacklinkBase {
   origin: "card";
   surface?: never;
   from?: never;

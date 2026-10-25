@@ -1,7 +1,7 @@
 import type { ChangeSet } from "@codemirror/state";
 import type { TextMark, TextMarkKind } from "./model";
 
-export const MARK_KINDS: TextMarkKind[] = ["bold", "italic"];
+const MARK_KINDS: TextMarkKind[] = ["bold", "italic"];
 
 /** Sorted, clamped, non-overlapping: touching or overlapping ranges of one kind become one. */
 export function normalizeMarks(marks: TextMark[] = [], length = Infinity): TextMark[] {

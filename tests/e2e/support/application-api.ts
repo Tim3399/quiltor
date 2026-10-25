@@ -50,6 +50,7 @@ export function fulfillStoryWorld(
   });
 }
 
+/** @public Required by tools/quality/e2e_world_lifecycle.test.mjs, which asserts it by source text. */
 export function fulfillStoryboards(
   route: Route,
   storyboards: StoryboardState = emptyStoryboards(),

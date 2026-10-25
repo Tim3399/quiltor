@@ -56,10 +56,8 @@ export {
   type ManuscriptImportGateway,
   type ManuscriptImportMark,
   type ManuscriptImportPreview,
-  type ManuscriptImportRequest,
   type ManuscriptImportSelection,
   type ManuscriptImportSource,
-  type ManuscriptImportUnit,
   type ManuscriptImportWarningCode,
 } from "./manuscriptImport";
 export type { MetadataGateway } from "./metadata";
@@ -83,7 +81,6 @@ export type { WorldsGateway } from "./worlds";
 export type {
   GrammarStatus,
   WritingAssistanceGateway,
-  WritingAssistanceLookupMode,
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,
 } from "./writingAssistance";

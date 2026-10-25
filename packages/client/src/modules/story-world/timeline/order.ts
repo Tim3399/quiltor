@@ -10,7 +10,7 @@ function positionOf(moment: TimelineMoment, fallback: number): number {
     : fallback;
 }
 
-export function compareTimelineMoments(left: TimelineMoment, right: TimelineMoment): number {
+function compareTimelineMoments(left: TimelineMoment, right: TimelineMoment): number {
   return (
     timeOf(left, 0) - timeOf(right, 0) ||
     positionOf(left, 0) - positionOf(right, 0) ||

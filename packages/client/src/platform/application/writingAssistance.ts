@@ -1,6 +1,6 @@
 import type { WritingIssue } from "../../modules/manuscript";
 
-export type WritingAssistanceLookupMode = "dictionary" | "synonyms" | "translation";
+type WritingAssistanceLookupMode = "dictionary" | "synonyms" | "translation";
 
 export type WritingAssistanceLookupResult = {
   lemma: string;

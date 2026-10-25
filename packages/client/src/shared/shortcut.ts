@@ -25,7 +25,3 @@ export function shortcut(
   parts.push(key);
   return parts.join("+");
 }
-
-export function undoShortcut(locale: UiLocale): string {
-  return shortcut("Z", locale);
-}

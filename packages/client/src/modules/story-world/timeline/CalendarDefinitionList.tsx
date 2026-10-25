@@ -2,7 +2,7 @@ import { Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button, IconButton, TextField, type TextFieldProps } from "../../../design";
 
-export interface CalendarDefinitionColumn<Item> {
+interface CalendarDefinitionColumn<Item> {
   heading: ReactNode;
   field: (item: Item, index: number) => TextFieldProps;
 }
