@@ -599,6 +599,35 @@ def validate_cross_platform_product_sharding(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("cross-platform product shards must fail closed")
 
 
+CACHE_SAVE_GUARD = "if: github.ref == 'refs/heads/main' && "
+
+
+def validate_cache_writes(sources: dict[Path, str]) -> None:
+    """
+    Only main writes the caches a main or release run restores.
+
+    GitHub lets a run restore caches from its own ref and from the default branch. A cache
+    saved by a pull request is therefore invisible to main, and main's caches are written
+    only by runs on main. That holds as long as test.yml saves explicitly -- the combined
+    `actions/cache` would save from every ref -- and every save step is guarded to main.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    if re.search(r"uses:\s+actions/cache@", workflow):
+        raise WorkflowContractError(
+            "test.yml must restore and save caches separately, not through actions/cache"
+        )
+    steps = re.split(r"\n(?=      - )", workflow)
+    saves = [step for step in steps if re.search(r"uses:\s+actions/cache/save@", step)]
+    if not saves:
+        raise WorkflowContractError("test.yml has no guarded cache save step")
+    for step in saves:
+        if CACHE_SAVE_GUARD not in step:
+            raise WorkflowContractError(
+                "every cache save in test.yml must be guarded to refs/heads/main"
+            )
+
+
 def _job_body(source: str, name: str) -> str:
     try:
         jobs = source.split("\njobs:\n", 1)[1]
@@ -708,6 +737,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_image_size_guard(sources)
         validate_browser_e2e_sharding(sources)
         validate_cross_platform_product_sharding(sources)
+        validate_cache_writes(sources)
         validate_native_release_targets(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original

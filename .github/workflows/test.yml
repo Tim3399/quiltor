@@ -34,6 +34,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10" # last 3.12 patch with setup-python builds for all three systems
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       # Install the declared core dependencies. OIDC signature verification is
       # a supported web/desktop path and must never be skipped accidentally.
@@ -103,6 +105,10 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            distribution/lint-tools.requirements.txt
 
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
         with:
@@ -239,9 +245,39 @@ jobs:
         if: matrix.product_shard != ''
         with:
           python-version: "3.12.10"
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - run: npm ci
+      # The browsers are cached per system, architecture and exact Playwright version. On a
+      # hit the install below finds them and only adds the system dependencies. Only main
+      # saves this cache; see "Caches" in docs/quality/ci.md for why no pull request can
+      # put anything into what main or a release run restores.
+      - name: Locate the Playwright browsers
+        id: playwright
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) dir="$LOCALAPPDATA/ms-playwright" ;;
+            macOS) dir="$HOME/Library/Caches/ms-playwright" ;;
+            *) dir="$HOME/.cache/ms-playwright" ;;
+          esac
+          version="$(node -p "require('@playwright/test/package.json').version")"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "key=playwright-$RUNNER_OS-$RUNNER_ARCH-$version" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browsers
+        id: playwright-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.playwright.outputs.dir }}
+          key: ${{ steps.playwright.outputs.key }}
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Save the Playwright browsers
+        if: github.ref == 'refs/heads/main' && steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.playwright.outputs.dir }}
+          key: ${{ steps.playwright.outputs.key }}
       - name: Install the application
         if: matrix.product_shard != ''
         run: python -m pip install --quiet -e .
@@ -346,6 +382,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       # The components belong to the action, not to rustup. Without them the first `cargo`
       # call installs the toolchain, then reads rust-toolchain.toml and adds clippy after the
@@ -436,11 +474,41 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       - run: npm ci
 
+      # The browsers are cached per system, architecture and exact Playwright version. On a
+      # hit the install below finds them and only adds the system dependencies. Only main
+      # saves this cache; see "Caches" in docs/quality/ci.md for why no pull request can
+      # put anything into what main or a release run restores.
+      - name: Locate the Playwright browsers
+        id: playwright
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) dir="$LOCALAPPDATA/ms-playwright" ;;
+            macOS) dir="$HOME/Library/Caches/ms-playwright" ;;
+            *) dir="$HOME/.cache/ms-playwright" ;;
+          esac
+          version="$(node -p "require('@playwright/test/package.json').version")"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "key=playwright-$RUNNER_OS-$RUNNER_ARCH-$version" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browsers
+        id: playwright-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.playwright.outputs.dir }}
+          key: ${{ steps.playwright.outputs.key }}
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Save the Playwright browsers
+        if: github.ref == 'refs/heads/main' && steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.playwright.outputs.dir }}
+          key: ${{ steps.playwright.outputs.key }}
 
       - name: Unit tests
         run: npx vitest run
@@ -505,8 +573,36 @@ jobs:
 
       - run: npm ci
 
+      # The browsers are cached per system, architecture and exact Playwright version. On a
+      # hit the install below finds them and only adds the system dependencies. Only main
+      # saves this cache; see "Caches" in docs/quality/ci.md for why no pull request can
+      # put anything into what main or a release run restores.
+      - name: Locate the Playwright browsers
+        id: playwright
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) dir="$LOCALAPPDATA/ms-playwright" ;;
+            macOS) dir="$HOME/Library/Caches/ms-playwright" ;;
+            *) dir="$HOME/.cache/ms-playwright" ;;
+          esac
+          version="$(node -p "require('@playwright/test/package.json').version")"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "key=playwright-$RUNNER_OS-$RUNNER_ARCH-$version" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browsers
+        id: playwright-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.playwright.outputs.dir }}
+          key: ${{ steps.playwright.outputs.key }}
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Save the Playwright browsers
+        if: github.ref == 'refs/heads/main' && steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.playwright.outputs.dir }}
+          key: ${{ steps.playwright.outputs.key }}
 
       - name: Design suite
         # Chromium failed to load the gallery entry point with ERR_NO_BUFFER_SPACE on the

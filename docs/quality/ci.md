@@ -114,3 +114,31 @@ The portable release gate is 21 of the 24 minutes; the artifact jobs after it ta
   shortens the run; adding shards elsewhere does not.
 - **Queue time only appears when Test and Release Build run together.** Fewer concurrent jobs per
   run keep a release push under the concurrency limit.
+
+## Caches
+
+Test caches three things. Each one is restored by the job that needs it and written by as few
+runs as possible.
+
+| Cache                                                  | Key                                                                                        | Written by                     | Restored by             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------- |
+| npm (`setup-node`, `cache: npm`)                       | OS + `package-lock.json`                                                                   | every run, in its own ref      | jobs that run `npm ci`  |
+| pip (`setup-python`, `cache: pip`)                     | OS + Python + `pyproject.toml` (frontend: also `distribution/lint-tools.requirements.txt`) | every run, in its own ref      | jobs that `pip install` |
+| Playwright browsers (`actions/cache/restore` + `save`) | `playwright-<OS>-<arch>-<exact Playwright version>`                                        | runs on `refs/heads/main` only | every browser job       |
+
+**Why a pull request cannot poison what main or a release restores.** GitHub scopes a cache
+entry to the ref that saved it. A run can restore entries from its own ref and from the default
+branch, never from another branch or pull request. A pull-request run saves into
+`refs/pull/<n>/merge`; nothing on main can see that entry. Main's own entries are saved only by
+runs on main. A release run is a run on main -- today `release.yml` on push, later `test.yml`
+called from it -- so everything it can restore was written by main.
+
+The Playwright cache goes one step further: it is saved only on main at all, so pull requests
+read main's entry and never store their own copies. `workflow_contract.py` holds this in place:
+test.yml must not use the combined `actions/cache` (which saves from every ref), and every
+`actions/cache/save` step must be guarded with `github.ref == 'refs/heads/main'`.
+
+The cache restores only what the next step checks anyway: `npx playwright install` verifies its
+browsers by version and downloads them if they are missing, and `--with-deps` installs the system
+packages on every run, hit or miss. The expected saving is the 7–27 s browser download per job,
+not the system half (see "Playwright install, split").

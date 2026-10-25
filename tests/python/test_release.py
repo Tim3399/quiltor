@@ -1238,6 +1238,31 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_cross_platform_product_sharding(mutated)
 
+    def test_only_main_saves_the_caches_main_restores(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_cache_writes(sources)
+        restore = "actions/cache/restore@"
+        mutations = (
+            (
+                "unguarded save",
+                "if: github.ref == 'refs/heads/main' && steps.playwright-cache",
+                "if: steps.playwright-cache",
+                "guarded to refs/heads/main",
+            ),
+            (
+                "combined cache action",
+                restore,
+                "actions/cache@",
+                "restore and save caches separately",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = mutated[TEST_WORKFLOW].replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_cache_writes(mutated)
+
     def test_browser_worker_defaults_are_bounded_and_overridable(self):
         product = (REPO_ROOT / "playwright.config.ts").read_text(encoding="utf-8")
         design = (REPO_ROOT / "playwright.design.config.ts").read_text(encoding="utf-8")
