@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Button, Checkbox, Dialog, ListboxSelect, TextArea, TextField } from "../../design";
 import { useI18n } from "../../i18n";
 import type { FigureKind, FigureState } from "../story-world";
 import type { AssistantProposal } from "./model";
 
+const COMPACT_QUERY = "(max-width: 719px)";
 const ELEMENT_TYPES: FigureKind[] = ["person", "tier", "ort", "organisation", "objekt", "konzept"];
 
 export function AssistantProposalEditor({
@@ -19,6 +21,10 @@ export function AssistantProposalEditor({
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<AssistantProposal>(() => structuredClone(proposal));
+  // The same breakpoint at which AssistantDrawer becomes a modal Sheet.
+  const [insideSheet] = useState(
+    () => typeof matchMedia === "function" && matchMedia(COMPACT_QUERY).matches,
+  );
   const nodes = figures.nodes.map((node) => ({ value: node.id, label: node.name || node.id }));
   const places = figures.nodes
     .filter((node) => node.type === "ort")
@@ -56,7 +62,12 @@ export function AssistantProposalEditor({
       />
     );
 
-  return (
+  // On compact viewports the editor is portalled to the body, so it is its own modal above
+  // the assistant sheet. Rendered inside that sheet, it was made inert together with it:
+  // the overlay focus obscures every earlier modal, and the sheet contained the editor.
+  // Beside the non-modal side panel it stays where it is; there a desktop listbox popover
+  // only rises above the editor because the panel's stacking context holds the dialog.
+  const editor = (
     <Dialog title={t("editProposal")} closeLabel={t("closeDialog")} onClose={onClose}>
       <div className="assistant-proposal-editor">
         {draft.kind === "create_element" && (
@@ -257,6 +268,7 @@ export function AssistantProposalEditor({
       </div>
     </Dialog>
   );
+  return insideSheet ? createPortal(editor, document.body) : editor;
 }
 
 function SelectionField({
