@@ -256,6 +256,11 @@ jobs:
           done
           cat "$RUNNER_TEMP/quiltor-server.log"
           exit 1
+      # Slot 4 carries no product shard and so no server; the rules project needs only
+      # Chromium, which this job installed above. One slot is enough: the run is deterministic.
+      - name: Layout audit rule tests
+        if: matrix.slot == 4
+        run: npm run test:audit-rules -- --reporter=line
       - name: Run product and design shards
         env:
           PRODUCT_SHARD: ${{ matrix.product_shard }}

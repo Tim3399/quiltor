@@ -70,3 +70,16 @@ artifact and writes the counters to the job summary.
 
 A state that exists only in some viewports by design is marked `viewportSpecific` and is
 not listed as a failure.
+
+## Which part runs in which gate
+
+| Part                                                 | Command                    | Gate                                                              |
+| ---------------------------------------------------- | -------------------------- | ----------------------------------------------------------------- |
+| Node tests of the audit tools (`tools/audit/*.test`) | `npm run test:audit-tools` | `npm run check` (local and the `frontend` CI job)                 |
+| Rule tests (`tests/audit/rules.spec.ts`)             | `npm run test:audit-rules` | `Browser E2E` CI job, slot 4 (Chromium only, no server)           |
+| Capture run (`tests/audit/capture.spec.ts`)          | `npm run audit:layout`     | none; manual, or the manually started `layout-audit.yml` workflow |
+
+The rule tests use `page.setContent`, so they need Chromium but no server and no `dist/`.
+A run of the `rules` project alone writes no manifest and leaves the output of a previous
+capture run untouched. The capture run stays out of every gate and out of the product and
+design suites.
