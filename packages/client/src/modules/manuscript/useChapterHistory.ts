@@ -39,6 +39,7 @@ export function useChapterHistory(current: Chapter | undefined) {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setCommits([]);
     setSelectedRef("");
     setSelected(null);
@@ -64,6 +65,7 @@ export function useChapterHistory(current: Chapter | undefined) {
   }, [open]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setComparisonKey("");
     if (loadedChapterIdRef.current !== currentId) {
       setSelected(null);

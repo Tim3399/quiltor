@@ -139,10 +139,12 @@ export function TextWorkspace({
     onCurrentChapterId?.(current?.id || "");
   }, [current?.id, onCurrentChapterId]);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     if (openChapterTrashToken > 0) setTrashOpen(true);
   }, [openChapterTrashToken]);
   useEffect(() => {
     if (lastDeletedId && !manuscript.trash?.some((entry) => entry.chapter.id === lastDeletedId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
       setLastDeletedId("");
     }
   }, [lastDeletedId, manuscript.trash]);

@@ -29,6 +29,7 @@ export function PlaceMapScaleControl({
   // biome-ignore lint/correctness/useExhaustiveDependencies: `anchorPositionKey` is a trigger: a moved anchor closes the editor
   useEffect(() => {
     // Opening the editor leaves the key unchanged; only a moved anchor closes it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setOpen(false);
   }, [anchorPositionKey]);
   const label = t("placeMapScale", { name });

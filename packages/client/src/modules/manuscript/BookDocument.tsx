@@ -29,6 +29,7 @@ export function BookDocument({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const callbacks = useRef({ onReady, onUpdating, onError });
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   callbacks.current = { onReady, onUpdating, onError };
   const [status, setStatus] = useState<"updating" | "ready" | "error">("updating");
   const settings = useMemo(() => resolveBookLayout(manuscript.bookLayout), [manuscript.bookLayout]);
@@ -49,6 +50,7 @@ export function BookDocument({
   useEffect(() => {
     let cancelled = false;
     let dispose: (() => void) | undefined;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setStatus("updating");
     callbacks.current.onUpdating?.();
     // Debounce settings changes; zoom and scrolling never enter this effect.

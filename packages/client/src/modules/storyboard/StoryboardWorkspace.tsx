@@ -116,7 +116,9 @@ function StoryboardWorkspaceInner({
   const latestCandidates = useRef(candidates);
   const activeBoardIdRef = useRef(activeBoardId);
   const skipNextBoardFit = useRef(false);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestState.current = state;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   activeBoardIdRef.current = activeBoardId;
 
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
@@ -211,6 +213,7 @@ function StoryboardWorkspaceInner({
     }
     return [...byTarget.values()];
   }, [boards, candidates, t]);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestCandidates.current = allCandidates;
 
   const changeFromLatest = useCallback(
@@ -266,6 +269,7 @@ function StoryboardWorkspaceInner({
 
   const derivedNodes = useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs -- the ref is read inside a callback that runs after render, not during render
       activeNodes.map((item) => ({
         ...storyboardFlowNode(
           item,
@@ -297,11 +301,13 @@ function StoryboardWorkspaceInner({
     ],
   );
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
 
   useEffect(() => {
     if (boards.some((board) => board.id === activeBoardId)) return;
     const next = boards[0]?.id ?? DEFAULT_STORYBOARD_ID;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setActiveBoardId(next);
     setBoardTrail([next]);
     setSelectedId(null);
