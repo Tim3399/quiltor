@@ -1,0 +1,281 @@
+# CI timings
+
+Where the time of a CI run goes, measured from the GitHub API. This is the baseline for every
+change that claims to make CI faster: a claim compares against these numbers, measured the same
+way.
+
+## How it was measured
+
+`gh run list` for the workflows `Test` and `Release Build`, then `gh run view <id> --json jobs`
+for every completed run (successful or failed, never cancelled). Job and step timestamps give
+the columns below. Medians, in minutes.
+
+- **Test:** the 14 runs since 2026-10-01, when the workflow got its current shape (Windows product
+  in 8 shards, 4 Linux browser slots). 5 `push` on main, 3 `pull_request`, 6 `workflow_dispatch`.
+- **Release Build:** the 20 completed runs since 2026-09-01.
+- **Queue** is the runner queue: job start minus the moment the job could have started (run
+  creation, or the end of `frontend` for jobs that `needs: frontend`). Waiting for `frontend`
+  itself is not queue time; it is listed separately.
+- **Playwright** is the `npx playwright install --with-deps chromium` step. Its split into system
+  dependencies and the browser download comes from the job logs of 20 jobs across five runs
+  (timestamp of the first `Downloading Chrome for Testing` line).
+
+## Wall clock per run
+
+| Workflow      | Event                 | Runs | Median | Max  |
+| ------------- | --------------------- | ---- | ------ | ---- |
+| Test          | push, main            | 5    | 23.1   | 35.6 |
+| Test          | pull_request          | 3    | 23.9   | 30.9 |
+| Test          | workflow_dispatch     | 6    | 23.1   | 39.3 |
+| Release Build | push / dispatch, main | 20   | 23.8   | 46.2 |
+
+## Test, per job (push on main)
+
+| Job                                    | Queue (max)    | Waits for frontend  | Checkout | Toolchains | npm ci | pip | Playwright | Tests | Job total |
+| -------------------------------------- | -------------- | ------------------- | -------- | ---------- | ------ | --- | ---------- | ----- | --------- |
+| frontend                               | 0.1 (0.9)      | --                  | 0.1      | 0.3        | 0.1    | 0.0 | --         | 2.8   | 3.4       |
+| backend                                | 0.1 (0.8)      | --                  | 0.0      | 0.2        | --     | 0.1 | --         | 2.8   | 3.3       |
+| portable-core                          | 0.1 (0.8)      | --                  | 0.1      | 0.1        | --     | --  | --         | 0.0   | 0.3       |
+| visual-baseline-reach                  | 0.1 (0.9)      | --                  | 0.0      | 0.1        | --     | --  | --         | 0.0   | 0.2       |
+| Core on macos-15                       | 0.1 (1.0)      | --                  | 0.1      | 0.1        | --     | 0.1 | --         | 3.5   | 3.9       |
+| Core on windows-2025                   | 0.1 (**20.0**) | --                  | 0.1      | 0.2        | --     | 0.3 | --         | 5.3   | 6.3       |
+| Browser E2E / slot 1 of 4              | 0.0 (0.2)      | 3.5                 | 0.0      | 0.3        | 0.1    | 0.1 | 0.5        | 12.4  | 13.9      |
+| Browser E2E / slot 2 of 4              | 0.1 (0.1)      | 3.5                 | 0.0      | 0.3        | 0.1    | 0.1 | 0.4        | 6.3   | 7.9       |
+| Browser E2E / slot 3 of 4              | 0.0 (0.1)      | 3.5                 | 0.0      | 0.2        | 0.1    | 0.1 | 0.4        | 6.6   | 8.0       |
+| Browser E2E / slot 4 of 4              | 0.0 (0.1)      | 3.5                 | 0.0      | 0.1        | 0.1    | --  | 0.5        | 2.4   | 3.3       |
+| Product on macos-15                    | 0.1 (**20.3**) | 3.5                 | 0.1      | 0.0        | 0.1    | 0.1 | 0.2        | 12.8  | 13.5      |
+| Product on windows-2025 / shard 1 of 8 | 0.0            | 3.5                 | 0.1      | 0.2        | 0.3    | 0.2 | 3.5        | 8.2   | 12.7      |
+| Product on windows-2025 / shard 2 of 8 | 0.0            | 3.5                 | 0.1      | 0.2        | 0.3    | 0.3 | 3.2        | 7.2   | 11.6      |
+| Product on windows-2025 / shard 3 of 8 | 0.0            | 3.5                 | 0.1      | 0.2        | 0.3    | 0.2 | 3.4        | 7.2   | 11.5      |
+| Product on windows-2025 / shard 4 of 8 | 0.0            | 3.5                 | 0.1      | 0.2        | 0.3    | 0.5 | 3.5        | 5.7   | 10.6      |
+| Product on windows-2025 / shard 5 of 8 | 0.0 (**16.5**) | 3.5                 | 0.1      | 0.2        | 0.2    | 0.2 | 3.5        | 5.7   | 10.3      |
+| Product on windows-2025 / shard 6 of 8 | 0.0            | 3.5                 | 0.1      | 0.2        | 0.3    | 0.2 | 3.3        | 6.5   | 10.7      |
+| Product on windows-2025 / shard 7 of 8 | 0.0            | 3.5                 | 0.1      | 0.2        | 0.3    | 0.2 | 3.3        | 5.4   | 9.7       |
+| Product on windows-2025 / shard 8 of 8 | 0.0            | 3.5                 | 0.1      | 0.2        | 0.2    | 0.2 | 2.8        | 4.9   | 8.6       |
+| Design on macos-15                     | 0.1 (0.2)      | 3.5                 | 0.1      | 0.0        | 0.1    | --  | 0.2        | 8.3   | 8.8       |
+| Design on windows-2025                 | 0.0 (0.1)      | 3.5                 | 0.1      | 0.1        | 0.3    | --  | 3.4        | 13.9  | 17.9      |
+| browser-e2e (aggregator)               | --             | waits for all slots | --       | --         | --     | --  | --         | --    | 0.1       |
+
+Pull-request runs look the same within a minute per job; Design on windows-2025 is the longest
+job there at 19.8 minutes.
+
+## Playwright install, split
+
+| Runner       | System dependencies                                   | Browser download | Step total | Jobs sampled |
+| ------------ | ----------------------------------------------------- | ---------------- | ---------- | ------------ |
+| ubuntu-24.04 | 15–65 s (apt)                                         | 7–10 s           | 24–73 s    | 7            |
+| windows-2025 | 125–250 s (`Install-WindowsFeature` Media Foundation) | 10–27 s          | 136–277 s  | 9            |
+| macos-15     | 1–4 s                                                 | 9–12 s           | 10–16 s    | 4            |
+
+The browser download is 7–27 seconds everywhere. A browser cache can save at most that much per
+job. The expensive part is the system half: on Windows, `--with-deps` enables a Windows feature
+on every run, which no cache can carry across runners -- 3 to 4 minutes in each of the ten Windows
+browser jobs.
+
+**The system half cannot be skipped on either system; the runner images lack what it installs.**
+
+- **windows-2025:** in all 9 sampled jobs `Install-WindowsFeature` reported
+  `Success True, Exit Code Success, Feature Result {Media Foundation}`. A feature that is already
+  present reports `NoChangeNeeded` and an empty result; this one is installed fresh every time. A
+  fail-closed check for Media Foundation in front of a plain `playwright install chromium` would
+  therefore fail every Windows job.
+- **ubuntu-24.04:** in all 5 sampled jobs apt installed 9–10 new packages, the same set each time:
+  `fonts-freefont-ttf fonts-ipafont-gothic fonts-tlwg-loma-otf fonts-unifont fonts-wqy-zenhei
+xfonts-cyrillic xfonts-encodings xfonts-scalable xfonts-utils`. These are fonts. Without them
+  text renders with other fallbacks, which changes what the Linux visual baselines compare.
+
+## Runner queue
+
+Of about 200 job starts since 2026-10-01, four waited more than three minutes for a runner, and
+those four waited 16–20 minutes:
+
+| Run                                    | Job                                    | Queue |
+| -------------------------------------- | -------------------------------------- | ----- |
+| 37961937563 (push, release 2026-10-09) | Core on windows-2025                   | 20.0  |
+| 37961937563 (push, release 2026-10-09) | Product on windows-2025 / shard 5 of 8 | 16.5  |
+| 37113154094 (push, release 2026-10-03) | Product on macos-15                    | 20.2  |
+| 37216539640 (dispatch, 2026-10-04)     | Product on macos-15                    | 20.3  |
+
+Three of the four are release pushes, but **the account's concurrency limit does not explain
+them**. Counting every job of every workflow that ran around those pushes (Test, Release Build,
+Release Publish, Generate visual baselines, Distribution Contracts), minute by minute:
+
+| Push               | Peak, all workflows | Peak Windows | Peak macOS | Waiting job and when it started                                                      |
+| ------------------ | ------------------- | ------------ | ---------- | ------------------------------------------------------------------------------------ |
+| release 2026-10-09 | 15                  | 8            | 2          | Core on windows-2025: queued from 16:50, while no Windows job ran at all until 16:53 |
+| release 2026-10-03 | 18                  | 10           | 2          | Product on macos-15: queued 20 min while 1–2 macOS jobs ran                          |
+
+GitHub documents 20 concurrent jobs and 5 macOS jobs for the Free plan; the account's plan is not
+readable with the token used here. Both peaks stay under those numbers, Windows ran ten jobs at
+once on 2026-10-03 (so there is no lower Windows cap), and the macOS job waited with three macOS
+slots free. The waits look like runner supply on GitHub's side rather than this repository's
+load: a job sometimes gets its runner about 20 minutes late, whatever else is running. Between
+releases they are as rare as during them -- four in about 200 starts.
+
+## Release Build, per job
+
+| Job                             | Queue (max)      | Toolchains | npm ci | Playwright | Gate / work | Job total |
+| ------------------------------- | ---------------- | ---------- | ------ | ---------- | ----------- | --------- |
+| Require the exact main revision | 0.1 (0.5)        | 0.0        | --     | --         | 0.0         | 0.1       |
+| version-check                   | 0.2 (0.7)        | 0.1        | --     | --         | 0.0         | 0.3       |
+| Portable release gate           | 0.2 (20.4)       | 0.3        | 0.1    | 0.5        | 20.0        | 21.1      |
+| web-image                       | after the gate   | 0.2        | --     | --         | 1.8         | 2.2       |
+| backup-image                    | after the gate   | 0.1        | --     | --         | 0.4         | 0.7       |
+| python-package                  | after the gate   | 0.1        | --     | --         | 0.1         | 0.3       |
+| release-manifest                | after the images | 0.1        | --     | --         | 0.0         | 0.3       |
+
+The portable release gate is 21 of the 24 minutes; the artifact jobs after it take two.
+
+## What the numbers say
+
+- **Setup is small except for Playwright on Windows.** Checkout, toolchains, `npm ci` and pip take
+  well under a minute per job. Caching them could save seconds at most.
+- **The longest path is frontend (3.5) followed by the longest browser job** -- Design on
+  windows-2025 (14 min of tests with one worker) or Product on macos-15 (13 min). Sharding those
+  shortens the run; adding shards elsewhere does not.
+- **Queue time is rare and not caused by the concurrency limit.** The measured peaks (15 and 18
+  jobs across all workflows) stay under the documented 20; the four long waits happened anyway.
+
+## Caches
+
+Test caches npm and nothing else: `setup-node` with `cache: npm`, keyed on the system and
+`package-lock.json`, in the jobs that run `npm ci`. That cache predates this measurement and stays.
+
+Two more caches were built and taken out again, because the numbers above do not carry them:
+
+| Candidate           | Most it can save per job                                         | Why it is not used                                                                                              |
+| ------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Playwright browsers | the 7–27 s browser download, minus restoring ~180 MiB from cache | `--with-deps` still installs the system half on every run (15–65 s on Linux, 125–250 s on Windows), hit or miss |
+| pip                 | part of the 0.1–0.5 min the pip steps take                       | the installs are small wheels from PyPI; there is little left to save                                           |
+
+Each restored cache is also a way into the job: whatever a cache entry holds runs or is imported
+there. GitHub scopes entries by ref, so a pull request cannot write what main restores, but fewer
+caches still mean less to keep that way. `workflow_contract.py` fails if test.yml uses
+`actions/cache` or any `cache:` other than npm; adding one means measuring it first and changing
+that rule with it.
+
+**Windows keeps `--with-deps`.** The windows-2025 image does not contain Media Foundation (9 of 9
+job logs install it fresh, see "Playwright install, split"), so a plain `playwright install
+chromium` behind a fail-closed check would fail every job. Whether the suites need Media
+Foundation at all is a separate question for T-45. Linux keeps `--with-deps` for the fonts it
+installs.
+
+## Matrix
+
+Two shapes of the Test workflow, decided by the `plan` job in one place:
+
+```text
+full_matrix =
+     inputs.full_matrix == true
+  || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+  || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false')
+```
+
+Fail-safe: the matrix is reduced only for a pull request or an explicit `full_matrix: false`.
+Both inputs (`workflow_dispatch`, and `workflow_call` prepared for a release caller) default to
+`true`. An explicit `true` wins even when a caller came from a pull request, because in a called
+workflow `github.event_name` is the caller's event.
+
+The last term compares the input as text on purpose. GitHub's `==` converts operands of different
+types to numbers, so a missing input (`null`) _equals_ `false`, and the plain
+`inputs.full_matrix != false` would reduce the matrix exactly when the input has gone missing.
+`format('{0}', null)` is `''`, which is not `'false'`.
+
+No job but `plan` reads `github.event_name`. `workflow_contract.py` checks both inputs (boolean,
+default true), the expression and that rule. `test_release.py` evaluates the expression from
+test.yml with GitHub's comparison rules for these cases:
+
+| Case                                  | Result  |
+| ------------------------------------- | ------- |
+| push to main                          | full    |
+| workflow_call without input           | full    |
+| workflow_call with `true`, from a PR  | full    |
+| workflow_dispatch with the default    | full    |
+| workflow_dispatch with `false`        | reduced |
+| pull request                          | reduced |
+| workflow_call with `false`, from a PR | reduced |
+
+| Jobs                                                                | Full (main, dispatch, call) | Reduced (pull request) |
+| ------------------------------------------------------------------- | --------------------------- | ---------------------- |
+| plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
+| Core on macOS and Windows                                           | 2                           | 2                      |
+| Linux browser slots + `browser-e2e` aggregator                      | 4 + 1                       | 4 + 1                  |
+| Browser on Windows (8 slots) and macOS (2 slots)                    | 10                          | --                     |
+| Smoke on Windows and macOS                                          | --                          | 2                      |
+| **Total**                                                           | **23** (was 23)             | **15** (was 23)        |
+
+Why this cut:
+
+- **The run waits on its longest job, so the shards even out.** The longest job used to be Design
+  on windows-2025 (18 min with setup) and Product on macos-15 (13.5). Each Windows slot now runs a
+  product shard 1/8 and a design shard 1/8 -- about 6.4 + 1.7 minutes of tests plus 4 of setup --
+  and each macOS slot half of both suites, about 10.5 minutes. Linux product shards split by test
+  instead of by file (`PLAYWRIGHT_FULLY_PARALLEL=1`), which evens slot 1 (12.4 min of tests) out
+  with slots 2 and 3 (6.5). Windows has run the whole product suite that way for a long time, so
+  the tests do not depend on each other's order there. **Should the first CI run show
+  order-dependent failures on Linux anyway, they belong to T-34 (flakes), not back into T-33.**
+- **Windows keeps eight slots.** Chromium exhausted the Windows runner's network buffers after
+  more than 115 product tests, even with serialized contexts. Eight runners keep each product
+  process at about 66 of the current 531 tests, as before; the design shard runs as its own
+  process afterwards.
+- **Fewer setups, the same tests.** Product and design used to have separate Windows and macOS
+  jobs, each paying for its own packages and Chromium -- on Windows 3–4 minutes of system
+  dependencies every time. Now each slot pays once. The unit tests ran in every one of the nine
+  cross-platform product jobs; they now run once per system.
+- **Pull requests leave the expensive runners free.** A pull request runs everything on Linux,
+  the backend and Rust suites on all three systems, and one smoke runner per system (below). That
+  is 15 jobs instead of 23, and 4 instead of 13 on Windows and macOS.
+- **Concurrent jobs on a main push.** The full matrix starts one Windows/macOS job fewer than
+  before (10 instead of 11) plus the seconds-long `plan` job. Peak after `frontend`: the 4 Linux slots, the 10
+  Windows/macOS slots and Core on windows-2025 (still running), about 15; with the 2–3 Release
+  Build jobs of a release push, about 18. Measured before: 18 at the 2026-10-03 release. The
+  documented limit is 20 (5 macOS; the full matrix uses 3). The peak stays under it, as it already
+  did -- see "Runner queue" for why that does not remove the occasional 20-minute wait.
+
+### The pull-request smoke test
+
+**Linux stays complete on every pull request** -- product 1/3–3/3, design 1/4–4/4 and the layout
+audit rules. That is the condition for running only a smoke test on Windows and macOS, and
+`workflow_contract.py` fails if the Linux slots get a job-level `if:` or read the matrix plan.
+
+On Windows and macOS a pull request runs `npx vitest run` and these product specs (test.yml,
+`cross-platform-smoke`, "Product smoke specs"):
+
+| Spec                                      | Tests | Why this one shows a system difference                                                                              |
+| ----------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
+| `tests/e2e/visual-baseline.spec.ts`       | 15    | Compares pixels against that system's own baseline set -- font rasterisation and native controls differ per system. |
+| `tests/e2e/world-gate-responsive.spec.ts` | 6     | Creates and opens a world: file creation, locks and paths in the data directory, at several window sizes.           |
+| `tests/e2e/chapter-navigation.spec.ts`    | 3     | Opens and switches chapters, which writes and reads the manuscript files.                                           |
+| `tests/e2e/manuscript-import.spec.ts`     | 9     | Imports manuscript files: file pickers, path separators and text encodings, where Windows differs most.             |
+| `tests/e2e/manuscript-export.spec.ts`     | 18    | Exports to files: file names, line endings and encodings of what is written.                                        |
+| **Total**                                 | 51    | of 531 product tests; Windows ran out of network buffers above 115 in one process                                   |
+
+Left out on purpose: `workspaces.spec.ts` (126 tests, more than the Windows limit on its own) and
+the design suite, whose system differences the visual baseline already samples. Everything left
+out runs on main in the full matrix.
+
+### Checks before and after
+
+Every check that ran for a commit on main still runs for it, in the same or a merged job.
+
+| Check                                                  | Before                             | After                                                                            | Event                |
+| ------------------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------- | -------------------- |
+| Backend suite, contracts, CLI host (Linux)             | backend                            | backend                                                                          | all                  |
+| Rust fmt, clippy, tests, cargo-deny                    | portable-core                      | portable-core                                                                    | all                  |
+| `npm run check` (all gates, formatting, linters)       | frontend                           | frontend                                                                         | all                  |
+| check:* gates inside `npm run build`                   | frontend, a second time            | frontend, once through `npm run check`                                           | all                  |
+| tsc -b, vite build, dist/ matches the sources          | frontend                           | frontend                                                                         | all                  |
+| Unit tests (Linux)                                     | frontend                           | frontend                                                                         | all                  |
+| actionlint, hadolint, shellcheck, osv-scanner          | workflow-docker-shell-lint         | unchanged                                                                        | all                  |
+| Visual-baseline reach                                  | visual-baseline-reach              | unchanged                                                                        | all                  |
+| Backend and Rust tests on macOS, Windows               | Core on …                          | unchanged                                                                        | all                  |
+| Product 1/3..3/3, design 1/4..4/4, audit rules (Linux) | Browser E2E slots 1–4              | unchanged, product split by test                                                 | all                  |
+| Unit tests on macOS, Windows                           | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
+| Product suite on macOS                                 | Product on macos-15 (whole)        | Browser on macos-15 slots 1–2                                                    | main                 |
+| Design suite on macOS                                  | Design on macos-15                 | Browser on macos-15 slots 1–2                                                    | main                 |
+| Product suite on Windows                               | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
+| Design suite on Windows                                | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
+| Product and design suites on macOS, Windows            | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
+
+On pull requests the product and design suites on macOS and Windows shrink to the smoke specs.
+That is the reduction the brief allows; main still runs them in full.

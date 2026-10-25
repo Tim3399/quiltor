@@ -503,7 +503,7 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         "DESIGN_SHARD: ${{ matrix.design_shard }}",
         "set +e",
         "product_status=0",
-        "PLAYWRIGHT_WORKERS=1 npx playwright test",
+        "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
         'npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product',
         "PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts",
         "npx playwright test --config playwright.design.config.ts",
@@ -524,6 +524,12 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         raise WorkflowContractError(
             "browser E2E shards must collect both suite results in shell and fail closed"
         )
+    # The pull-request smoke test on Windows and macOS is acceptable only because Linux runs
+    # the complete product and design suites on every event.
+    if re.search(r"^    if:", shards, re.MULTILINE) or "full_matrix" in shards:
+        raise WorkflowContractError(
+            "the Linux browser slots must run on every event, independent of the matrix plan"
+        )
 
     required_aggregator_evidence = (
         "needs: browser-e2e-shards",
@@ -543,11 +549,11 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         )
 
 
-def validate_cross_platform_product_sharding(sources: dict[Path, str]) -> None:
-    """Keep macOS complete and split Windows product coverage across fresh runners."""
+def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
+    """Keep the full Windows and macOS matrix complete, balanced and fail-closed."""
 
     workflow = sources[WORKFLOW_ROOT / "test.yml"]
-    product = _job_body(workflow, "cross-platform-product")
+    browser = _job_body(workflow, "cross-platform-browser")
     product_config = (REPO_ROOT / "playwright.config.ts").read_text(encoding="utf-8")
     parallel_switch = 'fullyParallel: process.env.PLAYWRIGHT_FULLY_PARALLEL === "1"'
     if product_config.count(parallel_switch) != 1:
@@ -557,46 +563,186 @@ def validate_cross_platform_product_sharding(sources: dict[Path, str]) -> None:
     entries = re.findall(
         r"^\s+- os: (macos-15|windows-2025)\n"
         r"^[ \t]+label: ([^\n]+)\n"
-        r'^[ \t]+product_shard: "([0-9/]*)"\n'
+        r'^[ \t]+product_shard: "([0-9/]+)"\n'
+        r'^[ \t]+design_shard: "([0-9/]+)"\n'
         r"^[ \t]+diagnostics: ([^\n]+)$",
-        product,
+        browser,
         re.MULTILINE,
     )
     expected = {
-        ("macos-15", "macos-15", "", "macos-15"),
-        ("windows-2025", "windows-2025 / shard 1 of 8", "1/8", "windows-2025-1-of-8"),
-        ("windows-2025", "windows-2025 / shard 2 of 8", "2/8", "windows-2025-2-of-8"),
-        ("windows-2025", "windows-2025 / shard 3 of 8", "3/8", "windows-2025-3-of-8"),
-        ("windows-2025", "windows-2025 / shard 4 of 8", "4/8", "windows-2025-4-of-8"),
-        ("windows-2025", "windows-2025 / shard 5 of 8", "5/8", "windows-2025-5-of-8"),
-        ("windows-2025", "windows-2025 / shard 6 of 8", "6/8", "windows-2025-6-of-8"),
-        ("windows-2025", "windows-2025 / shard 7 of 8", "7/8", "windows-2025-7-of-8"),
-        ("windows-2025", "windows-2025 / shard 8 of 8", "8/8", "windows-2025-8-of-8"),
+        (
+            os,
+            f"{os} / slot {slot} of {count}",
+            f"{slot}/{count}",
+            f"{slot}/{count}",
+            f"{os}-{slot}-of-{count}",
+        )
+        for os, count in (("macos-15", 2), ("windows-2025", 8))
+        for slot in range(1, count + 1)
     }
-    if len(entries) != 9 or set(entries) != expected:
+    if len(entries) != len(expected) or set(entries) != expected:
         raise WorkflowContractError(
-            "cross-platform product must run complete macOS coverage and exactly Windows shards 1/8..8/8 with unique diagnostics"
+            "the full cross-platform matrix must run product and design shards 1/2..2/2 on "
+            "macOS and 1/8..8/8 on Windows, one pair per slot, with unique diagnostics"
         )
 
     required_evidence = (
-        "name: Product on ${{ matrix.label }}",
+        "name: Browser on ${{ matrix.label }}",
+        "needs: [plan, frontend]",
+        FULL_MATRIX_GUARD,
         "fail-fast: false",
+        "if: startsWith(matrix.product_shard, '1/')",
+        "run: npx vitest run",
         "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}",
         "PRODUCT_SHARD: ${{ matrix.product_shard }}",
-        'if [ -n "$PRODUCT_SHARD" ]; then',
+        "DESIGN_SHARD: ${{ matrix.design_shard }}",
+        "set +e",
         'PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line',
-        "npx playwright test --output=test-results/product --reporter=line",
-        "name: cross-platform-product-${{ matrix.diagnostics }}-diagnostics",
+        "product_status=$?",
+        "npx playwright test --config playwright.design.config.ts",
+        '--shard="$DESIGN_SHARD" --output=test-results/design',
+        "design_status=$?",
+        'if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then',
+        "name: cross-platform-browser-${{ matrix.diagnostics }}-diagnostics",
         "test-results/**",
         "${{ runner.temp }}/quiltor-server.log",
     )
     for evidence in required_evidence:
-        if evidence not in product:
+        if evidence not in browser:
             raise WorkflowContractError(
-                f"cross-platform product matrix is missing shard evidence: {evidence}"
+                f"cross-platform browser matrix is missing shard evidence: {evidence}"
             )
-    if "continue-on-error" in product:
-        raise WorkflowContractError("cross-platform product shards must fail closed")
+    if "continue-on-error" in browser:
+        raise WorkflowContractError("cross-platform browser shards must fail closed")
+
+
+FULL_MATRIX_GUARD = "if: needs.plan.outputs.full_matrix == 'true'"
+REDUCED_MATRIX_GUARD = "if: needs.plan.outputs.full_matrix != 'true'"
+FULL_MATRIX_DECISION = (
+    "FULL_MATRIX: ${{ inputs.full_matrix == true "
+    "|| (github.event_name == 'push' && github.ref == 'refs/heads/main') "
+    "|| (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}"
+)
+
+
+def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
+    """
+    One job decides between the full and the reduced matrix, and main always gets the full one.
+
+    This is the interface a caller -- later release.yml through workflow_call -- relies on:
+    a boolean input `full_matrix` on workflow_dispatch and workflow_call, and a `plan` job whose
+    output every matrix job reads instead of looking at the event itself.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    triggers = workflow.partition("\njobs:")[0]
+    for trigger in ("workflow_dispatch", "workflow_call"):
+        block = re.search(
+            rf"^  {trigger}:\n((?:    .*\n|\n)*)",
+            triggers + "\n",
+            re.MULTILINE,
+        )
+        body = block.group(1) if block else ""
+        field = re.search(r"^      full_matrix:\n((?:        .*\n)*)", body, re.MULTILINE)
+        fields = field.group(1) if field else ""
+        if "        type: boolean\n" not in fields or "        default: true\n" not in fields:
+            raise WorkflowContractError(
+                f"test.yml {trigger} must declare the boolean input full_matrix, default true"
+            )
+
+    plan = _job_body(workflow, "plan")
+    for evidence in (
+        "permissions: {}",
+        "full_matrix: ${{ steps.decide.outputs.full_matrix }}",
+        FULL_MATRIX_DECISION,
+        'echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"',
+    ):
+        if evidence not in plan:
+            raise WorkflowContractError(f"the plan job is missing its matrix decision: {evidence}")
+    if "uses:" in plan:
+        raise WorkflowContractError("the plan job must decide without checkout or actions")
+
+    for name, body in _job_blocks(workflow):
+        if name != "plan" and "github.event_name" in body:
+            raise WorkflowContractError(
+                f"test.yml:{name} reads github.event_name; matrix decisions belong to the plan job"
+            )
+    if FULL_MATRIX_GUARD not in _job_body(workflow, "cross-platform-browser"):
+        raise WorkflowContractError("the full cross-platform matrix must run on the plan decision")
+    if REDUCED_MATRIX_GUARD not in _job_body(workflow, "cross-platform-smoke"):
+        raise WorkflowContractError("the cross-platform smoke test must run on the reduced matrix")
+
+
+CHECK_RUNNER = "node tools/dev/run-check.mjs"
+
+
+def _check_links(check_script: str) -> set[str]:
+    """
+    The npm scripts `npm run check` runs.
+
+    `check` is either a chain of `npm run <script>` links or the parallel runner, whose LINKS
+    array is then the only list of them.
+    """
+
+    if check_script.strip() == CHECK_RUNNER:
+        runner = (REPO_ROOT / "tools" / "dev" / "run-check.mjs").read_text(encoding="utf-8")
+        array = re.search(r"export const LINKS = \[(.*?)\];", runner, re.DOTALL)
+        if array is None:
+            raise WorkflowContractError("tools/dev/run-check.mjs must export its LINKS array")
+        return set(re.findall(r'"([a-z0-9:-]+)"', array.group(1)))
+    return {
+        link.strip()[8:] for link in check_script.split("&&") if link.strip().startswith("npm run ")
+    }
+
+
+def validate_frontend_gates_once(sources: dict[Path, str]) -> None:
+    """
+    The frontend job runs the check:* gates once, through `npm run check`, not again in build.
+
+    Its build step is the tail of the `build` script after the check:* gates. Every gate left
+    out must be part of `check`, so nothing `build` checks goes unchecked in CI.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    frontend = _job_body(workflow, "frontend")
+    scripts = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))["scripts"]
+    links = [link.strip() for link in scripts["build"].split("&&")]
+    gates = [link for link in links if re.fullmatch(r"npm run check:[a-z0-9:-]+", link)]
+    tail = [link for link in links if link not in gates]
+    check_links = _check_links(scripts["check"])
+    missing = [gate for gate in gates if gate[8:] not in check_links]
+    if missing:
+        raise WorkflowContractError(
+            "package.json build runs gates that check does not: " + ", ".join(missing)
+        )
+    if "run: npm run check\n" not in frontend:
+        raise WorkflowContractError("the frontend job must run npm run check")
+    expected = "run: " + " && ".join(f"npx {link}" for link in tail) + "\n"
+    if expected not in frontend:
+        raise WorkflowContractError(
+            f"the frontend build step must be the build script after its gates: {expected.strip()}"
+        )
+    if "npm run build" in re.sub(r"#[^\n]*|echo [^\n]*", "", frontend):
+        raise WorkflowContractError("the frontend job must not run the check gates twice")
+
+
+def validate_test_caches(sources: dict[Path, str]) -> None:
+    """
+    test.yml caches npm and nothing else.
+
+    A browser cache would save at most the 7-27 s Chromium download per job, a pip cache less
+    than half a minute (docs/quality/ci.md, "Caches"). Neither is worth the cache-poisoning
+    surface a restored cache adds, so a new one needs a measurement and a change here first.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    if re.search(r"uses:\s+actions/cache(?:/[a-z]+)?@", workflow):
+        raise WorkflowContractError("test.yml may not use actions/cache; it caches npm only")
+    caches = set(re.findall(r"^\s+cache:\s*([^\s#]+)", workflow, re.MULTILINE))
+    if caches - {"npm"}:
+        raise WorkflowContractError(
+            "test.yml caches npm only; found cache: " + ", ".join(sorted(caches - {"npm"}))
+        )
 
 
 def _job_body(source: str, name: str) -> str:
@@ -707,7 +853,10 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_publication_boundary(sources)
         validate_image_size_guard(sources)
         validate_browser_e2e_sharding(sources)
-        validate_cross_platform_product_sharding(sources)
+        validate_cross_platform_browser_sharding(sources)
+        validate_full_matrix_switch(sources)
+        validate_frontend_gates_once(sources)
+        validate_test_caches(sources)
         validate_native_release_targets(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original
