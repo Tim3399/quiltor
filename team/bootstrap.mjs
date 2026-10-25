@@ -55,7 +55,6 @@ function missing({ intern = false, withMain = true } = {}) {
   });
 }
 
-const byTitle = (title) => allChats().find((c) => c.title.toLowerCase() === title?.toLowerCase());
 const slug = (c) => c.title.toLowerCase().replace(/\s+/g, "-");
 const fwd = (p) => p.split(path.sep).join("/");
 const worktreeName = (c) => (c.slot ? `${c.role}-${c.slot}` : c.role);
@@ -99,7 +98,7 @@ function ensurePool() {
     .filter((c) => c.role === "dev")
     .map((c) => ({ title: c.title, status: "frei", auftrag: null, branch: null, seit: null }));
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ slots }, null, 2) + "\n");
+  fs.writeFileSync(file, `${JSON.stringify({ slots }, null, 2)}\n`);
   console.error(`Dev-Pool angelegt: ${file}`);
 }
 
@@ -117,7 +116,7 @@ async function waitFor(title) {
 function openDeepLink(c) {
   const file = path.join(START_DIR, `${c.title.toLowerCase().replace(/\s+/g, "-")}.md`);
   fs.mkdirSync(START_DIR, { recursive: true });
-  fs.writeFileSync(file, startPrompt(c) + "\n");
+  fs.writeFileSync(file, `${startPrompt(c)}\n`);
   const q = `Teamaufbau: Dieser Chat wird „${c.title}“. Lies die Datei ${file.replace(/\\/g, "/")} und führe die Schritte darin aus, ohne Rückfragen.`;
   const url = `claude://code/new?q=${encodeURIComponent(q)}&folder=${encodeURIComponent(REPO)}`;
   const [cmd, cmdArgs] =

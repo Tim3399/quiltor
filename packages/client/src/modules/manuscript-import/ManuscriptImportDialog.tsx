@@ -96,6 +96,7 @@ function FormattedText({
         let content: React.ReactNode = segment.text;
         if (segment.italic) content = <em>{content}</em>;
         if (segment.bold) content = <strong>{content}</strong>;
+        // biome-ignore lint/suspicious/noArrayIndexKey: segments are derived from the chapter text and rebuilt whole; they hold no state, and their position is their only identity.
         return <span key={`${index}-${segment.text.length}`}>{content}</span>;
       })}
     </p>
@@ -126,6 +127,7 @@ export function ManuscriptImportDialog({
   const [splitChapter, setSplitChapter] = useState<string | null>(null);
   const [pendingFocusKey, setPendingFocusKey] = useState<string | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `selection` is a trigger: the title input may only mount after the selection re-renders, so focusing is retried then
   useEffect(() => {
     if (!pendingFocusKey) return;
     const titleInput = chapterTitleRefs.current.get(pendingFocusKey);

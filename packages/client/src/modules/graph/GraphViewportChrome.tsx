@@ -33,7 +33,6 @@ export function GraphViewportChrome<NodeType extends Node>({
   minimapVisible,
   onMinimapVisibleChange,
   fitViewOptions,
-  interactive = true,
   onInteractiveChange,
 }: GraphViewportChromeProps<NodeType>) {
   const { t } = useI18n();

@@ -244,6 +244,7 @@ describe("story-world wire v1", () => {
 
   describe("places nesting inside places", () => {
     function withPlaces(...places: Record<string, unknown>[]) {
+      // biome-ignore lint/suspicious/noExplicitAny: the test rewrites arbitrary parts of the wire fixture.
       const source = copy(fixture) as Record<string, any>;
       source.payload.nodes = places.map((place) => ({
         x: 0,

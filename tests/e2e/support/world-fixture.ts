@@ -124,6 +124,7 @@ export async function createTestWorld(
 
 export const test = base.extend<WorldCleanupFixtures, WorldCleanupWorkerFixtures>({
   pendingWorldIds: [
+    // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from this pattern and rejects anything but object destructuring.
     async ({}, use, workerInfo) => {
       const pendingWorldIds = new Set<string>();
       await use(pendingWorldIds);

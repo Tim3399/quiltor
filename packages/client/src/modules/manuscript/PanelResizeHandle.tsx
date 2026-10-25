@@ -55,6 +55,7 @@ export function PanelResizeHandle({
   };
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a focusable window splitter with a value; <hr> is a static thematic break and cannot take pointer or key handling.
     <div
       className={`panel-resize-handle panel-resize-handle--${edge}`}
       role="separator"

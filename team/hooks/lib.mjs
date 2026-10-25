@@ -61,7 +61,7 @@ export function roleForTitle(title) {
   for (const chat of roles.chats) {
     if (chat.title.includes("{n}")) {
       const re = new RegExp(
-        "^" + chat.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace("\\{n\\}", "(\\d+)") + "$",
+        `^${chat.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace("\\{n\\}", "(\\d+)")}$`,
         "i",
       );
       const m = t.match(re);
@@ -103,7 +103,7 @@ export const loadRegistry = () => readRegistry().reg;
 export function saveRegistry(reg) {
   fs.mkdirSync(path.dirname(REGISTRY), { recursive: true });
   const tmp = `${REGISTRY}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(reg, null, 2) + "\n");
+  fs.writeFileSync(tmp, `${JSON.stringify(reg, null, 2)}\n`);
   fs.renameSync(tmp, REGISTRY);
 }
 

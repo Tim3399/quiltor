@@ -61,6 +61,7 @@ export function RecoveryDialog({
   currentDocuments.current = { manuscript, figures, storyboards };
   currentPersisted.current = persisted;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the documents are triggers: any change to them revokes an earlier authorization
   useEffect(() => setAuthorized(null), [manuscript, figures, storyboards, persisted]);
 
   const run = async (

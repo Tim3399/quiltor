@@ -16,13 +16,14 @@ test("reads classes out of a plain className", () => {
 });
 
 test("finds the class in a template literal too", () => {
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: the input is JSX source text that contains a template literal.
   const source = "<div className={`figure-layout ${offen ? 'is-open' : ''}`} />";
 
   assert.ok(classNamesInSource(source).has("figure-layout"));
 });
 
 test("does not count words outside className", () => {
-  const source = 'const style = "dashed";' + String.fromCharCode(10) + '<div className="edge" />';
+  const source = `const style = "dashed";${String.fromCharCode(10)}<div className="edge" />`;
   const used = classNamesInSource(source);
 
   assert.ok(used.has("edge"));
