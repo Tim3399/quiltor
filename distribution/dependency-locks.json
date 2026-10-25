@@ -4,6 +4,84 @@
     "tool": "uv",
     "version": "0.12.5",
     "excludeNewer": "2026-08-22T00:00:00Z",
+    "excludeNewerPackages": {
+      "pyjwt": {
+        "excludeNewer": "2026-09-24T00:00:00Z",
+        "version": "2.15.0",
+        "reason": "Security fix: 2.13.0 is affected by these advisories (up to CVSS 9.1), all fixed in 2.15.0, released 2026-09-23.",
+        "advisories": [
+          "CVE-2026-101917",
+          "CVE-2026-101918",
+          "CVE-2026-102265",
+          "CVE-2026-102266",
+          "CVE-2026-102267",
+          "CVE-2026-102268",
+          "CVE-2026-102269",
+          "CVE-2026-102270",
+          "CVE-2026-102271",
+          "CVE-2026-102272",
+          "CVE-2026-102273",
+          "CVE-2026-102274",
+          "CVE-2026-102275",
+          "CVE-2026-103001",
+          "GHSA-pxh4-856f-4h89"
+        ]
+      },
+      "pillow": {
+        "excludeNewer": "2026-10-17T00:00:00Z",
+        "version": "13.0.0",
+        "reason": "Security fix: 12.3.0 is affected by these advisories, fixed only in 13.0.0, released 2026-10-16.",
+        "advisories": [
+          "CVE-2026-96636",
+          "CVE-2026-96637",
+          "CVE-2026-96638",
+          "CVE-2026-96639",
+          "CVE-2026-96640",
+          "CVE-2026-96641",
+          "CVE-2026-96642",
+          "CVE-2026-96643",
+          "CVE-2026-96644",
+          "CVE-2026-96778",
+          "CVE-2026-112390",
+          "CVE-2026-112391",
+          "CVE-2026-112392",
+          "CVE-2026-112393",
+          "CVE-2026-112394",
+          "CVE-2026-112395",
+          "CVE-2026-112396",
+          "CVE-2026-112397",
+          "CVE-2026-112398",
+          "CVE-2026-112399",
+          "CVE-2026-112400",
+          "CVE-2026-112401",
+          "CVE-2026-112402",
+          "CVE-2026-112403",
+          "CVE-2026-112404",
+          "CVE-2026-112405",
+          "CVE-2026-112406",
+          "CVE-2026-112891",
+          "CVE-2026-112892",
+          "CVE-2026-112893",
+          "CVE-2026-112894",
+          "CVE-2026-112895",
+          "CVE-2026-112896",
+          "CVE-2026-112897",
+          "CVE-2026-112898",
+          "CVE-2026-112899",
+          "CVE-2026-112900",
+          "CVE-2026-112901",
+          "CVE-2026-112902",
+          "CVE-2026-114501",
+          "GHSA-78g4-xqwv-q3g8"
+        ]
+      },
+      "setuptools": {
+        "excludeNewer": "2026-10-19T20:30:00Z",
+        "version": "84.1.0",
+        "reason": "Security fix: 84.0.0 is affected by this advisory, fixed in 84.1.0, released 2026-10-19 20:11 UTC; the cut-off stops before 84.2.0 (20:38 UTC).",
+        "advisories": ["GHSA-xmj3-9gf7-h52w"]
+      }
+    },
     "onlyBinary": false
   },
   "locks": [
@@ -20,7 +98,7 @@
       "sources": ["distribution/python-build-bootstrap.in"],
       "extras": [],
       "path": "distribution/python-build-bootstrap.lock",
-      "sha256": "47fe38b7bdb55f56a709d325f15e7b4944a64d72b53f3df191225cbc4afdd965"
+      "sha256": "5fd02c545bd36d94369edb84958b877d1752042f5eddf8f4357ddbb79d1cb539"
     },
     {
       "name": "macos-direct-runtime",
@@ -35,7 +113,7 @@
       "sources": ["pyproject.toml", "distribution/native-build-tools.in"],
       "extras": ["desktop"],
       "path": "distribution/desktop/macos/direct/requirements.lock",
-      "sha256": "677773498f94c6baabb90f9f7d577c209315473a0471f8621d943f0b91c74ba2"
+      "sha256": "650b776fb663951d3b4707bc1e878b45859451985239521273835cdea79066e2"
     },
     {
       "name": "windows-direct-runtime",
@@ -50,7 +128,7 @@
       "sources": ["pyproject.toml", "distribution/native-build-tools.in"],
       "extras": ["desktop"],
       "path": "distribution/desktop/windows/direct/requirements.lock",
-      "sha256": "22ab9c874eaeb64f95da6758176662712ed0a14bc32c03572225f837f922822b"
+      "sha256": "8053b33eb315a8debdc4fa2859f560b8cbb570ef306b197e5ad30c03dace3078"
     },
     {
       "name": "web-self-hosted-runtime",
@@ -65,7 +143,7 @@
       "sources": ["distribution/web/self-hosted/requirements.in"],
       "extras": [],
       "path": "distribution/web/self-hosted/requirements.lock",
-      "sha256": "ed87f4be45c49d7edcd8673377616395a6adccd55c9d559cfeddf38b042b1ce8"
+      "sha256": "3ef127e5697a47a4ee6ff929af6912cd2cf7abbc9cee7491130e4e2a34083e47"
     }
   ]
 }

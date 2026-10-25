@@ -117,12 +117,19 @@ if (mismatches === 0) {
 }
 
 /*
- * The lint tools for workflows, Dockerfiles and shell scripts. They do not decide the exit
- * code: the release does not depend on them. zizmor is needed by `npm run check`; the
- * other three run in CI, and locally only when they are installed.
+ * The lint tools for workflows, Dockerfiles and shell scripts, and the dependency scanners.
+ * They do not decide the exit code: the release does not depend on them. zizmor is needed
+ * by `npm run check`; the others run in CI, and locally only when they are installed.
  */
 console.log("\nLint tools (distribution/toolchains.json, lintTools):\n");
-for (const name of ["zizmor", "actionlint", "hadolint", "shellcheck"]) {
+for (const name of [
+  "zizmor",
+  "actionlint",
+  "hadolint",
+  "shellcheck",
+  "osv-scanner",
+  "cargo-deny",
+]) {
   const expected = pinnedVersion(name);
   const found = locate(name);
   const matches = !found.missing && found.text === expected;
