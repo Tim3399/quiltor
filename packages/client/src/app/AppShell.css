@@ -182,9 +182,20 @@
   .app-bar .brand {
     display: none;
   }
+  /* The brand is hidden here, so an empty leading slot would only cost one more gap. */
+  .app-bar .app-bar__leading:not(:has(.app-bar__navigation-action)) {
+    display: none;
+  }
+  /* All five workspaces must stay reachable: the tabs keep their full width and the action
+     lane gives way instead, with the save status as the one part that can shrink. */
   .app-bar .workspace-switch {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     justify-content: safe center;
+  }
+  .app-bar .global-actions {
+    min-width: 0;
+    flex: 1 1 auto;
+    justify-content: flex-end;
   }
   .app-bar .app-bar__workspace-button {
     min-width: var(--control-touch);
@@ -206,6 +217,10 @@
   .app-bar .app-save-status {
     padding-inline: var(--space-4);
   }
+  /* Narrow bars leave the save status little more than its icon; no padding may clip it. */
+  .app-bar:not(.app-bar--save-error) .app-save-status {
+    padding-inline: 0;
+  }
   .app-save-recovery__label {
     display: none;
   }
@@ -214,6 +229,7 @@
    actions direct, reserve one workspace target, and move contextual tools into More. */
 @media (max-width: 719px) {
   .app-bar--save-error .workspace-switch {
+    flex: 1 1 0;
     min-width: var(--control-touch);
   }
   .app-bar--save-error .global-actions {
@@ -225,6 +241,17 @@
   }
   .app-bar--save-error .global-action:not(.global-action--icon) {
     display: none;
+  }
+}
+/* Five tabs and three actions are eight 44 px targets: 352 px, which leaves the save status
+   nothing below about 390 px. Below that the targets share the width evenly instead -- one
+   eighth of the window less the bar's own padding, gap and the save icon -- so every action
+   stays direct and well above the 24 px pointer minimum, without a breakpoint of its own.
+   The save-error bar keeps its own rules: its tabs scroll instead. */
+@media (max-width: 719px) {
+  .app-bar:not(.app-bar--save-error) .app-bar__workspace-button,
+  .app-bar:not(.app-bar--save-error) .global-action {
+    min-width: min(var(--control-touch), calc((100vw - var(--space-32) - var(--space-4)) / 8));
   }
 }
 @media (max-width: 359px) {
