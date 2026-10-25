@@ -34,5 +34,4 @@ const catalog = {
   ...storyboard,
 } as const;
 
-export { catalog as en };
 export default catalog;

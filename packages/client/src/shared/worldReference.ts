@@ -16,7 +16,7 @@ export interface NoteReference {
 }
 
 /** Wire-v1 keeps reference surfaces compact even when an imported target has an extreme label. */
-export const NOTE_REFERENCE_SURFACE_MAX_LENGTH = 1000;
+const NOTE_REFERENCE_SURFACE_MAX_LENGTH = 1000;
 
 /**
  * Shortens a visible reference label without splitting a UTF-16 surrogate pair.

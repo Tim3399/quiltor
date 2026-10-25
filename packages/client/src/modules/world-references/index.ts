@@ -1,14 +1,9 @@
 export type {
   NoteReference,
-  StoryboardReferenceSource,
   WorldReferenceBacklink,
   WorldReferenceBacklinkIndex,
-  WorldReferenceBacklinkSource,
-  WorldReferenceBacklinkSourceKind,
   WorldReferenceCandidate,
-  WorldReferenceCardBacklink,
   WorldReferenceTarget,
-  WorldReferenceTextBacklink,
 } from "./model";
 export { worldReferenceKey } from "./model";
 export {
@@ -20,6 +15,5 @@ export {
   buildWorldReferenceCandidates,
   resolveWorldReferenceCandidate,
   searchWorldReferences,
-  type WorldReferenceIndexLabels,
   workspaceTargetForReference,
 } from "./worldReferenceIndex";

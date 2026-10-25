@@ -123,7 +123,7 @@ export function isPlaceDisplayPin(place: FigureNode): boolean {
   return place.placeDisplay === "pin" && !place.mapImageId;
 }
 
-export const PLACE_PIN_SCREEN_SIZE = { width: 156, height: 58 } as const;
+const PLACE_PIN_SCREEN_SIZE = { width: 156, height: 58 } as const;
 
 export const PLACE_PIN_SCREEN_SIZES = {
   detail: PLACE_PIN_SCREEN_SIZE,

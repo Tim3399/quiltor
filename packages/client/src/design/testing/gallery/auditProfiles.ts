@@ -1,4 +1,4 @@
-export type DesignAuditCapability =
+type DesignAuditCapability =
   | "default"
   | "variants"
   | "disabled"

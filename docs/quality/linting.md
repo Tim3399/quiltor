@@ -187,7 +187,8 @@ of `npm run check`.
 pyright resolves third-party imports (typer, PyJWT, markdown-it-py) through a Python
 interpreter. Left alone it would take the first `python` on PATH, which may be one without
 the project's dependencies. `tools/dev/python.mjs --needs typer` picks an interpreter that
-can import them, and `tools/dev/run_pyright.py` hands exactly that interpreter to pyright.
+can import them, and `tools/dev/run-pyright.mjs` asks it for that interpreter's
+`sys.executable` and hands exactly that path to pyright as `--pythonpath`.
 In CI the `frontend` job installs the project with `pip install -e .` for this reason.
 
 `extraPaths` puts `src` first, so a worktree is checked against its own sources rather
@@ -200,7 +201,7 @@ put on `sys.path` at runtime.
 | Setting                            | Why                                                                                                    |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `typeCheckingMode = "standard"`    | the whole tree passes it; strict would add about 1,200 findings in `domain` and `application` alone    |
-| `strict = [...]`                   | the three small helpers added with the gate (`run_pyright.py`, `narrowing.py`, `module_loader.py`)     |
+| `strict = [...]`                   | the two small test helpers added with the gate (`narrowing.py`, `module_loader.py`)                    |
 | `enableTypeIgnoreComments = false` | a bare `# type: ignore` is not honoured; a suppression must be `# pyright: ignore[<rule>]` and name it |
 
 No rule is switched off in the configuration.
@@ -472,3 +473,44 @@ down, with their sub-headings; heading text is unchanged, so anchors stay the sa
 in two architecture views became backticks, two fences in `CLAUDE.md` got a language, the
 blank line between consecutive quotes in `docs/plans/author-pilot.md` became a quote
 continuation, and a bare e-mail address became an autolink.
+
+## knip
+
+[knip](https://knip.dev) 6 finds unused files, unused exports and exported types, and
+dependencies that are unused or missing from `package.json`. It is pinned exactly as a
+devDependency.
+
+```bash
+npm run lint:knip
+```
+
+It is part of `npm run check` and of the `frontend` CI job. Configuration is in `knip.jsonc`,
+with a reason next to every entry. knip's plugins for Vite, Vitest, Playwright, ESLint,
+Stylelint, markdownlint, Biome, Prettier and TypeScript turn on by themselves from
+`package.json`, so their configs, specs and test files count as used without being listed.
+
+**Entry points added by hand.**
+
+| Pattern                                                                  | Reason                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tools/**/*.mjs`                                                         | Run from npm scripts, CI, Python and by hand; nothing imports them.                                                                                                                        |
+| `team/**/*.mjs`                                                          | Agent-team hooks and bootstrap, started by Claude Code hooks and `team/start-team.cmd`.                                                                                                    |
+| `src/quiltor/resources/sidecars/**/*.mjs`                                | The PDF sidecar, a package resource the Python server starts.                                                                                                                              |
+| `playwright*.config.ts`, `vite*.config.ts`                               | A pattern, not a list, so a new config (for example an audit config) is covered without an edit.                                                                                           |
+| `packages/client/src/design/{primitives,components,patterns}/*/index.ts` | The design-system Public API. `check_design_public_api.mjs` requires every runtime export of a component in its `index.ts`, so these exports stay even when no product code uses them yet. |
+
+**Ignored.** `dist/**` is build output. The dependency `playwright` is resolved by the PDF
+sidecar from the runtime image's own lockfile (see the `Dockerfile`), not from this package.
+
+**Exports kept on purpose.** An export knip would report but something needs carries a
+`/** @public <reason> */` tag, which knip honours:
+
+- `ManuscriptImportSourceProvenance` in `modules/manuscript/model.ts` — declaration emit has to
+  name it in the return type of an exported function (TS4058 otherwise).
+- `fulfillStoryboards` in `tests/e2e/support/application-api.ts` —
+  `tools/quality/e2e_world_lifecycle.test.mjs` asserts the export by source text.
+
+**Tools that run outside Node.** A devDependency that only a Python script or a CI step calls
+is invisible to knip. Prefer reaching it from a Node script through package resolution, the way
+`tools/dev/run-pyright.mjs` resolves `pyright/package.json`, so knip sees the use. Only when
+that is not possible, list it in `ignoreDependencies` with the caller as the reason.

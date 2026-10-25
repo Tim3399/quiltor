@@ -7,11 +7,11 @@ import type {
 } from "../../shared";
 
 export const DEFAULT_STORYBOARD_ID = "main-storyboard";
-export const DEFAULT_STORYBOARD_TITLE = "Main Storyboard";
+const DEFAULT_STORYBOARD_TITLE = "Main Storyboard";
 
-export type StoryboardNodeKind = "note" | "reference" | "storyboard" | "group";
-export type StoryboardReferenceTarget = Exclude<WorldReferenceTarget, { kind: "storyboard" }>;
-export type StoryboardBoardTarget = Extract<WorldReferenceTarget, { kind: "storyboard" }>;
+type StoryboardNodeKind = "note" | "reference" | "storyboard" | "group";
+type StoryboardReferenceTarget = Exclude<WorldReferenceTarget, { kind: "storyboard" }>;
+type StoryboardBoardTarget = Extract<WorldReferenceTarget, { kind: "storyboard" }>;
 
 export interface StoryboardBoard {
   id: string;

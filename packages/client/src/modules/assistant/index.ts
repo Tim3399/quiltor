@@ -1,5 +1,4 @@
 export type {
-  AssistantClaimStatus,
   AssistantContextClass,
   AssistantHistoryMessage,
   AssistantJobState,
@@ -11,7 +10,7 @@ export type {
   AssistantReply,
   AssistantSource,
 } from "./model";
-export { applyAssistantProposals, applyAssistantProposalsWithResult } from "./proposals";
+export { applyAssistantProposalsWithResult } from "./proposals";
 
 export const loadAssistantDrawer = () =>
   import("./AssistantDrawer").then(({ AssistantDrawer }) => ({ default: AssistantDrawer }));

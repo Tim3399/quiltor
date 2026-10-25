@@ -26,7 +26,7 @@ const date = (value: unknown) =>
   value === null ||
   (typeof value === "string" && /(?:Z|\+00:00)$/.test(value) && !Number.isNaN(Date.parse(value)));
 
-export function decodeCloudSyncStatus(value: unknown): CloudSyncStatus {
+function decodeCloudSyncStatus(value: unknown): CloudSyncStatus {
   const wire = record(value);
   const remote = record(wire.remote);
   if (

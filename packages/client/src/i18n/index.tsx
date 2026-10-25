@@ -10,14 +10,10 @@ import {
   type UiLocale,
 } from "./catalogs";
 
-export type { LocaleManifest, MessageCatalog, MessageKey, UiLocale } from "./catalogs";
+export type { MessageKey, UiLocale } from "./catalogs";
 export {
   availableLocales,
-  defaultUiLocale,
-  isUiLocale,
-  localeManifest,
   messageCatalog,
-  messageCatalogs,
 } from "./catalogs";
 
 export const uiLocaleStorageKey = "quiltor-interface-language";

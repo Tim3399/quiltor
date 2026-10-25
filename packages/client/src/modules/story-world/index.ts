@@ -1,33 +1,20 @@
 import "./StoryGraph.css";
 
-export type { FigureWorkspaceProps } from "./figures/FigureWorkspace";
-export { authoredFigureLabel, figureDisplayLabel } from "./figures/figureLabel";
+export { authoredFigureLabel } from "./figures/figureLabel";
 export { kindLabel } from "./figures/relationships";
 export type {
-  CalendarMonth,
-  CalendarWeekday,
-  EntityAlias,
   FigureEdge,
   FigureKind,
   FigureNode,
   FigureState,
-  PresenceEntry,
   Profile,
-  ProfileExtra,
   ProfileField,
-  RelationshipVersion,
   TimelineMoment,
   TimeSystem,
-  TimeSystemKind,
-  TimeSystemUnit,
   WorldInfo,
 } from "./model";
-export type { PlacesWorkspaceProps } from "./places/PlacesWorkspace";
 export {
   LEGACY_PROFILE_FIELD_KEYS,
-  LEGACY_PROFILE_FIELD_LABELS,
-  type LegacyProfileFieldKey,
-  type LegacyProfileFieldLabel,
   normalizeProfile,
   normalizeProfileFields,
 } from "./profile";

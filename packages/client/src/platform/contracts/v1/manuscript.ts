@@ -24,7 +24,7 @@ import {
   wireString,
 } from "./validation";
 
-export interface EntityMentionWireV1 {
+interface EntityMentionWireV1 {
   id: string;
   elementId: string;
   from: number;
@@ -42,13 +42,13 @@ export interface TextMarkWireV1 {
   [key: string]: unknown;
 }
 
-export interface ChapterStoryTimeWireV1 {
+interface ChapterStoryTimeWireV1 {
   startMomentId: string;
   endMomentId?: string;
   [key: string]: unknown;
 }
 
-export interface ChapterWireV1 {
+interface ChapterWireV1 {
   id: string;
   title?: string;
   body?: string;
@@ -61,13 +61,13 @@ export interface ChapterWireV1 {
   [key: string]: unknown;
 }
 
-export interface ChapterFolderWireV1 {
+interface ChapterFolderWireV1 {
   id: string;
   title: string;
   [key: string]: unknown;
 }
 
-export interface ManuscriptTreeItemWireV1 {
+interface ManuscriptTreeItemWireV1 {
   id: string;
   kind: "chapter" | "folder";
   chapterId?: string;
@@ -77,13 +77,13 @@ export interface ManuscriptTreeItemWireV1 {
   [key: string]: unknown;
 }
 
-export interface ManuscriptStructureWireV1 {
+interface ManuscriptStructureWireV1 {
   folders: ChapterFolderWireV1[];
   items: ManuscriptTreeItemWireV1[];
   [key: string]: unknown;
 }
 
-export interface ChapterTrashEntryWireV1 {
+interface ChapterTrashEntryWireV1 {
   chapter: ChapterWireV1;
   deletedAt: string;
   originalFolderPath: ChapterFolderWireV1[];
@@ -118,10 +118,10 @@ interface ManuscriptImportSourceWireBaseV1 {
   [key: string]: unknown;
 }
 
-export type ManuscriptImportSourceWireV1 = ManuscriptImportSourceWireBaseV1 &
+type ManuscriptImportSourceWireV1 = ManuscriptImportSourceWireBaseV1 &
   ({ version: 1; format: "docx" } | { version: 2; format: "docx" | "markdown" | "txt" });
 
-export interface ManuscriptPayloadWireV1 {
+interface ManuscriptPayloadWireV1 {
   chapters: ChapterWireV1[];
   importSource?: ManuscriptImportSourceWireV1;
   trash?: ChapterTrashEntryWireV1[];

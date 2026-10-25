@@ -19,7 +19,7 @@ function depthStyle(depth: number) {
   return { "--binder-depth": depth } as CSSProperties;
 }
 
-export function ChapterTreeDragHandle({
+function ChapterTreeDragHandle({
   item,
   dragDrop,
   dragSource = false,
@@ -41,7 +41,7 @@ export function ChapterTreeDragHandle({
   );
 }
 
-export function ChapterTreeDropBefore({
+function ChapterTreeDropBefore({
   item,
   depth,
   dragDrop,

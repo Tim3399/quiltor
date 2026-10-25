@@ -22,7 +22,7 @@ Element.prototype.scrollIntoView = vi.fn();
 
 afterEach(cleanup);
 
-export const FIGURES: FigureState = {
+const FIGURES: FigureState = {
   nodes: [{ id: "tarek", x: 0, y: 0, name: "Tarek Venn", type: "person" }],
   edges: [],
 };

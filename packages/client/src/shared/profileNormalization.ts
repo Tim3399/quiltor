@@ -11,7 +11,7 @@ export const LEGACY_PROFILE_FIELD_KEYS = [
 
 export type LegacyProfileFieldKey = (typeof LEGACY_PROFILE_FIELD_KEYS)[number];
 
-export const LEGACY_PROFILE_FIELD_LABELS: Record<LegacyProfileFieldKey, string> = {
+const LEGACY_PROFILE_FIELD_LABELS: Record<LegacyProfileFieldKey, string> = {
   alter: "Alter",
   rolle: "Rolle in der Geschichte",
   aussehen: "Aussehen",

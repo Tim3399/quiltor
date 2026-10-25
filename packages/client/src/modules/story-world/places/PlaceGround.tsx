@@ -3,7 +3,7 @@ import { plateRuling } from "./PlaceMapNode";
 import "./PlacePlate.css";
 import "./PlaceGround.css";
 
-export type PlaceGroundData = {
+type PlaceGroundData = {
   source: string;
   title: string;
   /** The grid drawn over the picture, in flow units. */

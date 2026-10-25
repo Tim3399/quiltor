@@ -1,0 +1,28 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Plugins (Vite, Vitest, Playwright, ESLint, Stylelint, markdownlint, Biome, Prettier, TypeScript)
+  // are enabled automatically from package.json; their configs become entry points on their own.
+  "entry": [
+    // Repository tooling: run from npm scripts, CI workflows, Python (tools/dev/python.mjs) and by hand.
+    "tools/**/*.mjs",
+    // Team hooks and bootstrap: run by Claude Code hooks and team/start-team.cmd, not imported anywhere.
+    "team/**/*.mjs",
+    // PDF sidecar: shipped as a package resource and started by the Python server (src/quiltor/resources.py).
+    "src/quiltor/resources/sidecars/**/*.mjs",
+    // Every Playwright and Vite config by pattern, so configs added later (e.g. an audit config) are covered.
+    "playwright*.config.ts",
+    "vite*.config.ts",
+    // Design-system Public API: each folder's index.ts is the contract that
+    // tools/quality/check_design_public_api.mjs enforces (it requires every runtime export of the
+    // component to be re-exported there). Entry exports are not reported, so the API stays whole.
+    "packages/client/src/design/{primitives,components,patterns}/*/index.ts"
+  ],
+  "project": ["**/*.{ts,tsx,mjs,js}"],
+  // Build output, committed for the wheel and the Docker image (CLAUDE.md); not source.
+  "ignore": ["dist/**"],
+  "ignoreDependencies": [
+    // The PDF sidecar resolves playwright from the runtime image's own lockfile (Dockerfile, pinned to the
+    // same version as @playwright/test); it is not a dependency of this package.
+    "playwright"
+  ]
+}

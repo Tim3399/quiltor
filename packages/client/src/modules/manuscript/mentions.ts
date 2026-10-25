@@ -3,7 +3,7 @@ import type { FigureNode } from "../story-world";
 import { marksAfterReplacement } from "./marks";
 import type { Chapter, EntityMention, Manuscript } from "./model";
 
-export type AmbiguousMentionCandidate = {
+type AmbiguousMentionCandidate = {
   from: number;
   to: number;
   surface: string;

@@ -1,6 +1,5 @@
 import type { FigureState } from "../../../modules/story-world";
 import {
-  ENTITY_ALIAS_NORMALIZATION_V1,
   GRAPH_EDGE_COLORS,
   GRAPH_EDGE_LINE_STYLES,
   GRAPH_RELATIONSHIP_KINDS,
@@ -35,13 +34,13 @@ import {
   wireString,
 } from "./validation";
 
-export interface EntityAliasWireV1 {
+interface EntityAliasWireV1 {
   alias: string;
   source?: "manual" | "manuscript" | "assistant" | "import";
   [key: string]: unknown;
 }
 
-export interface ProfileWireV1 {
+interface ProfileWireV1 {
   alter?: string;
   rolle?: string;
   aussehen?: string;
@@ -55,7 +54,7 @@ export interface ProfileWireV1 {
   [key: string]: unknown;
 }
 
-export interface FigureNodeWireV1 {
+interface FigureNodeWireV1 {
   id: string;
   name: string;
   x: number;
@@ -87,7 +86,7 @@ export interface FigureNodeWireV1 {
   [key: string]: unknown;
 }
 
-export interface RelationshipVersionWireV1 {
+interface RelationshipVersionWireV1 {
   momentId: string;
   from?: string;
   to?: string;
@@ -101,7 +100,7 @@ export interface RelationshipVersionWireV1 {
   [key: string]: unknown;
 }
 
-export interface FigureEdgeWireV1 {
+interface FigureEdgeWireV1 {
   id: string;
   from: string;
   to: string;
@@ -118,7 +117,7 @@ export interface FigureEdgeWireV1 {
   [key: string]: unknown;
 }
 
-export interface TimelineMomentWireV1 {
+interface TimelineMomentWireV1 {
   id: string;
   title?: string;
   time?: number;
@@ -133,7 +132,7 @@ export interface TimelineMomentWireV1 {
   [key: string]: unknown;
 }
 
-export interface PresenceEntryWireV1 {
+interface PresenceEntryWireV1 {
   id: string;
   elementId: string;
   placeId: string;
@@ -141,20 +140,20 @@ export interface PresenceEntryWireV1 {
   [key: string]: unknown;
 }
 
-export interface CalendarMonthWireV1 {
+interface CalendarMonthWireV1 {
   name: string;
   shortName?: string;
   dayCount: number;
   [key: string]: unknown;
 }
 
-export interface CalendarWeekdayWireV1 {
+interface CalendarWeekdayWireV1 {
   name: string;
   shortName?: string;
   [key: string]: unknown;
 }
 
-export interface TimeSystemWireV1 {
+interface TimeSystemWireV1 {
   id: string;
   name: string;
   kind: "relative" | "gregorian" | "custom";
@@ -172,7 +171,7 @@ export interface TimeSystemWireV1 {
   [key: string]: unknown;
 }
 
-export interface StoryWorldPayloadWireV1 {
+interface StoryWorldPayloadWireV1 {
   nodes: FigureNodeWireV1[];
   edges: FigureEdgeWireV1[];
   timeline?: TimelineMomentWireV1[];
@@ -189,8 +188,6 @@ const FIGURE_KINDS = ["person", "tier", "ort", "organisation", "objekt", "konzep
 const ACCENTS = ["ink", "gold", "rose", "moss"] as const;
 const EDGE_STYLES = ["solid", "dashed", "blood", "gold"] as const;
 const PLACE_DISPLAYS = ["card", "pin"] as const;
-
-export { ENTITY_ALIAS_NORMALIZATION_V1, normalizeEntityAliasV1 };
 
 const PRECISIONS = ["day", "month", "year"] as const;
 

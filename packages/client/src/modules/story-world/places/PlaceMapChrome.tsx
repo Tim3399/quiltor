@@ -11,8 +11,6 @@ import type {
 } from "./placeMapChromeModel";
 import "./PlaceMapChrome.css";
 
-export type { PlaceMapChromeLayout, PlaceMapChromeSize };
-
 export interface PlaceMapChromeProps extends Omit<PlaceMapActionsProps, "expanded" | "onExpand"> {
   layout: PlaceMapChromeLayout;
   onSize?: (size: PlaceMapChromeSize) => void;

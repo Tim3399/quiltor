@@ -2,7 +2,7 @@ import type { FigureState, TimeSystem, TimeSystemKind, TimelineMoment } from "..
 import type { Translate, UiLocale } from "../../../i18n";
 import { projectMomentTime, timeOfMoment } from "./timeSystem";
 
-export function relativeMomentTimeLabel(system: TimeSystem, time: number, t: Translate): string {
+function relativeMomentTimeLabel(system: TimeSystem, time: number, t: Translate): string {
   if (time === 0) return t("timelineRelativeStart");
   return t(system.unit === "day" ? "timelineRelativeDay" : "timelineRelativeStep", { time });
 }

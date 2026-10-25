@@ -1,19 +1,19 @@
-export const NATIVE_BRIDGE_VERSION = 1 as const;
-export const FILE_SAVE_OPERATION = "file.save" as const;
+const NATIVE_BRIDGE_VERSION = 1 as const;
+const FILE_SAVE_OPERATION = "file.save" as const;
 
-export interface NativeBridgeError {
+interface NativeBridgeError {
   code: string;
   params?: { supported: 1 } | { operation: string };
   retryable: boolean;
 }
 
-export interface FileSavePayload {
+interface FileSavePayload {
   name: string;
   content: string;
   encoding: "base64";
 }
 
-export type FileSaveNativeResult = { status: "saved" } | { status: "cancelled" };
+type FileSaveNativeResult = { status: "saved" } | { status: "cancelled" };
 
 export interface FileSaveRequest {
   version: typeof NATIVE_BRIDGE_VERSION;

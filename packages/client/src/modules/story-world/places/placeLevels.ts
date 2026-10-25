@@ -21,7 +21,7 @@ export interface LevelRect {
 }
 
 /** A level's default extent when a place is first expanded, in flow units. */
-export const DEFAULT_EXPANDED_SIZE = { width: 640, height: 420 } as const;
+const DEFAULT_EXPANDED_SIZE = { width: 640, height: 420 } as const;
 
 /** Somewhere to put a card that carries no anchor yet. */
 const DEFAULT_ANCHOR = { u: 0.5, v: 0.5 } as const;
@@ -115,7 +115,7 @@ export function reparent(
   );
 }
 
-export function clampUnit(value: number): number {
+function clampUnit(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
 }
@@ -296,7 +296,7 @@ export type DropPlacement = Partial<
  * placed outright and can never come to rest on something else.
  */
 /** The nearest ruled line, or the value itself where nothing is ruled. */
-export function snapToGrid(value: number, grid: number): number {
+function snapToGrid(value: number, grid: number): number {
   if (!(grid > 0) || !Number.isFinite(value)) return value;
   return Math.round(value / grid) * grid;
 }

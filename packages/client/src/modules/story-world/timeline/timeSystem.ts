@@ -1,4 +1,4 @@
-import type { CalendarMonth, TimeSystem, TimelineMoment } from "../model";
+import type { TimeSystem, TimelineMoment } from "../model";
 
 export interface CalendarCoordinate {
   year: number;
@@ -22,12 +22,6 @@ export const DEFAULT_TIME_SYSTEM: TimeSystem = {
   months: [],
   weekdays: [],
 };
-
-export const DEFAULT_CUSTOM_MONTHS: CalendarMonth[] = Array.from({ length: 12 }, (_, index) => ({
-  name: `Month ${index + 1}`,
-  shortName: `M${index + 1}`,
-  dayCount: 30,
-}));
 
 export function normalizeTimeSystem(value?: Partial<TimeSystem>): TimeSystem {
   return { ...DEFAULT_TIME_SYSTEM, ...value };
