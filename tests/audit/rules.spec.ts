@@ -139,6 +139,24 @@ test.describe("clipped-text", () => {
     expect(byRule(findings, "clipped-text")).toEqual([]);
   });
 
+  test("stays quiet for a visually hidden sr-only label", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Skip to the chapter list</span>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
+
+  test("reports a long word cut off in a visible 120px box", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<div id="word" style="width:120px;overflow:hidden">Donaudampfschifffahrtsgesellschaftskapitaen</div>',
+    );
+    const hits = byRule(findings, "clipped-text");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ severity: "high", selector: "div#word" });
+  });
+
   test("stays quiet for scroll containers", async ({ page }) => {
     const findings = await analyze(
       page,

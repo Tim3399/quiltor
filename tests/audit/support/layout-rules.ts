@@ -189,6 +189,29 @@ function collectDomFindings(options: {
 
   const isTiny = (box: DOMRect) => box.width <= 1 && box.height <= 1;
 
+  // Visually hidden on purpose (the sr-only pattern), detected by computed style and geometry
+  // rather than by class name: the element or an ancestor is clipped to zero area, or is a
+  // 1x1 box that clips its content.
+  const isClippedAway = (style: CSSStyleDeclaration): boolean => {
+    const clip = style.clip.replace(/\s+/g, "");
+    if (clip === "rect(0px,0px,0px,0px)" || clip === "rect(0,0,0,0)") return true;
+    const clipPath = style.clipPath.replace(/\s+/g, "");
+    return (
+      clipPath === "inset(50%)" ||
+      clipPath === "inset(100%)" ||
+      clipPath === "circle(0)" ||
+      clipPath === "circle(0px)" ||
+      clipPath === "circle(0%)"
+    );
+  };
+  const isVisuallyHidden = (element: Element): boolean => {
+    if (isTiny(element.getBoundingClientRect())) return true;
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      if (isClippedAway(getComputedStyle(node))) return true;
+    }
+    return false;
+  };
+
   // Visible part of an element after clipping by overflow ancestors. `null` means it is not
   // visible at all, `reachable` means a scroll container (or the document) can bring the rest
   // of it into view.
@@ -354,6 +377,7 @@ function collectDomFindings(options: {
     if (!cutX && !cutY) continue;
     const text = (element.textContent ?? "").trim();
     if (text === "") continue;
+    if (isVisuallyHidden(element)) continue;
     const ellipsis =
       style.textOverflow === "ellipsis" ||
       (style.getPropertyValue("-webkit-line-clamp") !== "" &&
