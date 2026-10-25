@@ -70,7 +70,7 @@ export type Manifest = {
   viewports: Record<ViewportName, ViewportSpec>;
   entries: Entry[];
   coverage: CoverageRecord[];
-  /** Findings without a screenshot (coverage-unreached, touch-context-menu-unreachable), written by part A. */
+  /** Findings without a screenshot (coverage-unreached, touch-context-menu-unverified), written by part A. */
   findings: Finding[];
   failures: Failure[];
   aiReview?: { status: "done" | "skipped" | "partial"; model?: string; reviewed?: number };

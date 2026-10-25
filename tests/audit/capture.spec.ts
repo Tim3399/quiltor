@@ -482,9 +482,9 @@ async function recordContextMenu(
   if (s.touch && trigger !== "long-press") {
     s.rec.finding({
       source: "rules",
-      rule: "touch-context-menu-unreachable",
-      severity: "medium",
-      message: `The ${target} context menu does not open on a long-press in the ${s.viewport} viewport (${s.rec.theme}); it was reached with ${trigger}.`,
+      rule: "touch-context-menu-unverified",
+      severity: "low",
+      message: `Long-press could not be triggered in the emulated touch environment; whether a native contextmenu opens on real devices is neither confirmed nor ruled out. The ${target} context menu in the ${s.viewport} viewport (${s.rec.theme}) was reached via ${trigger}.`,
     });
   }
   const popup = s.page.getByRole("menu").filter({ visible: true }).last();
