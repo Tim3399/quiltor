@@ -1,0 +1,10 @@
+# osv-scanner exceptions. tools/dev/lint-tool.mjs passes this file with --config, so it
+# applies to every scanned lockfile (osv-scanner otherwise looks for a config next to each
+# lock and would miss the Python locks under distribution/).
+#
+# Add an exception only when no fixed version exists, with a reason and an expiry:
+#
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# ignoreUntil = 2027-01-01
+# reason = "..."

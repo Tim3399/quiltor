@@ -1,0 +1,59 @@
+name: CodeQL
+
+# Static analysis of Quiltor's own code: the client (JavaScript/TypeScript), the server
+# and tooling (Python), the portable core (Rust) and the workflows themselves (Actions).
+# Results go to the repository's code scanning alerts; see docs/quality/linting.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so new queries reach code that has not changed. Monday 04:17 UTC, off the hour
+    # to avoid the scheduler's busiest minutes.
+    - cron: "17 4 * * 1"
+
+# Nothing at workflow level. The one job asks for exactly what it needs.
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # check out the code
+      security-events: write # upload the SARIF results to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        # build-mode none for all four: CodeQL reads the sources directly. Nothing has to be
+        # built, so no dependency is installed and no project code runs in this job.
+        language: [actions, javascript-typescript, python, rust]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # Not needed by the analysis itself, but the workflow contract requires the locked
+      # interpreter in every job that names Python, and the language list does.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12.10"
+
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          # The built client bundle is generated from packages/client/src, which is analysed
+          # itself; an alert in dist/ would only repeat one there, or point into a bundled
+          # third-party package that can only be fixed upstream.
+          config: |
+            paths-ignore:
+              - dist
+
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:${{ matrix.language }}
