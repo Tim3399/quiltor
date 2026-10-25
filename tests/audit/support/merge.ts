@@ -26,7 +26,7 @@ import {
   type ViewportName,
 } from "./types.ts";
 
-export type InventoryItem = { component: string; file: string; patterns: string[] };
+type InventoryItem = { component: string; file: string; patterns: string[] };
 type CoverageException = { component: string; file: string; reason: string };
 
 const ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));

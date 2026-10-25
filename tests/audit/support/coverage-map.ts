@@ -7,7 +7,7 @@
 //
 // Names quote German interface text on purpose; they are selectors, not prose.
 
-export type Evidence = {
+type Evidence = {
   /** ARIA role as Playwright's aria snapshot reports it; several when it differs per layout. */
   role: string | string[];
   name: string | RegExp;
