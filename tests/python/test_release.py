@@ -1146,10 +1146,11 @@ class WorkflowBoundaryTests(unittest.TestCase):
             "cargo --locked clippy --workspace --all-targets -- -D warnings",
             "cargo --locked test --workspace --all-targets",
             "run: npx vitest run",
-            "run: npm run build",
+            "run: npm run check",
+            "run: npx tsc -b && npx vite build",
             'npx playwright test --shard="$PRODUCT_SHARD"',
             "npx playwright test --config playwright.design.config.ts",
-            "PLAYWRIGHT_WORKERS=1 npx playwright test",
+            "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
             "PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts",
         ):
             self.assertIn(required_gate, test_workflow)
@@ -1199,44 +1200,127 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_browser_e2e_sharding(mutated)
 
-    def test_cross_platform_product_shards_windows_without_splitting_macos(self):
+    def test_full_cross_platform_matrix_is_complete_and_fail_closed(self):
         sources = workflow_contract._workflow_sources()
-        workflow_contract.validate_cross_platform_product_sharding(sources)
+        workflow_contract.validate_cross_platform_browser_sharding(sources)
 
         mutations = (
             (
-                "missing final Windows shard",
-                'label: windows-2025 / shard 8 of 8\n            product_shard: "8/8"',
-                'label: windows-2025 / shard 8 of 8\n            product_shard: "7/8"',
-                "complete macOS coverage and exactly Windows shards",
+                "missing final Windows design shard",
+                'product_shard: "8/8"\n            design_shard: "8/8"',
+                'product_shard: "8/8"\n            design_shard: "7/8"',
+                "one pair per slot",
             ),
             (
                 "reused diagnostics name",
                 "diagnostics: windows-2025-8-of-8",
                 "diagnostics: windows-2025-7-of-8",
-                "complete macOS coverage and exactly Windows shards",
+                "one pair per slot",
             ),
             (
-                "missing matrix shard binding",
-                "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}\n"
-                "          PRODUCT_SHARD: ${{ matrix.product_shard }}",
-                "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}\n"
-                "          PRODUCT_SHARD: broken",
+                "unguarded full matrix",
+                "    if: needs.plan.outputs.full_matrix == 'true'\n    runs-on: ${{ matrix.os }}",
+                "    runs-on: ${{ matrix.os }}",
                 "missing shard evidence",
             ),
             (
-                "missing Windows test-level sharding",
-                "PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
-                "npx playwright test",
+                "discarded design status",
+                "design_status=$?\n\n          if",
+                "design_status=0\n\n          if",
                 "missing shard evidence",
+            ),
+            (
+                "missing test-level sharding",
+                "\n          PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
+                "\n          npx playwright test",
+                "missing shard evidence",
+            ),
+        )
+        # The Linux slots share several of these lines; mutate only the cross-platform job.
+        head, marker, job = sources[TEST_WORKFLOW].partition("\n  cross-platform-browser:")
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, job)
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = head + marker + job.replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_cross_platform_browser_sharding(mutated)
+
+    def test_push_to_main_always_runs_the_full_matrix(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_full_matrix_switch(sources)
+
+        mutations = (
+            (
+                "main push no longer forces the full matrix",
+                "(github.event_name == 'push' && github.ref == 'refs/heads/main') || ",
+                "",
+                "plan job is missing its matrix decision",
+            ),
+            (
+                "workflow_call input is not boolean",
+                '        description: "Run the full matrix (release mode)"\n        type: boolean',
+                '        description: "Run the full matrix (release mode)"\n        type: string',
+                "workflow_call must declare the boolean input full_matrix",
+            ),
+            (
+                "workflow_dispatch input removed",
+                "  workflow_dispatch:\n    inputs:\n      full_matrix:",
+                "  workflow_dispatch:\n    inputs:\n      everything:",
+                "workflow_dispatch must declare the boolean input full_matrix",
+            ),
+            (
+                "a matrix job reads the event itself",
+                "    if: needs.plan.outputs.full_matrix != 'true'",
+                "    if: github.event_name == 'pull_request'",
+                "reads github.event_name",
+            ),
+            (
+                "plan job checks out the repository",
+                "    steps:\n      - id: decide",
+                "    steps:\n      - uses: actions/checkout@v7\n      - id: decide",
+                "without checkout",
             ),
         )
         for name, original, replacement, error in mutations:
             with self.subTest(name=name):
                 mutated = dict(sources)
+                self.assertIn(original, mutated[TEST_WORKFLOW])
                 mutated[TEST_WORKFLOW] = mutated[TEST_WORKFLOW].replace(original, replacement, 1)
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
-                    workflow_contract.validate_cross_platform_product_sharding(mutated)
+                    workflow_contract.validate_full_matrix_switch(mutated)
+
+    def test_frontend_job_runs_the_check_gates_once(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_frontend_gates_once(sources)
+
+        mutations = (
+            (
+                "build gates run a second time",
+                "run: npx tsc -b && npx vite build",
+                "run: npm run build",
+                "build step must be the build script",
+            ),
+            (
+                "type check dropped from the build step",
+                "run: npx tsc -b && npx vite build",
+                "run: npx vite build",
+                "build step must be the build script",
+            ),
+            (
+                "check no longer runs",
+                "run: npm run check\n",
+                "run: npm run lint:biome\n",
+                "must run npm run check",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                mutated = dict(sources)
+                self.assertIn(original, mutated[TEST_WORKFLOW])
+                mutated[TEST_WORKFLOW] = mutated[TEST_WORKFLOW].replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_frontend_gates_once(mutated)
 
     def test_only_main_saves_the_caches_main_restores(self):
         sources = workflow_contract._workflow_sources()

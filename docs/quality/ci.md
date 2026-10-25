@@ -142,3 +142,78 @@ The cache restores only what the next step checks anyway: `npx playwright instal
 browsers by version and downloads them if they are missing, and `--with-deps` installs the system
 packages on every run, hit or miss. The expected saving is the 7–27 s browser download per job,
 not the system half (see "Playwright install, split").
+
+## Matrix
+
+Two shapes of the Test workflow, decided by the `plan` job in one place:
+
+```text
+full_matrix = (push && refs/heads/main) || inputs.full_matrix == true
+```
+
+A push to main always gets the full matrix. `workflow_dispatch` defaults to it; `workflow_call`
+(prepared for a release caller, unused so far) asks for it explicitly. A pull request gets the
+reduced matrix. No job but `plan` reads `github.event_name`; `workflow_contract.py` checks the
+inputs, the expression and that rule.
+
+| Jobs                                                                | Full (main, dispatch, call) | Reduced (pull request) |
+| ------------------------------------------------------------------- | --------------------------- | ---------------------- |
+| plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
+| Core on macOS and Windows                                           | 2                           | 2                      |
+| Linux browser slots + `browser-e2e` aggregator                      | 4 + 1                       | 4 + 1                  |
+| Browser on Windows (8 slots) and macOS (2 slots)                    | 10                          | --                     |
+| Smoke on Windows and macOS                                          | --                          | 2                      |
+| **Total**                                                           | **23** (was 23)             | **15** (was 23)        |
+
+Why this cut:
+
+- **The run waits on its longest job, so the shards even out.** The longest job used to be Design
+  on windows-2025 (18 min with setup) and Product on macos-15 (13.5). Each Windows slot now runs a
+  product shard 1/8 and a design shard 1/8 -- about 6.4 + 1.7 minutes of tests plus 4 of setup --
+  and each macOS slot half of both suites, about 10.5 minutes. Linux product shards split by test
+  instead of by file, which evens slot 1 (12.4 min of tests) out with slots 2 and 3 (6.5).
+- **Windows keeps eight slots.** Chromium exhausted the Windows runner's network buffers after
+  more than 115 product tests, even with serialized contexts. Eight runners keep each product
+  process at about 66 of the current 531 tests, as before; the design shard runs as its own
+  process afterwards.
+- **Fewer setups, the same tests.** Product and design used to have separate Windows and macOS
+  jobs, each paying for its own packages and Chromium -- on Windows 3–4 minutes of system
+  dependencies every time. Now each slot pays once. The unit tests ran in every one of the nine
+  cross-platform product jobs; they now run once per system.
+- **Pull requests leave the expensive runners free.** A pull request runs everything on Linux,
+  the backend and Rust suites on all three systems, and one smoke runner per system: unit tests
+  and the product specs where the systems differ most -- the pixel comparison against that
+  system's baselines, opening a world and a chapter, manuscript import and export (51 of 531 tests). That is 15 jobs instead
+  of 23, and 4 instead of 13 on Windows and macOS.
+- **Queue time on main.** The full matrix starts one Windows/macOS job fewer than before (10
+  instead of 11) and adds the seconds-long `plan` job, so the peak barely moves: about 15–16
+  concurrent jobs after `frontend`, against 16–17 before. What changes is that the browser jobs
+  end sooner and free their runners earlier. Whether a release push now stays clear of the
+  account's concurrency limit shows up only in the measurement after the first push; the reliable
+  fix is to stop running the release gate's suites next to these (T-35).
+
+### Checks before and after
+
+Every check that ran for a commit on main still runs for it, in the same or a merged job.
+
+| Check                                                  | Before                             | After                                                                            | Event                |
+| ------------------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------- | -------------------- |
+| Backend suite, contracts, CLI host (Linux)             | backend                            | backend                                                                          | all                  |
+| Rust fmt, clippy, tests, cargo-deny                    | portable-core                      | portable-core                                                                    | all                  |
+| `npm run check` (all gates, formatting, linters)       | frontend                           | frontend                                                                         | all                  |
+| check:* gates inside `npm run build`                   | frontend, a second time            | frontend, once through `npm run check`                                           | all                  |
+| tsc -b, vite build, dist/ matches the sources          | frontend                           | frontend                                                                         | all                  |
+| Unit tests (Linux)                                     | frontend                           | frontend                                                                         | all                  |
+| actionlint, hadolint, shellcheck, osv-scanner          | workflow-docker-shell-lint         | unchanged                                                                        | all                  |
+| Visual-baseline reach                                  | visual-baseline-reach              | unchanged                                                                        | all                  |
+| Backend and Rust tests on macOS, Windows               | Core on …                          | unchanged                                                                        | all                  |
+| Product 1/3..3/3, design 1/4..4/4, audit rules (Linux) | Browser E2E slots 1–4              | unchanged, product split by test                                                 | all                  |
+| Unit tests on macOS, Windows                           | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
+| Product suite on macOS                                 | Product on macos-15 (whole)        | Browser on macos-15 slots 1–2                                                    | main                 |
+| Design suite on macOS                                  | Design on macos-15                 | Browser on macos-15 slots 1–2                                                    | main                 |
+| Product suite on Windows                               | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
+| Design suite on Windows                                | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
+| Product and design suites on macOS, Windows            | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
+
+On pull requests the product and design suites on macOS and Windows shrink to the smoke specs.
+That is the reduction the brief allows; main still runs them in full.

@@ -6,17 +6,47 @@ permissions:
 # Fast feedback for everything that can fail without a Mac, store account or
 # signing certificate. A Release Build repeats the complete portable gate in
 # its own workflow; this workflow's earlier result is never release evidence.
+#
+# Pull requests run Linux completely and a smoke test on Windows and macOS; main, a manual run
+# and a caller asking for it run the full Windows and macOS matrix. The `plan` job decides that
+# in one place -- see "Matrix" in docs/quality/ci.md.
 on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      full_matrix:
+        description: "Run the full Windows and macOS matrix"
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      full_matrix:
+        description: "Run the full matrix (release mode)"
+        type: boolean
+        default: false
 
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # The only place that decides between the full and the reduced matrix. A push to main always
+  # gets the full one; anything else gets it when its input asks. Jobs read the output, never
+  # github.event_name -- workflow_contract.py holds both in place.
+  plan:
+    name: Plan the matrix
+    runs-on: ubuntu-24.04
+    permissions: {}
+    outputs:
+      full_matrix: ${{ steps.decide.outputs.full_matrix }}
+    steps:
+      - id: decide
+        env:
+          FULL_MATRIX: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || inputs.full_matrix == true }}
+        run: echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"
+
   backend:
     runs-on: ubuntu-24.04
     env:
@@ -140,11 +170,12 @@ jobs:
       - name: Unit tests
         run: npx vitest run
 
-      # `npm run build` chains check:design, check:i18n and tsc -b before vite,
-      # so this covers type errors, hardcoded UI strings and design-token drift
-      # in one step -- the same gate a developer hits locally.
-      - name: Type-check, gates and build
-        run: npm run build
+      # `npm run build` is the check:* gates followed by tsc -b and vite build. The gates ran a
+      # few steps up inside `npm run check`, so this step runs only the tail of the build script.
+      # workflow_contract.py compares it with package.json: a gate added to `build` but not to
+      # `check`, or a changed tail, fails the contract instead of silently going unrun here.
+      - name: Type-check and build
+        run: npx tsc -b && npx vite build
 
       # dist/ is committed (the wheel and the Docker image serve it), so a
       # source change without a rebuild ships a stale client. Vite's hashed
@@ -211,6 +242,7 @@ jobs:
   # Product and design coverage use different shard counts, but share four
   # runners so npm/Chromium setup is paid four times instead of seven. Slots
   # 1-3 run one product and one design shard; slot 4 completes design coverage.
+  # Product shards split by test, not by file: by file, slot 1 ran twice as long as 2 and 3.
   browser-e2e-shards:
     name: Browser E2E / slot ${{ matrix.slot }} of 4
     needs: frontend
@@ -306,7 +338,7 @@ jobs:
           product_status=0
           if [ -n "$PRODUCT_SHARD" ]; then
             echo "Product browser shard $PRODUCT_SHARD"
-            PLAYWRIGHT_WORKERS=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
+            PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
             product_status=$?
           fi
 
@@ -406,58 +438,72 @@ jobs:
       - name: Portable core
         run: cargo --locked test --workspace --all-targets
 
-  # Product and design used to run one after the other in a single job. They remain separate
-  # so the design gallery needs no Python application setup. macOS runs each suite once;
-  # Windows product coverage uses eight fresh runners because network buffers were exhausted
-  # after more than 115 tests even when browser contexts were serialized. Test-level sharding
-  # keeps every Windows runner to at most 62 of the current 489 tests.
+  # The full Windows and macOS matrix: the complete product and design suites on both systems.
+  # Each slot runs one product and one design shard on the same runner, so the packages, Chromium
+  # and the Windows media feature are set up once per slot instead of once per suite.
   #
-  # The design suite does not need the application at all: it runs against the design
-  # gallery, which its own config starts. Split off, it also skips Python, the install and
-  # the server start.
-  cross-platform-product:
-    name: Product on ${{ matrix.label }}
-    needs: frontend
+  # Windows keeps eight slots and test-level product shards: Chromium exhausted the runner's
+  # network buffers after more than 115 product tests even with serialized browser contexts, and
+  # eight fresh runners keep each one at about 66 of the current 531. macOS runs everything in
+  # two slots. The unit tests run once per system, in slot 1.
+  cross-platform-browser:
+    name: Browser on ${{ matrix.label }}
+    needs: [plan, frontend]
+    if: needs.plan.outputs.full_matrix == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-15
-            label: macos-15
-            product_shard: ""
-            diagnostics: macos-15
+            label: macos-15 / slot 1 of 2
+            product_shard: "1/2"
+            design_shard: "1/2"
+            diagnostics: macos-15-1-of-2
+          - os: macos-15
+            label: macos-15 / slot 2 of 2
+            product_shard: "2/2"
+            design_shard: "2/2"
+            diagnostics: macos-15-2-of-2
           - os: windows-2025
-            label: windows-2025 / shard 1 of 8
+            label: windows-2025 / slot 1 of 8
             product_shard: "1/8"
+            design_shard: "1/8"
             diagnostics: windows-2025-1-of-8
           - os: windows-2025
-            label: windows-2025 / shard 2 of 8
+            label: windows-2025 / slot 2 of 8
             product_shard: "2/8"
+            design_shard: "2/8"
             diagnostics: windows-2025-2-of-8
           - os: windows-2025
-            label: windows-2025 / shard 3 of 8
+            label: windows-2025 / slot 3 of 8
             product_shard: "3/8"
+            design_shard: "3/8"
             diagnostics: windows-2025-3-of-8
           - os: windows-2025
-            label: windows-2025 / shard 4 of 8
+            label: windows-2025 / slot 4 of 8
             product_shard: "4/8"
+            design_shard: "4/8"
             diagnostics: windows-2025-4-of-8
           - os: windows-2025
-            label: windows-2025 / shard 5 of 8
+            label: windows-2025 / slot 5 of 8
             product_shard: "5/8"
+            design_shard: "5/8"
             diagnostics: windows-2025-5-of-8
           - os: windows-2025
-            label: windows-2025 / shard 6 of 8
+            label: windows-2025 / slot 6 of 8
             product_shard: "6/8"
+            design_shard: "6/8"
             diagnostics: windows-2025-6-of-8
           - os: windows-2025
-            label: windows-2025 / shard 7 of 8
+            label: windows-2025 / slot 7 of 8
             product_shard: "7/8"
+            design_shard: "7/8"
             diagnostics: windows-2025-7-of-8
           - os: windows-2025
-            label: windows-2025 / shard 8 of 8
+            label: windows-2025 / slot 8 of 8
             product_shard: "8/8"
+            design_shard: "8/8"
             diagnostics: windows-2025-8-of-8
     env:
       PYTHONPATH: src
@@ -479,10 +525,7 @@ jobs:
 
       - run: npm ci
 
-      # The browsers are cached per system, architecture and exact Playwright version. On a
-      # hit the install below finds them and only adds the system dependencies. Only main
-      # saves this cache; see "Caches" in docs/quality/ci.md for why no pull request can
-      # put anything into what main or a release run restores.
+      # See browser-e2e-shards for the cache rule.
       - name: Locate the Playwright browsers
         id: playwright
         shell: bash
@@ -511,6 +554,7 @@ jobs:
           key: ${{ steps.playwright.outputs.key }}
 
       - name: Unit tests
+        if: startsWith(matrix.product_shard, '1/')
         run: npx vitest run
 
       - name: Install the application
@@ -527,40 +571,58 @@ jobs:
           cat "$RUNNER_TEMP/quiltor-server.log"
           exit 1
 
-      # Full Windows runs repeatedly exhausted Chromium's network buffers late in the suite,
-      # even with one worker. Eight fresh runners and test-level sharding cap each Windows
-      # process at 62 current tests. macOS still runs the complete suite in one job.
-      # visual-baseline.spec.ts remains in the product suite and compares this system's images.
-      - name: Product suite
+      # Both suites run even when the first fails; the step fails if either did.
+      # visual-baseline.spec.ts is part of the product suite and compares this system's images.
+      # Windows keeps one worker per suite: Chromium failed with ERR_NO_BUFFER_SPACE there.
+      - name: Run product and design shards
         env:
           PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
           PRODUCT_SHARD: ${{ matrix.product_shard }}
+          DESIGN_SHARD: ${{ matrix.design_shard }}
         shell: bash
         run: |
-          if [ -n "$PRODUCT_SHARD" ]; then
-            PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
-          else
-            npx playwright test --output=test-results/product --reporter=line
+          set +e
+          echo "Product browser shard $PRODUCT_SHARD"
+          PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
+          product_status=$?
+
+          echo "Design browser shard $DESIGN_SHARD"
+          npx playwright test --config playwright.design.config.ts \
+            --shard="$DESIGN_SHARD" --output=test-results/design --reporter=line
+          design_status=$?
+
+          if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
+            echo "::error::Browser shard failures: product=$product_status design=$design_status"
+            exit 1
           fi
 
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cross-platform-product-${{ matrix.diagnostics }}-diagnostics
+          name: cross-platform-browser-${{ matrix.diagnostics }}-diagnostics
           if-no-files-found: ignore
           path: |
             test-results/**
             ${{ runner.temp }}/quiltor-server.log
 
-  cross-platform-design:
-    name: Design on ${{ matrix.os }}
-    needs: frontend
+  # The reduced matrix's stand-in for the job above: on a pull request, one runner per system
+  # runs the unit tests and the product specs where the systems differ most -- the pixel
+  # comparison against this system's baselines, opening a world and a chapter, and manuscript
+  # import and export, which read and write files. About 50 of the 531 product tests, well under
+  # the count where Windows ran out of network buffers. A Windows- or macOS-only failure in the
+  # rest of the suites shows up on main, which always runs the full matrix.
+  cross-platform-smoke:
+    name: Smoke on ${{ matrix.os }}
+    needs: [plan, frontend]
+    if: needs.plan.outputs.full_matrix != 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-15, windows-2025]
+    env:
+      PYTHONPATH: src
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -571,12 +633,15 @@ jobs:
           node-version: "22.23.2"
           cache: npm
 
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12.10"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
       - run: npm ci
 
-      # The browsers are cached per system, architecture and exact Playwright version. On a
-      # hit the install below finds them and only adds the system dependencies. Only main
-      # saves this cache; see "Caches" in docs/quality/ci.md for why no pull request can
-      # put anything into what main or a release run restores.
+      # See browser-e2e-shards for the cache rule.
       - name: Locate the Playwright browsers
         id: playwright
         shell: bash
@@ -597,28 +662,43 @@ jobs:
           key: ${{ steps.playwright.outputs.key }}
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Save the Playwright browsers
-        if: github.ref == 'refs/heads/main' && steps.playwright-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.playwright.outputs.dir }}
-          key: ${{ steps.playwright.outputs.key }}
 
-      - name: Design suite
-        # Chromium failed to load the gallery entry point with ERR_NO_BUFFER_SPACE on the
-        # Windows runner. Match the product suite's bounded Windows concurrency while
-        # preserving two workers on macOS.
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Install the application
+        run: python -m pip install --quiet -e .
+
+      - name: Start the application
+        shell: bash
+        run: |
+          python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:8010/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/quiltor-server.log"
+          exit 1
+
+      - name: Product smoke specs
         env:
           PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
         shell: bash
         run: >-
-          npx playwright test --config playwright.design.config.ts
-          --output=test-results/design --reporter=line
+          npx playwright test
+          tests/e2e/visual-baseline.spec.ts
+          tests/e2e/world-gate-responsive.spec.ts
+          tests/e2e/chapter-navigation.spec.ts
+          tests/e2e/manuscript-import.spec.ts
+          tests/e2e/manuscript-export.spec.ts
+          --output=test-results/product --reporter=line
 
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cross-platform-design-${{ matrix.os }}-diagnostics
+          name: cross-platform-smoke-${{ matrix.os }}-diagnostics
           if-no-files-found: ignore
-          path: test-results/**
+          path: |
+            test-results/**
+            ${{ runner.temp }}/quiltor-server.log
