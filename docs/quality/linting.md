@@ -488,6 +488,9 @@ It is part of `npm run check` and of the `frontend` CI job. Configuration is in 
 with a reason next to every entry. knip's plugins for Vite, Vitest, Playwright, ESLint,
 Stylelint, markdownlint, Biome, Prettier and TypeScript turn on by themselves from
 `package.json`, so their configs, specs and test files count as used without being listed.
+The Playwright plugin reads only `playwright.config.ts` unless told otherwise, so `knip.jsonc` sets
+`"playwright": { "config": ["playwright*.config.ts"] }`; that is what lets knip follow the design and
+audit configs to their `testDir`, `testMatch` and global setup files.
 
 **Entry points added by hand.**
 

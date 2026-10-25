@@ -17,6 +17,10 @@
     // component to be re-exported there). Entry exports are not reported, so the API stays whole.
     "packages/client/src/design/{primitives,components,patterns}/*/index.ts"
   ],
+  // The Playwright plugin reads only playwright.config.ts by default. Without this pattern the extra
+  // configs (playwright.design.config.ts, playwright.audit.config.ts) are plain entries, so their
+  // testDir/testMatch and globalSetup/globalTeardown are never evaluated and the specs look unused.
+  "playwright": { "config": ["playwright*.config.ts"] },
   "project": ["**/*.{ts,tsx,mjs,js}"],
   // Build output, committed for the wheel and the Docker image (CLAUDE.md); not source.
   "ignore": ["dist/**"],
