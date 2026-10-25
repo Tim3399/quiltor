@@ -187,7 +187,8 @@ of `npm run check`.
 pyright resolves third-party imports (typer, PyJWT, markdown-it-py) through a Python
 interpreter. Left alone it would take the first `python` on PATH, which may be one without
 the project's dependencies. `tools/dev/python.mjs --needs typer` picks an interpreter that
-can import them, and `tools/dev/run_pyright.py` hands exactly that interpreter to pyright.
+can import them, and `tools/dev/run-pyright.mjs` asks it for that interpreter's
+`sys.executable` and hands exactly that path to pyright as `--pythonpath`.
 In CI the `frontend` job installs the project with `pip install -e .` for this reason.
 
 `extraPaths` puts `src` first, so a worktree is checked against its own sources rather
@@ -510,5 +511,6 @@ sidecar from the runtime image's own lockfile (see the `Dockerfile`), not from t
   `tools/quality/e2e_world_lifecycle.test.mjs` asserts the export by source text.
 
 **Tools that run outside Node.** A devDependency that only a Python script or a CI step calls
-(for example `pyright` through `tools/dev/run_pyright.py`) is invisible to knip. List it in
-`ignoreDependencies` with the caller as the reason.
+is invisible to knip. Prefer reaching it from a Node script through package resolution, the way
+`tools/dev/run-pyright.mjs` resolves `pyright/package.json`, so knip sees the use. Only when
+that is not possible, list it in `ignoreDependencies` with the caller as the reason.

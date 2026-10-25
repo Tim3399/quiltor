@@ -14,7 +14,7 @@
     "lint:stylelint": "stylelint \"**/*.css\"",
     "lint:markdown": "markdownlint-cli2",
     "lint:ruff": "node tools/dev/python.mjs --needs ruff -m ruff check .",
-    "lint:pyright": "node tools/dev/python.mjs --needs typer tools/dev/run_pyright.py",
+    "lint:pyright": "node tools/dev/run-pyright.mjs",
     "lint:zizmor": "node tools/dev/lint-tool.mjs zizmor",
     "lint:actionlint": "node tools/dev/lint-tool.mjs actionlint",
     "lint:hadolint": "node tools/dev/lint-tool.mjs hadolint",
