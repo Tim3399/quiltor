@@ -1,0 +1,13 @@
+# hadolint configuration for Dockerfile and services/backup-server/Dockerfile.
+# Passed explicitly by tools/dev/lint-tool.mjs; see docs/quality/linting.md.
+
+# Every finding fails the run, informational ones included.
+failure-threshold: info
+
+ignored:
+  # DL3059 (merge consecutive RUN instructions). The separate RUN steps are build gates:
+  # the toolchain assertion, the lockfile check, the profile assertion and the auth import
+  # each fail as their own step in the build log, which is the point of having them. They
+  # add no files to the runtime layers, so merging them would buy nothing but a log line
+  # that no longer says which gate failed.
+  - DL3059
