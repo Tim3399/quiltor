@@ -63,10 +63,10 @@ artifact and writes the counters to the job summary.
 
 ## Findings
 
-| Source  | Rule IDs                                                                                                                                                                              |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rules` | `page-horizontal-scroll`, `outside-viewport`, `popup-outside-viewport`, `clipped-text`, `overlap`, `touch-target`, `contrast`, `coverage-unreached`, `touch-context-menu-unreachable` |
-| `ai`    | `ai:<category>`                                                                                                                                                                       |
+| Source  | Rule IDs                                                                                                                                                                             |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `rules` | `page-horizontal-scroll`, `outside-viewport`, `popup-outside-viewport`, `clipped-text`, `overlap`, `touch-target`, `contrast`, `coverage-unreached`, `touch-context-menu-unverified` |
+| `ai`    | `ai:<category>`                                                                                                                                                                      |
 
 A state that exists only in some viewports by design is marked `viewportSpecific` and is
 not listed as a failure.
