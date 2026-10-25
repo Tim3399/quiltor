@@ -1501,30 +1501,32 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_frontend_gates_once(mutated)
 
-    def test_only_main_saves_the_caches_main_restores(self):
+    def test_test_workflow_caches_npm_only(self):
         sources = workflow_contract._workflow_sources()
-        workflow_contract.validate_cache_writes(sources)
-        restore = "actions/cache/restore@"
+        workflow_contract.validate_test_caches(sources)
+        install = "      - name: Install Chromium\n"
         mutations = (
             (
-                "unguarded save",
-                "if: github.ref == 'refs/heads/main' && steps.playwright-cache",
-                "if: steps.playwright-cache",
-                "guarded to refs/heads/main",
+                "pip cache",
+                '          python-version: "3.12.10"\n',
+                '          python-version: "3.12.10"\n          cache: pip\n',
+                "caches npm only; found cache: pip",
             ),
             (
-                "combined cache action",
-                restore,
-                "actions/cache@",
-                "restore and save caches separately",
+                "browser cache",
+                install,
+                "      - uses: actions/cache/restore@0000000000000000000000000000000000000000\n"
+                + install,
+                "may not use actions/cache",
             ),
         )
         for name, original, replacement, error in mutations:
             with self.subTest(name=name):
+                self.assertIn(original, sources[TEST_WORKFLOW])
                 mutated = dict(sources)
                 mutated[TEST_WORKFLOW] = mutated[TEST_WORKFLOW].replace(original, replacement, 1)
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
-                    workflow_contract.validate_cache_writes(mutated)
+                    workflow_contract.validate_test_caches(mutated)
 
     def test_browser_worker_defaults_are_bounded_and_overridable(self):
         product = (REPO_ROOT / "playwright.config.ts").read_text(encoding="utf-8")

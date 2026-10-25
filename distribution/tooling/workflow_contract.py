@@ -705,33 +705,23 @@ def validate_frontend_gates_once(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("the frontend job must not run the check gates twice")
 
 
-CACHE_SAVE_GUARD = "if: github.ref == 'refs/heads/main' && "
-
-
-def validate_cache_writes(sources: dict[Path, str]) -> None:
+def validate_test_caches(sources: dict[Path, str]) -> None:
     """
-    Only main writes the caches a main or release run restores.
+    test.yml caches npm and nothing else.
 
-    GitHub lets a run restore caches from its own ref and from the default branch. A cache
-    saved by a pull request is therefore invisible to main, and main's caches are written
-    only by runs on main. That holds as long as test.yml saves explicitly -- the combined
-    `actions/cache` would save from every ref -- and every save step is guarded to main.
+    A browser cache would save at most the 7-27 s Chromium download per job, a pip cache less
+    than half a minute (docs/quality/ci.md, "Caches"). Neither is worth the cache-poisoning
+    surface a restored cache adds, so a new one needs a measurement and a change here first.
     """
 
     workflow = sources[WORKFLOW_ROOT / "test.yml"]
-    if re.search(r"uses:\s+actions/cache@", workflow):
+    if re.search(r"uses:\s+actions/cache(?:/[a-z]+)?@", workflow):
+        raise WorkflowContractError("test.yml may not use actions/cache; it caches npm only")
+    caches = set(re.findall(r"^\s+cache:\s*([^\s#]+)", workflow, re.MULTILINE))
+    if caches - {"npm"}:
         raise WorkflowContractError(
-            "test.yml must restore and save caches separately, not through actions/cache"
+            "test.yml caches npm only; found cache: " + ", ".join(sorted(caches - {"npm"}))
         )
-    steps = re.split(r"\n(?=      - )", workflow)
-    saves = [step for step in steps if re.search(r"uses:\s+actions/cache/save@", step)]
-    if not saves:
-        raise WorkflowContractError("test.yml has no guarded cache save step")
-    for step in saves:
-        if CACHE_SAVE_GUARD not in step:
-            raise WorkflowContractError(
-                "every cache save in test.yml must be guarded to refs/heads/main"
-            )
 
 
 def _job_body(source: str, name: str) -> str:
@@ -845,7 +835,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_cross_platform_browser_sharding(sources)
         validate_full_matrix_switch(sources)
         validate_frontend_gates_once(sources)
-        validate_cache_writes(sources)
+        validate_test_caches(sources)
         validate_native_release_targets(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original

@@ -129,7 +129,7 @@ The portable release gate is 21 of the 24 minutes; the artifact jobs after it ta
 ## What the numbers say
 
 - **Setup is small except for Playwright on Windows.** Checkout, toolchains, `npm ci` and pip take
-  well under a minute per job. pip and npm caches save seconds.
+  well under a minute per job. Caching them could save seconds at most.
 - **The longest path is frontend (3.5) followed by the longest browser job** -- Design on
   windows-2025 (14 min of tests with one worker) or Product on macos-15 (13 min). Sharding those
   shortens the run; adding shards elsewhere does not.
@@ -138,31 +138,27 @@ The portable release gate is 21 of the 24 minutes; the artifact jobs after it ta
 
 ## Caches
 
-Test caches three things. Each one is restored by the job that needs it and written by as few
-runs as possible.
+Test caches npm and nothing else: `setup-node` with `cache: npm`, keyed on the system and
+`package-lock.json`, in the jobs that run `npm ci`. That cache predates this measurement and stays.
 
-| Cache                                                  | Key                                                                                        | Written by                     | Restored by             |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------- |
-| npm (`setup-node`, `cache: npm`)                       | OS + `package-lock.json`                                                                   | every run, in its own ref      | jobs that run `npm ci`  |
-| pip (`setup-python`, `cache: pip`)                     | OS + Python + `pyproject.toml` (frontend: also `distribution/lint-tools.requirements.txt`) | every run, in its own ref      | jobs that `pip install` |
-| Playwright browsers (`actions/cache/restore` + `save`) | `playwright-<OS>-<arch>-<exact Playwright version>`                                        | runs on `refs/heads/main` only | every browser job       |
+Two more caches were built and taken out again, because the numbers above do not carry them:
 
-**Why a pull request cannot poison what main or a release restores.** GitHub scopes a cache
-entry to the ref that saved it. A run can restore entries from its own ref and from the default
-branch, never from another branch or pull request. A pull-request run saves into
-`refs/pull/<n>/merge`; nothing on main can see that entry. Main's own entries are saved only by
-runs on main. A release run is a run on main -- today `release.yml` on push, later `test.yml`
-called from it -- so everything it can restore was written by main.
+| Candidate           | Most it can save per job                                         | Why it is not used                                                                                              |
+| ------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Playwright browsers | the 7–27 s browser download, minus restoring ~180 MiB from cache | `--with-deps` still installs the system half on every run (15–65 s on Linux, 125–250 s on Windows), hit or miss |
+| pip                 | part of the 0.1–0.5 min the pip steps take                       | the installs are small wheels from PyPI; there is little left to save                                           |
 
-The Playwright cache goes one step further: it is saved only on main at all, so pull requests
-read main's entry and never store their own copies. `workflow_contract.py` holds this in place:
-test.yml must not use the combined `actions/cache` (which saves from every ref), and every
-`actions/cache/save` step must be guarded with `github.ref == 'refs/heads/main'`.
+Each restored cache is also a way into the job: whatever a cache entry holds runs or is imported
+there. GitHub scopes entries by ref, so a pull request cannot write what main restores, but fewer
+caches still mean less to keep that way. `workflow_contract.py` fails if test.yml uses
+`actions/cache` or any `cache:` other than npm; adding one means measuring it first and changing
+that rule with it.
 
-The cache restores only what the next step checks anyway: `npx playwright install` verifies its
-browsers by version and downloads them if they are missing, and `--with-deps` installs the system
-packages on every run, hit or miss. The expected saving is the 7–27 s browser download per job,
-not the system half (see "Playwright install, split").
+**Windows keeps `--with-deps`.** The windows-2025 image does not contain Media Foundation (9 of 9
+job logs install it fresh, see "Playwright install, split"), so a plain `playwright install
+chromium` behind a fail-closed check would fail every job. Whether the suites need Media
+Foundation at all is a separate question for T-45. Linux keeps `--with-deps` for the fonts it
+installs.
 
 ## Matrix
 
