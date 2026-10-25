@@ -534,24 +534,24 @@ it.
   Python module.
 
 typos checks English and cannot tell a German word from a misspelled one. German content is
-kept out of its way in three layers, narrowest first; nothing is excluded because a file has
-many findings.
+kept out of its way in four layers, narrowest first; nothing is excluded because a file has
+many findings, and no German word is allowed everywhere: a global German word also lets
+through the English typo it resembles (a German "style" is one keystroke from "still").
 
-1. **`extend-ignore-re`, exact strings.** Quoted German phrases whose words are plausible
-   English typos (`Anna brach auf`, `an Bord`, `für deine Ideen`), deliberate misspellings the
-   tests feed in (`Helo world`), commit hashes in documents, and the cut-off stems in the
-   prompt regexes (`analysier\w*`).
-2. **`extend-words`, single words.** Persisted or third-party names that are not
-   misspellings: `objekt` (an enum value of the story-world contract and the SQLite schema,
-   renamed only with a migration and a new contract version), `datas` (PyInstaller's keyword),
-   `lod` (level of detail), `opf` (EPUB package format). Then German vocabulary from the
-   interface text, assertion strings and fixture prose that sits in the sources (`ist`,
-   `oder`, `titel`, ...). A German word is listed only when it is implausible as an English
-   typo; one that is also a plausible typo (for example the past tense of an everyday verb) is
-   ignored by its phrase in layer 1 instead. `extend-words` is global because typos cannot
-   scope it to a path: its file types are exclusive, so a `.py` or `.ts` file never reaches a
-   custom type.
-3. **`[files] extend-exclude`, whole files.** `locales/de/**` (the interface), `dist/**`
+1. **`extend-ignore-re`, exact strings.** String literals on one line that contain a German
+   letter (prompts, messages, example requests), quoted German phrases without one, outside
+   the tests, deliberate misspellings the tests feed in (`Helo world`), commit hashes in
+   documents, and the cut-off stems in the prompt regexes (`analysier\w*`).
+2. **`extend-words`, code words.** Persisted or third-party names that are not misspellings:
+   `objekt` (an enum value of the story-world contract and the SQLite schema, renamed only
+   with a migration and a new contract version), `datas` (PyInstaller's keyword), `lod`
+   (level of detail), `opf` (EPUB package format). Nothing German.
+3. **`[type.germantest]`, German vocabulary in tests.** The words of the German interface
+   text, assertion strings and fixture prose, allowed only in test, story and spec files and
+   the contract fixtures. typos gives each file one type, and a custom type wins over the
+   built-in `py`, `ts` or `json` only through file-name globs (`test_*.py`, `*.test.tsx`,
+   `*.spec.ts`, `*.v[0-9].json`, ...); a path glob such as `tests/**` never matches.
+4. **`[files] extend-exclude`, whole files.** `locales/de/**` (the interface), `dist/**`
    (build output), the generated agent files (`.claude/agents`, `.claude/output-styles`,
    `team/roles`, the same list as `.prettierignore`), `team/**` (the agent-team tooling is
    written in German), German documents (`README.md`, `DESIGN.md`, `docs/ERSTE-SCHRITTE.md`,
@@ -561,6 +561,6 @@ many findings.
    (`tools/documentation/readme_fixture.mjs`,
    `tools/evaluation/assistant/seed_synthetic_world.py`).
 
-When a new German test string trips typos, add the word to `extend-words` if it is clearly
-German and not a plausible English typo, otherwise ignore the phrase. Never rename a persisted
+When a new German test string trips typos, add the word to `[type.germantest.extend-words]`.
+German text outside the tests is ignored by its phrase, never by a global word. Never rename a persisted
 field or a contract field to satisfy it; an exception with its reason goes in `_typos.toml`.

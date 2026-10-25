@@ -3,16 +3,16 @@
 #   npm run lint:typos        (part of `npm run check`; see docs/quality/linting.md)
 #
 # typos checks English. It cannot tell a German word from a misspelled English one, so
-# German content is kept out of its way, in three layers, narrowest first:
-#   1. [default.extend-ignore-re]: exact strings -- quoted German, deliberate misspellings,
-#      commit hashes.
-#   2. [default.extend-words]: single words that are not misspellings here. Either they are
-#      code (a persisted value, a third-party API name, an acronym), or they are German
-#      vocabulary from the interface text, assertion strings and fixture prose that sits in
-#      the sources. A word is only listed when it is implausible as an English typo; a
-#      German word that is also a plausible typo (brach/branch, fiel/file, bord/board) is
-#      ignored by its phrase in layer 1 instead.
-#   3. [files] extend-exclude: files that are German as a whole, or generated.
+# German content is kept out of its way, in four layers, narrowest first:
+#   1. [default.extend-ignore-re]: exact strings -- string literals that contain German
+#      letters, quoted German phrases, deliberate misspellings, commit hashes.
+#   2. [default.extend-words]: code words that are not misspellings (a persisted value, a
+#      third-party API name, an acronym). No German vocabulary: a German word allowed
+#      everywhere also lets through the English typo it resembles (stil/still, vor/for,
+#      startet/started).
+#   3. [type.germantest]: German vocabulary, but only in test, story and spec files and the
+#      contract fixtures, where German interface text and fixture prose are asserted.
+#   4. [files] extend-exclude: files that are German as a whole, or generated.
 # Nothing here hides an English file because it has many findings.
 
 [files]
@@ -73,6 +73,46 @@ extend-ignore-re = [
   # Unicode character name in a fixture id (CYRILLIC LETTER TJE).
   "cyrillic-tje",
 
+  # A string literal on one line that contains a German letter is German product text: a
+  # prompt, a message, an example request. Its words are German, whatever they resemble.
+  "\"[^\"\\n]*[äöüÄÖÜß][^\"\\n]*\"",
+  "'[^'\\n]*[äöüÄÖÜß][^'\\n]*'",
+  "`[^`\\n]*[äöüÄÖÜß][^`\\n]*`",
+
+  # German product text without a German letter, outside the tests. Each phrase is quoted
+  # from a message, a prompt, an example request or a German identifier in the sources.
+  "\\belementeVerborgen\\b",
+  "angeboteneElemente",
+  "const elemente =|of elemente\\)|\\[elemente\\]|elemente\\.length",
+  "Art / Funktion",
+  "vor 0 Sekunden",
+  "Ohne Titel",
+  "Beziehung \\{edge_id\\} ist",
+  "liegt vor dem",
+  "Lokaler Modell-Prozess ist",
+  "Lokales Modell ist noch nicht installiert oder",
+  "Kontext oder nicht",
+  "oder lass mich",
+  "Ergebnis ist nicht mehr",
+  "Antwort ist veraltet",
+  "ist als Vorschlag",
+  "\\bals (Vorschlag|Figur|Ort|Belege|verstorben)\\b",
+  "Ein passender Eintrag",
+  "\"alle\"-style",
+  "seal vor\"",
+  "nach dem Prozess an",
+  "Staatssiegel vor: Sie\\b",
+  "Durchsuche alle Kapitel",
+  "verbundene Elemente",
+  "Lio ist der",
+  "\\(szene\\|",
+  "Anmeldung ist nicht",
+  "data-id=\"archiv\"",
+  "\\(er\\|sie\\|",
+  "Papyrus Autor",
+  "KI-Suche",
+  "`Ende entfernen`",
+
   # German phrases whose words are also plausible English typos. Each one is quoted from
   # the interface text, an assertion or a fixture sentence.
   "Anna (packte|brach)\\b",
@@ -127,7 +167,22 @@ lod = "lod"
 # Open Packaging Format, the EPUB package document.
 opf = "opf"
 
-# --- German vocabulary in the sources --------------------------------------------------
+# German vocabulary, allowed only where German interface text and fixture prose are asserted:
+# test, story and spec files and the contract fixtures. typos gives every file exactly one
+# type, and a custom type wins over the built-in ones (py, ts, json) only through file-name
+# globs; a path glob such as "tests/**" never matches, so these are file-name patterns.
+[type.germantest]
+extend-glob = [
+  "test_*.py",
+  "*.test.ts",
+  "*.test.tsx",
+  "*.spec.ts",
+  "*.story.tsx",
+  "*.testSupport.tsx",
+  "*.v[0-9].json",
+]
+
+[type.germantest.extend-words]
 ist = "ist"
 oder = "oder"
 als = "als"
@@ -149,27 +204,18 @@ unter = "unter"
 assistent = "assistent"
 alle = "alle"
 elemente = "elemente"
-produkt = "produkt"
 prozess = "prozess"
-startet = "startet"
 beginn = "beginn"
-relevante = "relevante"
 szene = "szene"
 paket = "paket"
 referenz = "referenz"
-variante = "variante"
-normale = "normale"
-stil = "stil"
 feld = "feld"
 funktion = "funktion"
 separat = "separat"
 offener = "offener"
 autor = "autor"
-charakter = "charakter"
 aktive = "aktive"
 plattform = "plattform"
 vertikal = "vertikal"
 dokument = "dokument"
-geometrie = "geometrie"
 worte = "worte"
-toleranz = "toleranz"
