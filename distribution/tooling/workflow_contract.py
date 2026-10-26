@@ -842,6 +842,35 @@ def lint_inputs(lint_tool: str | None = None) -> list[str]:
     return sorted(files)
 
 
+def lint_programs(workflow: str, package_json: str, tracked: list[str]) -> list[str]:
+    """
+    Every tracked file under tools/ that the lint job runs, derived from the job itself.
+
+    The chain is `npm run <script>` in the job -> the script in package.json -> each tools/ path
+    it names; a program the job starts directly (`node tools/...`, `python tools/...`) counts as
+    well. A change to one of these files changes what the job does, so each must select lint.
+    """
+
+    body = _job_body(workflow, "workflow-docker-shell-lint")
+    scripts = json.loads(package_json)["scripts"]
+    commands = [body]
+    for name in re.findall(r"\bnpm run ([\w:.-]+)", body):
+        if name not in scripts:
+            raise WorkflowContractError(
+                f"the lint job runs npm run {name}, which package.json lacks"
+            )
+        commands.append(scripts[name])
+    known = set(tracked)
+    return sorted(
+        {
+            path
+            for command in commands
+            for path in re.findall(r"\btools/[\w./-]+", command)
+            if path in known
+        }
+    )
+
+
 def client_test_inputs(tracked: list[str]) -> list[str]:
     """
     Every tracked file outside packages/ that a client unit test references.
@@ -909,6 +938,14 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
         linted = lint_inputs()
     except (OSError, KeyError, ValueError, subprocess.CalledProcessError) as error:
         raise WorkflowContractError(f"cannot derive the lint job's inputs: {error}") from error
+    try:
+        linted += lint_programs(
+            workflow,
+            (REPO_ROOT / "package.json").read_text(encoding="utf-8"),
+            files,
+        )
+    except (OSError, KeyError, ValueError) as error:
+        raise WorkflowContractError(f"cannot derive the lint job's programs: {error}") from error
     missing = _unselected(config, linted, "lint")
     if missing:
         raise WorkflowContractError(

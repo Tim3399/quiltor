@@ -190,6 +190,12 @@
       "reason": "Linter and repository configuration npm run check or the lint job reads."
     },
     {
+      "name": "lint-program",
+      "patterns": ["tools/dev/lint-tool.mjs"],
+      "groups": ["checks", "python", "lint"],
+      "reason": "The program workflow-docker-shell-lint runs (npm run lint:actionlint and the others); its arguments and lock list decide what the job checks, so a change to it must run the job. workflow_contract.py derives such programs from the job and requires lint for each."
+    },
+    {
       "name": "tools",
       "patterns": ["tools/**"],
       "groups": ["checks", "python"],

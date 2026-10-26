@@ -2558,6 +2558,25 @@ class PathFilterContractTests(unittest.TestCase):
         self.assertNotEqual(grown, source)
         self.assertIn("apps/web/server.py", workflow_contract.lint_inputs(grown))
 
+    def test_the_program_the_lint_job_runs_selects_lint(self):
+        """F-37-5: a change to lint-tool.mjs must run the job that executes it."""
+        tracked = path_filter.tracked_paths()
+        programs = workflow_contract.lint_programs(
+            workflow_contract._workflow_sources()[workflow_contract.WORKFLOW_ROOT / "test.yml"],
+            (REPO_ROOT / "package.json").read_text(encoding="utf-8"),
+            tracked,
+        )
+        self.assertIn("tools/dev/lint-tool.mjs", programs)
+        self.assertNotIn("tools/dev/run-pyright.mjs", programs)
+        chosen, _ = path_filter.plan(path_filter.load_config(), ["tools/dev/lint-tool.mjs"])
+        self.assertTrue(chosen["lint"])
+        # A program the job starts directly counts too, without going through package.json.
+        direct = "\njobs:\n  workflow-docker-shell-lint:\n    steps:\n      - run: node tools/dev/x.mjs\n"
+        self.assertEqual(
+            ["tools/dev/x.mjs"],
+            workflow_contract.lint_programs(direct, '{"scripts": {}}', ["tools/dev/x.mjs"]),
+        )
+
     def test_every_contract_a_client_test_reads_selects_client(self):
         """F-37-2: a fixture the TypeScript tests read must run them on the pull request."""
         referenced = workflow_contract.client_test_inputs(path_filter.tracked_paths())

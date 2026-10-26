@@ -374,7 +374,10 @@ Two selections are checked against what the tools and tests read, not against a 
   `tools/dev/lint-tool.mjs` as a git pathspec, the way the tool does, and adds every lock
   `distribution/dependency-locks.json` names. Each of those files must select `lint` (rule
   `lint-inputs`): Dockerfiles anywhere, `hadolint.yaml`, shell scripts, and every osv lock. A new
-  tool argument or lock without the rule fails the contract.
+  tool argument or lock without the rule fails the contract. The programs the job runs are derived
+  the same way (`npm run <script>` in the job, the script in `package.json`, each `tools/` file it
+  names, plus direct `node tools/...` calls) and must select `lint` (rule `lint-program`), so a
+  change to `lint-tool.mjs` itself runs hadolint, shellcheck and osv.
 - **client** -- every file outside `packages/` that a `packages/**/*.test.ts(x)` references by
   import, path literal or `join(process.cwd(), …)` must select `client` (rule
   `contracts-read-by-client`): a wire fixture the TypeScript decoder rejects fails the pull
