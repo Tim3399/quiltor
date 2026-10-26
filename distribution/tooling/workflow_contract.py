@@ -479,43 +479,30 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
     shards = _job_body(workflow, "browser-e2e-shards")
     aggregator = _job_body(workflow, "browser-e2e")
 
-    entries = re.findall(
-        r"^\s+- slot: ([1-9][0-9]*)\n"
-        r'^[ \t]+product_shard: "([0-9/]*)"\n'
-        r'^[ \t]+design_shard: "([0-9/]+)"$',
-        shards,
-        re.MULTILINE,
-    )
-    expected = {
-        ("1", "1/3", "1/4"),
-        ("2", "2/3", "2/4"),
-        ("3", "3/3", "3/4"),
-        ("4", "", "4/4"),
-    }
-    if len(entries) != 4 or set(entries) != expected:
+    if re.findall(r"^        slot: \[([^\]\n]*)\]$", shards, re.MULTILINE) != ["1, 2, 3, 4"]:
         raise WorkflowContractError(
-            "normal CI must cover exactly product 1/3..3/3 and design 1/4..4/4 "
-            "across four browser matrix slots"
+            "normal CI must run the product and design suites across exactly four browser "
+            "matrix slots: slot: [1, 2, 3, 4]"
+        )
+    if "if: matrix.product_shard" in shards or "--shard=" in shards:
+        raise WorkflowContractError(
+            "every Linux slot must run its duration-assigned part of both suites, none by count"
         )
 
     required_shard_evidence = (
         "needs: [plan, frontend]",
         "fail-fast: false",
-        "if: matrix.product_shard != ''",
-        "PRODUCT_SHARD: ${{ matrix.product_shard }}",
-        "DESIGN_SHARD: ${{ matrix.design_shard }}",
+        "SLOT: ${{ matrix.slot }}",
         "set +e",
-        "product_status=0",
-        "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
-        'npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product',
-        "PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts",
-        "npx playwright test --config playwright.design.config.ts",
-        '--shard="$DESIGN_SHARD" --output=test-results/design',
-        "product_status=$?",
-        "design_status=$?",
-        'if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then',
+        "node tools/dev/test-shards.mjs select --os linux --slots 4 "
+        '--slot "$SLOT" --offset 4=9000 --out-dir "$lists"',
+        *SLOT_RUN_EVIDENCE,
+        "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 "
+        "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json",
+        "PLAYWRIGHT_WORKERS=2 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
         "if: failure()",
         "name: browser-e2e-slot-${{ matrix.slot }}-of-4-diagnostics",
+        "name: browser-durations-linux-slot-${{ matrix.slot }}-of-4",
         "test-results/**",
     )
     for evidence in required_shard_evidence:
@@ -570,9 +557,10 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         )
     entries = re.findall(
         r"^\s+- os: (macos-15|windows-2025)\n"
+        r"^[ \t]+system: ([^\n]+)\n"
         r"^[ \t]+label: ([^\n]+)\n"
-        r'^[ \t]+product_shard: "([0-9/]+)"\n'
-        r'^[ \t]+design_shard: "([0-9/]+)"\n'
+        r"^[ \t]+slot: ([^\n]+)\n"
+        r"^[ \t]+slots: ([^\n]+)\n"
         r"^[ \t]+diagnostics: ([^\n]+)$",
         browser,
         re.MULTILINE,
@@ -580,18 +568,23 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
     expected = {
         (
             os,
+            system,
             f"{os} / slot {slot} of {count}",
-            f"{slot}/{count}",
-            f"{slot}/{count}",
+            str(slot),
+            str(count),
             f"{os}-{slot}-of-{count}",
         )
-        for os, count in (("macos-15", 2), ("windows-2025", 8))
+        for os, system, count in CROSS_PLATFORM_SLOTS
         for slot in range(1, count + 1)
     }
     if len(entries) != len(expected) or set(entries) != expected:
         raise WorkflowContractError(
-            "the full cross-platform matrix must run product and design shards 1/2..2/2 on "
-            "macOS and 1/8..8/8 on Windows, one pair per slot, with unique diagnostics"
+            "the full cross-platform matrix must run slots 1..3 on macOS and 1..8 on Windows, "
+            "each with both suites, one entry per slot, with unique diagnostics"
+        )
+    if "--shard=" in browser:
+        raise WorkflowContractError(
+            "the cross-platform slots must run their duration-assigned tests, none by count"
         )
 
     required_evidence = (
@@ -599,19 +592,23 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         "needs: [plan, frontend]",
         FULL_MATRIX_GUARD,
         "fail-fast: false",
-        "if: startsWith(matrix.product_shard, '1/')",
+        "if: matrix.slot == 1",
         "run: npx vitest run",
         "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}",
-        "PRODUCT_SHARD: ${{ matrix.product_shard }}",
-        "DESIGN_SHARD: ${{ matrix.design_shard }}",
+        "SYSTEM: ${{ matrix.system }}",
+        "SLOT: ${{ matrix.slot }}",
+        "SLOTS: ${{ matrix.slots }}",
         "set +e",
-        'PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line',
-        "product_status=$?",
-        "npx playwright test --config playwright.design.config.ts",
-        '--shard="$DESIGN_SHARD" --output=test-results/design',
-        "design_status=$?",
-        'if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then',
+        'if [ "$SYSTEM" = windows ]; then',
+        "shape=(--max-tests 100 --offset 1=186000)",
+        "shape=(--offset 1=150000)",
+        'node tools/dev/test-shards.mjs select --os "$SYSTEM" --slots "$SLOTS" --slot "$SLOT" '
+        '"${shape[@]}" --out-dir "$lists"',
+        *SLOT_RUN_EVIDENCE,
+        "PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json",
+        "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
         "name: cross-platform-browser-${{ matrix.diagnostics }}-diagnostics",
+        "name: browser-durations-${{ matrix.diagnostics }}",
         "test-results/**",
         "${{ runner.temp }}/quiltor-server.log",
     )
@@ -624,6 +621,29 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("cross-platform browser shards must fail closed")
 
 
+# Every browser slot, Linux and the full matrix alike: tools/dev/test-shards.mjs selects the
+# slot's tests and has Playwright confirm the lists; a failed selection runs nothing and fails
+# the slot, each suite's status counts, and the JSON reports with the durations are kept.
+SLOT_RUN_EVIDENCE = (
+    "select_status=$?",
+    "product_status=1",
+    "design_status=1",
+    'if [ "$select_status" -eq 0 ]; then',
+    'npx playwright test --test-list "$lists/product.txt" --output=test-results/product '
+    "--reporter=line,json",
+    "product_status=$?",
+    "npx playwright test --config playwright.design.config.ts",
+    '--test-list "$lists/design.txt" --output=test-results/design --reporter=line,json',
+    "design_status=$?",
+    'if [ "$select_status" -ne 0 ] || [ "$product_status" -ne 0 ] '
+    '|| [ "$design_status" -ne 0 ]; then',
+    "            exit 1\n",
+    "if: ${{ !cancelled() }}",
+    "retention-days: 7",
+    "path: test-results/reports/*.json",
+)
+# (runner, the system name tools/dev/test-shards.mjs takes, slots)
+CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 3), ("windows-2025", "windows", 8))
 LINUX_BROWSER_GUARD = "    if: needs.plan.outputs.run_browser == 'true'"
 FULL_MATRIX_GUARD = (
     "if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'"
@@ -851,15 +871,33 @@ def lint_programs(workflow: str, package_json: str, tracked: list[str]) -> list[
     well. A change to one of these files changes what the job does, so each must select lint.
     """
 
-    body = _job_body(workflow, "workflow-docker-shell-lint")
+    return _job_programs(workflow, package_json, tracked, ("workflow-docker-shell-lint",), "lint")
+
+
+# The jobs of the browser group; what they run decides which tests run on which slot.
+BROWSER_JOBS = ("browser-e2e-shards", "cross-platform-browser", "cross-platform-smoke")
+
+
+def browser_programs(workflow: str, package_json: str, tracked: list[str]) -> list[str]:
+    """Every tracked file under tools/ that a browser job runs, derived as for the lint job."""
+
+    return _job_programs(workflow, package_json, tracked, BROWSER_JOBS, "browser")
+
+
+def _job_programs(
+    workflow: str, package_json: str, tracked: list[str], jobs: tuple[str, ...], label: str
+) -> list[str]:
     scripts = json.loads(package_json)["scripts"]
-    commands = [body]
-    for name in re.findall(r"\bnpm run ([\w:.-]+)", body):
-        if name not in scripts:
-            raise WorkflowContractError(
-                f"the lint job runs npm run {name}, which package.json lacks"
-            )
-        commands.append(scripts[name])
+    commands = []
+    for job in jobs:
+        body = _job_body(workflow, job)
+        commands.append(body)
+        for name in re.findall(r"\bnpm run ([\w:.-]+)", body):
+            if name not in scripts:
+                raise WorkflowContractError(
+                    f"the {label} job runs npm run {name}, which package.json lacks"
+                )
+            commands.append(scripts[name])
     known = set(tracked)
     return sorted(
         {
@@ -950,6 +988,19 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
     if missing:
         raise WorkflowContractError(
             "a file the lint job's tools read must select the lint group: " + ", ".join(missing)
+        )
+    try:
+        programs = browser_programs(
+            workflow,
+            (REPO_ROOT / "package.json").read_text(encoding="utf-8"),
+            files,
+        )
+    except (OSError, KeyError, ValueError) as error:
+        raise WorkflowContractError(f"cannot derive the browser jobs' programs: {error}") from error
+    missing = _unselected(config, programs, "browser")
+    if missing:
+        raise WorkflowContractError(
+            "a program a browser job runs must select the browser group: " + ", ".join(missing)
         )
     missing = _unselected(config, client_test_inputs(files), "client")
     if missing:
