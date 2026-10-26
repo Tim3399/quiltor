@@ -1537,6 +1537,29 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_test_caches(mutated)
 
+    def test_type_check_extras_follow_pyproject(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_type_check_extras(sources)
+        mutated = dict(sources)
+        self.assertIn("Pillow>=10", sources[TEST_WORKFLOW])
+        mutated[TEST_WORKFLOW] = sources[TEST_WORKFLOW].replace("Pillow>=10", "Pillow>=9", 1)
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError, "differ from pyproject"
+        ):
+            workflow_contract.validate_type_check_extras(mutated)
+
+        pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn("pystray>=0.19", pyproject)
+        with tempfile.TemporaryDirectory() as directory:
+            drifted = Path(directory) / "pyproject.toml"
+            drifted.write_text(
+                pyproject.replace("pystray>=0.19", "pystray>=0.20", 1), encoding="utf-8"
+            )
+            with self.assertRaisesRegex(
+                workflow_contract.WorkflowContractError, "differ from pyproject"
+            ):
+                workflow_contract.validate_type_check_extras(sources, drifted)
+
     def test_browser_worker_defaults_are_bounded_and_overridable(self):
         product = (REPO_ROOT / "playwright.config.ts").read_text(encoding="utf-8")
         design = (REPO_ROOT / "playwright.design.config.ts").read_text(encoding="utf-8")
