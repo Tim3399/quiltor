@@ -2,7 +2,8 @@
 """
 Decide which job groups of test.yml a pull request needs, from the paths it changes.
 
-    path_filter.py plan --base <rev> --head <rev> [--output <file>]
+    path_filter.py plan --merge <rev> [--repository <dir>] [--output <file>]
+    path_filter.py plan --base <rev> --head <rev> [--repository <dir>] [--output <file>]
     path_filter.py check
 
 `plan` runs in the plan job of test.yml and writes one `run_<group>=true|false` line per
@@ -12,8 +13,9 @@ read makes every group true. Only a successful run over known paths can switch a
 `check` validates .github/test-paths.json against `git ls-files`: every tracked file falls in
 at least one rule or in a justified untested entry. workflow_contract.py calls the same code.
 
-Standard library only: the plan job sparse-checks out this file and the configuration, nothing
-else, and runs it before any dependency is installed.
+Standard library only: the plan job runs it before any dependency is installed. It runs the
+copy from the pull request's base, next to the base's configuration, and points --repository at
+the checkout, so a pull request cannot change the rules it is judged by.
 """
 
 from __future__ import annotations
@@ -279,6 +281,10 @@ def main(argv: list[str] | None = None) -> int:
         "--merge",
         help="a pull request's merge commit: compares its first parent (the base) with it",
     )
+    plan_command.add_argument(
+        "--repository",
+        help="the checkout to diff in; defaults to the repository this file lies in",
+    )
     plan_command.add_argument("--output")
     commands.add_parser("check")
     args = parser.parse_args(argv)
@@ -298,14 +304,15 @@ def main(argv: list[str] | None = None) -> int:
         print("Every tracked file falls in a test group or is listed as untested.")
         return 0
 
+    repository = Path(args.repository) if args.repository else None
     try:
         if args.merge:
-            base, head = merge_range(args.merge)
+            base, head = merge_range(args.merge, cwd=repository)
         elif args.base and args.head:
             base, head = args.base, args.head
         else:
             parser.error("plan needs --merge, or --base and --head")
-        paths = changed_paths(base, head)
+        paths = changed_paths(base, head, cwd=repository)
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as error:
         print(f"::warning::cannot read the changed paths, running everything: {error}")
         _write(everything(config), args.output)

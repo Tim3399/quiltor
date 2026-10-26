@@ -14,7 +14,7 @@
       "name": "filter",
       "patterns": [".github/test-paths.json", "distribution/tooling/path_filter.py"],
       "groups": ["checks", "python", "rust", "client", "browser", "lint"],
-      "reason": "A change to the filter itself is checked by running everything it could switch off."
+      "reason": "A change to the filter itself is checked by running everything it could switch off. The plan job evaluates the base's copy of both files, so these are the rules that judge such a change, whatever the pull request writes into them."
     },
     {
       "name": "test-workflow",
@@ -75,6 +75,12 @@
       ],
       "groups": ["checks", "python"],
       "reason": "Python outside the web server, its tests, and the contracts and distribution files the backend suite reads."
+    },
+    {
+      "name": "contracts-read-by-client",
+      "patterns": ["contracts/**"],
+      "groups": ["client"],
+      "reason": "The client unit tests import the wire fixtures and schemas under contracts/; a fixture the TypeScript decoder rejects must fail the pull request, not main. workflow_contract.py derives every file a client test references and requires client for it."
     },
     {
       "name": "client",
@@ -150,6 +156,24 @@
       "patterns": ["Dockerfile", ".dockerignore", "docker-compose.yml"],
       "groups": ["checks", "python", "lint"],
       "reason": "hadolint, and the image contracts in the backend suite."
+    },
+    {
+      "name": "lint-inputs",
+      "patterns": [
+        "**/Dockerfile",
+        "**/*.Dockerfile",
+        "**/*.sh",
+        "distribution/containers/hadolint.yaml",
+        "package-lock.json",
+        "Cargo.lock",
+        "distribution/dependency-locks.json",
+        "distribution/python-build-bootstrap.lock",
+        "distribution/desktop/macos/direct/requirements.lock",
+        "distribution/desktop/windows/direct/requirements.lock",
+        "distribution/web/self-hosted/requirements.lock"
+      ],
+      "groups": ["lint"],
+      "reason": "What hadolint, shellcheck and osv-scanner read, wherever it lies: every Dockerfile and its hadolint configuration, every shell script, and every lock the lock contract names. workflow_contract.py derives these files from tools/dev/lint-tool.mjs and requires lint for each."
     },
     {
       "name": "lint-config",

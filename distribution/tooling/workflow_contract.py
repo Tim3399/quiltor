@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import posixpath
 import re
 import subprocess
 import sys
@@ -671,7 +672,7 @@ def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
         if evidence not in plan:
             raise WorkflowContractError(f"the plan job is missing its matrix decision: {evidence}")
     # T-33 decided without checkout or actions. The path filter (T-37) needs exactly two:
-    # a sparse checkout of its configuration and itself, and the locked Python to run it,
+    # a sparse checkout of the history, and the locked Python to run the base's filter,
     # both only on a pull request in reduced mode. validate_path_filter holds the rest.
     for step in re.split(r"^      - ", plan, flags=re.MULTILINE)[1:]:
         if "uses:" in step and f"if: {PATH_FILTER_CONDITION}\n" not in step:
@@ -706,15 +707,32 @@ def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
 PATH_FILTER_CONDITION = (
     "steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'"
 )
+# The filter step runs the base's script on the base's configuration (F-37-3). A pull request
+# that rewrites either is judged by the rules it replaces; a base without them writes nothing,
+# and every run_<group> falls back to 'true'.
 PATH_FILTER_COMMAND = (
-    'run: python distribution/tooling/path_filter.py plan --merge HEAD --output "$GITHUB_OUTPUT"'
+    "        run: |\n"
+    '          base="$RUNNER_TEMP/path-filter-base"\n'
+    '          mkdir -p "$base/.github" "$base/distribution/tooling"\n'
+    '          if git show HEAD^1:.github/test-paths.json > "$base/.github/test-paths.json" &&\n'
+    "            git show HEAD^1:distribution/tooling/path_filter.py"
+    ' > "$base/distribution/tooling/path_filter.py"; then\n'
+    '            python "$base/distribution/tooling/path_filter.py" plan --repository .'
+    ' --merge HEAD --output "$GITHUB_OUTPUT"\n'
+    "          else\n"
+    '            echo "::warning::the base has no readable path filter, running everything"\n'
+    "          fi\n"
 )
+# Nothing of the pull request is needed in the working tree; VERSION keeps it to one file, and
+# the next step follows right after it, so no second path can slip in.
 PATH_FILTER_SPARSE = (
     "          sparse-checkout-cone-mode: false\n"
     "          sparse-checkout: |\n"
-    "            .github/test-paths.json\n"
-    "            distribution/tooling/path_filter.py\n"
+    "            VERSION\n"
+    "      - name: Set up Python for the path filter\n"
 )
+LINT_TOOL = REPO_ROOT / "tools" / "dev" / "lint-tool.mjs"
+JS_STRING = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 # Which plan output lets each job of test.yml run. The first is the job's `if:`, the second
 # what the browser-e2e gate compares a skip with. Every job other than plan and browser-e2e
 # must be listed: a new job has to be placed in a group before it can land.
@@ -772,6 +790,93 @@ def _env_name(job: str) -> str:
     return job.upper().replace("-", "_")
 
 
+def _js_function(source: str, name: str) -> str:
+    match = re.search(
+        rf"^(?:export )?function {re.escape(name)}\([^)]*\) \{{\n(.*?)^\}}\n",
+        source,
+        re.MULTILINE | re.DOTALL,
+    )
+    if match is None:
+        raise WorkflowContractError(f"tools/dev/lint-tool.mjs has no function {name}")
+    return match.group(1)
+
+
+def _ls_files(pathspecs: list[str]) -> list[str]:
+    if not pathspecs:
+        return []
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "--", *pathspecs],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        check=True,
+    )
+    return [path for path in result.stdout.decode("utf-8").split("\0") if path]
+
+
+def lint_inputs(lint_tool: str | None = None) -> list[str]:
+    """
+    Every tracked file the lint job's tools read, derived from tools/dev/lint-tool.mjs.
+
+    Each string literal in argumentsFor and osvLockfiles is resolved as a git pathspec, the way
+    trackedFiles() resolves the hadolint and shellcheck patterns; an option or a word that names
+    no file resolves to nothing. osvLockfiles also scans every lock the lock contract names, so
+    those are added from distribution/dependency-locks.json. A new tool, pattern or lock is
+    covered without touching this list.
+    """
+
+    source = lint_tool if lint_tool is not None else LINT_TOOL.read_text(encoding="utf-8")
+    bodies = _js_function(source, "argumentsFor") + _js_function(source, "osvLockfiles")
+    literals = sorted(
+        {
+            literal
+            for literal in JS_STRING.findall(bodies)
+            if literal and not literal.startswith("-") and literal != "utf8"
+        }
+    )
+    files = set(_ls_files(literals))
+    if "distribution/dependency-locks.json" in literals:
+        document = json.loads(
+            (REPO_ROOT / "distribution" / "dependency-locks.json").read_text(encoding="utf-8")
+        )
+        files.update(lock["path"] for lock in document["locks"])
+    return sorted(files)
+
+
+def client_test_inputs(tracked: list[str]) -> list[str]:
+    """
+    Every tracked file outside packages/ that a client unit test references.
+
+    A test references a file by a relative import or path literal, by a repository path literal
+    (`readFileSync(join(process.cwd(), "contracts/..."))`), or by the literal segments of a
+    `join(process.cwd(), "a", "b")`. A referenced directory stands for every file below it.
+    """
+
+    known = set(tracked)
+    referenced: set[str] = set()
+    for test in tracked:
+        if not test.startswith("packages/") or not re.search(r"\.test\.tsx?$", test):
+            continue
+        source = (REPO_ROOT / test).read_text(encoding="utf-8")
+        candidates = set()
+        for literal in JS_STRING.findall(source):
+            if literal.startswith("."):
+                candidates.add(posixpath.normpath(posixpath.join(posixpath.dirname(test), literal)))
+            elif "/" in literal:
+                candidates.add(literal)
+        for call in re.findall(r"join\(process\.cwd\(\),((?:\s*\"[^\"]*\",?)+)\s*\)", source):
+            candidates.add("/".join(JS_STRING.findall(call)))
+        for candidate in candidates:
+            if candidate in known:
+                referenced.add(candidate)
+            elif candidate and not candidate.startswith(".."):
+                referenced.update(path for path in known if path.startswith(candidate + "/"))
+    return sorted(path for path in referenced if not path.startswith("packages/"))
+
+
+def _unselected(config: path_filter.Config, files: list[str], group: str) -> list[str]:
+    return [path for path in files if not path_filter.plan(config, [path])[0][group]]
+
+
 def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = None) -> None:
     """
     Pull requests run the job groups their paths need; everything else runs everything.
@@ -799,6 +904,21 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
     if errors:
         raise WorkflowContractError(
             "test-paths.json does not cover the repository: " + "; ".join(errors[:5])
+        )
+    try:
+        linted = lint_inputs()
+    except (OSError, KeyError, ValueError, subprocess.CalledProcessError) as error:
+        raise WorkflowContractError(f"cannot derive the lint job's inputs: {error}") from error
+    missing = _unselected(config, linted, "lint")
+    if missing:
+        raise WorkflowContractError(
+            "a file the lint job's tools read must select the lint group: " + ", ".join(missing)
+        )
+    missing = _unselected(config, client_test_inputs(files), "client")
+    if missing:
+        raise WorkflowContractError(
+            "a file a client unit test references must select the client group: "
+            + ", ".join(missing)
         )
 
     plan = _job_body(workflow, "plan")

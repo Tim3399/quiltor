@@ -61,9 +61,10 @@ jobs:
           FULL_MATRIX: ${{ inputs.full_matrix == true || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}
         run: echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"
 
-      # The path filter reads paths only on a pull request in reduced mode. It checks out
-      # nothing but its configuration and itself, two commits deep: the merge commit GitHub
-      # builds for the pull request and its parents. See "Path filter" in docs/quality/ci.md.
+      # The path filter reads paths only on a pull request in reduced mode. It needs the git
+      # history two commits deep -- the merge commit GitHub builds for the pull request and its
+      # parents -- and no file of the pull request: the working tree holds VERSION only. See
+      # "Path filter" in docs/quality/ci.md.
       - name: Check out the path filter
         if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -72,17 +73,27 @@ jobs:
           fetch-depth: 2
           sparse-checkout-cone-mode: false
           sparse-checkout: |
-            .github/test-paths.json
-            distribution/tooling/path_filter.py
+            VERSION
       - name: Set up Python for the path filter
         if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"
+      # The filter and its rules come from the base (HEAD^1), never from the pull request, so a
+      # pull request that changes them is judged by the rules it replaces. A base without them
+      # (the pull request that introduces the filter) writes nothing: every run_<group> is true.
       - id: filter
         name: Select job groups by changed path
         if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'
-        run: python distribution/tooling/path_filter.py plan --merge HEAD --output "$GITHUB_OUTPUT"
+        run: |
+          base="$RUNNER_TEMP/path-filter-base"
+          mkdir -p "$base/.github" "$base/distribution/tooling"
+          if git show HEAD^1:.github/test-paths.json > "$base/.github/test-paths.json" &&
+            git show HEAD^1:distribution/tooling/path_filter.py > "$base/distribution/tooling/path_filter.py"; then
+            python "$base/distribution/tooling/path_filter.py" plan --repository . --merge HEAD --output "$GITHUB_OUTPUT"
+          else
+            echo "::warning::the base has no readable path filter, running everything"
+          fi
 
   backend:
     needs: plan

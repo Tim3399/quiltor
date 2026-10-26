@@ -302,19 +302,21 @@ the `plan` job and `workflow_contract.py` checks it.
 Why these six and not one per directory: a group is a set of jobs or steps that can be left out
 together. `server`, `workflows` and `docker` are rules, not groups -- they select existing groups:
 
-| Rule                  | Paths (abridged)                                                                        | Groups                          | Why                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
-| filter, test-workflow | `.github/test-paths.json`, `path_filter.py`, `test.yml`                                 | all                             | a change to the filter or to a job is only proven by running everything it could skip |
-| project               | `VERSION`, `package*.json`, `pyproject.toml`, `Cargo.*`, toolchains                     | all                             | versions and toolchains every job installs or compares                                |
-| server                | `src/quiltor/**` except `hosts/cli`, `hosts/desktop`, `hosts/mcp`; `apps/web/server.py` | checks, python, client, browser | the product browser suite talks to this Python on :8010                               |
-| python                | the other hosts, `tests/python/**`, `distribution/**`, `contracts/**`                   | checks, python                  | Python outside the web server, and what the backend suite reads                       |
-| client                | `packages/client/**`, `apps/web` front end, `locales/**`, `dist/**`, build configs      | checks, client, browser         | the client, its build and the committed dist/                                         |
-| browser               | `tests/e2e/**`, `tests/design/**`, Playwright configs, `tools/audit/**`                 | checks, browser                 | the browser suites and the audit rules slot 4 runs                                    |
-| rust                  | `crates/**`, `rust-toolchain.toml`, `deny.toml`                                         | checks, rust, lint              | the portable core; osv-scanner reads `Cargo.lock`'s crates                            |
-| workflows             | `.github/**` other than the above                                                       | checks, python, lint            | actionlint, zizmor (in check) and `workflow_contract.py` (in the backend suite)       |
-| docker                | `Dockerfile`, `.dockerignore`, `docker-compose.yml`                                     | checks, python, lint            | hadolint and the image contracts in the backend suite                                 |
-| architecture-docs     | `docs/architecture/**`, `docs/quality/**`, top-level `*.md`, READMEs                    | checks, python                  | the backend suite reads these documents                                               |
-| docs                  | other `docs/**/*.md`, `LICENSE`, `knowledgebase/**`, `team/**`, `.claude/**`            | checks                          | prose: formatting, markdownlint and typos only                                        |
+| Rule                     | Paths (abridged)                                                                        | Groups                          | Why                                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
+| filter, test-workflow    | `.github/test-paths.json`, `path_filter.py`, `test.yml`                                 | all                             | a change to the filter or to a job is only proven by running everything it could skip |
+| project                  | `VERSION`, `package*.json`, `pyproject.toml`, `Cargo.*`, toolchains                     | all                             | versions and toolchains every job installs or compares                                |
+| server                   | `src/quiltor/**` except `hosts/cli`, `hosts/desktop`, `hosts/mcp`; `apps/web/server.py` | checks, python, client, browser | the product browser suite talks to this Python on :8010                               |
+| python                   | the other hosts, `tests/python/**`, `distribution/**`, `contracts/**`                   | checks, python                  | Python outside the web server, and what the backend suite reads                       |
+| client                   | `packages/client/**`, `apps/web` front end, `locales/**`, `dist/**`, build configs      | checks, client, browser         | the client, its build and the committed dist/                                         |
+| browser                  | `tests/e2e/**`, `tests/design/**`, Playwright configs, `tools/audit/**`                 | checks, browser                 | the browser suites and the audit rules slot 4 runs                                    |
+| rust                     | `crates/**`, `rust-toolchain.toml`, `deny.toml`                                         | checks, rust, lint              | the portable core; osv-scanner reads `Cargo.lock`'s crates                            |
+| workflows                | `.github/**` other than the above                                                       | checks, python, lint            | actionlint, zizmor (in check) and `workflow_contract.py` (in the backend suite)       |
+| docker                   | `Dockerfile`, `.dockerignore`, `docker-compose.yml`                                     | checks, python, lint            | hadolint and the image contracts in the backend suite                                 |
+| lint-inputs              | `**/Dockerfile`, `hadolint.yaml`, `**/*.sh`, every osv lock                             | lint                            | what hadolint, shellcheck and osv-scanner read, derived from `lint-tool.mjs`          |
+| contracts-read-by-client | `contracts/**`                                                                          | client                          | the client unit tests import the wire fixtures and schemas                            |
+| architecture-docs        | `docs/architecture/**`, `docs/quality/**`, top-level `*.md`, READMEs                    | checks, python                  | the backend suite reads these documents                                               |
+| docs                     | other `docs/**/*.md`, `LICENSE`, `knowledgebase/**`, `team/**`, `.claude/**`            | checks                          | prose: formatting, markdownlint and typos only                                        |
 
 A path takes the union of every rule it matches. Three narrow rules add `python` where the backend
 suite reads a file of another group: the HTTP client in `packages/client/src/platform/http`
@@ -346,10 +348,44 @@ everything:
 - a reduced run that is not a pull request (`workflow_dispatch` with `false`): nothing to diff.
 
 The paths come from `git diff --name-only --no-renames HEAD^1 HEAD` on the merge commit GitHub
-builds for the pull request, checked out sparse (the configuration and the script only) and two
-commits deep. That is exactly what the pull request changes against the current base, with no
-API page limit, so "more files than the API returns" cannot happen; a rename counts as both
-paths. A crash of the script itself fails `plan`, every job is skipped and `browser-e2e` is red.
+builds for the pull request, two commits deep and checked out sparse (`VERSION` only: the step
+needs the history, not the pull request's files). That is exactly what the pull request changes
+against the current base, with no API page limit, so "more files than the API returns" cannot
+happen; a rename counts as both paths. A crash of the script itself fails `plan`, every job is
+skipped and `browser-e2e` is red.
+
+### The base decides
+
+The step runs `path_filter.py` and `test-paths.json` **from the base** (`git show HEAD^1:…` into
+`$RUNNER_TEMP`), never the pull request's copies (F-37-3). A pull request that rewrites the rules
+or the script is judged by the rules it replaces, and those select everything for a change to
+the filter. Without the two files in the base -- the pull request that introduces the filter --
+or when `git show` cannot read them, the step writes nothing, warns, and every `run_<group>`
+falls back to `'true'`. The base's blobs come from a lazy fetch (the sparse checkout is partial);
+the repository is public, so that needs no token, and a failed fetch lands in the same fallback.
+`test_path_filter.py` (`BaseFilterTests`) runs the step's own script in a scratch repository
+with a base, a pull request and a merge commit.
+
+### Derived, not listed
+
+Two selections are checked against what the tools and tests read, not against a list:
+
+- **lint** -- `workflow_contract.py` resolves every string in `argumentsFor` and `osvLockfiles` of
+  `tools/dev/lint-tool.mjs` as a git pathspec, the way the tool does, and adds every lock
+  `distribution/dependency-locks.json` names. Each of those files must select `lint` (rule
+  `lint-inputs`): Dockerfiles anywhere, `hadolint.yaml`, shell scripts, and every osv lock. A new
+  tool argument or lock without the rule fails the contract.
+- **client** -- every file outside `packages/` that a `packages/**/*.test.ts(x)` references by
+  import, path literal or `join(process.cwd(), …)` must select `client` (rule
+  `contracts-read-by-client`): a wire fixture the TypeScript decoder rejects fails the pull
+  request, not main.
+
+### Known limit: test.yml itself
+
+A pull request runs the `test.yml` of its own merge commit. One that rewrites the plan job can
+switch off anything, and no rule inside the workflow can prevent that: the `test-workflow` rule
+selects everything, but the rewritten job need not ask it. Only branch protection with a required
+review closes this, and that is the user's decision -- `main` has none today.
 
 ### The plan job, loosened
 

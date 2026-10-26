@@ -2357,14 +2357,39 @@ class PathFilterContractTests(unittest.TestCase):
             (
                 "the filter reads paths in full mode",
                 "        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'\n"
-                "        run: python",
-                "        if: github.event_name == 'pull_request'\n        run: python",
+                "        run: |",
+                "        if: github.event_name == 'pull_request'\n        run: |",
                 "must each be guarded",
             ),
             (
+                "the filter runs the pull request's own script",
+                'python "$base/distribution/tooling/path_filter.py" plan',
+                "python distribution/tooling/path_filter.py plan",
+                "path filter step is missing",
+            ),
+            (
+                "the filter reads the pull request's own configuration",
+                "git show HEAD^1:.github/test-paths.json",
+                "cat .github/test-paths.json",
+                "path filter step is missing",
+            ),
+            (
+                "the pull request's filter is checked out",
+                "          sparse-checkout: |\n            VERSION\n",
+                "          sparse-checkout: |\n            VERSION\n"
+                "            distribution/tooling/path_filter.py\n",
+                "path filter step is missing",
+            ),
+            (
+                "a base without the filter fails the plan",
+                '            echo "::warning::the base has no readable path filter, running everything"\n',
+                "            exit 1\n",
+                "path filter step is missing",
+            ),
+            (
                 "the filter compares only one commit",
-                "plan --merge HEAD",
-                "plan --base HEAD^ --head HEAD",
+                "--merge HEAD --output",
+                "--base HEAD^ --head HEAD --output",
                 "path filter step is missing",
             ),
             (
@@ -2465,6 +2490,82 @@ class PathFilterContractTests(unittest.TestCase):
             "pull_request", "refs/pull/7/merge", None, [], workflow=to_nothing, filter_outputs={}
         )
         self.assertNotIn("browser-e2e-shards", running)
+
+    def test_every_lint_input_selects_lint(self):
+        """F-37-1: what hadolint, shellcheck and osv-scanner read is derived, not listed."""
+        linted = workflow_contract.lint_inputs()
+        for path in (
+            "Dockerfile",
+            "services/backup-server/Dockerfile",
+            "distribution/desktop/macos/direct/build.sh",
+            "distribution/web/self-hosted/requirements.lock",
+            "distribution/dependency-locks.json",
+            "package-lock.json",
+            "Cargo.lock",
+        ):
+            self.assertIn(path, linted)
+        self.assertNotIn("src/quiltor/__init__.py", linted)
+        document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
+        rule = next(rule for rule in document["rules"] if rule["name"] == "lint-inputs")
+        sources = workflow_contract._workflow_sources()
+        for removed in ("distribution/web/self-hosted/requirements.lock", "**/*.sh"):
+            with self.subTest(removed=removed):
+                broken = json.loads(json.dumps(document))
+                next(r for r in broken["rules"] if r is not None and r["name"] == "lint-inputs")[
+                    "patterns"
+                ] = [pattern for pattern in rule["patterns"] if pattern != removed]
+                with (
+                    patch.object(
+                        workflow_contract.path_filter,
+                        "load_config",
+                        return_value=path_filter.parse_config(broken),
+                    ),
+                    self.assertRaisesRegex(
+                        workflow_contract.WorkflowContractError,
+                        "lint job's tools read must select the lint group",
+                    ),
+                ):
+                    workflow_contract.validate_path_filter(sources)
+
+    def test_a_new_lint_input_is_derived_without_maintenance(self):
+        source = workflow_contract.LINT_TOOL.read_text(encoding="utf-8")
+        grown = source.replace(
+            '    "Cargo.lock",\n', '    "Cargo.lock",\n    "apps/web/server.py",\n', 1
+        )
+        self.assertNotEqual(grown, source)
+        self.assertIn("apps/web/server.py", workflow_contract.lint_inputs(grown))
+
+    def test_every_contract_a_client_test_reads_selects_client(self):
+        """F-37-2: a fixture the TypeScript tests read must run them on the pull request."""
+        referenced = workflow_contract.client_test_inputs(path_filter.tracked_paths())
+        for path in (
+            "contracts/fixtures/application-api/manuscript/wire.v1.json",
+            "contracts/fixtures/story-world/world-state.v1.json",
+            "contracts/fixtures/timeline-order.tsv",
+            "contracts/native-bridge/v1.schema.json",
+        ):
+            self.assertIn(path, referenced)
+        chosen, _ = path_filter.plan(
+            path_filter.load_config(),
+            ["contracts/fixtures/application-api/manuscript/wire.v1.json"],
+        )
+        self.assertTrue(chosen["client"])
+        document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
+        document["rules"] = [
+            rule for rule in document["rules"] if rule["name"] != "contracts-read-by-client"
+        ]
+        with (
+            patch.object(
+                workflow_contract.path_filter,
+                "load_config",
+                return_value=path_filter.parse_config(document),
+            ),
+            self.assertRaisesRegex(
+                workflow_contract.WorkflowContractError,
+                "client unit test references must select the client group: contracts/",
+            ),
+        ):
+            workflow_contract.validate_path_filter(workflow_contract._workflow_sources())
 
     def test_coverage_and_reasons_are_part_of_the_contract(self):
         sources = workflow_contract._workflow_sources()

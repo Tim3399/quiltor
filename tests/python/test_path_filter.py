@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import io
+import json
+import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -290,6 +294,160 @@ class GitTests(unittest.TestCase):
             status = path_filter.main(["check"])
         self.assertEqual(status, 1)
         self.assertIn("base.txt falls in no group", stderr.getvalue())
+
+
+def _bash():
+    """
+    Git for Windows' bash.exe if there is one, else the bash on PATH.
+
+    On Windows the first bash on PATH can be System32's, which is WSL. Git's own lies next to
+    git: Git\\cmd\\git.exe, or Git\\mingw64\\bin\\git.exe when started from Git Bash. Elsewhere no
+    bash.exe sits there, and PATH decides.
+    """
+
+    git = shutil.which("git")
+    parents = list(Path(git).resolve().parents)[1:3] if git else []
+    candidates = [parent / "bin" / "bash.exe" for parent in parents]
+    found = next((str(path) for path in candidates if path.exists()), None)
+    return found or shutil.which("bash")
+
+
+def _filter_step_script():
+    """The run: block of the plan job's filter step, exactly as test.yml has it."""
+
+    workflow = (REPO_ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+    step = re.search(
+        r"^      - id: filter\n(?:        (?!run:).*\n)*        run: \|\n((?:          .*\n)+)",
+        workflow,
+        re.MULTILINE,
+    )
+    assert step is not None, "test.yml has no multi-line filter step"
+    return "".join(line[10:] + "\n" for line in step.group(1).splitlines())
+
+
+@unittest.skipUnless(_bash(), "needs bash to run the workflow step")
+class BaseFilterTests(unittest.TestCase):
+    """F-37-3: the plan job judges a pull request by the base's filter, not by its own."""
+
+    SERVER_FILE = "src/quiltor/delivery/http/routes/history.py"
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.repo = Path(self.directory.name) / "repo"
+        self.repo.mkdir()
+        self.git("init", "-q", "-b", "main")
+        self.git("config", "user.email", "ci@example.invalid")
+        self.git("config", "user.name", "CI")
+        self.git("config", "core.autocrlf", "false")
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def git(self, *args):
+        return subprocess.run(
+            ["git", *args], cwd=self.repo, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    def write(self, name, text):
+        (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (self.repo / name).write_text(text, encoding="utf-8")
+
+    def commit(self, message):
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", message)
+
+    def install_filter(self, config_text=None):
+        self.write(
+            ".github/test-paths.json",
+            config_text or (REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"),
+        )
+        self.write(
+            "distribution/tooling/path_filter.py",
+            (REPO_ROOT / "distribution/tooling/path_filter.py").read_text(encoding="utf-8"),
+        )
+
+    def without_browser(self):
+        """The review's probe: the server and filter rules no longer select browser."""
+        document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
+        for rule in document["rules"]:
+            if rule["name"] in ("server", "filter"):
+                rule["groups"] = [group for group in rule["groups"] if group != "browser"]
+        return json.dumps(document, indent=2) + "\n"
+
+    def pull_request(self, base_has_filter, change):
+        """A base commit, a pull request commit on a branch, and GitHub's merge commit."""
+        self.write("VERSION", "1.0.0\n")
+        self.write(self.SERVER_FILE, "# history\n")
+        self.write("docs/plans/a.md", "# a\n")
+        if base_has_filter:
+            self.install_filter()
+        self.commit("base")
+        self.git("switch", "-q", "-c", "topic")
+        change()
+        self.commit("pull request")
+        self.git("switch", "-q", "main")
+        self.write("docs/plans/main.md", "# main\n")
+        self.commit("main moves on")
+        self.git("merge", "-q", "--no-ff", "-m", "merge", "topic")
+
+    def run_step(self):
+        temp = Path(self.directory.name) / "runner-temp"
+        temp.mkdir(exist_ok=True)
+        output = Path(self.directory.name) / "github-output"
+        output.write_text("", encoding="utf-8")
+        environment = dict(os.environ)
+        environment.update(
+            RUNNER_TEMP=temp.as_posix(),
+            GITHUB_OUTPUT=output.as_posix(),
+            PATH=os.pathsep.join([str(Path(sys.executable).parent), environment["PATH"]]),
+        )
+        bash = _bash()
+        assert bash is not None
+        result = subprocess.run(
+            [bash, "-e", "-c", _filter_step_script()],
+            cwd=self.repo,
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        written = dict(
+            line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines()
+        )
+        return written, result.stdout
+
+    def test_a_pull_request_that_drops_browser_from_the_filter_still_runs_it(self):
+        def change():
+            self.write(".github/test-paths.json", self.without_browser())
+            self.write(self.SERVER_FILE, "# history, changed\n")
+
+        self.pull_request(base_has_filter=True, change=change)
+        # Before F-37-3: the pull request's own copy, as the plan job used to run it.
+        own = subprocess.run(
+            [sys.executable, "distribution/tooling/path_filter.py", "plan", "--merge", "HEAD"],
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertIn("run_browser=false", own)
+        written, _ = self.run_step()
+        self.assertEqual(written["run_browser"], "true")
+        self.assertEqual(set(written.values()), {"true"})
+
+    def test_the_base_filter_still_reduces_an_ordinary_pull_request(self):
+        self.pull_request(True, lambda: self.write("docs/plans/a.md", "# a, changed\n"))
+        written, _ = self.run_step()
+        self.assertEqual(written["run_checks"], "true")
+        self.assertEqual(written["run_browser"], "false")
+
+    def test_a_base_without_the_filter_writes_nothing_and_everything_runs(self):
+        self.pull_request(False, self.install_filter)
+        written, printed = self.run_step()
+        self.assertEqual(written, {})
+        self.assertIn(
+            "::warning::the base has no readable path filter, running everything", printed
+        )
 
 
 if __name__ == "__main__":
