@@ -745,6 +745,40 @@ def validate_test_caches(sources: dict[Path, str]) -> None:
         )
 
 
+def validate_type_check_extras(sources: dict[Path, str], pyproject: Path | None = None) -> None:
+    """
+    The frontend job installs the optional packages pyright needs with the pyproject's own pins.
+
+    pystray and Pillow come from the `desktop` extra and hatchling from `build-system.requires`;
+    pywebview is left out on purpose (docs/quality/linting.md). The expectation is read from
+    pyproject.toml, so a changed pin there fails here until test.yml follows.
+    """
+
+    path = pyproject or REPO_ROOT / "pyproject.toml"
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    extras = data["project"]["optional-dependencies"]["desktop"]
+    build = data["build-system"]["requires"]
+    expected = {
+        spec.replace(" ", "")
+        for spec in [*extras, *build]
+        if re.match(r"(pystray|pillow|hatchling)\b", spec, re.IGNORECASE)
+    }
+    if len(expected) != 3:
+        raise WorkflowContractError(
+            "pyproject.toml must pin pystray, Pillow and hatchling for the type check"
+        )
+    frontend = _job_body(sources[WORKFLOW_ROOT / "test.yml"], "frontend")
+    match = re.search(r"pip install[^\n]*-e \.([^\n]*)", frontend)
+    if match is None:
+        raise WorkflowContractError("the frontend job must install the project with pip -e .")
+    installed = {spec.replace(" ", "") for spec in re.findall(r'"([^"]+)"', match.group(1))}
+    if installed != expected:
+        raise WorkflowContractError(
+            "the frontend job's type-check extras differ from pyproject.toml: "
+            f"installed {sorted(installed)}, pyproject pins {sorted(expected)}"
+        )
+
+
 def _job_body(source: str, name: str) -> str:
     try:
         jobs = source.split("\njobs:\n", 1)[1]
@@ -857,6 +891,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_full_matrix_switch(sources)
         validate_frontend_gates_once(sources)
         validate_test_caches(sources)
+        validate_type_check_extras(sources)
         validate_native_release_targets(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original
