@@ -6,6 +6,7 @@ import functools
 import os
 import platform
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import cast
@@ -30,6 +31,8 @@ def app_directories() -> AppDirectories:
 
 
 def reveal_in_file_manager(path: Path) -> None:
+    if sys.platform != "win32":
+        raise OSError("Opening a path with its default handler is implemented for Windows only.")
     os.startfile(str(path))  # noqa: S606 - opens a local path with its default handler
 
 
@@ -39,6 +42,8 @@ def spawn_flags() -> int:
 
 def bind_child_lifetime(process: object) -> None:
     """Bind a child to a Windows Job Object with KILL_ON_JOB_CLOSE."""
+    if sys.platform != "win32":
+        return
     import ctypes
     from ctypes import wintypes
 
@@ -117,6 +122,8 @@ def is_apple_silicon() -> bool:
 
 @functools.lru_cache(maxsize=1)
 def in_os_app_package() -> bool:
+    if sys.platform != "win32":
+        return False
     appmodel_error_no_package = 15700
     try:
         import ctypes

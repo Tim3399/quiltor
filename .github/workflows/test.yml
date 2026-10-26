@@ -153,9 +153,12 @@ jobs:
           -r distribution/lint-tools.requirements.txt
 
       # pyright resolves typer, PyJWT and markdown-it-py through this interpreter;
-      # without the project's dependencies every third-party import is unresolved.
+      # without the project's dependencies every third-party import is unresolved. pystray,
+      # Pillow and hatchling are optional packages that tray.py, make_icons.py and
+      # hatch_build.py import for real, so they are installed too. pywebview is left out on
+      # purpose: its imports carry a reportMissingImports suppression (docs/quality/linting.md).
       - name: Install the project for the type check
-        run: python -m pip install --quiet -e .
+        run: python -m pip install --quiet -e . "pystray>=0.19" "Pillow>=10" "hatchling==1.31.0"
 
       # The whole local gate, not a list of its parts: every linter that `npm run check`
       # chains (formatting, zizmor, and whatever lint:* joins it later) runs here without
