@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 from ctypes import wintypes
 from pathlib import Path
@@ -103,6 +104,8 @@ class WindowsDpapiCredentialVault(RestrictedFileCredentialVault):
 
     @classmethod
     def _protect(cls, payload: bytes) -> bytes:
+        if sys.platform != "win32":
+            raise CredentialVaultError("DPAPI is available on Windows only.")
         source_buffer = ctypes.create_string_buffer(payload)
         source = cls._Blob(len(payload), ctypes.cast(source_buffer, ctypes.POINTER(ctypes.c_byte)))
         result = cls._Blob()
@@ -134,6 +137,8 @@ class WindowsDpapiCredentialVault(RestrictedFileCredentialVault):
 
     @classmethod
     def _unprotect(cls, payload: bytes) -> bytes:
+        if sys.platform != "win32":
+            raise CredentialVaultError("DPAPI is available on Windows only.")
         source_buffer = ctypes.create_string_buffer(payload)
         source = cls._Blob(len(payload), ctypes.cast(source_buffer, ctypes.POINTER(ctypes.c_byte)))
         result = cls._Blob()

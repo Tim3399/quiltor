@@ -213,12 +213,48 @@ interpreter. Left alone it would take the first `python` on PATH, which may be o
 the project's dependencies. `tools/dev/python.mjs --needs typer` picks an interpreter that
 can import them, and `tools/dev/run-pyright.mjs` asks it for that interpreter's
 `sys.executable` and hands exactly that path to pyright as `--pythonpath`.
-In CI the `frontend` job installs the project with `pip install -e .` for this reason.
+In CI the `frontend` job installs the project with `pip install -e .` for this reason, plus
+`pystray`, `Pillow` and `hatchling` (see "Platform and optional packages").
 
 `extraPaths` puts `src` first, so a worktree is checked against its own sources rather
 than the editable install, which points at the main checkout. It also adds
 `distribution/tooling` and `distribution/desktop/pyinstaller`, the directories the tests
 put on `sys.path` at runtime.
+
+### Platform and optional packages
+
+pyright evaluates `sys.platform` for the platform it runs on, so the same tree gives
+different answers on Windows and Linux. `ctypes.windll` and `os.startfile` exist only in
+the Windows stubs; on Linux they are errors unless the code is behind
+`if sys.platform != "win32": raise/return`, which pyright treats as narrowing. The Windows
+adapters (`adapters/windows.py`, `WindowsDpapiCredentialVault`) carry that guard at the top
+of each function that touches them. A bare `ctypes.windll` in a platform-neutral file is
+therefore an error on Linux and invisible on Windows.
+
+`npm run lint:pyright` therefore checks all three platforms (Windows, Linux, Darwin) on every
+run, in parallel, locally and in CI. The output names the result per platform, and the failing
+platforms with their errors when there are any; one red platform makes the command red. A new
+Linux-only error is found on a Windows machine, not first in CI.
+
+Passing `--pythonplatform` yourself switches that off: the script then checks only the platform
+you named, with the remaining arguments unchanged, for a quick look at one of them:
+
+```bash
+npm run lint:pyright -- --pythonplatform Linux
+```
+
+Third-party imports behave the same way: `pystray`, `Pillow` (the `desktop` extra) and
+`hatchling` are optional, and a machine without them reports `reportMissingImports` for
+`hosts/desktop/tray.py`, `distribution/tooling/make_icons.py` and
+`distribution/tooling/hatch_build.py`. The `frontend` job installs them
+(`pystray>=0.19`, `Pillow>=10`, `hatchling==1.31.0`) so CI sees what a developer's machine
+sees, instead of suppressing four more imports. `pywebview` is not installed on purpose: its
+imports are suppressed per line, and with the package present pyright would instead report
+five `reportOptionalMemberAccess` errors on the `webview` window objects.
+
+Those pins are not copied by hand: `validate_type_check_extras` in
+`distribution/tooling/workflow_contract.py` reads them from `pyproject.toml` (the `desktop`
+extra and `build-system.requires`) and fails when the install step in `test.yml` differs.
 
 ### Settings
 
