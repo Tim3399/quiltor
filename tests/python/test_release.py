@@ -18,6 +18,7 @@ TOOLING = REPO_ROOT / "distribution" / "tooling"
 sys.path.insert(0, str(TOOLING))
 
 import dependency_lock_contract  # noqa: E402
+import path_filter  # noqa: E402
 import previous_release  # noqa: E402
 import regenerate_dependency_locks  # noqa: E402
 import release_manifest  # noqa: E402
@@ -1299,17 +1300,37 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "product_status=0",
                 "missing fail-closed shard evidence",
             ),
+            # T-33 held the Linux slots unconditional. T-37 allows exactly one condition, the
+            # path filter's browser group; every other one is still red.
             (
                 "Linux slots skipped on a reduced matrix",
-                "    name: Browser E2E / slot ${{ matrix.slot }} of 4\n    needs: frontend\n",
-                "    name: Browser E2E / slot ${{ matrix.slot }} of 4\n    needs: frontend\n"
-                "    if: needs.plan.outputs.full_matrix == 'true'\n",
-                "must run on every event",
+                "    if: needs.plan.outputs.run_browser == 'true'\n    runs-on: ubuntu-24.04\n",
+                "    if: needs.plan.outputs.full_matrix == 'true'\n    runs-on: ubuntu-24.04\n",
+                "may only drop out through the path filter's browser group",
+            ),
+            (
+                "Linux slots skipped on the matrix plan as well",
+                "    if: needs.plan.outputs.run_browser == 'true'\n    runs-on: ubuntu-24.04\n",
+                "    if: needs.plan.outputs.run_browser == 'true' && "
+                "needs.plan.outputs.full_matrix != 'true'\n    runs-on: ubuntu-24.04\n",
+                "may only drop out through the path filter's browser group",
+            ),
+            (
+                "Linux slots on another group",
+                "    if: needs.plan.outputs.run_browser == 'true'\n    runs-on: ubuntu-24.04\n",
+                "    if: needs.plan.outputs.run_client == 'true'\n    runs-on: ubuntu-24.04\n",
+                "may only drop out through the path filter's browser group",
+            ),
+            (
+                "Linux slots unconditional again but read the plan",
+                "    if: needs.plan.outputs.run_browser == 'true'\n    runs-on: ubuntu-24.04\n",
+                "    runs-on: ubuntu-24.04\n",
+                "may only drop out through the path filter's browser group",
             ),
             (
                 "non-stable aggregator dependency",
-                "needs: browser-e2e-shards",
-                "needs: frontend",
+                "      - browser-e2e-shards\n",
+                "",
                 "aggregator is missing fail-closed evidence",
             ),
         )
@@ -1339,7 +1360,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "unguarded full matrix",
-                "    if: needs.plan.outputs.full_matrix == 'true'\n    runs-on: ${{ matrix.os }}",
+                "    if: needs.plan.outputs.full_matrix == 'true' && "
+                "needs.plan.outputs.run_browser == 'true'\n    runs-on: ${{ matrix.os }}",
                 "    runs-on: ${{ matrix.os }}",
                 "missing shard evidence",
             ),
@@ -1450,7 +1472,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "a matrix job reads the event itself",
-                "    if: needs.plan.outputs.full_matrix != 'true'",
+                "    if: needs.plan.outputs.full_matrix != 'true' && "
+                "needs.plan.outputs.run_browser == 'true'",
                 "    if: github.event_name == 'pull_request'",
                 "reads github.event_name",
             ),
@@ -1458,7 +1481,31 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "plan job checks out the repository",
                 "    steps:\n      - id: decide",
                 "    steps:\n      - uses: actions/checkout@v7\n      - id: decide",
-                "without checkout",
+                "may use actions only for the path filter",
+            ),
+            (
+                "plan job checks out unconditionally",
+                "      - name: Check out the path filter\n"
+                "        if: steps.decide.outputs.full_matrix != 'true' && "
+                "github.event_name == 'pull_request'\n",
+                "      - name: Check out the path filter\n",
+                "may use actions only for the path filter",
+            ),
+            (
+                "plan job adds a third action",
+                "      - id: filter\n",
+                "      - name: Extra\n"
+                "        if: steps.decide.outputs.full_matrix != 'true' && "
+                "github.event_name == 'pull_request'\n"
+                "        uses: actions/setup-node@v7\n"
+                "      - id: filter\n",
+                "only checkout and setup-python",
+            ),
+            (
+                "plan job gains a write permission",
+                "      contents: read # the sparse checkout",
+                "      pull-requests: write\n      contents: read # the sparse checkout",
+                "repository contents and nothing else",
             ),
         )
         for name, original, replacement, error in mutations:
@@ -2008,6 +2055,590 @@ class WorkflowBoundaryTests(unittest.TestCase):
         upload = self.build.index("name: release-manifest", verify)
         self.assertLess(create, verify)
         self.assertLess(verify, upload)
+
+
+FULL_JOBS = {
+    "backend",
+    "portable-core",
+    "frontend",
+    "workflow-docker-shell-lint",
+    "browser-e2e-shards",
+    "visual-baseline-reach",
+    "cross-platform-native",
+    "cross-platform-browser",
+}
+REDUCED_ALL_JOBS = (FULL_JOBS - {"cross-platform-browser"}) | {"cross-platform-smoke"}
+
+
+def _expression(line):
+    match = re.fullmatch(r"\$\{\{ (.+) \}\}", line.strip())
+    assert match is not None, line
+    return match.group(1)
+
+
+def _as_output(value):
+    """How GitHub writes an expression's value into an output or env: booleans as text."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return "" if value is None else str(value)
+
+
+def simulate_test_workflow(workflow, event, ref, full_matrix_input, paths, filter_outputs=None):
+    """
+    Run test.yml's real expressions for one event: plan, every job condition, the gate.
+
+    Returns the jobs that run, whether the frontend's client steps run, and the browser-e2e
+    gate's verdict. `filter_outputs` replaces what the path filter step writes, to model a
+    filter that wrote nothing.
+    """
+
+    plan = workflow_contract._job_body(workflow, "plan")
+    decision = re.search(r"FULL_MATRIX: (\$\{\{ .+ \}\})", plan)
+    assert decision is not None
+    context = {
+        "github.event_name": event,
+        "github.ref": ref,
+        "inputs.full_matrix": full_matrix_input,
+    }
+    full = _as_output(
+        _github_truthy(evaluate_github_expression(_expression(decision.group(1)), context))
+    )
+    steps = {"steps.decide.outputs.full_matrix": full, "github.event_name": event}
+    filter_step = re.search(
+        r"^      - id: filter\n(?:        .*\n)*?        if: (.+)\n", plan, re.M
+    )
+    assert filter_step is not None, "the plan job has no conditional filter step"
+    filter_ran = _github_truthy(evaluate_github_expression(filter_step.group(1), steps))
+    if filter_ran:
+        if filter_outputs is None:
+            chosen, _ = path_filter.plan(path_filter.load_config(), paths)
+            filter_outputs = {group: _as_output(run) for group, run in chosen.items()}
+        for group, value in filter_outputs.items():
+            steps[f"steps.filter.outputs.run_{group}"] = value
+    outputs = {"needs.plan.outputs.full_matrix": full}
+    for name, line in re.findall(r"^      (run_[a-z0-9_]+): ([^\n]+)$", plan, re.MULTILINE):
+        outputs[f"needs.plan.outputs.{name}"] = _as_output(
+            evaluate_github_expression(_expression(line), steps)
+        )
+
+    results = {"plan": "success"}
+    jobs = dict(workflow_contract._job_blocks(workflow))
+    pending = [name for name in jobs if name not in ("plan", "browser-e2e")]
+    while pending:
+        for name in list(pending):
+            body = jobs[name]
+            needs_line = re.search(r"^    needs: (.+)$", body, re.MULTILINE)
+            needs = re.findall(r"[a-z0-9-]+", needs_line.group(1)) if needs_line else []
+            if any(need not in results for need in needs):
+                continue
+            condition = re.search(r"^    if: (.+)$", body, re.MULTILINE)
+            runs = all(results[need] == "success" for need in needs) and (
+                condition is None
+                or _github_truthy(evaluate_github_expression(condition.group(1), outputs))
+            )
+            results[name] = "success" if runs else "skipped"
+            pending.remove(name)
+    client_steps = results["frontend"] == "success" and _github_truthy(
+        evaluate_github_expression("needs.plan.outputs.run_client == 'true'", outputs)
+    )
+    return (
+        {name for name, result in results.items() if result == "success"} - {"plan"},
+        (client_steps),
+        gate_verdict(results, outputs),
+    )
+
+
+def gate_verdict(results, outputs):
+    """The browser-e2e `require` rule over every filtered job, on the contract's selections."""
+    failures = []
+    if results.get("plan") != "success":
+        failures.append("plan")
+    for name, (_, selection) in workflow_contract.FILTERED_JOBS.items():
+        selected = _as_output(_github_truthy(evaluate_github_expression(selection, outputs)))
+        result = results.get(name, "skipped")
+        if result == "success" or (result == "skipped" and selected == "false"):
+            continue
+        failures.append(name)
+    return failures
+
+
+class PathFilterContractTests(unittest.TestCase):
+    """T-37: pull requests run what their paths need; main and release mode run everything."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
+
+    def simulate(self, event, ref, full_matrix_input, paths, workflow=None, **options):
+        return simulate_test_workflow(
+            workflow or self.workflow, event, ref, full_matrix_input, paths, **options
+        )
+
+    def test_the_repository_satisfies_the_contract(self):
+        workflow_contract.validate_path_filter(workflow_contract._workflow_sources())
+
+    def test_truth_table(self):
+        pr = ("pull_request", "refs/pull/7/merge", None)
+        cases = (
+            # Full mode never reads paths: a documentation-only push to main runs everything.
+            (
+                "push to main, documentation only",
+                ("push", "refs/heads/main", None),
+                ["docs/plans/x.md"],
+                FULL_JOBS,
+                True,
+            ),
+            (
+                "workflow_dispatch with the default",
+                ("workflow_dispatch", "refs/heads/x", True),
+                ["docs/plans/x.md"],
+                FULL_JOBS,
+                True,
+            ),
+            (
+                "workflow_call without input",
+                ("workflow_dispatch", "refs/heads/x", None),
+                ["docs/plans/x.md"],
+                FULL_JOBS,
+                True,
+            ),
+            (
+                "workflow_call with true from a pull request",
+                ("pull_request", "refs/pull/7/merge", True),
+                ["docs/plans/x.md"],
+                FULL_JOBS,
+                True,
+            ),
+            # Reduced without a pull request: nothing to diff, so every group runs.
+            (
+                "workflow_dispatch with false",
+                ("workflow_dispatch", "refs/heads/x", False),
+                ["docs/plans/x.md"],
+                REDUCED_ALL_JOBS,
+                True,
+            ),
+            (
+                "pull request, documentation only",
+                pr,
+                ["docs/plans/x.md", "docs/design/notes.md"],
+                {"frontend"},
+                False,
+            ),
+            (
+                "pull request, Python outside the server",
+                pr,
+                ["tests/python/test_x.py", "src/quiltor/hosts/cli/main.py"],
+                {"backend", "frontend", "cross-platform-native"},
+                False,
+            ),
+            (
+                "pull request, server Python",
+                pr,
+                ["src/quiltor/delivery/http/routes.py"],
+                {
+                    "backend",
+                    "frontend",
+                    "cross-platform-native",
+                    "browser-e2e-shards",
+                    "visual-baseline-reach",
+                    "cross-platform-smoke",
+                },
+                True,
+            ),
+            (
+                "pull request, client",
+                pr,
+                ["packages/client/src/main.ts"],
+                {"frontend", "browser-e2e-shards", "visual-baseline-reach", "cross-platform-smoke"},
+                True,
+            ),
+            (
+                "pull request, workflows only",
+                pr,
+                [".github/workflows/release.yml"],
+                {"backend", "frontend", "workflow-docker-shell-lint", "cross-platform-native"},
+                False,
+            ),
+            (
+                "pull request, Rust",
+                pr,
+                ["crates/quiltor-core/src/lib.rs"],
+                {
+                    "portable-core",
+                    "frontend",
+                    "workflow-docker-shell-lint",
+                    "cross-platform-native",
+                },
+                False,
+            ),
+            (
+                "pull request, an unknown path",
+                pr,
+                ["docs/plans/x.md", "newdir/thing.txt"],
+                REDUCED_ALL_JOBS,
+                True,
+            ),
+            (
+                "pull request, test.yml itself",
+                pr,
+                [".github/workflows/test.yml"],
+                REDUCED_ALL_JOBS,
+                True,
+            ),
+            (
+                "pull request, untested screenshot only",
+                pr,
+                ["docs/screenshots/places.png"],
+                set(),
+                False,
+            ),
+        )
+        for name, (event, ref, full_matrix_input), paths, jobs, client in cases:
+            with self.subTest(name=name):
+                running, client_steps, failures = self.simulate(
+                    event, ref, full_matrix_input, paths
+                )
+                self.assertEqual(running, jobs)
+                self.assertIs(client_steps, client)
+                self.assertEqual(failures, [], "a job the plan chose to skip fails the gate")
+
+    def test_a_filter_that_wrote_nothing_runs_everything(self):
+        for outputs in ({}, {"browser": ""}, {"browser": "maybe"}):
+            with self.subTest(outputs=outputs):
+                running, client, _ = self.simulate(
+                    "pull_request", "refs/pull/7/merge", None, [], filter_outputs=outputs
+                )
+                self.assertEqual(running, REDUCED_ALL_JOBS)
+                self.assertTrue(client)
+
+    def test_the_gate_lets_only_a_planned_skip_pass(self):
+        outputs = {"needs.plan.outputs.full_matrix": "false"}
+        outputs.update(
+            {
+                f"needs.plan.outputs.run_{group}": "false"
+                for group in ("checks", "python", "rust", "client", "lint")
+            }
+        )
+        outputs["needs.plan.outputs.run_browser"] = "true"
+        everything_skipped = dict.fromkeys(workflow_contract.FILTERED_JOBS, "skipped")
+        everything_skipped["plan"] = "success"
+        # The browser group was selected, so its skips are failures; the rest were planned.
+        self.assertEqual(
+            gate_verdict(everything_skipped, outputs),
+            ["browser-e2e-shards", "visual-baseline-reach", "cross-platform-smoke"],
+        )
+        planned = dict(
+            everything_skipped,
+            **{
+                "browser-e2e-shards": "success",
+                "visual-baseline-reach": "success",
+                "cross-platform-smoke": "success",
+            },
+        )
+        self.assertEqual(gate_verdict(planned, outputs), [])
+        for result in ("failure", "cancelled"):
+            with self.subTest(result=result):
+                self.assertEqual(gate_verdict(dict(planned, backend=result), outputs), ["backend"])
+        # A failed plan leaves no outputs: every skip counts as unplanned.
+        self.assertEqual(
+            gate_verdict(
+                dict.fromkeys(workflow_contract.FILTERED_JOBS, "skipped") | {"plan": "failure"}, {}
+            ),
+            [
+                "plan",
+                *[
+                    name
+                    for name in workflow_contract.FILTERED_JOBS
+                    if name != "cross-platform-browser"
+                ],
+            ],
+        )
+
+    def test_mutations_fail_the_contract(self):
+        sources = workflow_contract._workflow_sources()
+        full_bypass = "steps.decide.outputs.full_matrix == 'true' && 'true' || "
+        mutations = (
+            (
+                "full mode no longer bypasses the browser filter",
+                "      run_browser: ${{ " + full_bypass,
+                "      run_browser: ${{ ",
+                "one run_<group> output per test-paths group",
+            ),
+            (
+                "an unreadable filter falls back to nothing",
+                "(steps.filter.outputs.run_browser == 'false' && 'false' || 'true')",
+                "(steps.filter.outputs.run_browser == 'true' && 'true' || 'false')",
+                "one run_<group> output per test-paths group",
+            ),
+            (
+                "a group without a plan output",
+                "      run_lint: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || "
+                "(steps.filter.outputs.run_lint == 'false' && 'false' || 'true') }}\n",
+                "",
+                "one run_<group> output per test-paths group",
+            ),
+            (
+                "the filter reads paths in full mode",
+                "        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'\n"
+                "        run: |",
+                "        if: github.event_name == 'pull_request'\n        run: |",
+                "must each be guarded",
+            ),
+            (
+                "the filter runs the pull request's own script",
+                'python "$base/distribution/tooling/path_filter.py" plan',
+                "python distribution/tooling/path_filter.py plan",
+                "path filter step is missing",
+            ),
+            (
+                "the filter reads the pull request's own configuration",
+                "git show HEAD^1:.github/test-paths.json",
+                "cat .github/test-paths.json",
+                "path filter step is missing",
+            ),
+            (
+                "the pull request's filter is checked out",
+                "          sparse-checkout: |\n            VERSION\n",
+                "          sparse-checkout: |\n            VERSION\n"
+                "            distribution/tooling/path_filter.py\n",
+                "path filter step is missing",
+            ),
+            (
+                "a base without the filter fails the plan",
+                '            echo "::warning::the base has no readable path filter, running everything"\n',
+                "            exit 1\n",
+                "path filter step is missing",
+            ),
+            (
+                "the filter compares only one commit",
+                "--merge HEAD --output",
+                "--base HEAD^ --head HEAD --output",
+                "path filter step is missing",
+            ),
+            (
+                "a job reads the wrong group",
+                "    needs: plan\n    if: needs.plan.outputs.run_python == 'true'\n    runs-on: ubuntu-24.04\n",
+                "    needs: plan\n    if: needs.plan.outputs.run_checks == 'true'\n    runs-on: ubuntu-24.04\n",
+                "test.yml:backend must run on exactly",
+            ),
+            (
+                "a job runs on a second condition",
+                "    if: needs.plan.outputs.run_lint == 'true'\n",
+                "    if: needs.plan.outputs.run_lint == 'true' && github.ref != 'x'\n",
+                "workflow-docker-shell-lint must run on exactly",
+            ),
+            (
+                "a job no longer needs the plan",
+                "    needs: plan\n    if: needs.plan.outputs.run_rust == 'true'\n",
+                "    if: needs.plan.outputs.run_rust == 'true'\n",
+                "portable-core must need the plan job",
+            ),
+            (
+                "the client build runs unfiltered",
+                "      - name: Type-check and build\n        if: needs.plan.outputs.run_client == 'true'\n",
+                "      - name: Type-check and build\n",
+                "'Type-check and build' must run on run_client",
+            ),
+            (
+                "a new job without a group",
+                "\n  visual-baseline-reach:\n",
+                "\n  extra:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: true\n\n  visual-baseline-reach:\n",
+                "jobs without a path-filter group: extra",
+            ),
+            (
+                "the gate accepts any skip",
+                '            elif [ "$2" = "skipped" ] && [ "$3" = "false" ]; then\n',
+                '            elif [ "$2" = "skipped" ]; then\n',
+                "browser-e2e is missing its gate",
+            ),
+            (
+                "the gate reads a selection fail-open",
+                "SELECTED_BACKEND: ${{ needs.plan.outputs.run_python != 'false' }}",
+                "SELECTED_BACKEND: ${{ needs.plan.outputs.run_python == 'true' }}",
+                "browser-e2e does not gate backend",
+            ),
+            (
+                "the gate forgets a job",
+                "      - cross-platform-smoke\n    if: always()",
+                "    if: always()",
+                "must need the plan and every filtered job",
+            ),
+            (
+                "the gate skips with its needs",
+                "    if: always()\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Require every selected job",
+                "    runs-on: ubuntu-24.04\n    steps:\n      - name: Require every selected job",
+                "browser-e2e is missing its gate: if: always()",
+            ),
+            (
+                "the gate tolerates a failed plan",
+                '          require plan "$PLAN_RESULT" true\n',
+                "",
+                "browser-e2e is missing its gate",
+            ),
+            (
+                "paths filtered in the trigger",
+                "  pull_request:\n",
+                "  pull_request:\n    paths-ignore: ['docs/**']\n",
+                "may not filter paths in its triggers",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, sources[TEST_WORKFLOW])
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = sources[TEST_WORKFLOW].replace(original, replacement, 1)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, re.escape(error)
+                ):
+                    workflow_contract.validate_path_filter(mutated)
+
+    def test_the_mutated_expressions_change_the_outcome(self):
+        """The two expression mutations above are not cosmetic: they change what runs."""
+        no_bypass = self.workflow.replace(
+            "      run_browser: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || ",
+            "      run_browser: ${{ ",
+        ).replace(
+            "    if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'\n",
+            "    if: true\n",
+        )
+        running, _, _ = self.simulate(
+            "push", "refs/heads/main", None, ["docs/plans/x.md"], workflow=no_bypass
+        )
+        self.assertNotIn("browser-e2e-shards", running)
+        to_nothing = self.workflow.replace(
+            "(steps.filter.outputs.run_browser == 'false' && 'false' || 'true')",
+            "(steps.filter.outputs.run_browser == 'true' && 'true' || 'false')",
+        )
+        running, _, _ = self.simulate(
+            "pull_request", "refs/pull/7/merge", None, [], workflow=to_nothing, filter_outputs={}
+        )
+        self.assertNotIn("browser-e2e-shards", running)
+
+    def test_every_lint_input_selects_lint(self):
+        """F-37-1: what hadolint, shellcheck and osv-scanner read is derived, not listed."""
+        linted = workflow_contract.lint_inputs()
+        for path in (
+            "Dockerfile",
+            "services/backup-server/Dockerfile",
+            "distribution/desktop/macos/direct/build.sh",
+            "distribution/web/self-hosted/requirements.lock",
+            "distribution/dependency-locks.json",
+            "package-lock.json",
+            "Cargo.lock",
+        ):
+            self.assertIn(path, linted)
+        self.assertNotIn("src/quiltor/__init__.py", linted)
+        document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
+        rule = next(rule for rule in document["rules"] if rule["name"] == "lint-inputs")
+        sources = workflow_contract._workflow_sources()
+        for removed in ("distribution/web/self-hosted/requirements.lock", "**/*.sh"):
+            with self.subTest(removed=removed):
+                broken = json.loads(json.dumps(document))
+                next(r for r in broken["rules"] if r is not None and r["name"] == "lint-inputs")[
+                    "patterns"
+                ] = [pattern for pattern in rule["patterns"] if pattern != removed]
+                with (
+                    patch.object(
+                        workflow_contract.path_filter,
+                        "load_config",
+                        return_value=path_filter.parse_config(broken),
+                    ),
+                    self.assertRaisesRegex(
+                        workflow_contract.WorkflowContractError,
+                        "lint job's tools read must select the lint group",
+                    ),
+                ):
+                    workflow_contract.validate_path_filter(sources)
+
+    def test_a_new_lint_input_is_derived_without_maintenance(self):
+        source = workflow_contract.LINT_TOOL.read_text(encoding="utf-8")
+        grown = source.replace(
+            '    "Cargo.lock",\n', '    "Cargo.lock",\n    "apps/web/server.py",\n', 1
+        )
+        self.assertNotEqual(grown, source)
+        self.assertIn("apps/web/server.py", workflow_contract.lint_inputs(grown))
+
+    def test_the_program_the_lint_job_runs_selects_lint(self):
+        """F-37-5: a change to lint-tool.mjs must run the job that executes it."""
+        tracked = path_filter.tracked_paths()
+        programs = workflow_contract.lint_programs(
+            workflow_contract._workflow_sources()[workflow_contract.WORKFLOW_ROOT / "test.yml"],
+            (REPO_ROOT / "package.json").read_text(encoding="utf-8"),
+            tracked,
+        )
+        self.assertIn("tools/dev/lint-tool.mjs", programs)
+        self.assertNotIn("tools/dev/run-pyright.mjs", programs)
+        chosen, _ = path_filter.plan(path_filter.load_config(), ["tools/dev/lint-tool.mjs"])
+        self.assertTrue(chosen["lint"])
+        # A program the job starts directly counts too, without going through package.json.
+        direct = "\njobs:\n  workflow-docker-shell-lint:\n    steps:\n      - run: node tools/dev/x.mjs\n"
+        self.assertEqual(
+            ["tools/dev/x.mjs"],
+            workflow_contract.lint_programs(direct, '{"scripts": {}}', ["tools/dev/x.mjs"]),
+        )
+
+    def test_every_contract_a_client_test_reads_selects_client(self):
+        """F-37-2: a fixture the TypeScript tests read must run them on the pull request."""
+        referenced = workflow_contract.client_test_inputs(path_filter.tracked_paths())
+        for path in (
+            "contracts/fixtures/application-api/manuscript/wire.v1.json",
+            "contracts/fixtures/story-world/world-state.v1.json",
+            "contracts/fixtures/timeline-order.tsv",
+            "contracts/native-bridge/v1.schema.json",
+        ):
+            self.assertIn(path, referenced)
+        chosen, _ = path_filter.plan(
+            path_filter.load_config(),
+            ["contracts/fixtures/application-api/manuscript/wire.v1.json"],
+        )
+        self.assertTrue(chosen["client"])
+        document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
+        document["rules"] = [
+            rule for rule in document["rules"] if rule["name"] != "contracts-read-by-client"
+        ]
+        with (
+            patch.object(
+                workflow_contract.path_filter,
+                "load_config",
+                return_value=path_filter.parse_config(document),
+            ),
+            self.assertRaisesRegex(
+                workflow_contract.WorkflowContractError,
+                "client unit test references must select the client group: contracts/",
+            ),
+        ):
+            workflow_contract.validate_path_filter(workflow_contract._workflow_sources())
+
+    def test_coverage_and_reasons_are_part_of_the_contract(self):
+        sources = workflow_contract._workflow_sources()
+        tracked = path_filter.tracked_paths()
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError, "newdir/x.txt falls in no group"
+        ):
+            workflow_contract.validate_path_filter(sources, tracked=[*tracked, "newdir/x.txt"])
+
+        document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
+        unjustified = json.loads(json.dumps(document))
+        del unjustified["untested"][0]["reason"]
+        groupless = json.loads(json.dumps(document))
+        groupless["rules"].append(
+            {"name": "new", "patterns": ["newdir/**"], "groups": [], "reason": "A new directory."}
+        )
+        for name, broken, error in (
+            ("untested entry without a reason", unjustified, "needs a reason"),
+            ("pattern without a group", groupless, "selects no group"),
+        ):
+            with (
+                self.subTest(name=name),
+                patch.object(
+                    path_filter,
+                    "load_config",
+                    return_value=None,
+                    side_effect=lambda *_args, doc=broken: path_filter.parse_config(doc),
+                ),
+                self.assertRaisesRegex(workflow_contract.WorkflowContractError, error),
+            ):
+                workflow_contract.validate_path_filter(sources, tracked=tracked)
 
 
 class ThirdPartyNoticeContractTests(unittest.TestCase):

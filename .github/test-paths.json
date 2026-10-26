@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "$comment": "Which job groups of .github/workflows/test.yml a pull request needs, by changed path. Evaluated by distribution/tooling/path_filter.py in the plan job and checked by workflow_contract.py. A file takes the union of every rule it matches; a file no rule and no untested entry matches runs everything. Main, workflow_dispatch and workflow_call (release mode) never read this file. See \"Path filter\" in docs/quality/ci.md.",
+  "groups": {
+    "checks": "frontend job, npm run check: contracts, architecture, design, i18n, formatting, every linter",
+    "python": "backend job, and the backend suite in cross-platform-native",
+    "rust": "portable-core, and cargo test in cross-platform-native",
+    "client": "frontend job after npm run check: unit tests, type check, build, dist/ comparison",
+    "browser": "browser-e2e-shards, visual-baseline-reach, cross-platform-browser or cross-platform-smoke",
+    "lint": "workflow-docker-shell-lint: actionlint, hadolint, shellcheck, osv-scanner"
+  },
+  "rules": [
+    {
+      "name": "filter",
+      "patterns": [".github/test-paths.json", "distribution/tooling/path_filter.py"],
+      "groups": ["checks", "python", "rust", "client", "browser", "lint"],
+      "reason": "A change to the filter itself is checked by running everything it could switch off. The plan job evaluates the base's copy of both files, so these are the rules that judge such a change, whatever the pull request writes into them."
+    },
+    {
+      "name": "test-workflow",
+      "patterns": [".github/workflows/test.yml"],
+      "groups": ["checks", "python", "rust", "client", "browser", "lint"],
+      "reason": "A changed job is only proven by running it."
+    },
+    {
+      "name": "project",
+      "patterns": [
+        "VERSION",
+        "package.json",
+        "package-lock.json",
+        "pyproject.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "distribution/toolchains.json",
+        ".node-version",
+        ".python-version",
+        ".gitattributes",
+        ".editorconfig",
+        ".env.example"
+      ],
+      "reason": "Versions, dependencies and toolchains every job installs or compares.",
+      "groups": ["checks", "python", "rust", "client", "browser", "lint"]
+    },
+    {
+      "name": "server",
+      "patterns": [
+        "src/quiltor/__init__.py",
+        "src/quiltor/resources.py",
+        "src/quiltor/application/**",
+        "src/quiltor/bootstrap/**",
+        "src/quiltor/delivery/**",
+        "src/quiltor/domain/**",
+        "src/quiltor/infrastructure/**",
+        "src/quiltor/modules/**",
+        "src/quiltor/resources/**",
+        "src/quiltor/hosts/__init__.py",
+        "src/quiltor/hosts/web/**",
+        "apps/web/server.py"
+      ],
+      "groups": ["checks", "python", "client", "browser"],
+      "reason": "Python the web server runs: the product browser suite talks to it on :8010."
+    },
+    {
+      "name": "python",
+      "patterns": [
+        "src/quiltor/hosts/cli/**",
+        "src/quiltor/hosts/desktop/**",
+        "src/quiltor/hosts/mcp/**",
+        "tests/__init__.py",
+        "tests/python/**",
+        "tests/fixtures/**",
+        "services/**",
+        "distribution/**",
+        "contracts/**"
+      ],
+      "groups": ["checks", "python"],
+      "reason": "Python outside the web server, its tests, and the contracts and distribution files the backend suite reads."
+    },
+    {
+      "name": "contracts-read-by-client",
+      "patterns": ["contracts/**"],
+      "groups": ["client"],
+      "reason": "The client unit tests import the wire fixtures and schemas under contracts/; a fixture the TypeScript decoder rejects must fail the pull request, not main. workflow_contract.py derives every file a client test references and requires client for it."
+    },
+    {
+      "name": "client",
+      "patterns": [
+        "packages/client/**",
+        "apps/web/index.html",
+        "apps/web/main.tsx",
+        "apps/web/public/**",
+        "apps/design-gallery/**",
+        "locales/**",
+        "dist/**",
+        "vite.config.ts",
+        "vite.design.config.ts",
+        "vitest.config.ts",
+        "tsconfig.json",
+        "tsconfig.app.json",
+        "tsconfig.node.json",
+        "tsconfig.e2e.json",
+        "biome.json",
+        "eslint.config.mjs",
+        "stylelint.config.mjs",
+        "knip.jsonc"
+      ],
+      "groups": ["checks", "client", "browser"],
+      "reason": "The client, its build and the committed dist/ the server serves."
+    },
+    {
+      "name": "client-read-by-backend",
+      "patterns": [
+        "packages/client/src/platform/http/**",
+        "packages/client/src/modules/manuscript/assets/paper-fiber-texture.webp",
+        "dist/index.html"
+      ],
+      "groups": ["python"],
+      "reason": "test_routes.py compares the HTTP client with the server routes; the place-map tests decode this image; test_server_auth.py serves dist/index.html."
+    },
+    {
+      "name": "browser",
+      "patterns": [
+        "tests/e2e/**",
+        "tests/design/**",
+        "tests/audit/**",
+        "tests/playwright/**",
+        "playwright.config.ts",
+        "playwright.design.config.ts",
+        "playwright.audit.config.ts",
+        "tools/audit/**",
+        "tools/quality/check_visual_baseline_reach.mjs"
+      ],
+      "groups": ["checks", "browser"],
+      "reason": "The browser suites, their configuration and the layout-audit rules slot 4 runs."
+    },
+    {
+      "name": "playwright-config-read-by-backend",
+      "patterns": ["playwright.config.ts", "playwright.design.config.ts", "tests/playwright/**"],
+      "groups": ["python"],
+      "reason": "workflow_contract.py and test_release.py read the worker and sharding switches."
+    },
+    {
+      "name": "rust",
+      "patterns": ["crates/**", "rust-toolchain.toml", "deny.toml"],
+      "groups": ["checks", "rust", "lint"],
+      "reason": "The portable core, its toolchain pin and cargo-deny policy; osv-scanner reads Cargo.lock's crates."
+    },
+    {
+      "name": "workflows",
+      "patterns": [".github/**"],
+      "groups": ["checks", "python", "lint"],
+      "reason": "Other workflows and the action lock: actionlint, zizmor in npm run check, and workflow_contract.py in the backend suite."
+    },
+    {
+      "name": "docker",
+      "patterns": ["Dockerfile", ".dockerignore", "docker-compose.yml"],
+      "groups": ["checks", "python", "lint"],
+      "reason": "hadolint, and the image contracts in the backend suite."
+    },
+    {
+      "name": "lint-inputs",
+      "patterns": [
+        "**/Dockerfile",
+        "**/*.Dockerfile",
+        "**/*.sh",
+        "distribution/containers/hadolint.yaml",
+        "package-lock.json",
+        "Cargo.lock",
+        "distribution/dependency-locks.json",
+        "distribution/python-build-bootstrap.lock",
+        "distribution/desktop/macos/direct/requirements.lock",
+        "distribution/desktop/windows/direct/requirements.lock",
+        "distribution/web/self-hosted/requirements.lock"
+      ],
+      "groups": ["lint"],
+      "reason": "What hadolint, shellcheck and osv-scanner read, wherever it lies: every Dockerfile and its hadolint configuration, every shell script, and every lock the lock contract names. workflow_contract.py derives these files from tools/dev/lint-tool.mjs and requires lint for each."
+    },
+    {
+      "name": "lint-config",
+      "patterns": [
+        "osv-scanner.toml",
+        "_typos.toml",
+        ".prettierrc",
+        ".prettierignore",
+        ".markdownlint-cli2.jsonc",
+        ".gitignore",
+        ".mcp.json"
+      ],
+      "groups": ["checks", "lint"],
+      "reason": "Linter and repository configuration npm run check or the lint job reads."
+    },
+    {
+      "name": "lint-program",
+      "patterns": ["tools/dev/lint-tool.mjs"],
+      "groups": ["checks", "python", "lint"],
+      "reason": "The program workflow-docker-shell-lint runs (npm run lint:actionlint and the others); its arguments and lock list decide what the job checks, so a change to it must run the job. workflow_contract.py derives such programs from the job and requires lint for each."
+    },
+    {
+      "name": "tools",
+      "patterns": ["tools/**"],
+      "groups": ["checks", "python"],
+      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README."
+    },
+    {
+      "name": "architecture-docs",
+      "patterns": [
+        "docs/architecture/**",
+        "docs/quality/**",
+        "*.md",
+        "apps/**/*.md",
+        "models/**",
+        "runtime/**",
+        "data/**"
+      ],
+      "groups": ["checks", "python"],
+      "reason": "Documents the backend suite reads: the architecture views, ci.md, the READMEs and THIRD-PARTY-NOTICES.md."
+    },
+    {
+      "name": "docs",
+      "patterns": [
+        "docs/**/*.md",
+        "docs/standards/templates/**",
+        "LICENSE",
+        "knowledgebase/**",
+        "team/**",
+        ".claude/**"
+      ],
+      "groups": ["checks"],
+      "reason": "Prose and team configuration: formatting, markdownlint and typos in npm run check, nothing that runs the product."
+    }
+  ],
+  "untested": [
+    {
+      "patterns": ["docs/screenshots/*.png"],
+      "reason": "README screenshots: binary images no gate reads; tools/documentation regenerates them by hand."
+    }
+  ]
+}

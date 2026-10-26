@@ -9,7 +9,9 @@ permissions:
 #
 # Pull requests run Linux completely and a smoke test on Windows and macOS; main, a manual run
 # and a caller asking for it run the full Windows and macOS matrix. The `plan` job decides that
-# in one place -- see "Matrix" in docs/quality/ci.md.
+# in one place -- see "Matrix" in docs/quality/ci.md. On a pull request it also selects the job
+# groups the changed paths need (.github/test-paths.json); full mode always runs every group --
+# see "Path filter" there.
 on:
   push:
     branches: [main]
@@ -41,16 +43,61 @@ jobs:
   plan:
     name: Plan the matrix
     runs-on: ubuntu-24.04
-    permissions: {}
+    permissions:
+      contents: read # the sparse checkout of the path filter on a pull request
     outputs:
       full_matrix: ${{ steps.decide.outputs.full_matrix }}
+      # One run_<group> per group of .github/test-paths.json. Full mode is true without asking
+      # the filter; otherwise only a literal 'false' from a finished filter switches a group off.
+      run_checks: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_checks == 'false' && 'false' || 'true') }}
+      run_python: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_python == 'false' && 'false' || 'true') }}
+      run_rust: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_rust == 'false' && 'false' || 'true') }}
+      run_client: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_client == 'false' && 'false' || 'true') }}
+      run_browser: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_browser == 'false' && 'false' || 'true') }}
+      run_lint: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_lint == 'false' && 'false' || 'true') }}
     steps:
       - id: decide
         env:
           FULL_MATRIX: ${{ inputs.full_matrix == true || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}
         run: echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"
 
+      # The path filter reads paths only on a pull request in reduced mode. It needs the git
+      # history two commits deep -- the merge commit GitHub builds for the pull request and its
+      # parents -- and no file of the pull request: the working tree holds VERSION only. See
+      # "Path filter" in docs/quality/ci.md.
+      - name: Check out the path filter
+        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            VERSION
+      - name: Set up Python for the path filter
+        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12.10"
+      # The filter and its rules come from the base (HEAD^1), never from the pull request, so a
+      # pull request that changes them is judged by the rules it replaces. A base without them
+      # (the pull request that introduces the filter) writes nothing: every run_<group> is true.
+      - id: filter
+        name: Select job groups by changed path
+        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'
+        run: |
+          base="$RUNNER_TEMP/path-filter-base"
+          mkdir -p "$base/.github" "$base/distribution/tooling"
+          if git show HEAD^1:.github/test-paths.json > "$base/.github/test-paths.json" &&
+            git show HEAD^1:distribution/tooling/path_filter.py > "$base/distribution/tooling/path_filter.py"; then
+            python "$base/distribution/tooling/path_filter.py" plan --repository . --merge HEAD --output "$GITHUB_OUTPUT"
+          else
+            echo "::warning::the base has no readable path filter, running everything"
+          fi
+
   backend:
+    needs: plan
+    if: needs.plan.outputs.run_python == 'true'
     runs-on: ubuntu-24.04
     env:
       PYTHONPATH: src
@@ -86,6 +133,8 @@ jobs:
         run: python -m unittest discover -s tests/python -t tests/python -p "test_cli_*.py" -v
 
   portable-core:
+    needs: plan
+    if: needs.plan.outputs.run_rust == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -122,6 +171,8 @@ jobs:
         run: npm run lint:cargo-deny
 
   frontend:
+    needs: plan
+    if: needs.plan.outputs.run_checks == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -168,6 +219,7 @@ jobs:
         run: npm run check
 
       - name: Unit tests
+        if: needs.plan.outputs.run_client == 'true'
         run: npx vitest run
 
       # `npm run build` is the check:* gates followed by tsc -b and vite build. The gates ran a
@@ -175,12 +227,14 @@ jobs:
       # workflow_contract.py compares it with package.json: a gate added to `build` but not to
       # `check`, or a changed tail, fails the contract instead of silently going unrun here.
       - name: Type-check and build
+        if: needs.plan.outputs.run_client == 'true'
         run: npx tsc -b && npx vite build
 
       # dist/ is committed (the wheel and the Docker image serve it), so a
       # source change without a rebuild ships a stale client. Vite's hashed
       # filenames make that easy to miss in review and impossible to miss here.
       - name: dist/ matches the sources
+        if: needs.plan.outputs.run_client == 'true'
         run: |
           if ! git diff --quiet -- dist; then
             echo "::error::dist/ is out of date. Run 'npm run build' and commit the result."
@@ -194,6 +248,8 @@ jobs:
   # its SHA-256 matches; the npm scripts then run the command a developer runs locally.
   # Locally they skip when not installed -- here a missing binary fails the job.
   workflow-docker-shell-lint:
+    needs: plan
+    if: needs.plan.outputs.run_lint == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -245,7 +301,8 @@ jobs:
   # Product shards split by test, not by file: by file, slot 1 ran twice as long as 2 and 3.
   browser-e2e-shards:
     name: Browser E2E / slot ${{ matrix.slot }} of 4
-    needs: frontend
+    needs: [plan, frontend]
+    if: needs.plan.outputs.run_browser == 'true'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -333,25 +390,78 @@ jobs:
 
   # Keep this job ID stable: branch protection requires `browser-e2e`, while
   # the matrix above may grow or rebalance without changing the required check.
+  #
+  # It is also the gate over every job the path filter can switch off: a job must succeed,
+  # and may be skipped only when the plan did not select it. Any other skip -- a failed need,
+  # a broken condition -- and every failure or cancellation is red. A selection is written as
+  # `!= 'false'`, so a missing plan output counts as selected and its skip fails here.
   browser-e2e:
-    needs: browser-e2e-shards
+    needs:
+      - plan
+      - backend
+      - portable-core
+      - frontend
+      - workflow-docker-shell-lint
+      - browser-e2e-shards
+      - visual-baseline-reach
+      - cross-platform-native
+      - cross-platform-browser
+      - cross-platform-smoke
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - name: Require every browser shard
+      - name: Require every selected job
         env:
-          SHARD_RESULT: ${{ needs.browser-e2e-shards.result }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          RESULT_BACKEND: ${{ needs['backend'].result }}
+          SELECTED_BACKEND: ${{ needs.plan.outputs.run_python != 'false' }}
+          RESULT_PORTABLE_CORE: ${{ needs['portable-core'].result }}
+          SELECTED_PORTABLE_CORE: ${{ needs.plan.outputs.run_rust != 'false' }}
+          RESULT_FRONTEND: ${{ needs['frontend'].result }}
+          SELECTED_FRONTEND: ${{ needs.plan.outputs.run_checks != 'false' }}
+          RESULT_WORKFLOW_DOCKER_SHELL_LINT: ${{ needs['workflow-docker-shell-lint'].result }}
+          SELECTED_WORKFLOW_DOCKER_SHELL_LINT: ${{ needs.plan.outputs.run_lint != 'false' }}
+          RESULT_BROWSER_E2E_SHARDS: ${{ needs['browser-e2e-shards'].result }}
+          SELECTED_BROWSER_E2E_SHARDS: ${{ needs.plan.outputs.run_browser != 'false' }}
+          RESULT_VISUAL_BASELINE_REACH: ${{ needs['visual-baseline-reach'].result }}
+          SELECTED_VISUAL_BASELINE_REACH: ${{ needs.plan.outputs.run_browser != 'false' }}
+          RESULT_CROSS_PLATFORM_NATIVE: ${{ needs['cross-platform-native'].result }}
+          SELECTED_CROSS_PLATFORM_NATIVE: ${{ needs.plan.outputs.run_python != 'false' || needs.plan.outputs.run_rust != 'false' }}
+          RESULT_CROSS_PLATFORM_BROWSER: ${{ needs['cross-platform-browser'].result }}
+          SELECTED_CROSS_PLATFORM_BROWSER: ${{ needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser != 'false' }}
+          RESULT_CROSS_PLATFORM_SMOKE: ${{ needs['cross-platform-smoke'].result }}
+          SELECTED_CROSS_PLATFORM_SMOKE: ${{ needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser != 'false' }}
         run: |
-          if [ "$SHARD_RESULT" != "success" ]; then
-            echo "::error::At least one browser E2E matrix slot failed or was cancelled ($SHARD_RESULT)."
-            exit 1
-          fi
+          status=0
+          require() {
+            if [ "$2" = "success" ]; then
+              echo "$1: success"
+            elif [ "$2" = "skipped" ] && [ "$3" = "false" ]; then
+              echo "$1: skipped, not selected by the plan"
+            else
+              echo "::error::$1 is $2 although the plan selected=$3; only success, or a skip the plan chose, passes."
+              status=1
+            fi
+          }
+          require plan "$PLAN_RESULT" true
+          require backend "$RESULT_BACKEND" "$SELECTED_BACKEND"
+          require portable-core "$RESULT_PORTABLE_CORE" "$SELECTED_PORTABLE_CORE"
+          require frontend "$RESULT_FRONTEND" "$SELECTED_FRONTEND"
+          require workflow-docker-shell-lint "$RESULT_WORKFLOW_DOCKER_SHELL_LINT" "$SELECTED_WORKFLOW_DOCKER_SHELL_LINT"
+          require browser-e2e-shards "$RESULT_BROWSER_E2E_SHARDS" "$SELECTED_BROWSER_E2E_SHARDS"
+          require visual-baseline-reach "$RESULT_VISUAL_BASELINE_REACH" "$SELECTED_VISUAL_BASELINE_REACH"
+          require cross-platform-native "$RESULT_CROSS_PLATFORM_NATIVE" "$SELECTED_CROSS_PLATFORM_NATIVE"
+          require cross-platform-browser "$RESULT_CROSS_PLATFORM_BROWSER" "$SELECTED_CROSS_PLATFORM_BROWSER"
+          require cross-platform-smoke "$RESULT_CROSS_PLATFORM_SMOKE" "$SELECTED_CROSS_PLATFORM_SMOKE"
+          exit "$status"
 
   # When a platform has no baseline set, visual-baseline.spec.ts skips itself there -- and
   # the suite reports green while comparing not a single pixel. This check names the gap
   # instead of letting it disappear behind a "skipped". It deliberately does not live in the
   # build script: otherwise nobody could build locally before every platform has its images.
   visual-baseline-reach:
+    needs: plan
+    if: needs.plan.outputs.run_browser == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -369,6 +479,8 @@ jobs:
   # landing during a release build.
   cross-platform-native:
     name: Core on ${{ matrix.os }}
+    needs: plan
+    if: needs.plan.outputs.run_python == 'true' || needs.plan.outputs.run_rust == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -417,7 +529,7 @@ jobs:
   cross-platform-browser:
     name: Browser on ${{ matrix.label }}
     needs: [plan, frontend]
-    if: needs.plan.outputs.full_matrix == 'true'
+    if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -556,7 +668,7 @@ jobs:
   cross-platform-smoke:
     name: Smoke on ${{ matrix.os }}
     needs: [plan, frontend]
-    if: needs.plan.outputs.full_matrix != 'true'
+    if: needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
