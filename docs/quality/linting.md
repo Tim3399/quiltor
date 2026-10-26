@@ -231,8 +231,13 @@ adapters (`adapters/windows.py`, `WindowsDpapiCredentialVault`) carry that guard
 of each function that touches them. A bare `ctypes.windll` in a platform-neutral file is
 therefore an error on Linux and invisible on Windows.
 
-To see the Linux result on any machine, hand pyright the platform; arguments after `--` go
-straight through:
+`npm run lint:pyright` therefore checks all three platforms (Windows, Linux, Darwin) on every
+run, in parallel, locally and in CI. The output names the result per platform, and the failing
+platforms with their errors when there are any; one red platform makes the command red. A new
+Linux-only error is found on a Windows machine, not first in CI.
+
+Passing `--pythonplatform` yourself switches that off: the script then checks only the platform
+you named, with the remaining arguments unchanged, for a quick look at one of them:
 
 ```bash
 npm run lint:pyright -- --pythonplatform Linux
@@ -246,6 +251,10 @@ Third-party imports behave the same way: `pystray`, `Pillow` (the `desktop` extr
 sees, instead of suppressing four more imports. `pywebview` is not installed on purpose: its
 imports are suppressed per line, and with the package present pyright would instead report
 five `reportOptionalMemberAccess` errors on the `webview` window objects.
+
+Those pins are not copied by hand: `validate_type_check_extras` in
+`distribution/tooling/workflow_contract.py` reads them from `pyproject.toml` (the `desktop`
+extra and `build-system.requires`) and fails when the install step in `test.yml` differs.
 
 ### Settings
 
