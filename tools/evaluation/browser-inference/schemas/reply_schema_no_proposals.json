@@ -1,21 +1,21 @@
 {
+  "type": "object",
+  "required": ["message", "citations", "proposals"],
   "additionalProperties": false,
   "properties": {
-    "citations": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array",
-      "uniqueItems": true
-    },
     "message": {
       "type": "string"
     },
+    "citations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
     "proposals": {
-      "maxItems": 0,
-      "type": "array"
+      "type": "array",
+      "maxItems": 0
     }
-  },
-  "required": ["message", "citations", "proposals"],
-  "type": "object"
+  }
 }
