@@ -300,9 +300,13 @@ jobs:
   # and tests/playwright/durations.json): `--shard` cut by count, and since many product tests skip
   # themselves for a project, slot 1 ran 10.3 minutes of product tests and slot 2 4.2.
   # Slot 4 also runs the layout audit rules, about 9 s, which the assignment counts as offset.
+  #
+  # The browser jobs need only the plan, not frontend: they serve the committed dist/, take no
+  # artifact and no output from frontend, and its result reaches the run through the browser-e2e
+  # gate below. A red frontend still turns the run red; it no longer delays the browsers by 3.5 min.
   browser-e2e-shards:
     name: Browser E2E / slot ${{ matrix.slot }} of 4
-    needs: [plan, frontend]
+    needs: plan
     if: needs.plan.outputs.run_browser == 'true'
     runs-on: ubuntu-24.04
     strategy:
@@ -536,7 +540,7 @@ jobs:
   # contexts. macOS runs three slots; with two its first slot took 13.5 minutes.
   cross-platform-browser:
     name: Browser on ${{ matrix.label }}
-    needs: [plan, frontend]
+    needs: plan
     if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
@@ -715,7 +719,7 @@ jobs:
   # rest of the suites shows up on main, which always runs the full matrix.
   cross-platform-smoke:
     name: Smoke on ${{ matrix.os }}
-    needs: [plan, frontend]
+    needs: plan
     if: needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser == 'true'
     runs-on: ${{ matrix.os }}
     strategy:

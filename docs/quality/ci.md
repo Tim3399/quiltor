@@ -132,7 +132,8 @@ The portable release gate is 21 of the 24 minutes; the artifact jobs after it ta
   well under a minute per job. Caching them could save seconds at most.
 - **The longest path is frontend (3.5) followed by the longest browser job** -- Design on
   windows-2025 (14 min of tests with one worker) or Product on macos-15 (13 min). Sharding those
-  shortens the run; adding shards elsewhere does not.
+  shortens the run; adding shards elsewhere does not. Since T-46 the browser jobs no longer wait
+  for frontend; see "Browser jobs start beside `frontend`".
 - **Queue time is rare and not caused by the concurrency limit.** The measured peaks (15 and 18
   jobs across all workflows) stay under the documented 20; the four long waits happened anyway.
 
@@ -526,6 +527,28 @@ test.yml without an entry fails the contract, so T-35 (F-35-1) extends the same 
 
 Side effect: `browser-e2e` now waits for the slowest job (on main, the Windows slots) and turns
 red when any filtered job does, not only a browser slot.
+
+### Browser jobs start beside `frontend` (T-46)
+
+`browser-e2e-shards`, `cross-platform-browser` and `cross-platform-smoke` used to have
+`needs: [plan, frontend]` and waited about 3.5 minutes for it on every run. They now have
+`needs: plan` and start beside `frontend`.
+
+- **Nothing flows from `frontend` to them.** No `download-artifact`, no `needs.frontend.outputs`,
+  no `needs.frontend.result` in an `if:`. They serve the committed `dist/`; `frontend` only
+  compares it with the sources. So no edge had to stay.
+- **A red `frontend` still makes the run red.** `browser-e2e` needs `frontend` and requires
+  `success`, or `skipped` only when the plan did not select `checks`. The contract names
+  `frontend` explicitly, so dropping it from the gate's `needs` is red even if `FILTERED_JOBS`
+  changes with it. `test_a_red_frontend_fails_the_gate_beside_green_browsers` runs the gate's own
+  shell script under bash: every job green except `frontend` (failure, cancelled or skipped)
+  exits 1.
+- **The path filter drops nothing new.** The old edge also dropped the browser jobs whenever
+  `frontend` was filtered off. That was already true through the rules -- every rule that selects
+  `browser` selects `checks` -- and is now a contract: a rule with `browser` without `checks` is red.
+- **Critical path.** Before: `frontend` (3.5) followed by the longest browser job. After: the
+  longest browser job alone; `frontend` runs beside it. Expected saving per run is the 3.5 minutes
+  of waiting. Measured wall clock after push: open.
 
 ### The one exception to "Linux complete"
 
