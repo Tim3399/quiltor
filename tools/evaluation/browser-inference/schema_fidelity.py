@@ -218,8 +218,8 @@ def build_cases(schemas: dict[str, Json]) -> list[Case]:
     add(
         "reply_schema_no_proposals",
         "key order",
-        "valid, but message before citations (schema order is citations first)",
-        {"message": "m", "citations": [], "proposals": []},
+        "valid, but citations before message (schema order is message first)",
+        {"citations": [], "message": "m", "proposals": []},
     )
     add(
         "reply_schema_no_proposals",
@@ -466,7 +466,53 @@ def build_cases(schemas: dict[str, Json]) -> list[Case]:
     bad = copy.deepcopy(final)
     bad["final"]["proposals"] = [minimal(proposal_branches[0])] * 21
     add("tool_step_schema", "maxItems", "final with 21 proposals", bad)
+
+    # ---- probes: where does maxItems stop being enforced? ----------------------------------
+    for name in PROBES:
+        limit = schemas[name]["maxItems"]
+        item = minimal(schemas[name]["items"])
+        add(name, "valid", f"{limit} items", [item] * limit)
+        add(name, "maxItems", f"{limit + 1} items", [item] * (limit + 1))
     return cases
+
+
+def probe_schemas(schemas: dict[str, Json]) -> dict[str, Json]:
+    """Synthetic arrays that vary the item shape and the limit, to find where maxItems is dropped."""
+
+    branch_a = {
+        "type": "object",
+        "properties": {"kind": {"const": "a"}},
+        "required": ["kind"],
+        "additionalProperties": False,
+    }
+    branch_b = {**branch_a, "properties": {"kind": {"const": "b"}}}
+    proposals = schemas["reply_schema"]["properties"]["proposals"]["items"]
+    return {
+        "probe_strings_20": {"type": "array", "maxItems": 20, "items": {"type": "string"}},
+        "probe_strings_100": {"type": "array", "maxItems": 100, "items": {"type": "string"}},
+        "probe_oneof_small_5": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {"oneOf": [branch_a, branch_b]},
+        },
+        "probe_oneof_small_20": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {"oneOf": [branch_a, branch_b]},
+        },
+        "probe_oneof_real_5": {"type": "array", "maxItems": 5, "items": proposals},
+        "probe_oneof_real_20": {"type": "array", "maxItems": 20, "items": proposals},
+    }
+
+
+PROBES = (
+    "probe_strings_20",
+    "probe_strings_100",
+    "probe_oneof_small_5",
+    "probe_oneof_small_20",
+    "probe_oneof_real_5",
+    "probe_oneof_real_20",
+)
 
 
 def compile_grammar(
@@ -551,6 +597,7 @@ def run(tokenizer_dir: Path, out: Path | None, pretty: bool) -> int:
     schemas = {
         p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted(SCHEMAS.glob("*.json"))
     }
+    schemas.update(probe_schemas(schemas))
     validators = {
         name: jsonschema.Draft202012Validator(schema, format_checker=None)
         for name, schema in schemas.items()
