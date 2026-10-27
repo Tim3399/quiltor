@@ -600,8 +600,8 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         "SLOTS: ${{ matrix.slots }}",
         "set +e",
         'if [ "$SYSTEM" = windows ]; then',
-        "shape=(--max-tests 100 --offset 1=186000)",
-        "shape=(--offset 1=150000)",
+        'shape=(--max-tests 100 --offset "1=186000")',
+        'shape=(--offset "1=150000")',
         'node tools/dev/test-shards.mjs select --os "$SYSTEM" --slots "$SLOTS" --slot "$SLOT" '
         '"${shape[@]}" --out-dir "$lists"',
         *SLOT_RUN_EVIDENCE,

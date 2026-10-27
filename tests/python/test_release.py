@@ -1455,8 +1455,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "Windows without the test cap",
-                "shape=(--max-tests 100 --offset 1=186000)",
-                "shape=(--offset 1=186000)",
+                'shape=(--max-tests 100 --offset "1=186000")',
+                'shape=(--offset "1=186000")',
                 "missing shard evidence",
             ),
             (

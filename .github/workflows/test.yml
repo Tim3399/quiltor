@@ -662,9 +662,9 @@ jobs:
           set +e
           lists="$RUNNER_TEMP/test-lists"
           if [ "$SYSTEM" = windows ]; then
-            shape=(--max-tests 100 --offset 1=186000)
+            shape=(--max-tests 100 --offset "1=186000")
           else
-            shape=(--offset 1=150000)
+            shape=(--offset "1=150000")
           fi
           node tools/dev/test-shards.mjs select --os "$SYSTEM" --slots "$SLOTS" --slot "$SLOT" "${shape[@]}" --out-dir "$lists"
           select_status=$?

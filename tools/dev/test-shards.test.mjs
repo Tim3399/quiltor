@@ -213,7 +213,7 @@ function workflowShapes() {
   const count = (system) =>
     (workflow.match(new RegExp(`^ +system: ${system}$`, "gm")) ?? []).length;
   const shape = (os, slots, args) => {
-    const words = args.split(" ");
+    const words = args.split(" ").map((word) => word.replace(/^"(.*)"$/, "$1"));
     const value = (flag) => (words.includes(flag) ? words[words.indexOf(flag) + 1] : undefined);
     return {
       os,
