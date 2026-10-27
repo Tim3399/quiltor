@@ -295,10 +295,11 @@ jobs:
       - name: Known vulnerabilities in dependencies
         run: npm run lint:osv
 
-  # Product and design coverage use different shard counts, but share four
-  # runners so npm/Chromium setup is paid four times instead of seven. Slots
-  # 1-3 run one product and one design shard; slot 4 completes design coverage.
-  # Product shards split by test, not by file: by file, slot 1 ran twice as long as 2 and 3.
+  # Product and design suites share four runners, so npm/Chromium setup is paid four times.
+  # Every slot runs a part of both, cut by measured duration (test-shards.mjs in the dev tools,
+  # and tests/playwright/durations.json): `--shard` cut by count, and since many product tests skip
+  # themselves for a project, slot 1 ran 10.3 minutes of product tests and slot 2 4.2.
+  # Slot 4 also runs the layout audit rules, about 9 s, which the assignment counts as offset.
   browser-e2e-shards:
     name: Browser E2E / slot ${{ matrix.slot }} of 4
     needs: [plan, frontend]
@@ -307,19 +308,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - slot: 1
-            product_shard: "1/3"
-            design_shard: "1/4"
-          - slot: 2
-            product_shard: "2/3"
-            design_shard: "2/4"
-          - slot: 3
-            product_shard: "3/3"
-            design_shard: "3/4"
-          - slot: 4
-            product_shard: ""
-            design_shard: "4/4"
+        slot: [1, 2, 3, 4]
     env:
       PYTHONPATH: src
     steps:
@@ -331,17 +320,15 @@ jobs:
           node-version: "22.23.2"
           cache: npm
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        if: matrix.product_shard != ''
         with:
           python-version: "3.12.10"
       - run: npm ci
+      # apt with a time limit and one mirror switch; red if both attempts fail.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash tools/dev/playwright-linux.sh
       - name: Install the application
-        if: matrix.product_shard != ''
         run: python -m pip install --quiet -e .
       - name: Start the application
-        if: matrix.product_shard != ''
         run: |
           python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/quiltor-server.pid"
@@ -351,33 +338,51 @@ jobs:
           done
           cat "$RUNNER_TEMP/quiltor-server.log"
           exit 1
-      # Slot 4 carries no product shard and so no server; the rules project needs only
-      # Chromium, which this job installed above. One slot is enough: the run is deterministic.
+      # The rules project needs only Chromium, which this job installed above. One slot is
+      # enough: the run is deterministic.
       - name: Layout audit rule tests
         if: matrix.slot == 4
         run: npm run test:audit-rules -- --reporter=line
+      # select lists both suites, assigns all four slots, refuses unless every test lands in
+      # exactly one, and has Playwright confirm that this slot's lists select exactly its tests.
+      # A failed selection fails the slot; nothing runs on a list that was not confirmed.
       - name: Run product and design shards
         env:
-          PRODUCT_SHARD: ${{ matrix.product_shard }}
-          DESIGN_SHARD: ${{ matrix.design_shard }}
+          SLOT: ${{ matrix.slot }}
         run: |
           set +e
-          product_status=0
-          if [ -n "$PRODUCT_SHARD" ]; then
-            echo "Product browser shard $PRODUCT_SHARD"
-            PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
+          lists="$RUNNER_TEMP/test-lists"
+          node tools/dev/test-shards.mjs select --os linux --slots 4 --slot "$SLOT" --offset 4=9000 --out-dir "$lists"
+          select_status=$?
+          product_status=1
+          design_status=1
+          if [ "$select_status" -eq 0 ]; then
+            echo "Product browser tests of slot $SLOT"
+            PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json \
+              npx playwright test --test-list "$lists/product.txt" --output=test-results/product --reporter=line,json
             product_status=$?
+
+            echo "Design browser tests of slot $SLOT"
+            PLAYWRIGHT_WORKERS=2 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json \
+              npx playwright test --config playwright.design.config.ts \
+              --test-list "$lists/design.txt" --output=test-results/design --reporter=line,json
+            design_status=$?
           fi
 
-          echo "Design browser shard $DESIGN_SHARD"
-          PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts \
-            --shard="$DESIGN_SHARD" --output=test-results/design --reporter=line
-          design_status=$?
-
-          if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
-            echo "::error::Browser shard failures: product=$product_status design=$design_status"
+          if [ "$select_status" -ne 0 ] || [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
+            echo "::error::Browser slot failures: select=$select_status product=$product_status design=$design_status"
             exit 1
           fi
+      # The JSON reports carry each test's duration; tools/dev/test-shards.mjs update turns the
+      # reports of a run into tests/playwright/durations.json. Kept on success too, briefly.
+      - name: Upload test durations
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: browser-durations-linux-slot-${{ matrix.slot }}-of-4
+          if-no-files-found: ignore
+          retention-days: 7
+          path: test-results/reports/*.json
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -522,10 +527,13 @@ jobs:
   # Each slot runs one product and one design shard on the same runner, so the packages, Chromium
   # and the Windows media feature are set up once per slot instead of once per suite.
   #
-  # Windows keeps eight slots and test-level product shards: Chromium exhausted the runner's
-  # network buffers after more than 115 product tests even with serialized browser contexts, and
-  # eight fresh runners keep each one at about 66 of the current 531. macOS runs everything in
-  # two slots. The unit tests run once per system, in slot 1.
+  # Both suites are cut by measured duration, as on Linux (tools/dev/test-shards.mjs). The unit
+  # tests run once per system, in slot 1, which the assignment counts as offset: 3.1 minutes on
+  # Windows and 2.5 on macOS, measured in the run on 15e0b43.
+  #
+  # Windows keeps eight slots and at most 100 product tests per slot: Chromium exhausted the
+  # runner's network buffers after more than 115 product tests even with serialized browser
+  # contexts. macOS runs three slots; with two its first slot took 13.5 minutes.
   cross-platform-browser:
     name: Browser on ${{ matrix.label }}
     needs: [plan, frontend]
@@ -536,54 +544,70 @@ jobs:
       matrix:
         include:
           - os: macos-15
-            label: macos-15 / slot 1 of 2
-            product_shard: "1/2"
-            design_shard: "1/2"
-            diagnostics: macos-15-1-of-2
+            system: macos
+            label: macos-15 / slot 1 of 3
+            slot: 1
+            slots: 3
+            diagnostics: macos-15-1-of-3
           - os: macos-15
-            label: macos-15 / slot 2 of 2
-            product_shard: "2/2"
-            design_shard: "2/2"
-            diagnostics: macos-15-2-of-2
+            system: macos
+            label: macos-15 / slot 2 of 3
+            slot: 2
+            slots: 3
+            diagnostics: macos-15-2-of-3
+          - os: macos-15
+            system: macos
+            label: macos-15 / slot 3 of 3
+            slot: 3
+            slots: 3
+            diagnostics: macos-15-3-of-3
           - os: windows-2025
+            system: windows
             label: windows-2025 / slot 1 of 8
-            product_shard: "1/8"
-            design_shard: "1/8"
+            slot: 1
+            slots: 8
             diagnostics: windows-2025-1-of-8
           - os: windows-2025
+            system: windows
             label: windows-2025 / slot 2 of 8
-            product_shard: "2/8"
-            design_shard: "2/8"
+            slot: 2
+            slots: 8
             diagnostics: windows-2025-2-of-8
           - os: windows-2025
+            system: windows
             label: windows-2025 / slot 3 of 8
-            product_shard: "3/8"
-            design_shard: "3/8"
+            slot: 3
+            slots: 8
             diagnostics: windows-2025-3-of-8
           - os: windows-2025
+            system: windows
             label: windows-2025 / slot 4 of 8
-            product_shard: "4/8"
-            design_shard: "4/8"
+            slot: 4
+            slots: 8
             diagnostics: windows-2025-4-of-8
           - os: windows-2025
+            system: windows
             label: windows-2025 / slot 5 of 8
-            product_shard: "5/8"
-            design_shard: "5/8"
+            slot: 5
+            slots: 8
             diagnostics: windows-2025-5-of-8
           - os: windows-2025
+            system: windows
             label: windows-2025 / slot 6 of 8
-            product_shard: "6/8"
-            design_shard: "6/8"
+            slot: 6
+            slots: 8
             diagnostics: windows-2025-6-of-8
           - os: windows-2025
+            system: windows
             label: windows-2025 / slot 7 of 8
-            product_shard: "7/8"
-            design_shard: "7/8"
+            slot: 7
+            slots: 8
             diagnostics: windows-2025-7-of-8
           - os: windows-2025
+            system: windows
             label: windows-2025 / slot 8 of 8
-            product_shard: "8/8"
-            design_shard: "8/8"
+            slot: 8
+            slots: 8
             diagnostics: windows-2025-8-of-8
     env:
       PYTHONPATH: src
@@ -607,7 +631,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Unit tests
-        if: startsWith(matrix.product_shard, '1/')
+        if: matrix.slot == 1
         run: npx vitest run
 
       - name: Install the application
@@ -630,24 +654,48 @@ jobs:
       - name: Run product and design shards
         env:
           PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
-          PRODUCT_SHARD: ${{ matrix.product_shard }}
-          DESIGN_SHARD: ${{ matrix.design_shard }}
+          SYSTEM: ${{ matrix.system }}
+          SLOT: ${{ matrix.slot }}
+          SLOTS: ${{ matrix.slots }}
         shell: bash
         run: |
           set +e
-          echo "Product browser shard $PRODUCT_SHARD"
-          PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line
-          product_status=$?
+          lists="$RUNNER_TEMP/test-lists"
+          if [ "$SYSTEM" = windows ]; then
+            shape=(--max-tests 100 --offset "1=186000")
+          else
+            shape=(--offset "1=150000")
+          fi
+          node tools/dev/test-shards.mjs select --os "$SYSTEM" --slots "$SLOTS" --slot "$SLOT" "${shape[@]}" --out-dir "$lists"
+          select_status=$?
+          product_status=1
+          design_status=1
+          if [ "$select_status" -eq 0 ]; then
+            echo "Product browser tests of slot $SLOT"
+            PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json \
+              npx playwright test --test-list "$lists/product.txt" --output=test-results/product --reporter=line,json
+            product_status=$?
 
-          echo "Design browser shard $DESIGN_SHARD"
-          npx playwright test --config playwright.design.config.ts \
-            --shard="$DESIGN_SHARD" --output=test-results/design --reporter=line
-          design_status=$?
+            echo "Design browser tests of slot $SLOT"
+            PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json \
+              npx playwright test --config playwright.design.config.ts \
+              --test-list "$lists/design.txt" --output=test-results/design --reporter=line,json
+            design_status=$?
+          fi
 
-          if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
-            echo "::error::Browser shard failures: product=$product_status design=$design_status"
+          if [ "$select_status" -ne 0 ] || [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
+            echo "::error::Browser slot failures: select=$select_status product=$product_status design=$design_status"
             exit 1
           fi
+
+      - name: Upload test durations
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: browser-durations-${{ matrix.diagnostics }}
+          if-no-files-found: ignore
+          retention-days: 7
+          path: test-results/reports/*.json
 
       - name: Upload browser diagnostics
         if: failure()

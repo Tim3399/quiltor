@@ -200,9 +200,9 @@ test.yml with GitHub's comparison rules for these cases:
 | plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
 | Core on macOS and Windows                                           | 2                           | 2                      |
 | Linux browser slots + `browser-e2e` aggregator                      | 4 + 1                       | 4 + 1                  |
-| Browser on Windows (8 slots) and macOS (2 slots)                    | 10                          | --                     |
+| Browser on Windows (8 slots) and macOS (3 slots)                    | 11                          | --                     |
 | Smoke on Windows and macOS                                          | --                          | 2                      |
-| **Total**                                                           | **23** (was 23)             | **15** (was 23)        |
+| **Total**                                                           | **24** (was 23)             | **15** (was 23)        |
 
 Why this cut:
 
@@ -229,13 +229,130 @@ Why this cut:
   before (10 instead of 11) plus the seconds-long `plan` job. Peak after `frontend`: the 4 Linux slots, the 10
   Windows/macOS slots and Core on windows-2025 (still running), about 15; with the 2–3 Release
   Build jobs of a release push, about 18. Measured before: 18 at the 2026-10-03 release. The
-  documented limit is 20 (5 macOS; the full matrix uses 3). The peak stays under it, as it already
+  documented limit is 20 (5 macOS; the full matrix uses 4 since T-38's third macOS browser slot,
+  which adds one job to each peak). The peak stays under it, as it already
   did -- see "Runner queue" for why that does not remove the occasional 20-minute wait.
+
+### Shards by duration
+
+Since T-38 no browser slot uses `--shard`. `tools/dev/test-shards.mjs select` lists both suites
+with Playwright, assigns every slot of the system from `tests/playwright/durations.json` --
+longest test first onto the slot with the least work, the product suite first, then the design
+suite onto what is left -- and writes the slot's two `--test-list` files. It refuses unless
+every test lands in exactly one slot, and before anything runs it asks Playwright which tests
+each file selects; anything but the assigned tests fails the slot.
+
+`--shard` cut by count. Many product tests skip themselves for a project, so the counts were
+equal and the work was not: Linux slot 1 ran 172 tests in 10.3 minutes, slot 2 82 in 4.2 (98
+skipped).
+
+- **The table** holds each test's duration in ms by suite and system (`[project] › file › title
+path`), plus a wall factor per suite and system: wall time of the slots over the sum of their
+  test durations -- the workers, and how well the suite uses them. A system without its own
+  table borrows Linux's, then Windows'; the factor is then measured against that table.
+- **Fail-safe.** A test missing from the table (new or renamed) gets the table's median and
+  still lands in exactly one slot. An entry no test matches is ignored. A slot that its other
+  work already fills still gets one test, so no list is empty.
+- **Other work** counts as offset: the unit tests in slot 1 of Windows (3.1 min) and macOS
+  (2.5 min), the audit rules in Linux slot 4 (9 s), measured in the run on 15e0b43.
+- **Windows** keeps its cap: at most 100 product tests per slot (the network buffers ran out
+  above 115). With durations the busiest slot gets 78.
+- **macOS** runs three slots instead of two; with two, slot 1 took 13.5 minutes.
+
+Contracts: `tools/dev/test-shards.test.mjs` (in `npm run check` through `test:audit-tools`)
+reads the slot shapes from test.yml, lists the current suites and checks for every system that
+every test is assigned exactly once and selected by exactly one slot's list under Playwright's
+own matching rule. `workflow_contract.py` holds the slot topology, the fail-closed shell and the
+uploads, and requires the browser group for every program a browser job runs.
+
+#### Updating the table
+
+Every browser slot uploads its JSON reports as `browser-durations-<slot>` (7 days, on success
+too). Nothing reads them at CI time; the table changes only by a commit:
+
+```bash
+gh run download <run-id> --pattern "browser-durations-*" --dir durations-run
+node tools/dev/test-shards.mjs update --suite product --os linux durations-run/browser-durations-linux-*/product.json
+node tools/dev/test-shards.mjs update --suite design --os linux durations-run/browser-durations-linux-*/design.json
+```
+
+The same for `windows` (`browser-durations-windows-2025-*`) and `macos`
+(`browser-durations-macos-15-*`). `update` replaces that suite and system entirely, so renamed
+tests drop out, and writes the file sorted: the same reports give the same bytes.
+`node tools/dev/test-shards.mjs plan --os <system> --slots <n> [--offset …] [--max-tests …]`
+prints the expected slot durations.
+
+The first table comes from the job logs of run 40399143433 (15e0b43), not from JSON reports,
+which CI did not write yet: with one worker, the gap between two test starts in the line
+reporter's log is the earlier test's duration. That gives product on Linux and Windows and
+design on Windows. Design on Linux and both suites on macOS ran with two workers; for them only
+the wall factor is measured, against the borrowed table. The first run after the push replaces
+all of it with measured reports.
+
+#### Before and after
+
+Before: the run on 15e0b43, measured. Tests = the step "Run product and design shards"; job =
+the whole job including setup.
+
+| Slot           | Tests before (min) | Job before (min) | Tests after, expected (min)         | From the mean |
+| -------------- | ------------------ | ---------------- | ----------------------------------- | ------------- |
+| Linux 1        | 12.9               | **24.6**         | 7.6                                 | 0.0 %         |
+| Linux 2        | 7.0                | **18.8**         | 7.6                                 | 0.0 %         |
+| Linux 3        | 7.8                | 9.3              | 7.6                                 | -0.1 %        |
+| Linux 4        | 2.6                | 3.8              | 7.6                                 | 0.1 %         |
+| Windows 1–8    | 2.7–5.7            | 6.0–12.6         | 4.4 each (slot 1: + 3.1 unit tests) | 0.0–0.1 %     |
+| macOS 1 (of 2) | 10.2 (+ 2.5 unit)  | 13.5             | 6.9 (of 3, incl. 2.5 unit)          | 0.0 %         |
+| macOS 2 (of 2) | 8.2                | 8.9              | 6.9 (slots 2 and 3)                 | 0.0 %         |
+
+Expected job length = expected tests + setup (Linux about 1.5 min, Windows about 5, macOS
+about 1.5): Linux about 9, Windows about 9.5, macOS about 8.5 minutes.
+
+Linux slots 1 and 2 of that run also spent 10.6 minutes each in `apt-get` of
+`playwright install --with-deps` (25.9 MB at 40 kB/s from azure.archive.ubuntu.com; slots 3 and
+4 took under a minute). That is the mirror, not the sharding, and no assignment removes it.
+The run on 24cd57b showed the same on slots 1–3 (10.2, 10.6, 10.0 minutes). See "apt with a
+time limit" below.
+
+### apt with a time limit
+
+Every Linux job that installs Chromium -- the browser slots, the release gate, the layout audit
+and the Linux leg of the baseline bootstrap -- runs `tools/dev/playwright-linux.sh` instead of
+`npx playwright install --with-deps chromium`. It does the same in two parts:
+`npx playwright install-deps chromium` for the apt packages, then `npx playwright install
+chromium` for the browser.
+
+- **Limits.** `Acquire::http(s)::Timeout 30` and `Acquire::Retries 3` go to
+  `/etc/apt/apt.conf.d/`, because sudo drops `APT_CONFIG`. They do not catch the hang above: apt
+  counts silence, and 40 kB/s is not silence. So each attempt also has a wall-clock limit,
+  `timeout` run as root so that it stops apt-get itself: 240 s for the first attempt (normal is
+  15–65 s), 300 s for the second.
+- **One mirror switch.** If the first attempt does not finish, the runner's mirror list
+  (`/etc/apt/apt-mirrors.txt`, azure.archive.ubuntu.com first) is replaced by Ubuntu's own
+  `archive.ubuntu.com`, after `dpkg --configure -a` for a stopped install. Chosen over a fixed
+  faster mirror because the Azure mirror is fast almost every time (slot 4: 0.3 min), and
+  because no other official mirror is known to be faster from the runners. This is the one
+  targeted retry T-34 allows.
+- **Fail-closed.** If the second attempt fails too, the job fails. The visual baselines need the
+  fonts apt installs; a job that went on without them would compare wrong pixels.
+- **No apt cache** (D-26).
+
+`workflow_contract.py` fails when a job that can run on Ubuntu installs with `--with-deps`, and
+when the script loses a limit, its abort after the second attempt, or gains a third attempt or
+a `|| true`.
+
+| Install Chromium, Linux slots (min)     | Slot 1                    | Slot 2 | Slot 3 | Slot 4 |
+| --------------------------------------- | ------------------------- | ------ | ------ | ------ |
+| Run on 15e0b43 (before)                 | 10.9                      | 11.1   | 0.7    | 0.5    |
+| Run on 24cd57b (before)                 | 10.2                      | 10.6   | 10.0   | 0.3    |
+| After (at most 4 + 5 min, normally ≤ 1) | open until after the push |        |        |        |
+
+**Runtime evidence: open until after the push.** The expected values above come from the table;
+the measured ones follow from the first full-matrix run.
 
 ### The pull-request smoke test
 
-**Linux stays complete on every pull request that runs browser suites at all** -- product
-1/3–3/3, design 1/4–4/4 and the layout audit rules. That is the condition for running only a
+**Linux stays complete on every pull request that runs browser suites at all** -- every product
+and design test, assigned to the four slots by duration, and the layout audit rules. That is the condition for running only a
 smoke test on Windows and macOS. `workflow_contract.py` fails if the Linux slots read the matrix
 plan or get any job-level `if:` other than the path filter's browser group (see "Path filter",
 "The one exception to Linux complete").
@@ -260,24 +377,24 @@ out runs on main in the full matrix.
 
 Every check that ran for a commit on main still runs for it, in the same or a merged job.
 
-| Check                                                  | Before                             | After                                                                            | Event                |
-| ------------------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------- | -------------------- |
-| Backend suite, contracts, CLI host (Linux)             | backend                            | backend                                                                          | all                  |
-| Rust fmt, clippy, tests, cargo-deny                    | portable-core                      | portable-core                                                                    | all                  |
-| `npm run check` (all gates, formatting, linters)       | frontend                           | frontend                                                                         | all                  |
-| check:* gates inside `npm run build`                   | frontend, a second time            | frontend, once through `npm run check`                                           | all                  |
-| tsc -b, vite build, dist/ matches the sources          | frontend                           | frontend                                                                         | all                  |
-| Unit tests (Linux)                                     | frontend                           | frontend                                                                         | all                  |
-| actionlint, hadolint, shellcheck, osv-scanner          | workflow-docker-shell-lint         | unchanged                                                                        | all                  |
-| Visual-baseline reach                                  | visual-baseline-reach              | unchanged                                                                        | all                  |
-| Backend and Rust tests on macOS, Windows               | Core on …                          | unchanged                                                                        | all                  |
-| Product 1/3..3/3, design 1/4..4/4, audit rules (Linux) | Browser E2E slots 1–4              | unchanged, product split by test                                                 | all                  |
-| Unit tests on macOS, Windows                           | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
-| Product suite on macOS                                 | Product on macos-15 (whole)        | Browser on macos-15 slots 1–2                                                    | main                 |
-| Design suite on macOS                                  | Design on macos-15                 | Browser on macos-15 slots 1–2                                                    | main                 |
-| Product suite on Windows                               | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
-| Design suite on Windows                                | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
-| Product and design suites on macOS, Windows            | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
+| Check                                            | Before                             | After                                                                            | Event                |
+| ------------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------- | -------------------- |
+| Backend suite, contracts, CLI host (Linux)       | backend                            | backend                                                                          | all                  |
+| Rust fmt, clippy, tests, cargo-deny              | portable-core                      | portable-core                                                                    | all                  |
+| `npm run check` (all gates, formatting, linters) | frontend                           | frontend                                                                         | all                  |
+| check:* gates inside `npm run build`             | frontend, a second time            | frontend, once through `npm run check`                                           | all                  |
+| tsc -b, vite build, dist/ matches the sources    | frontend                           | frontend                                                                         | all                  |
+| Unit tests (Linux)                               | frontend                           | frontend                                                                         | all                  |
+| actionlint, hadolint, shellcheck, osv-scanner    | workflow-docker-shell-lint         | unchanged                                                                        | all                  |
+| Visual-baseline reach                            | visual-baseline-reach              | unchanged                                                                        | all                  |
+| Backend and Rust tests on macOS, Windows         | Core on …                          | unchanged                                                                        | all                  |
+| Product and design suites, audit rules (Linux)   | Browser E2E slots 1–4              | unchanged, both suites assigned by duration (T-38)                               | all                  |
+| Unit tests on macOS, Windows                     | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
+| Product suite on macOS                           | Product on macos-15 (whole)        | Browser on macos-15 slots 1–3                                                    | main                 |
+| Design suite on macOS                            | Design on macos-15                 | Browser on macos-15 slots 1–3                                                    | main                 |
+| Product suite on Windows                         | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
+| Design suite on Windows                          | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
+| Product and design suites on macOS, Windows      | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
 
 On pull requests the product and design suites on macOS and Windows shrink to the smoke specs.
 That is the reduction the brief allows; main still runs them in full.

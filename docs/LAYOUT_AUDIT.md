@@ -76,7 +76,7 @@ not listed as a failure.
 | Part                                                 | Command                    | Gate                                                              |
 | ---------------------------------------------------- | -------------------------- | ----------------------------------------------------------------- |
 | Node tests of the audit tools (`tools/audit/*.test`) | `npm run test:audit-tools` | `npm run check` (local and the `frontend` CI job)                 |
-| Rule tests (`tests/audit/rules.spec.ts`)             | `npm run test:audit-rules` | `Browser E2E` CI job, slot 4 (Chromium only, no server)           |
+| Rule tests (`tests/audit/rules.spec.ts`)             | `npm run test:audit-rules` | `Browser E2E` CI job, slot 4 (needs Chromium, not the server)     |
 | Capture run (`tests/audit/capture.spec.ts`)          | `npm run audit:layout`     | none; manual, or the manually started `layout-audit.yml` workflow |
 
 The rule tests use `page.setContent`, so they need Chromium but no server and no `dist/`.

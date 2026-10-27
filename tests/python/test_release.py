@@ -1241,7 +1241,65 @@ class WorkflowBoundaryTests(unittest.TestCase):
             self.build.count("needs: [version-check, release-gate]"),
             5,
         )
-        self.assertIn("npx playwright install --with-deps chromium", self.build)
+        self.assertIn("bash tools/dev/playwright-linux.sh", self.build)
+
+    def test_linux_playwright_install_is_bounded_and_fails_after_one_mirror_switch(self):
+        sources = workflow_contract._workflow_sources()
+        script = (REPO_ROOT / "tools/dev/playwright-linux.sh").read_text(encoding="utf-8")
+        workflow_contract.validate_linux_playwright_install(sources, script)
+
+        script_mutations = (
+            ("no abort after the second attempt", "    exit 1\n  fi\nfi\n", "  fi\nfi\n"),
+            (
+                "swallowed failure",
+                'install_deps "$SECOND_LIMIT"; then',
+                'install_deps "$SECOND_LIMIT" || true; then',
+            ),
+            ("no wall-clock limit", 'timeout --kill-after=15 "$1" ', ""),
+            (
+                "no apt timeout",
+                "'Acquire::http::Timeout \"30\";'",
+                "'Acquire::Queue-Mode \"host\";'",
+            ),
+            (
+                "a third attempt",
+                "\nnpx playwright install chromium",
+                '\ninstall_deps "$SECOND_LIMIT"\nnpx playwright install chromium',
+            ),
+        )
+        for name, original, replacement in script_mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, script)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, "playwright-linux.sh"
+                ):
+                    workflow_contract.validate_linux_playwright_install(
+                        sources, script.replace(original, replacement, 1)
+                    )
+
+        # Back to --with-deps on a Linux job, and on the Linux leg of a matrix.
+        for path, original in (
+            (TEST_WORKFLOW, "run: bash tools/dev/playwright-linux.sh"),
+            (
+                TEST_WORKFLOW.parent / "visual-baselines-bootstrap.yml",
+                "if: runner.os == 'Linux'\n        run: bash tools/dev/playwright-linux.sh",
+            ),
+        ):
+            with self.subTest(path=path.name):
+                mutated = dict(sources)
+                self.assertIn(original, mutated[path])
+                mutated[path] = mutated[path].replace(
+                    original,
+                    original.replace(
+                        "bash tools/dev/playwright-linux.sh",
+                        "npx playwright install --with-deps chromium",
+                    ),
+                    1,
+                )
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, "without a time limit"
+                ):
+                    workflow_contract.validate_linux_playwright_install(mutated, script)
 
     def test_normal_ci_runs_the_browser_suite_instead_of_deferring_it_to_release(self):
         test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
@@ -1262,10 +1320,11 @@ class WorkflowBoundaryTests(unittest.TestCase):
             "run: npx vitest run",
             "run: npm run check",
             "run: npx tsc -b && npx vite build",
-            'npx playwright test --shard="$PRODUCT_SHARD"',
+            "node tools/dev/test-shards.mjs select --os linux --slots 4",
+            'npx playwright test --test-list "$lists/product.txt"',
             "npx playwright test --config playwright.design.config.ts",
-            "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
-            "PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts",
+            "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1",
+            "PLAYWRIGHT_WORKERS=2 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
         ):
             self.assertIn(required_gate, test_workflow)
         workflow_contract.validate_browser_e2e_sharding(workflow_contract._workflow_sources())
@@ -1283,10 +1342,22 @@ class WorkflowBoundaryTests(unittest.TestCase):
 
         mutations = (
             (
-                "missing design shard",
-                'design_shard: "4/4"',
-                'design_shard: "3/4"',
-                "cover exactly product",
+                "a slot fewer",
+                "slot: [1, 2, 3, 4]",
+                "slot: [1, 2, 3]",
+                "exactly four browser matrix slots",
+            ),
+            (
+                "assignment for another slot count",
+                "--slots 4 --slot",
+                "--slots 3 --slot",
+                "missing fail-closed shard evidence",
+            ),
+            (
+                "back to cutting by count",
+                '--test-list "$lists/product.txt"',
+                '--shard="$SLOT/4"',
+                "duration-assigned part of both suites",
             ),
             (
                 "fail-fast matrix",
@@ -1298,6 +1369,18 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "discarded product status",
                 "product_status=$?",
                 "product_status=0",
+                "missing fail-closed shard evidence",
+            ),
+            (
+                "failed selection ignored",
+                'if [ "$select_status" -ne 0 ] || [ "$product_status"',
+                'if [ "$product_status"',
+                "missing fail-closed shard evidence",
+            ),
+            (
+                "durations dropped on success",
+                "if: ${{ !cancelled() }}",
+                "if: failure()",
                 "missing fail-closed shard evidence",
             ),
             # T-33 held the Linux slots unconditional. T-37 allows exactly one condition, the
@@ -1347,16 +1430,34 @@ class WorkflowBoundaryTests(unittest.TestCase):
 
         mutations = (
             (
-                "missing final Windows design shard",
-                'product_shard: "8/8"\n            design_shard: "8/8"',
-                'product_shard: "8/8"\n            design_shard: "7/8"',
-                "one pair per slot",
+                "final Windows slot repeats the seventh",
+                "slot: 8\n            slots: 8",
+                "slot: 7\n            slots: 8",
+                "one entry per slot",
+            ),
+            (
+                "macOS back to two slots",
+                "label: macos-15 / slot 3 of 3\n            slot: 3\n            slots: 3",
+                "label: macos-15 / slot 3 of 3\n            slot: 3\n            slots: 2",
+                "one entry per slot",
             ),
             (
                 "reused diagnostics name",
                 "diagnostics: windows-2025-8-of-8",
                 "diagnostics: windows-2025-7-of-8",
-                "one pair per slot",
+                "one entry per slot",
+            ),
+            (
+                "back to cutting by count",
+                '--test-list "$lists/design.txt"',
+                '--shard="$SLOT/$SLOTS"',
+                "duration-assigned tests",
+            ),
+            (
+                "Windows without the test cap",
+                'shape=(--max-tests 100 --offset "1=186000")',
+                'shape=(--offset "1=186000")',
+                "missing shard evidence",
             ),
             (
                 "unguarded full matrix",
@@ -1367,14 +1468,14 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "discarded design status",
-                "design_status=$?\n\n          if",
-                "design_status=0\n\n          if",
+                "design_status=$?\n",
+                "design_status=0\n",
                 "missing shard evidence",
             ),
             (
                 "missing test-level sharding",
-                "\n          PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
-                "\n          npx playwright test",
+                "PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE",
+                "PLAYWRIGHT_JSON_OUTPUT_FILE",
                 "missing shard evidence",
             ),
         )
@@ -1983,7 +2084,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 command = line.strip()
                 if re.search(r"\.sh(?:\s|\\|$|[\"'])", command) and not command.startswith("#"):
                     with self.subTest(workflow=workflow.name, line=line_number):
-                        command = command.removeprefix("- run: ")
+                        command = re.sub(r"^(?:- )?run: ", "", command)
                         self.assertTrue(
                             command.startswith("bash "),
                             f"{workflow.name}:{line_number} executes a shell script without bash",
@@ -2576,6 +2677,25 @@ class PathFilterContractTests(unittest.TestCase):
             ["tools/dev/x.mjs"],
             workflow_contract.lint_programs(direct, '{"scripts": {}}', ["tools/dev/x.mjs"]),
         )
+
+    def test_the_program_that_assigns_browser_slots_selects_browser(self):
+        """T-38: a change to test-shards.mjs changes which tests every browser slot runs."""
+        tracked = path_filter.tracked_paths()
+        workflow = workflow_contract._workflow_sources()[
+            workflow_contract.WORKFLOW_ROOT / "test.yml"
+        ]
+        package_json = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
+        programs = workflow_contract.browser_programs(workflow, package_json, tracked)
+        self.assertIn("tools/dev/test-shards.mjs", programs)
+        # A job's comment block sits above the next job, so it belongs to the job before it:
+        # the browser program must not leak into the lint job's programs through it.
+        self.assertNotIn(
+            "tools/dev/test-shards.mjs",
+            workflow_contract.lint_programs(workflow, package_json, tracked),
+        )
+        for path in ("tools/dev/test-shards.mjs", "tests/playwright/durations.json"):
+            chosen, _ = path_filter.plan(path_filter.load_config(), [path])
+            self.assertTrue(chosen["browser"], path)
 
     def test_every_contract_a_client_test_reads_selects_client(self):
         """F-37-2: a fixture the TypeScript tests read must run them on the pull request."""
