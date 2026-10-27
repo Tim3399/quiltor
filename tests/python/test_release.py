@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -2577,6 +2578,18 @@ class PathFilterContractTests(unittest.TestCase):
                 "browser-e2e is missing its gate",
             ),
             (
+                "frontend removed from the gate's needs",
+                "      - frontend\n      - workflow-docker-shell-lint\n",
+                "      - workflow-docker-shell-lint\n",
+                "browser-e2e must need and gate the frontend job",
+            ),
+            (
+                "a browser job waits for frontend again",
+                "    name: Browser on ${{ matrix.label }}\n    needs: plan\n",
+                "    name: Browser on ${{ matrix.label }}\n    needs: [plan, frontend]\n",
+                "cross-platform-browser must need only the plan job",
+            ),
+            (
                 "paths filtered in the trigger",
                 "  pull_request:\n",
                 "  pull_request:\n    paths-ignore: ['docs/**']\n",
@@ -2592,6 +2605,53 @@ class PathFilterContractTests(unittest.TestCase):
                     workflow_contract.WorkflowContractError, re.escape(error)
                 ):
                     workflow_contract.validate_path_filter(mutated)
+
+    def test_browser_without_checks_fails_the_contract(self):
+        """T-46: no rule may run a browser job while the filter drops frontend."""
+        config = path_filter.load_config()
+        rules = tuple(
+            path_filter.Rule(rule.name, rule.patterns, rule.groups - {"checks"}, rule.reason)
+            if rule.name == "client"
+            else rule
+            for rule in config.rules
+        )
+        mutated = path_filter.Config(config.groups, rules, config.untested)
+        with (
+            patch.object(path_filter, "load_config", return_value=mutated),
+            self.assertRaisesRegex(
+                workflow_contract.WorkflowContractError, "rule 'client' selects browser without"
+            ),
+        ):
+            workflow_contract.validate_path_filter(workflow_contract._workflow_sources())
+
+    def test_a_red_frontend_fails_the_gate_beside_green_browsers(self):
+        """T-46: the browsers no longer wait for frontend; the real gate script still fails."""
+        bash = shutil.which("bash")
+        if bash is None:
+            self.skipTest("bash is not installed")
+        aggregator = workflow_contract._job_body(self.workflow, "browser-e2e")
+        script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
+        assert script is not None, "browser-e2e has no run block"
+        body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
+
+        def gate(results):
+            env = {**os.environ, "PLAN_RESULT": "success"}
+            for name in workflow_contract.FILTERED_JOBS:
+                job = workflow_contract._env_name(name)
+                env[f"RESULT_{job}"] = results.get(name, "success")
+                env[f"SELECTED_{job}"] = "true"
+            return subprocess.run(
+                [bash, "-c", body], env=env, capture_output=True, text=True, check=False
+            )
+
+        green = gate({})
+        self.assertEqual(green.returncode, 0, green.stdout + green.stderr)
+        for result in ("failure", "cancelled", "skipped"):
+            with self.subTest(frontend=result):
+                red = gate({"frontend": result})
+                self.assertEqual(red.returncode, 1, red.stdout + red.stderr)
+                self.assertIn("frontend is " + result, red.stdout)
+                self.assertIn("browser-e2e-shards: success", red.stdout)
 
     def test_the_mutated_expressions_change_the_outcome(self):
         """The two expression mutations above are not cosmetic: they change what runs."""

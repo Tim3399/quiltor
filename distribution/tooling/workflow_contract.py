@@ -490,7 +490,7 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         )
 
     required_shard_evidence = (
-        "needs: [plan, frontend]",
+        "    needs: plan\n",
         "fail-fast: false",
         "SLOT: ${{ matrix.slot }}",
         "set +e",
@@ -589,7 +589,7 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
 
     required_evidence = (
         "name: Browser on ${{ matrix.label }}",
-        "needs: [plan, frontend]",
+        "    needs: plan\n",
         FULL_MATRIX_GUARD,
         "fail-fast: false",
         "if: matrix.slot == 1",
@@ -1108,6 +1108,20 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
         raise WorkflowContractError(
             "test.yml jobs without a path-filter group: " + ", ".join(sorted(unplaced))
         )
+    # The browser jobs start beside frontend, not after it (T-46): they serve the committed
+    # dist/ and take nothing from frontend. Its edge used to drop them whenever frontend was
+    # filtered off; now every rule that selects browser must also select checks.
+    for name in BROWSER_JOBS:
+        if not re.search(r"^    needs: plan$", jobs.get(name, ""), re.MULTILINE):
+            raise WorkflowContractError(
+                f"test.yml:{name} must need only the plan job, so it starts beside frontend"
+            )
+    for rule in config.rules:
+        if "browser" in rule.groups and "checks" not in rule.groups:
+            raise WorkflowContractError(
+                f"test-paths.json rule {rule.name!r} selects browser without checks; "
+                "a browser job must never run without frontend"
+            )
     for name, (condition, _) in FILTERED_JOBS.items():
         body = jobs.get(name)
         if body is None:
@@ -1124,6 +1138,10 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
     aggregator = jobs["browser-e2e"]
     needs = re.search(r"^    needs:\n((?:      - .*\n)*)", aggregator, re.MULTILINE)
     listed = re.findall(r"^      - ([a-z0-9-]+)$", needs.group(1), re.MULTILINE) if needs else []
+    # The browser jobs no longer wait for frontend, so this gate is the only place a red
+    # frontend turns the run red. It must stay a required need here, whatever FILTERED_JOBS says.
+    if "frontend" not in listed or "frontend" not in FILTERED_JOBS:
+        raise WorkflowContractError("browser-e2e must need and gate the frontend job")
     if sorted(listed) != sorted(["plan", *FILTERED_JOBS]):
         raise WorkflowContractError("browser-e2e must need the plan and every filtered job")
     for evidence in (
