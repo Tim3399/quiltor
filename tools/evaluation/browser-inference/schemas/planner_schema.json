@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "goal": {
+      "type": "string"
+    },
+    "requiredKinds": {
+      "items": {
+        "enum": [
+          "create_element",
+          "update_element",
+          "create_timeline_moment",
+          "create_relationship",
+          "set_relationship_at_moment",
+          "mark_deceased",
+          "arrange_elements",
+          "set_presence"
+        ]
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "searchQueries": {
+      "items": {
+        "maxLength": 300,
+        "type": "string"
+      },
+      "maxItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "steps": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "type": "array"
+    }
+  },
+  "required": ["goal", "steps", "searchQueries", "requiredKinds"],
+  "type": "object"
+}

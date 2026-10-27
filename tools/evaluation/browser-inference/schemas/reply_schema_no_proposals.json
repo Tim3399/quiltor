@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "citations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "message": {
+      "type": "string"
+    },
+    "proposals": {
+      "maxItems": 0,
+      "type": "array"
+    }
+  },
+  "required": ["message", "citations", "proposals"],
+  "type": "object"
+}

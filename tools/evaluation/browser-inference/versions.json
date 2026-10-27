@@ -1,0 +1,5 @@
+{
+  "webllm": "0.2.86",
+  "xgrammar": "to be determined by D-T-54-1: the exact version WebLLM 0.2.86 bundles",
+  "model_id": "Qwen3-4B-q4f16_1-MLC"
+}

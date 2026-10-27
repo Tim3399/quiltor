@@ -1,0 +1,595 @@
+{
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "tool_calls"
+        },
+        "toolCalls": {
+          "items": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "arguments": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "contextIds": {
+                        "items": {
+                          "maxLength": 200,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 12,
+                        "type": "array",
+                        "uniqueItems": true
+                      },
+                      "entityType": {
+                        "enum": ["person", "tier", "ort", "organisation", "objekt", "konzept"],
+                        "type": "string"
+                      },
+                      "mention": {
+                        "maxLength": 160,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "vocabulary": {
+                        "items": {
+                          "maxLength": 80,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 32,
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": ["mention"],
+                    "type": "object"
+                  },
+                  "name": {
+                    "const": "resolve_entity"
+                  }
+                },
+                "required": ["name", "arguments"],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "arguments": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "elementId": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": ["elementId"],
+                    "type": "object"
+                  },
+                  "name": {
+                    "const": "get_entity"
+                  }
+                },
+                "required": ["name", "arguments"],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "arguments": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "elementId": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "limit": {
+                        "maximum": 12,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "otherElementId": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": ["elementId"],
+                    "type": "object"
+                  },
+                  "name": {
+                    "const": "get_relationships"
+                  }
+                },
+                "required": ["name", "arguments"],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "arguments": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "entityId": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "limit": {
+                        "maximum": 12,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "query": {
+                        "maxLength": 500,
+                        "minLength": 0,
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "type": "object"
+                  },
+                  "name": {
+                    "const": "find_timeline_events"
+                  }
+                },
+                "required": ["name", "arguments"],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "arguments": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "entityIds": {
+                        "items": {
+                          "maxLength": 200,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 12,
+                        "type": "array",
+                        "uniqueItems": true
+                      },
+                      "momentId": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "phase": {
+                        "enum": ["before", "at", "after"],
+                        "type": "string"
+                      },
+                      "relationshipIds": {
+                        "items": {
+                          "maxLength": 200,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 12,
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": ["momentId"],
+                    "type": "object"
+                  },
+                  "name": {
+                    "const": "get_world_state"
+                  }
+                },
+                "required": ["name", "arguments"],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "arguments": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "chapterIds": {
+                        "items": {
+                          "maxLength": 200,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 32,
+                        "type": "array",
+                        "uniqueItems": true
+                      },
+                      "limit": {
+                        "maximum": 8,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "query": {
+                        "maxLength": 500,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": ["query"],
+                    "type": "object"
+                  },
+                  "name": {
+                    "const": "search_manuscript"
+                  }
+                },
+                "required": ["name", "arguments"],
+                "type": "object"
+              }
+            ]
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": ["action", "toolCalls"],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "final"
+        },
+        "final": {
+          "additionalProperties": false,
+          "properties": {
+            "citations": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true
+            },
+            "message": {
+              "type": "string"
+            },
+            "proposals": {
+              "items": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "element": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "aliases": {
+                            "items": {
+                              "maxLength": 160,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "maxItems": 16,
+                            "type": "array",
+                            "uniqueItems": true
+                          },
+                          "label": {
+                            "maxLength": 160,
+                            "type": "string"
+                          },
+                          "name": {
+                            "maxLength": 160,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "profile": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "alter": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "aussehen": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "herkunft": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "notes": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "rolle": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "stimme": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              }
+                            },
+                            "required": [],
+                            "type": "object"
+                          },
+                          "sub": {
+                            "maxLength": 1000,
+                            "type": "string"
+                          },
+                          "type": {
+                            "enum": ["person", "tier", "ort", "organisation", "objekt", "konzept"]
+                          }
+                        },
+                        "required": ["name"],
+                        "type": "object"
+                      },
+                      "kind": {
+                        "const": "create_element"
+                      },
+                      "tempId": {
+                        "pattern": "^new:.*$",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["kind", "tempId", "element"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "const": "update_element"
+                      },
+                      "patch": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "aliases": {
+                            "items": {
+                              "maxLength": 160,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "maxItems": 16,
+                            "type": "array",
+                            "uniqueItems": true
+                          },
+                          "label": {
+                            "maxLength": 160,
+                            "type": "string"
+                          },
+                          "name": {
+                            "maxLength": 160,
+                            "type": "string"
+                          },
+                          "profile": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "alter": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "aussehen": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "herkunft": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "notes": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "rolle": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              },
+                              "stimme": {
+                                "maxLength": 1000,
+                                "type": "string"
+                              }
+                            },
+                            "required": [],
+                            "type": "object"
+                          },
+                          "sub": {
+                            "maxLength": 1000,
+                            "type": "string"
+                          }
+                        },
+                        "required": [],
+                        "type": "object"
+                      }
+                    },
+                    "required": ["kind", "elementId", "patch"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "create_timeline_moment"
+                      },
+                      "moment": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "date": {
+                            "maxLength": 20,
+                            "type": "string"
+                          },
+                          "note": {
+                            "maxLength": 1000,
+                            "type": "string"
+                          },
+                          "title": {
+                            "maxLength": 160,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": ["title"],
+                        "type": "object"
+                      },
+                      "tempId": {
+                        "pattern": "^new:.*$",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["kind", "tempId", "moment"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "create_relationship"
+                      },
+                      "relationship": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "color": {
+                            "enum": ["auto", "ink", "gold", "rose", "moss", "blue"]
+                          },
+                          "directed": {
+                            "type": "boolean"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "maxLength": 160,
+                            "type": "string"
+                          },
+                          "lineStyle": {
+                            "enum": ["solid", "dashed", "dotted"]
+                          },
+                          "relationshipKind": {
+                            "enum": ["general", "kinship"]
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to",
+                          "label",
+                          "directed",
+                          "lineStyle",
+                          "relationshipKind",
+                          "color"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": ["kind", "relationship"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "set_relationship_at_moment"
+                      },
+                      "momentId": {
+                        "type": "string"
+                      },
+                      "patch": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "enum": ["auto", "ink", "gold", "rose", "moss", "blue"]
+                          },
+                          "directed": {
+                            "type": "boolean"
+                          },
+                          "label": {
+                            "maxLength": 160,
+                            "type": "string"
+                          },
+                          "lineStyle": {
+                            "enum": ["solid", "dashed", "dotted"]
+                          },
+                          "relationshipKind": {
+                            "enum": ["general", "kinship"]
+                          }
+                        },
+                        "required": [],
+                        "type": "object"
+                      },
+                      "relationshipId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["kind", "relationshipId", "momentId", "patch"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "const": "mark_deceased"
+                      },
+                      "momentId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["kind", "elementId", "momentId"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "arrange_elements"
+                      },
+                      "strategy": {
+                        "enum": ["thematic", "grid"]
+                      }
+                    },
+                    "required": ["kind", "strategy"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "const": "set_presence"
+                      },
+                      "momentId": {
+                        "type": "string"
+                      },
+                      "placeId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["kind", "elementId", "placeId"],
+                    "type": "object"
+                  }
+                ]
+              },
+              "maxItems": 20,
+              "type": "array"
+            }
+          },
+          "required": ["message", "citations", "proposals"],
+          "type": "object"
+        }
+      },
+      "required": ["action", "final"],
+      "type": "object"
+    }
+  ]
+}
