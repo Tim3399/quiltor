@@ -309,8 +309,42 @@ about 1.5): Linux about 9, Windows about 9.5, macOS about 8.5 minutes.
 
 Linux slots 1 and 2 of that run also spent 10.6 minutes each in `apt-get` of
 `playwright install --with-deps` (25.9 MB at 40 kB/s from azure.archive.ubuntu.com; slots 3 and
-4 took under a minute). That is the mirror, not the sharding, and no assignment removes it; it
-is reported to the implementer as a separate task.
+4 took under a minute). That is the mirror, not the sharding, and no assignment removes it.
+The run on 24cd57b showed the same on slots 1–3 (10.2, 10.6, 10.0 minutes). See "apt with a
+time limit" below.
+
+### apt with a time limit
+
+Every Linux job that installs Chromium -- the browser slots, the release gate, the layout audit
+and the Linux leg of the baseline bootstrap -- runs `tools/dev/playwright-linux.sh` instead of
+`npx playwright install --with-deps chromium`. It does the same in two parts:
+`npx playwright install-deps chromium` for the apt packages, then `npx playwright install
+chromium` for the browser.
+
+- **Limits.** `Acquire::http(s)::Timeout 30` and `Acquire::Retries 3` go to
+  `/etc/apt/apt.conf.d/`, because sudo drops `APT_CONFIG`. They do not catch the hang above: apt
+  counts silence, and 40 kB/s is not silence. So each attempt also has a wall-clock limit,
+  `timeout` run as root so that it stops apt-get itself: 240 s for the first attempt (normal is
+  15–65 s), 300 s for the second.
+- **One mirror switch.** If the first attempt does not finish, the runner's mirror list
+  (`/etc/apt/apt-mirrors.txt`, azure.archive.ubuntu.com first) is replaced by Ubuntu's own
+  `archive.ubuntu.com`, after `dpkg --configure -a` for a stopped install. Chosen over a fixed
+  faster mirror because the Azure mirror is fast almost every time (slot 4: 0.3 min), and
+  because no other official mirror is known to be faster from the runners. This is the one
+  targeted retry T-34 allows.
+- **Fail-closed.** If the second attempt fails too, the job fails. The visual baselines need the
+  fonts apt installs; a job that went on without them would compare wrong pixels.
+- **No apt cache** (D-26).
+
+`workflow_contract.py` fails when a job that can run on Ubuntu installs with `--with-deps`, and
+when the script loses a limit, its abort after the second attempt, or gains a third attempt or
+a `|| true`.
+
+| Install Chromium, Linux slots (min)     | Slot 1                    | Slot 2 | Slot 3 | Slot 4 |
+| --------------------------------------- | ------------------------- | ------ | ------ | ------ |
+| Run on 15e0b43 (before)                 | 10.9                      | 11.1   | 0.7    | 0.5    |
+| Run on 24cd57b (before)                 | 10.2                      | 10.6   | 10.0   | 0.3    |
+| After (at most 4 + 5 min, normally ≤ 1) | open until after the push |        |        |        |
 
 **Runtime evidence: open until after the push.** The expected values above come from the table;
 the measured ones follow from the first full-matrix run.

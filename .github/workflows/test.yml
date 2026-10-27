@@ -323,8 +323,9 @@ jobs:
         with:
           python-version: "3.12.10"
       - run: npm ci
+      # apt with a time limit and one mirror switch; red if both attempts fail.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash tools/dev/playwright-linux.sh
       - name: Install the application
         run: python -m pip install --quiet -e .
       - name: Start the application

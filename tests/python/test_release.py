@@ -1241,7 +1241,65 @@ class WorkflowBoundaryTests(unittest.TestCase):
             self.build.count("needs: [version-check, release-gate]"),
             5,
         )
-        self.assertIn("npx playwright install --with-deps chromium", self.build)
+        self.assertIn("bash tools/dev/playwright-linux.sh", self.build)
+
+    def test_linux_playwright_install_is_bounded_and_fails_after_one_mirror_switch(self):
+        sources = workflow_contract._workflow_sources()
+        script = (REPO_ROOT / "tools/dev/playwright-linux.sh").read_text(encoding="utf-8")
+        workflow_contract.validate_linux_playwright_install(sources, script)
+
+        script_mutations = (
+            ("no abort after the second attempt", "    exit 1\n  fi\nfi\n", "  fi\nfi\n"),
+            (
+                "swallowed failure",
+                'install_deps "$SECOND_LIMIT"; then',
+                'install_deps "$SECOND_LIMIT" || true; then',
+            ),
+            ("no wall-clock limit", 'timeout --kill-after=15 "$1" ', ""),
+            (
+                "no apt timeout",
+                "'Acquire::http::Timeout \"30\";'",
+                "'Acquire::Queue-Mode \"host\";'",
+            ),
+            (
+                "a third attempt",
+                "\nnpx playwright install chromium",
+                '\ninstall_deps "$SECOND_LIMIT"\nnpx playwright install chromium',
+            ),
+        )
+        for name, original, replacement in script_mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, script)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, "playwright-linux.sh"
+                ):
+                    workflow_contract.validate_linux_playwright_install(
+                        sources, script.replace(original, replacement, 1)
+                    )
+
+        # Back to --with-deps on a Linux job, and on the Linux leg of a matrix.
+        for path, original in (
+            (TEST_WORKFLOW, "run: bash tools/dev/playwright-linux.sh"),
+            (
+                TEST_WORKFLOW.parent / "visual-baselines-bootstrap.yml",
+                "if: runner.os == 'Linux'\n        run: bash tools/dev/playwright-linux.sh",
+            ),
+        ):
+            with self.subTest(path=path.name):
+                mutated = dict(sources)
+                self.assertIn(original, mutated[path])
+                mutated[path] = mutated[path].replace(
+                    original,
+                    original.replace(
+                        "bash tools/dev/playwright-linux.sh",
+                        "npx playwright install --with-deps chromium",
+                    ),
+                    1,
+                )
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, "without a time limit"
+                ):
+                    workflow_contract.validate_linux_playwright_install(mutated, script)
 
     def test_normal_ci_runs_the_browser_suite_instead_of_deferring_it_to_release(self):
         test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
@@ -2026,7 +2084,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 command = line.strip()
                 if re.search(r"\.sh(?:\s|\\|$|[\"'])", command) and not command.startswith("#"):
                     with self.subTest(workflow=workflow.name, line=line_number):
-                        command = command.removeprefix("- run: ")
+                        command = re.sub(r"^(?:- )?run: ", "", command)
                         self.assertTrue(
                             command.startswith("bash "),
                             f"{workflow.name}:{line_number} executes a shell script without bash",

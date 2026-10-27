@@ -621,6 +621,69 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("cross-platform browser shards must fail closed")
 
 
+PLAYWRIGHT_LINUX = "tools/dev/playwright-linux.sh"
+PLAYWRIGHT_LINUX_EVIDENCE = (
+    "set -euo pipefail",
+    "'Acquire::http::Timeout \"30\";'",
+    "'Acquire::https::Timeout \"30\";'",
+    "'Acquire::Retries \"3\";'",
+    "/etc/apt/apt.conf.d/99quiltor-timeouts",
+    'timeout --kill-after=15 "$1" npx playwright install-deps chromium',
+    'if ! install_deps "$FIRST_LIMIT"; then',
+    "sudo dpkg --configure -a",
+    'echo "$FALLBACK_MIRROR" | sudo tee "$MIRRORS"',
+    'if ! install_deps "$SECOND_LIMIT"; then\n'
+    '    echo "::error::apt failed on ${FALLBACK_MIRROR} as well; '
+    "the browser's system packages are missing\"\n"
+    "    exit 1\n",
+    "npx playwright install chromium",
+)
+
+
+def _linux_steps(job: str) -> list[str] | None:
+    """The steps of a job that may run on Ubuntu, or None when it never does."""
+
+    runs_on = re.search(r"^    runs-on: ([^\n]+)$", job, re.MULTILINE)
+    target = runs_on.group(1) if runs_on else ""
+    if "ubuntu" not in target and not ("matrix." in target and "ubuntu" in job):
+        return None
+    steps = re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+    return [step for step in steps if "if: runner.os != 'Linux'" not in step]
+
+
+def validate_linux_playwright_install(sources: dict[Path, str], script: str | None = None) -> None:
+    """
+    On Ubuntu, Chromium's apt packages install with a time limit and exactly one mirror switch.
+
+    apt hung for 10-11 minutes in `playwright install --with-deps` on several Linux slots of two
+    runs in a row. tools/dev/playwright-linux.sh bounds each attempt, switches the mirror once and
+    fails after the second attempt; every Linux job that installs Chromium must go through it.
+    """
+
+    for path, source in sources.items():
+        for name, job in _job_blocks(source):
+            steps = _linux_steps(job)
+            if steps is None:
+                continue
+            for step in steps:
+                if "playwright install" in step and "--with-deps" in step:
+                    raise WorkflowContractError(
+                        f"{path.name}:{name} installs Playwright's apt packages without a time "
+                        f"limit; use bash {PLAYWRIGHT_LINUX}"
+                    )
+    text = script if script is not None else (REPO_ROOT / PLAYWRIGHT_LINUX).read_text("utf-8")
+    for evidence in PLAYWRIGHT_LINUX_EVIDENCE:
+        if evidence not in text:
+            raise WorkflowContractError(
+                f"{PLAYWRIGHT_LINUX} must bound apt and fail after one mirror switch: "
+                + evidence.strip().splitlines()[0]
+            )
+    if len(re.findall(r'\binstall_deps "\$', text)) != 2:
+        raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must try apt exactly twice")
+    if re.search(r"\|\|\s*(true|:)\b", text) or "set +e" in text:
+        raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must not swallow a failed attempt")
+
+
 # Every browser slot, Linux and the full matrix alike: tools/dev/test-shards.mjs selects the
 # slot's tests and has Playwright confirm the lists; a failed selection runs nothing and fails
 # the slot, each suite's status counts, and the JSON reports with the durations are kept.
@@ -1302,6 +1365,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_image_size_guard(sources)
         validate_browser_e2e_sharding(sources)
         validate_cross_platform_browser_sharding(sources)
+        validate_linux_playwright_install(sources)
         validate_full_matrix_switch(sources)
         validate_path_filter(sources)
         validate_frontend_gates_once(sources)
