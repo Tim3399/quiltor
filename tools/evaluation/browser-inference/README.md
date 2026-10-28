@@ -76,14 +76,19 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
   to 4096, the model's own config says 40960, and `CreateMLCEngine(id, config,
 { context_window_size: 8192 })` wins over both. The wasm library is `_cs1k`, which fixes the
   prefill chunk, not the window.
-- Opening: `npx serve tools/evaluation/browser-inference` (tested end to end) or a double-click on
-  `index.html` (`file://`; the WebLLM import and the browser cache work there, a full run was only
-  tested over http).
+- Opening: only over http, `npx serve .` inside the folder. From `file://` (a double-click)
+  Chrome and Edge do not keep the model between starts, so every start downloads 2.5 GB again;
+  the page shows a warning there and disables "Messung starten".
+- "Modell vom Rechner entfernen" unloads a running engine, calls
+  `deleteModelAllInfoInCache(MODEL_ID, appConfig)` with the same `appConfig` as the load, and
+  reports `estimate()` before and after plus `hasModelInCache` (copied JSON: `removal`).
 
 ### Anleitung (für Tester)
 
-1. Öffne den Ordner `tools/evaluation/browser-inference` und starte dort
-   `npx serve .` – oder doppelklicke `index.html`. Nimm ein aktuelles **Chrome oder Edge**.
+1. Öffne im Ordner `tools/evaluation/browser-inference` ein Terminal und starte dort
+   `npx serve .`. Rufe die Adresse auf, die serve anzeigt (meist `http://localhost:3000`), in
+   einem aktuellen **Chrome oder Edge**. Bitte **nicht** `index.html` doppelklicken: Dann lädt
+   der Browser das Modell bei jedem Start neu herunter.
 2. Die Seite prüft zuerst WebGPU. Steht dort eine rote Meldung, kann dein Browser die Messung
    nicht ausführen – schick uns diese Meldung.
 3. Wähle „Kontext 8192 Tokens – dieselbe Anfrage“ und klicke **„Messung starten“**.
@@ -95,3 +100,7 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
 7. Wenn du magst, klicke **„Prüfsummen der Modelldateien berechnen“** und warte, bis oben die
    Anzahl der Dateien steht.
 8. Klicke **„Ergebnis kopieren“** und schicke den kopierten Text per Nachricht an Tim.
+9. Zum Schluss klicke **„Modell vom Rechner entfernen“**. Darunter steht dann „Modell entfernt –
+   belegter Speicher jetzt … MB“. Prüfe, dass die Zahl deutlich kleiner ist als vorher (etwa
+   2,5 GB weniger) und dort „Das Modell ist nicht mehr gespeichert.“ steht. Danach kannst du
+   serve im Terminal mit Strg+C beenden.

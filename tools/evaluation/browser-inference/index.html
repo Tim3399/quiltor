@@ -93,6 +93,20 @@
         border: 1px solid var(--line);
         white-space: pre-wrap;
       }
+      #file-warning {
+        margin: 16px 0;
+        padding: 12px;
+        border-radius: 8px;
+        border: 2px solid var(--bad);
+        color: var(--bad);
+      }
+      #removal {
+        margin: 16px 0;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        white-space: pre-wrap;
+      }
       #status.error {
         border-color: var(--bad);
         color: var(--bad);
@@ -129,6 +143,14 @@
         Misst, wie schnell das Sprachmodell Qwen3-4B direkt in deinem Browser läuft. Nichts wird an
         Quiltor geschickt; das Ergebnis kopierst du am Ende selbst.
       </p>
+
+      <div id="file-warning" role="alert" hidden>
+        <strong>Bitte die Seite nicht per Doppelklick öffnen.</strong> Bei einer Datei vom Rechner
+        (<code>file://</code>) behält der Browser das Modell nicht – jeder Start lädt erneut etwa
+        2,5 GB herunter. Öffne den Ordner stattdessen mit <code>npx serve .</code> und rufe die
+        Adresse auf, die dort angezeigt wird (meist <code>http://localhost:3000</code>). „Messung
+        starten“ ist hier gesperrt.
+      </div>
 
       <fieldset id="options">
         <legend>Messung</legend>
@@ -168,7 +190,9 @@
       <button id="hash" type="button" class="secondary" disabled>
         Prüfsummen der Modelldateien berechnen (optional, dauert etwa eine Minute)
       </button>
+      <button id="remove" type="button" class="secondary">Modell vom Rechner entfernen</button>
       <span id="copied" class="hint"></span>
+      <div id="removal" role="status" hidden></div>
     </main>
 
     <script type="module">
@@ -188,6 +212,17 @@
       const runs = [];
       let environment = null;
       let engine = null;
+      let removal = null;
+      const FROM_FILE = location.protocol === "file:";
+
+      // The same appConfig for loading and removing, so both address the same cache backend.
+      async function loadWebllm() {
+        const webllm = await import("@mlc-ai/web-llm");
+        const appConfig = structuredClone(webllm.prebuiltAppConfig);
+        const record = appConfig.model_list.find((m) => m.model_id === MODEL_ID);
+        record.integrity = MODEL_INTEGRITY;
+        return { webllm, appConfig, record };
+      }
 
       function status(text, isError = false) {
         $("status").textContent = text;
@@ -398,10 +433,7 @@
         $("progress").hidden = false;
         try {
           status("Lade WebLLM 0.2.86 …");
-          const webllm = await import("@mlc-ai/web-llm");
-          const appConfig = structuredClone(webllm.prebuiltAppConfig);
-          const record = appConfig.model_list.find((m) => m.model_id === MODEL_ID);
-          record.integrity = MODEL_INTEGRITY;
+          const { webllm, appConfig, record } = await loadWebllm();
           result.vramRequiredMB = record.vram_required_MB;
           try {
             result.modelWasCached = await webllm.hasModelInCache(MODEL_ID, appConfig);
@@ -498,6 +530,45 @@
         }
       }
 
+      // Unloads a running engine, deletes the model from the browser cache and reports storage.
+      async function removeModel() {
+        $("remove").disabled = true;
+        $("start").disabled = true;
+        const box = $("removal");
+        box.hidden = false;
+        box.className = "";
+        box.textContent = "Entferne das Modell …";
+        removal = { startedAt: new Date().toISOString() };
+        try {
+          removal.before = await measureStorage();
+          const { webllm, appConfig } = await loadWebllm();
+          if (engine) {
+            await engine.unload();
+            engine = null;
+          }
+          await webllm.deleteModelAllInfoInCache(MODEL_ID, appConfig);
+          removal.after = await measureStorage();
+          removal.stillCached = await webllm.hasModelInCache(MODEL_ID, appConfig);
+          const mb = (v) => (v === undefined ? "?" : v.toLocaleString("de-DE"));
+          box.textContent =
+            `Modell entfernt – belegter Speicher jetzt ${mb(removal.after.usageMB)} MB ` +
+            `(vorher ${mb(removal.before.usageMB)} MB, verfügbar ${mb(removal.after.quotaMB)} MB). ` +
+            (removal.stillCached
+              ? "Achtung: Der Browser meldet das Modell noch als gespeichert."
+              : "Das Modell ist nicht mehr gespeichert.");
+          if (removal.stillCached) box.className = "fail";
+        } catch (error) {
+          removal.error = `${error.name}: ${error.message}`;
+          box.className = "fail";
+          box.textContent = `Das Modell konnte nicht entfernt werden:\n${removal.error}`;
+        } finally {
+          if (window.QUILTOR_MEASUREMENT) window.QUILTOR_MEASUREMENT.removal = removal;
+          $("copy").disabled = false;
+          $("remove").disabled = false;
+          $("start").disabled = FROM_FILE || !environment?.webgpu || environment?.softwareAdapter;
+        }
+      }
+
       const LABELS = [
         ["measurement", "Messung"],
         ["contextWindowSize", "Kontextfenster"],
@@ -552,11 +623,11 @@
           }
           body.append(tr);
         }
-        $("copy").disabled = runs.length === 0;
+        $("copy").disabled = runs.length === 0 && !removal;
       }
 
       async function copy() {
-        const text = JSON.stringify({ environment, runs }, null, 2);
+        const text = JSON.stringify({ environment, runs, removal }, null, 2);
         try {
           await navigator.clipboard.writeText(text);
           $("copied").textContent = " Kopiert.";
@@ -576,9 +647,12 @@
           status("Die Datei prompt.js fehlt neben dieser Seite.", true);
           return;
         }
+        $("copy").addEventListener("click", copy);
+        $("remove").addEventListener("click", removeModel);
+        $("file-warning").hidden = !FROM_FILE;
         const { info, error } = await describeEnvironment();
         environment = info;
-        window.QUILTOR_MEASUREMENT = { environment, runs };
+        window.QUILTOR_MEASUREMENT = { environment, runs, removal };
         if (error) {
           status(
             `${error}\nDie Messung braucht WebGPU – zum Beispiel ein aktuelles Chrome oder Edge. ` +
@@ -591,10 +665,15 @@
         const gpu = [info.gpu.vendor, info.gpu.architecture, info.gpu.description]
           .filter(Boolean)
           .join(" · ");
-        status(`WebGPU ist bereit (${gpu || "Grafikadapter ohne Namen"}). Wähle die Messung und klicke „Messung starten“.`);
-        $("start").disabled = false;
+        if (FROM_FILE)
+          status(
+            `WebGPU ist bereit (${gpu || "Grafikadapter ohne Namen"}), aber die Seite ist per Doppelklick geöffnet. Bitte über „npx serve .“ öffnen.`,
+            true,
+          );
+        else
+          status(`WebGPU ist bereit (${gpu || "Grafikadapter ohne Namen"}). Wähle die Messung und klicke „Messung starten“.`);
+        $("start").disabled = FROM_FILE;
         $("start").addEventListener("click", run);
-        $("copy").addEventListener("click", copy);
         $("hash").addEventListener("click", hashModelFiles);
         $("hash").disabled = false;
         environment.storage = await measureStorage();
