@@ -10,6 +10,7 @@ like this, it happens every time the server forgets to discard the body.
 from __future__ import annotations
 
 import json
+import select
 import socket
 import time
 from dataclasses import dataclass
@@ -58,6 +59,46 @@ def send(
         while chunk := client.recv(65536):
             raw += chunk
         elapsed = time.monotonic() - started
+    return _parse(raw, elapsed)
+
+
+def trickle(
+    port: int,
+    path: str,
+    *,
+    headers: dict[str, str],
+    length: int,
+    interval: float,
+    deadline: float = DEADLINE_SECONDS,
+) -> Answer:
+    """POST that promises `length` bytes and sends one every `interval` seconds.
+
+    It stops sending as soon as the answer starts to arrive, so the server is never
+    handed bytes after it has answered -- a reset would cost the answer on Windows.
+    """
+    headers = {"Host": "127.0.0.1", **headers}
+    lines = [f"POST {path} HTTP/1.1"]
+    lines += [f"{key}: {value}" for key, value in headers.items()]
+    lines.append(f"Content-Length: {length}")
+    head = ("\r\n".join(lines) + "\r\n\r\n").encode()
+    with socket.create_connection(("127.0.0.1", port), timeout=deadline) as client:
+        started = time.monotonic()
+        client.sendall(head)
+        sent = 0
+        while sent < length:
+            readable, _, _ = select.select([client], [], [], interval)
+            if readable or time.monotonic() - started > deadline:
+                break
+            client.sendall(b" ")
+            sent += 1
+        raw = b""
+        while chunk := client.recv(65536):
+            raw += chunk
+        elapsed = time.monotonic() - started
+    return _parse(raw, elapsed)
+
+
+def _parse(raw: bytes, elapsed: float) -> Answer:
     head_bytes, _, payload = raw.partition(b"\r\n\r\n")
     status_line, *header_lines = head_bytes.decode("iso-8859-1").split("\r\n")
     parsed = {}

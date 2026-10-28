@@ -360,9 +360,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         if length <= 0 or length > REFUSED_BODY_DISCARD_LIMIT:
             return
+        # One deadline for the whole body: a timeout per recv would let a client that
+        # trickles a byte now and then hold this thread for as long as it likes.
+        deadline = time.monotonic() + REFUSED_BODY_DISCARD_TIMEOUT_SECONDS
+        remaining = length
         try:
-            self.connection.settimeout(REFUSED_BODY_DISCARD_TIMEOUT_SECONDS)
-            self.rfile.read(length)
+            while remaining > 0:
+                rest = deadline - time.monotonic()
+                if rest <= 0:
+                    return
+                self.connection.settimeout(rest)
+                chunk = self.rfile.read1(remaining)
+                if not chunk:
+                    return
+                remaining -= len(chunk)
         except OSError:
             pass
 

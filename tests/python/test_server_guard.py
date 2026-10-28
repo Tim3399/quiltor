@@ -282,6 +282,19 @@ class RefusedRequestBodyTests(_LiveLocalServerTestCase):
         self.assertTrue(response.startswith(b"HTTP/1.1 403"), response[:80])
         self.assertLess(elapsed, deadline)
 
+    def test_a_trickled_body_is_given_up_on_as_a_whole(self):
+        """One byte every 1.5 s never trips a per-recv timeout; the deadline holds."""
+        answer = late_body.trickle(
+            self.port,
+            "/api/worlds/create",
+            headers={"Content-Type": "application/json", "Origin": "null"},
+            length=100,
+            interval=1.5,
+            deadline=10.0,
+        )
+        self._assert_refused(answer, "request.untrusted_origin")
+        self.assertLess(answer.elapsed, server.REFUSED_BODY_DISCARD_TIMEOUT_SECONDS + 1.5)
+
 
 class BodyContentTypeTests(_LiveLocalServerTestCase):
     def test_an_invalid_content_type_drains_the_bounded_body_before_responding(self):
