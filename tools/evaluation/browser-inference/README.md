@@ -92,13 +92,21 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
 
 ### Anleitung (für Tester)
 
+Voraussetzung: **Node.js** (die LTS-Version von nodejs.org). Ob es installiert ist, prüfst du in
+PowerShell mit `node -v` – dann erscheint eine Versionsnummer. Ohne Node.js gibt es den Befehl
+`npx` nicht.
+
 1. Öffne PowerShell und gib diese zwei Befehle nacheinander ein (jeweils mit Enter). Statt
    `<Quiltor-Ordner>` setzt du den Pfad ein, in dem dein Quiltor-Checkout liegt:
 
    ```powershell
    cd <Quiltor-Ordner>\tools\evaluation\browser-inference
-   npx serve .
+   npx.cmd serve .
    ```
+
+   Schreib wirklich `npx.cmd`, nicht nur `npx`: Die kurze Form verweigert PowerShell auf vielen
+   Rechnern. Beim ersten Mal fragt npx „Need to install the following packages: serve … Ok to
+   proceed? (y)“ – tippe `y` und drücke Enter.
 
    Rufe die Adresse auf, die serve anzeigt (meist `http://localhost:3000`), in einem aktuellen
    **Chrome oder Edge**. Lass das PowerShell-Fenster offen, solange du misst. Bitte **nicht**
