@@ -1,0 +1,518 @@
+<!doctype html>
+<!--
+  Browser inference measurement page (T-54, D-T-54-2). A spike, not product code.
+  The interface is German on purpose: the author and friends run it on their own machines.
+  WebLLM is pinned to 0.2.86 with an import-map integrity hash (sha384, computed from the
+  bundle served by jsdelivr and unpkg; see README.md). The model files are pinned with WebLLM's
+  own `integrity` option where it exists (config, wasm library, tokenizer); the weight shards
+  have no such option in 0.2.86.
+-->
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quiltor – Browser-KI-Messung</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@mlc-ai/web-llm": "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/lib/index.js"
+        },
+        "integrity": {
+          "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/lib/index.js": "sha384-HegQbcXEuX71lg9KuPsNblVYf0qx8SYwjMgeIdIaUisFt2g5p4IHo6YtxdUtZP25"
+        }
+      }
+    </script>
+    <script src="prompt.js"></script>
+    <style>
+      :root {
+        --bg: #faf8f4;
+        --fg: #1f1d1a;
+        --muted: #6b665e;
+        --line: #ddd6cb;
+        --accent: #2f5d8a;
+        --bad: #a33a2b;
+        --good: #2e6b3a;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1b1a18;
+          --fg: #ece7df;
+          --muted: #a59e93;
+          --line: #3a3732;
+          --accent: #8db6e0;
+          --bad: #e08b7e;
+          --good: #8fcf9b;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+      main {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 4px;
+      }
+      p.hint {
+        color: var(--muted);
+        margin-top: 0;
+      }
+      fieldset {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin: 16px 0;
+      }
+      button {
+        font: inherit;
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: 1px solid var(--accent);
+        background: var(--accent);
+        color: var(--bg);
+        cursor: pointer;
+      }
+      button.secondary {
+        background: transparent;
+        color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      #status {
+        margin: 16px 0;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        white-space: pre-wrap;
+      }
+      #status.error {
+        border-color: var(--bad);
+        color: var(--bad);
+      }
+      progress {
+        width: 100%;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 4px 8px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+        overflow-wrap: anywhere;
+      }
+      .ok {
+        color: var(--good);
+      }
+      .fail {
+        color: var(--bad);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Browser-KI-Messung</h1>
+      <p class="hint">
+        Misst, wie schnell das Sprachmodell Qwen3-4B direkt in deinem Browser läuft. Nichts wird an
+        Quiltor geschickt; das Ergebnis kopierst du am Ende selbst.
+      </p>
+
+      <fieldset id="options">
+        <legend>Messung</legend>
+        <label
+          ><input type="radio" name="context" value="4096:base" checked /> Kontext 4096 Tokens
+          (WebLLM-Standard) – Quiltor-Anfrage mit etwa 4.300 Tokens</label
+        ><br />
+        <label
+          ><input type="radio" name="context" value="8192:base" /> Kontext 8192 Tokens – dieselbe
+          Anfrage mit etwa 4.300 Tokens</label
+        ><br />
+        <label
+          ><input type="radio" name="context" value="8192:long" /> Kontext 8192 Tokens – mit
+          Gesprächsverlauf, etwa 5.100 Tokens</label
+        >
+      </fieldset>
+
+      <p>
+        Beim ersten Start lädt der Browser das Modell herunter: <strong>etwa 2,5 GB</strong>. Danach
+        liegt es im Browser-Speicher und startet schneller.
+      </p>
+      <button id="start" type="button" disabled>Messung starten</button>
+
+      <div id="status" role="status">Prüfe, ob dein Browser WebGPU kann …</div>
+      <progress id="progress" max="1" value="0" hidden></progress>
+
+      <h2>Ergebnisse</h2>
+      <table id="results">
+        <thead>
+          <tr>
+            <th>Messwert</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button id="copy" type="button" class="secondary" disabled>Ergebnis kopieren</button>
+      <span id="copied" class="hint"></span>
+    </main>
+
+    <script type="module">
+      const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
+      // Integrity of the model files WebLLM can check (sha384, see README.md).
+      const MODEL_INTEGRITY = {
+        config: "sha384-Yo1DjNqBDvWubvvsyygtHsm1QMVZSH2/kEysKCGdOFTlH3pYFhOkkv5HTm9H7EBV",
+        model_lib: "sha384-UI6LgZYcCgIdelusHFxuBMRNhkUKhxLXvMmW71jcrJVQio574h1T1jFYJb8Ka9N8",
+        tokenizer: {
+          "tokenizer.json":
+            "sha384-bBcp1iraOY8O3lJXFKDjSlRbqFZ2wbSX1HMscuq4lbj4bO+YyBt2tRf6Kj8+hxFw",
+        },
+        onFailure: "error",
+      };
+
+      const $ = (id) => document.getElementById(id);
+      const runs = [];
+      let environment = null;
+      let engine = null;
+
+      function status(text, isError = false) {
+        $("status").textContent = text;
+        $("status").classList.toggle("error", isError);
+      }
+
+      // A small validator for the keywords the assistant's schemas use.
+      function validate(value, schema, path = "$") {
+        const errors = [];
+        const type = (v) =>
+          Array.isArray(v)
+            ? "array"
+            : v === null
+              ? "null"
+              : Number.isInteger(v)
+                ? "integer"
+                : typeof v;
+        if (schema.oneOf) {
+          const matches = schema.oneOf.filter((s) => validate(value, s, path).length === 0);
+          if (matches.length !== 1)
+            errors.push(`${path}: oneOf passt auf ${matches.length} Varianten`);
+        }
+        if (schema.anyOf && !schema.anyOf.some((s) => validate(value, s, path).length === 0))
+          errors.push(`${path}: anyOf passt auf keine Variante`);
+        if ("const" in schema && JSON.stringify(value) !== JSON.stringify(schema.const))
+          errors.push(`${path}: erwartet ${JSON.stringify(schema.const)}`);
+        if (schema.enum && !schema.enum.some((e) => JSON.stringify(e) === JSON.stringify(value)))
+          errors.push(`${path}: nicht in enum`);
+        if (schema.type) {
+          const types = [].concat(schema.type);
+          const t = type(value);
+          if (!types.includes(t) && !(t === "integer" && types.includes("number")))
+            return [...errors, `${path}: Typ ${t}, erwartet ${types.join("|")}`];
+        }
+        if (typeof value === "string") {
+          if (schema.minLength !== undefined && value.length < schema.minLength)
+            errors.push(`${path}: zu kurz`);
+          if (schema.maxLength !== undefined && value.length > schema.maxLength)
+            errors.push(`${path}: zu lang`);
+          if (schema.pattern && !new RegExp(schema.pattern, "u").test(value))
+            errors.push(`${path}: pattern`);
+        }
+        if (typeof value === "number") {
+          if (schema.minimum !== undefined && value < schema.minimum)
+            errors.push(`${path}: < minimum`);
+          if (schema.maximum !== undefined && value > schema.maximum)
+            errors.push(`${path}: > maximum`);
+        }
+        if (Array.isArray(value)) {
+          if (schema.minItems !== undefined && value.length < schema.minItems)
+            errors.push(`${path}: zu wenige Einträge`);
+          if (schema.maxItems !== undefined && value.length > schema.maxItems)
+            errors.push(`${path}: zu viele Einträge`);
+          if (schema.uniqueItems && new Set(value.map((v) => JSON.stringify(v))).size !== value.length)
+            errors.push(`${path}: doppelte Einträge`);
+          if (schema.items)
+            for (const [i, v] of value.entries())
+              errors.push(...validate(v, schema.items, `${path}[${i}]`));
+        }
+        if (type(value) === "object") {
+          for (const key of schema.required || [])
+            if (!(key in value)) errors.push(`${path}: ${key} fehlt`);
+          for (const [key, v] of Object.entries(value)) {
+            if (schema.properties && key in schema.properties)
+              errors.push(...validate(v, schema.properties[key], `${path}.${key}`));
+            else if (schema.additionalProperties === false)
+              errors.push(`${path}: unerlaubtes Feld ${key}`);
+          }
+        }
+        return errors;
+      }
+
+      async function describeEnvironment() {
+        const info = {
+          userAgent: navigator.userAgent,
+          brands: navigator.userAgentData?.brands?.map((b) => `${b.brand} ${b.version}`) ?? null,
+          platform: navigator.userAgentData?.platform ?? navigator.platform,
+          deviceMemoryGB: navigator.deviceMemory ?? null,
+          hardwareConcurrency: navigator.hardwareConcurrency ?? null,
+          pageOrigin: location.protocol,
+          webgpu: false,
+        };
+        if (!("gpu" in navigator)) return { info, error: "Dein Browser kennt kein WebGPU." };
+        let adapter = null;
+        try {
+          adapter = await navigator.gpu.requestAdapter();
+        } catch (error) {
+          return { info, error: `WebGPU-Adapter nicht verfügbar: ${error.message}` };
+        }
+        if (!adapter) return { info, error: "WebGPU ist da, aber es gibt keinen Grafikadapter." };
+        const adapterInfo =
+          adapter.info ?? (adapter.requestAdapterInfo ? await adapter.requestAdapterInfo() : {});
+        info.webgpu = true;
+        info.gpu = {
+          vendor: adapterInfo.vendor,
+          architecture: adapterInfo.architecture,
+          device: adapterInfo.device,
+          description: adapterInfo.description,
+          features: [...adapter.features].sort(),
+          limits: {
+            maxBufferSize: adapter.limits.maxBufferSize,
+            maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+            maxComputeWorkgroupStorageSize: adapter.limits.maxComputeWorkgroupStorageSize,
+            maxComputeInvocationsPerWorkgroup: adapter.limits.maxComputeInvocationsPerWorkgroup,
+          },
+        };
+        return { info, error: null };
+      }
+
+      async function measureMemory() {
+        const memory = { deviceMemoryGB: navigator.deviceMemory ?? null };
+        if (performance.memory)
+          memory.jsHeapUsedMB = Math.round(performance.memory.usedJSHeapSize / 2 ** 20);
+        if (crossOriginIsolated && performance.measureUserAgentSpecificMemory) {
+          try {
+            const result = await performance.measureUserAgentSpecificMemory();
+            memory.userAgentSpecificMB = Math.round(result.bytes / 2 ** 20);
+          } catch (error) {
+            memory.userAgentSpecific = `nicht messbar: ${error.message}`;
+          }
+        } else {
+          memory.userAgentSpecific = "nicht messbar (Seite ist nicht cross-origin-isoliert)";
+        }
+        return memory;
+      }
+
+      const seconds = (ms) => Math.round(ms) / 1000;
+
+      async function run() {
+        const [contextText, variantName] = document
+          .querySelector("input[name=context]:checked")
+          .value.split(":");
+        const context = Number(contextText);
+        const variant = window.QUILTOR_PROMPT.variants[variantName];
+        const request = variant.request;
+        const schema = request.response_format.json_schema.schema;
+        const result = {
+          measurement: `${context === 8192 ? "8k" : "4k"}/${variantName}`,
+          contextWindowSize: context,
+          prompt: variantName,
+          promptTokensExpected: variant.promptTokens,
+          startedAt: new Date().toISOString(),
+        };
+        $("start").disabled = true;
+        $("progress").hidden = false;
+        try {
+          status("Lade WebLLM 0.2.86 …");
+          const webllm = await import("@mlc-ai/web-llm");
+          const appConfig = structuredClone(webllm.prebuiltAppConfig);
+          const record = appConfig.model_list.find((m) => m.model_id === MODEL_ID);
+          record.integrity = MODEL_INTEGRITY;
+          result.vramRequiredMB = record.vram_required_MB;
+          try {
+            result.modelWasCached = await webllm.hasModelInCache(MODEL_ID, appConfig);
+          } catch (error) {
+            result.modelWasCached = `unbekannt: ${error.message}`;
+          }
+          if (engine) {
+            await engine.unload();
+            engine = null;
+          }
+          status(
+            result.modelWasCached === true
+              ? "Lade das Modell aus dem Browser-Speicher …"
+              : "Lade das Modell herunter (etwa 2,5 GB). Das kann einige Minuten dauern …",
+          );
+          const loadStart = performance.now();
+          engine = await webllm.CreateMLCEngine(
+            MODEL_ID,
+            {
+              appConfig,
+              initProgressCallback: (p) => {
+                $("progress").value = p.progress;
+                status(`Lade das Modell … ${Math.round(p.progress * 100)} %\n${p.text}`);
+              },
+            },
+            { context_window_size: context },
+          );
+          result.loadSeconds = seconds(performance.now() - loadStart);
+          result.loadKind = result.modelWasCached === true ? "aus dem Cache" : "erstmalig";
+
+          status("Modell geladen. Die KI liest jetzt den Prompt und antwortet …");
+          const runStart = performance.now();
+          const reply = await engine.chat.completions.create({
+            messages: request.messages,
+            temperature: request.temperature,
+            max_tokens: request.max_tokens,
+            stream: false,
+            response_format: { type: "json_object", schema: JSON.stringify(schema) },
+            extra_body: { enable_thinking: false },
+          });
+          result.totalSeconds = seconds(performance.now() - runStart);
+          const usage = reply.usage ?? {};
+          const extra = usage.extra ?? {};
+          result.promptTokens = usage.prompt_tokens;
+          result.completionTokens = usage.completion_tokens;
+          result.prefillSeconds = extra.time_to_first_token_s;
+          result.prefillTokensPerSecond = extra.prefill_tokens_per_s;
+          result.decodeTokensPerSecond = extra.decode_tokens_per_s;
+          result.finishReason = reply.choices?.[0]?.finish_reason;
+          const raw = reply.choices?.[0]?.message?.content ?? "";
+          // Qwen3 emits an empty think block even with thinking off; the JSON follows it.
+          const text = raw.replace(/^\s*<think>[\s\S]*?<\/think>\s*/, "");
+          result.thinkBlockStripped = text !== raw;
+          result.outputChars = text.length;
+          try {
+            const errors = validate(JSON.parse(text), schema);
+            result.schemaValid = errors.length === 0;
+            if (errors.length) result.schemaErrors = errors.slice(0, 10);
+          } catch (error) {
+            result.schemaValid = false;
+            result.schemaErrors = [`kein JSON: ${error.message}`];
+          }
+          result.outputPreview = text.slice(0, 400);
+          try {
+            result.webllmStats = await engine.runtimeStatsText();
+          } catch {
+            // Older engines do not report runtime stats; the usage figures above suffice.
+          }
+          status("Fertig. Du kannst eine weitere Messung starten oder das Ergebnis kopieren.");
+        } catch (error) {
+          result.error = `${error.name}: ${error.message}`;
+          status(`Die Messung ist fehlgeschlagen:\n${result.error}`, true);
+        } finally {
+          result.memory = await measureMemory();
+          runs.push(result);
+          render();
+          $("start").disabled = false;
+          $("progress").hidden = true;
+        }
+      }
+
+      const LABELS = [
+        ["measurement", "Messung"],
+        ["contextWindowSize", "Kontextfenster"],
+        ["loadKind", "Laden"],
+        ["loadSeconds", "Ladezeit (s)"],
+        ["promptTokens", "Eingabe-Tokens"],
+        ["prefillSeconds", "Prefill-Zeit (s)"],
+        ["prefillTokensPerSecond", "Prefill (Tokens/s)"],
+        ["completionTokens", "Ausgabe-Tokens"],
+        ["decodeTokensPerSecond", "Ausgabe (Tokens/s)"],
+        ["totalSeconds", "Antwortzeit gesamt (s)"],
+        ["schemaValid", "Ausgabe gültig"],
+        ["error", "Fehler"],
+      ];
+
+      function render() {
+        const head = $("results").querySelector("thead tr");
+        head.innerHTML = "<th>Messwert</th>";
+        runs.forEach((_, i) => {
+          const th = document.createElement("th");
+          th.textContent = `Lauf ${i + 1}`;
+          head.append(th);
+        });
+        const body = $("results").querySelector("tbody");
+        body.innerHTML = "";
+        for (const [key, label] of LABELS) {
+          if (!runs.some((r) => key in r)) continue;
+          const tr = document.createElement("tr");
+          const th = document.createElement("th");
+          th.textContent = label;
+          tr.append(th);
+          for (const r of runs) {
+            const td = document.createElement("td");
+            const v = r[key];
+            td.textContent =
+              v === undefined
+                ? "–"
+                : typeof v === "boolean"
+                  ? v
+                    ? "ja"
+                    : "nein"
+                  : typeof v === "number"
+                    ? v.toLocaleString("de-DE", { maximumFractionDigits: 2 })
+                    : String(v);
+            if (key === "schemaValid") td.className = v ? "ok" : "fail";
+            if (key === "error") td.className = "fail";
+            tr.append(td);
+          }
+          body.append(tr);
+        }
+        $("copy").disabled = runs.length === 0;
+      }
+
+      async function copy() {
+        const text = JSON.stringify({ environment, runs }, null, 2);
+        try {
+          await navigator.clipboard.writeText(text);
+          $("copied").textContent = " Kopiert.";
+        } catch {
+          const area = document.createElement("textarea");
+          area.value = text;
+          document.body.append(area);
+          area.select();
+          document.execCommand("copy");
+          area.remove();
+          $("copied").textContent = " Kopiert.";
+        }
+      }
+
+      async function init() {
+        if (!window.QUILTOR_PROMPT) {
+          status("Die Datei prompt.js fehlt neben dieser Seite.", true);
+          return;
+        }
+        const { info, error } = await describeEnvironment();
+        environment = info;
+        window.QUILTOR_MEASUREMENT = { environment, runs };
+        if (error) {
+          status(
+            `${error}\nDie Messung braucht WebGPU – zum Beispiel ein aktuelles Chrome oder Edge. ` +
+              "Es wird nichts heruntergeladen.",
+            true,
+          );
+          $("options").disabled = true;
+          return;
+        }
+        const gpu = [info.gpu.vendor, info.gpu.architecture, info.gpu.description]
+          .filter(Boolean)
+          .join(" · ");
+        status(`WebGPU ist bereit (${gpu || "Grafikadapter ohne Namen"}). Wähle die Messung und klicke „Messung starten“.`);
+        $("start").disabled = false;
+        $("start").addEventListener("click", run);
+        $("copy").addEventListener("click", copy);
+      }
+
+      init();
+    </script>
+  </body>
+</html>
