@@ -1302,6 +1302,37 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 ):
                     workflow_contract.validate_linux_playwright_install(mutated, script)
 
+    def test_windows_playwright_jobs_widen_the_port_range_before_playwright(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_windows_port_range(sources)
+        source = sources[TEST_WORKFLOW]
+        step_start = source.index("      - name: Widen the dynamic TCP port range")
+        step_end = source.index("      - uses: actions/checkout", step_start)
+        step = source[step_start:step_end]
+
+        def check(mutated_source, message):
+            mutated = dict(sources)
+            mutated[TEST_WORKFLOW] = mutated_source
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                workflow_contract.validate_windows_port_range(mutated)
+
+        with self.subTest(name="step removed"):
+            check(source.replace(step, "", 1), "without widening")
+        with self.subTest(name="step after Playwright"):
+            moved = source.replace(step, "", 1)
+            at = moved.index("      - name: Install Chromium\n", step_start)
+            end = moved.index("\n\n", at) + 2
+            check(moved[:end] + step + moved[end:], "without widening")
+        with self.subTest(name="failure swallowed"):
+            check(
+                source.replace(
+                    "num=55535\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                    "num=55535 || true",
+                    1,
+                ),
+                "must fail",
+            )
+
     def test_normal_ci_runs_the_browser_suite_instead_of_deferring_it_to_release(self):
         test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("push:\n    branches: [main]", test_workflow)

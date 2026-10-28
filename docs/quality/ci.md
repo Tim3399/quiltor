@@ -608,3 +608,23 @@ R7 37113154094, R8 37111931104, R9 34236701740, R10 34098759267.
 The macOS cases F3, F5 and F6 come from the old unsharded macOS job; whether they still occur
 after T-33 is open. None of the fixes adds a general retry: F2 is the one single-case reload,
 limited to one failure text and recorded in the report whenever it fires.
+
+### F2: the cause, a port range too small
+
+WSAENOBUFS on Windows is what Winsock reports when no ephemeral port is left, not only when
+memory runs out. Windows takes ephemeral TCP ports from 49152-65535, 16384 ports, the default
+since Vista and Server 2008 (Microsoft KB 929851, "The default dynamic port range for TCP/IP has
+changed"). A browser slot opens many short connections to the server and to Chromium's own
+endpoints, and each closed one holds its port in `TIME_WAIT` for up to two minutes.
+
+Both Windows browser jobs, `cross-platform-browser` and `cross-platform-smoke`, therefore run
+`netsh int ipv4 set dynamicport tcp start=10000 num=55535` as their first step: 10000 + 55535
+ends at 65534, the largest range Windows accepts, and 10000 stays clear of the fixed ports the
+suites use (8010, and 4174 for the design server). The step is limited to these two jobs: they are the only
+Windows jobs in `test.yml` that run Playwright, and `cross-platform-native` never showed the
+failure. It runs before checkout, so a refused `netsh` fails the job before anything else
+starts; there is no fallback. `workflow_contract.validate_windows_port_range` requires the step
+before the first Playwright step of every Windows job that runs Playwright, and fails the
+contract when the step is missing, comes later or swallows a failure. The single-case reload in
+`support/transient-network.ts` stays until a full matrix without it has shown the widened range
+is enough.

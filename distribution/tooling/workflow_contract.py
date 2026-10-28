@@ -684,6 +684,51 @@ def validate_linux_playwright_install(sources: dict[Path, str], script: str | No
         raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must not swallow a failed attempt")
 
 
+WINDOWS_PORT_RANGE = "netsh int ipv4 set dynamicport tcp start=10000 num=55535"
+WINDOWS_PORT_RANGE_CHECK = "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
+
+
+def _may_run_on_windows(job: str) -> bool:
+    runs_on = re.search(r"^    runs-on: ([^\n]+)$", job, re.MULTILINE)
+    target = runs_on.group(1) if runs_on else ""
+    if "windows" in target:
+        return True
+    return "matrix." in target and any("windows" in v for v in _matrix_values(job, "os"))
+
+
+def validate_windows_port_range(sources: dict[Path, str]) -> None:
+    """
+    Every Windows job of test.yml that runs Playwright widens the ephemeral port range first.
+
+    The default 16384 ports ran out on browser slots (F2, WSAENOBUFS); the step must come before
+    the first Playwright step and must fail the job when netsh refuses.
+    """
+
+    for path, source in sources.items():
+        if path.name != "test.yml":
+            continue
+        for name, job in _job_blocks(source):
+            if "playwright" not in job or not _may_run_on_windows(job):
+                continue
+            steps = re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+            widen = [i for i, step in enumerate(steps) if WINDOWS_PORT_RANGE in step]
+            first = next((i for i, step in enumerate(steps) if "playwright" in step), None)
+            if not widen or first is None or widen[0] > first:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} runs Playwright on Windows without widening the dynamic "
+                    f"port range first: {WINDOWS_PORT_RANGE}"
+                )
+            step = steps[widen[0]]
+            if (
+                re.search(r"\|\|\s*(true|:)\b", step)
+                or "continue-on-error" in step
+                or f"{WINDOWS_PORT_RANGE}\n          {WINDOWS_PORT_RANGE_CHECK}" not in step
+            ):
+                raise WorkflowContractError(
+                    f"{path.name}:{name} must fail when the port range cannot be widened"
+                )
+
+
 # Every browser slot, Linux and the full matrix alike: tools/dev/test-shards.mjs selects the
 # slot's tests and has Playwright confirm the lists; a failed selection runs nothing and fails
 # the slot, each suite's status counts, and the JSON reports with the durations are kept.
@@ -1384,6 +1429,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_browser_e2e_sharding(sources)
         validate_cross_platform_browser_sharding(sources)
         validate_linux_playwright_install(sources)
+        validate_windows_port_range(sources)
         validate_full_matrix_switch(sources)
         validate_path_filter(sources)
         validate_frontend_gates_once(sources)
