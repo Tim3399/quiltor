@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
 import type { FigureNode } from "../../packages/client/src/modules/story-world/model";
 import {
   expandedMapState,

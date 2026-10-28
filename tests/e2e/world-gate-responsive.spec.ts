@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
 
 const scenarios = [
   { width: 319, height: 884, count: 10, enlarged: false },
