@@ -15,6 +15,9 @@ for (const failure of ["network", "conflict"] as const) {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`/?world=${world.id}`);
+    // A cold start is bounded by the test timeout, not by the five seconds of an assertion:
+    // under a full two-worker run the first paint of the editor took longer than that once.
+    await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
     const editor = page.getByLabel("Kapiteltext");
     await expect(editor).toBeVisible();
 
@@ -45,6 +48,7 @@ for (const failure of ["network", "conflict"] as const) {
     await returnToWorldSelection(page);
     await expect(editor).toHaveCount(0);
     await page.goto(`/?world=${world.id}`);
+    await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
     await expect(page.getByLabel("Kapiteltext")).toHaveText(draft);
     expect(errors).toEqual([]);
   });
