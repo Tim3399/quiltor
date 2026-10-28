@@ -68,6 +68,16 @@ test("A skipped assistant relationship remains retryable after its elements are 
     return document.payload;
   };
 
+  // The world is saved 800 ms after a change and the save can wait on a busy server, so the
+  // stored state is read after the save has answered, bounded by the test timeout rather than
+  // by the five seconds of a poll.
+  const nextSave = () =>
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        response.url().includes(`/api/state?world=${world.id}`),
+    );
+
   await page.goto(`/?world=${world.id}`);
   await expect(page.getByRole("toolbar", { name: "Manuskript" })).toBeVisible();
   await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
@@ -99,17 +109,19 @@ test("A skipped assistant relationship remains retryable after its elements are 
   );
   expect(await readStoredWorld()).toMatchObject({ nodes: [], edges: [] });
 
+  const elementsSaved = nextSave();
   await elements.getByRole("button", { name: "Gruppe übernehmen", exact: true }).click();
   await expect(elements.getByRole("button", { name: "Übernommen", exact: true })).toHaveCount(2);
   await expect(page.locator(".story-node")).toHaveCount(2);
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
-  await expect
-    .poll(async () => {
-      const stored = await readStoredWorld();
-      return { names: stored.nodes.map((node) => node.name).sort(), edges: stored.edges.length };
-    })
-    .toEqual({ names: ["Ada", "Bela"], edges: 0 });
+  expect((await elementsSaved).ok(), "The accepted elements are saved").toBe(true);
+  const storedElements = await readStoredWorld();
+  expect({
+    names: storedElements.nodes.map((node) => node.name).sort(),
+    edges: storedElements.edges.length,
+  }).toEqual({ names: ["Ada", "Bela"], edges: 0 });
 
+  const relationshipSaved = nextSave();
   await relationships.getByRole("button", { name: "Übernehmen", exact: true }).click();
   await expect(
     relationships.getByRole("button", { name: "Übernommen", exact: true }),
@@ -118,18 +130,15 @@ test("A skipped assistant relationship remains retryable after its elements are 
   await expect(drawer.getByRole("button", { name: "Übernommen", exact: true })).toHaveCount(3);
   await expect(page.locator(".story-node")).toHaveCount(2);
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  await expect
-    .poll(async () => {
-      const stored = await readStoredWorld();
-      const names = new Map(stored.nodes.map((node) => [node.id, node.name]));
-      return {
-        nodes: stored.nodes.length,
-        edges: stored.edges.map((edge) => ({
-          from: names.get(edge.from),
-          to: names.get(edge.to),
-          label: edge.label,
-        })),
-      };
-    })
-    .toEqual({ nodes: 2, edges: [{ from: "Ada", to: "Bela", label: "Vertrauen" }] });
+  expect((await relationshipSaved).ok(), "The accepted relationship is saved").toBe(true);
+  const stored = await readStoredWorld();
+  const names = new Map(stored.nodes.map((node) => [node.id, node.name]));
+  expect({
+    nodes: stored.nodes.length,
+    edges: stored.edges.map((edge) => ({
+      from: names.get(edge.from),
+      to: names.get(edge.to),
+      label: edge.label,
+    })),
+  }).toEqual({ nodes: 2, edges: [{ from: "Ada", to: "Bela", label: "Vertrauen" }] });
 });
