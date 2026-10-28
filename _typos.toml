@@ -49,6 +49,12 @@ extend-exclude = [
   "tests/fixtures/**",
   "tools/documentation/readme_fixture.mjs",
   "tools/evaluation/assistant/seed_synthetic_world.py",
+
+  # The browser-inference test page is German interface text for testers, and its prompt
+  # files are generated from the German evaluation world.
+  "tools/evaluation/browser-inference/index.html",
+  "tools/evaluation/browser-inference/prompt.js",
+  "tools/evaluation/browser-inference/prompt.json",
 ]
 
 [default]
