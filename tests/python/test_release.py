@@ -3,8 +3,8 @@
 import contextlib
 import io
 import json
-import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -2635,13 +2635,26 @@ class PathFilterContractTests(unittest.TestCase):
         body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
 
         def gate(results):
-            env = {**os.environ, "PLAN_RESULT": "success"}
+            # On Windows, `bash` can resolve to WSL's System32\bash.exe. It does not pass
+            # the caller's environment on, and it hands a `-c` argument through another
+            # shell that expands `$1` and `$VAR` to nothing first -- every job name and
+            # result arrived empty and the green case failed. So the values go in as
+            # assignments ahead of the script, and the script goes in on stdin.
+            values = {"PLAN_RESULT": "success"}
             for name in workflow_contract.FILTERED_JOBS:
                 job = workflow_contract._env_name(name)
-                env[f"RESULT_{job}"] = results.get(name, "success")
-                env[f"SELECTED_{job}"] = "true"
-            return subprocess.run(
-                [bash, "-c", body], env=env, capture_output=True, text=True, check=False
+                values[f"RESULT_{job}"] = results.get(name, "success")
+                values[f"SELECTED_{job}"] = "true"
+            preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in values.items())
+            # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
+            completed = subprocess.run(
+                [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
+            )
+            return subprocess.CompletedProcess(
+                completed.args,
+                completed.returncode,
+                completed.stdout.decode(errors="replace"),
+                completed.stderr.decode(errors="replace"),
             )
 
         green = gate({})
