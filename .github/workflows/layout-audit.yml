@@ -41,7 +41,7 @@ jobs:
       - run: npm ci
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash tools/dev/playwright-linux.sh
 
       - name: Build the client
         run: npm run build
