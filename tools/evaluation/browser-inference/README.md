@@ -70,6 +70,10 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
 - Each run also records `navigator.storage.persisted()` and `estimate()` before and after,
   the first load and the load from the cache as separate values, and, on request, the SHA-256
   of every file WebLLM keeps in the Cache API (`webllm/config`, `webllm/wasm`, `webllm/model`).
+- WebLLM's `time_to_first_token_s` includes the grammar setup, which runs overlapped with the
+  prefill, so the page reports `grammarInitSeconds`, `grammarPerTokenSeconds` and
+  `prefillNetSeconds` (prefill minus setup, a lower bound for the pure prefill) separately.
+  The adapter is requested with `powerPreference: "high-performance"`, as WebLLM does.
 - Measurement 2: the 8192 window is a runtime option. WebLLM 0.2.86 builds the model config in
   `MLCEngine.reloadInternal` (`lib/index.js`, line 18243) as `{...mlc-chat-config.json,
 ...modelRecord.overrides, ...chatOpts}`. The prebuilt entry overrides `context_window_size`

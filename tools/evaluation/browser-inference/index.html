@@ -308,7 +308,9 @@
         if (!("gpu" in navigator)) return { info, error: "Dein Browser kennt kein WebGPU." };
         let adapter = null;
         try {
-          adapter = await navigator.gpu.requestAdapter();
+          // The same preference WebLLM uses, so the page reports the adapter that computes.
+          adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+          info.powerPreference = "high-performance";
         } catch (error) {
           return { info, error: `WebGPU-Adapter nicht verfügbar: ${error.message}` };
         }
@@ -492,6 +494,22 @@
           result.completionTokens = usage.completion_tokens;
           result.prefillSeconds = extra.time_to_first_token_s;
           result.prefillTokensPerSecond = extra.prefill_tokens_per_s;
+          // WebLLM 0.2.86 counts the grammar setup inside time_to_first_token_s; the setup runs
+          // overlapped with the prefill, so the net value is a lower bound for the pure prefill.
+          // A second request with the same schema and no unload reuses the matcher (~0 s).
+          result.grammarInitSeconds = extra.grammar_init_s;
+          result.grammarPerTokenSeconds = extra.grammar_per_token_s;
+          if (
+            typeof extra.time_to_first_token_s === "number" &&
+            typeof extra.grammar_init_s === "number"
+          ) {
+            result.prefillNetSeconds = Math.max(
+              0,
+              extra.time_to_first_token_s - extra.grammar_init_s,
+            );
+            if (result.prefillNetSeconds > 0)
+              result.prefillNetTokensPerSecond = usage.prompt_tokens / result.prefillNetSeconds;
+          }
           result.decodeTokensPerSecond = extra.decode_tokens_per_s;
           result.finishReason = reply.choices?.[0]?.finish_reason;
           const raw = reply.choices?.[0]?.message?.content ?? "";
@@ -579,8 +597,12 @@
         ["storagePersisted", "Dauerhafter Speicher"],
         ["storageUsage", "Speicherbelegung"],
         ["promptTokens", "Eingabe-Tokens"],
-        ["prefillSeconds", "Prefill-Zeit (s)"],
-        ["prefillTokensPerSecond", "Prefill (Tokens/s)"],
+        ["prefillSeconds", "Prefill inkl. Grammatik (s)"],
+        ["prefillTokensPerSecond", "Prefill inkl. Grammatik (Tokens/s)"],
+        ["grammarInitSeconds", "Grammatik vorbereiten (s)"],
+        ["prefillNetSeconds", "Prefill ohne Grammatik, mindestens (s)"],
+        ["prefillNetTokensPerSecond", "Prefill ohne Grammatik, höchstens (Tokens/s)"],
+        ["grammarPerTokenSeconds", "Grammatik je Ausgabe-Token (s)"],
         ["completionTokens", "Ausgabe-Tokens"],
         ["decodeTokensPerSecond", "Ausgabe (Tokens/s)"],
         ["totalSeconds", "Antwortzeit gesamt (s)"],
@@ -588,23 +610,32 @@
         ["error", "Fehler"],
       ];
 
+      const ALWAYS_SHOWN = new Set([
+        "prefillSeconds",
+        "grammarInitSeconds",
+        "prefillNetSeconds",
+        "prefillNetTokensPerSecond",
+      ]);
+
       function render() {
         const head = $("results").querySelector("thead tr");
         head.innerHTML = "<th>Messwert</th>";
-        runs.forEach((_, i) => {
+        // Before the first run, one empty column shows which timings will be reported.
+        const columns = runs.length ? runs : [{}];
+        columns.forEach((_, i) => {
           const th = document.createElement("th");
-          th.textContent = `Lauf ${i + 1}`;
+          th.textContent = runs.length ? `Lauf ${i + 1}` : "noch kein Lauf";
           head.append(th);
         });
         const body = $("results").querySelector("tbody");
         body.innerHTML = "";
         for (const [key, label] of LABELS) {
-          if (!runs.some((r) => key in r)) continue;
+          if (!ALWAYS_SHOWN.has(key) && !runs.some((r) => key in r)) continue;
           const tr = document.createElement("tr");
           const th = document.createElement("th");
           th.textContent = label;
           tr.append(th);
-          for (const r of runs) {
+          for (const r of columns) {
             const td = document.createElement("td");
             const v = r[key];
             td.textContent =
@@ -650,6 +681,7 @@
         $("copy").addEventListener("click", copy);
         $("remove").addEventListener("click", removeModel);
         $("file-warning").hidden = !FROM_FILE;
+        render();
         const { info, error } = await describeEnvironment();
         environment = info;
         window.QUILTOR_MEASUREMENT = { environment, runs, removal };
