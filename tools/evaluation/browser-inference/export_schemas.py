@@ -37,7 +37,9 @@ def main() -> None:
     OUT.mkdir(exist_ok=True)
     for name, schema in schemas().items():
         path = OUT / f"{name}.json"
-        text = json.dumps(schema, indent=2, sort_keys=True) + "\n"
+        # Keep the definition order: the server sends the schema unsorted
+        # (infrastructure/inference/shared/contract.py), and XGrammar enforces property order.
+        text = json.dumps(schema, indent=2) + "\n"
         path.write_text(text, encoding="utf-8", newline="\n")
         print(f"wrote {path.relative_to(OUT.parent)}")
 
