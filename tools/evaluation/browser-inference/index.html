@@ -155,12 +155,12 @@
       <fieldset id="options">
         <legend>Messung</legend>
         <label
-          ><input type="radio" name="context" value="4096:base" checked /> Kontext 4096 Tokens
+          ><input type="radio" name="context" value="4096:base" /> Kontext 4096 Tokens
           (WebLLM-Standard) – Quiltor-Anfrage mit etwa 4.300 Tokens</label
         ><br />
         <label
-          ><input type="radio" name="context" value="8192:base" /> Kontext 8192 Tokens – dieselbe
-          Anfrage mit etwa 4.300 Tokens</label
+          ><input type="radio" name="context" value="8192:base" checked /> Kontext 8192 Tokens –
+          dieselbe Anfrage mit etwa 4.300 Tokens</label
         ><br />
         <label
           ><input type="radio" name="context" value="8192:long" /> Kontext 8192 Tokens – mit
@@ -215,8 +215,63 @@
       let removal = null;
       const FROM_FILE = location.protocol === "file:";
 
+      // TEST PATH ONLY -- never active without the URL parameter. `?fake-engine=context-error`
+      // replaces WebLLM with a stub that downloads nothing, loads at once and fails the request
+      // the way WebLLM 0.2.86 does when the prompt exceeds the window: samplePrefillStep starts
+      // the grammar compile (synchronous xgrammar wasm on the main thread) before forwardPrefill
+      // throws ContextWindowSizeExceededError, and the orphaned compile keeps the thread busy.
+      // `fake-grammar-ms` sets that busy time (default 12000, the value measured in D-T-54-4);
+      // `fake-unload=hang` makes unload() never settle, to exercise the unload time limit.
+      const params = new URLSearchParams(location.search);
+      const FAKE_ENGINE = params.get("fake-engine");
+      function fakeWebllm() {
+        const grammarMs = Number(params.get("fake-grammar-ms") ?? 12000);
+        const busy = (ms) => {
+          const end = performance.now() + ms;
+          while (performance.now() < end);
+        };
+        class ContextWindowSizeExceededError extends Error {
+          constructor(tokens, size) {
+            super(
+              `Prompt tokens exceed context window size: number of prompt tokens: ${tokens}; context window size: ${size}`,
+            );
+            this.name = "ContextWindowSizeExceededError";
+          }
+        }
+        const CreateMLCEngine = async (id, config, chatOptions) => {
+          config.initProgressCallback?.({ progress: 1, text: "Stub-Engine (Testweg)" });
+          return {
+            chat: {
+              completions: {
+                create: async (request) => {
+                  void Promise.resolve().then(() => busy(grammarMs));
+                  const tokens = window.QUILTOR_PROMPT.variants.base.promptTokens + 11;
+                  if (FAKE_ENGINE === "context-error" || tokens > chatOptions.context_window_size)
+                    throw new ContextWindowSizeExceededError(tokens, chatOptions.context_window_size);
+                  throw new Error(`unknown fake-engine ${FAKE_ENGINE}`);
+                },
+              },
+            },
+            runtimeStatsText: async () => "stub",
+            unload: () =>
+              params.get("fake-unload") === "hang" ? new Promise(() => {}) : Promise.resolve(),
+          };
+        };
+        const appConfig = { model_list: [{ model_id: MODEL_ID, vram_required_MB: 0 }] };
+        return {
+          webllm: {
+            CreateMLCEngine,
+            hasModelInCache: async () => false,
+            deleteModelAllInfoInCache: async () => {},
+          },
+          appConfig,
+          record: appConfig.model_list[0],
+        };
+      }
+
       // The same appConfig for loading and removing, so both address the same cache backend.
       async function loadWebllm() {
+        if (FAKE_ENGINE) return fakeWebllm();
         const webllm = await import("@mlc-ai/web-llm");
         const appConfig = structuredClone(webllm.prebuiltAppConfig);
         const record = appConfig.model_list.find((m) => m.model_id === MODEL_ID);
@@ -442,10 +497,8 @@
           } catch (error) {
             result.modelWasCached = `unbekannt: ${error.message}`;
           }
-          if (engine) {
-            await engine.unload();
-            engine = null;
-          }
+          await unloadEngine(result);
+          if (result.unloadWarning) status(result.unloadWarning, true);
           // Ask once to keep the 2.5 GB download; the answer is reported, not required.
           if (navigator.storage?.persist && environment.persistRequested === undefined) {
             try {
@@ -533,18 +586,61 @@
           }
           status("Fertig. Du kannst eine weitere Messung starten oder das Ergebnis kopieren.");
         } catch (error) {
-          result.error = `${error.name}: ${error.message}`;
+          result.error = `${error?.name ?? "Error"}: ${error?.message ?? error}`;
           status(`Die Messung ist fehlgeschlagen:\n${result.error}`, true);
         } finally {
-          result.memory = await measureMemory();
-          result.storageAfter = await measureStorage();
-          result.storagePersisted = result.storageAfter.persisted;
-          if (result.storageAfter.usageMB !== undefined)
-            result.storageUsage = `${result.storageAfter.usageMB.toLocaleString("de-DE")} MB von ${result.storageAfter.quotaMB.toLocaleString("de-DE")} MB`;
+          // Free the page before anything else is awaited: after a failed request WebLLM may
+          // still compile the grammar on the main thread, and the run must be in the table and
+          // the button usable the moment that ends. The storage figures are filled in after.
           runs.push(result);
+          releasePage();
+          try {
+            result.memory = await measureMemory();
+            result.storageAfter = await measureStorage();
+            result.storagePersisted = result.storageAfter.persisted;
+            if (result.storageAfter.usageMB !== undefined)
+              result.storageUsage = `${result.storageAfter.usageMB.toLocaleString("de-DE")} MB von ${result.storageAfter.quotaMB.toLocaleString("de-DE")} MB`;
+          } catch (error) {
+            result.storageAfterError = `${error?.name ?? "Error"}: ${error?.message ?? error}`;
+          }
+          releasePage();
+        }
+      }
+
+      function releasePage() {
+        try {
           render();
-          $("start").disabled = false;
-          $("progress").hidden = true;
+        } catch (error) {
+          console.error("render failed", error);
+        }
+        $("start").disabled = FROM_FILE || !environment?.webgpu || environment?.softwareAdapter;
+        $("progress").hidden = true;
+        $("copy").disabled = false;
+      }
+
+      // unload() with a time limit: an engine that does not finish within it is dropped, and
+      // the run carries a warning instead of blocking the page.
+      const UNLOAD_TIMEOUT_MS = 10000;
+      async function unloadEngine(target) {
+        const current = engine;
+        engine = null;
+        if (!current) return;
+        let timer;
+        try {
+          const outcome = await Promise.race([
+            Promise.resolve()
+              .then(() => current.unload())
+              .then(() => "ok"),
+            new Promise((resolve) => {
+              timer = setTimeout(() => resolve("timeout"), UNLOAD_TIMEOUT_MS);
+            }),
+          ]);
+          if (outcome === "timeout")
+            target.unloadWarning = `Das Entladen des Modells hat nach ${UNLOAD_TIMEOUT_MS / 1000} s nicht geendet; die Engine wurde verworfen.`;
+        } catch (error) {
+          target.unloadWarning = `Das Entladen des Modells ist fehlgeschlagen: ${error?.name ?? "Error"}: ${error?.message ?? error}; die Engine wurde verworfen.`;
+        } finally {
+          clearTimeout(timer);
         }
       }
 
@@ -560,10 +656,7 @@
         try {
           removal.before = await measureStorage();
           const { webllm, appConfig } = await loadWebllm();
-          if (engine) {
-            await engine.unload();
-            engine = null;
-          }
+          await unloadEngine(removal);
           await webllm.deleteModelAllInfoInCache(MODEL_ID, appConfig);
           removal.after = await measureStorage();
           removal.stillCached = await webllm.hasModelInCache(MODEL_ID, appConfig);
@@ -574,7 +667,8 @@
             (removal.stillCached
               ? "Achtung: Der Browser meldet das Modell noch als gespeichert."
               : "Das Modell ist nicht mehr gespeichert.");
-          if (removal.stillCached) box.className = "fail";
+          if (removal.unloadWarning) box.textContent += ` ${removal.unloadWarning}`;
+          if (removal.stillCached || removal.unloadWarning) box.className = "fail";
         } catch (error) {
           removal.error = `${error.name}: ${error.message}`;
           box.className = "fail";
@@ -608,6 +702,7 @@
         ["totalSeconds", "Antwortzeit gesamt (s)"],
         ["schemaValid", "Ausgabe gültig"],
         ["error", "Fehler"],
+        ["unloadWarning", "Warnung"],
       ];
 
       const ALWAYS_SHOWN = new Set([
@@ -649,7 +744,7 @@
                     ? v.toLocaleString("de-DE", { maximumFractionDigits: 2 })
                     : String(v);
             if (key === "schemaValid") td.className = v ? "ok" : "fail";
-            if (key === "error") td.className = "fail";
+            if ((key === "error" || key === "unloadWarning") && v !== undefined) td.className = "fail";
             tr.append(td);
           }
           body.append(tr);

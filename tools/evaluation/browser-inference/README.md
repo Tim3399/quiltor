@@ -86,6 +86,9 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
 - "Modell vom Rechner entfernen" unloads a running engine, calls
   `deleteModelAllInfoInCache(MODEL_ID, appConfig)` with the same `appConfig` as the load, and
   reports `estimate()` before and after plus `hasModelInCache` (copied JSON: `removal`).
+- Test path, never active without the parameter: `?fake-engine=context-error` swaps WebLLM for
+  a stub that downloads nothing and fails like the 4096 run, including the grammar compile that
+  keeps the main thread busy after the error (`fake-grammar-ms`, `fake-unload=hang`).
 
 ### Anleitung (für Tester)
 
