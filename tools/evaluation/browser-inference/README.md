@@ -85,10 +85,18 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
 
 ### Anleitung (für Tester)
 
-1. Öffne im Ordner `tools/evaluation/browser-inference` ein Terminal und starte dort
-   `npx serve .`. Rufe die Adresse auf, die serve anzeigt (meist `http://localhost:3000`), in
-   einem aktuellen **Chrome oder Edge**. Bitte **nicht** `index.html` doppelklicken: Dann lädt
-   der Browser das Modell bei jedem Start neu herunter.
+1. Öffne PowerShell und gib diese zwei Befehle nacheinander ein (jeweils mit Enter). Statt
+   `<Quiltor-Ordner>` setzt du den Pfad ein, in dem dein Quiltor-Checkout liegt:
+
+   ```powershell
+   cd <Quiltor-Ordner>\tools\evaluation\browser-inference
+   npx serve .
+   ```
+
+   Rufe die Adresse auf, die serve anzeigt (meist `http://localhost:3000`), in einem aktuellen
+   **Chrome oder Edge**. Lass das PowerShell-Fenster offen, solange du misst. Bitte **nicht**
+   `index.html` doppelklicken: Dann lädt der Browser das Modell bei jedem Start neu herunter.
+
 2. Die Seite prüft zuerst WebGPU. Steht dort eine rote Meldung, kann dein Browser die Messung
    nicht ausführen – schick uns diese Meldung.
 3. Wähle „Kontext 8192 Tokens – dieselbe Anfrage“ und klicke **„Messung starten“**.
@@ -102,5 +110,5 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
 8. Klicke **„Ergebnis kopieren“** und schicke den kopierten Text per Nachricht an Tim.
 9. Zum Schluss klicke **„Modell vom Rechner entfernen“**. Darunter steht dann „Modell entfernt –
    belegter Speicher jetzt … MB“. Prüfe, dass die Zahl deutlich kleiner ist als vorher (etwa
-   2,5 GB weniger) und dort „Das Modell ist nicht mehr gespeichert.“ steht. Danach kannst du
-   serve im Terminal mit Strg+C beenden.
+   2,5 GB weniger) und dort „Das Modell ist nicht mehr gespeichert.“ steht. Danach beendest du
+   serve, indem du im PowerShell-Fenster Strg+C drückst.
