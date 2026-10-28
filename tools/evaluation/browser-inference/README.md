@@ -127,3 +127,17 @@ PowerShell mit `node -v` – dann erscheint eine Versionsnummer. Ohne Node.js gi
    belegter Speicher jetzt … MB“. Prüfe, dass die Zahl deutlich kleiner ist als vorher (etwa
    2,5 GB weniger) und dort „Das Modell ist nicht mehr gespeichert.“ steht. Danach beendest du
    serve, indem du im PowerShell-Fenster Strg+C drückst.
+
+### Bekannte Probleme
+
+1. Schnelles Mehrfachklicken auf „Messung starten“ kann zwei Messungen parallel starten
+   (F-54-9). Einmal klicken und warten, bis die Messung fertig ist.
+2. Nach einem Fehler (z. B. bei 4096 Tokens) kann die Seite 12–30 Sekunden, eventuell länger,
+   nicht reagieren. Die Ursache ist nicht vollständig geklärt.
+3. „Modell vom Rechner entfernen“ ist auch während eines Downloads klickbar (F-54-7). Nicht
+   benutzen, solange das Modell noch lädt.
+4. Die Seite selbst nennt `npx serve .`. Unter PowerShell gilt `npx.cmd serve .` (F-54-10).
+5. Die Begründung der Sperre für `file://` ist eine Vereinfachung (F-54-8).
+6. Die Typos-Prüfung schließt `index.html` ganz aus (F-54-3).
+7. Der Docstring in `schema_fidelity.py` nennt `--require-hashes`, die Requirements haben aber
+   keine Hashes (F-54-4).
