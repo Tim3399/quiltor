@@ -32,3 +32,66 @@ py -3.12 -m venv .venv-fidelity
 ```
 
 The first run downloads `tokenizer.json` of `Qwen/Qwen3-4B` (11 MB, pinned by sha256) into the temp directory. The venv is for this measurement only; the project venv must not get torch. Results and their reading: `quiltor-kb/dev/D-T-54-1.md`.
+
+## Measurements 2 and 3: the test page
+
+`index.html` runs Quiltor's real assistant request with WebLLM in the browser and reports load,
+prefill and decode times, token counts, schema validity, browser, GPU and memory.
+
+- `export_prompt.py` writes `prompt.json` (and the same data as `prompt.js`, which the page
+  loads, because a page opened from `file://` cannot fetch JSON). It runs the product pipeline
+  (`quiltor.modules.assistant.completion.complete_request`) on the synthetic evaluation world
+  ("Quiltor AI Testwelt", chapters tc01–tc08, question about Corvin's loyalty to Iven) and
+  records the first request the server sends to `/v1/chat/completions`. That request is the
+  read-tool step, so its `response_format` is the tool-step schema, which wraps `reply_schema`.
+
+  ```bash
+  PYTHONPATH=src py -3.12 tools/evaluation/browser-inference/export_prompt.py
+  ```
+
+  | Variant | Prompt tokens (Qwen3 tokenizer) | Content                                |
+  | ------- | ------------------------------- | -------------------------------------- |
+  | `base`  | 4276                            | the request alone                      |
+  | `long`  | 5063                            | the same request after 8 earlier turns |
+
+  After a re-export, run `npx biome format --write tools/evaluation/browser-inference` as for
+  the schemas.
+
+- WebLLM is pinned to exactly 0.2.86 through an import map with an `integrity` entry
+  (`sha384-HegQbcXEuX71lg9KuPsNblVYf0qx8SYwjMgeIdIaUisFt2g5p4IHo6YtxdUtZP25`). The hash was
+  computed from `lib/index.js` as served by both jsdelivr and unpkg (identical), and Edge reports
+  the same value when the hash in the page is changed and the bundle is blocked. Import-map
+  integrity needs Chrome or Edge 127 or newer.
+- The model is WebLLM's prebuilt `Qwen3-4B-q4f16_1-MLC` entry. Its `mlc-chat-config.json`, wasm
+  library and `tokenizer.json` carry `integrity` hashes through WebLLM's own option. The weight
+  shards cannot: WebLLM 0.2.86 has no integrity option for them.
+- Without WebGPU, or with a software adapter (SwiftShader, WARP, llvmpipe, any adapter flagged
+  `isFallbackAdapter`), the page says so and stops before any download.
+- Each run also records `navigator.storage.persisted()` and `estimate()` before and after,
+  the first load and the load from the cache as separate values, and, on request, the SHA-256
+  of every file WebLLM keeps in the Cache API (`webllm/config`, `webllm/wasm`, `webllm/model`).
+- Measurement 2: the 8192 window is a runtime option. WebLLM 0.2.86 builds the model config in
+  `MLCEngine.reloadInternal` (`lib/index.js`, line 18243) as `{...mlc-chat-config.json,
+...modelRecord.overrides, ...chatOpts}`. The prebuilt entry overrides `context_window_size`
+  to 4096, the model's own config says 40960, and `CreateMLCEngine(id, config,
+{ context_window_size: 8192 })` wins over both. The wasm library is `_cs1k`, which fixes the
+  prefill chunk, not the window.
+- Opening: `npx serve tools/evaluation/browser-inference` (tested end to end) or a double-click on
+  `index.html` (`file://`; the WebLLM import and the browser cache work there, a full run was only
+  tested over http).
+
+### Anleitung (für Tester)
+
+1. Öffne den Ordner `tools/evaluation/browser-inference` und starte dort
+   `npx serve .` – oder doppelklicke `index.html`. Nimm ein aktuelles **Chrome oder Edge**.
+2. Die Seite prüft zuerst WebGPU. Steht dort eine rote Meldung, kann dein Browser die Messung
+   nicht ausführen – schick uns diese Meldung.
+3. Wähle „Kontext 8192 Tokens – dieselbe Anfrage“ und klicke **„Messung starten“**.
+4. Beim ersten Mal lädt der Browser etwa **2,5 GB** herunter. Lass den Tab offen, bis unten
+   „Fertig“ steht (je nach Leitung 5–15 Minuten, danach dauert eine Antwort 1–3 Minuten).
+5. Klicke noch einmal „Messung starten“ – jetzt kommt das Modell aus dem Speicher.
+6. Wenn du magst, wiederhole das mit den beiden anderen Optionen (4096 schlägt absichtlich fehl,
+   das ist ein Ergebnis).
+7. Wenn du magst, klicke **„Prüfsummen der Modelldateien berechnen“** und warte, bis oben die
+   Anzahl der Dateien steht.
+8. Klicke **„Ergebnis kopieren“** und schicke den kopierten Text per Nachricht an Tim.
