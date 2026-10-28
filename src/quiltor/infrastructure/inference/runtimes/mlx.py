@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 from quiltor import resources
+from quiltor.infrastructure.inference.model_store import model_store
 from quiltor.infrastructure.inference.runtimes import resolve_port, spawn_logged
 
 
@@ -32,7 +33,7 @@ def start(
         else base / "runtime" / "mlx-venv" / "bin" / "python3"
     )
     bridge = resources.sidecar_asset("inference/mlx/bridge.py")
-    models_dir = base / "models" / "mlx"
+    models_dir = model_store(base).mlx
     models = (
         sorted(p for p in models_dir.glob("*") if (p / "config.json").exists())
         if models_dir.exists()

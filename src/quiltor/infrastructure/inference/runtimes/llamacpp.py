@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from quiltor.infrastructure.inference.model_store import model_store
 from quiltor.infrastructure.inference.runtimes import (
     bundled_runtime_dir,
     resolve_port,
@@ -41,7 +42,8 @@ def start(
     process and the path of the log its output is captured to.
     """
     binary = Path(binary_override) if binary_override else resolve_binary(base)
-    models = sorted((base / "models").glob("*.gguf")) if (base / "models").exists() else []
+    folder = model_store(base).gguf
+    models = sorted(folder.glob("*.gguf")) if folder.exists() else []
     model = Path(model_override) if model_override else (models[0] if models else None)
     if not binary.exists() or not model or not model.exists():
         return None
