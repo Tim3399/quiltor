@@ -165,6 +165,9 @@
         <tbody></tbody>
       </table>
       <button id="copy" type="button" class="secondary" disabled>Ergebnis kopieren</button>
+      <button id="hash" type="button" class="secondary" disabled>
+        Prüfsummen der Modelldateien berechnen (optional, dauert etwa eine Minute)
+      </button>
       <span id="copied" class="hint"></span>
     </main>
 
@@ -278,11 +281,23 @@
         const adapterInfo =
           adapter.info ?? (adapter.requestAdapterInfo ? await adapter.requestAdapterInfo() : {});
         info.webgpu = true;
+        // A software adapter (SwiftShader, WARP, llvmpipe, a fallback adapter) runs WebGPU on
+        // the CPU; a 4B model never finishes there, so the page stops before any download.
+        const named = [adapterInfo.vendor, adapterInfo.architecture, adapterInfo.description]
+          .filter(Boolean)
+          .join(" ");
+        const fallback =
+          adapterInfo.isFallbackAdapter === true || adapter.isFallbackAdapter === true;
+        const software = /swiftshader|llvmpipe|lavapipe|warp|basic render|software|\bcpu\b/i.test(
+          named,
+        );
+        info.softwareAdapter = fallback || software;
         info.gpu = {
           vendor: adapterInfo.vendor,
           architecture: adapterInfo.architecture,
           device: adapterInfo.device,
           description: adapterInfo.description,
+          isFallbackAdapter: fallback,
           features: [...adapter.features].sort(),
           limits: {
             maxBufferSize: adapter.limits.maxBufferSize,
@@ -291,7 +306,58 @@
             maxComputeInvocationsPerWorkgroup: adapter.limits.maxComputeInvocationsPerWorkgroup,
           },
         };
+        if (info.softwareAdapter)
+          return {
+            info,
+            error: `Kein Hardware-WebGPU – Messung nicht möglich (Adapter: ${named || "Fallback"}).`,
+          };
         return { info, error: null };
+      }
+
+      async function measureStorage() {
+        const storage = {};
+        try {
+          storage.persisted = await navigator.storage.persisted();
+        } catch (error) {
+          storage.persisted = `unbekannt: ${error.message}`;
+        }
+        try {
+          const { usage, quota } = await navigator.storage.estimate();
+          storage.usageMB = Math.round(usage / 2 ** 20);
+          storage.quotaMB = Math.round(quota / 2 ** 20);
+        } catch (error) {
+          storage.estimate = `unbekannt: ${error.message}`;
+        }
+        return storage;
+      }
+
+      async function sha256Hex(buffer) {
+        const digest = await crypto.subtle.digest("SHA-256", buffer);
+        return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      }
+
+      // SHA-256 of every file WebLLM keeps in the Cache API, one file at a time.
+      async function hashModelFiles() {
+        $("hash").disabled = true;
+        const hashes = {};
+        try {
+          for (const name of ["webllm/config", "webllm/wasm", "webllm/model"]) {
+            const cache = await caches.open(name);
+            const requests = await cache.keys();
+            for (const [i, request] of requests.entries()) {
+              status(`Berechne Prüfsummen (${name}) … ${i + 1} von ${requests.length}`);
+              const response = await cache.match(request);
+              hashes[request.url] = await sha256Hex(await response.arrayBuffer());
+            }
+          }
+          environment.modelFileSha256 = hashes;
+          status(`Prüfsummen für ${Object.keys(hashes).length} Dateien berechnet. Sie sind im kopierten Ergebnis.`);
+        } catch (error) {
+          environment.modelFileSha256 = `nicht berechnet: ${error.message}`;
+          status(`Prüfsummen nicht berechnet:\n${error.message}`, true);
+        } finally {
+          $("hash").disabled = false;
+        }
       }
 
       async function measureMemory() {
@@ -346,6 +412,15 @@
             await engine.unload();
             engine = null;
           }
+          // Ask once to keep the 2.5 GB download; the answer is reported, not required.
+          if (navigator.storage?.persist && environment.persistRequested === undefined) {
+            try {
+              environment.persistRequested = await navigator.storage.persist();
+            } catch (error) {
+              environment.persistRequested = `unbekannt: ${error.message}`;
+            }
+          }
+          result.storageBefore = await measureStorage();
           status(
             result.modelWasCached === true
               ? "Lade das Modell aus dem Browser-Speicher …"
@@ -365,6 +440,8 @@
           );
           result.loadSeconds = seconds(performance.now() - loadStart);
           result.loadKind = result.modelWasCached === true ? "aus dem Cache" : "erstmalig";
+          if (result.modelWasCached === true) result.cacheLoadSeconds = result.loadSeconds;
+          else result.firstLoadSeconds = result.loadSeconds;
 
           status("Modell geladen. Die KI liest jetzt den Prompt und antwortet …");
           const runStart = performance.now();
@@ -410,6 +487,10 @@
           status(`Die Messung ist fehlgeschlagen:\n${result.error}`, true);
         } finally {
           result.memory = await measureMemory();
+          result.storageAfter = await measureStorage();
+          result.storagePersisted = result.storageAfter.persisted;
+          if (result.storageAfter.usageMB !== undefined)
+            result.storageUsage = `${result.storageAfter.usageMB.toLocaleString("de-DE")} MB von ${result.storageAfter.quotaMB.toLocaleString("de-DE")} MB`;
           runs.push(result);
           render();
           $("start").disabled = false;
@@ -422,6 +503,10 @@
         ["contextWindowSize", "Kontextfenster"],
         ["loadKind", "Laden"],
         ["loadSeconds", "Ladezeit (s)"],
+        ["firstLoadSeconds", "Erstes Laden (s)"],
+        ["cacheLoadSeconds", "Laden aus dem Cache (s)"],
+        ["storagePersisted", "Dauerhafter Speicher"],
+        ["storageUsage", "Speicherbelegung"],
         ["promptTokens", "Eingabe-Tokens"],
         ["prefillSeconds", "Prefill-Zeit (s)"],
         ["prefillTokensPerSecond", "Prefill (Tokens/s)"],
@@ -510,6 +595,9 @@
         $("start").disabled = false;
         $("start").addEventListener("click", run);
         $("copy").addEventListener("click", copy);
+        $("hash").addEventListener("click", hashModelFiles);
+        $("hash").disabled = false;
+        environment.storage = await measureStorage();
       }
 
       init();

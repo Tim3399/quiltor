@@ -53,7 +53,17 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
 - The model is WebLLM's prebuilt `Qwen3-4B-q4f16_1-MLC` entry. Its `mlc-chat-config.json`, wasm
   library and `tokenizer.json` carry `integrity` hashes through WebLLM's own option. The weight
   shards cannot: WebLLM 0.2.86 has no integrity option for them.
-- Without WebGPU the page says so and stops before any download.
+- Without WebGPU, or with a software adapter (SwiftShader, WARP, llvmpipe, any adapter flagged
+  `isFallbackAdapter`), the page says so and stops before any download.
+- Each run also records `navigator.storage.persisted()` and `estimate()` before and after,
+  the first load and the load from the cache as separate values, and, on request, the SHA-256
+  of every file WebLLM keeps in the Cache API (`webllm/config`, `webllm/wasm`, `webllm/model`).
+- Measurement 2: the 8192 window is a runtime option. WebLLM 0.2.86 builds the model config in
+  `MLCEngine.reloadInternal` (`lib/index.js`, line 18243) as `{...mlc-chat-config.json,
+...modelRecord.overrides, ...chatOpts}`. The prebuilt entry overrides `context_window_size`
+  to 4096, the model's own config says 40960, and `CreateMLCEngine(id, config,
+{ context_window_size: 8192 })` wins over both. The wasm library is `_cs1k`, which fixes the
+  prefill chunk, not the window.
 - Opening: `npx serve tools/evaluation/browser-inference` (tested end to end) or a double-click on
   `index.html` (`file://`; the WebLLM import and the browser cache work there, a full run was only
   tested over http).
@@ -70,4 +80,6 @@ prefill and decode times, token counts, schema validity, browser, GPU and memory
 5. Klicke noch einmal „Messung starten“ – jetzt kommt das Modell aus dem Speicher.
 6. Wenn du magst, wiederhole das mit den beiden anderen Optionen (4096 schlägt absichtlich fehl,
    das ist ein Ergebnis).
-7. Klicke **„Ergebnis kopieren“** und schicke den kopierten Text per Nachricht an Tim.
+7. Wenn du magst, klicke **„Prüfsummen der Modelldateien berechnen“** und warte, bis oben die
+   Anzahl der Dateien steht.
+8. Klicke **„Ergebnis kopieren“** und schicke den kopierten Text per Nachricht an Tim.
