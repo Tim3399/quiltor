@@ -31,6 +31,7 @@ from quiltor.infrastructure.persistence.sqlite import (
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.assistant.jobs import AssistantJobRunner
 from quiltor.modules.identity.service import LocalIdentity
+from tests.python.request_timeout import REQUEST_TIMEOUT
 
 
 class _UnavailableInference:
@@ -118,7 +119,7 @@ class _LiveServerTestCase(unittest.TestCase):
             method=method,
         )
         try:
-            with urllib.request.urlopen(request, timeout=5) as response:
+            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
                 return response.status, json.loads(response.read())
         except urllib.error.HTTPError as exc:
             return exc.code, json.loads(exc.read())
