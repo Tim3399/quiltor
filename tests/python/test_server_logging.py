@@ -8,12 +8,14 @@ real server.Server, so the hooks are pinned where they sit and not on a stand-in
 
 import ast
 import contextlib
+import errno
 import http.client
 import io
 import json
 import logging
 import os
 import re
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -450,6 +452,93 @@ class UnhandledTests(_LiveServer):
         self.assertIn("Traceback", line["traceback"])
         self.assertNotIn(CANARY, repr(self.capture.lines))
         self.assertEqual(stderr.getvalue(), "")
+
+
+class StorageFailureTests(_LiveServer):
+    """A storage failure answers with a stable code and logs the raw one behind it."""
+
+    def fail_with(self, error: Exception):
+        def fails(handler, request, app):
+            raise error
+
+        self.fresh()
+        with patch.dict(api_routes.GET, {"/api/test-storage": api_routes.Registration(fails)}):
+            status, _, raw = self.request("GET", "/api/test-storage")
+        return status, json.loads(raw)
+
+    def sqlite_error(self, code: int, name: str) -> sqlite3.OperationalError:
+        error = sqlite3.OperationalError(f"{CANARY} /private/{CANARY}.db")
+        error.sqlite_errorcode = code
+        error.sqlite_errorname = name
+        return error
+
+    def assert_body_unchanged(self, body: dict, expected: http_errors.HttpError, line: dict):
+        wanted = expected.payload()
+        wanted["error"]["requestId"] = line["request_id"]
+        self.assertEqual(body, wanted)
+
+    def test_each_sqlite_failure_is_logged_with_its_raw_code(self):
+        cases = [
+            (sqlite3.SQLITE_FULL, "SQLITE_FULL", "storage.full"),
+            (sqlite3.SQLITE_READONLY, "SQLITE_READONLY", "storage.read_only"),
+            (sqlite3.SQLITE_BUSY, "SQLITE_BUSY", "storage.locked"),
+            (sqlite3.SQLITE_READONLY_DBMOVED, "SQLITE_READONLY_DBMOVED", "storage.read_only"),
+        ]
+        for raw_code, name, code in cases:
+            with self.subTest(name):
+                status, body = self.fail_with(self.sqlite_error(raw_code, name))
+                line = self.only("storage.failed")
+                self.assertEqual(status, 503)
+                self.assertEqual(line["level"], "error")
+                self.assertEqual(line["code"], code)
+                self.assertEqual(line["sqlite_code"], raw_code)
+                self.assertEqual(line["sqlite_name"], name)
+                self.assertNotIn("errno", line)
+                self.assert_body_unchanged(body, http_errors.for_status(503, code=code), line)
+                self.assertNotIn("sqlite", json.dumps(body))
+
+    def test_a_full_disk_is_logged_with_its_errno(self):
+        status, body = self.fail_with(OSError(errno.ENOSPC, f"{CANARY}", f"/private/{CANARY}"))
+        line = self.only("storage.failed")
+        self.assertEqual(status, 503)
+        self.assertEqual(line["code"], "storage.full")
+        self.assertEqual(line["errno"], errno.ENOSPC)
+        self.assertEqual(line["errno_name"], "ENOSPC")
+        self.assertNotIn("sqlite_code", line)
+        self.assert_body_unchanged(body, http_errors.for_status(503, code="storage.full"), line)
+
+    def test_an_unclassified_sqlite_failure_is_a_500_with_its_code(self):
+        status, body = self.fail_with(self.sqlite_error(sqlite3.SQLITE_CORRUPT, "SQLITE_CORRUPT"))
+        line = self.only("storage.failed")
+        self.assertEqual(status, 500)
+        self.assertEqual((line["code"], line["sqlite_code"]), ("application.internal_error", 11))
+        self.assert_body_unchanged(body, http_errors.for_status(500), line)
+
+    def test_the_line_carries_neither_a_path_nor_the_exception_text(self):
+        self.fail_with(self.sqlite_error(sqlite3.SQLITE_FULL, "SQLITE_FULL"))
+        self.fail_with(OSError(errno.ENOSPC, CANARY, f"/private/{CANARY}"))
+        self.assertNotIn(CANARY, repr(self.capture.lines))
+        self.assertNotIn("/private", repr(self.capture.lines))
+        allowed = log_schema.EVENTS["storage.failed"] | {"event", "level"}
+        for line in self.lines("storage.failed"):
+            self.assertLessEqual(line.keys(), allowed)
+
+    def test_failures_that_are_not_storage_failures_write_no_line(self):
+        for error in (
+            PermissionError(errno.EACCES, "denied"),
+            FileNotFoundError(errno.ENOENT, "x"),
+        ):
+            with self.subTest(type(error).__name__):
+                self.fail_with(error)
+                self.assertEqual(self.lines("storage.failed"), [])
+
+    def test_the_log_fields_never_reach_the_response_payload(self):
+        error = http_errors.from_exception(self.sqlite_error(sqlite3.SQLITE_FULL, "SQLITE_FULL"))
+        self.assertEqual(error.log_fields["sqlite_code"], sqlite3.SQLITE_FULL)
+        self.assertEqual(
+            error.payload(), http_errors.for_status(503, code="storage.full").payload()
+        )
+        self.assertEqual(error, http_errors.for_status(503, code="storage.full"))
 
 
 class LoggerTests(unittest.TestCase):
