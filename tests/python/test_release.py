@@ -1355,8 +1355,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             "node tools/dev/test-shards.mjs select --os linux --slots 4",
             'npx playwright test --test-list "$lists/product.txt"',
             "npx playwright test --config playwright.design.config.ts",
-            "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1",
-            "PLAYWRIGHT_WORKERS=2 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
+            'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1',
+            'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_DESIGN" PLAYWRIGHT_JSON_OUTPUT_FILE=',
         ):
             self.assertIn(required_gate, test_workflow)
         workflow_contract.validate_browser_e2e_sharding(workflow_contract._workflow_sources())
@@ -1520,6 +1520,33 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 mutated[TEST_WORKFLOW] = head + marker + job.replace(original, replacement, 1)
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_cross_platform_browser_sharding(mutated)
+
+    def test_worker_counts_come_from_one_setting_per_system(self):
+        sources = {TEST_WORKFLOW: TEST_WORKFLOW.read_text(encoding="utf-8")}
+        workflow_contract.validate_playwright_worker_settings(sources)
+        mutations = (
+            ("setting removed", '  WORKERS_MACOS: "2"\n', "", "one workflow-level worker count"),
+            ("not a number", 'WORKERS_WINDOWS: "1"', 'WORKERS_WINDOWS: "x"', "positive integer"),
+            ("zero", 'WORKERS_LINUX_DESIGN: "2"', 'WORKERS_LINUX_DESIGN: "0"', "positive integer"),
+            (
+                "literal on Linux",
+                'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT"',
+                "PLAYWRIGHT_WORKERS=1",
+                "not a literal",
+            ),
+            (
+                "literal on the cross-platform slots",
+                workflow_contract.CROSS_PLATFORM_WORKERS_BINDING,
+                "PLAYWRIGHT_WORKERS: 3",
+                "not a literal",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, sources[TEST_WORKFLOW])
+                mutated = {TEST_WORKFLOW: sources[TEST_WORKFLOW].replace(original, replacement, 1)}
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_playwright_worker_settings(mutated)
 
     def test_matrix_decision_truth_table(self):
         plan = workflow_contract._job_body(TEST_WORKFLOW.read_text(encoding="utf-8"), "plan")
