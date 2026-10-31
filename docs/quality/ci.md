@@ -260,7 +260,7 @@ path`), plus a wall factor per suite and system: wall time of the slots over the
   above 115). With durations the busiest slot gets 78.
 - **macOS** runs three slots instead of two; with two, slot 1 took 13.5 minutes.
 
-Contracts: `tools/dev/test-shards.test.mjs` (in `npm run check` through `test:audit-tools`)
+Contracts: `tools/dev/test-shards.test.mjs` (in `npm run check` through `test:tools`)
 reads the slot shapes from test.yml, lists the current suites and checks for every system that
 every test is assigned exactly once and selected by exactly one slot's list under Playwright's
 own matching rule. `workflow_contract.py` holds the slot topology, the fail-closed shell and the

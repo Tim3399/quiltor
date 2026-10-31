@@ -21,7 +21,7 @@ overrides). Each link is still an npm script of its own, so one can be run alone
   keep their caches in separate places. The shared resource is the CPU, hence the cap.
 - **Tests.** `tools/dev/run-check.test.mjs` (fake links: all green, one red, several red, the
   cap) and a contract that `LINKS` equals the former chain, each link once, and that every
-  link is an npm script. It runs with `test:audit-tools`, which gained `tools/dev/*.test.mjs`:
+  link is an npm script. It runs with `test:tools`, which gained `tools/dev/*.test.mjs`:
   that script is the existing `node --test` run in `check` for repository tooling.
 - **CI.** The `frontend` job still calls `npm run check`. The runner spawns children with
   piped output and no stdin, uses no TTY features and sets `NO_COLOR`.
