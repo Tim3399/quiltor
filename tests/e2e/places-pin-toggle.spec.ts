@@ -254,3 +254,24 @@ test("Compact pin toggles remain keyboard reachable without replacing map action
     animations: "disabled",
   });
 });
+
+test("A place card lists its display toggle left of the open command, as the pin does", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "wide", "Button geometry uses the fixed wide canvas.");
+  await useGermanTheme(page);
+  await mockExpandedMapWorld(page);
+  await openExpandedMapWorld(page);
+
+  const graufurthNode = placeNode(page, "graufurth");
+  await graufurthNode.locator(".story-node").hover();
+  const toggle = graufurthNode.getByRole("button", {
+    name: "Ort Graufurth als Stecknadel anzeigen",
+  });
+  const open = graufurthNode.locator(".place-node__enter").last();
+  await expect(open).toBeVisible();
+  const toggleBox = await toggle.boundingBox();
+  const openBox = await open.boundingBox();
+  if (!toggleBox || !openBox) throw new Error("The place card buttons have no screen geometry.");
+  expect(toggleBox.x + toggleBox.width).toBeLessThanOrEqual(openBox.x + GEOMETRY_TOLERANCE);
+});
