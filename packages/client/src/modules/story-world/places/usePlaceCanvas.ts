@@ -16,7 +16,7 @@ import { type MeasuredSizes, NO_MEASURED_SIZES, rememberMeasured, withMeasured }
 import { GRID_SIZE, type SemanticZoomTier, semanticZoomTier } from "../figures/relationships";
 import type { FigureNode, FigureState, MapScale } from "../model";
 import type { PlaceGroundNode } from "./PlaceGround";
-import type { PlaceMapFlowNode } from "./PlaceMapNode";
+import type { MapBox, PlaceMapFlowNode } from "./PlaceMapNode";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
 import {
   createGroundNode,
@@ -105,7 +105,7 @@ export function usePlaceCanvas({
   mapImageUrl: (imageId: string) => string;
   onExpandMap: (place: FigureNode) => void;
   onPlaceDisplayChange: (place: FigureNode, display: "card" | "pin") => void;
-  onResizeMap: (place: FigureNode, size: { width: number; height: number }) => void;
+  onResizeMap: (place: FigureNode, box: MapBox) => void;
   onCropMap: (place: FigureNode, crop: ImageCrop) => void;
   /** Which map's picture is being adjusted, if any. */
   adjustingId: string | undefined;
@@ -120,9 +120,7 @@ export function usePlaceCanvas({
   const [viewportZoom, setViewportZoom] = useState(1);
   // What a handle is being dragged to right now, so the map follows the
   // gesture instead of jumping to its new size when the handle is let go.
-  const [liveSize, setLiveSize] = useState<{ id: string; width: number; height: number } | null>(
-    null,
-  );
+  const [liveSize, setLiveSize] = useState<({ id: string } & MapBox) | null>(null);
   // The crop being dragged, held here until the gesture ends so a run of tiny
   // movements is one edit rather than a hundred.
   const [cropDraft, setCropDraft] = useState<{ id: string; crop: ImageCrop } | null>(null);
@@ -390,11 +388,11 @@ export function usePlaceCanvas({
         places,
         picturesVisible,
         sourceUrl: mapImageUrl,
-        onResize: (place, size) => {
+        onResize: (place, box) => {
           setLiveSize(null);
-          resizeMap(place, size);
+          resizeMap(place, box);
         },
-        onResizeLive: (place, size) => setLiveSize({ id: place.id, ...size }),
+        onResizeLive: (place, box) => setLiveSize({ id: place.id, ...box }),
         onCropDraft: (place, crop) => setCropDraft({ id: place.id, crop }),
         onCropCommit: (place, crop) => {
           // The draft goes as the write lands, in the same batch, or the buttons
