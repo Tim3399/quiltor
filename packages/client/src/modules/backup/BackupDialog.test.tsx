@@ -70,7 +70,7 @@ function renderDialog({
     onClose,
     ...render(
       <I18nProvider>
-        <BackupDialog flush={flush} onClose={onClose} />
+        <BackupDialog onDocumentsReplaced={vi.fn()} flush={flush} onClose={onClose} />
       </I18nProvider>,
     ),
   };

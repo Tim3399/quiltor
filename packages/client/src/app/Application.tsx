@@ -369,7 +369,15 @@ export function App() {
   const releaseDocuments = useCallback(
     ({ clear, force = false }: { clear: boolean; force?: boolean }): boolean => {
       const worldId = documentsBinding.current?.worldId ?? null;
-      if (!force && (isManuscriptDirty() || isFiguresDirty() || isStoryboardsDirty())) {
+      if (force) {
+        // The server already holds other documents; unbind before anything else can run.
+        documentsBinding.current = null;
+        discardManuscript();
+        discardFigures();
+        discardStoryboards();
+        return true;
+      }
+      if (isManuscriptDirty() || isFiguresDirty() || isStoryboardsDirty()) {
         console.warn("[quiltor] release refused: unsaved changes", {
           worldId,
           at: new Date().toISOString(),
@@ -403,6 +411,10 @@ export function App() {
       storyboardHistory.clear,
     ],
   );
+  // A restore replaced the world on the server; the documents on screen must never save over it.
+  const releaseReplacedDocuments = useCallback(() => {
+    releaseDocuments({ clear: false, force: true });
+  }, [releaseDocuments]);
   const returnToWorldSelection = useCallback(async () => {
     try {
       await flushAll();
@@ -599,6 +611,7 @@ export function App() {
             onTarget={workspace.setTarget}
             onCommand={executeCommand}
             flushAll={flushAll}
+            onDocumentsReplaced={releaseReplacedDocuments}
             pendingRename={pendingRename}
             onManuscriptChange={manuscriptHistory.change}
             onCloseRename={() => setPendingRename(null)}

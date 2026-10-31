@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import type { Manuscript } from "../../modules/manuscript";
@@ -147,5 +147,132 @@ describe("documents stay bound to the world they were loaded for", () => {
     expect(
       warn.mock.calls.some((call) => String(call[0]).startsWith("[quiltor] save refused")),
     ).toBe(false);
+  });
+});
+
+async function openWorldAndSaveOnce() {
+  render(
+    <I18nProvider>
+      <App />
+    </I18nProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Welt A – Welt öffnen" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Anfang in A" }));
+  await wait(1000);
+  expect(saves).toHaveLength(1);
+}
+
+async function undoAndSaveBehind(focused: HTMLElement) {
+  focused.focus();
+  // The first change after a release only primes the autosave; the redo is a real edit.
+  fireEvent.keyDown(focused, { key: "z", ctrlKey: true });
+  await wait(50);
+  fireEvent.keyDown(focused, { key: "z", ctrlKey: true, shiftKey: true });
+  await wait(1000);
+  fireEvent.keyDown(focused, { key: "s", ctrlKey: true });
+  await wait(100);
+}
+
+const refusedSave = (warn: ReturnType<typeof vi.spyOn>) =>
+  warn.mock.calls.some((call) => String(call[0]).startsWith("[quiltor] save refused"));
+
+describe("a world replaced on the server is never saved over (P-Q4)", () => {
+  it("refuses every save after a backup restore that stops before reloading", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const backup = quiltorClient.application.backup;
+    vi.spyOn(backup, "location").mockResolvedValue({
+      ok: true,
+      storage: {
+        databasePath: "C:\\Quiltor\\world.sqlite3",
+        backupDirectory: "C:\\Quiltor\\backups",
+        lastSuccessfulBackup: "2026-10-30T08:30:00Z",
+        scope: "application-host",
+        canOpenFolder: false,
+      },
+    });
+    vi.spyOn(backup, "list").mockResolvedValue({
+      ok: true,
+      backups: [{ name: "snapshot-1", created: "2026-10-30T08:30:00Z", size: 2048 }],
+    });
+    vi.spyOn(backup, "preview").mockResolvedValue({
+      ok: true,
+      documents: {
+        manuscript: {
+          chapters: [{ id: "chapter-1", title: "Sicherung", body: "Alter Stand", note: "" }],
+        },
+        figures: { nodes: [], edges: [] },
+        storyboards: { boards: [], nodes: [], edges: [] },
+      },
+    });
+    const restore = vi
+      .spyOn(backup, "restore")
+      .mockResolvedValue({ ok: true, warnings: ["backup.mirror_failed"] });
+    await openWorldAndSaveOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sicherungen" }));
+    fireEvent.click(await screen.findByRole("button", { name: /2 KB/ }));
+    await screen.findByText("Sicherung");
+    fireEvent.click(screen.getByRole("button", { name: "Sicherung wiederherstellen" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Sicherung wiederherstellen" });
+    vi.useFakeTimers();
+    try {
+      const confirm = within(dialog).getByRole("button", { name: /gedrückt halten/i });
+      fireEvent.pointerDown(confirm, { pointerId: 1 });
+      await vi.advanceTimersByTimeAsync(3000);
+    } finally {
+      vi.useRealTimers();
+    }
+    const reload = await screen.findByRole("button", { name: "Quiltor neu laden" });
+    expect(restore).toHaveBeenCalledOnce();
+
+    await undoAndSaveBehind(reload);
+    expect(saves).toHaveLength(1);
+    expect(refusedSave(warn)).toBe(true);
+  });
+
+  it("refuses every save after a cloud synchronisation that requires a reload", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(quiltorClient.application.backup, "loginStatus").mockResolvedValue({
+      ok: true,
+      configured: true,
+      hosted: false,
+      endpoint: "https://cloud.example.test",
+      signedIn: true,
+    });
+    const status = {
+      ok: true as const,
+      configured: true,
+      endpoint: "https://cloud.example.test/project",
+      mode: "manual" as const,
+      state: "remote-pending" as const,
+      localFingerprint: "b".repeat(64),
+      baseGeneration: 1,
+      remote: { generation: 2, snapshotId: "a".repeat(64) },
+      lastSyncedAt: "2026-10-30T09:00:00Z",
+      account: {
+        accountId: "account-1",
+        access: "read-write" as const,
+        usedBytes: 4096,
+        limitBytes: 8192,
+        deleteAfter: null,
+      },
+    };
+    vi.spyOn(quiltorClient.application.synchronization, "status").mockResolvedValue(status);
+    vi.spyOn(quiltorClient.application.synchronization, "synchronize").mockResolvedValue({
+      ok: true,
+      status: { ...status, state: "synced", baseGeneration: 2 },
+      reloadRequired: true,
+    });
+    await openWorldAndSaveOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Cloud-Synchronisation" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Jetzt synchronisieren" }));
+    const reload = await screen.findByRole("button", { name: "Quiltor neu laden" });
+
+    await undoAndSaveBehind(reload);
+    expect(saves).toHaveLength(1);
+    expect(refusedSave(warn)).toBe(true);
   });
 });
