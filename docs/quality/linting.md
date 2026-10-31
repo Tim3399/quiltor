@@ -327,6 +327,12 @@ code change) and the optional MLX runtime's pins,
   renderer calls `katex.renderToString`, and markdownlint never calls the renderer, so the
   major jump cannot change lint results. Remove the entry once micromark-extension-math accepts a
   fixed katex.
+  Also `minimatch` 11.0.1 (GHSA-g3hv-75wg-m249), pulled in by eslint 10.13.0 and
+  @eslint/config-array, which declare `^10`; and `re2js` 2.8.7 (GHSA-gg6h-894w-4m9c), pulled
+  in by markdownlint, which pins 2.8.6. eslint 10.14.0 and markdownlint-cli2 0.24.0 are the
+  newest releases and still ask for the vulnerable ranges, so a bump cannot help. Both
+  packages are dev-only (dist/ is unaffected); eslint and markdownlint results are compared
+  before and after. Remove each entry once its parent accepts the fixed version.
 - **npm 10.9.8 and vitest:** npm 10.9.8 cannot resolve vitest 4.1.x (an Arborist
   `#loadPeerSet` error), so `npm install vitest@<version>` fails. The lock entries were set
   by hand; `npm ci`, `npm ls --all` and `npm install` accept the lock unchanged. It is an npm
