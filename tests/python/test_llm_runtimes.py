@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +9,14 @@ from quiltor.infrastructure.inference.runtimes import llamacpp, mlx
 
 
 class RuntimeLaunchContractTests(unittest.TestCase):
+    def setUp(self):
+        # The tests lay models out under <tmp>/models; a QUILTOR_MODELS_DIR in the
+        # developer's environment would send the runtimes to a different folder.
+        env = patch.dict(os.environ)
+        env.start()
+        self.addCleanup(env.stop)
+        os.environ.pop("QUILTOR_MODELS_DIR", None)
+
     def test_llamacpp_starts_with_the_shared_8192_token_context(self):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)

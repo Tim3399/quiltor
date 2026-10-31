@@ -7,6 +7,7 @@ import { type Chapter, isChapterInBook } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { AssistantComposer } from "./AssistantComposer";
 import { AssistantConversation } from "./AssistantConversation";
+import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import { AssistantStatusPanel } from "./AssistantStatusPanel";
 import type { AssistantProposal } from "./model";
 import type { AssistantProposalApplyResult } from "./proposals";
@@ -45,6 +46,12 @@ export function AssistantDrawer({
   const [forcedChapterIds, setForcedChapterIds] = useState<string[]>([]);
   const [chapterPickerOpen, setChapterPickerOpen] = useState(false);
   const [extractionScope, setExtractionScope] = useState<"current" | "selected" | "all">("current");
+  // Held here rather than in the proposal list: a compact/regular switch remounts `content`.
+  const [proposalEdit, setProposalEdit] = useState<{
+    entryId: string;
+    index: number;
+    draft: AssistantProposal;
+  } | null>(null);
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia("(max-width: 719px)").matches,
   );
@@ -87,6 +94,9 @@ export function AssistantDrawer({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     if (!open) setChapterPickerOpen(false);
+    // Closing the assistant discards an open proposal edit, as it did before the edit
+    // moved up here.
+    if (!open) setProposalEdit(null);
   }, [open]);
 
   const openChapterPicker = () => {
@@ -207,9 +217,21 @@ export function AssistantDrawer({
         onNavigate={onNavigate}
         onApply={apply}
         onDismiss={dismiss}
-        onEdit={edit}
+        onStartEdit={(entryId, index, proposal) =>
+          setProposalEdit({ entryId, index, draft: structuredClone(proposal) })
+        }
         onClassifyClaim={classifyClaim}
       />
+      {proposalEdit && entries.some((entry) => entry.id === proposalEdit.entryId) && (
+        <AssistantProposalEditor
+          draft={proposalEdit.draft}
+          figures={figures}
+          insideSheet={compact}
+          onDraftChange={(draft) => setProposalEdit((current) => current && { ...current, draft })}
+          onSave={(proposal) => edit(proposalEdit.entryId, proposalEdit.index, proposal)}
+          onClose={() => setProposalEdit(null)}
+        />
+      )}
       <AssistantComposer
         chapters={chapters}
         forcedChapterIds={forcedChapterIds}

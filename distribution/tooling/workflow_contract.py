@@ -1451,6 +1451,23 @@ def validate_native_release_targets(sources: dict[Path, str]) -> None:
         )
 
 
+def validate_security_events_scope(sources: dict[Path, str]) -> None:
+    """
+    `security-events: write` belongs to the job that uploads results, never to the workflow.
+
+    At workflow level every job would inherit it, and zizmor does not flag that in its default
+    persona. Everything above the `jobs:` mapping is workflow level.
+    """
+
+    for path, source in sources.items():
+        workflow_level = re.split(r"^jobs:", source, maxsplit=1, flags=re.MULTILINE)[0]
+        if re.search(r"^\s*security-events\s*:\s*write", workflow_level, re.MULTILINE):
+            raise WorkflowContractError(
+                f"{path.name} grants security-events: write at workflow level; "
+                "grant it in the job that uploads the results"
+            )
+
+
 def validate_repository(repo_root: Path = REPO_ROOT) -> None:
     global REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK
     original = (REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK)
@@ -1478,6 +1495,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_test_caches(sources)
         validate_type_check_extras(sources)
         validate_native_release_targets(sources)
+        validate_security_events_scope(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original
 

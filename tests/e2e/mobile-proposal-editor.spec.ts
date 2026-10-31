@@ -136,3 +136,35 @@ test("the proposal editor stays operable above the assistant sheet", async ({ pa
   await expect(from).toHaveText(/Cleo/);
   await expect(to).toHaveText(/Ada/);
 });
+
+test("an unsaved proposal edit survives a switch across the compact breakpoint", async ({
+  page,
+}, testInfo) => {
+  // The test drives the viewport itself, so one desktop-sized project covers it.
+  test.skip(testInfo.project.name !== "regular", "resizes the viewport itself");
+  const drawer = await openAssistantWithProposal(page);
+  await drawer.getByRole("button", { name: "Bearbeiten", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "Bearbeiten" });
+  const label = editor.getByRole("textbox", { name: "Bezeichnung" });
+  await label.fill("Misstrauen");
+
+  // Below 720 px the drawer turns into the modal sheet; the open editor and its draft stay,
+  // and the editor is the topmost modal rather than inert inside the sheet.
+  await page.setViewportSize({ width: 700, height: 900 });
+  await expect(page.locator('[role="dialog"][aria-label="Lokaler Assistent"]')).toBeAttached();
+  await expect(editor).toBeVisible();
+  await expect.poll(() => editor.evaluate((node) => !node.closest("[inert]"))).toBe(true);
+  await expect(label).toHaveValue("Misstrauen");
+
+  // And back to the side panel.
+  await page.setViewportSize({ width: 900, height: 760 });
+  const panel = page.getByRole("complementary", { name: "Lokaler Assistent" });
+  await expect(panel).toBeVisible();
+  await expect(editor).toBeVisible();
+  await expect(label).toHaveValue("Misstrauen");
+
+  await editor.getByRole("button", { name: "Änderung speichern" }).click();
+  await expect(editor).toHaveCount(0);
+  await panel.getByRole("button", { name: "Bearbeiten", exact: true }).click();
+  await expect(label).toHaveValue("Misstrauen");
+});

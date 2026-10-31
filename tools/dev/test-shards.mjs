@@ -157,8 +157,9 @@ export function assign(ids, table, slots, { loads = [], maxTests = Infinity, fac
     best.tests.push(test);
     best.ms += test.ms;
   }
-  // A slot the other work already fills would get nothing, and Playwright fails a test list
-  // that selects no test. Give it the shortest test of the slot that holds the most.
+  // A slot the other work already fills would get nothing, and Playwright 1.61 exits 0 with
+  // no output for a test list that selects no test, so the slot would pass without running
+  // anything. Give it the shortest test of the slot that holds the most.
   for (const slot of result) {
     if (slot.tests.length) continue;
     const donor = result.reduce((a, b) => (b.tests.length > a.tests.length ? b : a));
