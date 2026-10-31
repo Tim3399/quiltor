@@ -41,6 +41,7 @@ import {
 import { WorldSessionBoundary } from "./world/WorldSessionBoundary";
 
 type DocumentFamily = "manuscript" | "figures" | "storyboards";
+type DocumentsLoad = { worldId: string; generation: number; state: "pending" | "loaded" };
 
 export function App() {
   const { t } = useI18n();
@@ -66,6 +67,8 @@ export function App() {
   });
   // The world selection the documents in the histories belong to; null once they were released.
   const documentsBinding = useRef<WorldBinding | null>(null);
+  // Which load the workspace shows; the editor stays unmounted until it is "loaded".
+  const [documentsLoad, setDocumentsLoad] = useState<DocumentsLoad | null>(null);
   // Latest render's state for the identity-stable loadDocuments; filled in after the hooks below.
   const live = useRef<{
     saves: {
@@ -94,6 +97,11 @@ export function App() {
       manuscriptHistory.load(loadedManuscript);
       figureHistory.load(loadedFigures);
       storyboardHistory.load(loadedStoryboards);
+      setDocumentsLoad({
+        worldId: binding.worldId,
+        generation: binding.generation,
+        state: "loaded",
+      });
       setOrphanedMentions(count);
       setCurrentChapterId(loadedManuscript.chapters[0]?.id || "");
       setMirrorWarnings({ manuscript: false, figures: false, storyboards: false });
@@ -101,6 +109,8 @@ export function App() {
     [figureHistory.load, manuscriptHistory.load, storyboardHistory.load],
   );
   const session = useWorldSession(loadDocuments);
+  const documentsReady =
+    documentsLoad?.state === "loaded" && documentsLoad.worldId === session.world?.id;
   const workspace = useWorkspaceController();
   const overlays = useOverlayController();
   const shell = useShellStatus();
@@ -409,6 +419,7 @@ export function App() {
         return false;
       }
       documentsBinding.current = null;
+      setDocumentsLoad(null);
       if (clear) {
         manuscriptHistory.clear();
         figureHistory.clear();
@@ -559,6 +570,7 @@ export function App() {
                 key={session.world.id}
                 worldId={session.world.id}
                 worldTitle={session.world.title}
+                documentsReady={documentsReady}
                 workspace={workspace.workspace}
                 manuscript={manuscript}
                 figures={figures}
