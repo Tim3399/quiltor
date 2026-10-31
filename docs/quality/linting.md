@@ -293,9 +293,11 @@ a comment saying so.
 ## osv-scanner
 
 Checks every lockfile a release depends on against the OSV advisory database:
-`package-lock.json`, `Cargo.lock` and the hash-locked Python release locks listed in
+`package-lock.json`, `Cargo.lock`, the hash-locked Python release locks listed in
 `distribution/dependency-locks.json` (read from there, so a new lock is scanned without a
-code change). Any known vulnerability fails the gate, whatever its severity.
+code change) and the optional MLX runtime's pins,
+`src/quiltor/resources/sidecars/inference/mlx/requirements.lock` (a fixed entry in
+`tools/dev/lint-tool.mjs`, because the lock contract does not list it). Any known vulnerability fails the gate, whatever its severity.
 
 - **Version:** 2.7.0, pinned with download URL and SHA-256 in `distribution/toolchains.json`
   (`lintTools["osv-scanner"]`).
