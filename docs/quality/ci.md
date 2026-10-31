@@ -586,6 +586,71 @@ expressions in test.yml and the real configuration.
 Job counts include `plan` and `browser-e2e`, with each matrix slot as one job. The timings are
 open until a push with the user's approval.
 
+## Workers per runner
+
+T-39. Each browser runner starts Playwright with a worker count that `test.yml` sets in one
+place per system, the workflow-level `env:` block:
+
+| Setting                 | Today | Used by                                                   |
+| ----------------------- | ----- | --------------------------------------------------------- |
+| `WORKERS_LINUX_PRODUCT` | 1     | product shard on Linux (with `PLAYWRIGHT_FULLY_PARALLEL`) |
+| `WORKERS_LINUX_DESIGN`  | 2     | design shard on Linux                                     |
+| `WORKERS_WINDOWS`       | 1     | product and design shard and the smoke specs on Windows   |
+| `WORKERS_MACOS`         | 2     | product and design shard and the smoke specs on macOS     |
+
+The steps hand the value to Playwright as `PLAYWRIGHT_WORKERS`
+(`tests/playwright/workers.ts`). Without it, a local run uses the config's default: 2 for the
+product suite, 4 for the design suite. `workflow_contract.py` requires the four settings to be
+positive integers and refuses a literal `PLAYWRIGHT_WORKERS` in any browser job.
+
+**Nothing needs to run serially for a reason of its own.** Every product test creates and deletes
+its own world through the fixture (`tests/e2e/support/world-fixture.ts`), the design suite serves
+fixed pages, and the audit rules use route mocks. No spec holds a fixed port, a global file or a
+lock besides the one server on `:8010`, which already serves two workers locally. The only
+ceiling found is a runner-wide one: Windows exhausts its network buffers (F2), which is why
+`WORKERS_WINDOWS` stays at 1 until a measurement says otherwise. `book-pagination-performance`
+records its pagination time but asserts none, so extra workers cannot turn it red.
+
+**The shard assignment does not take the count as input.** `test-shards.mjs` converts test
+durations to wall time with the measured wall factor of a suite and system
+(`tests/playwright/durations.json`). A new worker count changes that factor, so after a
+measurement run `update` (see "Updating the table") from the same reports, otherwise the slots
+are cut for the old count.
+
+### Measurement: workers per system and run time
+
+To be filled in by the orchestrator. One row per value and system; flakes are runs of the
+slot that went red and turned green unchanged.
+
+| System, suite | Workers | Runs | Slowest slot, tests (min) | Slowest job (min) | Flakes |
+| ------------- | ------- | ---- | ------------------------- | ----------------- | ------ |
+| Linux product | 2       |      |                           |                   |        |
+| Linux product | 3       |      |                           |                   |        |
+| Linux product | 4       |      |                           |                   |        |
+| Linux design  | 3       |      |                           |                   |        |
+| Linux design  | 4       |      |                           |                   |        |
+| Windows       | 2       |      |                           |                   |        |
+| Windows       | 3       |      |                           |                   |        |
+| Windows       | 4       |      |                           |                   |        |
+| macOS         | 3       |      |                           |                   |        |
+| macOS         | 4       |      |                           |                   |        |
+
+Linux product at 1 and design at 2, Windows at 1 and macOS at 2 are the baseline, measured in
+the sections above.
+
+Steps, per value and system (needs the user's approval for every push):
+
+1. On a throw-away branch, change the one setting in the `env:` block of `test.yml`. Change one
+   system at a time, so a red run points at it.
+2. Push and start `Test` (`workflow_dispatch` with `full_matrix: true` for Windows and macOS).
+3. Repeat to at least **three runs** per value. One green run says nothing about a flake that
+   shows once in ten.
+4. Per run, read the slowest slot's "Run product and design shards" step and its whole job from
+   the run page. A rerun of a red slot counts as a flake when the same commit turns green.
+5. Enter the medians in the table, set the best value that stayed free of new flakes in the
+   `env:` block, and run `node tools/dev/test-shards.mjs update` on that run's
+   `browser-durations-*` reports for the new wall factor.
+
 ## Flakes
 
 Every first attempt of `test.yml` that went red and turned green on a re-run, from 182 runs

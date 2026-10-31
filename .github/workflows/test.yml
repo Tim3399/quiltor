@@ -33,6 +33,16 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
+# Playwright workers per runner: the one place to change them, one value per system (T-39,
+# "Workers per runner" in docs/quality/ci.md). Linux sets the product and the design suite
+# apart; Windows and macOS give both suites, and the smoke specs, the same count. Windows is
+# held at one by Chromium's ERR_NO_BUFFER_SPACE (F2).
+env:
+  WORKERS_LINUX_PRODUCT: "1"
+  WORKERS_LINUX_DESIGN: "2"
+  WORKERS_WINDOWS: "1"
+  WORKERS_MACOS: "2"
+
 jobs:
   # The only place that decides between the full and the reduced matrix. Fail-safe: the matrix
   # is reduced only for a pull request or an explicit `full_matrix: false`. An explicit true
@@ -362,12 +372,12 @@ jobs:
           design_status=1
           if [ "$select_status" -eq 0 ]; then
             echo "Product browser tests of slot $SLOT"
-            PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json \
+            PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json \
               npx playwright test --test-list "$lists/product.txt" --output=test-results/product --reporter=line,json
             product_status=$?
 
             echo "Design browser tests of slot $SLOT"
-            PLAYWRIGHT_WORKERS=2 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json \
+            PLAYWRIGHT_WORKERS="$WORKERS_LINUX_DESIGN" PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json \
               npx playwright test --config playwright.design.config.ts \
               --test-list "$lists/design.txt" --output=test-results/design --reporter=line,json
             design_status=$?
@@ -670,7 +680,7 @@ jobs:
       # Windows keeps one worker per suite: Chromium failed with ERR_NO_BUFFER_SPACE there.
       - name: Run product and design shards
         env:
-          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
+          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && env.WORKERS_WINDOWS || env.WORKERS_MACOS }}
           SYSTEM: ${{ matrix.system }}
           SLOT: ${{ matrix.slot }}
           SLOTS: ${{ matrix.slots }}
@@ -792,7 +802,7 @@ jobs:
 
       - name: Product smoke specs
         env:
-          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
+          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && env.WORKERS_WINDOWS || env.WORKERS_MACOS }}
         shell: bash
         run: >-
           npx playwright test
