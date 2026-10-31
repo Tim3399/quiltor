@@ -32,6 +32,13 @@ export const writing = {
   grammarJavaMissing: "Local grammar checking requires Java {version} or newer.",
   grammarBrowserFallback: "Until then the browser checks spelling.",
   grammarCheckError: "The grammar check could not be completed.",
+  grammarDownloadFailed:
+    "LanguageTool could not be downloaded. Check the internet connection and try again.",
+  grammarChecksumMismatch:
+    "The downloaded LanguageTool file is not the expected one, so it was not installed.",
+  grammarStartFailed: "LanguageTool is installed but could not be started.",
+  grammarServerUnavailable: "The grammar check is not responding right now. Try again shortly.",
+  grammarExternalOptInRequired: "An external grammar service is configured but not enabled.",
   grammarIssueCount: "{count} issues found.",
   grammarReady: "No open grammar issues.",
   writingAttribution: "Sources and licenses",
@@ -39,6 +46,10 @@ export const writing = {
   writingDataInstall: "Install language data",
   writingDataInstalling: "Installing language data …",
   writingRequestError: "The request could not be completed.",
+  writingStatusError: "The writing aid's status could not be loaded.",
+  writingCoreOnly: "Only the basic vocabulary is installed",
+  writingCoreOnlyHint:
+    "The language data so far holds only a few sample words, so most words are still missing.",
   writingNoResults: "No results found.",
   writingMore: "Show more",
   writingCopy: "Copy “{word}”",

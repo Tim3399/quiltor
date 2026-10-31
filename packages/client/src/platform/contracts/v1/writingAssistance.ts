@@ -8,6 +8,7 @@ import type { WritingIssue } from "../../../modules/manuscript";
 export interface WritingAssistanceStatusWireV1 {
   ok: boolean;
   installed: boolean;
+  coverage?: "core" | "full" | null;
   stale: boolean;
   version: string | null;
   sources: Record<
