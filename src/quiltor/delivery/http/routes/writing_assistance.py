@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from quiltor.application.errors import ApplicationError
 from quiltor.delivery.http.routes import Request, get, save
 
 
@@ -73,7 +74,9 @@ def check(handler, request: Request, app) -> None:
             error_code="writing_assistance.not_installed",
             retryable=False,
         )
-    except ValueError as exc:
+    except (ApplicationError, ValueError) as exc:
+        # ApplicationError carries its own code (Java missing, server would not
+        # start); the catch-all below would flatten it to grammar_unavailable.
         handler.send_exception(exc)
     except Exception:
         # 503 rather than 500: the usual cause is the grammar server not being
