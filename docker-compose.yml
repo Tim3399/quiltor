@@ -38,6 +38,15 @@ services:
       QUILTOR_OIDC_CLIENT_SECRET: ${QUILTOR_OIDC_CLIENT_SECRET:?Set QUILTOR_OIDC_CLIENT_SECRET in .env}
       QUILTOR_PUBLIC_URL: ${QUILTOR_PUBLIC_URL:?Set QUILTOR_PUBLIC_URL in .env, e.g. https://quiltor.example.com}
       QUILTOR_COOKIE_SECURE: ${QUILTOR_COOKIE_SECURE:-auto}
+      QUILTOR_LOG_LEVEL: ${QUILTOR_LOG_LEVEL:-INFO}
+      # Empty: stderr only, which `docker compose logs quiltor` shows.
+      QUILTOR_LOG_FILE: ${QUILTOR_LOG_FILE:-}
+    logging:
+      # Docker's default json-file driver never rotates; bound the container log.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     volumes:
       - quiltor-data:/data
     networks:
