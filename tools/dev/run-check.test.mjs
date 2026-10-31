@@ -3,7 +3,18 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { defaultJobs, exitCode, formatReport, LINKS, runLinks } from "./run-check.mjs";
+import {
+  defaultJobs,
+  exitCode,
+  formatPrelude,
+  formatReport,
+  LINKS,
+  planPrelude,
+  RUST_LINKS,
+  RUST_PRELUDE,
+  runCheck,
+  runLinks,
+} from "./run-check.mjs";
 
 const pkg = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
@@ -27,7 +38,7 @@ const FORMER_CHAIN = [
   "lint:markdown",
   "lint:knip",
   "lint:typos",
-  "test:audit-tools",
+  "test:tools",
 ];
 
 const fake =
@@ -102,4 +113,106 @@ test("LINKS are the former chain, each exactly once", () => {
 test("package.json: `check` is the runner and every link is an npm script", () => {
   assert.equal(pkg.scripts.check, "node tools/dev/run-check.mjs");
   for (const link of LINKS) assert.ok(pkg.scripts[link], `missing npm script ${link}`);
+});
+
+// ---- the Rust prelude (T-76) ----
+
+// Records the order of events: the prelude step and every link.
+function recorder({ stepOutcome = { code: 0, output: "" } } = {}) {
+  const events = [];
+  return {
+    events,
+    runStep: async (step) => {
+      events.push(`step:start:${step.command}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      events.push(`step:end:${step.command}`);
+      return stepOutcome;
+    },
+    runLink: async (link) => {
+      events.push(`link:${link}`);
+      return { code: 0, output: "" };
+    },
+  };
+}
+
+test("prelude runs once, and finishes before any link starts, when a cargo link is selected", async () => {
+  const rec = recorder();
+  const { prelude, results } = await runCheck(["lint:biome", ...RUST_LINKS, "lint:ruff"], {
+    ...rec,
+    jobs: 3,
+  });
+  assert.equal(prelude.length, 1);
+  assert.equal(results.length, 3);
+  assert.deepEqual(rec.events.slice(0, 2), ["step:start:rustup", "step:end:rustup"]);
+  assert.equal(rec.events.filter((event) => event.startsWith("step:start")).length, 1);
+});
+
+test("the prelude installs the pinned toolchain through rustup", () => {
+  assert.equal(RUST_PRELUDE.command, "rustup");
+  // No toolchain argument: rust-toolchain.toml decides, components included.
+  assert.deepEqual(RUST_PRELUDE.args, ["toolchain", "install", "--no-self-update"]);
+  assert.deepEqual(planPrelude(LINKS), [RUST_PRELUDE]);
+});
+
+test("no prelude without a cargo link", async () => {
+  const rec = recorder();
+  const links = LINKS.filter((link) => !RUST_LINKS.includes(link));
+  const { prelude, results } = await runCheck(links, { ...rec, jobs: 3 });
+  assert.deepEqual(prelude, []);
+  assert.equal(results.length, links.length);
+  assert.ok(rec.events.every((event) => event.startsWith("link:")));
+});
+
+test("a red prelude makes the check red and no link runs", async () => {
+  const rec = recorder({
+    stepOutcome: { code: 1, output: "error: failed to install component\n" },
+  });
+  const { prelude, results, aborted } = await runCheck(LINKS, { ...rec, jobs: 3 });
+  assert.equal(aborted, true);
+  assert.deepEqual(results, []);
+  assert.deepEqual(rec.events, ["step:start:rustup", "step:end:rustup"]);
+  assert.equal(exitCode(results, prelude), 1);
+  const report = formatPrelude(prelude);
+  assert.match(report, /prelude: rust toolchain -- FAILED/);
+  assert.match(report, /failed to install component/);
+  assert.match(report, /no link was run/);
+});
+
+test("a prelude that throws is red as well", async () => {
+  const { prelude, results } = await runCheck(LINKS, {
+    runLink: async () => ({ code: 0, output: "" }),
+    runStep: async () => {
+      throw new Error("spawn exploded");
+    },
+    jobs: 2,
+  });
+  assert.deepEqual(results, []);
+  assert.equal(exitCode(results, prelude), 1);
+  assert.match(formatPrelude(prelude), /spawn exploded/);
+});
+
+test("without rustup the links run as before and the check stays green", async () => {
+  const rec = recorder({
+    stepOutcome: { code: 1, missing: true, output: "spawn rustup ENOENT\n" },
+  });
+  const { prelude, results, aborted } = await runCheck(LINKS, { ...rec, jobs: 3 });
+  assert.equal(aborted, false);
+  assert.equal(results.length, LINKS.length);
+  assert.equal(exitCode(results, prelude), 0);
+  assert.match(formatPrelude(prelude), /skipped \(rustup not found\)/);
+});
+
+test("RUST_LINKS lists exactly the links that reach cargo or rustc through the npm scripts", () => {
+  const reaches = (script, seen = new Set()) => {
+    const body = pkg.scripts[script];
+    if (body === undefined || seen.has(script)) return false;
+    seen.add(script);
+    if (/\b(cargo|rustc|rustup)\b/u.test(body)) return true;
+    return [...body.matchAll(/npm run ([\w:-]+)/gu)].some((match) => reaches(match[1], seen));
+  };
+  assert.deepEqual(
+    LINKS.filter((link) => reaches(link)),
+    LINKS.filter((link) => RUST_LINKS.includes(link)),
+  );
+  assert.ok(RUST_LINKS.every((link) => LINKS.includes(link)));
 });

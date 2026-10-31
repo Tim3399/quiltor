@@ -30,9 +30,9 @@ extend-exclude = [
   ".claude/output-styles/**",
   "team/roles/**",
 
-  # The agent-team tooling is written in German: hook comments, messages and the join
-  # instructions are read by the team, not by a developer of the product.
-  "team/**",
+  # The join instructions of the agent team are German and read by the team. The English
+  # code in team/ (hooks, sync, bootstrap) is checked.
+  "team/TEAM-BEITRETEN.txt",
 
   # German documents, written for the author or for the German-speaking team.
   "README.md",
@@ -82,7 +82,9 @@ extend-ignore-re = [
   # A string literal on one line that contains a German letter is German product text: a
   # prompt, a message, an example request. Its words are German, whatever they resemble.
   "\"[^\"\\n]*[äöüÄÖÜß][^\"\\n]*\"",
-  "'[^'\\n]*[äöüÄÖÜß][^'\\n]*'",
+  # A single-quoted literal opens after a non-word character, so the apostrophes of "It's"
+  # and "isn't" do not pair up and hide the English between them.
+  "(^|[^\\w'])'[^'\\n]*[äöüÄÖÜß][^'\\n]*'",
   "`[^`\\n]*[äöüÄÖÜß][^`\\n]*`",
 
   # German product text without a German letter, outside the tests. Each phrase is quoted
@@ -200,6 +202,41 @@ extend-glob = [
   "*.testSupport.tsx",
   "*.v[0-9].json",
 ]
+
+# The agent-team tooling in team/ has English code but German comments, messages and test
+# titles, read by the team. Only the German words found there are allowed, and only in these
+# files (file-name globs, see above; the names occur nowhere else). Everything else in team/
+# -- identifiers, English comments, the JSON files -- is checked like any other file.
+[type.germanteam]
+extend-glob = [
+  "sync.mjs",
+  "bootstrap.mjs",
+  "lib.mjs",
+  "policy.mjs",
+  "registry-title.mjs",
+  "selftest.mjs",
+  "session-start.mjs",
+  "start-team.cmd",
+]
+
+[type.germanteam.extend-words]
+ist = "ist"
+ein = "ein"
+oder = "oder"
+als = "als"
+alle = "alle"
+sie = "sie"
+vor = "vor"
+modell = "modell"
+startet = "startet"
+titel = "titel"
+stil = "stil"
+passt = "passt"
+normale = "normale"
+legt = "legt"
+konfiguration = "konfiguration"
+klick = "klick"
+ordner = "ordner"
 
 [type.germantest.extend-words]
 ist = "ist"

@@ -6,3 +6,14 @@
 mlx==0.32.0
 mlx-lm==0.31.3
 llguidance==1.7.6
+# Transitive dependencies pinned at their first fixed release, because
+# `npm run lint:osv` resolves the unpinned rest of this file to vulnerable
+# versions: anyio (PYSEC-2026-4024, -4025), certifi (PYSEC-2026-4320), idna
+# (PYSEC-2026-215), transformers (PYSEC-2026-3929; 5.10.0 is yanked, hence
+# 5.10.4). Check the set still resolves for the target before bumping it:
+#   MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile requirements.lock \
+#     --python-platform aarch64-apple-darwin --python-version 3.12 --only-binary :all:
+anyio==4.14.2
+certifi==2026.10.18
+idna==3.15
+transformers==5.10.4

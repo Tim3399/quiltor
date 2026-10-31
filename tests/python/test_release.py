@@ -1856,6 +1856,19 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_native_release_targets(mutated)
 
+    def test_security_events_write_stays_in_the_job(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_security_events_scope(sources)
+
+        codeql = next(path for path in sources if path.name == "codeql.yml")
+        self.assertIn("permissions: {}\n", sources[codeql])
+        mutated = dict(sources)
+        mutated[codeql] = sources[codeql].replace(
+            "permissions: {}\n", "permissions:\n  security-events: write\n", 1
+        )
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "at workflow level"):
+            workflow_contract.validate_security_events_scope(mutated)
+
     def test_release_packaging_toolchain_is_concretely_pinned(self):
         pins = {
             "build": "1.5.0",

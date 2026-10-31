@@ -3,6 +3,7 @@ name = "quiltor-ffi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Stable native entry points for the Quiltor portable core"
 
 [lib]

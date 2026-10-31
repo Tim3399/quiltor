@@ -667,7 +667,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         sync_world = self._sync_world()
         route = self._route()
-        if route is None and sync_world is None:
+        # The two routes are disjoint (the sync path has "sync" where the other has a kind),
+        # so at most one of them is set; a sync request has no route, any other has one.
+        if sync_world is None and route is None:
             return self._reply(404, {"error": "No such route."})
         if route is not None and not route[2]:
             return self._reply(405, {"error": "PUT requires a blob digest or snapshot id."})
@@ -676,13 +678,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             return self._reply(400, {"error": "Invalid request payload."})
-        maximum = (
-            MAX_SYNC_BYTES
-            if sync_world is not None
-            else MAX_BLOB_BYTES
-            if route[1] == "blobs"
-            else MAX_MANIFEST_BYTES
-        )
+        if sync_world is not None:
+            maximum = MAX_SYNC_BYTES
+        elif route is not None and route[1] == "blobs":
+            maximum = MAX_BLOB_BYTES
+        else:
+            maximum = MAX_MANIFEST_BYTES
         if length < 0 or length > maximum:
             return self._reply(413, {"error": "Payload too large."})
         payload = self.rfile.read(length)
@@ -695,6 +696,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 if sync_world is not None:
                     return self._put_sync(account, sync_world, payload)
+                if route is None:  # not reachable (404 above); narrows the type for the checker
+                    return self._reply(404, {"error": "No such route."})
                 world, kind, name = route
                 target = _safe_storage_path(
                     account, world, kind, name if kind == "blobs" else f"{name}.json"

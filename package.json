@@ -45,7 +45,7 @@
     "check:platform": "node tools/quality/check_platform_boundaries.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:audit-tools": "node --test tools/audit/*.test.mjs tools/dev/*.test.mjs",
+    "test:tools": "node --test tools/audit/*.test.mjs tools/dev/*.test.mjs",
     "test:audit-rules": "playwright test --config playwright.audit.config.ts --project rules",
     "test:e2e": "playwright test && npm run test:design",
     "design:gallery": "vite --config vite.design.config.ts",
