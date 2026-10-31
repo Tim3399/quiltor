@@ -27,12 +27,43 @@ _CONTRACTS: dict[DocumentKind, str] = {
     "storyboards": "quiltor.storyboards",
 }
 _ENVELOPE_FIELDS = {"contract", "version", "revision", "payload"}
+_REQUIRED_ENVELOPE_FIELDS = {"contract", "version", "payload"}
 MAX_SAFE_WIRE_INTEGER = 9_007_199_254_740_991
 MAX_SAFE_REVISION = MAX_SAFE_WIRE_INTEGER
 
 
+WireRejectionReason = Literal[
+    "envelope_not_object",
+    "envelope_unknown_field",
+    "envelope_incomplete",
+    "contract_mismatch",
+    "version_invalid",
+    "revision_invalid",
+    "integer_invalid",
+    "payload_number_not_finite",
+    "payload_invalid",
+]
+
+
 class InvalidDocumentWireV1(ValueError):
-    """The value is not a valid document envelope for the requested kind."""
+    """The value is not a valid document envelope for the requested kind.
+
+    ``reason`` says which rule failed and ``field`` where, as a JSON pointer. The
+    pointer is built only from key names this module itself spells out, never from
+    a key or value of the document, so a host may log both without carrying any of
+    the author's text.
+    """
+
+    def __init__(
+        self,
+        message: str = "document wire is invalid",
+        *,
+        reason: WireRejectionReason = "payload_invalid",
+        field: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason: WireRejectionReason = reason
+        self.field = field
 
 
 @dataclass(frozen=True)
@@ -56,14 +87,33 @@ class DocumentWireV1:
         return envelope
 
 
-def _valid_payload(kind: DocumentKind, payload: Any) -> bool:
+def _payload_failure(kind: DocumentKind, payload: Any) -> InvalidDocumentWireV1 | None:
+    """The first rule the payload breaks, or None when it is valid.
+
+    The domain validators judge the whole document, so their failure points at
+    ``/payload``; the wire checks below run per top-level key and name it.
+    """
+
     if not _finite_json_numbers(payload):
-        return False
+        return _payload_invalid(reason="payload_number_not_finite")
     if kind == "manuscript":
-        return valid_manuscript(payload) and _valid_manuscript_wire_fields(payload)
-    if kind == "figures":
-        return valid_figures(payload) and _valid_story_world_wire_fields(payload)
-    return valid_storyboards(payload)
+        if not valid_manuscript(payload):
+            return _payload_invalid()
+        failed = _manuscript_wire_failure(payload)
+    elif kind == "figures":
+        if not valid_figures(payload):
+            return _payload_invalid()
+        failed = _story_world_wire_failure(payload)
+    else:
+        failed = None if valid_storyboards(payload) else ""
+    return None if failed is None else _payload_invalid(failed)
+
+
+def _payload_invalid(
+    key: str = "", *, reason: WireRejectionReason = "payload_invalid"
+) -> InvalidDocumentWireV1:
+    field = f"/payload/{key}" if key else "/payload"
+    return InvalidDocumentWireV1("document payload is invalid", reason=reason, field=field)
 
 
 def _valid_place_level(node: dict) -> bool:
@@ -156,9 +206,11 @@ def _wire_integer(
     elif type(value) is float and isfinite(value) and value.is_integer():
         integer = int(value)
     else:
-        raise InvalidDocumentWireV1("document wire integer is invalid")
+        raise InvalidDocumentWireV1("document wire integer is invalid", reason="integer_invalid")
     if not minimum <= integer <= maximum:
-        raise InvalidDocumentWireV1("document wire integer is outside the safe range")
+        raise InvalidDocumentWireV1(
+            "document wire integer is outside the safe range", reason="integer_invalid"
+        )
     return integer
 
 
@@ -315,11 +367,13 @@ def _canonical_payload_wire_integers(kind: DocumentKind, payload: Any) -> Any:
     return normalized
 
 
-def _valid_manuscript_wire_fields(payload: dict[str, Any]) -> bool:
+def _manuscript_wire_failure(payload: dict[str, Any]) -> str | None:
+    """The top-level key whose wire rule fails, or None."""
+
     if "bookLayout" in payload and not _valid_book_layout(payload.get("bookLayout")):
-        return False
+        return "bookLayout"
     if "importSource" in payload and not _valid_import_source(payload.get("importSource")):
-        return False
+        return "importSource"
     words = payload.get("words")
     if "words" in payload and (
         not isinstance(words, list)
@@ -333,7 +387,7 @@ def _valid_manuscript_wire_fields(payload: dict[str, Any]) -> bool:
             for word in words
         )
     ):
-        return False
+        return "words"
     # The German spellings this document used until v3.16 are gone: the world database
     # migrates them once on startup, so nothing on disk carries them any more and nothing
     # on the wire may either.
@@ -342,8 +396,8 @@ def _valid_manuscript_wire_fields(payload: dict[str, Any]) -> bool:
             continue
         value = payload.get(field)
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-            return False
-    return True
+            return field
+    return None
 
 
 _IMPORT_WARNING_CODES = {
@@ -521,7 +575,9 @@ def _valid_book_layout(value: object) -> bool:
     return usable_width >= 30 and usable_height >= 30
 
 
-def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
+def _story_world_wire_failure(payload: dict[str, Any]) -> str | None:
+    """The top-level key whose wire rule fails, or None."""
+
     figure_kinds = {"person", "tier", "ort", "organisation", "objekt", "konzept"}
     accents = {"ink", "gold", "rose", "moss"}
     edge_styles = {"solid", "dashed", "blood", "gold"}
@@ -529,23 +585,23 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
     relationship_kinds = {"general", "kinship"}
     edge_colors = {"auto", "ink", "gold", "rose", "moss", "blue"}
     if not _acyclic_place_levels(payload["nodes"]):
-        return False
+        return "nodes"
     for node in payload["nodes"]:
         if (
             node.get("type", "person") not in figure_kinds
             or node.get("accent", "ink") not in accents
         ):
-            return False
+            return "nodes"
         if any(key in node and not isinstance(node[key], str) for key in ("label", "sub")):
-            return False
+            return "nodes"
         if any(
             key in node and type(node[key]) is not bool for key in ("dash", "pinned", "important")
         ):
-            return False
+            return "nodes"
         if any(key in node and not _number(node[key]) for key in ("x", "y", "mapX", "mapY")):
-            return False
+            return "nodes"
         if not _valid_place_level(node):
-            return False
+            return "nodes"
         if "profile" in node:
             profile = node["profile"]
             if not isinstance(profile, dict) or any(
@@ -559,7 +615,7 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
                     "notes",
                 )
             ):
-                return False
+                return "nodes"
             extra = profile.get("extra")
             if "extra" in profile and (
                 not isinstance(extra, list)
@@ -570,11 +626,11 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
                     for item in extra
                 )
             ):
-                return False
+                return "nodes"
             fields = profile.get("fields")
             if "fields" in profile:
                 if not isinstance(fields, list):
-                    return False
+                    return "nodes"
                 field_ids: set[str] = set()
                 for field in fields:
                     if (
@@ -585,7 +641,7 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
                         or not isinstance(field.get("key"), str)
                         or not isinstance(field.get("value"), str)
                     ):
-                        return False
+                        return "nodes"
                     field_ids.add(field["id"])
 
     for edge in payload["edges"]:
@@ -599,20 +655,20 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
             or not isinstance(edge.get("color", "auto"), str)
             or edge.get("color", "auto") not in edge_colors
         ):
-            return False
+            return "edges"
         if any(
             key in edge and not isinstance(edge[key], str)
             for key in ("label", "fromHandle", "toHandle")
         ):
-            return False
+            return "edges"
         if any(key in edge and type(edge[key]) is not bool for key in ("directed", "active")):
-            return False
+            return "edges"
         if any(
             not isinstance(version.get("style", "solid"), str)
             or version.get("style", "solid") not in edge_styles
             for version in edge.get("versions", [])
         ):
-            return False
+            return "edges"
         if any(
             not isinstance(version.get("lineStyle", "solid"), str)
             or version.get("lineStyle", "solid") not in edge_line_styles
@@ -620,20 +676,20 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
             or version.get("relationshipKind", "general") not in relationship_kinds
             for version in edge.get("versions", [])
         ):
-            return False
+            return "edges"
         if any(
             not isinstance(version.get("color", "auto"), str)
             or version.get("color", "auto") not in edge_colors
             for version in edge.get("versions", [])
         ):
-            return False
+            return "edges"
 
     if any(
         "position" in moment
         and (type(moment["position"]) is not int or abs(moment["position"]) > 9_007_199_254_740_991)
         for moment in payload.get("timeline", [])
     ):
-        return False
+        return "timeline"
 
     canvas = payload.get("canvasSize")
     if "canvasSize" in payload and (
@@ -643,35 +699,73 @@ def _valid_story_world_wire_fields(payload: dict[str, Any]) -> bool:
         or canvas["w"] <= 0
         or canvas["h"] <= 0
     ):
-        return False
-    scale = payload.get("mapScale")
-    return "mapScale" not in payload or (
-        isinstance(scale, dict)
-        and _number(scale.get("unitsPer100px"))
-        and scale["unitsPer100px"] > 0
-        and isinstance(scale.get("unitLabel"), str)
-    )
+        return "canvasSize"
+    if "mapScale" in payload and not _valid_map_scale(payload.get("mapScale")):
+        return "mapScale"
+    return None
 
 
 def decode_document_v1(kind: DocumentKind, value: Any) -> DocumentWireV1:
     """Validate and detach an untrusted runtime value from its transport object."""
 
     if not isinstance(value, dict):
-        raise InvalidDocumentWireV1("document envelope must be an object")
+        raise InvalidDocumentWireV1(
+            "document envelope must be an object", reason="envelope_not_object"
+        )
     if set(value) - _ENVELOPE_FIELDS:
-        raise InvalidDocumentWireV1("document envelope contains unknown fields")
-    if set(value) < {"contract", "version", "payload"}:
-        raise InvalidDocumentWireV1("document envelope is incomplete")
+        # No field: the only thing to point at would be the sender's own key.
+        raise InvalidDocumentWireV1(
+            "document envelope contains unknown fields", reason="envelope_unknown_field"
+        )
+    missing = sorted(_REQUIRED_ENVELOPE_FIELDS - set(value))
+    if missing:
+        raise InvalidDocumentWireV1(
+            "document envelope is incomplete", reason="envelope_incomplete", field=f"/{missing[0]}"
+        )
     if value.get("contract") != _CONTRACTS[kind]:
-        raise InvalidDocumentWireV1("document contract or version does not match")
-    if _wire_integer(value["version"], minimum=1, maximum=1) != 1:
-        raise InvalidDocumentWireV1("unsupported document contract version")
+        raise InvalidDocumentWireV1(
+            "document contract or version does not match",
+            reason="contract_mismatch",
+            field="/contract",
+        )
+    version = _envelope_integer(value["version"], "version", minimum=1, maximum=1)
+    if version != 1:
+        raise InvalidDocumentWireV1(
+            "unsupported document contract version", reason="version_invalid", field="/version"
+        )
 
-    revision = None if "revision" not in value else _wire_integer(value["revision"], minimum=0)
-    payload = _canonical_payload_wire_integers(kind, value.get("payload"))
-    if not _valid_payload(kind, payload):
-        raise InvalidDocumentWireV1("document payload is invalid")
+    revision = (
+        None
+        if "revision" not in value
+        else _envelope_integer(value["revision"], "revision", minimum=0)
+    )
+    try:
+        payload = _canonical_payload_wire_integers(kind, value.get("payload"))
+    except InvalidDocumentWireV1 as error:
+        raise InvalidDocumentWireV1(
+            str(error), reason="integer_invalid", field="/payload"
+        ) from None
+    failure = _payload_failure(kind, payload)
+    if failure is not None:
+        raise failure
     return DocumentWireV1(kind=kind, payload=deepcopy(payload), revision=revision)
+
+
+def _envelope_integer(
+    value: Any,
+    key: Literal["version", "revision"],
+    *,
+    minimum: int,
+    maximum: int = MAX_SAFE_WIRE_INTEGER,
+) -> int:
+    try:
+        return _wire_integer(value, minimum=minimum, maximum=maximum)
+    except InvalidDocumentWireV1 as error:
+        raise InvalidDocumentWireV1(
+            str(error),
+            reason="version_invalid" if key == "version" else "revision_invalid",
+            field=f"/{key}",
+        ) from None
 
 
 def encode_document_v1(

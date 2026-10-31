@@ -266,6 +266,7 @@ class DocumentWireV1Tests(unittest.TestCase):
                         _read_json_body=MagicMock(return_value=explicit_null),
                         send_json=MagicMock(),
                         send_api_error=MagicMock(),
+                        log_rejection=MagicMock(),
                     )
                     documents._write(
                         rejected_writer,
@@ -348,6 +349,7 @@ class DocumentWireV1Tests(unittest.TestCase):
                     _read_json_body=MagicMock(return_value=candidate),
                     send_json=MagicMock(),
                     send_api_error=MagicMock(),
+                    log_rejection=MagicMock(),
                 )
                 documents._write(
                     writer,
@@ -619,6 +621,61 @@ class DocumentWireV1Tests(unittest.TestCase):
                 with self.assertRaises(InvalidDocumentWireV1):
                     decode_document_v1("manuscript", candidate)
 
+    def test_each_envelope_rejection_names_its_reason_and_schema_field(self):
+        fixture = registered_fixture("application.manuscript-wire")
+
+        def without(key):
+            candidate = deepcopy(fixture)
+            del candidate[key]
+            return candidate
+
+        def changed(key, value):
+            candidate = deepcopy(fixture)
+            candidate[key] = value
+            return candidate
+
+        cases = (
+            ("not an object", ["envelope"], "envelope_not_object", None),
+            ("unknown key", changed("CANARY-7f3a", 1), "envelope_unknown_field", None),
+            ("no payload", without("payload"), "envelope_incomplete", "/payload"),
+            ("no version", without("version"), "envelope_incomplete", "/version"),
+            (
+                "contract",
+                changed("contract", "quiltor.story-world"),
+                "contract_mismatch",
+                "/contract",
+            ),
+            ("version", changed("version", 2), "version_invalid", "/version"),
+            ("revision", changed("revision", True), "revision_invalid", "/revision"),
+            ("payload", changed("payload", []), "payload_invalid", "/payload"),
+        )
+        for name, candidate, reason, field in cases:
+            with self.subTest(name), self.assertRaises(InvalidDocumentWireV1) as raised:
+                decode_document_v1("manuscript", candidate)
+            self.assertEqual(raised.exception.reason, reason)
+            self.assertEqual(raised.exception.field, field)
+
+    def test_a_payload_rejection_points_at_the_top_level_schema_key(self):
+        manuscript = registered_fixture("application.manuscript-wire")
+        manuscript["payload"]["hiddenElements"] = [1]
+        story_world = registered_fixture("application.story-world-wire")
+        story_world["payload"]["nodes"][0]["accent"] = "CANARY-7f3a"
+        non_finite = registered_fixture("application.story-world-wire")
+        non_finite["payload"]["nodes"][0]["x"] = float("nan")
+        scale = registered_fixture("application.story-world-wire")
+        scale["payload"]["mapScale"] = {"unitsPer100px": 0, "unitLabel": "km"}
+        cases = (
+            ("manuscript", manuscript, "payload_invalid", "/payload/hiddenElements"),
+            ("figures", story_world, "payload_invalid", "/payload/nodes"),
+            ("figures", non_finite, "payload_number_not_finite", "/payload"),
+            ("figures", scale, "payload_invalid", "/payload/mapScale"),
+        )
+        for kind, candidate, reason, field in cases:
+            with self.subTest(field), self.assertRaises(InvalidDocumentWireV1) as raised:
+                decode_document_v1(cast(DocumentKind, kind), candidate)
+            self.assertEqual(raised.exception.reason, reason)
+            self.assertEqual(raised.exception.field, field)
+
     def test_revision_matches_the_javascript_safe_integer_range(self):
         fixture = registered_fixture("application.manuscript-wire")
         fixture["revision"] = MAX_SAFE_REVISION
@@ -794,9 +851,24 @@ class DocumentWireV1Tests(unittest.TestCase):
                 _read_json_body=MagicMock(return_value=candidate),
                 send_json=MagicMock(),
                 send_api_error=MagicMock(),
+                log_rejection=MagicMock(),
             )
             documents._write(writer, request, app, kind="figures")
             writer.send_api_error.assert_called_once_with(400, error_code="document.invalid_wire")
+            writer.log_rejection.assert_called_once()
+            event, fields = writer.log_rejection.call_args
+            self.assertEqual(event, ("document.save_rejected",))
+            # The domain validator judges the whole document and catches some of
+            # these first; the wire check behind it names the key.
+            self.assertIn(fields.pop("field"), {"/payload", "/payload/edges"})
+            self.assertEqual(
+                fields,
+                {
+                    "document": "figures",
+                    "code": "document.invalid_wire",
+                    "reason": "payload_invalid",
+                },
+            )
 
         for revision in (str(MAX_SAFE_REVISION + 1), "Infinity"):
             writer = SimpleNamespace(
@@ -804,10 +876,17 @@ class DocumentWireV1Tests(unittest.TestCase):
                 _read_json_body=MagicMock(return_value=deepcopy(fixture)),
                 send_json=MagicMock(),
                 send_api_error=MagicMock(),
+                log_rejection=MagicMock(),
             )
             documents._write(writer, request, app, kind="figures")
             writer.send_api_error.assert_called_once_with(
                 400, error_code="document.invalid_revision"
+            )
+            writer.log_rejection.assert_called_once_with(
+                "document.save_rejected",
+                document="figures",
+                code="document.invalid_revision",
+                reason="if_match_invalid",
             )
         operations.save_with_status.assert_not_called()
 
