@@ -15,8 +15,8 @@ type PlaceMapNodeData = {
   crop: ImageCrop;
   /** Whether this map's picture is the one being adjusted. */
   adjusting: boolean;
-  onResize: (place: FigureNode, size: { width: number; height: number }) => void;
-  onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
+  onResize: (place: FigureNode, box: MapBox) => void;
+  onResizeLive: (place: FigureNode, box: MapBox) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
   /** The grid drawn over the picture, in flow units. */
@@ -28,6 +28,20 @@ type PlaceMapNodeData = {
 };
 
 export type PlaceMapFlowNode = Node<PlaceMapNodeData>;
+
+/** Where a map stands and how large it is, in flow units. */
+export type MapBox = { x: number; y: number; width: number; height: number };
+
+/**
+ * What a resize gesture reports, reduced to the box it describes.
+ *
+ * The position is part of it: dragging the left or top grip moves that edge, so
+ * the origin moves with the size. Keeping only the size leaves the origin where
+ * it was, which is the opposite edge moving instead.
+ */
+export function mapBoxOf(box: MapBox): MapBox {
+  return { x: box.x, y: box.y, width: box.width, height: box.height };
+}
 
 /**
  * A map laid out on the surface: the same place as the card, opened out.
@@ -126,8 +140,8 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
         minHeight={80}
         handleClassName="place-map-node__handle"
         lineClassName="place-map-node__line"
-        onResize={(_, size) => data.onResizeLive(place, { width: size.width, height: size.height })}
-        onResizeEnd={(_, size) => data.onResize(place, { width: size.width, height: size.height })}
+        onResize={(_, box) => data.onResizeLive(place, mapBoxOf(box))}
+        onResizeEnd={(_, box) => data.onResize(place, mapBoxOf(box))}
       />
       {/* A distance to a map is taken from its middle: a sheet has no corner
           that stands for the whole of it. Not connectable by hand -- these carry
