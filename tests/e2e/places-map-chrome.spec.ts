@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
 import {
   closePlaceSheet,
   expandedMapState,

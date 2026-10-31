@@ -57,6 +57,19 @@ from quiltor.modules.identity.service import SESSION_COOKIE
 MAX_BODY = 16 * 1024 * 1024  # 16 MB limit per save request
 REQUEST_HEADER_TIMEOUT_SECONDS = 15.0
 
+# How much of a refused request's body is read and thrown away before the answer.
+#
+# Closing a Windows socket with unread request bytes resets the connection, and the
+# client loses the 401, 403 or 404 that was already on its way (WinError 10053).
+# Reading the body first lets the close be orderly. A refused request deserves only a
+# bounded effort, though: 64 KiB covers any form post or JSON call that gets refused
+# before its route runs, and costs one buffered read. A larger body, or one without a
+# valid Content-Length, is not read -- the connection is closed as before -- and a body
+# that does not arrive within the timeout is given up on, so a refused client cannot
+# make us wait.
+REFUSED_BODY_DISCARD_LIMIT = 64 * 1024
+REFUSED_BODY_DISCARD_TIMEOUT_SECONDS = 2.0
+
 RequestBodyRejectionReason = Literal[
     "missing_length",
     "invalid_length",
@@ -309,6 +322,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         host = authority_host(self.headers.get("Host", ""))
         if host and host not in LOOPBACK_HOSTS:
+            self._discard_unread_body()
             self.send_json(
                 http_errors.for_status(
                     403, code="request.untrusted_host", retryable=False
@@ -323,6 +337,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if origin and (
             origin == "null" or authority_host(urlparse(origin).netloc) not in LOOPBACK_HOSTS
         ):
+            self._discard_unread_body()
             self.send_json(
                 http_errors.for_status(
                     403, code="request.untrusted_origin", retryable=False
@@ -331,6 +346,36 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             )
             return True
         return False
+
+    def _discard_unread_body(self) -> None:
+        """Read and drop a small body that no route will read, so the close does not
+        reset the connection; see REFUSED_BODY_DISCARD_LIMIT. Anything unbounded,
+        invalid or slow is left unread. Call it only on answers given before a route
+        handler ran -- a handler may already have read the body."""
+        if self.headers.get("Transfer-Encoding"):
+            return
+        try:
+            length = int((self.headers.get("Content-Length") or "").strip())
+        except ValueError:
+            return
+        if length <= 0 or length > REFUSED_BODY_DISCARD_LIMIT:
+            return
+        # One deadline for the whole body: a timeout per recv would let a client that
+        # trickles a byte now and then hold this thread for as long as it likes.
+        deadline = time.monotonic() + REFUSED_BODY_DISCARD_TIMEOUT_SECONDS
+        remaining = length
+        try:
+            while remaining > 0:
+                rest = deadline - time.monotonic()
+                if rest <= 0:
+                    return
+                self.connection.settimeout(rest)
+                chunk = self.rfile.read1(remaining)
+                if not chunk:
+                    return
+                remaining -= len(chunk)
+        except OSError:
+            pass
 
     def end_headers(self) -> None:
         try:
@@ -621,8 +666,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # A secret came in through the query string. The cookie above is
             # already queued and rides along on the 302 (end_headers sends
             # _pending_cookies), so the bounced request arrives logged in.
+            self._discard_unread_body()
             return self.send_redirect(redirect)
         if session is None and not (registration and registration.anonymous):
+            # Every answer below is given without a route reading the body.
+            self._discard_unread_body()
             if path.startswith("/api/"):
                 return self.send_api_error(401)
             if registration is None and self.application.identity.multi_user:
@@ -640,12 +688,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_api_error(403, error_code="auth.forbidden")
 
         if registration is None:
+            self._discard_unread_body()
             return on_miss()
 
         request = api_routes.Request(path=path, query=query, session=session)
         if registration.world:
+            # Resolved before the route runs, so a refusal here leaves the body unread.
+            # The discard comes after the answer: it is the close that resets, and the
+            # world has to be looked up before anyone knows there will be a refusal.
             request.world = self._resolve_world_or_respond(session, (query.get("world") or [""])[0])
             if request.world is None:
+                self._discard_unread_body()
                 return
         registration.handler(self, request, self.application.route_services(path))
 

@@ -616,6 +616,19 @@ jobs:
     env:
       PYTHONPATH: src
     steps:
+      # Windows hands out ephemeral TCP ports from 49152-65535 only (16384 ports, the default since
+      # Vista; Microsoft KB 929851). A browser slot opens enough short-lived connections to the
+      # server that the runner ran out of socket buffers (F2, WSAENOBUFS, docs/quality/ci.md).
+      # 10000 + 55535 ends at 65534, the largest range Windows accepts. Fails the job when refused.
+      - name: Widen the dynamic TCP port range
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          netsh int ipv4 set dynamicport tcp start=10000 num=55535
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          netsh int ipv4 show dynamicport tcp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -729,6 +742,19 @@ jobs:
     env:
       PYTHONPATH: src
     steps:
+      # Windows hands out ephemeral TCP ports from 49152-65535 only (16384 ports, the default since
+      # Vista; Microsoft KB 929851). A browser slot opens enough short-lived connections to the
+      # server that the runner ran out of socket buffers (F2, WSAENOBUFS, docs/quality/ci.md).
+      # 10000 + 55535 ends at 65534, the largest range Windows accepts. Fails the job when refused.
+      - name: Widen the dynamic TCP port range
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          netsh int ipv4 set dynamicport tcp start=10000 num=55535
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          netsh int ipv4 show dynamicport tcp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false

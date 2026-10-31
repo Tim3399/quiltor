@@ -15,8 +15,10 @@ import http.client
 import io
 import json
 import os
+import socket
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from typing import Any
@@ -26,6 +28,7 @@ from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.platform.ports import AppDirectories
+from tests.python import late_body
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
 
@@ -175,6 +178,122 @@ class ForeignRequestTests(_LiveLocalServerTestCase):
         )
         self.assertEqual(status, 403)
         self.assertEqual(body["error"]["code"], "request.untrusted_origin")
+
+
+class RefusedRequestBodyTests(_LiveLocalServerTestCase):
+    """A refused POST still gets its whole 403, and a refused client cannot make us wait.
+
+    See tests/python/late_body.py for why the body is sent after the headers.
+    """
+
+    BODY = b'{"title": "Testwelt", "backupUrl": ""}'
+
+    def _assert_refused(self, answer: late_body.Answer, code: str):
+        self.assertEqual(answer.status, 403, answer.body[:200])
+        self.assertEqual(answer.json()["error"]["code"], code)
+
+    def test_a_foreign_origin_gets_its_whole_403(self):
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    "/api/worlds/create",
+                    headers={"Content-Type": "application/json", "Origin": "null"},
+                    body=self.BODY,
+                )
+                self._assert_refused(answer, "request.untrusted_origin")
+
+    def test_a_foreign_host_gets_its_whole_403(self):
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    "/api/worlds/create",
+                    headers={"Content-Type": "application/json", "Host": "rebind.example"},
+                    body=self.BODY,
+                )
+                self._assert_refused(answer, "request.untrusted_host")
+
+    def test_an_unknown_route_gets_its_whole_404(self):
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    "/api/no-such-route",
+                    headers={"Content-Type": "application/json"},
+                    body=self.BODY,
+                )
+                self.assertEqual(answer.status, 404, answer.body[:200])
+                self.assertEqual(answer.json()["error"]["code"], "route_not_found")
+
+    def test_a_refusal_without_a_content_length_does_not_wait(self):
+        answer = late_body.send(
+            self.port,
+            "POST",
+            "/api/worlds/create",
+            headers={"Content-Type": "application/json", "Origin": "null"},
+            length=None,
+            pause=0,
+        )
+        self._assert_refused(answer, "request.untrusted_origin")
+        self.assertLess(answer.elapsed, 1.0)
+
+    def test_a_refusal_with_an_oversized_content_length_does_not_wait(self):
+        answer = late_body.send(
+            self.port,
+            "POST",
+            "/api/worlds/create",
+            headers={"Content-Type": "application/json", "Origin": "null"},
+            length=str(server.REFUSED_BODY_DISCARD_LIMIT + 1),
+            pause=0,
+        )
+        self._assert_refused(answer, "request.untrusted_origin")
+        self.assertLess(answer.elapsed, 1.0)
+
+    def test_a_refusal_with_an_invalid_content_length_does_not_wait(self):
+        answer = late_body.send(
+            self.port,
+            "POST",
+            "/api/worlds/create",
+            headers={"Content-Type": "application/json", "Origin": "null"},
+            length="many",
+            pause=0,
+        )
+        self._assert_refused(answer, "request.untrusted_origin")
+        self.assertLess(answer.elapsed, 1.0)
+
+    def test_a_promised_body_that_never_comes_is_given_up_on(self):
+        """The client announces a small body and never sends it -- nor closes."""
+        head = (
+            "POST /api/worlds/create HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: null\r\n"
+            "Content-Type: application/json\r\nContent-Length: 100\r\n\r\n"
+        )
+        deadline = server.REFUSED_BODY_DISCARD_TIMEOUT_SECONDS + 2
+        with socket.create_connection(("127.0.0.1", self.port), timeout=deadline) as client:
+            started = time.monotonic()
+            client.sendall(head.encode())
+            response = b""
+            while chunk := client.recv(65536):
+                response += chunk
+            elapsed = time.monotonic() - started
+        self.assertTrue(response.startswith(b"HTTP/1.1 403"), response[:80])
+        self.assertLess(elapsed, deadline)
+
+    def test_a_trickled_body_is_given_up_on_as_a_whole(self):
+        """One byte every 1.5 s never trips a per-recv timeout; the deadline holds."""
+        answer = late_body.trickle(
+            self.port,
+            "/api/worlds/create",
+            headers={"Content-Type": "application/json", "Origin": "null"},
+            length=100,
+            interval=1.5,
+            deadline=10.0,
+        )
+        self._assert_refused(answer, "request.untrusted_origin")
+        self.assertLess(answer.elapsed, server.REFUSED_BODY_DISCARD_TIMEOUT_SECONDS + 1.5)
 
 
 class BodyContentTypeTests(_LiveLocalServerTestCase):

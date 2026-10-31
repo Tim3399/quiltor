@@ -3,8 +3,8 @@
 import contextlib
 import io
 import json
-import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1301,6 +1301,37 @@ class WorkflowBoundaryTests(unittest.TestCase):
                     workflow_contract.WorkflowContractError, "without a time limit"
                 ):
                     workflow_contract.validate_linux_playwright_install(mutated, script)
+
+    def test_windows_playwright_jobs_widen_the_port_range_before_playwright(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_windows_port_range(sources)
+        source = sources[TEST_WORKFLOW]
+        step_start = source.index("      - name: Widen the dynamic TCP port range")
+        step_end = source.index("      - uses: actions/checkout", step_start)
+        step = source[step_start:step_end]
+
+        def check(mutated_source, message):
+            mutated = dict(sources)
+            mutated[TEST_WORKFLOW] = mutated_source
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                workflow_contract.validate_windows_port_range(mutated)
+
+        with self.subTest(name="step removed"):
+            check(source.replace(step, "", 1), "without widening")
+        with self.subTest(name="step after Playwright"):
+            moved = source.replace(step, "", 1)
+            at = moved.index("      - name: Install Chromium\n", step_start)
+            end = moved.index("\n\n", at) + 2
+            check(moved[:end] + step + moved[end:], "without widening")
+        with self.subTest(name="failure swallowed"):
+            check(
+                source.replace(
+                    "num=55535\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                    "num=55535 || true",
+                    1,
+                ),
+                "must fail",
+            )
 
     def test_normal_ci_runs_the_browser_suite_instead_of_deferring_it_to_release(self):
         test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
@@ -2635,13 +2666,26 @@ class PathFilterContractTests(unittest.TestCase):
         body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
 
         def gate(results):
-            env = {**os.environ, "PLAN_RESULT": "success"}
+            # On Windows, `bash` can resolve to WSL's System32\bash.exe. It does not pass
+            # the caller's environment on, and it hands a `-c` argument through another
+            # shell that expands `$1` and `$VAR` to nothing first -- every job name and
+            # result arrived empty and the green case failed. So the values go in as
+            # assignments ahead of the script, and the script goes in on stdin.
+            values = {"PLAN_RESULT": "success"}
             for name in workflow_contract.FILTERED_JOBS:
                 job = workflow_contract._env_name(name)
-                env[f"RESULT_{job}"] = results.get(name, "success")
-                env[f"SELECTED_{job}"] = "true"
-            return subprocess.run(
-                [bash, "-c", body], env=env, capture_output=True, text=True, check=False
+                values[f"RESULT_{job}"] = results.get(name, "success")
+                values[f"SELECTED_{job}"] = "true"
+            preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in values.items())
+            # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
+            completed = subprocess.run(
+                [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
+            )
+            return subprocess.CompletedProcess(
+                completed.args,
+                completed.returncode,
+                completed.stdout.decode(errors="replace"),
+                completed.stderr.decode(errors="replace"),
             )
 
         green = gate({})

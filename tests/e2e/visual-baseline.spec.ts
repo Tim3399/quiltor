@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
@@ -156,6 +157,30 @@ async function stillstehendeLeinwand(page: Page) {
     .toBe(true);
 }
 
+/*
+ * Fit the canvas until the fit no longer moves it.
+ *
+ * On a compact screen a story card keeps a touch-sized height that depends on the zoom
+ * (StoryNodeCard: storyNodeCompactLayoutHeight). One fit measures the cards at the old zoom,
+ * sets a new one, and the cards then shrink by a fraction of a pixel. Whether React Flow had
+ * measured that before the fit decided where the viewport ended up: 0.3 px apart in y, which
+ * moved every grid line and card edge and failed the figures baseline about one run in ten.
+ * Fitting again with the settled sizes reaches the same transform every time.
+ */
+async function fitUntilSettled(page: Page) {
+  const viewport = page.locator(".flow-area .react-flow__viewport").first();
+  const fitView = page.locator(".figure-workspace .react-flow__controls-fitview");
+  let previous: string | null = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await fitView.click();
+    await stillstehendeLeinwand(page);
+    const current = await viewport.getAttribute("style");
+    if (current !== null && current === previous) return;
+    previous = current;
+  }
+  throw new Error("Fitting the canvas did not settle on one transform.");
+}
+
 for (const theme of ["light", "dark"] as const) {
   test(`${theme}: expanded map chrome remains attached while editing places`, async ({ page }) => {
     test.skip(!BOOTSTRAP && !hasBaselines(), `No baseline set exists for ${process.platform}.`);
@@ -229,7 +254,7 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Ansicht", exact: true }).click();
       await page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }).click();
       await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
-      await page.locator(".figure-workspace .react-flow__controls-fitview").click();
+      await fitUntilSettled(page);
     }
     await stillstehendeLeinwand(page);
     if ((page.viewportSize()?.width ?? 0) < 720) {

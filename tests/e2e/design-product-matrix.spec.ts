@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
 import { mockRequiredWorldDocuments } from "./support/application-api";
 
 const auditViewports = [
