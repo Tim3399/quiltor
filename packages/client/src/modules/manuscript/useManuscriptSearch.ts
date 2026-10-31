@@ -27,6 +27,7 @@ export function useManuscriptSearch({
   const [activeIndex, setActiveIndex] = useState(0);
   const latestChapters = useRef(chapters);
   const onCurrentIdRef = useRef(onCurrentId);
+  const latestCurrentId = useRef(current?.id);
   // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
   latestChapters.current = chapters;
   // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
@@ -38,10 +39,25 @@ export function useManuscriptSearch({
     [matches, current?.id],
   );
 
+  const firstTargetRun = useRef(true);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref, read by the target effect below
+  latestCurrentId.current = current?.id;
   useEffect(() => {
     void targetRequestId;
-    if (targetId && latestChapters.current.some((chapter) => chapter.id === targetId))
+    const isFirstRun = firstTargetRun.current;
+    firstTargetRun.current = false;
+    if (targetId && latestChapters.current.some((chapter) => chapter.id === targetId)) {
+      // A target that is already set when the workspace mounts moves away from the chapter
+      // that was just loaded; T-69 traces it as a candidate for an unexpected chapter switch.
+      if (isFirstRun && latestCurrentId.current && latestCurrentId.current !== targetId) {
+        console.warn("[quiltor] chapter switched after load", {
+          from: latestCurrentId.current,
+          to: targetId,
+          at: new Date().toISOString(),
+        });
+      }
       onCurrentIdRef.current(targetId);
+    }
   }, [targetId, targetRequestId]);
 
   useEffect(() => {

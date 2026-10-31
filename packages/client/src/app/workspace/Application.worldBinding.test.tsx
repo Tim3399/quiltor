@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import type { Manuscript } from "../../modules/manuscript";
-import { quiltorClient } from "../../platform";
+import { ApplicationGatewayError, quiltorClient } from "../../platform";
 import { App } from "../Application";
 import type { useHistoryState } from "./useHistoryState";
 
@@ -274,5 +274,33 @@ describe("a world replaced on the server is never saved over (P-Q4)", () => {
     await undoAndSaveBehind(reload);
     expect(saves).toHaveLength(1);
     expect(refusedSave(warn)).toBe(true);
+  });
+});
+
+describe("a world opened from the address (P-URL)", () => {
+  it("is loaded once, however the workspace state changes afterwards", async () => {
+    history.replaceState(null, "", `/?world=${worldA.id}`);
+    const application = quiltorClient.application;
+    vi.mocked(application.manuscript.save).mockRejectedValueOnce(
+      new ApplicationGatewayError("Konflikt", "document.revision_conflict", {
+        category: "conflict",
+        retryable: true,
+      }),
+    );
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Anfang in A" }));
+    await wait(1000);
+    fireEvent.click(await screen.findByRole("button", { name: "Entwurf retten" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Schließen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Entwurf in A" }));
+    await wait(1000);
+
+    expect(application.worlds.list).toHaveBeenCalledOnce();
+    expect(application.worlds.open).toHaveBeenCalledOnce();
+    expect(application.manuscript.load).toHaveBeenCalledOnce();
   });
 });

@@ -43,6 +43,10 @@ import { WorldSessionBoundary } from "./world/WorldSessionBoundary";
 type DocumentFamily = "manuscript" | "figures" | "storyboards";
 type DocumentsLoad = { worldId: string; generation: number; state: "pending" | "loaded" };
 
+function documentsBindingLoad({ worldId, generation }: WorldBinding) {
+  return { worldId, generation };
+}
+
 export function App() {
   const { t } = useI18n();
   const { theme, preference, setPreference, toggleTheme } = useTheme();
@@ -76,7 +80,18 @@ export function App() {
       figures: ReturnType<typeof useAutosave<FigureState>>;
       storyboards: ReturnType<typeof useAutosave<StoryboardState>>;
     };
+    recoveryHasConflict: boolean;
+    recoveryFamily: DocumentFamily | null;
+    currentChapterId: string;
   } | null>(null);
+  // A load that rule 2 held back because the manuscript had unsaved changes.
+  const [pendingLoad, setPendingLoadState] = useState<DocumentFamily | null>(null);
+  // Read synchronously by the dialog's close, which may run in the same tick as the decision.
+  const pendingLoadRef = useRef<DocumentFamily | null>(null);
+  const setPendingLoad = useCallback((family: DocumentFamily | null) => {
+    pendingLoadRef.current = family;
+    setPendingLoadState(family);
+  }, []);
 
   const loadDocuments = useCallback(
     (
@@ -88,20 +103,40 @@ export function App() {
       }: LoadedWorldDocuments,
       binding: WorldBinding,
     ) => {
+      const latest = live.current;
+      const saves = latest?.saves;
+      // Rule 2: a load over unsaved manuscript changes of the same world never replaces them;
+      // the author decides in the recovery dialog. The order matters (F-69-10): compare with
+      // the old binding first, then bind the new load in both branches.
+      const sameWorld = documentsBinding.current?.worldId === binding.worldId;
+      const keepDraft = sameWorld && (saves?.manuscript.isDirty() ?? false);
       documentsBinding.current = binding;
-      const saves = live.current?.saves;
       // A load is not an edit; the autosave compares by identity, so hand it the same objects.
-      saves?.manuscript.accept(loadedManuscript);
       saves?.figures.accept(loadedFigures);
       saves?.storyboards.accept(loadedStoryboards);
-      manuscriptHistory.load(loadedManuscript);
       figureHistory.load(loadedFigures);
       storyboardHistory.load(loadedStoryboards);
-      setDocumentsLoad({
-        worldId: binding.worldId,
-        generation: binding.generation,
-        state: "loaded",
-      });
+      if (keepDraft) {
+        if (!latest?.recoveryHasConflict && !latest?.recoveryFamily) {
+          console.warn("[quiltor] load over unsaved changes", {
+            chapterId: latest?.currentChapterId ?? null,
+            worldId: binding.worldId,
+            source: binding.source,
+            generation: binding.generation,
+            at: new Date().toISOString(),
+          });
+        }
+        setDocumentsLoad({ ...documentsBindingLoad(binding), state: "pending" });
+        pendingLoadRef.current = "manuscript";
+        setPendingLoadState("manuscript");
+        setRecoveryFamily("manuscript");
+        return;
+      }
+      saves?.manuscript.accept(loadedManuscript);
+      manuscriptHistory.load(loadedManuscript);
+      setDocumentsLoad({ ...documentsBindingLoad(binding), state: "loaded" });
+      pendingLoadRef.current = null;
+      setPendingLoadState(null);
       setOrphanedMentions(count);
       setCurrentChapterId(loadedManuscript.chapters[0]?.id || "");
       setMirrorWarnings({ manuscript: false, figures: false, storyboards: false });
@@ -171,7 +206,7 @@ export function App() {
   // No request leaves for documents that are not bound to the world the gateway points at.
   // The check and the request start in the same synchronous step, so no select can slip between.
   const bound = useCallback(
-    <R,>(family: DocumentFamily, run: () => Promise<R>): Promise<R> => {
+    <R,>(family: DocumentFamily, run: () => Promise<R>, decision = false): Promise<R> => {
       const binding = documentsBinding.current;
       if (!binding || !session.isSelected(binding)) {
         console.warn("[quiltor] save refused: documents are not bound to the selected world", {
@@ -180,6 +215,16 @@ export function App() {
           at: new Date().toISOString(),
         });
         return Promise.reject(new Error(t("saveUnboundWorld")));
+      }
+      // Rule 2: while a newer load waits for the author's decision, only that decision may
+      // save. An autosave now would write the draft over the version that just arrived.
+      if (!decision && pendingLoadRef.current === family) {
+        console.warn("[quiltor] save held: a newer load awaits a decision", {
+          family,
+          worldId: binding.worldId,
+          at: new Date().toISOString(),
+        });
+        return Promise.reject(new Error(t("saveFailed")));
       }
       return run();
     },
@@ -215,10 +260,6 @@ export function App() {
   const { isDirty: isManuscriptDirty, discard: discardManuscript } = manuscriptSave;
   const { isDirty: isFiguresDirty, discard: discardFigures } = figureSave;
   const { isDirty: isStoryboardsDirty, discard: discardStoryboards } = storyboardSave;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref, read by the identity-stable loadDocuments
-  live.current = {
-    saves: { manuscript: manuscriptSave, figures: figureSave, storyboards: storyboardSave },
-  };
   const saveByFamily = {
     manuscript: manuscriptSave,
     figures: figureSave,
@@ -247,6 +288,21 @@ export function App() {
   const recoveryHasConflict =
     recoverySave?.failure instanceof ApplicationGatewayError &&
     recoverySave.failure.category === "conflict";
+  // A held-back load is a conflict as well: the server has another version than the draft.
+  const recoveryInConflictMode =
+    recoveryHasConflict || (recoveryFamily !== null && pendingLoad === recoveryFamily);
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref, read by the identity-stable loadDocuments
+  live.current = {
+    saves: { manuscript: manuscriptSave, figures: figureSave, storyboards: storyboardSave },
+    recoveryHasConflict,
+    recoveryFamily,
+    currentChapterId,
+  };
+  // Once the author has chosen in the dialog, the workspace shows the chosen version again.
+  const settlePendingLoad = useCallback(() => {
+    setPendingLoad(null);
+    setDocumentsLoad((load) => load && { ...load, state: "loaded" });
+  }, [setPendingLoad]);
   const comparePersisted = useCallback(async (): Promise<PersistedRecoveryDocuments> => {
     const [persistedManuscript, persistedFigures, persistedStoryboards] = await Promise.all([
       quiltorClient.application.manuscript.peek(),
@@ -265,11 +321,14 @@ export function App() {
         await manuscriptSave.resolve(local.manuscript, async (snapshot) =>
           rememberMirrorWarning(
             "manuscript",
-            await bound("manuscript", () =>
-              quiltorClient.application.manuscript.saveExpected(
-                snapshot,
-                persisted.manuscript.revision,
-              ),
+            await bound(
+              "manuscript",
+              () =>
+                quiltorClient.application.manuscript.saveExpected(
+                  snapshot,
+                  persisted.manuscript.revision,
+                ),
+              true,
             ),
           ),
         );
@@ -298,9 +357,11 @@ export function App() {
           ),
         );
       }
+      settlePendingLoad();
     },
     [
       bound,
+      settlePendingLoad,
       figureSave.resolve,
       manuscriptSave.resolve,
       recoveryFamily,
@@ -334,8 +395,10 @@ export function App() {
         }
       }
       if (!replaced) throw new Error(t("recoveryDraftChanged"));
+      settlePendingLoad();
     },
     [
+      settlePendingLoad,
       figureHistory.load,
       figureSave.replace,
       manuscriptHistory.load,
@@ -420,6 +483,7 @@ export function App() {
       }
       documentsBinding.current = null;
       setDocumentsLoad(null);
+      setPendingLoad(null);
       if (clear) {
         manuscriptHistory.clear();
         figureHistory.clear();
@@ -436,6 +500,7 @@ export function App() {
       isManuscriptDirty,
       isStoryboardsDirty,
       manuscriptHistory.clear,
+      setPendingLoad,
       storyboardHistory.clear,
     ],
   );
@@ -599,11 +664,15 @@ export function App() {
               manuscript={manuscript}
               figures={figures}
               storyboards={storyboards}
-              conflictFamily={recoveryHasConflict ? recoveryFamily : undefined}
-              onCompare={recoveryHasConflict ? comparePersisted : undefined}
-              onKeepLocal={recoveryHasConflict ? keepLocalDraft : undefined}
-              onLoadPersisted={recoveryHasConflict ? loadPersistedDraft : undefined}
-              onClose={() => setRecoveryFamily(null)}
+              conflictFamily={recoveryInConflictMode ? recoveryFamily : undefined}
+              onCompare={recoveryInConflictMode ? comparePersisted : undefined}
+              onKeepLocal={recoveryInConflictMode ? keepLocalDraft : undefined}
+              onLoadPersisted={recoveryInConflictMode ? loadPersistedDraft : undefined}
+              onClose={() => {
+                // A held-back load needs a decision; closing would leave the chapter locked.
+                if (pendingLoadRef.current === recoveryFamily) return;
+                setRecoveryFamily(null);
+              }}
             />
           )}
           {projectExportOpen && (
