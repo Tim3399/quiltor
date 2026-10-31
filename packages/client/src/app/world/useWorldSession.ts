@@ -16,7 +16,14 @@ export type LoadedWorldDocuments = {
   orphanedMentions: number;
 };
 
-export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocuments) => void) {
+export type WorldLoadSource = "open" | "url" | "create" | "import";
+
+/** The world selection a set of loaded documents belongs to. */
+export type WorldBinding = { worldId: string; generation: number; source: WorldLoadSource };
+
+export function useWorldSession(
+  onDocumentsLoaded: (documents: LoadedWorldDocuments, binding: WorldBinding) => void,
+) {
   const [worlds, setWorlds] = useState<WorldInfo[] | null>(null);
   const [world, setWorld] = useState<WorldInfo | null>(null);
   const [trash, setTrash] = useState<(WorldInfo & { deletedAt: string })[] | null>(null);
@@ -25,6 +32,8 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
   const [loadError, setLoadError] = useState("");
   const [trashError, setTrashError] = useState("");
   const loadGeneration = useRef(0);
+  // Which world the HTTP gateway points at right now, and which load pointed it there.
+  const selection = useRef({ worldId: "", generation: 0 });
   const pendingCreatedWorld = useRef<{
     world: WorldInfo;
     title: string;
@@ -35,6 +44,7 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
     async (
       selected: Promise<{ ok: boolean; world: WorldInfo }>,
       generation: number,
+      source: WorldLoadSource,
       rejectOnFailure = false,
       onSelected?: (world: WorldInfo) => void,
     ): Promise<boolean> => {
@@ -43,6 +53,7 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
         if (generation !== loadGeneration.current) return false;
         onSelected?.(result.world);
         quiltorClient.application.worlds.select(result.world.id);
+        selection.current = { worldId: result.world.id, generation };
         const [manuscript, figures, storyboards] = await Promise.all([
           quiltorClient.application.manuscript.load(),
           quiltorClient.application.storyWorld.load(),
@@ -58,12 +69,15 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
             ...(chapter.marks ? { marks: normalizeMarks(chapter.marks, chapter.body.length) } : {}),
           })),
         };
-        onDocumentsLoaded({
-          manuscript: linked,
-          figures,
-          storyboards,
-          orphanedMentions: reconciled.orphanedCount,
-        });
+        onDocumentsLoaded(
+          {
+            manuscript: linked,
+            figures,
+            storyboards,
+            orphanedMentions: reconciled.orphanedCount,
+          },
+          { worldId: result.world.id, generation, source },
+        );
         setWorld(result.world);
         return true;
       } catch (error) {
@@ -89,7 +103,7 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
           const generation = ++loadGeneration.current;
           pendingCreatedWorld.current = null;
           setLoadError("");
-          void loadWorld(quiltorClient.application.worlds.open(requested), generation);
+          void loadWorld(quiltorClient.application.worlds.open(requested), generation, "url");
         }
       })
       .catch((error) => {
@@ -117,7 +131,9 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
       const generation = ++loadGeneration.current;
       pendingCreatedWorld.current = null;
       setLoadError("");
-      return loadWorld(quiltorClient.application.worlds.open(id), generation).then(() => undefined);
+      return loadWorld(quiltorClient.application.worlds.open(id), generation, "open").then(
+        () => undefined,
+      );
     },
     [loadWorld],
   );
@@ -133,6 +149,7 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
           ? quiltorClient.application.worlds.open(retry.world.id)
           : quiltorClient.application.worlds.create(title, backupUrl),
         generation,
+        "create",
         true,
         (created) => {
           pendingCreatedWorld.current = { world: created, title, backupUrl };
@@ -199,6 +216,7 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
       const loaded = await loadWorld(
         Promise.resolve({ ok: true, world: imported }),
         generation,
+        "import",
         true,
       );
       if (!loaded) return;
@@ -213,6 +231,7 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
     const generation = ++loadGeneration.current;
     pendingCreatedWorld.current = null;
     quiltorClient.application.worlds.select("");
+    selection.current = { worldId: "", generation };
     setWorld(null);
     setLoadError("");
 
@@ -229,6 +248,14 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
         if (generation === loadGeneration.current) setLoadError(applicationErrorMessage(error));
       });
   }, []);
+  // True only while the gateway still points at the selection these documents were loaded for.
+  const isSelected = useCallback(
+    (binding: WorldBinding) =>
+      binding.worldId !== "" &&
+      selection.current.worldId === binding.worldId &&
+      selection.current.generation === binding.generation,
+    [],
+  );
 
   return {
     worlds,
@@ -246,5 +273,6 @@ export function useWorldSession(onDocumentsLoaded: (documents: LoadedWorldDocume
     purge,
     projectImported,
     close,
+    isSelected,
   };
 }

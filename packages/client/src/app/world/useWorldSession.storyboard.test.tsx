@@ -38,12 +38,15 @@ describe("useWorldSession Storyboard document", () => {
     await act(async () => result.current.open(world.id));
 
     expect(loadStoryboards).toHaveBeenCalledOnce();
-    expect(onDocumentsLoaded).toHaveBeenCalledWith({
-      manuscript,
-      figures,
-      storyboards,
-      orphanedMentions: 0,
-    });
+    expect(onDocumentsLoaded).toHaveBeenCalledWith(
+      {
+        manuscript,
+        figures,
+        storyboards,
+        orphanedMentions: 0,
+      },
+      expect.objectContaining({ worldId: world.id, source: "open" }),
+    );
     expect(result.current.world).toEqual(world);
   });
 

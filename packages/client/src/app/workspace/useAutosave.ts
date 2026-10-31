@@ -128,6 +128,18 @@ export function useAutosave<T>(
     setPhase("saved");
     return true;
   }, []);
+  // Drop all save state when the documents leave. Refuses while a save is still out.
+  const discard = useCallback((): boolean => {
+    if (pending.current) return false;
+    clearTimeout(timer.current);
+    dirty.current = false;
+    acceptedReplacement.current = null;
+    initialized.current = false;
+    setPhase("idle");
+    setError("");
+    setFailure(null);
+    return true;
+  }, []);
   const isDirty = useCallback(() => dirty.current, []);
-  return { phase, error, failure, savedAt, flush, retry, resolve, replace, isDirty };
+  return { phase, error, failure, savedAt, flush, retry, resolve, replace, discard, isDirty };
 }

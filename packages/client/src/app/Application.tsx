@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { PRODUCT_MARK } from "../config/branding";
 import { PageState, StatusBarItem } from "../design";
 import { useI18n } from "../i18n";
@@ -33,7 +33,11 @@ import { useAutosave } from "./workspace/useAutosave";
 import { useHistoryState } from "./workspace/useHistoryState";
 import { useWorkspaceController } from "./workspace/useWorkspaceController";
 import { WorkspaceSurface } from "./workspace/WorkspaceSurface";
-import { type LoadedWorldDocuments, useWorldSession } from "./world/useWorldSession";
+import {
+  type LoadedWorldDocuments,
+  useWorldSession,
+  type WorldBinding,
+} from "./world/useWorldSession";
 import { WorldSessionBoundary } from "./world/WorldSessionBoundary";
 
 type DocumentFamily = "manuscript" | "figures" | "storyboards";
@@ -60,14 +64,20 @@ export function App() {
     figures: false,
     storyboards: false,
   });
+  // The world selection the documents in the histories belong to; null once they were released.
+  const documentsBinding = useRef<WorldBinding | null>(null);
 
   const loadDocuments = useCallback(
-    ({
-      manuscript: loadedManuscript,
-      figures: loadedFigures,
-      storyboards: loadedStoryboards,
-      orphanedMentions: count,
-    }: LoadedWorldDocuments) => {
+    (
+      {
+        manuscript: loadedManuscript,
+        figures: loadedFigures,
+        storyboards: loadedStoryboards,
+        orphanedMentions: count,
+      }: LoadedWorldDocuments,
+      binding: WorldBinding,
+    ) => {
+      documentsBinding.current = binding;
       manuscriptHistory.load(loadedManuscript);
       figureHistory.load(loadedFigures);
       storyboardHistory.load(loadedStoryboards);
@@ -135,24 +145,53 @@ export function App() {
     },
     [],
   );
+  // No request leaves for documents that are not bound to the world the gateway points at.
+  // The check and the request start in the same synchronous step, so no select can slip between.
+  const bound = useCallback(
+    <R,>(family: DocumentFamily, run: () => Promise<R>): Promise<R> => {
+      const binding = documentsBinding.current;
+      if (!binding || !session.isSelected(binding)) {
+        console.warn("[quiltor] save refused: documents are not bound to the selected world", {
+          family,
+          documentsWorldId: binding?.worldId ?? null,
+          at: new Date().toISOString(),
+        });
+        return Promise.reject(new Error(t("saveUnboundWorld")));
+      }
+      return run();
+    },
+    [session.isSelected, t],
+  );
   const saveManuscript = useCallback(
     async (value: Manuscript) =>
-      rememberMirrorWarning("manuscript", await quiltorClient.application.manuscript.save(value)),
-    [rememberMirrorWarning],
+      rememberMirrorWarning(
+        "manuscript",
+        await bound("manuscript", () => quiltorClient.application.manuscript.save(value)),
+      ),
+    [bound, rememberMirrorWarning],
   );
   const saveFigures = useCallback(
     async (value: FigureState) =>
-      rememberMirrorWarning("figures", await quiltorClient.application.storyWorld.save(value)),
-    [rememberMirrorWarning],
+      rememberMirrorWarning(
+        "figures",
+        await bound("figures", () => quiltorClient.application.storyWorld.save(value)),
+      ),
+    [bound, rememberMirrorWarning],
   );
   const saveStoryboards = useCallback(
     async (value: StoryboardState) =>
-      rememberMirrorWarning("storyboards", await quiltorClient.application.storyboards.save(value)),
-    [rememberMirrorWarning],
+      rememberMirrorWarning(
+        "storyboards",
+        await bound("storyboards", () => quiltorClient.application.storyboards.save(value)),
+      ),
+    [bound, rememberMirrorWarning],
   );
   const manuscriptSave = useAutosave(manuscript, saveManuscript);
   const figureSave = useAutosave(figures, saveFigures);
   const storyboardSave = useAutosave(storyboards, saveStoryboards);
+  const { isDirty: isManuscriptDirty, discard: discardManuscript } = manuscriptSave;
+  const { isDirty: isFiguresDirty, discard: discardFigures } = figureSave;
+  const { isDirty: isStoryboardsDirty, discard: discardStoryboards } = storyboardSave;
   const saveByFamily = {
     manuscript: manuscriptSave,
     figures: figureSave,
@@ -199,9 +238,11 @@ export function App() {
         await manuscriptSave.resolve(local.manuscript, async (snapshot) =>
           rememberMirrorWarning(
             "manuscript",
-            await quiltorClient.application.manuscript.saveExpected(
-              snapshot,
-              persisted.manuscript.revision,
+            await bound("manuscript", () =>
+              quiltorClient.application.manuscript.saveExpected(
+                snapshot,
+                persisted.manuscript.revision,
+              ),
             ),
           ),
         );
@@ -209,9 +250,11 @@ export function App() {
         await figureSave.resolve(local.figures, async (snapshot) =>
           rememberMirrorWarning(
             "figures",
-            await quiltorClient.application.storyWorld.saveExpected(
-              snapshot,
-              persisted.figures.revision,
+            await bound("figures", () =>
+              quiltorClient.application.storyWorld.saveExpected(
+                snapshot,
+                persisted.figures.revision,
+              ),
             ),
           ),
         );
@@ -219,15 +262,18 @@ export function App() {
         await storyboardSave.resolve(local.storyboards, async (snapshot) =>
           rememberMirrorWarning(
             "storyboards",
-            await quiltorClient.application.storyboards.saveExpected(
-              snapshot,
-              persisted.storyboards.revision,
+            await bound("storyboards", () =>
+              quiltorClient.application.storyboards.saveExpected(
+                snapshot,
+                persisted.storyboards.revision,
+              ),
             ),
           ),
         );
       }
     },
     [
+      bound,
       figureSave.resolve,
       manuscriptSave.resolve,
       recoveryFamily,
@@ -318,6 +364,45 @@ export function App() {
     storyboardSave.flush,
     storyboardSave.isDirty,
   ]);
+  // Unbind the documents from their world, so nothing that happens to them later is saved.
+  // `force` is for a world the server has just replaced; the documents stay on screen then.
+  const releaseDocuments = useCallback(
+    ({ clear, force = false }: { clear: boolean; force?: boolean }): boolean => {
+      const worldId = documentsBinding.current?.worldId ?? null;
+      if (!force && (isManuscriptDirty() || isFiguresDirty() || isStoryboardsDirty())) {
+        console.warn("[quiltor] release refused: unsaved changes", {
+          worldId,
+          at: new Date().toISOString(),
+        });
+        return false;
+      }
+      if (!(discardManuscript() && discardFigures() && discardStoryboards())) {
+        console.warn("[quiltor] release refused: a save is still running", {
+          worldId,
+          at: new Date().toISOString(),
+        });
+        return false;
+      }
+      documentsBinding.current = null;
+      if (clear) {
+        manuscriptHistory.clear();
+        figureHistory.clear();
+        storyboardHistory.clear();
+      }
+      return true;
+    },
+    [
+      discardFigures,
+      discardManuscript,
+      discardStoryboards,
+      figureHistory.clear,
+      isFiguresDirty,
+      isManuscriptDirty,
+      isStoryboardsDirty,
+      manuscriptHistory.clear,
+      storyboardHistory.clear,
+    ],
+  );
   const returnToWorldSelection = useCallback(async () => {
     try {
       await flushAll();
@@ -325,18 +410,21 @@ export function App() {
       // Keep the drafts and their histories open; SaveStatus exposes the failed stream.
       return;
     }
+    if (!releaseDocuments({ clear: true })) return;
+    setRecoveryFamily(null);
     overlays.close();
     overlays.closeAssistant();
     session.close();
-  }, [flushAll, overlays.close, overlays.closeAssistant, session.close]);
+  }, [flushAll, overlays.close, overlays.closeAssistant, releaseDocuments, session.close]);
   const logout = useCallback(async () => {
     try {
       await flushAll();
     } catch {
       return;
     }
+    if (!releaseDocuments({ clear: false })) return;
     shell.logout();
-  }, [flushAll, shell.logout]);
+  }, [flushAll, releaseDocuments, shell.logout]);
 
   const changeFigures = useCallback(
     (next: FigureState) => {

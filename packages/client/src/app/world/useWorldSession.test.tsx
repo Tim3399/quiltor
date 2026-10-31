@@ -72,6 +72,7 @@ describe("useWorldSession", () => {
           boards: [{ id: "main-storyboard", title: "Main Storyboard" }],
         }),
       }),
+      expect.objectContaining({ worldId: firstWorld.id, source: "open" }),
     );
 
     history.replaceState(null, "", "/?view=board&world=world-a#top");
@@ -137,6 +138,7 @@ describe("useWorldSession", () => {
           chapters: [expect.objectContaining({ title: "B" })],
         }),
       }),
+      expect.objectContaining({ worldId: secondWorld.id, source: "open" }),
     );
 
     await act(async () => {
@@ -347,5 +349,40 @@ describe("useWorldSession", () => {
 
     expect(result.current.trash).toEqual([trashed]);
     expect(result.current.trashError).toBeTruthy();
+  });
+
+  it("binds loaded documents to exactly the selection that loaded them", async () => {
+    vi.spyOn(quiltorClient.application.worlds, "list").mockResolvedValue({
+      ok: true,
+      worlds: [firstWorld, secondWorld],
+    });
+    vi.spyOn(quiltorClient.application.worlds, "open").mockImplementation(async (id) => ({
+      ok: true,
+      world: id === firstWorld.id ? firstWorld : secondWorld,
+    }));
+    vi.spyOn(quiltorClient.application.manuscript, "load").mockResolvedValue(manuscript("A"));
+    vi.spyOn(quiltorClient.application.storyWorld, "load").mockResolvedValue(figures);
+    vi.spyOn(quiltorClient.application.storyboards, "load").mockResolvedValue(storyboards);
+    const onDocumentsLoaded = vi.fn();
+    const { result } = renderHook(() => useWorldSession(onDocumentsLoaded));
+    await waitFor(() => expect(result.current.worlds).toEqual([firstWorld, secondWorld]));
+    const lastBinding = () => onDocumentsLoaded.mock.lastCall?.[1];
+
+    await act(async () => result.current.open(firstWorld.id));
+    const bindingA = lastBinding();
+    expect(bindingA).toMatchObject({ worldId: firstWorld.id });
+    expect(result.current.isSelected(bindingA)).toBe(true);
+
+    act(() => result.current.close());
+    expect(result.current.isSelected(bindingA)).toBe(false);
+
+    await act(async () => result.current.open(firstWorld.id));
+    const reopenedA = lastBinding();
+    expect(result.current.isSelected(bindingA)).toBe(false);
+    expect(result.current.isSelected(reopenedA)).toBe(true);
+
+    await act(async () => result.current.open(secondWorld.id));
+    expect(result.current.isSelected(reopenedA)).toBe(false);
+    expect(result.current.isSelected(lastBinding())).toBe(true);
   });
 });
