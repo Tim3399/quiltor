@@ -5,7 +5,7 @@ from __future__ import annotations
 import errno
 import sqlite3
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from quiltor.application import (
@@ -42,6 +42,9 @@ class HttpError:
     code: str
     params: Mapping[str, Any]
     retryable: bool
+    # Facts for the operator's log line only -- raw sqlite and errno codes. They never
+    # reach the response body, which payload() builds without them.
+    log_fields: Mapping[str, Any] = field(default_factory=dict, compare=False)
 
     def payload(self) -> dict[str, Any]:
         error: dict[str, Any] = {

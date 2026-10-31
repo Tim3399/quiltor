@@ -40,16 +40,20 @@ import http.server
 import json
 import os
 import socketserver
+import sqlite3
 import sys
 import threading
 import time
+import traceback
 import webbrowser
 from typing import Any, Literal, cast
 from urllib.parse import parse_qs, urlparse
 
+from quiltor.application import ApplicationError
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
 from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http import routes as api_routes
+from quiltor.infrastructure.observability import schema as log_schema
 from quiltor.infrastructure.platform.system import force_utf8_streams
 from quiltor.modules.identity import service as identity
 from quiltor.modules.identity.service import SESSION_COOKIE
@@ -144,6 +148,56 @@ def authority_host(authority: str) -> str:
 
 LOGIN_STATE_COOKIE = "quiltor_login_state"
 
+REQUEST_ID_HEADER = "X-Request-Id"
+
+
+def _note_session(session) -> None:
+    """Put the resolved session's `sub` into the request's log context. Never email
+    or name: `sub` is the one identifier an operator needs to find the user."""
+    request = log_schema.current_request.get()
+    if request is not None and session is not None:
+        request.sub = getattr(session, "sub", None) or None
+
+
+_LOGGED_ATTR = "_quiltor_logged_unhandled"
+
+
+def _exception_text(exc: BaseException) -> str:
+    """What an exception may say about itself in a log line.
+
+    A foreign exception's text can carry what the author wrote -- a KeyError names
+    the key, a JSONDecodeError quotes the document -- so only types whose text is
+    the code's own are spoken: an application error's code, sqlite's messages, and
+    an OSError that names no file.
+    """
+    if isinstance(exc, ApplicationError):
+        return str(exc.code)
+    if isinstance(exc, sqlite3.Error):
+        return str(exc)
+    if isinstance(exc, OSError) and exc.filename is None and exc.filename2 is None:
+        return str(exc)
+    return ""
+
+
+def _safe_traceback(exc: BaseException) -> str:
+    """Frames and type names of `exc` and its chain, with _exception_text as the only
+    message. The frames are source locations, not data."""
+    blocks: list[str] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        text = _exception_text(current)
+        name = type(current).__qualname__
+        frames = "".join(traceback.format_tb(current.__traceback__))
+        last = f"{name}: {text}" if text else name
+        blocks.append(f"Traceback (most recent call last):\n{frames}{last}")
+        current = current.__cause__ or (
+            None if current.__suppress_context__ else current.__context__
+        )
+    return "\n\nwhile handling:\n\n".join(reversed(blocks))
+
+
 # Populates api_routes.GET / api_routes.SAVE. At import time rather than on the
 # first request, so a broken route module fails at startup instead of as a 404.
 api_routes.load()
@@ -173,6 +227,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         setattr(self, identity.REDIRECT_ATTR, None)
         self._response_status = 0
         self._sent_connection_header = False
+        self._error_code = None
+        self._bytes_out = 0
         self.connection.settimeout(REQUEST_HEADER_TIMEOUT_SECONDS)
         super().handle_one_request()
 
@@ -213,10 +269,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def send_header(self, keyword: str, value: str) -> None:
         if keyword.lower() == "connection":
             self._sent_connection_header = True
+        elif keyword.lower() == "content-length":
+            # Every body this server writes declares its length -- JSON, PDF, images,
+            # redirects and the static files SimpleHTTPRequestHandler serves -- so the
+            # header is the one place that counts bytes_out for all of them.
+            try:
+                self._bytes_out = int(value)
+            except ValueError:
+                self._bytes_out = 0
         super().send_header(keyword, value)
 
     def send_json(self, obj, code: int = 200, headers: dict | None = None) -> None:
         obj, code = http_errors.normalize_response(obj, code)
+        # After normalize_response, never before: it rebuilds `error` from a fixed set
+        # of keys and would drop the id again. Reading the code here, where every JSON
+        # answer passes, also catches errors written without send_api_error -- the 403s
+        # of reject_foreign_request and the 500 normalize_response itself produces.
+        if isinstance(obj, dict) and obj.get("ok") is False and isinstance(obj.get("error"), dict):
+            self._error_code = obj["error"].get("code")
+            request = log_schema.current_request.get()
+            if request is not None:
+                obj = {**obj, "error": {**obj["error"], "requestId": request.request_id}}
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -383,6 +456,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # response actually gets sent (send_json/send_pdf/redirect/static fallback).
             for key, value in getattr(self, "_pending_cookies", None) or []:
                 self.send_header(key, value)
+            # On every answer, whichever path wrote it, so the id a user reports can
+            # always be found in the log -- even for a redirect or a static file.
+            request = log_schema.current_request.get()
+            if request is not None and self._response_status >= 200:
+                self.send_header(REQUEST_ID_HEADER, request.request_id)
             # A 100 Continue is its own header block and send_response_only() does not
             # set _response_status. Do not advertise a close until the final response.
             if (
@@ -550,15 +628,37 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, "", max_age=0))
         return self.send_json({"ok": True, "logoutUrl": logout_url or ""})
 
+    def log_rejection(self, event: str, **fields: Any) -> None:
+        """A route's refusal, as a WARNING line in the current request's context."""
+        self.application.observability.logger.event("warning", event, **fields)
+
     def _resolve_world_or_respond(self, session, world_id: str) -> WebWorldContext | None:
+        reason: str
         try:
-            return self.application.resolve_world(session, world_id)
+            world = self.application.resolve_world(session, world_id)
         except ValueError as exc:
+            reason = "invalid"
             self.send_exception(exc)
         except PermissionError as exc:
+            reason = "forbidden"
             self.send_exception(exc)
         except FileNotFoundError as exc:
+            reason = "not_found"
             self.send_exception(exc)
+        else:
+            # Only now is this the world the request acts on; a world the query or the
+            # body merely names never reaches the context.
+            request = log_schema.current_request.get()
+            if request is not None:
+                request.world_id = world_id
+            return world
+        valid = log_schema.FIELD_RULES["world_id"](world_id) is not None
+        self.log_rejection(
+            "world.resolve_failed",
+            reason=reason,
+            world_id=world_id if valid else None,
+            world_id_invalid=None if valid else True,
+        )
         return None
 
     def world_from_body(self, session, payload) -> "WebWorldContext | None":
@@ -591,51 +691,111 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def _dispatch(self, table: dict, *, on_miss) -> None:
         started = time.monotonic()
         self._response_status = 0
+        self._error_code = None
+        self._bytes_out = 0
         requested_path = self.path.split("?", 1)[0]
+        # From the registry or a fixed bucket, never from the path itself: a path is
+        # whatever the client sent.
         route = (
             requested_path
             if requested_path in table
             else ("unmatched_api" if requested_path.startswith("/api/") else "client_asset")
         )
-        try:
-            self._dispatch_request(table, on_miss=on_miss)
-        except Exception as exc:
-            self.application.observability.metrics.increment(
-                "http_requests_total",
-                method=self.command,
-                route=route,
-                outcome="failure",
-                error_type=type(exc).__name__,
-            )
-            fields: dict[str, Any] = {
-                "method": self.command,
-                "route": route,
-                "error_type": type(exc).__name__,
-            }
-            if isinstance(exc, RequestBodyRejected):
-                fields["reason"] = exc.reason
-                fields["transfer_encoding_present"] = (
-                    self.headers.get("Transfer-Encoding") is not None
+        request_id, request_id_rejected = log_schema.accept_request_id(
+            self.headers.get(REQUEST_ID_HEADER)
+        )
+        context = log_schema.RequestContext(
+            request_id=request_id,
+            method=log_schema.method_bucket(self.command),
+            route=route,
+        )
+        logger = self.application.observability.logger
+        with log_schema.request_scope(context):
+            try:
+                self._dispatch_request(table, on_miss=on_miss)
+            except Exception as exc:
+                self.application.observability.metrics.increment(
+                    "http_requests_total",
+                    method=self.command,
+                    route=route,
+                    outcome="failure",
+                    error_type=type(exc).__name__,
                 )
-            self.application.observability.logger.event("error", "http.request_failed", **fields)
-            if self._response_status:
-                raise
-            self.send_exception(exc)
-        else:
-            self.application.observability.metrics.increment(
-                "http_requests_total",
-                method=self.command,
-                route=route,
-                outcome=("failure" if self._response_status >= 400 else "success"),
-                status=str(self._response_status),
+                fields: dict[str, Any] = {
+                    "method": context.method,
+                    "route": route,
+                    "status": self._response_status or None,
+                    "error_type": type(exc).__name__,
+                    "message": _exception_text(exc) or None,
+                    "traceback": _safe_traceback(exc),
+                }
+                if isinstance(exc, RequestBodyRejected):
+                    fields["reason"] = exc.reason
+                    fields["transfer_encoding_present"] = (
+                        self.headers.get("Transfer-Encoding") is not None
+                    )
+                logger.event("error", "http.unhandled", **fields)
+                if self._response_status:
+                    # Logged here, with the request's id; Server.handle_error must not
+                    # write the same failure a second time without it.
+                    setattr(exc, _LOGGED_ATTR, True)
+                    raise
+                self.send_exception(exc)
+            else:
+                self.application.observability.metrics.increment(
+                    "http_requests_total",
+                    method=self.command,
+                    route=route,
+                    outcome=("failure" if self._response_status >= 400 else "success"),
+                    status=str(self._response_status),
+                )
+            finally:
+                elapsed = time.monotonic() - started
+                self.application.observability.metrics.observe(
+                    "http_request_duration_seconds",
+                    elapsed,
+                    method=self.command,
+                    route=route,
+                )
+                self._log_request(context, requested_path, elapsed, request_id_rejected)
+
+    def _log_request(
+        self,
+        context: log_schema.RequestContext,
+        requested_path: str,
+        elapsed: float,
+        request_id_rejected: bool,
+    ) -> None:
+        logger = self.application.observability.logger
+        status = self._response_status
+        who = {"sub": context.sub, "world_id": context.world_id}
+        if status >= 400 and (requested_path.startswith("/api/") or self._error_code):
+            logger.event(
+                "error" if status >= 500 else "warning",
+                "http.error",
+                method=context.method,
+                route=context.route,
+                status=status,
+                code=self._error_code,
+                **who,
             )
-        finally:
-            self.application.observability.metrics.observe(
-                "http_request_duration_seconds",
-                time.monotonic() - started,
-                method=self.command,
-                route=route,
-            )
+        try:
+            bytes_in = max(0, int((self.headers.get("Content-Length") or "0").strip()))
+        except ValueError:
+            bytes_in = 0
+        quiet = context.route == "client_asset" or context.route in log_schema.QUIET_ROUTES
+        logger.event(
+            "debug" if quiet else "info",
+            "http.access",
+            method=context.method,
+            route=context.route,
+            status=status,
+            duration_ms=round(elapsed * 1000),
+            bytes_in=bytes_in,
+            bytes_out=self._bytes_out,
+            request_id_rejected=True if request_id_rejected else None,
+            **who,
+        )
 
     def _dispatch_request(self, table: dict, *, on_miss) -> None:
         # Before anything else, and before the identity is consulted: a request
@@ -661,6 +821,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # _pending_cookies must already exist here: resolving queues the session
         # cookie onto this very response.
         session = self.application.identity.resolve(self)
+        _note_session(session)
         redirect = getattr(self, identity.REDIRECT_ATTR, None)
         if redirect is not None:
             # A secret came in through the query string. The cookie above is
@@ -748,11 +909,20 @@ class Server(socketserver.ThreadingTCPServer):
         real failure. Everything else stays visible.
         """
 
-        if isinstance(
-            sys.exc_info()[1], (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
-        ):
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)):
             return
-        super().handle_error(request, client_address)
+        if exc is None or getattr(exc, _LOGGED_ATTR, False):
+            return
+        # A structured line instead of socketserver's plain traceback, which would
+        # print the exception's own text -- see _exception_text.
+        self.application.observability.logger.event(
+            "error",
+            "http.unhandled",
+            error_type=type(exc).__name__,
+            message=_exception_text(exc) or None,
+            traceback=_safe_traceback(exc),
+        )
 
 
 def run(

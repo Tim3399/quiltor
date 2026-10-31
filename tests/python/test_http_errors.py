@@ -102,6 +102,10 @@ class StructuredHttpErrorTests(unittest.TestCase):
         handler.server.application = MagicMock()
         handler.command = "GET"
         handler.path = "/api/test"
+        # parse_request always sets these before a dispatch; the stub skips it.
+        handler.headers = cast(Any, {})
+        handler._error_code = None
+        handler._bytes_out = 0
         handler._dispatch_request = MagicMock(side_effect=RuntimeError("private detail"))
         responses = []
 
