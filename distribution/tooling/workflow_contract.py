@@ -497,9 +497,10 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         "node tools/dev/test-shards.mjs select --os linux --slots 4 "
         '--slot "$SLOT" --offset 4=9000 --out-dir "$lists"',
         *SLOT_RUN_EVIDENCE,
-        "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 "
+        'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1 '
         "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json",
-        "PLAYWRIGHT_WORKERS=2 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
+        'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_DESIGN" '
+        "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
         "if: failure()",
         "name: browser-e2e-slot-${{ matrix.slot }}-of-4-diagnostics",
         "name: browser-durations-linux-slot-${{ matrix.slot }}-of-4",
@@ -541,6 +542,46 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
     if "continue-on-error" in aggregator or "strategy:" in aggregator:
         raise WorkflowContractError(
             "stable browser-e2e aggregator must be a single fail-closed branch-protection check"
+        )
+
+
+WORKER_SETTINGS = (
+    "WORKERS_LINUX_PRODUCT",
+    "WORKERS_LINUX_DESIGN",
+    "WORKERS_WINDOWS",
+    "WORKERS_MACOS",
+)
+CROSS_PLATFORM_WORKERS_BINDING = (
+    "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' "
+    "&& env.WORKERS_WINDOWS || env.WORKERS_MACOS }}"
+)
+
+
+def validate_playwright_worker_settings(sources: dict[Path, str]) -> None:
+    """Keep the worker count of every browser job in one workflow-level setting per system."""
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    head = workflow.split("\njobs:\n", 1)[0]
+    declared = dict(re.findall(r'^  (WORKERS_[A-Z_]+): "([^"\n]*)"$', head, re.MULTILINE))
+    if set(declared) != set(WORKER_SETTINGS) or not re.search(r"^env:$", head, re.MULTILINE):
+        raise WorkflowContractError(
+            "test.yml must declare one workflow-level worker count per system: "
+            + ", ".join(WORKER_SETTINGS)
+        )
+    for name, value in declared.items():
+        if not re.fullmatch(r"[1-9][0-9]*", value):
+            raise WorkflowContractError(f"{name} must be a positive integer, not {value!r}")
+    for job in ("browser-e2e-shards", "cross-platform-browser", "cross-platform-smoke"):
+        body = _job_body(workflow, job)
+        if re.search(r"PLAYWRIGHT_WORKERS(?:=|: )\s*[\"']?[0-9]", body) or "&& '1' ||" in body:
+            raise WorkflowContractError(
+                f"{job} must take its Playwright worker count from the WORKERS_* settings, "
+                "not a literal"
+            )
+    if workflow.count(CROSS_PLATFORM_WORKERS_BINDING) != 2:
+        raise WorkflowContractError(
+            "the cross-platform browser slots and the smoke specs must both bind "
+            "PLAYWRIGHT_WORKERS to the Windows and macOS settings"
         )
 
 
@@ -594,7 +635,7 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         "fail-fast: false",
         "if: matrix.slot == 1",
         "run: npx vitest run",
-        "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}",
+        CROSS_PLATFORM_WORKERS_BINDING,
         "SYSTEM: ${{ matrix.system }}",
         "SLOT: ${{ matrix.slot }}",
         "SLOTS: ${{ matrix.slots }}",
@@ -1445,6 +1486,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_image_size_guard(sources)
         validate_browser_e2e_sharding(sources)
         validate_cross_platform_browser_sharding(sources)
+        validate_playwright_worker_settings(sources)
         validate_linux_playwright_install(sources)
         validate_windows_port_range(sources)
         validate_full_matrix_switch(sources)
