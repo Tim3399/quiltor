@@ -66,6 +66,14 @@ export function App() {
   });
   // The world selection the documents in the histories belong to; null once they were released.
   const documentsBinding = useRef<WorldBinding | null>(null);
+  // Latest render's state for the identity-stable loadDocuments; filled in after the hooks below.
+  const live = useRef<{
+    saves: {
+      manuscript: ReturnType<typeof useAutosave<Manuscript>>;
+      figures: ReturnType<typeof useAutosave<FigureState>>;
+      storyboards: ReturnType<typeof useAutosave<StoryboardState>>;
+    };
+  } | null>(null);
 
   const loadDocuments = useCallback(
     (
@@ -78,6 +86,11 @@ export function App() {
       binding: WorldBinding,
     ) => {
       documentsBinding.current = binding;
+      const saves = live.current?.saves;
+      // A load is not an edit; the autosave compares by identity, so hand it the same objects.
+      saves?.manuscript.accept(loadedManuscript);
+      saves?.figures.accept(loadedFigures);
+      saves?.storyboards.accept(loadedStoryboards);
       manuscriptHistory.load(loadedManuscript);
       figureHistory.load(loadedFigures);
       storyboardHistory.load(loadedStoryboards);
@@ -192,6 +205,10 @@ export function App() {
   const { isDirty: isManuscriptDirty, discard: discardManuscript } = manuscriptSave;
   const { isDirty: isFiguresDirty, discard: discardFigures } = figureSave;
   const { isDirty: isStoryboardsDirty, discard: discardStoryboards } = storyboardSave;
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref, read by the identity-stable loadDocuments
+  live.current = {
+    saves: { manuscript: manuscriptSave, figures: figureSave, storyboards: storyboardSave },
+  };
   const saveByFamily = {
     manuscript: manuscriptSave,
     figures: figureSave,
