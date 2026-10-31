@@ -46,12 +46,11 @@ unused-allowed-license = "allow"
 
 [bans]
 multiple-versions = "deny"
-# Allowed, with a reason: the only wildcard is quiltor-ffi's path dependency on
-# quiltor-core. allow-wildcard-paths would cover it only if both crates said
-# `publish = false`, which they do not today. A registry wildcard cannot slip through
-# unnoticed either: every build runs `cargo --locked` against the committed Cargo.lock.
-# Once the crates carry `publish = false`, set this to "deny" with allow-wildcard-paths.
-wildcards = "allow"
+# A registry wildcard fails. The only wildcard is quiltor-ffi's path dependency on
+# quiltor-core, which allow-wildcard-paths accepts because both crates say `publish = false`
+# (cargo-deny ignores path wildcards only for crates that cannot be published).
+wildcards = "deny"
+allow-wildcard-paths = true
 
 [sources]
 # crates.io only. A git dependency or another registry fails the gate.

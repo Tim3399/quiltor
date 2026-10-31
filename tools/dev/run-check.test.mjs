@@ -27,7 +27,7 @@ const FORMER_CHAIN = [
   "lint:markdown",
   "lint:knip",
   "lint:typos",
-  "test:audit-tools",
+  "test:tools",
 ];
 
 const fake =

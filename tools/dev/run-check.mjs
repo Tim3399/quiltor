@@ -40,7 +40,7 @@ export const LINKS = [
   "lint:markdown",
   "lint:knip",
   "lint:typos",
-  "test:audit-tools",
+  "test:tools",
 ];
 
 const MAX_JOBS = 6;
