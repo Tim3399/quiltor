@@ -9,6 +9,11 @@ from typing import Protocol, runtime_checkable
 class WritingAssistanceRepository(Protocol):
     def version(self) -> str | None: ...
 
+    def coverage(self) -> str | None:
+        """ "core" (built-in starter set) or "full" (upstream import); None
+        when nothing is installed."""
+        ...
+
     def lookup(self, language: str, mode: str, query: str) -> list[dict]: ...
 
 
