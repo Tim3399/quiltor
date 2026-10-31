@@ -46,7 +46,7 @@ def logs(handler, request: Request, app) -> None:
         )
 
 
-@get("/api/assistant/progress", world=True)
+@get("/api/assistant/progress", world=True, premium=True)
 def progress(handler, request: Request, app) -> None:
     identifier = request.param("id")
     state = (
@@ -178,7 +178,7 @@ def _send_direct_error(handler, exc: Exception) -> None:
     handler.send_exception(exc)
 
 
-@save("/api/assistant/jobs")
+@save("/api/assistant/jobs", premium=True)
 def create_job(handler, request: Request, app) -> None:
     """Create an idempotent assistant job and return without waiting for the model."""
 
@@ -217,7 +217,7 @@ def create_job(handler, request: Request, app) -> None:
         _send_direct_error(handler, exc)
 
 
-@get("/api/assistant/job", world=True)
+@get("/api/assistant/job", world=True, premium=True)
 def job_status(handler, request: Request, app) -> None:
     """Read one job through the same world-ownership gate as other world data."""
 
@@ -231,7 +231,7 @@ def job_status(handler, request: Request, app) -> None:
     handler.send_json({"ok": True, "job": job})
 
 
-@save("/api/assistant/job/cancel")
+@save("/api/assistant/job/cancel", premium=True)
 def cancel_job(handler, request: Request, app) -> None:
     try:
         payload = handler._read_json_body()

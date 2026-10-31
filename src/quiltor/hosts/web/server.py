@@ -34,6 +34,7 @@ explicitly composed WebApplication; importing this module creates no sessions,
 stores, assistant process, or other product state.
 """
 
+import hashlib
 import hmac
 import http.cookies
 import http.server
@@ -472,10 +473,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # Nobody else can reach the session yet; its cookie goes out below.
         session = self.application.identity.auth.get_session(session_id)
         if session is not None:
-            self.application.identity.auth.store_session_tokens(
+            session = self.application.identity.auth.store_session_tokens(
                 session.session_id,
                 tokens,
                 verified_id_token=str(tokens["id_token"]),
+                verified_claims=claims,
+            )
+        if session is not None and not session.roles:
+            # Keycloak puts realm and client roles into the access token only,
+            # unless the mapper says "Add to ID token". Without that every
+            # account looks unentitled, so say so once per login.
+            self.application.observability.logger.event(
+                "warning",
+                "identity.login_without_roles",
+                subject=hashlib.sha256(session.sub.encode("utf-8")).hexdigest()[:12],
+                hint="Enable 'Add to ID token' on the provider's role mappers.",
             )
         self._pending_cookies.append(
             self.cookie_header(
@@ -641,6 +653,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         if registration is None:
             return on_miss()
+
+        if registration.premium and (
+            session is None or not self.application.identity.is_premium(session)
+        ):
+            return self.send_api_error(
+                403, error_code="assistant.premium_required", retryable=False
+            )
 
         request = api_routes.Request(path=path, query=query, session=session)
         if registration.world:

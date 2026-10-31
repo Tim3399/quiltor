@@ -17,6 +17,9 @@ otherwise sit far from the route they govern are stated with it:
     JSON object, because pretending to have an account system is worse than not
     having one. It is pinned by
     tests/python/test_server_auth.py::LocalIdentityServerTest.
+  - **`premium=True`** means the session must pass `app.identity.is_premium`.
+    The dispatch checks it before resolving any world, so an account without
+    the role cannot even probe which worlds exist. Locally it always passes.
 
 The `app` argument is the concrete WebApplication owned by the HTTP server
 instance. Routes never import a composition root or process-global store.
@@ -37,6 +40,7 @@ class Registration:
     world: bool = False
     anonymous: bool = False
     auth_only: bool = False
+    premium: bool = False
 
 
 @dataclass

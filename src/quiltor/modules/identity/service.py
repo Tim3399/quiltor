@@ -43,6 +43,10 @@ SESSION_COOKIE = "quiltor_session"
 #: the common case pay for the rare one.
 REDIRECT_ATTR = "identity_redirect"
 
+#: The provider role that unlocks the assistant under OIDC
+#: (overridable with QUILTOR_PREMIUM_ROLE).
+DEFAULT_PREMIUM_ROLE = "quiltor-premium"
+
 
 class Identity:
     """How a request becomes a SessionData.
@@ -59,6 +63,9 @@ class Identity:
     #: account, and "belongs to someone else" is not a state that can arise.
     multi_user: bool = False
 
+    #: The role `is_premium` asks for. Only OidcIdentity reads it.
+    premium_role: str = DEFAULT_PREMIUM_ROLE
+
     def __init__(self, sessions: IdentityGateway, render_tokens: RenderTokenStore) -> None:
         self.auth = sessions
         self._render_tokens = render_tokens
@@ -72,6 +79,10 @@ class Identity:
 
     def redeem_render_token(self, token: str) -> str | None:
         return self._render_tokens.redeem(token)
+
+    def is_premium(self, session: auth.SessionData) -> bool:
+        """Whether this session may use the server-side assistant."""
+        return True
 
     def resolve(self, handler) -> auth.SessionData | None:
         """The session for this request, or None if it has no identity yet.
@@ -111,6 +122,21 @@ class OidcIdentity(Identity):
 
     login_url = "/login"
     multi_user = True
+
+    def __init__(
+        self,
+        sessions: IdentityGateway,
+        render_tokens: RenderTokenStore,
+        *,
+        premium_role: str = DEFAULT_PREMIUM_ROLE,
+    ) -> None:
+        super().__init__(sessions, render_tokens)
+        self.premium_role = premium_role
+
+    def is_premium(self, session: auth.SessionData) -> bool:
+        """The assistant runs on the operator's hardware or bill, so a hosted
+        account needs the premium role from its verified ID token."""
+        return self.premium_role in session.roles
 
 
 class LocalIdentity(Identity):
@@ -234,6 +260,7 @@ def queue_session_cookie(handler, session_id: str, *, max_age: int) -> None:
 
 
 __all__ = [
+    "DEFAULT_PREMIUM_ROLE",
     "REDIRECT_ATTR",
     "SESSION_COOKIE",
     "Identity",

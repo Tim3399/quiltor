@@ -28,6 +28,7 @@ _STATUS_CODES = {
     405: "request.method_not_allowed",
     409: "application.conflict",
     413: "request.payload_too_large",
+    429: "request.rate_limited",
     500: "application.internal_error",
     501: "application.not_supported",
     502: "application.gateway_failed",
@@ -65,7 +66,7 @@ def for_status(
         selected_status,
         code or _STATUS_CODES.get(selected_status, "application.failed"),
         dict(params or {}),
-        selected_status in {409, 500, 502, 503, 504} if retryable is None else retryable,
+        selected_status in {409, 429, 500, 502, 503, 504} if retryable is None else retryable,
     )
 
 

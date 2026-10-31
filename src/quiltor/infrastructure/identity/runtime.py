@@ -23,6 +23,7 @@ from quiltor.modules.identity.auth import (
     InvalidTokenSignature,
     SessionData,
     decode_id_token_header,
+    extract_roles,
     pkce_challenge,
     verify_id_token,
 )
@@ -492,6 +493,7 @@ class StdlibIdentityGateway:
         tokens: dict[str, Any],
         *,
         verified_id_token: str | None = None,
+        verified_claims: dict[str, Any] | None = None,
     ) -> SessionData | None:
         try:
             expires_in = float(tokens.get("expires_in", 0) or 0)
@@ -515,9 +517,22 @@ class StdlibIdentityGateway:
                 refresh_token=self._token_text(tokens, "refresh_token") or current.refresh_token,
                 access_expires_at=(self._clock() + expires_in if "expires_in" in tokens else 0.0),
                 id_token=(verified_id_token or current.id_token),
+                # Roles only ever come from claims the caller has verified;
+                # without them the session keeps the roles it already has.
+                roles=(
+                    extract_roles(verified_claims, self.client_id)
+                    if verified_claims is not None
+                    else current.roles
+                ),
             )
             self._sessions[session_id] = updated
             return updated
+
+    def refresh_session(self, session_id: str, *, leeway: float = 30) -> SessionData | None:
+        # Stub with today's behaviour; the real refresh (invalid_grant, backoff,
+        # roles from the refreshed ID token) is T-58 P2.
+        self.session_access_token(session_id, leeway=leeway)
+        return self.get_session(session_id)
 
     def session_access_token(self, session_id: str, *, leeway: float = 30) -> str:
         current = self.get_session(session_id)

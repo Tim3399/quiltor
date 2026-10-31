@@ -60,6 +60,44 @@ class SessionData:
     access_expires_at: float = 0.0
     id_token: str = ""
     session_id: str = ""
+    # Roles from the verified ID token. Memory only, like the session itself.
+    roles: tuple[str, ...] = ()
+    # Gateway-clock time before which no token refresh is attempted again.
+    refresh_retry_at: float = 0.0
+
+
+MAX_ROLES = 256
+
+
+def extract_roles(claims: Mapping[str, Any], client_id: str) -> tuple[str, ...]:
+    """Realm roles plus this client's roles from verified ID-token claims.
+
+    Only strings count. A claim shape other than the documented one, or more
+    than MAX_ROLES entries in total, yields no roles at all rather than a
+    partial set: a role list the provider did not mean to send grants nothing.
+    """
+    sources: list[Any] = []
+    realm = claims.get("realm_access")
+    if isinstance(realm, Mapping):
+        sources.append(realm.get("roles"))
+    resources = claims.get("resource_access")
+    if isinstance(resources, Mapping) and client_id:
+        client = resources.get(client_id)
+        if isinstance(client, Mapping):
+            sources.append(client.get("roles"))
+    collected: list[str] = []
+    for roles in sources:
+        if roles is None:
+            continue
+        if not isinstance(roles, list):
+            return ()
+        for role in roles:
+            if not isinstance(role, str):
+                return ()
+            collected.append(role)
+            if len(collected) > MAX_ROLES:
+                return ()
+    return tuple(dict.fromkeys(collected))
 
 
 class InvalidTokenSignature(ValueError):
@@ -266,6 +304,7 @@ def validate_master_token(token: str) -> None:
 __all__ = [
     "ALLOWED_ID_TOKEN_ALGORITHMS",
     "MAX_CLOCK_SKEW_SECONDS",
+    "MAX_ROLES",
     "PENDING_LOGIN_TTL",
     "RESERVED_SUBJECT_PREFIX",
     "SESSION_TTL",
@@ -274,6 +313,7 @@ __all__ = [
     "SessionData",
     "decode_id_token_claims",
     "decode_id_token_header",
+    "extract_roles",
     "pkce_challenge",
     "validate_claims",
     "validate_master_token",

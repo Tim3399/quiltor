@@ -17,7 +17,8 @@ from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenSto
 from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
-from quiltor.modules.identity.service import LocalIdentity
+from quiltor.modules.identity.auth import MAX_ROLES, extract_roles
+from quiltor.modules.identity.service import DEFAULT_PREMIUM_ROLE, LocalIdentity
 from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
@@ -130,7 +131,16 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         conn.close()
         return resp.status, dict(response_headers), raw, set_cookies
 
-    def _login(self, sub: str, email: str = "user@example.com", name: str = "Tester") -> str:
+    def _login(
+        self,
+        sub: str,
+        email: str = "user@example.com",
+        name: str = "Tester",
+        *,
+        roles: tuple[str, ...] | None = (DEFAULT_PREMIUM_ROLE,),
+    ) -> str:
+        """Log in through the callback. `roles=None` sends an ID token that
+        carries no role claims at all; any tuple goes into realm_access."""
         status, headers, _, set_cookies = self._request("GET", "/login")
         self.assertEqual(status, 302)
         login_state_cookie = next(c for c in set_cookies if c.startswith("quiltor_login_state="))
@@ -147,6 +157,8 @@ class _LiveAuthServerTestCase(unittest.TestCase):
             "aud": self.auth.client_id,
             "exp": time.time() + 300,
         }
+        if roles is not None:
+            claims["realm_access"] = {"roles": list(roles)}
         # Cryptographic verification is covered with real signed JWTs in
         # test_auth.py and fake_issuer.py. This HTTP-route test replaces the
         # verifier at its injected boundary, so use an explicitly opaque marker
@@ -381,6 +393,161 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         self.assertEqual(manuscript["payload"]["chapters"][0]["body"], "Alice's own text")
 
 
+def _assistant_fakes() -> AssistantServices:
+    """A runtime whose status serialises and a job store that accepts one job."""
+    runtime = MagicMock()
+    runtime.status.return_value = {"available": False, "reason": ""}
+    jobs = MagicMock()
+    jobs.submit.return_value = ({"id": "job-1", "status": "queued"}, True)
+    return AssistantServices(runtime, jobs)
+
+
+def _job_body(world_id: str) -> dict[str, Any]:
+    return {"worldId": world_id, "question": "Wer ist Tarek?"}
+
+
+class PremiumGateTests(_LiveAuthServerTestCase):
+    """Under OIDC the assistant's job routes need the premium role; status does not."""
+
+    def setUp(self):
+        super().setUp()
+        self.application.assistant_services = _assistant_fakes()
+
+    def _create_world(self, session: str) -> str:
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Welt", "backupUrl": ""},
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 200, body)
+        return json.loads(body)["world"]["id"]
+
+    def _post_job(self, session: str, world_id: str):
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/assistant/jobs",
+            body=_job_body(world_id),
+            headers={"Idempotency-Key": "key-1"},
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(body)
+
+    def test_a_user_without_the_role_gets_403_premium_required_on_jobs(self):
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        status, body = self._post_job(session, world_id)
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+        self.assertFalse(body["error"]["retryable"])
+        self.assertFalse(cast(MagicMock, self.application.assistant_services.jobs).submit.called)
+
+    def test_the_gate_answers_before_the_world_is_resolved(self):
+        session = self._login("user-free", roles=())
+        status, _, body, _ = self._request(
+            "GET",
+            "/api/assistant/job?id=x&world=no-such-world",
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 403, body)
+        self.assertEqual(json.loads(body)["error"]["code"], "assistant.premium_required")
+
+    def test_a_user_with_the_role_gets_202_on_jobs(self):
+        session = self._login("user-paid")
+        world_id = self._create_world(session)
+        status, body = self._post_job(session, world_id)
+        self.assertEqual(status, 202, body)
+        self.assertEqual(body["job"]["id"], "job-1")
+
+    def test_status_without_the_role_still_answers_200(self):
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        status, _, body, _ = self._request(
+            "GET",
+            f"/api/assistant/status?world={world_id}",
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 200, body)
+
+    def test_a_login_without_role_claims_logs_a_hint(self):
+        with self.assertLogs("quiltor", level="WARNING") as captured:
+            self._login("user-unmapped", roles=None)
+        events = [record.getMessage() for record in captured.records]
+        self.assertIn("identity.login_without_roles", events)
+        self.assertNotIn("user-unmapped", " ".join(str(r.__dict__) for r in captured.records))
+
+    def test_a_login_with_roles_logs_no_hint(self):
+        with self.assertNoLogs("quiltor", level="WARNING"):
+            self._login("user-paid")
+
+
+class ExtractRolesTests(unittest.TestCase):
+    def test_realm_and_this_clients_roles_are_merged(self):
+        claims = {
+            "realm_access": {"roles": ["quiltor-premium", "offline_access"]},
+            "resource_access": {
+                "quiltor-demo": {"roles": ["editor", "quiltor-premium"]},
+                "other-client": {"roles": ["admin"]},
+            },
+        }
+        self.assertEqual(
+            extract_roles(claims, "quiltor-demo"),
+            ("quiltor-premium", "offline_access", "editor"),
+        )
+
+    def test_another_clients_roles_do_not_count(self):
+        claims = {"resource_access": {"other-client": {"roles": ["quiltor-premium"]}}}
+        self.assertEqual(extract_roles(claims, "quiltor-demo"), ())
+
+    def test_missing_claims_give_no_roles(self):
+        self.assertEqual(extract_roles({"sub": "x"}, "quiltor-demo"), ())
+
+    def test_non_string_entries_give_no_roles(self):
+        claims = {"realm_access": {"roles": ["quiltor-premium", 7]}}
+        self.assertEqual(extract_roles(claims, "quiltor-demo"), ())
+
+    def test_a_roles_value_that_is_not_a_list_gives_no_roles(self):
+        self.assertEqual(
+            extract_roles({"realm_access": {"roles": "quiltor-premium"}}, "quiltor-demo"), ()
+        )
+
+    def test_more_than_the_maximum_gives_no_roles(self):
+        roles = [f"role-{index}" for index in range(MAX_ROLES)]
+        at_limit = {"realm_access": {"roles": roles}}
+        self.assertEqual(len(extract_roles(at_limit, "quiltor-demo")), MAX_ROLES)
+        over = {
+            "realm_access": {"roles": roles},
+            "resource_access": {"quiltor-demo": {"roles": ["one-more"]}},
+        }
+        self.assertEqual(extract_roles(over, "quiltor-demo"), ())
+
+
+class PremiumRoleConfigurationTests(unittest.TestCase):
+    def _identity(self, role: str | None):
+        environment = {} if role is None else {"QUILTOR_PREMIUM_ROLE": role}
+        with patch.dict(os.environ, environment):
+            if role is None:
+                os.environ.pop("QUILTOR_PREMIUM_ROLE", None)
+            return build_identity(
+                True,
+                issuer="https://kc.example.com/realms/quiltor",
+                client_id="quiltor-demo",
+                client_secret="s3cret",
+            )
+
+    def test_the_default_role(self):
+        self.assertEqual(self._identity(None).premium_role, DEFAULT_PREMIUM_ROLE)
+
+    def test_a_configured_role(self):
+        self.assertEqual(self._identity("writers").premium_role, "writers")
+
+    def test_an_invalid_role_is_a_startup_error_without_the_value(self):
+        for value in ("has space", "x" * 256):
+            with self.assertRaises(RuntimeError) as raised:
+                self._identity(value)
+            self.assertNotIn(value, str(raised.exception))
+
+
 class RenderTokenTests(unittest.TestCase):
     """The PDF export's headless-browser subprocess can't do an interactive
     Keycloak login, so it's handed a short-lived token that redeems into a real
@@ -506,6 +673,30 @@ class LocalIdentityServerTest(unittest.TestCase):
             return status, json.loads(raw)
         except ValueError:
             return status, {}  # a 404 comes from the static fallback as HTML
+
+    def test_the_local_user_needs_no_role_for_assistant_jobs(self):
+        self.application.assistant_services = _assistant_fakes()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
+        conn.request(
+            "POST",
+            "/api/worlds/create",
+            body=json.dumps({"title": "Welt", "backupUrl": ""}),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        world_id = json.loads(resp.read())["world"]["id"]
+        conn.close()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
+        conn.request(
+            "POST",
+            "/api/assistant/jobs",
+            body=json.dumps(_job_body(world_id)),
+            headers={"Content-Type": "application/json", "Idempotency-Key": "key-1"},
+        )
+        resp = conn.getresponse()
+        status, body = resp.status, json.loads(resp.read())
+        conn.close()
+        self.assertEqual(status, 202, body)
 
     def test_a_loopback_request_needs_no_header_at_all(self):
         """The everyday desktop case: whoever reaches the port is the user."""

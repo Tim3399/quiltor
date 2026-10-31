@@ -24,6 +24,14 @@ from quiltor.modules.assistant.ports import (
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
 
+class TooManyOpenJobs(RuntimeError):
+    """The account already has as many queued or running jobs as it may."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(f"At most {limit} open assistant jobs are allowed.")
+        self.limit = limit
+
+
 def _stale_world_result(
     result: dict[str, Any], *, expected_revision: int, current_revision: int, language: str
 ) -> dict[str, Any]:
@@ -390,6 +398,7 @@ class AssistantJobRunner:
 __all__ = [
     "AssistantJobRunner",
     "IdempotencyConflict",
+    "TooManyOpenJobs",
     "assistant_error_status",
     "classify_assistant_error",
 ]
