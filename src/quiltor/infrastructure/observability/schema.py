@@ -111,7 +111,7 @@ FIELD_RULES: dict[str, Callable[[Any], Any | None]] = {
     "sqlite_name": _matching(_IDENTIFIER_RE, 128),
     "errno": _integer,
     "errno_name": _matching(_IDENTIFIER_RE, 128),
-    "level": _level,
+    "log_level": _level,
     "file": _text(),
     "transfer_encoding_present": _boolean,
 }
@@ -141,7 +141,7 @@ EVENTS: dict[str, frozenset[str]] = {
     "storage.failed": frozenset(
         {"request_id", "code", "sqlite_code", "sqlite_name", "errno", "errno_name"}
     ),
-    "logging.configured": frozenset({"level", "file"}),
+    "logging.configured": frozenset({"log_level", "file"}),
 }
 
 # Events written before the schema existed. Their fields are not filtered, so their
