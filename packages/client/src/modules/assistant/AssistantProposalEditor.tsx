@@ -1,30 +1,31 @@
-import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Checkbox, Dialog, ListboxSelect, TextArea, TextField } from "../../design";
 import { useI18n } from "../../i18n";
 import type { FigureKind, FigureState } from "../story-world";
 import type { AssistantProposal } from "./model";
 
-const COMPACT_QUERY = "(max-width: 719px)";
 const ELEMENT_TYPES: FigureKind[] = ["person", "tier", "ort", "organisation", "objekt", "konzept"];
 
+// The draft is owned by AssistantDrawer. Switching between the compact sheet and the
+// regular side panel remounts the drawer's content and this editor with it, so a draft
+// held here was lost whenever a tablet was rotated.
 export function AssistantProposalEditor({
-  proposal,
+  draft,
   figures,
+  insideSheet,
+  onDraftChange: setDraft,
   onSave,
   onClose,
 }: {
-  proposal: AssistantProposal;
+  draft: AssistantProposal;
   figures: FigureState;
+  /** True while AssistantDrawer is the compact modal Sheet. */
+  insideSheet: boolean;
+  onDraftChange: (draft: AssistantProposal) => void;
   onSave: (proposal: AssistantProposal) => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const [draft, setDraft] = useState<AssistantProposal>(() => structuredClone(proposal));
-  // The same breakpoint at which AssistantDrawer becomes a modal Sheet.
-  const [insideSheet] = useState(
-    () => typeof matchMedia === "function" && matchMedia(COMPACT_QUERY).matches,
-  );
   const nodes = figures.nodes.map((node) => ({ value: node.id, label: node.name || node.id }));
   const places = figures.nodes
     .filter((node) => node.type === "ort")
