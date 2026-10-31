@@ -297,6 +297,15 @@ for (const theme of ["light", "dark"] as const) {
         ? page.getByRole("dialog", { name: "Lokaler Assistent" })
         : page.getByRole("complementary", { name: "Lokaler Assistent" });
     await expect(assistant).toBeVisible();
+    // The compact sheet slides up (ui-sheet-up) and is "visible" from its first frame, still
+    // off screen. `animations: "disabled"` finishes the animation just before the capture,
+    // but on a loaded macOS runner the capture once showed the sheet 526 px short of its
+    // place, both attempts alike (T-77). Let the slide end on its own first.
+    await assistant.evaluate((element) =>
+      Promise.all(
+        element.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      ),
+    );
     await screenshotExpectation.toHaveScreenshot(`${theme}-assistant.png`, {
       animations: "disabled",
     });
