@@ -462,7 +462,7 @@ Biome rule that replaces it, so a finding is never reported twice:
 | `keyframe-block-no-duplicate-selectors`             | `suspicious/noDuplicateSelectorsKeyframeBlock`     |
 | `keyframe-declaration-no-important`                 | `suspicious/noImportantInKeyframe`                 |
 | `media-feature-name-no-unknown`                     | `correctness/noUnknownMediaFeatureName`            |
-| `media-type-no-deprecated`                          | `complexity/noDeprecatedMediaType`                 |
+| `media-type-no-deprecated`                          | `suspicious/noDeprecatedMediaType`                 |
 | `named-grid-areas-no-invalid`                       | `correctness/noInvalidGridAreas`                   |
 | `no-duplicate-at-import-rules`                      | `suspicious/noDuplicateAtImportRules`              |
 | `no-invalid-position-at-import-rule`                | `correctness/noInvalidPositionAtImportRule`        |
@@ -513,7 +513,9 @@ It is part of `npm run check` and of the `frontend` CI job. Configuration is in
 
 **Files that are not linted.** `.claude/agents`, `.claude/output-styles` and `team/roles`:
 `team/sync.mjs` generates them from role sources, and `.prettierignore` skips them for the same
-reason. Nothing else is excluded; German texts pass because the rules look at structure, not at
+reason. `tests/fixtures/manuscript-import/**` is excluded as well: German manuscripts the
+importer tests feed in as input, whose structure (a second `#` chapter, say) is deliberate.
+Nothing else is excluded; German texts pass because the rules look at structure, not at
 language.
 
 **Rules that are off, and why.**
