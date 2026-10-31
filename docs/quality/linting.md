@@ -322,10 +322,19 @@ code change) and the optional MLX runtime's pins,
   parent declares, an `overrides` entry in `package.json` pins it. Today: `katex` 0.18.2
   (GHSA-238p-pmpm-9mq7), pulled in by markdownlint-cli2 → markdownlint →
   micromark-extension-math, which declares `^0.16.0`. markdownlint registers only the math
-  syntax extension (`math()` in `markdownlint/lib/micromark-parse.mjs`); katex is imported
-  solely by the extension's HTML renderer, which markdownlint never calls, so the major
-  jump cannot change lint results. Remove the entry once micromark-extension-math accepts a
+  syntax extension (`math()` in `markdownlint/lib/micromark-parse.mjs`). katex is still
+  loaded: the package index re-exports the HTML renderer, which imports it. But only that
+  renderer calls `katex.renderToString`, and markdownlint never calls the renderer, so the
+  major jump cannot change lint results. Remove the entry once micromark-extension-math accepts a
   fixed katex.
+- **npm 10.9.8 and vitest:** npm 10.9.8 cannot resolve vitest 4.1.x (an Arborist
+  `#loadPeerSet` error), so `npm install vitest@<version>` fails. The lock entries were set
+  by hand; `npm ci`, `npm ls --all` and `npm install` accept the lock unchanged. It is an npm
+  bug, not something the repository can fix. A vitest bump needs a newer npm or the same
+  careful lock edit, checked with `npm ci`.
+- **Exact pins of vite and vitest:** both are direct devDependencies pinned in
+  `package.json` (`devDependencies`, not in `scripts`), like every other devDependency
+  there. That is intended and needs no extra mechanism.
 
 Exceptions (`osv-scanner.toml` in the root, passed with `--config` so it covers every lock,
 including the Python locks under `distribution/`): none.
@@ -349,12 +358,11 @@ duplicate versions and where crates come from.
   license needs a decision and a line in `THIRD-PARTY-NOTICES.md`.
 - **Sources:** crates.io only; any git dependency or other registry fails.
 
-Rule relaxed:
-
-- **`bans.wildcards = "allow"`**: the only wildcard is `quiltor-ffi`'s path dependency on
-  `quiltor-core`. `allow-wildcard-paths` would cover it only if both crates said
-  `publish = false`. A registry wildcard cannot change the build unnoticed, because every
-  Cargo gate runs with `--locked`. Back to `deny` once the crates carry `publish = false`.
+Wildcards: `bans.wildcards = "deny"` with `allow-wildcard-paths = true`. The only wildcard is
+`quiltor-ffi`'s path dependency on `quiltor-core`; cargo-deny accepts path wildcards only for
+crates that cannot be published, which is why both `crates/*/Cargo.toml` say
+`publish = false`. A registry wildcard fails. Every Cargo gate also runs with `--locked`, so
+the graph cannot change unnoticed.
 
 ## CodeQL
 
@@ -367,6 +375,9 @@ TypeScript, Python, Rust, and the workflows themselves (`actions`). It runs on p
   project code runs in the job.
 - **Permissions:** `permissions: {}` at workflow level. The `analyze` job has
   `contents: read` and `security-events: write`, the latter only to upload the results.
+  `validate_security_events_scope` in `distribution/tooling/workflow_contract.py` fails when
+  any workflow grants `security-events: write` above its `jobs:` mapping, because zizmor's
+  default persona does not flag that.
 - **Excluded:** `dist/`. It is built from `packages/client/src`, which is analysed itself.
 - **Not local:** CodeQL has no npm script. Results appear under _Security → Code scanning_
   on GitHub. For a private repository that needs GitHub Advanced Security (Code Security)
