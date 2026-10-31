@@ -21,7 +21,7 @@ overrides). Each link is still an npm script of its own, so one can be run alone
   keep their caches in separate places. The shared resource is the CPU, hence the cap.
 - **Tests.** `tools/dev/run-check.test.mjs` (fake links: all green, one red, several red, the
   cap) and a contract that `LINKS` equals the former chain, each link once, and that every
-  link is an npm script. It runs with `test:audit-tools`, which gained `tools/dev/*.test.mjs`:
+  link is an npm script. It runs with `test:tools`, which gained `tools/dev/*.test.mjs`:
   that script is the existing `node --test` run in `check` for repository tooling.
 - **CI.** The `frontend` job still calls `npm run check`. The runner spawns children with
   piped output and no stdin, uses no TTY features and sets `NO_COLOR`.
@@ -293,9 +293,11 @@ a comment saying so.
 ## osv-scanner
 
 Checks every lockfile a release depends on against the OSV advisory database:
-`package-lock.json`, `Cargo.lock` and the hash-locked Python release locks listed in
+`package-lock.json`, `Cargo.lock`, the hash-locked Python release locks listed in
 `distribution/dependency-locks.json` (read from there, so a new lock is scanned without a
-code change). Any known vulnerability fails the gate, whatever its severity.
+code change) and the optional MLX runtime's pins,
+`src/quiltor/resources/sidecars/inference/mlx/requirements.lock` (a fixed entry in
+`tools/dev/lint-tool.mjs`, because the lock contract does not list it). Any known vulnerability fails the gate, whatever its severity.
 
 - **Version:** 2.7.0, pinned with download URL and SHA-256 in `distribution/toolchains.json`
   (`lintTools["osv-scanner"]`).
@@ -320,10 +322,19 @@ code change). Any known vulnerability fails the gate, whatever its severity.
   parent declares, an `overrides` entry in `package.json` pins it. Today: `katex` 0.18.2
   (GHSA-238p-pmpm-9mq7), pulled in by markdownlint-cli2 → markdownlint →
   micromark-extension-math, which declares `^0.16.0`. markdownlint registers only the math
-  syntax extension (`math()` in `markdownlint/lib/micromark-parse.mjs`); katex is imported
-  solely by the extension's HTML renderer, which markdownlint never calls, so the major
-  jump cannot change lint results. Remove the entry once micromark-extension-math accepts a
+  syntax extension (`math()` in `markdownlint/lib/micromark-parse.mjs`). katex is still
+  loaded: the package index re-exports the HTML renderer, which imports it. But only that
+  renderer calls `katex.renderToString`, and markdownlint never calls the renderer, so the
+  major jump cannot change lint results. Remove the entry once micromark-extension-math accepts a
   fixed katex.
+- **npm 10.9.8 and vitest:** npm 10.9.8 cannot resolve vitest 4.1.x (an Arborist
+  `#loadPeerSet` error), so `npm install vitest@<version>` fails. The lock entries were set
+  by hand; `npm ci`, `npm ls --all` and `npm install` accept the lock unchanged. It is an npm
+  bug, not something the repository can fix. A vitest bump needs a newer npm or the same
+  careful lock edit, checked with `npm ci`.
+- **Exact pins of vite and vitest:** both are direct devDependencies pinned in
+  `package.json` (`devDependencies`, not in `scripts`), like every other devDependency
+  there. That is intended and needs no extra mechanism.
 
 Exceptions (`osv-scanner.toml` in the root, passed with `--config` so it covers every lock,
 including the Python locks under `distribution/`): none.
@@ -347,12 +358,11 @@ duplicate versions and where crates come from.
   license needs a decision and a line in `THIRD-PARTY-NOTICES.md`.
 - **Sources:** crates.io only; any git dependency or other registry fails.
 
-Rule relaxed:
-
-- **`bans.wildcards = "allow"`**: the only wildcard is `quiltor-ffi`'s path dependency on
-  `quiltor-core`. `allow-wildcard-paths` would cover it only if both crates said
-  `publish = false`. A registry wildcard cannot change the build unnoticed, because every
-  Cargo gate runs with `--locked`. Back to `deny` once the crates carry `publish = false`.
+Wildcards: `bans.wildcards = "deny"` with `allow-wildcard-paths = true`. The only wildcard is
+`quiltor-ffi`'s path dependency on `quiltor-core`; cargo-deny accepts path wildcards only for
+crates that cannot be published, which is why both `crates/*/Cargo.toml` say
+`publish = false`. A registry wildcard fails. Every Cargo gate also runs with `--locked`, so
+the graph cannot change unnoticed.
 
 ## CodeQL
 
@@ -365,6 +375,9 @@ TypeScript, Python, Rust, and the workflows themselves (`actions`). It runs on p
   project code runs in the job.
 - **Permissions:** `permissions: {}` at workflow level. The `analyze` job has
   `contents: read` and `security-events: write`, the latter only to upload the results.
+  `validate_security_events_scope` in `distribution/tooling/workflow_contract.py` fails when
+  any workflow grants `security-events: write` above its `jobs:` mapping, because zizmor's
+  default persona does not flag that.
 - **Excluded:** `dist/`. It is built from `packages/client/src`, which is analysed itself.
 - **Not local:** CodeQL has no npm script. Results appear under _Security → Code scanning_
   on GitHub. For a private repository that needs GitHub Advanced Security (Code Security)
@@ -462,7 +475,7 @@ Biome rule that replaces it, so a finding is never reported twice:
 | `keyframe-block-no-duplicate-selectors`             | `suspicious/noDuplicateSelectorsKeyframeBlock`     |
 | `keyframe-declaration-no-important`                 | `suspicious/noImportantInKeyframe`                 |
 | `media-feature-name-no-unknown`                     | `correctness/noUnknownMediaFeatureName`            |
-| `media-type-no-deprecated`                          | `complexity/noDeprecatedMediaType`                 |
+| `media-type-no-deprecated`                          | `suspicious/noDeprecatedMediaType`                 |
 | `named-grid-areas-no-invalid`                       | `correctness/noInvalidGridAreas`                   |
 | `no-duplicate-at-import-rules`                      | `suspicious/noDuplicateAtImportRules`              |
 | `no-invalid-position-at-import-rule`                | `correctness/noInvalidPositionAtImportRule`        |
@@ -513,7 +526,9 @@ It is part of `npm run check` and of the `frontend` CI job. Configuration is in
 
 **Files that are not linted.** `.claude/agents`, `.claude/output-styles` and `team/roles`:
 `team/sync.mjs` generates them from role sources, and `.prettierignore` skips them for the same
-reason. Nothing else is excluded; German texts pass because the rules look at structure, not at
+reason. `tests/fixtures/manuscript-import/**` is excluded as well: German manuscripts the
+importer tests feed in as input, whose structure (a second `#` chapter, say) is deliberate.
+Nothing else is excluded; German texts pass because the rules look at structure, not at
 language.
 
 **Rules that are off, and why.**

@@ -35,7 +35,7 @@ export default {
     "keyframe-block-no-duplicate-selectors": null, // Biome: suspicious/noDuplicateSelectorsKeyframeBlock
     "keyframe-declaration-no-important": null, // Biome: suspicious/noImportantInKeyframe
     "media-feature-name-no-unknown": null, // Biome: correctness/noUnknownMediaFeatureName
-    "media-type-no-deprecated": null, // Biome: complexity/noDeprecatedMediaType
+    "media-type-no-deprecated": null, // Biome: suspicious/noDeprecatedMediaType
     "named-grid-areas-no-invalid": null, // Biome: correctness/noInvalidGridAreas
     "no-duplicate-at-import-rules": null, // Biome: suspicious/noDuplicateAtImportRules
     "no-invalid-position-at-import-rule": null, // Biome: correctness/noInvalidPositionAtImportRule
