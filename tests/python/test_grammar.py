@@ -184,6 +184,7 @@ class GrammarRouteTests(unittest.TestCase):
     def test_check_route_keeps_the_specific_code(self):
         from types import SimpleNamespace
 
+        from quiltor.delivery.http.routes import Request
         from quiltor.delivery.http.routes import writing_assistance as routes
 
         sent = []
@@ -205,7 +206,7 @@ class GrammarRouteTests(unittest.TestCase):
             raise JavaMissing(params={"required": 17})
 
         app = SimpleNamespace(writing_assistance=SimpleNamespace(check=check))
-        routes.check(Handler(), None, app)
+        routes.check(Handler(), Request(path="/api/writing-assistance/check"), app)
         self.assertEqual(sent, ["writing_assistance.java_missing"])
 
 

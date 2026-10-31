@@ -105,12 +105,18 @@ export function useWritingAssistance({
   // Without a status the panels cannot tell installed from missing, so a failed
   // request is shown with a way to ask again rather than left as an empty panel.
   const loadStatus = useCallback(() => {
-    setStatusFailed(false);
     void quiltorClient.application.writingAssistance
       .status()
-      .then(setStatus)
+      .then((next) => {
+        setStatus(next);
+        setStatusFailed(false);
+      })
       .catch(() => setStatusFailed(true));
   }, []);
+  const retryStatus = () => {
+    setStatusFailed(false);
+    loadStatus();
+  };
 
   useEffect(() => {
     loadStatus();
@@ -380,7 +386,7 @@ export function useWritingAssistance({
     phase,
     lookupError,
     statusFailed,
-    retryStatus: loadStatus,
+    retryStatus,
     lookupSources: [...new Set(results.map((result) => result.source))],
     grammarIssues,
     selectedIssue,
