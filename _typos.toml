@@ -82,7 +82,9 @@ extend-ignore-re = [
   # A string literal on one line that contains a German letter is German product text: a
   # prompt, a message, an example request. Its words are German, whatever they resemble.
   "\"[^\"\\n]*[äöüÄÖÜß][^\"\\n]*\"",
-  "'[^'\\n]*[äöüÄÖÜß][^'\\n]*'",
+  # A single-quoted literal opens after a non-word character, so the apostrophes of "It's"
+  # and "isn't" do not pair up and hide the English between them.
+  "(^|[^\\w'])'[^'\\n]*[äöüÄÖÜß][^'\\n]*'",
   "`[^`\\n]*[äöüÄÖÜß][^`\\n]*`",
 
   # German product text without a German letter, outside the tests. Each phrase is quoted
