@@ -5,7 +5,7 @@ from __future__ import annotations
 import errno
 import sqlite3
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from quiltor.application import (
@@ -72,7 +72,35 @@ def for_status(
     )
 
 
+def _storage_log_fields(error: Exception) -> dict[str, Any]:
+    """The raw sqlite and errno codes behind a storage failure, for the log line."""
+
+    fields: dict[str, Any] = {}
+    if isinstance(error, sqlite3.Error):
+        code = getattr(error, "sqlite_errorcode", None)
+        name = getattr(error, "sqlite_errorname", None)
+        if isinstance(code, int):
+            fields["sqlite_code"] = code
+        if isinstance(name, str):
+            fields["sqlite_name"] = name
+    if isinstance(error, OSError) and isinstance(error.errno, int):
+        fields["errno"] = error.errno
+        name = errno.errorcode.get(error.errno)
+        if name:
+            fields["errno_name"] = name
+    return fields
+
+
 def from_exception(error: Exception) -> HttpError:
+    response = _from_exception(error)
+    if response.status in {500, 503}:
+        fields = _storage_log_fields(error)
+        if fields:
+            return replace(response, log_fields={"code": response.code, **fields})
+    return response
+
+
+def _from_exception(error: Exception) -> HttpError:
     if isinstance(error, ApplicationError):
         status = 400
         if isinstance(error, (RevisionConflict, ApplicationConflict)):

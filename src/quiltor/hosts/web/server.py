@@ -312,6 +312,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def send_exception(self, error: Exception) -> None:
         response = http_errors.from_exception(error)
+        if response.log_fields:
+            self.application.observability.logger.event(
+                "error", "storage.failed", **response.log_fields
+            )
         self.send_json(response.payload(), response.status)
 
     def send_pdf(self, body: bytes) -> None:
