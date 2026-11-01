@@ -4,7 +4,7 @@ import type { FigureNode } from "../model";
 import { cropOf, type ImageCrop } from "./placeImageCrop";
 import type { PlaceMeasurementPoint } from "./placeMeasurementGraph";
 import type { PlaceGroundNode } from "./PlaceGround";
-import type { PlaceMapFlowNode } from "./PlaceMapNode";
+import type { MapBox, PlaceMapFlowNode } from "./PlaceMapNode";
 import {
   anchoredPoint,
   hasLevelContents,
@@ -158,6 +158,13 @@ export function isExpandedMap(place: FigureNode): boolean {
   return Boolean(place.mapExpanded && place.mapImageId);
 }
 
+/** What a finished resize writes down: the origin goes with the size. */
+export function mapBoxPatch(
+  box: MapBox,
+): Pick<FigureNode, "mapX" | "mapY" | "mapWidth" | "mapHeight"> {
+  return { mapX: box.x, mapY: box.y, mapWidth: box.width, mapHeight: box.height };
+}
+
 /**
  * The maps opened out on this level.
  *
@@ -182,21 +189,22 @@ export function createPlaceMapNodes({
 }: {
   places: FigureNode[];
   sourceUrl: (imageId: string) => string;
-  onResize: (place: FigureNode, size: { width: number; height: number }) => void;
-  onResizeLive: (place: FigureNode, size: { width: number; height: number }) => void;
+  onResize: (place: FigureNode, box: MapBox) => void;
+  onResizeLive: (place: FigureNode, box: MapBox) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
   /** The crop being dragged right now, which has not been written down yet. */
   cropOverride: { id: string; crop: ImageCrop } | null;
   adjustingId: string | undefined;
   /**
-   * The size a handle is being dragged to right now.
+   * The box a handle is dragging this map to right now: size and origin, since
+   * a left or top grip moves the origin.
    *
    * Map nodes are derived rather than kept in the flow's own list, so React Flow
    * drops the dimension changes it reports while a handle is held and the map
    * would only jump to its new size on release.
    */
-  liveSize: { id: string; width: number; height: number } | null;
+  liveSize: ({ id: string } & MapBox) | null;
   /**
    * Where a handle is dragging this map right now.
    *
@@ -220,7 +228,11 @@ export function createPlaceMapNodes({
     return {
       id: place.id,
       type: "placeMap",
-      position: moved ? { x: moved.x, y: moved.y } : placePosition(place),
+      position: moved
+        ? { x: moved.x, y: moved.y }
+        : live
+          ? { x: live.x, y: live.y }
+          : placePosition(place),
       width: live?.width ?? place.mapWidth ?? DEFAULT_MAP_WIDTH,
       height: live?.height ?? place.mapHeight ?? DEFAULT_MAP_WIDTH,
       ...(place.pinned ? { draggable: false } : {}),
