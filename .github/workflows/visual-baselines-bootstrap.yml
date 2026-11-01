@@ -86,7 +86,11 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install Chromium
+        if: runner.os != 'Linux'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium (Linux, apt with a time limit and one mirror switch)
+        if: runner.os == 'Linux'
+        run: bash tools/dev/playwright-linux.sh
       - name: Generate the missing baselines
         shell: bash
         env:

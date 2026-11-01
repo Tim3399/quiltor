@@ -705,6 +705,17 @@ Standardpfad für Daten, Runtime und Modell:
 QUILTOR_HOME
 ```
 
+Modelle lassen sich getrennt davon ablegen, etwa um sie mit anderen Werkzeugen zu teilen:
+
+```text
+QUILTOR_MODELS_DIR
+```
+
+Der Ordner muss existieren (Quiltor legt ihn nicht an) und enthält `gguf/*.gguf` für llama.cpp
+sowie `mlx/<modell>/` mit `config.json` für MLX. Ohne die Variable bleibt alles unter
+`QUILTOR_HOME/models`. Runtime und llama-server bleiben in jedem Fall unter `QUILTOR_HOME`;
+vorhandene Modelle werden nicht verschoben.
+
 Wichtige Befehle:
 
 ```bash

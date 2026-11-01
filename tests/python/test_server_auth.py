@@ -18,6 +18,7 @@ from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity.service import LocalIdentity
+from tests.python import late_body
 from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
@@ -588,6 +589,61 @@ class LocalIdentityServerTest(unittest.TestCase):
         self.assertTrue(
             any(k.lower() == "set-cookie" and v.startswith("quiltor_session=") for k, v in headers)
         )
+
+
+class RefusedRequestBodyAuthTests(_LiveAuthServerTestCase):
+    """Refusals before a route runs answer in full even when the body comes late.
+
+    See tests/python/late_body.py for why the body is sent after the headers.
+    """
+
+    BODY = b'{"preset": "editor"}'
+
+    def _send(self, path: str, cookies: dict[str, str] | None = None):
+        headers = {"Content-Type": "application/json"}
+        if cookies:
+            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+        return late_body.send(self.port, "POST", path, headers=headers, body=self.BODY)
+
+    def _alice_world(self):
+        alice = {"quiltor_session": self._login("alice")}
+        status, _, raw, _ = self._request(
+            "POST", "/api/worlds/create", {"title": "Alices Welt", "backupUrl": ""}, cookies=alice
+        )
+        self.assertEqual(status, 200, raw)
+        return json.loads(raw)["world"]["id"]
+
+    def test_a_request_without_a_session_gets_its_whole_401(self):
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = self._send("/api/worlds/create")
+                self.assertEqual(answer.status, 401, answer.body[:200])
+                self.assertFalse(answer.json()["ok"])
+
+    def test_a_page_request_without_a_session_gets_its_whole_answer(self):
+        """No API route and no session: the fallback answers without a route."""
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = self._send("/no-such-page")
+                self.assertEqual(answer.status, 404, answer.body[:200])
+                self.assertEqual(len(answer.body), int(answer.headers["content-length"]))
+
+    def test_someone_elses_world_gets_its_whole_403(self):
+        world = self._alice_world()
+        bob = {"quiltor_session": self._login("bob")}
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = self._send(f"/api/manuscript-export/preview?world={world}", bob)
+                self.assertEqual(answer.status, 403, answer.body[:200])
+                self.assertFalse(answer.json()["ok"])
+
+    def test_an_unknown_world_gets_its_whole_404(self):
+        alice = {"quiltor_session": self._login("alice")}
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = self._send(f"/api/manuscript-export/preview?world={'0' * 32}", alice)
+                self.assertEqual(answer.status, 404, answer.body[:200])
+                self.assertFalse(answer.json()["ok"])
 
 
 if __name__ == "__main__":

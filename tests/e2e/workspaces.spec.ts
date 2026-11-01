@@ -3173,7 +3173,8 @@ test("The start page loads a world and takes on its variable title", async ({ pa
   const title = `Öffentliche Testwelt ${crypto.randomUUID()}`;
   await createTestWorld(page, title);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible();
+  // Bounded by the test timeout like every other cold start, not by five seconds.
+  await page.getByRole("heading", { name: "Welt öffnen" }).waitFor();
   await page.getByRole("button", { name: `${title} – Welt öffnen`, exact: true }).click();
   await waitForManuscriptReady(page);
   await expect(page.locator(".brand")).toContainText(title);

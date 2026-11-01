@@ -63,20 +63,23 @@ artifact and writes the counters to the job summary.
 
 ## Findings
 
-| Source  | Rule IDs                                                                                                                                                                             |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `rules` | `page-horizontal-scroll`, `outside-viewport`, `popup-outside-viewport`, `clipped-text`, `overlap`, `touch-target`, `contrast`, `coverage-unreached`, `touch-context-menu-unverified` |
-| `ai`    | `ai:<category>`                                                                                                                                                                      |
+| Source  | Rule IDs                                                                                                                                                                                            |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rules` | `page-horizontal-scroll`, `outside-viewport`, `popup-outside-viewport`, `clipped-text`, `broken-word`, `overlap`, `touch-target`, `contrast`, `coverage-unreached`, `touch-context-menu-unverified` |
+| `ai`    | `ai:<category>`                                                                                                                                                                                     |
 
 A state that exists only in some viewports by design is marked `viewportSpecific` and is
 not listed as a failure.
+
+What each rule looks for, and what it lets through, is in
+[docs/quality/layout-rules.md](quality/layout-rules.md).
 
 ## Which part runs in which gate
 
 | Part                                                 | Command                    | Gate                                                              |
 | ---------------------------------------------------- | -------------------------- | ----------------------------------------------------------------- |
-| Node tests of the audit tools (`tools/audit/*.test`) | `npm run test:audit-tools` | `npm run check` (local and the `frontend` CI job)                 |
-| Rule tests (`tests/audit/rules.spec.ts`)             | `npm run test:audit-rules` | `Browser E2E` CI job, slot 4 (Chromium only, no server)           |
+| Node tests of the audit tools (`tools/audit/*.test`) | `npm run test:tools`       | `npm run check` (local and the `frontend` CI job)                 |
+| Rule tests (`tests/audit/rules.spec.ts`)             | `npm run test:audit-rules` | `Browser E2E` CI job, slot 4 (needs Chromium, not the server)     |
 | Capture run (`tests/audit/capture.spec.ts`)          | `npm run audit:layout`     | none; manual, or the manually started `layout-audit.yml` workflow |
 
 The rule tests use `page.setContent`, so they need Chromium but no server and no `dist/`.

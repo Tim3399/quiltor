@@ -479,43 +479,31 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
     shards = _job_body(workflow, "browser-e2e-shards")
     aggregator = _job_body(workflow, "browser-e2e")
 
-    entries = re.findall(
-        r"^\s+- slot: ([1-9][0-9]*)\n"
-        r'^[ \t]+product_shard: "([0-9/]*)"\n'
-        r'^[ \t]+design_shard: "([0-9/]+)"$',
-        shards,
-        re.MULTILINE,
-    )
-    expected = {
-        ("1", "1/3", "1/4"),
-        ("2", "2/3", "2/4"),
-        ("3", "3/3", "3/4"),
-        ("4", "", "4/4"),
-    }
-    if len(entries) != 4 or set(entries) != expected:
+    if re.findall(r"^        slot: \[([^\]\n]*)\]$", shards, re.MULTILINE) != ["1, 2, 3, 4"]:
         raise WorkflowContractError(
-            "normal CI must cover exactly product 1/3..3/3 and design 1/4..4/4 "
-            "across four browser matrix slots"
+            "normal CI must run the product and design suites across exactly four browser "
+            "matrix slots: slot: [1, 2, 3, 4]"
+        )
+    if "if: matrix.product_shard" in shards or "--shard=" in shards:
+        raise WorkflowContractError(
+            "every Linux slot must run its duration-assigned part of both suites, none by count"
         )
 
     required_shard_evidence = (
-        "needs: [plan, frontend]",
+        "    needs: plan\n",
         "fail-fast: false",
-        "if: matrix.product_shard != ''",
-        "PRODUCT_SHARD: ${{ matrix.product_shard }}",
-        "DESIGN_SHARD: ${{ matrix.design_shard }}",
+        "SLOT: ${{ matrix.slot }}",
         "set +e",
-        "product_status=0",
-        "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test",
-        'npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product',
-        "PLAYWRIGHT_WORKERS=2 npx playwright test --config playwright.design.config.ts",
-        "npx playwright test --config playwright.design.config.ts",
-        '--shard="$DESIGN_SHARD" --output=test-results/design',
-        "product_status=$?",
-        "design_status=$?",
-        'if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then',
+        "node tools/dev/test-shards.mjs select --os linux --slots 4 "
+        '--slot "$SLOT" --offset 4=9000 --out-dir "$lists"',
+        *SLOT_RUN_EVIDENCE,
+        'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1 '
+        "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json",
+        'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_DESIGN" '
+        "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
         "if: failure()",
         "name: browser-e2e-slot-${{ matrix.slot }}-of-4-diagnostics",
+        "name: browser-durations-linux-slot-${{ matrix.slot }}-of-4",
         "test-results/**",
     )
     for evidence in required_shard_evidence:
@@ -557,6 +545,46 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         )
 
 
+WORKER_SETTINGS = (
+    "WORKERS_LINUX_PRODUCT",
+    "WORKERS_LINUX_DESIGN",
+    "WORKERS_WINDOWS",
+    "WORKERS_MACOS",
+)
+CROSS_PLATFORM_WORKERS_BINDING = (
+    "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' "
+    "&& env.WORKERS_WINDOWS || env.WORKERS_MACOS }}"
+)
+
+
+def validate_playwright_worker_settings(sources: dict[Path, str]) -> None:
+    """Keep the worker count of every browser job in one workflow-level setting per system."""
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    head = workflow.split("\njobs:\n", 1)[0]
+    declared = dict(re.findall(r'^  (WORKERS_[A-Z_]+): "([^"\n]*)"$', head, re.MULTILINE))
+    if set(declared) != set(WORKER_SETTINGS) or not re.search(r"^env:$", head, re.MULTILINE):
+        raise WorkflowContractError(
+            "test.yml must declare one workflow-level worker count per system: "
+            + ", ".join(WORKER_SETTINGS)
+        )
+    for name, value in declared.items():
+        if not re.fullmatch(r"[1-9][0-9]*", value):
+            raise WorkflowContractError(f"{name} must be a positive integer, not {value!r}")
+    for job in ("browser-e2e-shards", "cross-platform-browser", "cross-platform-smoke"):
+        body = _job_body(workflow, job)
+        if re.search(r"PLAYWRIGHT_WORKERS(?:=|: )\s*[\"']?[0-9]", body) or "&& '1' ||" in body:
+            raise WorkflowContractError(
+                f"{job} must take its Playwright worker count from the WORKERS_* settings, "
+                "not a literal"
+            )
+    if workflow.count(CROSS_PLATFORM_WORKERS_BINDING) != 2:
+        raise WorkflowContractError(
+            "the cross-platform browser slots and the smoke specs must both bind "
+            "PLAYWRIGHT_WORKERS to the Windows and macOS settings"
+        )
+
+
 def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
     """Keep the full Windows and macOS matrix complete, balanced and fail-closed."""
 
@@ -570,9 +598,10 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         )
     entries = re.findall(
         r"^\s+- os: (macos-15|windows-2025)\n"
+        r"^[ \t]+system: ([^\n]+)\n"
         r"^[ \t]+label: ([^\n]+)\n"
-        r'^[ \t]+product_shard: "([0-9/]+)"\n'
-        r'^[ \t]+design_shard: "([0-9/]+)"\n'
+        r"^[ \t]+slot: ([^\n]+)\n"
+        r"^[ \t]+slots: ([^\n]+)\n"
         r"^[ \t]+diagnostics: ([^\n]+)$",
         browser,
         re.MULTILINE,
@@ -580,38 +609,47 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
     expected = {
         (
             os,
+            system,
             f"{os} / slot {slot} of {count}",
-            f"{slot}/{count}",
-            f"{slot}/{count}",
+            str(slot),
+            str(count),
             f"{os}-{slot}-of-{count}",
         )
-        for os, count in (("macos-15", 2), ("windows-2025", 8))
+        for os, system, count in CROSS_PLATFORM_SLOTS
         for slot in range(1, count + 1)
     }
     if len(entries) != len(expected) or set(entries) != expected:
         raise WorkflowContractError(
-            "the full cross-platform matrix must run product and design shards 1/2..2/2 on "
-            "macOS and 1/8..8/8 on Windows, one pair per slot, with unique diagnostics"
+            "the full cross-platform matrix must run slots 1..3 on macOS and 1..8 on Windows, "
+            "each with both suites, one entry per slot, with unique diagnostics"
+        )
+    if "--shard=" in browser:
+        raise WorkflowContractError(
+            "the cross-platform slots must run their duration-assigned tests, none by count"
         )
 
     required_evidence = (
         "name: Browser on ${{ matrix.label }}",
-        "needs: [plan, frontend]",
+        "    needs: plan\n",
         FULL_MATRIX_GUARD,
         "fail-fast: false",
-        "if: startsWith(matrix.product_shard, '1/')",
+        "if: matrix.slot == 1",
         "run: npx vitest run",
-        "PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}",
-        "PRODUCT_SHARD: ${{ matrix.product_shard }}",
-        "DESIGN_SHARD: ${{ matrix.design_shard }}",
+        CROSS_PLATFORM_WORKERS_BINDING,
+        "SYSTEM: ${{ matrix.system }}",
+        "SLOT: ${{ matrix.slot }}",
+        "SLOTS: ${{ matrix.slots }}",
         "set +e",
-        'PLAYWRIGHT_FULLY_PARALLEL=1 npx playwright test --shard="$PRODUCT_SHARD" --output=test-results/product --reporter=line',
-        "product_status=$?",
-        "npx playwright test --config playwright.design.config.ts",
-        '--shard="$DESIGN_SHARD" --output=test-results/design',
-        "design_status=$?",
-        'if [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then',
+        'if [ "$SYSTEM" = windows ]; then',
+        'shape=(--max-tests 100 --offset "1=186000")',
+        'shape=(--offset "1=150000")',
+        'node tools/dev/test-shards.mjs select --os "$SYSTEM" --slots "$SLOTS" --slot "$SLOT" '
+        '"${shape[@]}" --out-dir "$lists"',
+        *SLOT_RUN_EVIDENCE,
+        "PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json",
+        "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
         "name: cross-platform-browser-${{ matrix.diagnostics }}-diagnostics",
+        "name: browser-durations-${{ matrix.diagnostics }}",
         "test-results/**",
         "${{ runner.temp }}/quiltor-server.log",
     )
@@ -624,6 +662,137 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("cross-platform browser shards must fail closed")
 
 
+PLAYWRIGHT_LINUX = "tools/dev/playwright-linux.sh"
+PLAYWRIGHT_LINUX_EVIDENCE = (
+    "set -euo pipefail",
+    "'Acquire::http::Timeout \"30\";'",
+    "'Acquire::https::Timeout \"30\";'",
+    "'Acquire::Retries \"3\";'",
+    "/etc/apt/apt.conf.d/99quiltor-timeouts",
+    'timeout --kill-after=15 "$1" npx playwright install-deps chromium',
+    'if ! install_deps "$FIRST_LIMIT"; then',
+    "sudo dpkg --configure -a",
+    'echo "$FALLBACK_MIRROR" | sudo tee "$MIRRORS"',
+    'if ! install_deps "$SECOND_LIMIT"; then\n'
+    '    echo "::error::apt failed on ${FALLBACK_MIRROR} as well; '
+    "the browser's system packages are missing\"\n"
+    "    exit 1\n",
+    "npx playwright install chromium",
+)
+
+
+def _linux_steps(job: str) -> list[str] | None:
+    """The steps of a job that may run on Ubuntu, or None when it never does."""
+
+    runs_on = re.search(r"^    runs-on: ([^\n]+)$", job, re.MULTILINE)
+    target = runs_on.group(1) if runs_on else ""
+    if "ubuntu" not in target and not ("matrix." in target and "ubuntu" in job):
+        return None
+    steps = re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+    return [step for step in steps if "if: runner.os != 'Linux'" not in step]
+
+
+def validate_linux_playwright_install(sources: dict[Path, str], script: str | None = None) -> None:
+    """
+    On Ubuntu, Chromium's apt packages install with a time limit and exactly one mirror switch.
+
+    apt hung for 10-11 minutes in `playwright install --with-deps` on several Linux slots of two
+    runs in a row. tools/dev/playwright-linux.sh bounds each attempt, switches the mirror once and
+    fails after the second attempt; every Linux job that installs Chromium must go through it.
+    """
+
+    for path, source in sources.items():
+        for name, job in _job_blocks(source):
+            steps = _linux_steps(job)
+            if steps is None:
+                continue
+            for step in steps:
+                if "playwright install" in step and "--with-deps" in step:
+                    raise WorkflowContractError(
+                        f"{path.name}:{name} installs Playwright's apt packages without a time "
+                        f"limit; use bash {PLAYWRIGHT_LINUX}"
+                    )
+    text = script if script is not None else (REPO_ROOT / PLAYWRIGHT_LINUX).read_text("utf-8")
+    for evidence in PLAYWRIGHT_LINUX_EVIDENCE:
+        if evidence not in text:
+            raise WorkflowContractError(
+                f"{PLAYWRIGHT_LINUX} must bound apt and fail after one mirror switch: "
+                + evidence.strip().splitlines()[0]
+            )
+    if len(re.findall(r'\binstall_deps "\$', text)) != 2:
+        raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must try apt exactly twice")
+    if re.search(r"\|\|\s*(true|:)\b", text) or "set +e" in text:
+        raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must not swallow a failed attempt")
+
+
+WINDOWS_PORT_RANGE = "netsh int ipv4 set dynamicport tcp start=10000 num=55535"
+WINDOWS_PORT_RANGE_CHECK = "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
+
+
+def _may_run_on_windows(job: str) -> bool:
+    runs_on = re.search(r"^    runs-on: ([^\n]+)$", job, re.MULTILINE)
+    target = runs_on.group(1) if runs_on else ""
+    if "windows" in target:
+        return True
+    return "matrix." in target and any("windows" in v for v in _matrix_values(job, "os"))
+
+
+def validate_windows_port_range(sources: dict[Path, str]) -> None:
+    """
+    Every Windows job of test.yml that runs Playwright widens the ephemeral port range first.
+
+    The default 16384 ports ran out on browser slots (F2, WSAENOBUFS); the step must come before
+    the first Playwright step and must fail the job when netsh refuses.
+    """
+
+    for path, source in sources.items():
+        if path.name != "test.yml":
+            continue
+        for name, job in _job_blocks(source):
+            if "playwright" not in job or not _may_run_on_windows(job):
+                continue
+            steps = re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+            widen = [i for i, step in enumerate(steps) if WINDOWS_PORT_RANGE in step]
+            first = next((i for i, step in enumerate(steps) if "playwright" in step), None)
+            if not widen or first is None or widen[0] > first:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} runs Playwright on Windows without widening the dynamic "
+                    f"port range first: {WINDOWS_PORT_RANGE}"
+                )
+            step = steps[widen[0]]
+            if (
+                re.search(r"\|\|\s*(true|:)\b", step)
+                or "continue-on-error" in step
+                or f"{WINDOWS_PORT_RANGE}\n          {WINDOWS_PORT_RANGE_CHECK}" not in step
+            ):
+                raise WorkflowContractError(
+                    f"{path.name}:{name} must fail when the port range cannot be widened"
+                )
+
+
+# Every browser slot, Linux and the full matrix alike: tools/dev/test-shards.mjs selects the
+# slot's tests and has Playwright confirm the lists; a failed selection runs nothing and fails
+# the slot, each suite's status counts, and the JSON reports with the durations are kept.
+SLOT_RUN_EVIDENCE = (
+    "select_status=$?",
+    "product_status=1",
+    "design_status=1",
+    'if [ "$select_status" -eq 0 ]; then',
+    'npx playwright test --test-list "$lists/product.txt" --output=test-results/product '
+    "--reporter=line,json",
+    "product_status=$?",
+    "npx playwright test --config playwright.design.config.ts",
+    '--test-list "$lists/design.txt" --output=test-results/design --reporter=line,json',
+    "design_status=$?",
+    'if [ "$select_status" -ne 0 ] || [ "$product_status" -ne 0 ] '
+    '|| [ "$design_status" -ne 0 ]; then',
+    "            exit 1\n",
+    "if: ${{ !cancelled() }}",
+    "retention-days: 7",
+    "path: test-results/reports/*.json",
+)
+# (runner, the system name tools/dev/test-shards.mjs takes, slots)
+CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 3), ("windows-2025", "windows", 8))
 LINUX_BROWSER_GUARD = "    if: needs.plan.outputs.run_browser == 'true'"
 FULL_MATRIX_GUARD = (
     "if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'"
@@ -851,15 +1020,33 @@ def lint_programs(workflow: str, package_json: str, tracked: list[str]) -> list[
     well. A change to one of these files changes what the job does, so each must select lint.
     """
 
-    body = _job_body(workflow, "workflow-docker-shell-lint")
+    return _job_programs(workflow, package_json, tracked, ("workflow-docker-shell-lint",), "lint")
+
+
+# The jobs of the browser group; what they run decides which tests run on which slot.
+BROWSER_JOBS = ("browser-e2e-shards", "cross-platform-browser", "cross-platform-smoke")
+
+
+def browser_programs(workflow: str, package_json: str, tracked: list[str]) -> list[str]:
+    """Every tracked file under tools/ that a browser job runs, derived as for the lint job."""
+
+    return _job_programs(workflow, package_json, tracked, BROWSER_JOBS, "browser")
+
+
+def _job_programs(
+    workflow: str, package_json: str, tracked: list[str], jobs: tuple[str, ...], label: str
+) -> list[str]:
     scripts = json.loads(package_json)["scripts"]
-    commands = [body]
-    for name in re.findall(r"\bnpm run ([\w:.-]+)", body):
-        if name not in scripts:
-            raise WorkflowContractError(
-                f"the lint job runs npm run {name}, which package.json lacks"
-            )
-        commands.append(scripts[name])
+    commands = []
+    for job in jobs:
+        body = _job_body(workflow, job)
+        commands.append(body)
+        for name in re.findall(r"\bnpm run ([\w:.-]+)", body):
+            if name not in scripts:
+                raise WorkflowContractError(
+                    f"the {label} job runs npm run {name}, which package.json lacks"
+                )
+            commands.append(scripts[name])
     known = set(tracked)
     return sorted(
         {
@@ -951,6 +1138,19 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
         raise WorkflowContractError(
             "a file the lint job's tools read must select the lint group: " + ", ".join(missing)
         )
+    try:
+        programs = browser_programs(
+            workflow,
+            (REPO_ROOT / "package.json").read_text(encoding="utf-8"),
+            files,
+        )
+    except (OSError, KeyError, ValueError) as error:
+        raise WorkflowContractError(f"cannot derive the browser jobs' programs: {error}") from error
+    missing = _unselected(config, programs, "browser")
+    if missing:
+        raise WorkflowContractError(
+            "a program a browser job runs must select the browser group: " + ", ".join(missing)
+        )
     missing = _unselected(config, client_test_inputs(files), "client")
     if missing:
         raise WorkflowContractError(
@@ -994,6 +1194,20 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
         raise WorkflowContractError(
             "test.yml jobs without a path-filter group: " + ", ".join(sorted(unplaced))
         )
+    # The browser jobs start beside frontend, not after it (T-46): they serve the committed
+    # dist/ and take nothing from frontend. Its edge used to drop them whenever frontend was
+    # filtered off; now every rule that selects browser must also select checks.
+    for name in BROWSER_JOBS:
+        if not re.search(r"^    needs: plan$", jobs.get(name, ""), re.MULTILINE):
+            raise WorkflowContractError(
+                f"test.yml:{name} must need only the plan job, so it starts beside frontend"
+            )
+    for rule in config.rules:
+        if "browser" in rule.groups and "checks" not in rule.groups:
+            raise WorkflowContractError(
+                f"test-paths.json rule {rule.name!r} selects browser without checks; "
+                "a browser job must never run without frontend"
+            )
     for name, (condition, _) in FILTERED_JOBS.items():
         body = jobs.get(name)
         if body is None:
@@ -1010,6 +1224,10 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
     aggregator = jobs["browser-e2e"]
     needs = re.search(r"^    needs:\n((?:      - .*\n)*)", aggregator, re.MULTILINE)
     listed = re.findall(r"^      - ([a-z0-9-]+)$", needs.group(1), re.MULTILINE) if needs else []
+    # The browser jobs no longer wait for frontend, so this gate is the only place a red
+    # frontend turns the run red. It must stay a required need here, whatever FILTERED_JOBS says.
+    if "frontend" not in listed or "frontend" not in FILTERED_JOBS:
+        raise WorkflowContractError("browser-e2e must need and gate the frontend job")
     if sorted(listed) != sorted(["plan", *FILTERED_JOBS]):
         raise WorkflowContractError("browser-e2e must need the plan and every filtered job")
     for evidence in (
@@ -1233,6 +1451,23 @@ def validate_native_release_targets(sources: dict[Path, str]) -> None:
         )
 
 
+def validate_security_events_scope(sources: dict[Path, str]) -> None:
+    """
+    `security-events: write` belongs to the job that uploads results, never to the workflow.
+
+    At workflow level every job would inherit it, and zizmor does not flag that in its default
+    persona. Everything above the `jobs:` mapping is workflow level.
+    """
+
+    for path, source in sources.items():
+        workflow_level = re.split(r"^jobs:", source, maxsplit=1, flags=re.MULTILINE)[0]
+        if re.search(r"^\s*security-events\s*:\s*write", workflow_level, re.MULTILINE):
+            raise WorkflowContractError(
+                f"{path.name} grants security-events: write at workflow level; "
+                "grant it in the job that uploads the results"
+            )
+
+
 def validate_repository(repo_root: Path = REPO_ROOT) -> None:
     global REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK
     original = (REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK)
@@ -1251,12 +1486,16 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_image_size_guard(sources)
         validate_browser_e2e_sharding(sources)
         validate_cross_platform_browser_sharding(sources)
+        validate_playwright_worker_settings(sources)
+        validate_linux_playwright_install(sources)
+        validate_windows_port_range(sources)
         validate_full_matrix_switch(sources)
         validate_path_filter(sources)
         validate_frontend_gates_once(sources)
         validate_test_caches(sources)
         validate_type_check_extras(sources)
         validate_native_release_targets(sources)
+        validate_security_events_scope(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original
 

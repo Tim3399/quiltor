@@ -132,7 +132,8 @@ The portable release gate is 21 of the 24 minutes; the artifact jobs after it ta
   well under a minute per job. Caching them could save seconds at most.
 - **The longest path is frontend (3.5) followed by the longest browser job** -- Design on
   windows-2025 (14 min of tests with one worker) or Product on macos-15 (13 min). Sharding those
-  shortens the run; adding shards elsewhere does not.
+  shortens the run; adding shards elsewhere does not. Since T-46 the browser jobs no longer wait
+  for frontend; see "Browser jobs start beside `frontend`".
 - **Queue time is rare and not caused by the concurrency limit.** The measured peaks (15 and 18
   jobs across all workflows) stay under the documented 20; the four long waits happened anyway.
 
@@ -200,9 +201,9 @@ test.yml with GitHub's comparison rules for these cases:
 | plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
 | Core on macOS and Windows                                           | 2                           | 2                      |
 | Linux browser slots + `browser-e2e` aggregator                      | 4 + 1                       | 4 + 1                  |
-| Browser on Windows (8 slots) and macOS (2 slots)                    | 10                          | --                     |
+| Browser on Windows (8 slots) and macOS (3 slots)                    | 11                          | --                     |
 | Smoke on Windows and macOS                                          | --                          | 2                      |
-| **Total**                                                           | **23** (was 23)             | **15** (was 23)        |
+| **Total**                                                           | **24** (was 23)             | **15** (was 23)        |
 
 Why this cut:
 
@@ -229,13 +230,130 @@ Why this cut:
   before (10 instead of 11) plus the seconds-long `plan` job. Peak after `frontend`: the 4 Linux slots, the 10
   Windows/macOS slots and Core on windows-2025 (still running), about 15; with the 2–3 Release
   Build jobs of a release push, about 18. Measured before: 18 at the 2026-10-03 release. The
-  documented limit is 20 (5 macOS; the full matrix uses 3). The peak stays under it, as it already
+  documented limit is 20 (5 macOS; the full matrix uses 4 since T-38's third macOS browser slot,
+  which adds one job to each peak). The peak stays under it, as it already
   did -- see "Runner queue" for why that does not remove the occasional 20-minute wait.
+
+### Shards by duration
+
+Since T-38 no browser slot uses `--shard`. `tools/dev/test-shards.mjs select` lists both suites
+with Playwright, assigns every slot of the system from `tests/playwright/durations.json` --
+longest test first onto the slot with the least work, the product suite first, then the design
+suite onto what is left -- and writes the slot's two `--test-list` files. It refuses unless
+every test lands in exactly one slot, and before anything runs it asks Playwright which tests
+each file selects; anything but the assigned tests fails the slot.
+
+`--shard` cut by count. Many product tests skip themselves for a project, so the counts were
+equal and the work was not: Linux slot 1 ran 172 tests in 10.3 minutes, slot 2 82 in 4.2 (98
+skipped).
+
+- **The table** holds each test's duration in ms by suite and system (`[project] › file › title
+path`), plus a wall factor per suite and system: wall time of the slots over the sum of their
+  test durations -- the workers, and how well the suite uses them. A system without its own
+  table borrows Linux's, then Windows'; the factor is then measured against that table.
+- **Fail-safe.** A test missing from the table (new or renamed) gets the table's median and
+  still lands in exactly one slot. An entry no test matches is ignored. A slot that its other
+  work already fills still gets one test, so no list is empty.
+- **Other work** counts as offset: the unit tests in slot 1 of Windows (3.1 min) and macOS
+  (2.5 min), the audit rules in Linux slot 4 (9 s), measured in the run on 15e0b43.
+- **Windows** keeps its cap: at most 100 product tests per slot (the network buffers ran out
+  above 115). With durations the busiest slot gets 78.
+- **macOS** runs three slots instead of two; with two, slot 1 took 13.5 minutes.
+
+Contracts: `tools/dev/test-shards.test.mjs` (in `npm run check` through `test:tools`)
+reads the slot shapes from test.yml, lists the current suites and checks for every system that
+every test is assigned exactly once and selected by exactly one slot's list under Playwright's
+own matching rule. `workflow_contract.py` holds the slot topology, the fail-closed shell and the
+uploads, and requires the browser group for every program a browser job runs.
+
+#### Updating the table
+
+Every browser slot uploads its JSON reports as `browser-durations-<slot>` (7 days, on success
+too). Nothing reads them at CI time; the table changes only by a commit:
+
+```bash
+gh run download <run-id> --pattern "browser-durations-*" --dir durations-run
+node tools/dev/test-shards.mjs update --suite product --os linux durations-run/browser-durations-linux-*/product.json
+node tools/dev/test-shards.mjs update --suite design --os linux durations-run/browser-durations-linux-*/design.json
+```
+
+The same for `windows` (`browser-durations-windows-2025-*`) and `macos`
+(`browser-durations-macos-15-*`). `update` replaces that suite and system entirely, so renamed
+tests drop out, and writes the file sorted: the same reports give the same bytes.
+`node tools/dev/test-shards.mjs plan --os <system> --slots <n> [--offset …] [--max-tests …]`
+prints the expected slot durations.
+
+The first table comes from the job logs of run 40399143433 (15e0b43), not from JSON reports,
+which CI did not write yet: with one worker, the gap between two test starts in the line
+reporter's log is the earlier test's duration. That gives product on Linux and Windows and
+design on Windows. Design on Linux and both suites on macOS ran with two workers; for them only
+the wall factor is measured, against the borrowed table. The first run after the push replaces
+all of it with measured reports.
+
+#### Before and after
+
+Before: the run on 15e0b43, measured. Tests = the step "Run product and design shards"; job =
+the whole job including setup.
+
+| Slot           | Tests before (min) | Job before (min) | Tests after, expected (min)         | From the mean |
+| -------------- | ------------------ | ---------------- | ----------------------------------- | ------------- |
+| Linux 1        | 12.9               | **24.6**         | 7.6                                 | 0.0 %         |
+| Linux 2        | 7.0                | **18.8**         | 7.6                                 | 0.0 %         |
+| Linux 3        | 7.8                | 9.3              | 7.6                                 | -0.1 %        |
+| Linux 4        | 2.6                | 3.8              | 7.6                                 | 0.1 %         |
+| Windows 1–8    | 2.7–5.7            | 6.0–12.6         | 4.4 each (slot 1: + 3.1 unit tests) | 0.0–0.1 %     |
+| macOS 1 (of 2) | 10.2 (+ 2.5 unit)  | 13.5             | 6.9 (of 3, incl. 2.5 unit)          | 0.0 %         |
+| macOS 2 (of 2) | 8.2                | 8.9              | 6.9 (slots 2 and 3)                 | 0.0 %         |
+
+Expected job length = expected tests + setup (Linux about 1.5 min, Windows about 5, macOS
+about 1.5): Linux about 9, Windows about 9.5, macOS about 8.5 minutes.
+
+Linux slots 1 and 2 of that run also spent 10.6 minutes each in `apt-get` of
+`playwright install --with-deps` (25.9 MB at 40 kB/s from azure.archive.ubuntu.com; slots 3 and
+4 took under a minute). That is the mirror, not the sharding, and no assignment removes it.
+The run on 24cd57b showed the same on slots 1–3 (10.2, 10.6, 10.0 minutes). See "apt with a
+time limit" below.
+
+### apt with a time limit
+
+Every Linux job that installs Chromium -- the browser slots, the release gate, the layout audit
+and the Linux leg of the baseline bootstrap -- runs `tools/dev/playwright-linux.sh` instead of
+`npx playwright install --with-deps chromium`. It does the same in two parts:
+`npx playwright install-deps chromium` for the apt packages, then `npx playwright install
+chromium` for the browser.
+
+- **Limits.** `Acquire::http(s)::Timeout 30` and `Acquire::Retries 3` go to
+  `/etc/apt/apt.conf.d/`, because sudo drops `APT_CONFIG`. They do not catch the hang above: apt
+  counts silence, and 40 kB/s is not silence. So each attempt also has a wall-clock limit,
+  `timeout` run as root so that it stops apt-get itself: 240 s for the first attempt (normal is
+  15–65 s), 300 s for the second.
+- **One mirror switch.** If the first attempt does not finish, the runner's mirror list
+  (`/etc/apt/apt-mirrors.txt`, azure.archive.ubuntu.com first) is replaced by Ubuntu's own
+  `archive.ubuntu.com`, after `dpkg --configure -a` for a stopped install. Chosen over a fixed
+  faster mirror because the Azure mirror is fast almost every time (slot 4: 0.3 min), and
+  because no other official mirror is known to be faster from the runners. This is the one
+  targeted retry T-34 allows.
+- **Fail-closed.** If the second attempt fails too, the job fails. The visual baselines need the
+  fonts apt installs; a job that went on without them would compare wrong pixels.
+- **No apt cache** (D-26).
+
+`workflow_contract.py` fails when a job that can run on Ubuntu installs with `--with-deps`, and
+when the script loses a limit, its abort after the second attempt, or gains a third attempt or
+a `|| true`.
+
+| Install Chromium, Linux slots (min)     | Slot 1                    | Slot 2 | Slot 3 | Slot 4 |
+| --------------------------------------- | ------------------------- | ------ | ------ | ------ |
+| Run on 15e0b43 (before)                 | 10.9                      | 11.1   | 0.7    | 0.5    |
+| Run on 24cd57b (before)                 | 10.2                      | 10.6   | 10.0   | 0.3    |
+| After (at most 4 + 5 min, normally ≤ 1) | open until after the push |        |        |        |
+
+**Runtime evidence: open until after the push.** The expected values above come from the table;
+the measured ones follow from the first full-matrix run.
 
 ### The pull-request smoke test
 
-**Linux stays complete on every pull request that runs browser suites at all** -- product
-1/3–3/3, design 1/4–4/4 and the layout audit rules. That is the condition for running only a
+**Linux stays complete on every pull request that runs browser suites at all** -- every product
+and design test, assigned to the four slots by duration, and the layout audit rules. That is the condition for running only a
 smoke test on Windows and macOS. `workflow_contract.py` fails if the Linux slots read the matrix
 plan or get any job-level `if:` other than the path filter's browser group (see "Path filter",
 "The one exception to Linux complete").
@@ -260,24 +378,24 @@ out runs on main in the full matrix.
 
 Every check that ran for a commit on main still runs for it, in the same or a merged job.
 
-| Check                                                  | Before                             | After                                                                            | Event                |
-| ------------------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------- | -------------------- |
-| Backend suite, contracts, CLI host (Linux)             | backend                            | backend                                                                          | all                  |
-| Rust fmt, clippy, tests, cargo-deny                    | portable-core                      | portable-core                                                                    | all                  |
-| `npm run check` (all gates, formatting, linters)       | frontend                           | frontend                                                                         | all                  |
-| check:* gates inside `npm run build`                   | frontend, a second time            | frontend, once through `npm run check`                                           | all                  |
-| tsc -b, vite build, dist/ matches the sources          | frontend                           | frontend                                                                         | all                  |
-| Unit tests (Linux)                                     | frontend                           | frontend                                                                         | all                  |
-| actionlint, hadolint, shellcheck, osv-scanner          | workflow-docker-shell-lint         | unchanged                                                                        | all                  |
-| Visual-baseline reach                                  | visual-baseline-reach              | unchanged                                                                        | all                  |
-| Backend and Rust tests on macOS, Windows               | Core on …                          | unchanged                                                                        | all                  |
-| Product 1/3..3/3, design 1/4..4/4, audit rules (Linux) | Browser E2E slots 1–4              | unchanged, product split by test                                                 | all                  |
-| Unit tests on macOS, Windows                           | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
-| Product suite on macOS                                 | Product on macos-15 (whole)        | Browser on macos-15 slots 1–2                                                    | main                 |
-| Design suite on macOS                                  | Design on macos-15                 | Browser on macos-15 slots 1–2                                                    | main                 |
-| Product suite on Windows                               | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
-| Design suite on Windows                                | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
-| Product and design suites on macOS, Windows            | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
+| Check                                            | Before                             | After                                                                            | Event                |
+| ------------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------- | -------------------- |
+| Backend suite, contracts, CLI host (Linux)       | backend                            | backend                                                                          | all                  |
+| Rust fmt, clippy, tests, cargo-deny              | portable-core                      | portable-core                                                                    | all                  |
+| `npm run check` (all gates, formatting, linters) | frontend                           | frontend                                                                         | all                  |
+| check:* gates inside `npm run build`             | frontend, a second time            | frontend, once through `npm run check`                                           | all                  |
+| tsc -b, vite build, dist/ matches the sources    | frontend                           | frontend                                                                         | all                  |
+| Unit tests (Linux)                               | frontend                           | frontend                                                                         | all                  |
+| actionlint, hadolint, shellcheck, osv-scanner    | workflow-docker-shell-lint         | unchanged                                                                        | all                  |
+| Visual-baseline reach                            | visual-baseline-reach              | unchanged                                                                        | all                  |
+| Backend and Rust tests on macOS, Windows         | Core on …                          | unchanged                                                                        | all                  |
+| Product and design suites, audit rules (Linux)   | Browser E2E slots 1–4              | unchanged, both suites assigned by duration (T-38)                               | all                  |
+| Unit tests on macOS, Windows                     | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
+| Product suite on macOS                           | Product on macos-15 (whole)        | Browser on macos-15 slots 1–3                                                    | main                 |
+| Design suite on macOS                            | Design on macos-15                 | Browser on macos-15 slots 1–3                                                    | main                 |
+| Product suite on Windows                         | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
+| Design suite on Windows                          | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
+| Product and design suites on macOS, Windows      | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
 
 On pull requests the product and design suites on macOS and Windows shrink to the smoke specs.
 That is the reduction the brief allows; main still runs them in full.
@@ -410,6 +528,28 @@ test.yml without an entry fails the contract, so T-35 (F-35-1) extends the same 
 Side effect: `browser-e2e` now waits for the slowest job (on main, the Windows slots) and turns
 red when any filtered job does, not only a browser slot.
 
+### Browser jobs start beside `frontend` (T-46)
+
+`browser-e2e-shards`, `cross-platform-browser` and `cross-platform-smoke` used to have
+`needs: [plan, frontend]` and waited about 3.5 minutes for it on every run. They now have
+`needs: plan` and start beside `frontend`.
+
+- **Nothing flows from `frontend` to them.** No `download-artifact`, no `needs.frontend.outputs`,
+  no `needs.frontend.result` in an `if:`. They serve the committed `dist/`; `frontend` only
+  compares it with the sources. So no edge had to stay.
+- **A red `frontend` still makes the run red.** `browser-e2e` needs `frontend` and requires
+  `success`, or `skipped` only when the plan did not select `checks`. The contract names
+  `frontend` explicitly, so dropping it from the gate's `needs` is red even if `FILTERED_JOBS`
+  changes with it. `test_a_red_frontend_fails_the_gate_beside_green_browsers` runs the gate's own
+  shell script under bash: every job green except `frontend` (failure, cancelled or skipped)
+  exits 1.
+- **The path filter drops nothing new.** The old edge also dropped the browser jobs whenever
+  `frontend` was filtered off. That was already true through the rules -- every rule that selects
+  `browser` selects `checks` -- and is now a contract: a rule with `browser` without `checks` is red.
+- **Critical path.** Before: `frontend` (3.5) followed by the longest browser job. After: the
+  longest browser job alone; `frontend` runs beside it. Expected saving per run is the 3.5 minutes
+  of waiting. Measured wall clock after push: open.
+
 ### The one exception to "Linux complete"
 
 |                      | Before (T-33)                              | After (T-37)                                                                                                |
@@ -445,3 +585,115 @@ expressions in test.yml and the real configuration.
 
 Job counts include `plan` and `browser-e2e`, with each matrix slot as one job. The timings are
 open until a push with the user's approval.
+
+## Workers per runner
+
+T-39. Each browser runner starts Playwright with a worker count that `test.yml` sets in one
+place per system, the workflow-level `env:` block:
+
+| Setting                 | Today | Used by                                                   |
+| ----------------------- | ----- | --------------------------------------------------------- |
+| `WORKERS_LINUX_PRODUCT` | 1     | product shard on Linux (with `PLAYWRIGHT_FULLY_PARALLEL`) |
+| `WORKERS_LINUX_DESIGN`  | 2     | design shard on Linux                                     |
+| `WORKERS_WINDOWS`       | 1     | product and design shard and the smoke specs on Windows   |
+| `WORKERS_MACOS`         | 2     | product and design shard and the smoke specs on macOS     |
+
+The steps hand the value to Playwright as `PLAYWRIGHT_WORKERS`
+(`tests/playwright/workers.ts`). Without it, a local run uses the config's default: 2 for the
+product suite, 4 for the design suite. `workflow_contract.py` requires the four settings to be
+positive integers and refuses a literal `PLAYWRIGHT_WORKERS` in any browser job.
+
+**Nothing needs to run serially for a reason of its own.** Every product test creates and deletes
+its own world through the fixture (`tests/e2e/support/world-fixture.ts`), the design suite serves
+fixed pages, and the audit rules use route mocks. No spec holds a fixed port, a global file or a
+lock besides the one server on `:8010`, which already serves two workers locally. The only
+ceiling found is a runner-wide one: Windows exhausts its network buffers (F2), which is why
+`WORKERS_WINDOWS` stays at 1 until a measurement says otherwise. `book-pagination-performance`
+records its pagination time but asserts none, so extra workers cannot turn it red.
+
+**The shard assignment does not take the count as input.** `test-shards.mjs` converts test
+durations to wall time with the measured wall factor of a suite and system
+(`tests/playwright/durations.json`). A new worker count changes that factor, so after a
+measurement run `update` (see "Updating the table") from the same reports, otherwise the slots
+are cut for the old count.
+
+### Measurement: workers per system and run time
+
+To be filled in by the orchestrator. One row per value and system; flakes are runs of the
+slot that went red and turned green unchanged.
+
+| System, suite | Workers | Runs | Slowest slot, tests (min) | Slowest job (min) | Flakes |
+| ------------- | ------- | ---- | ------------------------- | ----------------- | ------ |
+| Linux product | 2       |      |                           |                   |        |
+| Linux product | 3       |      |                           |                   |        |
+| Linux product | 4       |      |                           |                   |        |
+| Linux design  | 3       |      |                           |                   |        |
+| Linux design  | 4       |      |                           |                   |        |
+| Windows       | 2       |      |                           |                   |        |
+| Windows       | 3       |      |                           |                   |        |
+| Windows       | 4       |      |                           |                   |        |
+| macOS         | 3       |      |                           |                   |        |
+| macOS         | 4       |      |                           |                   |        |
+
+Linux product at 1 and design at 2, Windows at 1 and macOS at 2 are the baseline, measured in
+the sections above.
+
+Steps, per value and system (needs the user's approval for every push):
+
+1. On a throw-away branch, change the one setting in the `env:` block of `test.yml`. Change one
+   system at a time, so a red run points at it.
+2. Push and start `Test` (`workflow_dispatch` with `full_matrix: true` for Windows and macOS).
+3. Repeat to at least **three runs** per value. One green run says nothing about a flake that
+   shows once in ten.
+4. Per run, read the slowest slot's "Run product and design shards" step and its whole job from
+   the run page. A rerun of a red slot counts as a flake when the same commit turns green.
+5. Enter the medians in the table, set the best value that stayed free of new flakes in the
+   `env:` block, and run `node tools/dev/test-shards.mjs update` on that run's
+   `browser-durations-*` reports for the new wall factor.
+
+## Flakes
+
+Every first attempt of `test.yml` that went red and turned green on a re-run, from 182 runs
+between 2026-08-15 and 2026-10-27, plus the three cases only seen locally (T-34). Runs: R1
+40562314621, R2 40467707755, R3 40220535290, R4 37961937563, R5 37216539640, R6 37214593973,
+R7 37113154094, R8 37111931104, R9 34236701740, R10 34098759267.
+
+| Case | Job                           | Test                                                                                                             | Symptom                                                                                                         | Runs            | Cause                                                                                                                                                                                                                                         | Fix                                                                                                                                                                                                     |
+| ---- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1   | Core on windows               | `test_server_assistant.py` setUp                                                                                 | `urlopen` timed out after 5 s                                                                                   | R2, R4, R6, R8  | the client timeout of 5 s was too short for `worlds/create` on a loaded runner; the server answered, only later                                                                                                                               | one shared client timeout, `tests/python/request_timeout.py` (`REQUEST_TIMEOUT` = 20 s), for all live-server tests                                                                                      |
+| F2   | Product on windows            | `workspaces` 3174, 2948, 1046; `layout-invariants` 703                                                           | page empty after start, heading or toolbar never appears                                                        | R3, R8, R9, R10 | one start module failed with `net::ERR_NO_BUFFER_SPACE` (WSAENOBUFS, runner out of socket buffers); the application never booted. Same in all four traces                                                                                     | `support/transient-network.ts` reloads the page once for exactly that failure and records an annotation                                                                                                 |
+| F3   | Product on macos              | `workspaces` "Autosave survives a reload"                                                                        | `Nach Reload vorhandenAnfang`                                                                                   | R5, R7          | the chapter editor remounted empty after showing its text; typed text landed before the chapter body loaded into the new editor, and the merged text was saved. Product behaviour                                                             | open, reported as a product question                                                                                                                                                                    |
+| F4   | Browser on macos, local win32 | `visual-baseline` light-figures compact                                                                          | 352 px / 216 px                                                                                                 | R1              | a compact card's height depends on the zoom; one fitView measured the old height, so the viewport ended 0.3 px apart                                                                                                                          | fit until the transform settles; win32 baseline regenerated, darwin and linux figures-compact refilled by the baseline workflow                                                                         |
+| F5   | Product on macos              | `places-drag-pin` "Derived places drag…"                                                                         | stored anchor 28.8 px off                                                                                       | R5              | the entered map's ground changed between measuring and the drop; only the viewport transform was awaited                                                                                                                                      | measure the map once its rectangle is stable                                                                                                                                                            |
+| F6   | Product on macos              | `audit-followup` "history comparison remains readable"                                                           | dialog right edge 1810 > 1441                                                                                   | R6              | the history dialog grew past the viewport after the word diff rendered and stayed there (failure screenshot). Layout, not timing; not reproducible on Windows                                                                                 | open, reported as a product question                                                                                                                                                                    |
+| I1   | Product on windows            | `npm ci`                                                                                                         | `EEXIST` in the npm cache                                                                                       | R4              | infrastructure, file lock in the npm cache                                                                                                                                                                                                    | open                                                                                                                                                                                                    |
+| L1   | local Windows                 | live-server Python tests                                                                                         | WinError 10053                                                                                                  | none in CI      | the server refused a request (origin, host, auth, unknown route) before reading its body; Windows closes a socket with unread bytes with a reset instead of a FIN, and the client drops the answer it had already received. Product behaviour | `_discard_unread_body` in `server.py` reads and drops a body of up to 64 KiB with a valid Content-Length within one 2 s deadline before such an answer; anything larger, invalid or slower stays unread |
+| L2   | local Windows                 | `review-regressions` 11                                                                                          | editor not visible 5 s after `goto`                                                                             | none in CI      | a cold start under a two-worker run was bounded by the five seconds of an assertion                                                                                                                                                           | wait for the manuscript toolbar, bounded by the test timeout                                                                                                                                            |
+| L3   | local Windows                 | `assistant-proposal-retry` 3 [regular]                                                                           | stored world still empty (`names: []`) 5 s after accepting the elements                                         | none in CI      | the world is saved 800 ms after a change; the click took 0.9 s and the save answered later than the five seconds of `expect.poll` allowed under a full two-worker run. Reproduced with the save delayed by 6 s. Not product behaviour         | wait for the save's response, bounded by the test timeout, then read the stored world once                                                                                                              |
+| I2   | Frontend on linux             | `npm run check`, link `check:format`                                                                             | `failed to install component: 'clippy-preview-x86_64-unknown-linux-gnu', detected conflict: 'bin/cargo-clippy'` | 41190689350     | `setup` installs the toolchain with rustfmt only; `rust-toolchain.toml` also asks for clippy, so the first cargo call has rustup add it. Since the links run in parallel, two cargo calls did that at once and one lost                       | `tools/dev/run-check.mjs` runs `rustup toolchain install --no-self-update` once, serially, before the links, whenever a cargo link (`RUST_LINKS`) is selected (T-76); no retry                          |
+| F7   | Browser on macos              | `editor-session-state` "Returning to Text restores the edited chapter, cursor, scroll and input focus" (compact) | `scrollTop` 5863, expected 5880 (17 px short)                                                                   | 41185881579     | `finishRestore` in `packages/client/src/modules/manuscript/EditorSurface.tsx` (lines 336-350) writes `scrollTop` exactly once; a later height correction by CodeMirror shifts the content by about 17 px and the position no longer matches   | Known, not fixed: T-75 fixes it after T-69 lands (anchor instead of pixel offset). No tolerance in the test.                                                                                            |
+| F8   | Browser on macos              | `visual-baseline` dark-assistant compact                                                                         | 17078 px (6 %); the assistant sheet 526 px below its place, backdrop complete                                   | 41194493626     | `toBeVisible` holds from the first frame of the sheet's `ui-sheet-up` slide (220 ms), so the capture started mid-slide; Playwright's `finish()` did not reach the macOS capture, both attempts showed the same frame. Not product behaviour   | wait for the sheet's own animations to finish (`animation.finished`) before the capture (T-77); no tolerance, no retry                                                                                  |
+
+The macOS cases F3, F5 and F6 come from the old unsharded macOS job; whether they still occur
+after T-33 is open. None of the fixes adds a general retry: F2 is the one single-case reload,
+limited to one failure text and recorded in the report whenever it fires.
+
+### F2: the cause, a port range too small
+
+WSAENOBUFS on Windows is what Winsock reports when no ephemeral port is left, not only when
+memory runs out. Windows takes ephemeral TCP ports from 49152-65535, 16384 ports, the default
+since Vista and Server 2008 (Microsoft KB 929851, "The default dynamic port range for TCP/IP has
+changed"). A browser slot opens many short connections to the server and to Chromium's own
+endpoints, and each closed one holds its port in `TIME_WAIT` for up to two minutes.
+
+Both Windows browser jobs, `cross-platform-browser` and `cross-platform-smoke`, therefore run
+`netsh int ipv4 set dynamicport tcp start=10000 num=55535` as their first step: 10000 + 55535
+ends at 65534, the largest range Windows accepts, and 10000 stays clear of the fixed ports the
+suites use (8010, and 4174 for the design server). The step is limited to these two jobs: they are the only
+Windows jobs in `test.yml` that run Playwright, and `cross-platform-native` never showed the
+failure. It runs before checkout, so a refused `netsh` fails the job before anything else
+starts; there is no fallback. `workflow_contract.validate_windows_port_range` requires the step
+before the first Playwright step of every Windows job that runs Playwright, and fails the
+contract when the step is missing, comes later or swallows a failure. The single-case reload in
+`support/transient-network.ts` stays until a full matrix without it has shown the widened range
+is enough.

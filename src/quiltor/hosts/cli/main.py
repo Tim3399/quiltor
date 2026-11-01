@@ -59,6 +59,10 @@ KNOWN_KEYS: dict[str, str] = {
         "quiltor-desktop). Must match the client registered in the endpoint's realm."
     ),
     "QUILTOR_HOME": f"Where runtime/model/data files live. Defaults to {DEFAULT_HOME} for the CLI.",
+    "QUILTOR_MODELS_DIR": (
+        "Existing folder that holds the model files (gguf/*.gguf and mlx/<model>/). "
+        "Defaults to QUILTOR_HOME/models. The runtime stays under QUILTOR_HOME."
+    ),
     "QUILTOR_DATA_DIR": "Directory for worlds, backups, and manuscripts data. Defaults to QUILTOR_HOME/data.",
     "QUILTOR_HOST": (
         "Bind address for the server (default 127.0.0.1). Anything else stops being a loopback-only "

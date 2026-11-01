@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
 import type { FigureNode } from "../../packages/client/src/modules/story-world/model";
 import {
   expandedMapState,
@@ -64,6 +65,33 @@ async function dragPlaceToPointer({
   await expect(node.locator(".story-node")).toBeVisible();
 }
 
+/*
+ * The map's screen rectangle once it has stopped changing.
+ *
+ * waitForMapViewport only watches the viewport transform, not the map node. In a red macOS
+ * run the pointer landed exactly where aimed (the preview tip matched), yet the anchor stored
+ * on the entered map came out 0.024 short on both axes (28.8 px): the ground had moved or
+ * resized between measuring it and the drop. Two identical rectangles in a row rule that out.
+ */
+async function settledBox(locator: Locator) {
+  let previous = "";
+  let box: { x: number; y: number; width: number; height: number } | null = null;
+  await expect
+    .poll(
+      async () => {
+        box = await locator.boundingBox();
+        const current = JSON.stringify(box);
+        const settled = box !== null && current === previous;
+        previous = current;
+        return settled;
+      },
+      { message: "The map is still changing its screen geometry." },
+    )
+    .toBe(true);
+  if (!box) throw new Error("The map has no screen geometry.");
+  return box as { x: number; y: number; width: number; height: number };
+}
+
 function pointOn(
   rect: { x: number; y: number; width: number; height: number },
   u: number,
@@ -99,8 +127,7 @@ test("Derived places drag by a pointer-accurate pin on expanded and entered maps
   await waitForMapViewport(page);
 
   const map = page.locator('.react-flow__node-placeMap[data-id="weltkarte"]');
-  const mapRect = await map.boundingBox();
-  if (!mapRect) throw new Error("The expanded map has no screen geometry.");
+  const mapRect = await settledBox(map);
   const firstAnchor = { u: 0.61, v: 0.56 };
   await dragPlaceToPointer({
     page,
@@ -125,8 +152,7 @@ test("Derived places drag by a pointer-accurate pin on expanded and entered maps
     .click();
   await expect(page.locator(".react-flow__node-placeGround")).toBeVisible();
   await waitForMapViewport(page);
-  const groundRect = await page.locator(".react-flow__node-placeGround").boundingBox();
-  if (!groundRect) throw new Error("The entered map ground has no screen geometry.");
+  const groundRect = await settledBox(page.locator(".react-flow__node-placeGround"));
   const secondAnchor = { u: 0.38, v: 0.68 };
   await dragPlaceToPointer({
     page,

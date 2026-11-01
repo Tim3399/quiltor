@@ -72,6 +72,7 @@ export function PlaceMapScaleControl({
           <TextField
             fieldClassName="place-map-scale-control__value"
             label={t("scale")}
+            labelHidden
             type="number"
             min="0.01"
             step="0.01"

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
 import {
   closePlaceSheet,
   expandedMapState,
@@ -281,3 +281,85 @@ test("Map edges remain resizable and child anchors stay on the world surface", a
   expect((anchor.y + anchor.height / 2 - rect.y) / rect.height).toBeCloseTo(0.4, 2);
   await expect(page.locator(".place-map-chrome")).toBeVisible();
 });
+
+type Side = "left" | "right" | "top" | "bottom";
+const OPPOSITE: Record<Side, Side> = { left: "right", right: "left", top: "bottom", bottom: "top" };
+const OUTWARD: Record<Side, [number, number]> = {
+  left: [-60, 0],
+  right: [60, 0],
+  top: [0, -60],
+  bottom: [0, 60],
+};
+
+for (const side of ["left", "right", "top", "bottom"] as const) {
+  test(`Dragging the ${side} grip moves only the ${side} edge of the map`, async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "wide", "The edge drag needs the wide canvas.");
+    const fixture = await mockExpandedMapWorld(page);
+    await openExpandedMapWorld(page);
+    const map = page.locator('.react-flow__node-placeMap[data-id="weltkarte"]');
+    // Selecting opens the inspector, which would cover the right edge of a map
+    // that fills the view. Zooming out first (that click clears the selection)
+    // brings all four edges into open canvas.
+    for (let step = 0; step < 3; step += 1) {
+      await page.locator(".react-flow__controls-zoomout").click();
+    }
+    await waitForMapViewport(page);
+    await map.click({ position: { x: 60, y: 80 } });
+    const line = map.locator(`.place-map-node__line.${side}`);
+    await expect(line).toBeAttached();
+    const grip = await line.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const horizontal = rect.width > rect.height;
+      for (const along of [0.5, 0.35, 0.65, 0.2, 0.8]) {
+        for (const across of [0.5, 0.3, 0.7]) {
+          const x = rect.left + rect.width * (horizontal ? along : across);
+          const y = rect.top + rect.height * (horizontal ? across : along);
+          if (document.elementFromPoint(x, y)?.closest(".react-flow__resize-control") === element)
+            return { x, y };
+        }
+      }
+      throw new Error("Map edge has no unobscured resize target");
+    });
+    const before = await map.boundingBox();
+    if (!before) throw new Error("Map has no geometry");
+    const edges = (box: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }): Record<Side, number> => ({
+      left: box.x,
+      right: box.x + box.width,
+      top: box.y,
+      bottom: box.y + box.height,
+    });
+    const was = edges(before);
+    const [dx, dy] = OUTWARD[side];
+    await page.mouse.move(grip.x, grip.y);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + dx, grip.y + dy, { steps: 10 });
+    await page.mouse.up();
+    await expect
+      .poll(async () => {
+        const box = await map.boundingBox();
+        return box ? Math.abs(edges(box)[side] - was[side]) : 0;
+      })
+      .toBeGreaterThan(20);
+    const after = await map.boundingBox();
+    if (!after) throw new Error("Resized map has no geometry");
+    const now = edges(after);
+    for (const other of ["left", "right", "top", "bottom"] as const) {
+      if (other === side) continue;
+      expect(now[other], `the ${other} edge must stay where it was`).toBeCloseTo(was[other], 0);
+    }
+    expect(now[OPPOSITE[side]]).toBeCloseTo(was[OPPOSITE[side]], 0);
+    await expect
+      .poll(() => {
+        const saved = fixture.savedState().nodes.find((node) => node.id === "weltkarte");
+        return { x: (saved?.mapX ?? 0) < 0, y: (saved?.mapY ?? 0) < 0 };
+      })
+      .toEqual({ x: side === "left", y: side === "top" });
+  });
+}

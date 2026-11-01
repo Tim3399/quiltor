@@ -128,10 +128,12 @@
         "playwright.design.config.ts",
         "playwright.audit.config.ts",
         "tools/audit/**",
-        "tools/quality/check_visual_baseline_reach.mjs"
+        "tools/quality/check_visual_baseline_reach.mjs",
+        "tools/dev/test-shards.mjs",
+        "tools/dev/playwright-linux.sh"
       ],
       "groups": ["checks", "browser"],
-      "reason": "The browser suites, their configuration and the layout-audit rules slot 4 runs."
+      "reason": "The browser suites, their configuration, the layout-audit rules slot 4 runs, the program that assigns every slot its tests from tests/playwright/durations.json, and the Linux Chromium install the slots run. workflow_contract.py derives the programs the browser jobs run and requires browser for each."
     },
     {
       "name": "playwright-config-read-by-backend",

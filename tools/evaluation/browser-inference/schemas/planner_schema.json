@@ -1,0 +1,42 @@
+{
+  "type": "object",
+  "required": ["goal", "steps", "searchQueries", "requiredKinds"],
+  "additionalProperties": false,
+  "properties": {
+    "goal": {
+      "type": "string"
+    },
+    "steps": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string"
+      }
+    },
+    "searchQueries": {
+      "type": "array",
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 300
+      }
+    },
+    "requiredKinds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "create_element",
+          "update_element",
+          "create_timeline_moment",
+          "create_relationship",
+          "set_relationship_at_moment",
+          "mark_deceased",
+          "arrange_elements",
+          "set_presence"
+        ]
+      }
+    }
+  }
+}

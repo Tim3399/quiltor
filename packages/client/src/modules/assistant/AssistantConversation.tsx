@@ -1,5 +1,5 @@
 import { Bot, Check, EyeOff, Pencil, RotateCw } from "lucide-react";
-import { type RefObject, useState } from "react";
+import type { RefObject } from "react";
 import {
   Alert,
   Button,
@@ -13,7 +13,6 @@ import {
 import { type MessageKey, useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
 import type { FigureState } from "../story-world";
-import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import type { AssistantBatchProgress, AssistantEntry } from "./conversationTypes";
 import { resolveAssistantMessage } from "./formatting";
 import type {
@@ -51,7 +50,7 @@ export function AssistantConversation({
   onNavigate,
   onApply,
   onDismiss,
-  onEdit,
+  onStartEdit,
   onClassifyClaim,
 }: {
   entries: AssistantEntry[];
@@ -69,7 +68,7 @@ export function AssistantConversation({
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onApply: (entryId: string, proposals: AssistantProposal[], indices: number[]) => void;
   onDismiss: (entryId: string, index: number) => void;
-  onEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
+  onStartEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
   onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
 }) {
   const { t } = useI18n();
@@ -108,7 +107,7 @@ export function AssistantConversation({
           onNavigate={onNavigate}
           onApply={onApply}
           onDismiss={onDismiss}
-          onEdit={onEdit}
+          onStartEdit={onStartEdit}
           onClassifyClaim={onClassifyClaim}
         />
       ))}
@@ -154,7 +153,7 @@ function AssistantExchange({
   onNavigate,
   onApply,
   onDismiss,
-  onEdit,
+  onStartEdit,
   onClassifyClaim,
 }: {
   entry: AssistantEntry;
@@ -168,7 +167,7 @@ function AssistantExchange({
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onApply: (entryId: string, proposals: AssistantProposal[], indices: number[]) => void;
   onDismiss: (entryId: string, index: number) => void;
-  onEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
+  onStartEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
   onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
 }) {
   const { t } = useI18n();
@@ -271,7 +270,7 @@ function AssistantExchange({
               onNavigate={onNavigate}
               onApply={onApply}
               onDismiss={onDismiss}
-              onEdit={onEdit}
+              onStartEdit={onStartEdit}
               onClassifyClaim={onClassifyClaim}
             />
           )}
@@ -360,7 +359,7 @@ function ProposalList({
   onNavigate,
   onApply,
   onDismiss,
-  onEdit,
+  onStartEdit,
   onClassifyClaim,
 }: {
   entryId: string;
@@ -374,12 +373,11 @@ function ProposalList({
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onApply: (entryId: string, proposals: AssistantProposal[], indices: number[]) => void;
   onDismiss: (entryId: string, index: number) => void;
-  onEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
+  onStartEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
   onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
 }) {
   const { t } = useI18n();
   const proposals = reply.proposals;
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const groups = reply.proposalGroups?.length
     ? reply.proposalGroups
     : [{ id: "all", proposalIndexes: proposals.map((_proposal, index) => index) }];
@@ -506,7 +504,7 @@ function ProposalList({
                           appearance="ghost"
                           size="compact"
                           icon={<Pencil />}
-                          onClick={() => setEditingIndex(index)}
+                          onClick={() => onStartEdit(entryId, index, effective(index))}
                         >
                           {t("editProposal")}
                         </Button>
@@ -549,14 +547,6 @@ function ProposalList({
           </section>
         );
       })}
-      {editingIndex !== null && (
-        <AssistantProposalEditor
-          proposal={effective(editingIndex)}
-          figures={figures}
-          onSave={(proposal) => onEdit(entryId, editingIndex, proposal)}
-          onClose={() => setEditingIndex(null)}
-        />
-      )}
     </section>
   );
 }

@@ -344,7 +344,10 @@
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
-.place-node-shell .story-node .place-node__enter + .place-node__enter {
+/* Reading order is source order, as on the pin: the display toggle first, "+" or enter last,
+   so the last command stands in the corner. Which of the two came first used to decide the
+   corner too, and put them in the opposite order of the pin's row. */
+.place-node-shell .story-node .place-node__enter:has(+ .place-node__enter) {
   right: calc(var(--space-4) + var(--control-compact) + var(--space-2));
 }
 
