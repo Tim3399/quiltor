@@ -166,7 +166,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await mockExpandedMapWorld(page);
     await openExpandedMapWorld(page);
-    // Reopening establishes the same completed save state in development and production.
+    // Reopening establishes the same idle save state in development and production. R1:
+    // loading no longer re-saves, so the status reads "Bereit" rather than "Gespeichert".
     // Await it before arranging the compact navigation, whose width depends on this label.
     await page.getByRole("button", { name: "Mehr", exact: true }).click();
     await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
@@ -174,7 +175,7 @@ for (const theme of ["light", "dark"] as const) {
       .getByRole("button", { name: "Die nördlichen Küsten – Welt öffnen", exact: true })
       .click();
     await expect(page.locator(".places-workspace")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Gespeichert");
+    await expect(page.getByRole("status")).toContainText("Bereit");
     await page
       .getByRole("button", { name: "Orte", exact: true })
       .evaluate((element) => element.scrollIntoView({ block: "nearest", inline: "center" }));
