@@ -23,7 +23,6 @@ import os
 import sqlite3
 import sys
 import tempfile
-import unittest
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
@@ -338,13 +337,16 @@ class ServerLogPrivacyTests(_PrivacyServer):
         self.assertIn("storage.failed", self.events())
         self.assert_clean()
 
-    # LEAK, reported in D-T-71-P6 (owner G0, server.py _exception_text): the text of a
-    # sqlite3.Error is spoken in http.unhandled's `message` and `traceback`, and sqlite
-    # puts paths and quoted values there. Remove the marker once the fix lands.
-    @unittest.expectedFailure
+    # Found by this suite (D-T-71-P6): sqlite puts paths and quoted values into its
+    # message, so http.unhandled speaks only the error name.
     def test_a_sqlite_failure_logs_its_code_but_not_its_text(self):
         self.scenario_sqlite_text()
         self.assert_clean()
+        unhandled = [line for line in self.parsed() if line["event"] == "http.unhandled"]
+        # Once on stderr, once in the file.
+        self.assertEqual([line["message"] for line in unhandled], ["SQLITE_FULL"] * 2)
+        for line in unhandled:
+            self.assertTrue(line["traceback"].endswith("OperationalError: SQLITE_FULL"))
 
     def test_every_event_is_written_and_none_carries_a_canary(self):
         for name in self.SCENARIOS:

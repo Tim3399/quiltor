@@ -167,13 +167,15 @@ def _exception_text(exc: BaseException) -> str:
 
     A foreign exception's text can carry what the author wrote -- a KeyError names
     the key, a JSONDecodeError quotes the document -- so only types whose text is
-    the code's own are spoken: an application error's code, sqlite's messages, and
-    an OSError that names no file.
+    the code's own are spoken: an application error's code, sqlite's error name, and
+    an OSError that names no file. sqlite's message itself can carry a path or a
+    quoted value, so it never is.
     """
     if isinstance(exc, ApplicationError):
         return str(exc.code)
     if isinstance(exc, sqlite3.Error):
-        return str(exc)
+        name = getattr(exc, "sqlite_errorname", None)
+        return name if isinstance(name, str) else ""
     if isinstance(exc, OSError) and exc.filename is None and exc.filename2 is None:
         return str(exc)
     return ""
