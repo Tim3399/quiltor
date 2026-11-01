@@ -34,7 +34,6 @@ explicitly composed WebApplication; importing this module creates no sessions,
 stores, assistant process, or other product state.
 """
 
-import hashlib
 import hmac
 import http.cookies
 import http.server
@@ -611,12 +610,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if session is not None and not session.roles:
             # Keycloak puts realm and client roles into the access token only,
             # unless the mapper says "Add to ID token". Without that every
-            # account looks unentitled, so say so once per login.
+            # account looks unentitled, so say so once per login. The fix is
+            # "Add to ID token" on the provider's role mappers; roles_claim_present
+            # tells that case apart from an account that simply has no roles.
             self.application.observability.logger.event(
                 "warning",
                 "identity.login_without_roles",
-                subject=hashlib.sha256(session.sub.encode("utf-8")).hexdigest()[:12],
-                hint="Enable 'Add to ID token' on the provider's role mappers.",
+                sub=session.sub,
+                roles_claim_present="realm_access" in claims or "resource_access" in claims,
             )
         self._pending_cookies.append(
             self.cookie_header(

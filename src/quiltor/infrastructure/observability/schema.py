@@ -114,6 +114,7 @@ FIELD_RULES: dict[str, Callable[[Any], Any | None]] = {
     "log_level": _level,
     "file": _text(),
     "transfer_encoding_present": _boolean,
+    "roles_claim_present": _boolean,
 }
 
 _REQUEST = frozenset({"request_id", "method", "route"})
@@ -142,6 +143,8 @@ EVENTS: dict[str, frozenset[str]] = {
         {"request_id", "code", "sqlite_code", "sqlite_name", "errno", "errno_name"}
     ),
     "logging.configured": frozenset({"log_level", "file"}),
+    # Never email or name: `sub` is the one identifier an operator needs (D-49).
+    "identity.login_without_roles": frozenset({"request_id", "sub", "roles_claim_present"}),
 }
 
 # Events written before the schema existed. Their fields are not filtered, so their
