@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -109,8 +110,9 @@ class LanguageToolManager:
         try:
             with urllib.request.urlopen(request, timeout=120) as response:
                 payload = response.read()
-        except OSError as exc:
-            # URLError, HTTPError and socket timeouts are all OSError.
+        except (OSError, http.client.HTTPException) as exc:
+            # URLError, HTTPError and socket timeouts are all OSError; a
+            # connection closed mid-body is IncompleteRead, an HTTPException.
             raise DownloadFailed() from exc
         if hashlib.sha256(payload).hexdigest() != LANGUAGETOOL_SHA256:
             raise ChecksumMismatch()
