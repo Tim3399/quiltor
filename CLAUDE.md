@@ -79,6 +79,12 @@ Success means the command fails. The file is restored afterwards. This has alrea
 a geometry test that passed while the bug was back in, and an assertion whose regex could
 never match.
 
+The command after `--` runs without a shell, so its arguments arrive exactly as your own
+shell hands them over — quote `bash -c "exit 1"` as you would to run it directly. `&&`,
+pipes and redirections therefore need a shell of their own (`-- bash -c "a && b"`), and from
+PowerShell a bare `bash` is WSL's `System32\bash.exe`: name Git Bash by its path there. A
+command that cannot be started at all exits 2 instead of counting as a bite.
+
 ## Toolchains are pinned, exactly
 
 `distribution/toolchains.json` names the versions the release is built with, and
