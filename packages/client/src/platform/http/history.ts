@@ -11,6 +11,7 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
           shortHash: string;
           date: string;
           subject: string;
+          automatic?: boolean;
         }>;
       }>(withWorldQuery(state, "/api/history")),
     diff: (ref = "WORK", word = true, all = false) =>

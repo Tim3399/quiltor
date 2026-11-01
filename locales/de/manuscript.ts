@@ -198,6 +198,7 @@ export const manuscript = {
     "Eigene Begriffe gelten der Grammatikprüfung als richtig geschrieben und stehen beim Schreiben zum Einfügen bereit.",
   chooseSymbols: "Sonderzeichen auswählen",
   previousVersion: "Frühere Fassung",
+  automaticBackupName: "Automatische Sicherung, {date}",
   changesSincePreviousVersion: "Änderungen zur direkt vorherigen Fassung",
   versionDiff: "Änderungen dieser Fassung",
   versionDiffLegend: "Legende der Fassungsänderungen",

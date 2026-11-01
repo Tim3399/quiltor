@@ -10,7 +10,7 @@ import {
 } from "../../design";
 import { useI18n } from "../../i18n";
 import type { SnapshotChapterRecord } from "../../platform";
-import type { SnapshotInfo, VersionDiffProjection } from "../history";
+import { type SnapshotInfo, snapshotName, type VersionDiffProjection } from "../history";
 import type { ChapterHistoryState } from "./useChapterHistory";
 import "./ChapterHistoryPanel.css";
 
@@ -35,7 +35,9 @@ export function ChapterHistoryPanel({
   onClose,
   onRefChange,
 }: ChapterHistoryPanelProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const chosen = commits.find((commit) => commit.hash === selectedRef);
+  const chosenName = chosen ? snapshotName(chosen, t, locale) : undefined;
   const additions = projection?.changes.filter((change) => change.kind === "added").length ?? 0;
   const removals = projection?.changes.filter((change) => change.kind === "removed").length ?? 0;
   const formattingAdded =
@@ -61,11 +63,13 @@ export function ChapterHistoryPanel({
           fieldClassName="chapter-history-state"
           label={t("state")}
           value={selectedRef}
+          title={chosenName}
+          description={chosenName}
           onChange={(event) => onRefChange(event.target.value)}
         >
           {commits.map((commit) => (
             <option key={commit.hash} value={commit.hash}>
-              {commit.date} · {commit.subject}
+              {snapshotName(commit, t, locale)}
             </option>
           ))}
         </Select>
