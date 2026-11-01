@@ -72,7 +72,7 @@ TEXT_DIRS = ("manuscripts", "profiles")
 # (see src/quiltor/infrastructure/persistence/mirror.py's MIRROR_RE) -- this recovers the human title from that.
 _MIRROR_TITLE_RE = re.compile(r"^\d{2,} - (.+)\.md$")
 # The name the server gives a snapshot nobody named. Persisted as written; the
-# history reports it as automatic so the client can show its own wording.
+# history reports kind "automatic" so the client can show its own wording.
 _AUTOMATIC_MESSAGE_RE = re.compile(r"Writing backup \d{4}-\d{2}-\d{2} \d{2}:\d{2}")
 
 
@@ -830,7 +830,7 @@ class SnapshotStore:
                 "shortHash": entry["id"][:8],
                 "date": datetime.fromisoformat(entry["created"]).isoformat(timespec="seconds"),
                 "subject": entry.get("message", ""),
-                "automatic": is_automatic_message(entry.get("message", "")),
+                "kind": "automatic" if is_automatic_message(entry.get("message", "")) else "manual",
             }
             for entry in reversed(entries)
         ]

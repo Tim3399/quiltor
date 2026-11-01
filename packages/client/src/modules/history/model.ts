@@ -3,6 +3,6 @@ export interface SnapshotInfo {
   shortHash: string;
   date: string;
   subject: string;
-  /** The server generated this name; the client shows its own wording instead. */
-  automatic?: boolean;
+  /** Who named it. "automatic": the server did, and the client shows its own wording. Open for further kinds. */
+  kind?: "automatic" | "manual";
 }

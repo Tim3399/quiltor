@@ -126,20 +126,20 @@ class SnapshotStoreTest(unittest.TestCase):
 
         newest, oldest = self.store.history(ctx)
         self.assertTrue(oldest["subject"].startswith("Writing backup "))
-        self.assertIs(oldest["automatic"], True)
-        self.assertIs(newest["automatic"], False)
+        self.assertEqual(oldest["kind"], "automatic")
+        self.assertEqual(newest["kind"], "manual")
 
     def test_an_accepted_suggested_name_counts_as_automatic(self):
         """The snapshot dialog pre-fills the suggested name; an author who keeps it
         did not write it, and snapshots made before the flag existed look the same."""
         ctx = self._world("world-a")
         self.store.commit(ctx, "Writing backup 2026-10-28 12:20", push=False)
-        self.assertIs(self.store.history(ctx)[0]["automatic"], True)
+        self.assertEqual(self.store.history(ctx)[0]["kind"], "automatic")
 
     def test_a_name_that_only_starts_like_the_generated_one_is_the_authors(self):
         ctx = self._world("world-a")
         self.store.commit(ctx, "Writing backup 2026-10-28 12:20 vor dem Umbau", push=False)
-        self.assertIs(self.store.history(ctx)[0]["automatic"], False)
+        self.assertEqual(self.store.history(ctx)[0]["kind"], "manual")
 
     def test_committing_twice_without_edits_is_recognised_as_unchanged(self):
         """sqlite3's backup() output is byte-stable for an unchanged database,

@@ -186,7 +186,7 @@ describe("ChapterHistoryPanel", () => {
         shortHash: "auto",
         date: "2026-10-28T12:20:28",
         subject: "Writing backup 2026-10-28 12:20",
-        automatic: true,
+        kind: "automatic",
       },
     ]);
     const option = screen.getByRole("option");

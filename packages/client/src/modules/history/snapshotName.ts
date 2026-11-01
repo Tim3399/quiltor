@@ -14,6 +14,6 @@ function formatSnapshotDate(date: string, locale: string): string {
  */
 export function snapshotName(snapshot: SnapshotInfo, t: Translate, locale: string): string {
   const date = formatSnapshotDate(snapshot.date, locale);
-  if (snapshot.automatic || !snapshot.subject) return t("automaticBackupName", { date });
+  if (snapshot.kind === "automatic" || !snapshot.subject) return t("automaticBackupName", { date });
   return `${date} · ${snapshot.subject}`;
 }
