@@ -22,6 +22,15 @@ export function useHistoryState<T>() {
     setValue(next);
     setTimelineVersion((value) => value + 1);
   }, []);
+  // Forget the documents entirely, so no undo can bring back a world that is no longer open.
+  const clear = useCallback(() => {
+    past.current = [];
+    future.current = [];
+    last.current = 0;
+    startNewHistoryStep.current = true;
+    setValue(null);
+    setTimelineVersion((value) => value + 1);
+  }, []);
   const change = useCallback((next: T, options?: HistoryChangeOptions) => {
     setValue((current) => {
       if (current !== null) {
@@ -70,6 +79,7 @@ export function useHistoryState<T>() {
   return {
     value,
     load,
+    clear,
     change,
     undo,
     redo,
