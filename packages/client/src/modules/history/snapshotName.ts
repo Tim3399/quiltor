@@ -2,7 +2,7 @@ import type { Translate } from "../../i18n";
 import type { SnapshotInfo } from "./model";
 
 /** A snapshot's moment in the reader's locale, to the minute: "28.10.2026, 12:20". */
-export function formatSnapshotDate(date: string, locale: string): string {
+function formatSnapshotDate(date: string, locale: string): string {
   const moment = new Date(date);
   if (Number.isNaN(moment.getTime())) return date;
   return moment.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });

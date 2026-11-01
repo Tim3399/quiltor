@@ -85,6 +85,7 @@ def is_automatic_message(message: str) -> bool:
     unchanged from the suggestion and every snapshot written before 3.25."""
     return _AUTOMATIC_MESSAGE_RE.fullmatch(message) is not None
 
+
 # Word-diff tokens: runs of non-space, single newlines, and runs of blanks kept
 # separate so rewrapping a paragraph does not read as every word having changed.
 _TOKEN_RE = re.compile(r"\S+|\n|[^\S\n]+")
@@ -716,8 +717,7 @@ class SnapshotStore:
             ),
             "changes": changes[:60],
             "changeCount": len(changes),
-            "suggestedMessage": _describe_changes(changes)
-            or _automatic_message(datetime.now()),
+            "suggestedMessage": _describe_changes(changes) or _automatic_message(datetime.now()),
         }
 
     def commit(
@@ -764,9 +764,7 @@ class SnapshotStore:
             # the hex ids the storage layout happens to use as directories.
             "world": ctx.root.name,
             "title": ctx.title,
-            "message": message
-            or _describe_changes(changes)
-            or _automatic_message(created),
+            "message": message or _describe_changes(changes) or _automatic_message(created),
             "parent": previous_entry["id"] if previous_entry else "",
             "files": manifest,
         }

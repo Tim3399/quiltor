@@ -1,5 +1,5 @@
 export type { SnapshotInfo } from "./model";
-export { formatSnapshotDate, snapshotName } from "./snapshotName";
+export { snapshotName } from "./snapshotName";
 export {
   diffVersion,
   type VersionDiffProjection,
