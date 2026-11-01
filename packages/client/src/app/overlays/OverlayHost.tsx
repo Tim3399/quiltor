@@ -48,6 +48,7 @@ export function OverlayHost({
   onTarget,
   onCommand,
   flushAll,
+  onDocumentsReplaced,
   pendingRename,
   onManuscriptChange,
   onCloseRename,
@@ -71,6 +72,7 @@ export function OverlayHost({
   onTarget: (target: WorkspaceTarget) => void;
   onCommand: (command: string) => void;
   flushAll: () => Promise<void>;
+  onDocumentsReplaced: () => void;
   pendingRename: PendingEntityRename | null;
   onManuscriptChange: (manuscript: Manuscript) => void;
   onCloseRename: () => void;
@@ -125,9 +127,20 @@ export function OverlayHost({
       )}
       {overlay === "snapshot" && <SnapshotDialog onClose={onCloseOverlay} flush={flushAll} />}
       {overlay === "history" && <HistoryDialog onClose={onCloseOverlay} flush={flushAll} />}
-      {overlay === "backups" && <BackupDialog onClose={onCloseOverlay} flush={flushAll} />}
+      {overlay === "backups" && (
+        <BackupDialog
+          onClose={onCloseOverlay}
+          flush={flushAll}
+          onDocumentsReplaced={onDocumentsReplaced}
+        />
+      )}
       {overlay === "cloud" && (
-        <CloudDialog onClose={onCloseOverlay} flush={flushAll} manuscript={manuscript} />
+        <CloudDialog
+          onClose={onCloseOverlay}
+          flush={flushAll}
+          manuscript={manuscript}
+          onDocumentsReplaced={onDocumentsReplaced}
+        />
       )}
       {pendingRename && (
         <ConfirmDialog

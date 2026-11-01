@@ -60,6 +60,8 @@ interface EditorSurfaceProps {
   activeSearchIndex: number;
   activeSearchMatch: ManuscriptSearchMatch | null;
   historyOpen: boolean;
+  /** False until the world's documents are loaded; the editor is not mounted before then. */
+  documentsReady: boolean;
   historyCommits: SnapshotInfo[];
   historyRef: string;
   historicalChapter: SnapshotChapterRecord | null;
@@ -103,6 +105,7 @@ export function EditorSurface({
   activeSearchIndex,
   activeSearchMatch,
   historyOpen,
+  documentsReady,
   historyCommits,
   historyRef,
   historicalChapter,
@@ -665,78 +668,85 @@ export function EditorSurface({
                 onClose={onCloseSearch}
               />
             )}
-            <ManuscriptEditor
-              key={current.id}
-              value={historyOpen && historicalChapter ? historicalChapter.text : current.body}
-              mentions={historyOpen ? [] : current.mentions}
-              marks={historyOpen && historicalChapter ? historicalChapter.marks : current.marks}
-              issues={historyOpen ? [] : grammarIssues}
-              searchMatches={historyOpen ? [] : currentSearchMatches}
-              initialSelection={
-                // eslint-disable-next-line react-hooks/refs -- the restore target is read once as the editor's initial selection; later changes must not re-render the editor
-                allowSessionRestore && restoreRef.current?.chapterId === current.id
-                  ? restoreRef.current.selection
-                  : undefined
-              }
-              onViewSelectionChange={(selection) => {
-                if (historyOpen) return;
-                viewSelectionRef.current = { chapterId: current.id, selection };
-                captureSession();
-              }}
-              activeSearchMatch={
-                !historyOpen && activeSearchMatch?.chapterId === current.id
-                  ? activeSearchMatch
-                  : null
-              }
-              entities={historyOpen ? [] : figures.nodes}
-              label={t("chapterText")}
-              placeholder={t("startWritingPlaceholder")}
-              vocabulary={vocabulary}
-              editorRef={editorRef}
-              onChange={historyOpen ? () => undefined : onEditorChange}
-              held={historyOpen ? null : held}
-              readOnly={historyOpen}
-              versionDiff={historyOpen && historySnapshotReady ? historyProjection : null}
-              versionDiffLabels={{
-                added: t("versionAdded"),
-                addedLineBreak: t("versionAddedLineBreak"),
-                removed: t("versionRemoved"),
-                formattingAdded: {
-                  bold: `${t("versionFormattingAdded")}: ${t("formatBold")}`,
-                  italic: `${t("versionFormattingAdded")}: ${t("formatItalic")}`,
-                },
-                formattingRemoved: {
-                  bold: `${t("versionFormattingRemoved")}: ${t("formatBold")}`,
-                  italic: `${t("versionFormattingRemoved")}: ${t("formatItalic")}`,
-                },
-              }}
-              onSelection={(next: EditorTextSelection | null) =>
-                onSelection(
-                  historyOpen || !next
-                    ? null
-                    : { ...next, chapterId: current.id, revision: current.body },
-                )
-              }
-              onSelectionMenu={(next) =>
-                !historyOpen &&
-                onSelectionMenu({ ...next, chapterId: current.id, revision: current.body })
-              }
-              onIssue={onIssue}
-              onOpenEntity={(node: FigureNode) =>
-                onOpenEntity?.({
-                  workspace: node.type === "ort" ? "places" : "figures",
-                  id: node.id,
-                })
-              }
-              describeEntity={(node: FigureNode) =>
-                `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ""}`
-              }
-              describeMention={(node: FigureNode) => ({
-                kind: kindLabel(node.type, t),
-                detail: node.sub ?? "",
-                openLabel: t("openEntity", { name: node.name }),
-              })}
-            />
+            {!documentsReady ? (
+              // No editor before the chapter is loaded: there is nothing to type into yet.
+              <p role="status" aria-busy="true">
+                {t("chapterLoading")}
+              </p>
+            ) : (
+              <ManuscriptEditor
+                key={current.id}
+                value={historyOpen && historicalChapter ? historicalChapter.text : current.body}
+                mentions={historyOpen ? [] : current.mentions}
+                marks={historyOpen && historicalChapter ? historicalChapter.marks : current.marks}
+                issues={historyOpen ? [] : grammarIssues}
+                searchMatches={historyOpen ? [] : currentSearchMatches}
+                initialSelection={
+                  // eslint-disable-next-line react-hooks/refs -- the restore target is read once as the editor's initial selection; later changes must not re-render the editor
+                  allowSessionRestore && restoreRef.current?.chapterId === current.id
+                    ? restoreRef.current.selection
+                    : undefined
+                }
+                onViewSelectionChange={(selection) => {
+                  if (historyOpen) return;
+                  viewSelectionRef.current = { chapterId: current.id, selection };
+                  captureSession();
+                }}
+                activeSearchMatch={
+                  !historyOpen && activeSearchMatch?.chapterId === current.id
+                    ? activeSearchMatch
+                    : null
+                }
+                entities={historyOpen ? [] : figures.nodes}
+                label={t("chapterText")}
+                placeholder={t("startWritingPlaceholder")}
+                vocabulary={vocabulary}
+                editorRef={editorRef}
+                onChange={historyOpen ? () => undefined : onEditorChange}
+                held={historyOpen ? null : held}
+                readOnly={historyOpen}
+                versionDiff={historyOpen && historySnapshotReady ? historyProjection : null}
+                versionDiffLabels={{
+                  added: t("versionAdded"),
+                  addedLineBreak: t("versionAddedLineBreak"),
+                  removed: t("versionRemoved"),
+                  formattingAdded: {
+                    bold: `${t("versionFormattingAdded")}: ${t("formatBold")}`,
+                    italic: `${t("versionFormattingAdded")}: ${t("formatItalic")}`,
+                  },
+                  formattingRemoved: {
+                    bold: `${t("versionFormattingRemoved")}: ${t("formatBold")}`,
+                    italic: `${t("versionFormattingRemoved")}: ${t("formatItalic")}`,
+                  },
+                }}
+                onSelection={(next: EditorTextSelection | null) =>
+                  onSelection(
+                    historyOpen || !next
+                      ? null
+                      : { ...next, chapterId: current.id, revision: current.body },
+                  )
+                }
+                onSelectionMenu={(next) =>
+                  !historyOpen &&
+                  onSelectionMenu({ ...next, chapterId: current.id, revision: current.body })
+                }
+                onIssue={onIssue}
+                onOpenEntity={(node: FigureNode) =>
+                  onOpenEntity?.({
+                    workspace: node.type === "ort" ? "places" : "figures",
+                    id: node.id,
+                  })
+                }
+                describeEntity={(node: FigureNode) =>
+                  `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ""}`
+                }
+                describeMention={(node: FigureNode) => ({
+                  kind: kindLabel(node.type, t),
+                  detail: node.sub ?? "",
+                  openLabel: t("openEntity", { name: node.name }),
+                })}
+              />
+            )}
           </div>
           {historyOpen && (
             <ChapterHistoryPanel

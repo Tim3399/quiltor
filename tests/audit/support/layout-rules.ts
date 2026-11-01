@@ -406,6 +406,80 @@ function collectDomFindings(options: {
     );
   }
 
+  // --- broken-word ------------------------------------------------------------------------
+  // A word whose letters run onto a second line without a hyphen ("MASSST / AB"). Measured per
+  // word with Range.getClientRects(): one rect per line fragment, so two distinct line tops mean
+  // the word itself was split. Only runs of letters and digits count as a word, so a break after
+  // a hyphen or slash ("Ort-/Karte") is not one, and neither is one at a soft hyphen (U+00AD is
+  // no letter either). Hyphenation by `hyphens: auto` draws its own hyphen and is allowed.
+  const WORD = /[\p{L}\p{N}\p{M}]+/gu;
+  const PROMINENT =
+    'h1,h2,h3,h4,h5,h6,label,legend,th,[role="heading"],[role="columnheader"],[role="tab"]';
+  // Two kinds of text are not the interface's own words and are let through:
+  // - machine text (paths, ids, commands in code/kbd/samp/pre): it has no syllables to hyphenate,
+  //   and breaking it anywhere is how a long path is meant to fit (the backup overview on mobile);
+  // - editable text: what the author typed. A word longer than the line has to break somewhere,
+  //   and the editor is no place to hyphenate the manuscript behind the author's back.
+  const MACHINE_TEXT = "code,kbd,samp,pre";
+  const EDITABLE = '[contenteditable=""],[contenteditable="true"],textarea,[role="textbox"]';
+  for (const element of rendered) {
+    if (!hasOwnText(element) || isVisuallyHidden(element)) continue;
+    if (element.closest(MACHINE_TEXT) || element.closest(EDITABLE)) continue;
+    const hyphens = getComputedStyle(element).hyphens;
+    for (const child of Array.from(element.childNodes)) {
+      if (child.nodeType !== Node.TEXT_NODE) continue;
+      const text = child.textContent ?? "";
+      for (const match of text.matchAll(WORD)) {
+        const word = match[0];
+        if (word.length < 2) continue;
+        const start = match.index ?? 0;
+        const range = document.createRange();
+        range.setStart(child, start);
+        range.setEnd(child, start + word.length);
+        const fragments = Array.from(range.getClientRects()).filter(
+          (rect) => rect.width > 0.5 && rect.height > 0.5,
+        );
+        if (fragments.length < 2 || hyphens === "auto") continue;
+        // Several fragments alone do not prove a split: after a soft hyphen Chromium reports the
+        // hyphen it draws as an extra first rect of the next letter, at the end of the previous
+        // line. So each letter is placed by its last rect, which is the letter itself, and
+        // `split` is the first letter below the first one.
+        const letter = document.createRange();
+        const lineOf = (offset: number): DOMRect | undefined => {
+          letter.setStart(child, start + offset);
+          letter.setEnd(child, start + offset + 1);
+          return Array.from(letter.getClientRects())
+            .filter((rect) => rect.width > 0.5)
+            .at(-1);
+        };
+        const first = lineOf(0);
+        if (!first) continue;
+        let split = 0;
+        for (let offset = 1; offset < word.length; offset += 1) {
+          const rect = lineOf(offset);
+          if (rect && rect.top >= first.top + first.height / 2) {
+            split = offset;
+            break;
+          }
+        }
+        if (split === 0) continue;
+        const control = element.closest(INTERACTIVE);
+        const owner = control ?? element;
+        const severity: Severity = control || element.closest(PROMINENT) ? "high" : "medium";
+        push(
+          {
+            rule: "broken-word",
+            severity,
+            message: `The word "${word}" breaks across lines without a hyphen ("${word.slice(0, split)}" / "${word.slice(split)}").`,
+            selector: selectorOf(owner),
+            rect: roundRect(range.getBoundingClientRect()),
+          },
+          `${selectorOf(owner)}|${word}`,
+        );
+      }
+    }
+  }
+
   // --- overlap ----------------------------------------------------------------------------
   const interactiveElements = rendered.filter(
     (element) =>

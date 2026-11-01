@@ -211,6 +211,86 @@ test.describe("overlap", () => {
   });
 });
 
+test.describe("broken-word", () => {
+  // A box too narrow for the word, and a break rule that lets it split anyway.
+  const narrow = (tag: string, text: string, extra = "") =>
+    `<${tag} id="cut" style="display:block;width:60px;font:16px monospace;overflow-wrap:anywhere;${extra}">${text}</${tag}>`;
+
+  test("reports a button label split inside its word", async ({ page }) => {
+    const findings = await analyze(page, narrow("button", "MASSSTAB"));
+    const hits = byRule(findings, "broken-word");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ severity: "high", selector: "button#cut" });
+    const parts = /\("([A-Z]+)" \/ "([A-Z]+)"\)/.exec(hits[0].message);
+    expect(hits[0].message).toContain('The word "MASSSTAB" breaks');
+    expect(parts?.[1].length).toBeGreaterThan(0);
+    expect(`${parts?.[1]}${parts?.[2]}`).toBe("MASSSTAB");
+  });
+
+  test("rates a split inside running text as medium", async ({ page }) => {
+    const findings = await analyze(page, narrow("p", "Weltkartenrand"));
+    const hits = byRule(findings, "broken-word");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].severity).toBe("medium");
+  });
+
+  test("reports a word split by a forced break-all", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<h2 style="width:50px;font:16px monospace;word-break:break-all">Maßstab</h2>',
+    );
+    const hits = byRule(findings, "broken-word");
+    expect(hits.map((hit) => hit.severity)).toEqual(["high"]);
+    expect(hits[0].message).toContain('The word "Maßstab" breaks');
+  });
+
+  test("allows hyphenation with hyphens: auto", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<p lang="de" style="width:60px;font:16px monospace;hyphens:auto;overflow-wrap:anywhere">Weltkartenrand</p>`,
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+
+  test("allows a break after a hyphen or at a soft hyphen", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<p style="width:60px;font:16px monospace">Ort-Karte</p>
+       <p style="width:60px;font:16px monospace;hyphens:manual">Welt&shy;karte</p>`,
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+
+  test("stays quiet for words that wrap between each other", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<button style="width:60px;font:16px monospace">Ort Karte Pin</button>',
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+
+  test("lets machine text and the author's own text break anywhere", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `${narrow("code", "/Welten/Sicherungen")}
+       <div contenteditable="true">${narrow("p", "Sturmflutwarnung")}</div>`,
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+
+  test("ignores text that is hidden for screen readers only", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      narrow(
+        "label",
+        "MASSSTAB",
+        "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)",
+      ),
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+});
+
 test.describe("touch-target", () => {
   const button = (size: number) =>
     `<button style="width:${size}px;height:${size}px;padding:0;border:1px solid #333">x</button>`;

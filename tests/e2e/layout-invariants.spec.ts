@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/transient-network";
-import { mockRequiredWorldDocuments } from "./support/application-api";
+import { mockWorkshop as mockWorkshopRoutes } from "./support/application-api";
+import { waitForSettledLayout } from "./support/layout-settled";
 import {
   closePlaceSheet,
   mockExpandedMapWorld,
@@ -168,27 +169,17 @@ const storyboards = {
   ],
 };
 
-async function mockWorkshop(page: Page) {
-  await page.route("**/api/version", (route) =>
-    route.fulfill({ json: { ok: true, version: "layout" } }),
-  );
-  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
-  const world = {
-    id: "layout",
-    title: "Der gläserne Atlas",
-    backupUrl: "",
-    updated: "2026-09-03T12:00:00Z",
-  };
-  await page.route("**/api/worlds", (route) =>
-    route.fulfill({ json: { ok: true, worlds: [world] } }),
-  );
-  await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
-  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures, storyboards });
-  await page.route("**/api/assistant/status*", (route) =>
-    route.fulfill({
-      json: { ok: true, available: false, mode: "local", reason: "-", chunks: 0 },
-    }),
-  );
+function mockWorkshop(page: Page) {
+  return mockWorkshopRoutes(page, {
+    version: "layout",
+    world: {
+      id: "layout",
+      title: "Der gläserne Atlas",
+      backupUrl: "",
+      updated: "2026-09-03T12:00:00Z",
+    },
+    documents: { manuscript, storyWorld: figures, storyboards },
+  });
 }
 
 /** Every violation as one readable line; an empty list is the pass. */
@@ -484,7 +475,7 @@ for (const workspace of workspaces) {
     }
     // The canvases fit their viewport on arrival; only after that do the rectangles this
     // measures stand still.
-    await page.waitForTimeout(900);
+    await waitForSettledLayout(page);
 
     expect(await violations(page, TOLERANCE)).toEqual([]);
   });
@@ -611,7 +602,7 @@ test("Places: the minimap also shows what stands on a map", async ({ page }) => 
 
   // Only once it is opened out are there any places standing on a map.
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
-  await page.waitForTimeout(900);
+  await waitForSettledLayout(page);
 
   const counts = await page.evaluate(() => ({
     canvas: document.querySelectorAll(".react-flow__node").length,
@@ -644,7 +635,7 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
   await page.getByRole("button", { name: "Storyboard", exact: true }).click();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  await page.waitForTimeout(600);
+  await waitForSettledLayout(page);
 
   const spot = await page.evaluate(() => {
     const path = document.querySelector<SVGPathElement>(".react-flow__edge-interaction");
@@ -712,7 +703,7 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
   await page.getByRole("button", { name: "Orte", exact: true }).click();
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
-  await page.waitForTimeout(900);
+  await waitForSettledLayout(page);
 
   // The map frame clips the part of the sheet that falls below the canvas. At the initial
   // fit, Steg's centre is behind the frame footer, so a pointer aimed there correctly hits
@@ -751,7 +742,7 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(target.x, target.y, { steps: 40 });
   await page.mouse.up();
-  await page.waitForTimeout(900);
+  await waitForSettledLayout(page);
 
   const after = await steg.boundingBox();
   expect(after).not.toBeNull();
@@ -781,7 +772,7 @@ test("Text: the writing aid's search button sits on the line of its field", asyn
   await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
 
-  await page.waitForTimeout(900);
+  await waitForSettledLayout(page);
   const schreibhilfe = page.getByRole("radio", { name: "Schreibhilfe" });
   test.skip(
     !(await schreibhilfe.isVisible()),

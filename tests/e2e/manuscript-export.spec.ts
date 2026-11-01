@@ -2,8 +2,8 @@ import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import type { Manuscript } from "../../packages/client/src/modules/manuscript";
-import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { seedManuscriptWorld } from "./support/seed";
+import { expect, test } from "./support/world-fixture";
 
 const manuscript: Manuscript = {
   chapters: [
@@ -42,17 +42,8 @@ const manuscript: Manuscript = {
   },
 };
 
-async function seed(page: Page) {
-  const world = await createTestWorld(page, "DOCX-Exportprüfung");
-  const current = await (await page.request.get(`/api/manuscript?world=${world.id}`)).json();
-  const saved = await page.request.put(`/api/manuscript?world=${world.id}`, {
-    headers: { "If-Match": `"${current.revision}"` },
-    data: encodeManuscriptV1(manuscript, current.revision),
-  });
-  expect(saved.ok(), await saved.text()).toBe(true);
-  await page.goto(`/?world=${world.id}`);
-  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
-  return world;
+function seed(page: Page) {
+  return seedManuscriptWorld(page, "DOCX-Exportprüfung", manuscript);
 }
 
 async function openExport(page: Page, preset: "editor" | "normseite") {

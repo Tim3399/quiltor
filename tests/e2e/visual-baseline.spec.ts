@@ -6,7 +6,7 @@ import { expect, test } from "./support/transient-network";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
-  mockRequiredWorldDocuments,
+  mockWorkshop as mockWorkshopRoutes,
 } from "./support/application-api";
 import {
   mockExpandedMapWorld,
@@ -54,45 +54,18 @@ const figures = {
   presence: [],
 };
 
-async function mockWorkshop(page: Page) {
-  await page.route("**/api/version", (route) =>
-    route.fulfill({ json: { ok: true, version: "baseline" } }),
-  );
-  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
-  await page.route("**/api/worlds", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        worlds: [
-          {
-            id: "baseline",
-            title: "Der gläserne Atlas",
-            backupUrl: "",
-            updated: "2026-08-09T12:00:00Z",
-          },
-        ],
-      },
-    }),
-  );
-  await page.route("**/api/worlds/open", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        world: {
-          id: "baseline",
-          title: "Der gläserne Atlas",
-          backupUrl: "",
-          updated: "2026-08-09T12:00:00Z",
-        },
-      },
-    }),
-  );
-  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures });
-  await page.route("**/api/assistant/status*", (route) =>
-    route.fulfill({
-      json: { ok: true, available: false, mode: "local", reason: "Baseline", chunks: 3 },
-    }),
-  );
+function mockWorkshop(page: Page) {
+  return mockWorkshopRoutes(page, {
+    version: "baseline",
+    world: {
+      id: "baseline",
+      title: "Der gläserne Atlas",
+      backupUrl: "",
+      updated: "2026-08-09T12:00:00Z",
+    },
+    documents: { manuscript, storyWorld: figures },
+    assistant: { reason: "Baseline", chunks: 3 },
+  });
 }
 
 const SNAPSHOTS = join(
@@ -191,7 +164,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await mockExpandedMapWorld(page);
     await openExpandedMapWorld(page);
-    // Reopening establishes the same completed save state in development and production.
+    // Reopening establishes the same idle save state in development and production. R1:
+    // loading no longer re-saves, so the status reads "Bereit" rather than "Gespeichert".
     // Await it before arranging the compact navigation, whose width depends on this label.
     await page.getByRole("button", { name: "Mehr", exact: true }).click();
     await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
@@ -199,7 +173,7 @@ for (const theme of ["light", "dark"] as const) {
       .getByRole("button", { name: "Die nördlichen Küsten – Welt öffnen", exact: true })
       .click();
     await expect(page.locator(".places-workspace")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Gespeichert");
+    await expect(page.getByRole("status")).toContainText("Bereit");
     await page
       .getByRole("button", { name: "Orte", exact: true })
       .evaluate((element) => element.scrollIntoView({ block: "nearest", inline: "center" }));
