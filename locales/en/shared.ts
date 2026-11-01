@@ -78,6 +78,7 @@ export const shared = {
   savedAgo: "Saved · {ago}",
   notSaved: "Not saved",
   saveFailed: "Save failed",
+  saveErrorId: "Error ID: {id}",
   recoveryOpen: "Rescue draft",
   recoveryTitle: "Rescue unsaved draft",
   recoveryDescription:

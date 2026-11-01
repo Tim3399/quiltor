@@ -112,6 +112,11 @@ const intentionalTextTruncationOwners = [
     reason: "SaveStatus retains its live-region label while protecting the adjacent retry action.",
   },
   {
+    selector: ".save-status-component__error-id",
+    reason:
+      "The error id line yields before the label; its title and the live region carry the full id, and one click selects all of it.",
+  },
+  {
     selector: ".workspace-toolbar__title strong, .workspace-toolbar__title span",
     reason: "Toolbar title and context yield to the explicitly scrollable action region.",
   },
@@ -131,7 +136,8 @@ const visuallyHiddenTextOwners = [
   { selector: ".sr-only", reason: "Shared screen-reader-only utility." },
   {
     selector: ".save-status-component__detail",
-    reason: "SaveStatus announces the detailed error through its live region.",
+    reason:
+      "SaveStatus announces the detailed error and its error id through its live region; the visible id line repeats the id for sighted authors.",
   },
   {
     selector: ".workspace-toolbar__group > legend",

@@ -344,6 +344,10 @@ jobs:
         run: python -m pip install --quiet -e .
       - name: Start the application
         run: |
+          # The structured log goes to a file the product suite reads: save-error-id.spec.ts
+          # finds the error id the editor shows in it, and fails in CI without the file.
+          export QUILTOR_LOG_FILE="$RUNNER_TEMP/quiltor-structured.log"
+          echo "PLAYWRIGHT_SERVER_LOG=$QUILTOR_LOG_FILE" >> "$GITHUB_ENV"
           python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/quiltor-server.pid"
           for _ in $(seq 1 60); do
@@ -667,6 +671,10 @@ jobs:
       - name: Start the application
         shell: bash
         run: |
+          # The structured log goes to a file the product suite reads: save-error-id.spec.ts
+          # finds the error id the editor shows in it, and fails in CI without the file.
+          export QUILTOR_LOG_FILE="$RUNNER_TEMP/quiltor-structured.log"
+          echo "PLAYWRIGHT_SERVER_LOG=$QUILTOR_LOG_FILE" >> "$GITHUB_ENV"
           python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           for _ in $(seq 1 60); do
             curl --fail --silent http://127.0.0.1:8010/ >/dev/null && exit 0
@@ -792,6 +800,10 @@ jobs:
       - name: Start the application
         shell: bash
         run: |
+          # The structured log goes to a file the product suite reads: save-error-id.spec.ts
+          # finds the error id the editor shows in it, and fails in CI without the file.
+          export QUILTOR_LOG_FILE="$RUNNER_TEMP/quiltor-structured.log"
+          echo "PLAYWRIGHT_SERVER_LOG=$QUILTOR_LOG_FILE" >> "$GITHUB_ENV"
           python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           for _ in $(seq 1 60); do
             curl --fail --silent http://127.0.0.1:8010/ >/dev/null && exit 0

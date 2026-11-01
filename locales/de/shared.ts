@@ -79,6 +79,7 @@ export const shared = {
   savedAgo: "Gespeichert · {ago}",
   notSaved: "Nicht gespeichert",
   saveFailed: "Speichern fehlgeschlagen",
+  saveErrorId: "Fehler-ID: {id}",
   recoveryOpen: "Entwurf retten",
   recoveryTitle: "Ungespeicherten Entwurf retten",
   recoveryDescription:

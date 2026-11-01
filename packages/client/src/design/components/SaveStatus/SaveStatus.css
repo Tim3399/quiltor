@@ -73,6 +73,46 @@
   border: 0;
 }
 
+/* The error text matters more than its id: when the bar is narrow, the id line gives way
+   first and the label keeps its width. */
+/* With an error id the status takes two lines inside its own height: label above, id below,
+   retry beside both. The label keeps its width; the id line is cut off first. */
+.save-status-component[data-error-id] {
+  display: inline-grid;
+  grid-template-columns: minmax(0, max-content) auto;
+  column-gap: var(--spacing-compact-tight);
+  row-gap: 0;
+  align-items: center;
+}
+
+.save-status-component[data-error-id] .save-status-component__state {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.save-status-component[data-error-id] .save-status-component__retry {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.save-status-component__error-id {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-label-compact);
+  line-height: 1.2;
+}
+
+/* The id is what the author reads out or pastes to an operator: one click selects all of it,
+   even where the line is cut off. */
+.save-status-component__error-id-value {
+  font-family: var(--mono);
+  user-select: all;
+}
+
 .save-status-component__retry {
   flex: 0 0 auto;
 }
