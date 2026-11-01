@@ -449,5 +449,144 @@ class SectionedGrammarCheckTests(unittest.TestCase):
         self.assertEqual(_sections("abcdefghij", 4), ["abcd", "efgh", "ij"])
 
 
+class ProfileGrammarBackendTests(unittest.TestCase):
+    """The external server is chosen in the factory, independently of the local
+    grammar feature (JAR download plus Java), which builds may forbid."""
+
+    ENABLED: ClassVar[dict[str, str]] = {
+        "QUILTOR_LANGUAGETOOL_URL": "http://languagetool:8010/",
+        "QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN": "1",
+    }
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.data = Path(self.temp.name)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def _web_self_hosted(self):
+        # The same materialize step the Dockerfile runs for the image.
+        import subprocess
+        import sys
+
+        from quiltor.infrastructure.platform.runtime_target import parse_profile
+
+        root = Path(__file__).resolve().parents[2]
+        output = self.data / "quiltor-build-profile.json"
+        subprocess.run(
+            [
+                sys.executable,
+                str(root / "distribution/tooling/profile_contract.py"),
+                "materialize",
+                "web-self-hosted",
+                "--output",
+                str(output),
+            ],
+            capture_output=True,
+            check=True,
+            cwd=root,
+        )
+        return parse_profile(json.loads(output.read_text(encoding="utf-8")))
+
+    def _capabilities(self, *, block_local: bool):
+        from dataclasses import replace
+
+        from quiltor.bootstrap.application import build_feature_availability
+        from quiltor.infrastructure.platform.runtime_target import (
+            PlatformKind,
+            target_for_profile,
+        )
+
+        profile = self._web_self_hosted()
+        target = target_for_profile(profile, frozen=False)
+        if block_local:
+            # The browser platform, where the local grammar feature is forbidden.
+            target = replace(target, platform=PlatformKind.WEB)
+        return build_feature_availability(profile=profile, target=target)
+
+    def _service(self, environment: dict[str, str], *, block_local: bool):
+        from quiltor.infrastructure.writing_assistance.factory import build_writing_assistance
+
+        with patch.dict(os.environ, environment, clear=False):
+            for key in ("QUILTOR_LANGUAGETOOL_URL", "QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN"):
+                if key not in environment:
+                    os.environ.pop(key, None)
+            return build_writing_assistance(self.data, self._capabilities(block_local=block_local))
+
+    def _route(self, name: str, service, body: dict | None = None):
+        from types import SimpleNamespace
+
+        from quiltor.delivery.http.routes import Request
+        from quiltor.delivery.http.routes import writing_assistance as routes
+
+        sent = []
+
+        class Handler:
+            def _read_json_body(self):
+                return body or {}
+
+            def send_json(self, payload):
+                sent.append(payload)
+
+            def send_exception(self, error):
+                sent.append(http_errors.from_exception(error).payload())
+
+            def send_api_error(self, status, *, error_code, retryable=None):
+                sent.append({"error": {"code": error_code}})
+
+        app = SimpleNamespace(writing_assistance=service)
+        getattr(routes, name)(Handler(), Request(path=f"/api/writing-assistance/{name}"), app)
+        return sent[0]
+
+    def test_external_server_works_where_the_local_feature_is_forbidden(self):
+        service = self._service(self.ENABLED, block_local=True)
+        reply = {"matches": [{"offset": 0, "length": 3, "rule": {"id": "R"}}]}
+        with (
+            patch.dict(os.environ, self.ENABLED, clear=False),
+            patch(_JAVA, side_effect=AssertionError("java -version")),
+            patch(_SUPERVISOR, side_effect=AssertionError("spawn")),
+            patch(
+                "urllib.request.urlopen", return_value=_Response(json.dumps(reply).encode())
+            ) as request,
+        ):
+            status = self._route("status", service)
+            checked = self._route(
+                "check", service, {"language": "de-DE", "text": "Das ist gut.", "customWords": []}
+            )
+            installed = self._route("install_grammar", service)
+        self.assertTrue(status["grammar"]["supported"])
+        self.assertTrue(status["grammar"]["available"])
+        self.assertTrue(status["grammar"]["externalEnabled"])
+        self.assertFalse(status["grammar"]["installed"])
+        self.assertEqual(request.call_args.args[0].full_url, "http://languagetool:8010/v2/check")
+        self.assertEqual(checked["issues"][0]["from"], 0)
+        self.assertIn("error", installed)
+
+    def test_without_the_external_server_grammar_stays_unsupported_there(self):
+        for environment in ({}, {"QUILTOR_LANGUAGETOOL_URL": "http://languagetool:8010/"}):
+            with self.subTest(environment):
+                service = self._service(environment, block_local=True)
+                with patch.dict(os.environ, environment, clear=False):
+                    status = self._route("status", service)
+                self.assertFalse(status["grammar"]["supported"])
+
+    def test_web_self_hosted_as_shipped_checks_through_the_external_server(self):
+        service = self._service(self.ENABLED, block_local=False)
+        with (
+            patch.dict(os.environ, self.ENABLED, clear=False),
+            patch(_JAVA, return_value=None),
+            patch(_SUPERVISOR, side_effect=AssertionError("spawn")),
+            patch("urllib.request.urlopen", return_value=_Response(b'{"matches": []}')) as request,
+        ):
+            status = self._route("status", service)
+            self._route(
+                "check", service, {"language": "de-DE", "text": "Das ist gut.", "customWords": []}
+            )
+        self.assertTrue(status["grammar"]["supported"])
+        self.assertTrue(status["grammar"]["available"])
+        self.assertEqual(request.call_args.args[0].full_url, "http://languagetool:8010/v2/check")
+
+
 if __name__ == "__main__":
     unittest.main()

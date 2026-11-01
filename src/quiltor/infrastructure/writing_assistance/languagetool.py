@@ -99,10 +99,22 @@ def _safe_extract(archive: zipfile.ZipFile, target: Path) -> None:
     archive.extractall(target)
 
 
+def external_grammar_enabled() -> bool:
+    """An external LanguageTool server is configured and explicitly enabled."""
+    return bool(
+        os.environ.get("QUILTOR_LANGUAGETOOL_URL", "").strip()
+        and os.environ.get("QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN") == "1"
+    )
+
+
 class LanguageToolManager:
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path, *, local: bool = True):
+        # local=False is the external server only, for builds that may neither
+        # download LanguageTool nor start Java: no `java -version`, no install,
+        # no spawn. See infrastructure/writing_assistance/factory.py.
+        self.local = local
         self.root = data_dir / "writing-assistance" / f"LanguageTool-{LANGUAGETOOL_VERSION}"
-        self.java = shutil.which("java")
+        self.java = shutil.which("java") if local else None
         self.process: subprocess.Popen | None = None
         self.port: int | None = None
         self.lock = threading.RLock()
@@ -112,13 +124,16 @@ class LanguageToolManager:
         return self.root / "languagetool-server.jar"
 
     def status(self) -> dict:
-        java_version = _java_version(self.java)
+        java_version = _java_version(self.java) if self.local else None
         configured_url = os.environ.get("QUILTOR_LANGUAGETOOL_URL", "").strip()
         external_opt_in = os.environ.get("QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN") == "1"
         running = self.process is not None and self.process.poll() is None
         external_enabled = bool(configured_url and external_opt_in)
         local_available = (
-            self.server_jar.exists() and java_version is not None and java_version >= JAVA_MINIMUM
+            self.local
+            and self.server_jar.exists()
+            and java_version is not None
+            and java_version >= JAVA_MINIMUM
         )
         return {
             # `supported` is the edition's verdict, `available` this machine's:
@@ -131,7 +146,7 @@ class LanguageToolManager:
             # entirely (check() never falls back), so Java and the JAR stop
             # mattering for availability.
             "available": external_enabled or local_available,
-            "installed": self.server_jar.exists(),
+            "installed": self.local and self.server_jar.exists(),
             "running": running,
             "version": LANGUAGETOOL_VERSION,
             "javaVersion": java_version,
@@ -146,6 +161,8 @@ class LanguageToolManager:
         }
 
     def install(self) -> dict:
+        if not self.local:
+            raise PermissionError("This Quiltor build cannot install LanguageTool locally")
         java_version = _java_version(self.java)
         if java_version is None or java_version < JAVA_MINIMUM:
             raise JavaMissing(params={"required": JAVA_MINIMUM})
@@ -182,6 +199,8 @@ class LanguageToolManager:
         return {"ok": True, **self.status()}
 
     def _local_url(self) -> str:
+        if not self.local:
+            raise PermissionError("This Quiltor build cannot start LanguageTool locally")
         with self.lock:
             if self.process is not None and self.process.poll() is None and self.port:
                 return f"http://127.0.0.1:{self.port}/v2/check"
