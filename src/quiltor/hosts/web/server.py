@@ -740,9 +740,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     fields["transfer_encoding_present"] = (
                         self.headers.get("Transfer-Encoding") is not None
                     )
-                if isinstance(exc, ApplicationError) and not self._response_status:
+                if (
+                    isinstance(exc, ApplicationError)
+                    and not self._response_status
+                    and http_errors.from_exception(exc).status < 500
+                ):
                     # An expected refusal (a conflict, a missing or foreign resource):
-                    # http.error carries its code, and it is no server failure.
+                    # http.error carries its code, and it is no server failure. A 5xx
+                    # application error wraps a failure and keeps its traceback.
                     self.send_exception(exc)
                     return
                 logger.event("error", "http.unhandled", **fields)

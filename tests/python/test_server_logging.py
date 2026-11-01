@@ -25,7 +25,11 @@ from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.application.documents.ports import RevisionConflict
-from quiltor.application.errors import ApplicationForbidden, ApplicationNotFound
+from quiltor.application.errors import (
+    ApplicationForbidden,
+    ApplicationNotFound,
+    ApplicationUnavailable,
+)
 from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.delivery.http import errors as http_errors
@@ -444,6 +448,29 @@ class UnhandledTests(_LiveServer):
         for raised, status, code in cases:
             with self.subTest(code=code):
                 self._expected_failure(raised, status, code)
+
+    def test_an_unavailable_application_keeps_its_traceback_and_cause(self):
+        """A 5xx application error wraps a failure; it stays http.unhandled."""
+
+        def unavailable(handler, request, app):
+            try:
+                raise OSError("disk gone")
+            except OSError as cause:
+                raise ApplicationUnavailable(CANARY) from cause
+
+        self.fresh()
+        with patch.dict(api_routes.GET, {"/api/test-down": api_routes.Registration(unavailable)}):
+            status, _, _ = self.request("GET", "/api/test-down")
+        self.assertEqual(status, 503)
+        line = self.only("http.unhandled")
+        self.assertEqual(line["error_type"], "ApplicationUnavailable")
+        self.assertEqual(line["message"], "application.unavailable")
+        self.assertIn("in unavailable", line["traceback"])
+        self.assertIn("OSError: disk gone", line["traceback"])
+        self.assertTrue(
+            line["traceback"].endswith("ApplicationUnavailable: application.unavailable")
+        )
+        self.assertNotIn(CANARY, repr(self.capture.lines))
 
     def test_a_failing_route_is_logged_with_frames_but_not_its_text(self):
         def fails(handler, request, app):
