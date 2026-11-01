@@ -416,3 +416,37 @@ describe("PlaceNode host-map clipping", () => {
     ).toBe("");
   });
 });
+
+describe("PlaceNode command order", () => {
+  const place = { id: "harbor", x: 0, y: 0, name: "Dämmerhafen", type: "ort" };
+  const buttonLabels = (pin: boolean) => {
+    const props = {
+      selected: false,
+      width: 220,
+      height: 96,
+      data: {
+        place,
+        measuring: false,
+        measureStart: false,
+        filled: false,
+        pin,
+        zoomTier: "detail",
+        zoom: 1,
+      },
+    } as unknown as NodeProps<PlaceFlowNode>;
+    render(
+      <I18nProvider>
+        <PlaceNode {...props} />
+      </I18nProvider>,
+    );
+    return screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+  };
+
+  it("puts the display toggle before the open command on the card and on the pin", () => {
+    const card = buttonLabels(false);
+    cleanup();
+    const pin = buttonLabels(true);
+    expect(card.map((label) => label?.includes("anlegen"))).toEqual([false, true]);
+    expect(pin.map((label) => label?.includes("anlegen"))).toEqual([false, true]);
+  });
+});
