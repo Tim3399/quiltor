@@ -96,6 +96,39 @@ export async function mockRequiredWorldDocuments(
   );
 }
 
+/**
+ * A whole synthetic workshop with one world: version, signed-out user, world list and open,
+ * the required documents, and an unavailable assistant. Every value a caller's screenshots
+ * or assertions can see is a parameter, so merging callers changes no pixel.
+ */
+export async function mockWorkshop(
+  page: Page,
+  {
+    world,
+    version,
+    documents,
+    assistant = { reason: "-", chunks: 0 },
+  }: {
+    world: { id: string; title: string; backupUrl: string; updated: string };
+    version: string;
+    documents: Parameters<typeof mockRequiredWorldDocuments>[1];
+    assistant?: { reason: string; chunks: number };
+  },
+) {
+  await page.route("**/api/version", (route) => route.fulfill({ json: { ok: true, version } }));
+  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
+  await page.route("**/api/worlds", (route) =>
+    route.fulfill({ json: { ok: true, worlds: [world] } }),
+  );
+  await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
+  await mockRequiredWorldDocuments(page, documents);
+  await page.route("**/api/assistant/status*", (route) =>
+    route.fulfill({
+      json: { ok: true, available: false, mode: "local", ...assistant },
+    }),
+  );
+}
+
 export function encodeStoryWorldDocument(storyWorld: FigureState, revision: number) {
   return encodeStoryWorldV1(storyWorld, revision);
 }

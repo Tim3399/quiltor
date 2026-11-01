@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { DEFAULT_BOOK_LAYOUT, type Manuscript } from "../../packages/client/src/modules/manuscript";
-import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { seedManuscriptWorld } from "./support/seed";
+import { expect, test } from "./support/world-fixture";
 
 const paragraph =
   "Der Morgen lag still über dem Hafen. Zwischen den Häusern zog Nebel auf, und am Kai wartete Anna auf das erste Schiff. Sie hörte Schritte hinter sich und wandte sich langsam um. ";
@@ -34,17 +34,8 @@ const manuscript: Manuscript = {
   ],
 };
 
-async function seed(page: Page, book = manuscript) {
-  const world = await createTestWorld(page, "Buchsatzprüfung");
-  const current = await (await page.request.get(`/api/manuscript?world=${world.id}`)).json();
-  const saved = await page.request.put(`/api/manuscript?world=${world.id}`, {
-    headers: { "If-Match": `"${current.revision}"` },
-    data: encodeManuscriptV1(book, current.revision),
-  });
-  expect(saved.ok(), await saved.text()).toBe(true);
-  await page.goto(`/?world=${world.id}`);
-  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
-  return world;
+function seed(page: Page, book = manuscript) {
+  return seedManuscriptWorld(page, "Buchsatzprüfung", book);
 }
 
 const documentStartKey = process.platform === "darwin" ? "Meta+ArrowUp" : "Control+Home";

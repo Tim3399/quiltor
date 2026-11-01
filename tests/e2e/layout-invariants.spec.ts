@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/transient-network";
-import { mockRequiredWorldDocuments } from "./support/application-api";
+import { mockWorkshop as mockWorkshopRoutes } from "./support/application-api";
 import {
   closePlaceSheet,
   mockExpandedMapWorld,
@@ -168,27 +168,17 @@ const storyboards = {
   ],
 };
 
-async function mockWorkshop(page: Page) {
-  await page.route("**/api/version", (route) =>
-    route.fulfill({ json: { ok: true, version: "layout" } }),
-  );
-  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
-  const world = {
-    id: "layout",
-    title: "Der gläserne Atlas",
-    backupUrl: "",
-    updated: "2026-09-03T12:00:00Z",
-  };
-  await page.route("**/api/worlds", (route) =>
-    route.fulfill({ json: { ok: true, worlds: [world] } }),
-  );
-  await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
-  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures, storyboards });
-  await page.route("**/api/assistant/status*", (route) =>
-    route.fulfill({
-      json: { ok: true, available: false, mode: "local", reason: "-", chunks: 0 },
-    }),
-  );
+function mockWorkshop(page: Page) {
+  return mockWorkshopRoutes(page, {
+    version: "layout",
+    world: {
+      id: "layout",
+      title: "Der gläserne Atlas",
+      backupUrl: "",
+      updated: "2026-09-03T12:00:00Z",
+    },
+    documents: { manuscript, storyWorld: figures, storyboards },
+  });
 }
 
 /** Every violation as one readable line; an empty list is the pass. */
