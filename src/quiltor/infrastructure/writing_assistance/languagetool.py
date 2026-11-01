@@ -31,6 +31,45 @@ from quiltor.modules.writing_assistance.grammar.contract import (
     LANGUAGETOOL_VERSION,
 )
 
+# Characters per request to LanguageTool. A 200k chapter took 18 s on a fast
+# machine as a single request, close to the timeout, and a shared host is
+# slower; 20k sections stay at a few seconds each.
+GRAMMAR_SECTION_LIMIT = 20_000
+# Seconds to wait for one section's reply.
+GRAMMAR_SECTION_TIMEOUT = 20
+
+_SENTENCE_END = re.compile(r"[.!?…][\"'»«“”)]*\s")
+
+
+def _utf16_length(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _utf16_slice(text: str, start: int, length: int) -> str:
+    raw = text.encode("utf-16-le")[2 * start : 2 * (start + length)]
+    return raw.decode("utf-16-le", errors="replace")
+
+
+def _sections(text: str, limit: int) -> list[str]:
+    """Split text into consecutive pieces of at most `limit` characters that
+    join back to the text. Cuts after a blank line, else after a line break,
+    else after a sentence end, else at the limit itself."""
+    sections = []
+    rest = text
+    while len(rest) > limit:
+        window = rest[:limit]
+        cut = window.rfind("\n\n")
+        cut = cut + 2 if cut > 0 else 0
+        if not cut:
+            cut = window.rfind("\n") + 1
+        if not cut:
+            ends = list(_SENTENCE_END.finditer(window))
+            cut = ends[-1].end() if ends else limit
+        sections.append(rest[:cut])
+        rest = rest[cut:]
+    sections.append(rest)
+    return sections
+
 
 def _java_version(java: str | None) -> int | None:
     if not java:
@@ -190,6 +229,52 @@ class LanguageToolManager:
             url = external_url.rstrip("/") + "/v2/check"
         else:
             url = self._local_url()
+        # One request per section, one after the other: each gets its own
+        # timeout, so a long chapter on a slow host no longer runs into it as
+        # a whole. Not in parallel, because LanguageTool is CPU-bound and the
+        # shared host gains nothing from two checks fighting for the cores,
+        # while memory use would double. Any failed section fails the whole
+        # check; a partial list would look like a clean result.
+        own = {word.casefold() for word in custom_words if isinstance(word, str)}
+        issues = []
+        index = 0
+        base = 0  # UTF-16 offset of the section in the whole text
+        for section in _sections(text, GRAMMAR_SECTION_LIMIT):
+            for match in self._check_section(url, language, section):
+                index += 1
+                start, length = int(match.get("offset", -1)), int(match.get("length", 0))
+                # LanguageTool counts UTF-16 code units (Java chars), and so
+                # does the client (JavaScript strings); Python str does not.
+                if (
+                    start < 0
+                    or length <= 0
+                    or start + length > _utf16_length(section)
+                    or _utf16_slice(section, start, length).casefold() in own
+                ):
+                    continue
+                start += base
+                rule = match.get("rule") or {}
+                category = rule.get("category") or {}
+                seed = f"{start}:{length}:{rule.get('id', '')}:{index - 1}".encode()
+                issues.append(
+                    {
+                        "id": hashlib.sha1(seed, usedforsecurity=False).hexdigest()[:16],
+                        "from": start,
+                        "to": start + length,
+                        "ruleId": str(rule.get("id", "")),
+                        "category": str(category.get("name", "")),
+                        "message": str(match.get("message", ""))[:1000],
+                        "replacements": [
+                            str(item.get("value", ""))
+                            for item in match.get("replacements", [])[:8]
+                            if item.get("value")
+                        ],
+                    }
+                )
+            base += _utf16_length(section)
+        return {"ok": True, "language": language, "issues": issues}
+
+    def _check_section(self, url: str, language: str, text: str) -> list:
         body = urllib.parse.urlencode({"language": language, "text": text}).encode()
         request = urllib.request.Request(
             url,
@@ -200,7 +285,7 @@ class LanguageToolManager:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urllib.request.urlopen(request, timeout=GRAMMAR_SECTION_TIMEOUT) as response:
                 result = json.load(response)
         except (OSError, ValueError) as exc:
             # OSError covers unreachable, HTTPError (4xx/5xx) and timeouts;
@@ -209,36 +294,8 @@ class LanguageToolManager:
             raise GrammarUnavailable() from exc
         if not isinstance(result, dict):
             raise GrammarUnavailable()
-        own = {word.casefold() for word in custom_words if isinstance(word, str)}
-        issues = []
-        for index, match in enumerate(result.get("matches", [])):
-            start, length = int(match.get("offset", -1)), int(match.get("length", 0))
-            if (
-                start < 0
-                or length <= 0
-                or start + length > len(text)
-                or text[start : start + length].casefold() in own
-            ):
-                continue
-            rule = match.get("rule") or {}
-            category = rule.get("category") or {}
-            seed = f"{start}:{length}:{rule.get('id', '')}:{index}".encode()
-            issues.append(
-                {
-                    "id": hashlib.sha1(seed, usedforsecurity=False).hexdigest()[:16],
-                    "from": start,
-                    "to": start + length,
-                    "ruleId": str(rule.get("id", "")),
-                    "category": str(category.get("name", "")),
-                    "message": str(match.get("message", ""))[:1000],
-                    "replacements": [
-                        str(item.get("value", ""))
-                        for item in match.get("replacements", [])[:8]
-                        if item.get("value")
-                    ],
-                }
-            )
-        return {"ok": True, "language": language, "issues": issues}
+        matches = result.get("matches", [])
+        return matches if isinstance(matches, list) else []
 
     def close(self) -> None:
         with self.lock:

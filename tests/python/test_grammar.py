@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+import urllib.parse
 from pathlib import Path
 from typing import ClassVar
 from unittest.mock import patch
@@ -308,6 +309,126 @@ class ExternalGrammarServerTests(unittest.TestCase):
             ):
                 with self.assertRaises(GrammarUnavailable):
                     self.manager.check("de-DE", self.TEXT, [])
+
+
+class SectionedGrammarCheckTests(unittest.TestCase):
+    """Long chapters go to LanguageTool in sections, each with its own timeout,
+    and the offsets of the replies are moved back onto the whole text in
+    UTF-16 code units, the unit of both LanguageTool and the client."""
+
+    ENABLED: ClassVar[dict[str, str]] = {
+        "QUILTOR_LANGUAGETOOL_URL": "http://languagetool:8010/",
+        "QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN": "1",
+    }
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.manager = LanguageToolManager(Path(self.temp.name))
+        self.requests: list[str] = []
+
+    def tearDown(self):
+        self.manager.close()
+        self.temp.cleanup()
+
+    def _slow_server(self, needle: str):
+        """A LanguageTool that needs 15 s per 20 000 characters, against a 20 s
+        timeout per request, and reports every `needle` in UTF-16 offsets."""
+
+        def respond(request, timeout):
+            text = urllib.parse.parse_qs(request.data.decode())["text"][0]
+            self.requests.append(text)
+            self.assertEqual(timeout, 20)
+            if len(text) / 20_000 * 15 > timeout:
+                raise TimeoutError("timed out")
+            units = text.encode("utf-16-le")
+            target = needle.encode("utf-16-le")
+            matches = []
+            position = units.find(target)
+            while position >= 0:
+                if position % 2 == 0:
+                    matches.append(
+                        {
+                            "offset": position // 2,
+                            "length": len(target) // 2,
+                            "message": "Fehler",
+                            "rule": {"id": "R", "category": {"name": "Grammatik"}},
+                        }
+                    )
+                position = units.find(target, position + 2)
+            return _Response(json.dumps({"matches": matches}).encode())
+
+        return respond
+
+    @staticmethod
+    def _utf16_offsets(text: str, needle: str) -> list[int]:
+        units = text.encode("utf-16-le")
+        target = needle.encode("utf-16-le")
+        found = []
+        position = units.find(target)
+        while position >= 0:
+            if position % 2 == 0:
+                found.append(position // 2)
+            position = units.find(target, position + 2)
+        return found
+
+    def _check(self, text: str, needle: str) -> dict:
+        with (
+            patch.dict(os.environ, self.ENABLED, clear=False),
+            patch("urllib.request.urlopen", side_effect=self._slow_server(needle)),
+        ):
+            return self.manager.check("de-DE", text, [])
+
+    def test_a_200k_chapter_on_a_slow_server_succeeds_with_whole_text_offsets(self):
+        paragraph = "Der Morgen lag still \U0001f30a über dem Hafen, ein Brief. " * 12 + "\n\n"
+        text = (paragraph * 400)[:200_000]
+        result = self._check(text, "ein Brief")
+        self.assertGreater(len(self.requests), 1)
+        self.assertTrue(all(len(part) <= 20_000 for part in self.requests))
+        self.assertEqual("".join(self.requests), text)
+        expected = self._utf16_offsets(text, "ein Brief")
+        self.assertEqual([issue["from"] for issue in result["issues"]], expected)
+        units = text.encode("utf-16-le")
+        for issue in result["issues"]:
+            found = units[2 * issue["from"] : 2 * issue["to"]].decode("utf-16-le")
+            self.assertEqual(found, "ein Brief")
+
+    def test_a_match_right_after_a_section_boundary_keeps_its_offset(self):
+        # The first section ends with an emoji (two UTF-16 units, one Python
+        # character) and a blank line; the match opens the second section.
+        first = "\U0001f30a" + "a" * 19_000 + "\U0001f30a\n\n"
+        text = first + "ein Brief kam an." + " Weiter." * 2_000
+        result = self._check(text, "ein Brief")
+        self.assertEqual(self.requests[0], first)
+        self.assertEqual(
+            [issue["from"] for issue in result["issues"]], self._utf16_offsets(text, "ein Brief")
+        )
+        self.assertEqual(result["issues"][0]["from"], len(first) + 2)
+
+    def test_one_failed_section_fails_the_whole_check(self):
+        text = ("Satz. " * 3_000 + "\n\n") * 3
+        calls = []
+
+        def respond(request, timeout):
+            calls.append(1)
+            if len(calls) == 2:
+                raise TimeoutError("timed out")
+            return _Response(b'{"matches": []}')
+
+        with (
+            patch.dict(os.environ, self.ENABLED, clear=False),
+            patch("urllib.request.urlopen", side_effect=respond),
+            self.assertRaises(GrammarUnavailable) as raised,
+        ):
+            self.manager.check("de-DE", text, [])
+        self.assertNotIn("Satz", str(raised.exception))
+
+    def test_sections_prefer_blank_lines_then_lines_then_sentences(self):
+        from quiltor.infrastructure.writing_assistance.languagetool import _sections
+
+        self.assertEqual(_sections("aa\n\nbb\ncc", 8), ["aa\n\n", "bb\ncc"])
+        self.assertEqual(_sections("aa\nbb\ncc", 7), ["aa\nbb\n", "cc"])
+        self.assertEqual(_sections("Ab. Cd. Ef", 9), ["Ab. Cd. ", "Ef"])
+        self.assertEqual(_sections("abcdefghij", 4), ["abcd", "efgh", "ij"])
 
 
 if __name__ == "__main__":
