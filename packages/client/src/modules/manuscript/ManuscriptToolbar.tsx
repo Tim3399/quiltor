@@ -3,6 +3,8 @@ import {
   BookOpen,
   Download,
   Ellipsis,
+  Redo2,
+  Undo2,
   FilePlus2,
   Focus,
   History as HistoryIcon,
@@ -16,6 +18,7 @@ import {
   MenuSeparator,
   ToolbarButton,
   UndoRedoControls,
+  useMediaMatch,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
   WorkspaceToolbarCreateButton,
@@ -79,6 +82,8 @@ export function ManuscriptToolbar({
   onInsertSceneBreak,
 }: ManuscriptToolbarProps) {
   const { t } = useI18n();
+  // Seven touch buttons fit down to 360 px; below that undo and redo move into the menu.
+  const historyInMenu = useMediaMatch("(max-width: 359px)");
 
   return (
     <WorkspaceToolbar className="manuscript-toolbar" label={t("manuscript")}>
@@ -146,16 +151,18 @@ export function ManuscriptToolbar({
           </>
         }
         history={
-          <UndoRedoControls
-            className="manuscript-toolbar-group"
-            label={t("manuscript")}
-            undoLabel={t("undoManuscript")}
-            redoLabel={t("redoManuscript")}
-            onUndo={() => onUndo?.()}
-            onRedo={() => onRedo?.()}
-            canUndo={!preview && canUndo}
-            canRedo={!preview && canRedo}
-          />
+          !historyInMenu && (
+            <UndoRedoControls
+              className="manuscript-toolbar-group"
+              label={t("manuscript")}
+              undoLabel={t("undoManuscript")}
+              redoLabel={t("redoManuscript")}
+              onUndo={() => onUndo?.()}
+              onRedo={() => onRedo?.()}
+              canUndo={!preview && canUndo}
+              canRedo={!preview && canRedo}
+            />
+          )
         }
         overflow={
           // Secondary by frequency: writing happens with chapters, panels, focus and history at
@@ -176,6 +183,23 @@ export function ManuscriptToolbar({
               />
             )}
           >
+            {historyInMenu && (
+              <>
+                <MenuItem
+                  icon={<Undo2 />}
+                  label={t("undoManuscript")}
+                  disabled={preview || !canUndo}
+                  onSelect={() => onUndo?.()}
+                />
+                <MenuItem
+                  icon={<Redo2 />}
+                  label={t("redoManuscript")}
+                  disabled={preview || !canRedo}
+                  onSelect={() => onRedo?.()}
+                />
+                <MenuSeparator />
+              </>
+            )}
             <MenuItem
               icon={<BookOpen />}
               label={t("printPreview")}

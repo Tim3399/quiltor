@@ -83,10 +83,3 @@
     height: var(--font-size-5);
   }
 }
-
-@media (max-width: 380px) {
-  /* A menu trigger stays: hiding it would hide every action in its menu (T-104). */
-  .ui-toolbar-button[data-label-mode="hidden"]:not([aria-haspopup]) {
-    display: none;
-  }
-}

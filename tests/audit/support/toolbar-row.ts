@@ -5,7 +5,7 @@
 // Runs inside the page. Must not reference anything from the module scope.
 
 export type ToolbarRowFinding = {
-  kind: "wrap" | "clipped";
+  kind: "wrap" | "clipped" | "removed";
   toolbar: string;
   control?: string;
   message: string;
@@ -44,6 +44,22 @@ export function toolbarRowFindings(tolerance = 1.5): ToolbarRowFinding[] {
     }
     return true;
   };
+  /**
+   * A control the toolbar renders but CSS takes out of it: `display: none` or
+   * `visibility: hidden` on the control or on an ancestor below the toolbar. On a phone there is
+   * no keyboard shortcut to fall back on, so a removed control is a missing function (T-104,
+   * F-104-1). Zero size and `opacity: 0` are left out on purpose: that is how visually hidden
+   * inputs behind a visible label are built, and the label is what the author operates. A file
+   * input is left out too: it is always hidden and opened by another control (a menu item).
+   */
+  const removedFrom = (element: Element, toolbar: Element): boolean => {
+    if (element.matches('input[type="file"]')) return false;
+    for (let node: Element | null = element; node && node !== toolbar; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden") return true;
+    }
+    return false;
+  };
   /** The visible area of a clipping box: its padding box without its scrollbars. */
   const clipArea = (element: Element) => {
     const box = element.getBoundingClientRect();
@@ -61,13 +77,24 @@ export function toolbarRowFindings(tolerance = 1.5): ToolbarRowFinding[] {
     (toolbar) => shown(toolbar) && !toolbar.parentElement?.closest(POPUP_LAYER),
   );
   for (const toolbar of toolbars) {
-    const controls = Array.from(toolbar.querySelectorAll(INTERACTIVE)).filter((control) => {
-      if (!shown(control)) return false;
+    const candidates = Array.from(toolbar.querySelectorAll(INTERACTIVE)).filter((control) => {
+      if (control.closest('[aria-hidden="true"],[inert]')) return false;
       const layer = control.closest(POPUP_LAYER);
       return !layer || !toolbar.contains(layer);
     });
-    if (controls.length === 0) continue;
     const toolbarName = nameOf(toolbar);
+    for (const control of candidates) {
+      if (!removedFrom(control, toolbar)) continue;
+      findings.push({
+        kind: "removed",
+        toolbar: toolbarName,
+        control: nameOf(control),
+        message: `${nameOf(control)} in toolbar ${toolbarName} is removed by CSS (display: none or visibility: hidden), so the function is missing at this width.`,
+        rect: rounded(toolbar.getBoundingClientRect()),
+      });
+    }
+    const controls = candidates.filter(shown);
+    if (controls.length === 0) continue;
 
     // One row: every control crosses one common horizontal line.
     const boxes = controls.map((control) => control.getBoundingClientRect());

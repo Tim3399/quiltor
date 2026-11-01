@@ -4,10 +4,32 @@ import {
   forwardRef,
   type HTMLAttributes,
   type ReactNode,
+  useEffect,
+  useState,
 } from "react";
 import { ScrollArea } from "../ScrollArea";
 import { ToolbarButton, type ToolbarButtonProps } from "../ToolbarButton";
 import "./WorkspaceToolbar.css";
+
+/**
+ * Whether a media query matches, kept current. A toolbar uses it to move undo and redo into its
+ * overflow menu on widths where they no longer fit as icons: hiding them with CSS would leave a
+ * phone without undo, since there is no keyboard shortcut there (T-104, F-104-1).
+ */
+export function useMediaMatch(query: string) {
+  const [matches, setMatches] = useState(
+    () => typeof matchMedia === "function" && matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const media = matchMedia(query);
+    const change = () => setMatches(media.matches);
+    change();
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, [query]);
+  return matches;
+}
 
 function classes(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -47,8 +69,10 @@ export function WorkspaceToolbarTitle({
   );
 }
 
-export interface WorkspaceToolbarActionsProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+export interface WorkspaceToolbarActionsProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  "children"
+> {
   /** Creating something new. At most one action in here carries primary emphasis. */
   create?: ReactNode;
   /** What the workspace shows: panel toggles, view menus and modes. */

@@ -385,6 +385,21 @@ test.describe("toolbar-row", () => {
     expect(hits.every((hit) => hit.message.includes("is hidden or cut off"))).toBe(true);
   });
 
+  test("reports a button that CSS removes from the toolbar", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;width:390px">
+        ${button("Notiz")}<span style="display:none">${button("Undo")}</span>
+        <button style="width:90px;height:32px;visibility:hidden">Redo</button>
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits).toHaveLength(2);
+    expect(hits.every((hit) => hit.message.includes("is removed by CSS"))).toBe(true);
+    expect(hits[0].message).toContain('"Undo"');
+    expect(hits[1].message).toContain('"Redo"');
+  });
+
   test("stays quiet for a toolbar that fits on one row", async ({ page }) => {
     const findings = await analyze(
       page,
