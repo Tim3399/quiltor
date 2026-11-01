@@ -198,18 +198,9 @@ test("Map: the collapsed and the expanded map list their commands in the same or
   expectSameOrder("collapsed toolbar", collapsedToolbar, "expanded chrome", expandedChrome, 3);
 });
 
-// KNOWN FINDING, not yet fixed: the collapsed map card on the canvas lists "expand, open"
-// (toggle first, enter last -- the order T-78 gave the place card and the pin), while the toolbar
-// and the expanded chrome, both drawn by PlaceMapActions, list "open, expand". The two orders
-// cannot both be right. Reordering PlaceMapActions moves the commands of every map toolbar and
-// chrome and with them the expanded-map baselines of all platforms, which is a design decision
-// and not a fix to make inside a test task. test.fail() keeps the comparison running: it is
-// green while the orders differ and turns red the moment they agree, which is the cue to remove
-// this wrapper and let the assertion stand.
 test("Map: the collapsed card and the toolbar list their commands in the same order", async ({
   page,
 }, testInfo) => {
-  test.fail(true, "Known finding: card is [expand, open], toolbar is [open, expand].");
   test.skip(testInfo.project.name !== "wide", "Command geometry uses the fixed wide canvas.");
   await useGermanTheme(page);
   await mockExpandedMapWorld(page, expandedMapState({ expanded: false }));
