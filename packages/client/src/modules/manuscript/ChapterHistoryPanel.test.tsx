@@ -161,6 +161,24 @@ describe("ChapterHistoryPanel", () => {
       </I18nProvider>,
     );
 
+  it("is built from the inspector's own header, body and empty state", () => {
+    const { container } = renderChoices([
+      { hash: "own", shortHash: "own", date: "2026-10-28T12:20:28", subject: "Vor dem Umbau" },
+    ]);
+    const header = container.querySelector(".side-panel__header");
+    expect(header?.querySelector("strong")).toHaveTextContent(/^Frühere Fassung$/);
+    expect(screen.getByRole("button", { name: "Kapitelfassungen schließen" })).toHaveAttribute(
+      "title",
+      "Kapitelfassungen schließen",
+    );
+    const body = container.querySelector(".side-panel__body");
+    expect(body).toContainElement(screen.getByRole("combobox", { name: "Fassung" }));
+    expect(body).toHaveTextContent("Änderungen zur direkt vorherigen Fassung");
+    const unchangedNote = screen.getByRole("status");
+    expect(unchangedNote).toHaveClass("empty-state-component");
+    expect(unchangedNote).toHaveTextContent("Keine Änderungen");
+  });
+
   it("names a server-generated backup in German instead of its stored English name", () => {
     renderChoices([
       {
@@ -200,7 +218,10 @@ describe("ChapterHistoryPanel", () => {
       "28.10.2026, 12:20 · Der lange Abend, an dem die Fähre nicht kam",
     );
     // A tooltip needs a pointer; the name is also written out below the field.
-    const described = document.getElementById(field.getAttribute("aria-describedby") ?? "");
+    const described = (field.getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id))
+      .find((element) => element?.textContent?.includes("Fähre"));
     expect(described).toHaveTextContent(
       "28.10.2026, 12:20 · Der lange Abend, an dem die Fähre nicht kam",
     );

@@ -6,6 +6,7 @@ import {
   ProgressBar,
   Select,
   SidePanel,
+  SidePanelBody,
   SidePanelHeader,
 } from "../../design";
 import { useI18n } from "../../i18n";
@@ -47,87 +48,92 @@ export function ChapterHistoryPanel({
   const hasChanges = additions + removals + formattingAdded + formattingRemoved > 0;
 
   return (
-    <SidePanel className="chapter-history" label={t("versions")}>
+    <SidePanel className="chapter-history" label={t("versions")} width="fill">
       <SidePanelHeader
-        className="chapter-history__header"
-        title={
-          <span className="chapter-history__title">
-            <span>{t("previousVersion")}</span>
-            <small>{t("changesSincePreviousVersion")}</small>
-          </span>
+        title={t("previousVersion")}
+        actions={
+          <IconButton
+            label={t("closeVersions")}
+            icon={<X />}
+            onClick={onClose}
+            title={t("closeVersions")}
+          />
         }
-        actions={<IconButton label={t("closeVersions")} icon={<X />} onClick={onClose} />}
       />
-      {commits.length ? (
-        <Select
-          fieldClassName="chapter-history-state"
-          label={t("state")}
-          value={selectedRef}
-          title={chosenName}
-          description={chosenName}
-          onChange={(event) => onRefChange(event.target.value)}
-        >
-          {commits.map((commit) => (
-            <option key={commit.hash} value={commit.hash}>
-              {snapshotName(commit, t, locale)}
-            </option>
-          ))}
-        </Select>
-      ) : (
-        state === "idle" && <EmptyState title={t("noVersion")} headingLevel={3} size="compact" />
-      )}
-      {state === "loading" ? (
-        <ProgressBar label={t("loadingVersion")} />
-      ) : state === "error" ? (
-        <Alert tone="danger">{t("versionLoadError")}</Alert>
-      ) : (
-        selected && (
-          <>
-            {!previous?.available && (
-              <p className="chapter-version-diff__status" role="status">
-                {t("versionComparisonUnavailable")}
-              </p>
-            )}
-            {previous?.available && hasChanges && (
-              <section className="chapter-version-diff__legend" aria-label={t("versionDiffLegend")}>
-                {additions > 0 && (
-                  <span className="chapter-version-diff__legend-add">+ {t("versionAdded")}</span>
-                )}
-                {removals > 0 && (
-                  <span className="chapter-version-diff__legend-remove">
-                    − {t("versionRemoved")}
-                  </span>
-                )}
-                {formattingAdded > 0 && (
-                  <span className="chapter-version-diff__legend-format-add">
-                    + {t("versionFormattingAdded")}
-                  </span>
-                )}
-                {formattingRemoved > 0 && (
-                  <span className="chapter-version-diff__legend-format-remove">
-                    − {t("versionFormattingRemoved")}
-                  </span>
-                )}
-              </section>
-            )}
-            {previous?.available && !hasChanges && selected.exists && (
-              <p className="chapter-version-diff__status" role="status">
-                {t("noChanges")}
-              </p>
-            )}
-            {!selected.exists && (
-              <p className="chapter-version-diff__status" role="status">
-                {t("chapterNotYetExisting")}
-              </p>
-            )}
-            {selected.exists && !selected.text && (
-              <p className="chapter-version-diff__status" role="status">
-                {t("emptyChapterVersion")}
-              </p>
-            )}
-          </>
-        )
-      )}
+      <SidePanelBody className="chapter-history__body">
+        {commits.length ? (
+          <Select
+            fieldClassName="chapter-history-state"
+            label={t("state")}
+            value={selectedRef}
+            title={chosenName}
+            description={chosenName}
+            hint={t("changesSincePreviousVersion")}
+            onChange={(event) => onRefChange(event.target.value)}
+          >
+            {commits.map((commit) => (
+              <option key={commit.hash} value={commit.hash}>
+                {snapshotName(commit, t, locale)}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          state === "idle" && <EmptyState title={t("noVersion")} headingLevel={3} size="compact" />
+        )}
+        {state === "loading" ? (
+          <ProgressBar label={t("loadingVersion")} />
+        ) : state === "error" ? (
+          <Alert tone="danger">{t("versionLoadError")}</Alert>
+        ) : (
+          selected && (
+            <>
+              {!previous?.available && (
+                <p className="chapter-version-diff__status" role="status">
+                  {t("versionComparisonUnavailable")}
+                </p>
+              )}
+              {previous?.available && hasChanges && (
+                <section
+                  className="chapter-version-diff__legend"
+                  aria-label={t("versionDiffLegend")}
+                >
+                  {additions > 0 && (
+                    <span className="chapter-version-diff__legend-add">+ {t("versionAdded")}</span>
+                  )}
+                  {removals > 0 && (
+                    <span className="chapter-version-diff__legend-remove">
+                      − {t("versionRemoved")}
+                    </span>
+                  )}
+                  {formattingAdded > 0 && (
+                    <span className="chapter-version-diff__legend-format-add">
+                      + {t("versionFormattingAdded")}
+                    </span>
+                  )}
+                  {formattingRemoved > 0 && (
+                    <span className="chapter-version-diff__legend-format-remove">
+                      − {t("versionFormattingRemoved")}
+                    </span>
+                  )}
+                </section>
+              )}
+              {previous?.available && !hasChanges && selected.exists && (
+                <EmptyState role="status" title={t("noChanges")} headingLevel={3} size="compact" />
+              )}
+              {!selected.exists && (
+                <p className="chapter-version-diff__status" role="status">
+                  {t("chapterNotYetExisting")}
+                </p>
+              )}
+              {selected.exists && !selected.text && (
+                <p className="chapter-version-diff__status" role="status">
+                  {t("emptyChapterVersion")}
+                </p>
+              )}
+            </>
+          )
+        )}
+      </SidePanelBody>
     </SidePanel>
   );
 }
