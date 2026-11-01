@@ -87,6 +87,11 @@ def synchronize(handler, request: Request, app) -> None:
     try:
         payload = handler._read_json_body()
     except Exception:
+        # Broad on purpose: a missing, truncated or non-JSON body can raise anything the
+        # body reader raises, and none of it needs its own response here. An empty payload
+        # carries no "action", so the request is rejected below with sync.request_invalid
+        # (or sync.unconfigured / the world lookup first) -- the caller still gets an
+        # answer and nothing is swallowed silently.
         payload = {}
     world = handler.world_from_body(request.session, payload)
     if world is None:
