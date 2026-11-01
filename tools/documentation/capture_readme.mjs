@@ -1,10 +1,17 @@
 import { chromium, expect } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { figures, manuscript, storyboards } from "./readme_fixture.mjs";
+import {
+  buildManifest,
+  CAPTURE_VIEWPORT,
+  MANIFEST_NAME,
+  README_VIEWS,
+  readVersion,
+} from "./readme_screenshots.mjs";
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8125";
-const output = resolve("docs/screenshots");
+const output = resolve(process.env.QUILTOR_SCREENSHOT_DIR || "docs/screenshots");
 await mkdir(output, { recursive: true });
 
 async function checkedJson(response, operation) {
@@ -22,7 +29,7 @@ const captures = [];
 try {
   context = await browser.newContext({
     baseURL: baseUrl,
-    viewport: { width: 1440, height: 900 },
+    viewport: CAPTURE_VIEWPORT,
     deviceScaleFactor: 1,
     locale: "de-DE",
     timezoneId: "Europe/Berlin",
@@ -84,10 +91,37 @@ try {
     }
   }
 
+  // Fit-view, the scrub drag and the panels settle over several frames; a frame taken
+  // mid-way differs by a sub-pixel, which is what made two runs disagree.
+  async function settle() {
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      const finite = document
+        .getAnimations()
+        .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
+      await Promise.all(finite.map((animation) => animation.finished.catch(() => {})));
+    });
+    let previous = "";
+    for (let stable = 0; stable < 5; ) {
+      const state = await page.evaluate(
+        () =>
+          [...document.querySelectorAll(".react-flow__viewport")]
+            .map((element) => getComputedStyle(element).transform)
+            .join("|") +
+          [...document.querySelectorAll(".react-flow__minimap-mask")]
+            .map((element) => element.getAttribute("d"))
+            .join("|"),
+      );
+      stable = state === previous ? stable + 1 : 0;
+      previous = state;
+      await page.waitForTimeout(100);
+    }
+  }
+
   async function capture(name) {
-    await page.evaluate(() => document.fonts.ready);
-    await page.mouse.move(1435, 895);
-    await page.waitForTimeout(600);
+    if (!README_VIEWS.includes(name)) throw new Error(`"${name}" is not in README_VIEWS.`);
+    await page.mouse.move(CAPTURE_VIEWPORT.width - 5, CAPTURE_VIEWPORT.height - 5);
+    await settle();
     if (failures.length) throw new Error(failures.join("\n"));
     await page.screenshot({
       path: resolve(output, `${name}.png`),
@@ -153,9 +187,14 @@ try {
   await inspector.getByRole("button", { name: "Notiz im Fokus öffnen", exact: true }).click();
   await page.getByRole("textbox", { name: "Notiz für Mara Venn", exact: true }).waitFor();
   await capture("shared-notes");
-  if (captures.length !== 7 || failures.length)
+  if (captures.join() !== README_VIEWS.join() || failures.length)
     throw new Error(`Incomplete capture: ${failures.join("\n")}`);
   console.log(`Captured all ${captures.length} README screenshots.`);
+  const version = process.env.QUILTOR_SCREENSHOT_VERSION || readVersion(resolve("."));
+  const manifest = buildManifest({ root: resolve("."), directory: output, version });
+  const manifestText = JSON.stringify(manifest, null, 2);
+  await writeFile(resolve(output, MANIFEST_NAME), `${manifestText}\n`);
+  console.log(`Wrote ${MANIFEST_NAME} for version ${version}.`);
 } finally {
   try {
     if (context && worldId) {

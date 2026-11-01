@@ -199,9 +199,9 @@
     },
     {
       "name": "tools",
-      "patterns": ["tools/**"],
+      "patterns": ["tools/**", "docs/screenshots/manifest.json"],
       "groups": ["checks", "python"],
-      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README."
+      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README. The README screenshot manifest is read by check:readme-screenshots."
     },
     {
       "name": "architecture-docs",
@@ -234,7 +234,7 @@
   "untested": [
     {
       "patterns": ["docs/screenshots/*.png"],
-      "reason": "README screenshots: binary images no gate reads; tools/documentation regenerates them by hand."
+      "reason": "README screenshots: binary images no gate reads; the manifest next to them is covered by the checks group (check:readme-screenshots)."
     }
   ]
 }

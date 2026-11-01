@@ -441,7 +441,8 @@ suite reads a file of another group: the HTTP client in `packages/client/src/pla
 (`test_routes.py`), one image and `dist/index.html`, and the Playwright configs.
 
 **Not tested** (with the reason the contract demands): `docs/screenshots/*.png` -- README images
-no gate reads. A path may not be both in a rule and on this list.
+no gate reads (their manifest, `docs/screenshots/manifest.json`, is read by
+`check:readme-screenshots` and sits in the `tools` rule). A path may not be both in a rule and on this list.
 
 ### Full mode bypasses the filter
 

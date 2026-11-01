@@ -638,6 +638,10 @@ def run_preflight(repo_root: Path = REPO_ROOT) -> None:
             "Portable core tests",
             [cargo, "--locked", "test", "--workspace", "--all-targets"],
         ),
+        (
+            "README screenshots belong to this version",
+            [npm, "run", "check:readme-screenshots"],
+        ),
         ("Frontend unit suite", [npm, "run", "test"]),
         ("Frontend gates and production build", [npm, "run", "build"]),
         (
