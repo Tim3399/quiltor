@@ -161,4 +161,51 @@ describe("TextWorkspace writing aid failures", () => {
     fireEvent.click(await rendered.findByRole("tab", { name: "Prüfen" }));
     await rendered.findByRole("button", { name: "LanguageTool lokal installieren" });
   });
+  it("checks through an enabled external server without Java or an install button", async () => {
+    vi.spyOn(writingAssistanceApi, "status").mockResolvedValue(
+      status({
+        grammar: {
+          ...grammar,
+          available: true,
+          installed: false,
+          javaVersion: null,
+          externalConfigured: true,
+          externalEnabled: true,
+        },
+      }),
+    );
+    const check = vi
+      .spyOn(writingAssistanceApi, "checkGrammar")
+      .mockResolvedValue({ ok: true, locale: "de-DE", issues: [] });
+    const rendered = render();
+    await waitFor(() => expect(writingAssistanceApi.status).toHaveBeenCalled());
+    fireEvent.click(await rendered.findByRole("tab", { name: "Prüfen" }));
+    fireEvent.click(rendered.getByRole("button", { name: "Text prüfen" }));
+    await waitFor(() => expect(check).toHaveBeenCalled());
+    expect(rendered.queryByRole("button", { name: "LanguageTool lokal installieren" })).toBeNull();
+    expect(rendered.queryByText(/Java 17/)).toBeNull();
+  });
+
+  it("says a configured external server is not enabled instead of asking for Java", async () => {
+    vi.spyOn(writingAssistanceApi, "status").mockResolvedValue(
+      status({
+        grammar: {
+          ...grammar,
+          available: false,
+          installed: false,
+          javaVersion: null,
+          externalConfigured: true,
+          externalEnabled: false,
+        },
+      }),
+    );
+    const rendered = render();
+    await waitFor(() => expect(writingAssistanceApi.status).toHaveBeenCalled());
+    fireEvent.click(await rendered.findByRole("tab", { name: "Prüfen" }));
+    await rendered.findByText(
+      "Ein externer Grammatikdienst ist eingetragen, aber nicht freigegeben.",
+    );
+    expect(rendered.queryByRole("button", { name: "LanguageTool lokal installieren" })).toBeNull();
+    expect(rendered.queryByText(/Java 17/)).toBeNull();
+  });
 });

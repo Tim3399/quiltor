@@ -58,6 +58,13 @@ KNOWN_KEYS: dict[str, str] = {
         "Public OIDC client this machine signs in to the backup endpoint as (default "
         "quiltor-desktop). Must match the client registered in the endpoint's realm."
     ),
+    "QUILTOR_LANGUAGETOOL_URL": (
+        "Base URL of a LanguageTool server (e.g. http://languagetool:8010) used instead of a "
+        "local install. Needs QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1, since chapter text is sent there."
+    ),
+    "QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN": (
+        "Set to 1 to allow sending chapter text to QUILTOR_LANGUAGETOOL_URL for grammar checks."
+    ),
     "QUILTOR_HOME": f"Where runtime/model/data files live. Defaults to {DEFAULT_HOME} for the CLI.",
     "QUILTOR_MODELS_DIR": (
         "Existing folder that holds the model files (gguf/*.gguf and mlx/<model>/). "

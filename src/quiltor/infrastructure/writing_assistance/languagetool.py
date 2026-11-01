@@ -21,6 +21,7 @@ from quiltor.modules.writing_assistance.errors import (
     ChecksumMismatch,
     DownloadFailed,
     GrammarStartFailed,
+    GrammarUnavailable,
     JavaMissing,
 )
 from quiltor.modules.writing_assistance.grammar.contract import (
@@ -75,6 +76,10 @@ class LanguageToolManager:
         configured_url = os.environ.get("QUILTOR_LANGUAGETOOL_URL", "").strip()
         external_opt_in = os.environ.get("QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN") == "1"
         running = self.process is not None and self.process.poll() is None
+        external_enabled = bool(configured_url and external_opt_in)
+        local_available = (
+            self.server_jar.exists() and java_version is not None and java_version >= JAVA_MINIMUM
+        )
         return {
             # `supported` is the edition's verdict, `available` this machine's:
             # supported-but-unavailable means "install Java and click the
@@ -82,16 +87,17 @@ class LanguageToolManager:
             # src/quiltor/modules/writing_assistance/grammar/unavailable.py.
             "supported": True,
             "unsupportedReason": "",
-            "available": self.server_jar.exists()
-            and java_version is not None
-            and java_version >= JAVA_MINIMUM,
+            # A configured and enabled external server replaces the local one
+            # entirely (check() never falls back), so Java and the JAR stop
+            # mattering for availability.
+            "available": external_enabled or local_available,
             "installed": self.server_jar.exists(),
             "running": running,
             "version": LANGUAGETOOL_VERSION,
             "javaVersion": java_version,
             "javaRequired": JAVA_MINIMUM,
             "externalConfigured": bool(configured_url),
-            "externalEnabled": bool(configured_url and external_opt_in),
+            "externalEnabled": external_enabled,
             "download": {
                 "url": LANGUAGETOOL_URL,
                 "checksum": f"sha256:{LANGUAGETOOL_SHA256}",
@@ -193,8 +199,16 @@ class LanguageToolManager:
                 "User-Agent": "Quiltor local grammar",
             },
         )
-        with urllib.request.urlopen(request, timeout=20) as response:
-            result = json.load(response)
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                result = json.load(response)
+        except (OSError, ValueError) as exc:
+            # OSError covers unreachable, HTTPError (4xx/5xx) and timeouts;
+            # ValueError a reply that is not JSON. The exception text may echo
+            # the request, so only the code leaves this method.
+            raise GrammarUnavailable() from exc
+        if not isinstance(result, dict):
+            raise GrammarUnavailable()
         own = {word.casefold() for word in custom_words if isinstance(word, str)}
         issues = []
         for index, match in enumerate(result.get("matches", [])):

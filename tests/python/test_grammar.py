@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import patch
 
 from quiltor.delivery.http import errors as http_errors
@@ -12,6 +13,7 @@ from quiltor.modules.writing_assistance.errors import (
     ChecksumMismatch,
     DownloadFailed,
     GrammarStartFailed,
+    GrammarUnavailable,
     JavaMissing,
 )
 
@@ -208,6 +210,104 @@ class GrammarRouteTests(unittest.TestCase):
         app = SimpleNamespace(writing_assistance=SimpleNamespace(check=check))
         routes.check(Handler(), Request(path="/api/writing-assistance/check"), app)
         self.assertEqual(sent, ["writing_assistance.java_missing"])
+
+
+class ExternalGrammarServerTests(unittest.TestCase):
+    """QUILTOR_LANGUAGETOOL_URL with the opt-in replaces the local LanguageTool:
+    no Java, no JAR, and failures of that server reach the client as a code."""
+
+    ENABLED: ClassVar[dict[str, str]] = {
+        "QUILTOR_LANGUAGETOOL_URL": "http://languagetool:8010/",
+        "QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN": "1",
+    }
+    TEXT = "Das ist ein geheimer Satz."
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.manager = LanguageToolManager(Path(self.temp.name))
+
+    def tearDown(self):
+        self.manager.close()
+        self.temp.cleanup()
+
+    def test_enabled_external_server_makes_grammar_available_without_java(self):
+        with patch.dict(os.environ, self.ENABLED, clear=False), patch(_JAVA, return_value=None):
+            status = self.manager.status()
+        self.assertTrue(status["available"])
+        self.assertTrue(status["externalEnabled"])
+        self.assertFalse(status["installed"])
+
+    def test_configured_but_not_enabled_server_is_not_available(self):
+        with (
+            patch.dict(os.environ, {"QUILTOR_LANGUAGETOOL_URL": "http://languagetool:8010"}),
+            patch(_JAVA, return_value=None),
+        ):
+            os.environ.pop("QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN", None)
+            status = self.manager.status()
+        self.assertFalse(status["available"])
+        self.assertTrue(status["externalConfigured"])
+        self.assertFalse(status["externalEnabled"])
+
+    def test_check_goes_to_the_external_server_and_never_starts_java(self):
+        payload = {
+            "matches": [
+                {
+                    "offset": 0,
+                    "length": 3,
+                    "message": "Fehler",
+                    "replacements": [{"value": "Dies"}],
+                    "rule": {"id": "R", "category": {"name": "Grammatik"}},
+                }
+            ]
+        }
+        with (
+            patch.dict(os.environ, self.ENABLED, clear=False),
+            patch.object(self.manager, "_local_url", side_effect=AssertionError("local")),
+            patch(_SUPERVISOR, side_effect=AssertionError("spawn")),
+            patch(
+                "urllib.request.urlopen", return_value=_Response(json.dumps(payload).encode())
+            ) as request,
+        ):
+            result = self.manager.check("de-DE", self.TEXT, [])
+        self.assertEqual(request.call_args.args[0].full_url, "http://languagetool:8010/v2/check")
+        self.assertEqual(result["issues"][0]["replacements"], ["Dies"])
+
+    def test_external_server_failures_are_grammar_unavailable_without_the_text(self):
+        import urllib.error
+        from email.message import Message
+
+        failures = [
+            urllib.error.URLError("unreachable"),
+            urllib.error.HTTPError(
+                "http://languagetool:8010/v2/check", 502, "Bad", Message(), None
+            ),
+            TimeoutError("timed out"),
+        ]
+        for failure in failures:
+            with (
+                self.subTest(type(failure).__name__),
+                patch.dict(os.environ, self.ENABLED, clear=False),
+                patch("urllib.request.urlopen", side_effect=failure),
+            ):
+                with self.assertRaises(GrammarUnavailable) as raised:
+                    self.manager.check("de-DE", self.TEXT, [])
+                wire = http_errors.from_exception(raised.exception)
+                self.assertEqual(wire.status, 503)
+                self.assertEqual(
+                    wire.payload()["error"]["code"], "writing_assistance.grammar_unavailable"
+                )
+                self.assertNotIn("geheimer", json.dumps(wire.payload()))
+                self.assertNotIn("geheimer", str(raised.exception))
+
+    def test_a_reply_that_is_not_languagetool_json_is_grammar_unavailable(self):
+        for body in (b"<html>proxy error</html>", b"[]"):
+            with (
+                self.subTest(body),
+                patch.dict(os.environ, self.ENABLED, clear=False),
+                patch("urllib.request.urlopen", return_value=_Response(body)),
+            ):
+                with self.assertRaises(GrammarUnavailable):
+                    self.manager.check("de-DE", self.TEXT, [])
 
 
 if __name__ == "__main__":
