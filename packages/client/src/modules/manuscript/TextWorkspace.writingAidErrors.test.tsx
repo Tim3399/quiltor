@@ -208,4 +208,28 @@ describe("TextWorkspace writing aid failures", () => {
     expect(rendered.queryByRole("button", { name: "LanguageTool lokal installieren" })).toBeNull();
     expect(rendered.queryByText(/Java 17/)).toBeNull();
   });
+
+  it("offers no local install when an external server is configured but not enabled, even with Java", async () => {
+    // Java present and the JAR missing would otherwise show the install
+    // button; an install is pointless while check() goes to the external URL.
+    vi.spyOn(writingAssistanceApi, "status").mockResolvedValue(
+      status({
+        grammar: {
+          ...grammar,
+          available: false,
+          installed: false,
+          javaVersion: 17,
+          externalConfigured: true,
+          externalEnabled: false,
+        },
+      }),
+    );
+    const rendered = render();
+    await waitFor(() => expect(writingAssistanceApi.status).toHaveBeenCalled());
+    fireEvent.click(await rendered.findByRole("tab", { name: "Prüfen" }));
+    await rendered.findByText(
+      "Ein externer Grammatikdienst ist eingetragen, aber nicht freigegeben.",
+    );
+    expect(rendered.queryByRole("button", { name: "LanguageTool lokal installieren" })).toBeNull();
+  });
 });
