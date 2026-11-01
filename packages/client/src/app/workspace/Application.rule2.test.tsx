@@ -78,14 +78,14 @@ function documents(body: string): LoadedWorldDocuments {
 }
 
 const wait = (ms: number) => act(() => new Promise<void>((done) => setTimeout(done, ms)));
-const refused = (warn: ReturnType<typeof vi.spyOn>) =>
+const refused = (warn: { mock: { calls: unknown[][] } }) =>
   warn.mock.calls.some((call) => String(call[0]).startsWith("[quiltor] save refused"));
-const loadOverUnsaved = (warn: ReturnType<typeof vi.spyOn>) =>
+const loadOverUnsaved = (warn: { mock: { calls: unknown[][] } }) =>
   warn.mock.calls.filter((call) => String(call[0]) === "[quiltor] load over unsaved changes");
 
-let warn: ReturnType<typeof vi.spyOn>;
-let save: ReturnType<typeof vi.spyOn>;
-let saveExpected: ReturnType<typeof vi.spyOn>;
+let warn: { mock: { calls: unknown[][] } };
+let save: { mock: { calls: { chapters: { body: string }[] }[][] } };
+let saveExpected: { mock: { calls: [{ chapters: { body: string }[] }, number][] } };
 const saved = { ok: true as const, zeit: "2026-10-31T10:10:00Z", revision: 9 };
 
 beforeEach(() => {

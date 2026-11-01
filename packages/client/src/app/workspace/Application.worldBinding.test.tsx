@@ -173,7 +173,7 @@ async function undoAndSaveBehind(focused: HTMLElement) {
   await wait(100);
 }
 
-const refusedSave = (warn: ReturnType<typeof vi.spyOn>) =>
+const refusedSave = (warn: { mock: { calls: unknown[][] } }) =>
   warn.mock.calls.some((call) => String(call[0]).startsWith("[quiltor] save refused"));
 
 describe("a world replaced on the server is never saved over (P-Q4)", () => {
