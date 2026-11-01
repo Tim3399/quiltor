@@ -49,7 +49,6 @@ export function WorkspaceToolbarTitle({
 
 export interface WorkspaceToolbarActionsProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
-  layout?: "scroll" | "wrap";
   /** Creating something new. At most one action in here carries primary emphasis. */
   create?: ReactNode;
   /** What the workspace shows: panel toggles, view menus and modes. */
@@ -58,24 +57,32 @@ export interface WorkspaceToolbarActionsProps
   history?: ReactNode;
   /** Acting on what already exists: export, manage, delete. */
   actions?: ReactNode;
+  /**
+   * The secondary actions that do not earn a place in the row: a `DropdownMenu` whose
+   * trigger is an icon-only `ToolbarButton`. It always sits last, after `actions`.
+   */
+  overflow?: ReactNode;
 }
 
 /**
- * The action strip renders its four slots in one fixed order for every workspace:
- * create, view, history, actions.
+ * The action strip renders its five slots in one fixed order for every workspace:
+ * create, view, history, actions, overflow.
  *
  * A workspace decides what goes into a slot, never where the slot sits. That is the
  * whole point of the strip taking slots instead of children: the manuscript, the world,
  * the timeline, the places and the storyboard cannot each invent their own order, so
  * the same kind of action stays in the same place across the application.
+ *
+ * The strip is exactly one row on every layout. It never wraps; what does not fit goes
+ * into the overflow menu, chosen by how often and how urgently an author needs it.
  */
 export function WorkspaceToolbarActions({
   className,
-  layout = "scroll",
   create,
   view,
   history,
   actions,
+  overflow,
   ...props
 }: WorkspaceToolbarActionsProps) {
   const actionsClassName = classes("workspace-toolbar__actions", className);
@@ -85,16 +92,9 @@ export function WorkspaceToolbarActions({
       {view}
       {history}
       {actions}
+      {overflow && <div className="workspace-toolbar__overflow">{overflow}</div>}
     </>
   );
-
-  if (layout === "wrap") {
-    return (
-      <div {...props} className={actionsClassName} data-layout="wrap">
-        {slots}
-      </div>
-    );
-  }
 
   return (
     <ScrollArea
