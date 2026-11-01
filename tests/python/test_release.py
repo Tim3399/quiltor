@@ -1,10 +1,11 @@
 """Versioning and the immutable build-to-publish release hand-off."""
 
 import contextlib
+import functools
 import io
 import json
-import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1302,6 +1303,37 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 ):
                     workflow_contract.validate_linux_playwright_install(mutated, script)
 
+    def test_windows_playwright_jobs_widen_the_port_range_before_playwright(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_windows_port_range(sources)
+        source = sources[TEST_WORKFLOW]
+        step_start = source.index("      - name: Widen the dynamic TCP port range")
+        step_end = source.index("      - uses: actions/checkout", step_start)
+        step = source[step_start:step_end]
+
+        def check(mutated_source, message):
+            mutated = dict(sources)
+            mutated[TEST_WORKFLOW] = mutated_source
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                workflow_contract.validate_windows_port_range(mutated)
+
+        with self.subTest(name="step removed"):
+            check(source.replace(step, "", 1), "without widening")
+        with self.subTest(name="step after Playwright"):
+            moved = source.replace(step, "", 1)
+            at = moved.index("      - name: Install Chromium\n", step_start)
+            end = moved.index("\n\n", at) + 2
+            check(moved[:end] + step + moved[end:], "without widening")
+        with self.subTest(name="failure swallowed"):
+            check(
+                source.replace(
+                    "num=55535\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                    "num=55535 || true",
+                    1,
+                ),
+                "must fail",
+            )
+
     def test_normal_ci_runs_the_browser_suite_instead_of_deferring_it_to_release(self):
         test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("push:\n    branches: [main]", test_workflow)
@@ -1324,8 +1356,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             "node tools/dev/test-shards.mjs select --os linux --slots 4",
             'npx playwright test --test-list "$lists/product.txt"',
             "npx playwright test --config playwright.design.config.ts",
-            "PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1",
-            "PLAYWRIGHT_WORKERS=2 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
+            'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1',
+            'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_DESIGN" PLAYWRIGHT_JSON_OUTPUT_FILE=',
         ):
             self.assertIn(required_gate, test_workflow)
         workflow_contract.validate_browser_e2e_sharding(workflow_contract._workflow_sources())
@@ -1489,6 +1521,43 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 mutated[TEST_WORKFLOW] = head + marker + job.replace(original, replacement, 1)
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_cross_platform_browser_sharding(mutated)
+
+    def test_worker_counts_come_from_one_setting_per_system(self):
+        sources = {TEST_WORKFLOW: TEST_WORKFLOW.read_text(encoding="utf-8")}
+        workflow_contract.validate_playwright_worker_settings(sources)
+        mutations = (
+            ("setting removed", '  WORKERS_MACOS: "2"\n', "", "one workflow-level worker count"),
+            ("not a number", 'WORKERS_WINDOWS: "1"', 'WORKERS_WINDOWS: "x"', "positive integer"),
+            ("zero", 'WORKERS_LINUX_DESIGN: "2"', 'WORKERS_LINUX_DESIGN: "0"', "positive integer"),
+            (
+                "literal on Linux",
+                'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT"',
+                "PLAYWRIGHT_WORKERS=1",
+                "not a literal",
+            ),
+            (
+                "literal on the cross-platform slots",
+                workflow_contract.CROSS_PLATFORM_WORKERS_BINDING,
+                "PLAYWRIGHT_WORKERS: 3",
+                "not a literal",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, sources[TEST_WORKFLOW])
+                mutated = {TEST_WORKFLOW: sources[TEST_WORKFLOW].replace(original, replacement, 1)}
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_playwright_worker_settings(mutated)
+
+    def test_every_product_server_writes_the_log_the_suite_reads(self):
+        sources = {TEST_WORKFLOW: TEST_WORKFLOW.read_text(encoding="utf-8")}
+        workflow_contract.validate_product_server_log(sources)
+        for setting in workflow_contract.SERVER_LOG_SETTINGS:
+            with self.subTest(removed=setting):
+                self.assertEqual(sources[TEST_WORKFLOW].count(setting), 3)
+                mutated = {TEST_WORKFLOW: sources[TEST_WORKFLOW].replace(setting, "true", 1)}
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "log file"):
+                    workflow_contract.validate_product_server_log(mutated)
 
     def test_matrix_decision_truth_table(self):
         plan = workflow_contract._job_body(TEST_WORKFLOW.read_text(encoding="utf-8"), "plan")
@@ -1824,6 +1893,19 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 mutated[path] = mutated[path].replace(original, replacement, 1)
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_native_release_targets(mutated)
+
+    def test_security_events_write_stays_in_the_job(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_security_events_scope(sources)
+
+        codeql = next(path for path in sources if path.name == "codeql.yml")
+        self.assertIn("permissions: {}\n", sources[codeql])
+        mutated = dict(sources)
+        mutated[codeql] = sources[codeql].replace(
+            "permissions: {}\n", "permissions:\n  security-events: write\n", 1
+        )
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "at workflow level"):
+            workflow_contract.validate_security_events_scope(mutated)
 
     def test_release_packaging_toolchain_is_concretely_pinned(self):
         pins = {
@@ -2270,6 +2352,25 @@ class PathFilterContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
+        # Every validation repeats work that depends only on the repository, never on the
+        # workflow text the tests mutate: about 200,000 glob compilations, listing the tracked
+        # files, and reading every client unit test. Caching those three for this class changes
+        # no result; each cached list is handed out as a fresh copy (T-40).
+        tracked_paths = functools.cache(path_filter.tracked_paths)
+        original_client_inputs = workflow_contract.client_test_inputs
+        client_inputs = functools.cache(lambda tracked: original_client_inputs(list(tracked)))
+        for target, name, replacement in (
+            (path_filter, "glob_to_regex", functools.cache(path_filter.glob_to_regex)),
+            (path_filter, "tracked_paths", lambda *args: list(tracked_paths(*args))),
+            (
+                workflow_contract,
+                "client_test_inputs",
+                lambda tracked: list(client_inputs(tuple(tracked))),
+            ),
+        ):
+            patcher = patch.object(target, name, replacement)
+            patcher.start()
+            cls.addClassCleanup(patcher.stop)
 
     def simulate(self, event, ref, full_matrix_input, paths, workflow=None, **options):
         return simulate_test_workflow(
@@ -2635,13 +2736,26 @@ class PathFilterContractTests(unittest.TestCase):
         body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
 
         def gate(results):
-            env = {**os.environ, "PLAN_RESULT": "success"}
+            # On Windows, `bash` can resolve to WSL's System32\bash.exe. It does not pass
+            # the caller's environment on, and it hands a `-c` argument through another
+            # shell that expands `$1` and `$VAR` to nothing first -- every job name and
+            # result arrived empty and the green case failed. So the values go in as
+            # assignments ahead of the script, and the script goes in on stdin.
+            values = {"PLAN_RESULT": "success"}
             for name in workflow_contract.FILTERED_JOBS:
                 job = workflow_contract._env_name(name)
-                env[f"RESULT_{job}"] = results.get(name, "success")
-                env[f"SELECTED_{job}"] = "true"
-            return subprocess.run(
-                [bash, "-c", body], env=env, capture_output=True, text=True, check=False
+                values[f"RESULT_{job}"] = results.get(name, "success")
+                values[f"SELECTED_{job}"] = "true"
+            preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in values.items())
+            # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
+            completed = subprocess.run(
+                [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
+            )
+            return subprocess.CompletedProcess(
+                completed.args,
+                completed.returncode,
+                completed.stdout.decode(errors="replace"),
+                completed.stderr.decode(errors="replace"),
             )
 
         green = gate({})

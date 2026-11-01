@@ -32,6 +32,7 @@ export function PlaceMeasurementOverlay({
             fieldClassName="places-scale-value-field"
             className="places-scale-value"
             label={t("scale")}
+            labelHidden
             type="number"
             min="0.01"
             step="0.01"

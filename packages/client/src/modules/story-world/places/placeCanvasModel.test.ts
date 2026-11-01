@@ -7,9 +7,11 @@ import {
   createPinNodes,
   createPlaceFlowNodes,
   createPlaceMapNodes,
+  mapBoxPatch,
   PLACE_PIN_SCREEN_SIZES,
   placePinSize,
 } from "./placeCanvasModel";
+import { mapBoxOf } from "./PlaceMapNode";
 
 const t = ((key: keyof typeof de, variables?: Record<string, string | number>) => {
   let value: string = de[key];
@@ -201,8 +203,35 @@ describe("a map laid out on the level", () => {
   });
 
   it("follows a resize handle the same way", () => {
-    const nodes = build({ liveSize: { id: "m", width: 1200, height: 900 } });
+    const nodes = build({ liveSize: { id: "m", x: 100, y: 200, width: 1200, height: 900 } });
     expect(nodes[0]).toMatchObject({ width: 1200, height: 900 });
+  });
+
+  it("moves the origin with a left or top grip, so the opposite edge stays put", () => {
+    // Dragging the left grip 60 units outward: the right edge (100 + 800) must
+    // stay at 900, which only holds when the origin follows the width.
+    const [left] = build({ liveSize: { id: "m", x: 40, y: 200, width: 860, height: 600 } });
+    expect(left.position.x + (left.width ?? 0)).toBe(900);
+    const [top] = build({ liveSize: { id: "m", x: 100, y: 150, width: 800, height: 650 } });
+    expect(top.position.y + (top.height ?? 0)).toBe(800);
+  });
+
+  it("writes the origin down with the size when a resize ends", () => {
+    expect(mapBoxPatch({ x: 40, y: 150, width: 860, height: 650 })).toEqual({
+      mapX: 40,
+      mapY: 150,
+      mapWidth: 860,
+      mapHeight: 650,
+    });
+  });
+
+  it("keeps the origin of what a resize gesture reports", () => {
+    expect(mapBoxOf({ x: 40, y: 150, width: 860, height: 650 })).toEqual({
+      x: 40,
+      y: 150,
+      width: 860,
+      height: 650,
+    });
   });
 });
 

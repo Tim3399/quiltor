@@ -27,6 +27,12 @@ export type GrammarStatus = {
 export type WritingAssistanceStatus = {
   ok: boolean;
   installed: boolean;
+  /**
+   * How much vocabulary the installed data holds: "core" is the built-in
+   * starter set of a few words, "full" an import of the upstream sources.
+   * null while nothing current is installed.
+   */
+  coverage?: "core" | "full" | null;
   stale: boolean;
   version: string | null;
   sources: Record<

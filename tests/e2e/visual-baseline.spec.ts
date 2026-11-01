@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
-  mockRequiredWorldDocuments,
+  mockWorkshop as mockWorkshopRoutes,
 } from "./support/application-api";
 import {
   mockExpandedMapWorld,
@@ -53,45 +54,18 @@ const figures = {
   presence: [],
 };
 
-async function mockWorkshop(page: Page) {
-  await page.route("**/api/version", (route) =>
-    route.fulfill({ json: { ok: true, version: "baseline" } }),
-  );
-  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
-  await page.route("**/api/worlds", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        worlds: [
-          {
-            id: "baseline",
-            title: "Der gläserne Atlas",
-            backupUrl: "",
-            updated: "2026-08-09T12:00:00Z",
-          },
-        ],
-      },
-    }),
-  );
-  await page.route("**/api/worlds/open", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        world: {
-          id: "baseline",
-          title: "Der gläserne Atlas",
-          backupUrl: "",
-          updated: "2026-08-09T12:00:00Z",
-        },
-      },
-    }),
-  );
-  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures });
-  await page.route("**/api/assistant/status*", (route) =>
-    route.fulfill({
-      json: { ok: true, available: false, mode: "local", reason: "Baseline", chunks: 3 },
-    }),
-  );
+function mockWorkshop(page: Page) {
+  return mockWorkshopRoutes(page, {
+    version: "baseline",
+    world: {
+      id: "baseline",
+      title: "Der gläserne Atlas",
+      backupUrl: "",
+      updated: "2026-08-09T12:00:00Z",
+    },
+    documents: { manuscript, storyWorld: figures },
+    assistant: { reason: "Baseline", chunks: 3 },
+  });
 }
 
 const SNAPSHOTS = join(
@@ -156,6 +130,30 @@ async function stillstehendeLeinwand(page: Page) {
     .toBe(true);
 }
 
+/*
+ * Fit the canvas until the fit no longer moves it.
+ *
+ * On a compact screen a story card keeps a touch-sized height that depends on the zoom
+ * (StoryNodeCard: storyNodeCompactLayoutHeight). One fit measures the cards at the old zoom,
+ * sets a new one, and the cards then shrink by a fraction of a pixel. Whether React Flow had
+ * measured that before the fit decided where the viewport ended up: 0.3 px apart in y, which
+ * moved every grid line and card edge and failed the figures baseline about one run in ten.
+ * Fitting again with the settled sizes reaches the same transform every time.
+ */
+async function fitUntilSettled(page: Page) {
+  const viewport = page.locator(".flow-area .react-flow__viewport").first();
+  const fitView = page.locator(".figure-workspace .react-flow__controls-fitview");
+  let previous: string | null = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await fitView.click();
+    await stillstehendeLeinwand(page);
+    const current = await viewport.getAttribute("style");
+    if (current !== null && current === previous) return;
+    previous = current;
+  }
+  throw new Error("Fitting the canvas did not settle on one transform.");
+}
+
 for (const theme of ["light", "dark"] as const) {
   test(`${theme}: expanded map chrome remains attached while editing places`, async ({ page }) => {
     test.skip(!BOOTSTRAP && !hasBaselines(), `No baseline set exists for ${process.platform}.`);
@@ -166,7 +164,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await mockExpandedMapWorld(page);
     await openExpandedMapWorld(page);
-    // Reopening establishes the same completed save state in development and production.
+    // Reopening establishes the same idle save state in development and production. R1:
+    // loading no longer re-saves, so the status reads "Bereit" rather than "Gespeichert".
     // Await it before arranging the compact navigation, whose width depends on this label.
     await page.getByRole("button", { name: "Mehr", exact: true }).click();
     await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
@@ -174,7 +173,7 @@ for (const theme of ["light", "dark"] as const) {
       .getByRole("button", { name: "Die nördlichen Küsten – Welt öffnen", exact: true })
       .click();
     await expect(page.locator(".places-workspace")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Gespeichert");
+    await expect(page.getByRole("status")).toContainText("Bereit");
     await page
       .getByRole("button", { name: "Orte", exact: true })
       .evaluate((element) => element.scrollIntoView({ block: "nearest", inline: "center" }));
@@ -229,7 +228,7 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Ansicht", exact: true }).click();
       await page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }).click();
       await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
-      await page.locator(".figure-workspace .react-flow__controls-fitview").click();
+      await fitUntilSettled(page);
     }
     await stillstehendeLeinwand(page);
     if ((page.viewportSize()?.width ?? 0) < 720) {
@@ -272,6 +271,15 @@ for (const theme of ["light", "dark"] as const) {
         ? page.getByRole("dialog", { name: "Lokaler Assistent" })
         : page.getByRole("complementary", { name: "Lokaler Assistent" });
     await expect(assistant).toBeVisible();
+    // The compact sheet slides up (ui-sheet-up) and is "visible" from its first frame, still
+    // off screen. `animations: "disabled"` finishes the animation just before the capture,
+    // but on a loaded macOS runner the capture once showed the sheet 526 px short of its
+    // place, both attempts alike (T-77). Let the slide end on its own first.
+    await assistant.evaluate((element) =>
+      Promise.all(
+        element.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      ),
+    );
     await screenshotExpectation.toHaveScreenshot(`${theme}-assistant.png`, {
       animations: "disabled",
     });

@@ -243,4 +243,5 @@ export const manuscript = {
     "“{from}” was renamed to “{to}”. Replace all linked occurrences in the manuscript?",
   updateMentions: "Replace occurrences",
   openEntity: "Open {name}",
+  chapterLoading: "Loading chapter …",
 } as const;

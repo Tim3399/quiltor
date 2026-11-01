@@ -123,7 +123,7 @@ export const manuscript = {
   chapterStoryTimeRange: "Zeitraum",
   chapterStoryTimeStart: "Von",
   chapterStoryTimeEnd: "Bis",
-  chapterStoryTimeEmpty: "Lege zuerst einen Zeitpunkt in der Zeitleiste an.",
+  chapterStoryTimeEmpty: "Lege zuerst einen Zeitpunkt in der Timeline an.",
   chapterStoryTimeMissing: "Zeitpunkt nicht mehr verfügbar",
   chapterStoryTimeMissingHelp:
     "Wähle einen verfügbaren Zeitpunkt, um die Verknüpfung zu reparieren.",
@@ -248,4 +248,5 @@ export const manuscript = {
     "„{from}“ wurde in „{to}“ umbenannt. Sollen alle verknüpften Vorkommen im Manuskript ersetzt werden?",
   updateMentions: "Vorkommen ersetzen",
   openEntity: "{name} öffnen",
+  chapterLoading: "Kapitel lädt …",
 } as const;

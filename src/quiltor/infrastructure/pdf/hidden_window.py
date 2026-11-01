@@ -68,6 +68,10 @@ def _wait_until_rendered(window, timeout: int) -> None:
             if state == "error":
                 raise RuntimeError("The book view reported a pagination error.")
         except Exception:
+            # Broad on purpose: evaluate_js raises whatever the platform web view raises
+            # (pywebview, WKWebView, WebView2, GTK) while the page is still loading, and
+            # none of it matters -- the next poll asks again. Only the pagination error
+            # raised above is real and is re-raised.
             if state == "error":
                 raise
         time.sleep(POLL_INTERVAL_SECONDS)

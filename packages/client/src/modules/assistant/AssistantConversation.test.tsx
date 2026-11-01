@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   api,
@@ -361,6 +361,64 @@ describe("assistant conversation content", () => {
     expect(onApply).toHaveBeenCalledWith([
       expect.objectContaining({ element: expect.objectContaining({ name: "Igor Venn" }) }),
     ]);
+  });
+
+  it("keeps the proposal editor and its draft across a compact/regular layout switch", async () => {
+    // A controllable "(max-width: 719px)" query: rotating a tablet flips it.
+    let compact = false;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        get matches() {
+          return compact;
+        },
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      })),
+    );
+    const resize = (next: boolean) =>
+      act(() => {
+        compact = next;
+        for (const listener of [...listeners]) listener();
+      });
+    try {
+      vi.mocked(api.chat).mockResolvedValue(
+        reply({
+          proposals: [{ kind: "create_element", tempId: "new:igor", element: { name: "Igor" } }],
+        }),
+      );
+      const { onApply } = setup();
+      await screen.findByText("Was soll ich in der Welt nachtragen?");
+      await askQuestion("Lege Igor an.");
+      fireEvent.click(await screen.findByText("Bearbeiten"));
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Igor Venn" } });
+
+      // Below 720 px the drawer becomes a modal sheet and the editor its own body-level modal.
+      resize(true);
+      // The sheet behind the editor is obscured (aria-hidden, inert), so it has no
+      // accessible name to query by.
+      const sheet = document.querySelector('[role="dialog"][aria-label="Lokaler Assistent"]');
+      expect(sheet).not.toBeNull();
+      const compactEditor = screen.getByRole("dialog", { name: "Bearbeiten" });
+      expect(sheet).not.toContainElement(compactEditor);
+      expect(compactEditor.closest("[inert]")).toBeNull();
+      expect(within(compactEditor).getByLabelText("Name")).toHaveValue("Igor Venn");
+
+      // Back above 720 px the editor sits beside the side panel again, draft intact.
+      resize(false);
+      const panel = screen.getByRole("complementary", { name: "Lokaler Assistent" });
+      const regularEditor = within(panel).getByRole("dialog", { name: "Bearbeiten" });
+      expect(within(regularEditor).getByLabelText("Name")).toHaveValue("Igor Venn");
+
+      fireEvent.click(within(regularEditor).getByText("Änderung speichern"));
+      fireEvent.click(screen.getByText("Übernehmen"));
+      expect(onApply).toHaveBeenCalledWith([
+        expect.objectContaining({ element: expect.objectContaining({ name: "Igor Venn" }) }),
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("keeps ignored proposals out of the apply operation", async () => {

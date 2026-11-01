@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Locator, type Page, test } from "@playwright/test";
-import { mockRequiredWorldDocuments } from "./support/application-api";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./support/transient-network";
+import { mockWorkshop } from "./support/application-api";
 
 const auditViewports = [
   { name: "desktop", width: 1440, height: 900 },
@@ -61,50 +62,17 @@ const storyWorld = {
 };
 
 async function mockAuditWorld(page: Page) {
-  await page.route("**/api/version", (route) =>
-    route.fulfill({ json: { ok: true, version: "design-product-matrix" } }),
-  );
-  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
-  await page.route("**/api/worlds", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        worlds: [
-          {
-            id: "design-product-matrix",
-            title: "Design-Auditwelt",
-            backupUrl: "",
-            updated: "2026-08-26T10:00:00Z",
-          },
-        ],
-      },
-    }),
-  );
-  await page.route("**/api/worlds/open", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        world: {
-          id: "design-product-matrix",
-          title: "Design-Auditwelt",
-          backupUrl: "",
-          updated: "2026-08-26T10:00:00Z",
-        },
-      },
-    }),
-  );
-  await mockRequiredWorldDocuments(page, { manuscript, storyWorld });
-  await page.route("**/api/assistant/status*", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        available: false,
-        mode: "local",
-        reason: "Design-Produktmatrix",
-        chunks: 3,
-      },
-    }),
-  );
+  await mockWorkshop(page, {
+    version: "design-product-matrix",
+    world: {
+      id: "design-product-matrix",
+      title: "Design-Auditwelt",
+      backupUrl: "",
+      updated: "2026-08-26T10:00:00Z",
+    },
+    documents: { manuscript, storyWorld },
+    assistant: { reason: "Design-Produktmatrix", chunks: 3 },
+  });
 }
 
 async function expectNoDocumentOverflow(page: Page, label: string) {

@@ -133,7 +133,12 @@ function renderDialog({
     onClose,
     ...render(
       <I18nProvider>
-        <CloudDialog flush={flush} manuscript={manuscript} onClose={onClose} />
+        <CloudDialog
+          onDocumentsReplaced={vi.fn()}
+          flush={flush}
+          manuscript={manuscript}
+          onClose={onClose}
+        />
       </I18nProvider>,
     ),
   };

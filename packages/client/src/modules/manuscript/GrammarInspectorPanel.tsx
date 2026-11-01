@@ -20,6 +20,8 @@ export interface GrammarInspectorPanelProps {
   issues: WritingIssue[];
   selectedIssue: WritingIssue | null;
   phase: GrammarPhase;
+  /** Shown while `phase` is "error"; the generic sentence when empty. */
+  errorMessage?: string;
   onCheck: () => void;
   onInstall: () => void;
   onSelectIssue: (issue: WritingIssue | null) => void;
@@ -34,6 +36,7 @@ export function GrammarInspectorPanel({
   issues,
   selectedIssue,
   phase,
+  errorMessage,
   onCheck,
   onInstall,
   onSelectIssue,
@@ -42,6 +45,10 @@ export function GrammarInspectorPanel({
 }: GrammarInspectorPanelProps) {
   const { t } = useI18n();
   const grammar = status?.grammar;
+  // Installing LanguageTool cannot succeed without Java, so the panel says what
+  // is missing instead of offering a download that ends in an error.
+  const javaMissing =
+    !!grammar && (grammar.javaVersion === null || grammar.javaVersion < grammar.javaRequired);
   const mode = manuscript.grammarMode || "manual";
 
   return (
@@ -70,14 +77,14 @@ export function GrammarInspectorPanel({
         <EmptyState
           className="writing-data-state"
           title={
-            grammar?.installed
+            javaMissing
               ? t("grammarJavaMissing").replace("{version}", String(grammar.javaRequired))
               : t("grammarUnavailable")
           }
           headingLevel={3}
           size="compact"
           actions={
-            !grammar?.installed ? (
+            !javaMissing && !grammar?.installed ? (
               <Button
                 onClick={onInstall}
                 loading={phase === "installing"}
@@ -92,7 +99,7 @@ export function GrammarInspectorPanel({
           {phase === "installing" && <ProgressBar label={t("grammarInstalling")} />}
         </EmptyState>
       )}
-      {phase === "error" && <Alert tone="danger">{t("grammarCheckError")}</Alert>}
+      {phase === "error" && <Alert tone="danger">{errorMessage || t("grammarCheckError")}</Alert>}
       {!!issues.length && (
         <ul className="grammar-issues">
           {issues.map((issue) => {

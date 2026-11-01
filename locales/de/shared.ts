@@ -79,6 +79,9 @@ export const shared = {
   savedAgo: "Gespeichert · {ago}",
   notSaved: "Nicht gespeichert",
   saveFailed: "Speichern fehlgeschlagen",
+  saveErrorId: "Fehler-ID: {id}",
+  saveUnboundWorld:
+    "Nicht gespeichert: Diese Änderung gehört zu einer Welt, die nicht mehr geöffnet ist.",
   recoveryOpen: "Entwurf retten",
   recoveryTitle: "Ungespeicherten Entwurf retten",
   recoveryDescription:

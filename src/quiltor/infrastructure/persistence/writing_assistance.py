@@ -165,6 +165,9 @@ class SQLiteWritingAssistanceRepository:
     def version(self) -> str | None:
         return version(self.path)
 
+    def coverage(self) -> str | None:
+        return coverage(self.path)
+
     def lookup(self, language: str, mode: str, query: str) -> list[dict]:
         return lookup(self.path, language, mode, query)
 
@@ -176,10 +179,11 @@ def connect(path: Path, readonly: bool = False) -> sqlite3.Connection:
     return sqlite3.connect(path)
 
 
-def initialize(path: Path, version: str) -> sqlite3.Connection:
+def initialize(path: Path, version: str, coverage: str) -> sqlite3.Connection:
     conn = connect(path)
     conn.executescript(SCHEMA)
     conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('version',?)", (version,))
+    conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('coverage',?)", (coverage,))
     return conn
 
 
@@ -225,6 +229,22 @@ def lookup(path: Path, language: str, mode: str, query: str) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def coverage(path: Path) -> str | None:
+    """How much of the vocabulary the installed database holds: "core" for the
+    small built-in set, "full" for an import of the upstream sources.
+
+    Databases written before this key existed were always the built-in set.
+    """
+    if not path.exists():
+        return None
+    try:
+        with closing(connect(path, readonly=True)) as conn, conn:
+            row = conn.execute("SELECT value FROM metadata WHERE key='coverage'").fetchone()
+    except sqlite3.Error:
+        return None
+    return row[0] if row else "core"
 
 
 def version(path: Path) -> str | None:

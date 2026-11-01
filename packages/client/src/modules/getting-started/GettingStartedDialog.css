@@ -4,14 +4,16 @@
 }
 
 .getting-started-guide__tasks {
+  --getting-started-action-width: 11rem;
+  --getting-started-title-line-height: 1.35;
   display: grid;
   gap: var(--space-3);
 }
 
 .getting-started-guide__tasks section {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) var(--getting-started-action-width);
+  align-items: start;
   gap: var(--space-4);
   padding: var(--space-4);
   border: 1px solid var(--line);
@@ -22,7 +24,25 @@
 .getting-started-guide__tasks section > svg {
   width: var(--font-size-6);
   height: var(--font-size-6);
+  margin-block-start: calc(
+    (
+      var(--font-size-section-title-medium) *
+      var(--getting-started-title-line-height) -
+      var(--font-size-6)
+    ) /
+    2
+  );
   color: var(--accent-primary);
+}
+
+.getting-started-guide__tasks h3 {
+  font-size: var(--font-size-section-title-medium);
+  line-height: var(--getting-started-title-line-height);
+}
+
+.getting-started-guide__action {
+  align-self: center;
+  width: 100%;
 }
 
 .getting-started-guide__tasks h3,

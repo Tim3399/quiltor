@@ -10,7 +10,8 @@ import { prunePresence } from "../figures/presence";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
 import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
-import { DEFAULT_MAP_WIDTH, isExpandedMap } from "./placeCanvasModel";
+import { DEFAULT_MAP_WIDTH, isExpandedMap, mapBoxPatch } from "./placeCanvasModel";
+import type { MapBox } from "./PlaceMapNode";
 import { formatDistance, formatScale } from "./placeMap";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
 import {
@@ -203,8 +204,7 @@ function PlacesWorkspaceInner({
     [patchPlace],
   );
   const resizeMap = useCallback(
-    (place: FigureNode, size: { width: number; height: number }) =>
-      patchPlace(place.id, { mapWidth: size.width, mapHeight: size.height }),
+    (place: FigureNode, box: MapBox) => patchPlace(place.id, mapBoxPatch(box)),
     [patchPlace],
   );
 

@@ -676,6 +676,8 @@ zusätzlich gegen die festgeschriebene SHA-256-Prüfsumme geprüft.
 
 Sitzungen liegen im Prozessspeicher. Ein Container-Neustart meldet Web-Nutzer daher ab.
 
+Wo das Server-Log liegt, wie man eine Fehler-ID darin findet und wie man Log-Level und Logdatei setzt, steht in [`docs/operations/logging.md`](docs/operations/logging.md) (englisch).
+
 #### Fertige Container-Images
 
 Ein Versions-Bump in `VERSION` auf `main` löst die Release-Pipeline aus. Images werden unter:
@@ -704,6 +706,17 @@ Standardpfad für Daten, Runtime und Modell:
 ```text
 QUILTOR_HOME
 ```
+
+Modelle lassen sich getrennt davon ablegen, etwa um sie mit anderen Werkzeugen zu teilen:
+
+```text
+QUILTOR_MODELS_DIR
+```
+
+Der Ordner muss existieren (Quiltor legt ihn nicht an) und enthält `gguf/*.gguf` für llama.cpp
+sowie `mlx/<modell>/` mit `config.json` für MLX. Ohne die Variable bleibt alles unter
+`QUILTOR_HOME/models`. Runtime und llama-server bleiben in jedem Fall unter `QUILTOR_HOME`;
+vorhandene Modelle werden nicht verschoben.
 
 Wichtige Befehle:
 

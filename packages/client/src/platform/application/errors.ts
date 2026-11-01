@@ -4,6 +4,8 @@ export type ApplicationGatewayErrorOptions = {
   category?: ApplicationErrorCategory;
   params?: Readonly<Record<string, unknown>>;
   retryable?: boolean;
+  /** Server request id of the failed call, for matching the error to the server log. */
+  requestId?: string;
 };
 
 const categories = new Set<ApplicationErrorCategory>([
@@ -27,6 +29,7 @@ export class ApplicationGatewayError extends Error {
   readonly category: ApplicationErrorCategory;
   readonly params: Readonly<Record<string, unknown>>;
   readonly retryable: boolean;
+  readonly requestId: string | undefined;
 
   constructor(
     message: string,
@@ -39,6 +42,7 @@ export class ApplicationGatewayError extends Error {
     this.category = options.category ?? categoryForLocalCode(code);
     this.params = Object.freeze({ ...(options.params ?? {}) });
     this.retryable = options.retryable ?? false;
+    this.requestId = options.requestId;
   }
 }
 

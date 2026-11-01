@@ -33,6 +33,16 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
+# Playwright workers per runner: the one place to change them, one value per system (T-39,
+# "Workers per runner" in docs/quality/ci.md). Linux sets the product and the design suite
+# apart; Windows and macOS give both suites, and the smoke specs, the same count. Windows is
+# held at one by Chromium's ERR_NO_BUFFER_SPACE (F2).
+env:
+  WORKERS_LINUX_PRODUCT: "1"
+  WORKERS_LINUX_DESIGN: "2"
+  WORKERS_WINDOWS: "1"
+  WORKERS_MACOS: "2"
+
 jobs:
   # The only place that decides between the full and the reduced matrix. Fail-safe: the matrix
   # is reduced only for a pull request or an explicit `full_matrix: false`. An explicit true
@@ -334,6 +344,10 @@ jobs:
         run: python -m pip install --quiet -e .
       - name: Start the application
         run: |
+          # The structured log goes to a file the product suite reads: save-error-id.spec.ts
+          # finds the error id the editor shows in it, and fails in CI without the file.
+          export QUILTOR_LOG_FILE="$RUNNER_TEMP/quiltor-structured.log"
+          echo "PLAYWRIGHT_SERVER_LOG=$QUILTOR_LOG_FILE" >> "$GITHUB_ENV"
           python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/quiltor-server.pid"
           for _ in $(seq 1 60); do
@@ -362,12 +376,12 @@ jobs:
           design_status=1
           if [ "$select_status" -eq 0 ]; then
             echo "Product browser tests of slot $SLOT"
-            PLAYWRIGHT_WORKERS=1 PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json \
+            PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json \
               npx playwright test --test-list "$lists/product.txt" --output=test-results/product --reporter=line,json
             product_status=$?
 
             echo "Design browser tests of slot $SLOT"
-            PLAYWRIGHT_WORKERS=2 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json \
+            PLAYWRIGHT_WORKERS="$WORKERS_LINUX_DESIGN" PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json \
               npx playwright test --config playwright.design.config.ts \
               --test-list "$lists/design.txt" --output=test-results/design --reporter=line,json
             design_status=$?
@@ -616,6 +630,19 @@ jobs:
     env:
       PYTHONPATH: src
     steps:
+      # Windows hands out ephemeral TCP ports from 49152-65535 only (16384 ports, the default since
+      # Vista; Microsoft KB 929851). A browser slot opens enough short-lived connections to the
+      # server that the runner ran out of socket buffers (F2, WSAENOBUFS, docs/quality/ci.md).
+      # 10000 + 55535 ends at 65534, the largest range Windows accepts. Fails the job when refused.
+      - name: Widen the dynamic TCP port range
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          netsh int ipv4 set dynamicport tcp start=10000 num=55535
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          netsh int ipv4 show dynamicport tcp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -644,6 +671,10 @@ jobs:
       - name: Start the application
         shell: bash
         run: |
+          # The structured log goes to a file the product suite reads: save-error-id.spec.ts
+          # finds the error id the editor shows in it, and fails in CI without the file.
+          export QUILTOR_LOG_FILE="$RUNNER_TEMP/quiltor-structured.log"
+          echo "PLAYWRIGHT_SERVER_LOG=$QUILTOR_LOG_FILE" >> "$GITHUB_ENV"
           python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           for _ in $(seq 1 60); do
             curl --fail --silent http://127.0.0.1:8010/ >/dev/null && exit 0
@@ -657,7 +688,7 @@ jobs:
       # Windows keeps one worker per suite: Chromium failed with ERR_NO_BUFFER_SPACE there.
       - name: Run product and design shards
         env:
-          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
+          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && env.WORKERS_WINDOWS || env.WORKERS_MACOS }}
           SYSTEM: ${{ matrix.system }}
           SLOT: ${{ matrix.slot }}
           SLOTS: ${{ matrix.slots }}
@@ -729,6 +760,19 @@ jobs:
     env:
       PYTHONPATH: src
     steps:
+      # Windows hands out ephemeral TCP ports from 49152-65535 only (16384 ports, the default since
+      # Vista; Microsoft KB 929851). A browser slot opens enough short-lived connections to the
+      # server that the runner ran out of socket buffers (F2, WSAENOBUFS, docs/quality/ci.md).
+      # 10000 + 55535 ends at 65534, the largest range Windows accepts. Fails the job when refused.
+      - name: Widen the dynamic TCP port range
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          netsh int ipv4 set dynamicport tcp start=10000 num=55535
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          netsh int ipv4 show dynamicport tcp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -756,6 +800,10 @@ jobs:
       - name: Start the application
         shell: bash
         run: |
+          # The structured log goes to a file the product suite reads: save-error-id.spec.ts
+          # finds the error id the editor shows in it, and fails in CI without the file.
+          export QUILTOR_LOG_FILE="$RUNNER_TEMP/quiltor-structured.log"
+          echo "PLAYWRIGHT_SERVER_LOG=$QUILTOR_LOG_FILE" >> "$GITHUB_ENV"
           python apps/web/server.py 8010 --no-open > "$RUNNER_TEMP/quiltor-server.log" 2>&1 &
           for _ in $(seq 1 60); do
             curl --fail --silent http://127.0.0.1:8010/ >/dev/null && exit 0
@@ -766,7 +814,7 @@ jobs:
 
       - name: Product smoke specs
         env:
-          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && '1' || '2' }}
+          PLAYWRIGHT_WORKERS: ${{ matrix.os == 'windows-2025' && env.WORKERS_WINDOWS || env.WORKERS_MACOS }}
         shell: bash
         run: >-
           npx playwright test

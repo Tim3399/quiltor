@@ -184,6 +184,8 @@ function osvLockfiles() {
   return [
     "package-lock.json",
     "Cargo.lock",
+    // The optional MLX runtime pins its own packages, outside the hash-locked release locks.
+    "requirements.txt:src/quiltor/resources/sidecars/inference/mlx/requirements.lock",
     ...locks.map((lock) => `requirements.txt:${lock.path}`),
   ];
 }

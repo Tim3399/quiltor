@@ -30,6 +30,20 @@ export function LongError() {
   );
 }
 
+export function ErrorWithId() {
+  return (
+    <SaveStatus
+      phase="error"
+      label="Nicht gespeichert"
+      error="Die Anfrage war ungültig."
+      errorId="k3f9q2m8x1c7v4za"
+      errorIdLabel="Fehler-ID: k3f9q2m8x1c7v4za"
+      retryLabel="Erneut versuchen"
+      onRetry={() => undefined}
+    />
+  );
+}
+
 export function AttentionOnlyLabel() {
   return <SaveStatus phase="saving" label="Wird gespeichert" labelVisibility="attention" />;
 }

@@ -48,6 +48,7 @@ import "./TextWorkspace.css";
 
 export function TextWorkspace({
   worldTitle,
+  documentsReady = true,
   manuscript,
   figures,
   orphanedMentions = 0,
@@ -369,11 +370,15 @@ ${markdownBody(current.body, current.marks)}
       status={writing.status}
       results={writing.results}
       assistancePhase={writing.phase}
+      lookupError={writing.lookupError}
+      statusFailed={writing.statusFailed}
+      onRetryStatus={writing.retryStatus}
       replaceTarget={Boolean(writing.heldSelection || writing.liveSelection)}
       lookupSources={writing.lookupSources}
       grammarIssues={writing.grammarIssues}
       selectedIssue={writing.selectedIssue}
       grammarPhase={writing.grammarPhase}
+      grammarError={writing.grammarError}
       ambiguousMentions={writing.ambiguousMentions}
       symbolPicker={writing.symbolPicker}
       onSymbolPicker={writing.setSymbolPicker}
@@ -498,6 +503,7 @@ ${markdownBody(current.body, current.marks)}
                 activeSearchIndex={search.activeIndex}
                 activeSearchMatch={search.activeMatch}
                 historyOpen={history.open}
+                documentsReady={documentsReady}
                 historyCommits={history.commits}
                 historyRef={history.selectedRef}
                 historicalChapter={history.selected}

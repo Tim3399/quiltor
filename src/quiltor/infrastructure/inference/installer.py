@@ -20,6 +20,9 @@ falls back to llama.cpp automatically at runtime if MLX was skipped or
 fails). Either way, everything lands under runtime/ and models/ and is
 picked up automatically -- no environment variables needed afterwards.
 
+QUILTOR_MODELS_DIR moves only the models: <root>/gguf/*.gguf and
+<root>/mlx/<model>/ (see model_store.py). The folder must already exist.
+
 The assistant installer itself uses the standard library for the llama.cpp
 path. The optional MLX path creates its own virtual environment
 (runtime/mlx-venv) and installs a small set of pinned packages into it; Quiltor
@@ -59,6 +62,7 @@ from quiltor.infrastructure.inference.install_manifest import (
     huggingface_tree_next_cursor,
     safe_relative_path,
 )
+from quiltor.infrastructure.inference.model_store import ModelsDirError, model_store
 from quiltor.infrastructure.inference.runtimes import bundled_runtime_dir, llamacpp
 from quiltor.infrastructure.inference.transfer import download, read_json, read_json_page
 from quiltor.infrastructure.platform import capabilities, system
@@ -87,8 +91,8 @@ class InstallerPaths:
     def from_home(cls, home: Path) -> InstallerPaths:
         root = home.expanduser().resolve()
         runtime = root / "runtime"
-        models = root / "models"
-        return cls(root, runtime, models, runtime / "mlx-venv", models / "mlx")
+        store = model_store(root)
+        return cls(root, runtime, store.gguf, runtime / "mlx-venv", store.mlx)
 
 
 def installer_paths(home: Path | None = None) -> InstallerPaths:
@@ -121,7 +125,10 @@ def is_configured(home: Path | None = None) -> bool:
     # resolve_binary() prefers a runtime shipped inside the app bundle over the
     # downloaded one, so a Store build counts as configured as soon as the
     # weights are there -- there is no runtime download left to wait for.
-    paths = installer_paths(home)
+    try:
+        paths = installer_paths(home)
+    except ModelsDirError:
+        return False
     if llamacpp.resolve_binary(paths.home).exists() and list(paths.models.glob("*.gguf")):
         return True
     return bool(_venv_python(paths.mlx_venv).exists())
@@ -129,6 +136,11 @@ def is_configured(home: Path | None = None) -> bool:
 
 def ensure_installed(home: Path | None = None) -> None:
     """Called by server.py at startup. Prompts once, interactively, if nothing is set up yet."""
+    try:
+        installer_paths(home)
+    except ModelsDirError as exc:
+        print(f"  ! {exc}")
+        return
     if is_configured(home):
         return
     if sys.stdin is None or not sys.stdin.isatty():
@@ -368,6 +380,8 @@ def install_model(
     artifact = artifacts.get(filename)
     if artifact is None:
         raise ValueError(f"Model file {filename!r} is not published by {repo}.")
+    # parents=True is safe: the model root itself was checked to exist, so only
+    # the gguf/ level below it (or <home>/models by default) can be created here.
     selected.models.mkdir(parents=True, exist_ok=True)
     target = selected.models / relative.name
     if target.exists():

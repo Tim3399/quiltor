@@ -186,7 +186,7 @@ ignore = [
 # pyright, pinned in package.json; run it with `npm run lint:pyright`. See
 # docs/quality/linting.md for what it checks and why each setting is here.
 [tool.pyright]
-include = ["src/quiltor", "apps/web", "tools", "distribution/tooling", "tests/python"]
+include = ["src/quiltor", "apps/web", "tools", "services/backup-server", "distribution/tooling", "tests/python"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 # strict where the code is new and small enough to hold to it. src/quiltor/domain and

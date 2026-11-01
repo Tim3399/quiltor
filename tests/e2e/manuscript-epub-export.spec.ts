@@ -4,8 +4,8 @@ import { promisify } from "node:util";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { DEFAULT_BOOK_LAYOUT, type Manuscript } from "../../packages/client/src/modules/manuscript";
-import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { seedManuscriptWorld } from "./support/seed";
+import { expect, test } from "./support/world-fixture";
 
 const run = promisify(execFile);
 
@@ -116,17 +116,8 @@ async function inspectEpub(path: string): Promise<EpubInspection> {
   return JSON.parse(stdout) as EpubInspection;
 }
 
-async function seed(page: Page, model: Manuscript = manuscript) {
-  const world = await createTestWorld(page, "EPUB-Exportprüfung");
-  const current = await (await page.request.get(`/api/manuscript?world=${world.id}`)).json();
-  const saved = await page.request.put(`/api/manuscript?world=${world.id}`, {
-    headers: { "If-Match": `"${current.revision}"` },
-    data: encodeManuscriptV1(model, current.revision),
-  });
-  expect(saved.ok(), await saved.text()).toBe(true);
-  await page.goto(`/?world=${world.id}`);
-  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
-  return world;
+function seed(page: Page, model: Manuscript = manuscript) {
+  return seedManuscriptWorld(page, "EPUB-Exportprüfung", model);
 }
 
 async function openEpubExport(page: Page) {

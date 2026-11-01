@@ -20,8 +20,12 @@ class WritingAssistanceService:
 
     def status(self) -> dict:
         installed_version = self.repository.version()
+        installed = installed_version == MANIFEST_VERSION
         return {
-            "installed": installed_version == MANIFEST_VERSION,
+            "installed": installed,
+            # "core" while only the built-in starter set is installed, so the UI
+            # can say so instead of letting every other word look unknown.
+            "coverage": self.repository.coverage() if installed else None,
             "stale": installed_version is not None and installed_version != MANIFEST_VERSION,
             "version": installed_version,
             "manifest": manifest(),

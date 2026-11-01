@@ -5,23 +5,34 @@ import { I18nProvider } from "../../i18n";
 import type { FigureState } from "../../modules/story-world";
 import { ApplicationGatewayError, quiltorClient } from "../../platform";
 import { App } from "../Application";
-import type { LoadedWorldDocuments } from "../world/useWorldSession";
+import type { LoadedWorldDocuments, WorldBinding } from "../world/useWorldSession";
 
 const actions = vi.hoisted(() => ({ close: vi.fn(), logout: vi.fn() }));
 
 vi.mock("../world/useWorldSession", () => ({
-  useWorldSession: (load: (documents: LoadedWorldDocuments) => void) => {
+  useWorldSession: (load: (documents: LoadedWorldDocuments, binding: WorldBinding) => void) => {
     useEffect(
       () =>
-        load({
-          manuscript: { chapters: [] },
-          figures: { nodes: [{ id: "ada", name: "Ada", x: 0, y: 0, sub: "original" }], edges: [] },
-          storyboards: { boards: [], nodes: [], edges: [] },
-          orphanedMentions: 0,
-        }),
+        load(
+          {
+            manuscript: { chapters: [] },
+            figures: {
+              nodes: [{ id: "ada", name: "Ada", x: 0, y: 0, sub: "original" }],
+              edges: [],
+            },
+            storyboards: { boards: [], nodes: [], edges: [] },
+            orphanedMentions: 0,
+          },
+          { worldId: "test-world", generation: 1, source: "url" },
+        ),
       [load],
     );
-    return { worlds: [], world: { id: "test-world", title: "Test World" }, close: actions.close };
+    return {
+      worlds: [],
+      world: { id: "test-world", title: "Test World" },
+      close: actions.close,
+      isSelected: () => true,
+    };
   },
 }));
 vi.mock("../shell/useShellStatus", () => ({

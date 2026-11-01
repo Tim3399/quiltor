@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.infrastructure.inference import select
+from quiltor.infrastructure.inference.model_store import ModelsDirError
 from quiltor.infrastructure.inference.shared.contract import (
     check_health,
     count_tokens,
@@ -25,6 +27,7 @@ class LocalInferenceEngine:
         self.url = os.environ.get("QUILTOR_AI_URL", "http://127.0.0.1:11435").rstrip("/")
         self.process: subprocess.Popen[str] | None = None
         self.log_path: Path | None = None
+        self.models_error: str | None = None
         self.reload()
 
     @property
@@ -36,7 +39,15 @@ class LocalInferenceEngine:
             return
         if self.process is not None and self.process.poll() is None:
             return
-        started = select.start_runtime(self.base, self.data, self.url)
+        try:
+            started = select.start_runtime(self.base, self.data, self.url)
+        except ModelsDirError as exc:
+            self.models_error = str(exc)
+            print(f"! {exc}", file=sys.stderr, flush=True)
+            self.process = None
+            self.log_path = None
+            return
+        self.models_error = None
         self.process = started[0] if started else None
         self.log_path = started[1] if started else None
 
@@ -58,6 +69,8 @@ class LocalInferenceEngine:
                 "backend": backend,
                 "model": os.environ.get("QUILTOR_AI_MODEL", "bundled"),
             }
+        if self.models_error:
+            return {"available": False, "mode": "local", "reason": self.models_error}
         exit_code = self.process.poll() if self.process is not None else None
         reason = (
             f"Lokaler Modell-Prozess ist beendet (Exit-Code {exit_code}). "
