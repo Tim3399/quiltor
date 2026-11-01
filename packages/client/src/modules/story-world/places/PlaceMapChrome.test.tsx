@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import { PlaceMapChrome, type PlaceMapChromeProps } from "./PlaceMapChrome";
+import { PlaceMapScaleControl } from "./PlaceMapScaleControl";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
 import { DEFAULT_CROP, IMAGE_ZOOM_RANGE } from "./placeImageCrop";
 
@@ -214,5 +215,20 @@ describe.each(["expanded", "collapsed"] as const)("shared %s map scale editor", 
     fireEvent.keyDown(editor, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(trigger).toHaveFocus();
+  });
+});
+
+describe("scale editor field labels", () => {
+  it("names the scale field for assistive technology without showing a label for it", () => {
+    render(
+      <I18nProvider>
+        <PlaceMapScaleControl name="Weltkarte" scale={undefined} onScale={vi.fn()} />
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Maßstab von Weltkarte" }));
+    const field = within(screen.getByRole("dialog")).getByRole("spinbutton", { name: "Maßstab" });
+    const label = document.querySelector(`label[for="${field.id}"]`);
+    expect(label).toHaveClass("sr-only");
+    expect(screen.getByText("pro 100px")).toBeVisible();
   });
 });
