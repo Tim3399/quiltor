@@ -144,6 +144,24 @@ class GrammarErrorCodeTests(unittest.TestCase):
                 self.manager.install()
         self.assertWire(raised.exception, 502, "writing_assistance.download_failed", True)
 
+    def test_a_download_cut_off_mid_body_is_download_failed(self):
+        import http.client
+
+        class _CutOff(_Response):
+            def read(self, *_):
+                raise http.client.IncompleteRead(b"0123456789", 990)
+
+        self.manager.root.mkdir(parents=True)
+        self.manager.server_jar.write_bytes(b"previous")
+        with (
+            patch(_JAVA, return_value=21),
+            patch("urllib.request.urlopen", return_value=_CutOff(b"")),
+        ):
+            with self.assertRaises(DownloadFailed) as raised:
+                self.manager.install()
+        self.assertWire(raised.exception, 502, "writing_assistance.download_failed", True)
+        self.assertEqual(self.manager.server_jar.read_bytes(), b"previous")
+
     def test_wrong_archive_is_checksum_mismatch(self):
         with (
             patch(_JAVA, return_value=21),
