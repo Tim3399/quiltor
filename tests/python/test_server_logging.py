@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+from quiltor.application.documents.ports import RevisionConflict
+from quiltor.application.errors import ApplicationForbidden, ApplicationNotFound
 from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.delivery.http import errors as http_errors
@@ -331,6 +333,19 @@ class ErrorLineTests(_LiveServer):
         line = self._error(403, "request.untrusted_origin")
         self.assertEqual(json.loads(raw)["error"]["requestId"], line["request_id"])
 
+    def test_a_coded_refusal_outside_the_api_is_logged_with_its_code(self):
+        """A page path logs http.error only when its answer carries a code; the
+        foreign-origin 403 on POST / is the one such answer."""
+        self.fresh()
+        status, _, _ = self.request("POST", "/", b"", headers={"Origin": "https://evil.example"})
+        self.assertEqual(status, 403)
+        # Its access line is DEBUG, like every page path; the error line is not.
+        line = self.only("http.error")
+        self.assertEqual(line["status"], 403)
+        self.assertEqual(line["code"], "request.untrusted_origin")
+        self.assertEqual(line["level"], "warning")
+        self.assertEqual(line["route"], "client_asset")
+
     def test_an_error_claimed_with_a_success_status_is_logged_as_the_500_it_becomes(self):
         def claims_success(handler, request, app):
             handler.send_json({"ok": False}, 200)
@@ -401,6 +416,35 @@ class WorldResolutionTests(_LiveServer):
 
 
 class UnhandledTests(_LiveServer):
+    def _expected_failure(self, raised: Exception, status: int, code: str) -> None:
+        def refuses(handler, request, app):
+            raise raised
+
+        self.fresh()
+        with patch.dict(api_routes.GET, {"/api/test-refuses": api_routes.Registration(refuses)}):
+            answered, _, raw = self.request("GET", "/api/test-refuses")
+        self.assertEqual(answered, status)
+        self.assertEqual(self.lines("http.unhandled"), [])
+        line = self.only("http.error")
+        self.assertEqual(line["status"], status)
+        self.assertEqual(line["code"], code)
+        self.assertEqual(line["level"], "warning")
+        self.assertEqual(json.loads(raw)["error"]["requestId"], line["request_id"])
+
+    def test_a_revision_conflict_is_an_answer_not_an_unhandled_failure(self):
+        self._expected_failure(
+            RevisionConflict("manuscript", 0, 1), 409, "document.revision_conflict"
+        )
+
+    def test_a_route_refusing_with_not_found_or_forbidden_is_not_unhandled(self):
+        cases = (
+            (ApplicationNotFound("missing"), 404, "application.not_found"),
+            (ApplicationForbidden("not yours"), 403, "application.forbidden"),
+        )
+        for raised, status, code in cases:
+            with self.subTest(code=code):
+                self._expected_failure(raised, status, code)
+
     def test_a_failing_route_is_logged_with_frames_but_not_its_text(self):
         def fails(handler, request, app):
             raise KeyError(CANARY)
