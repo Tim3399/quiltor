@@ -240,6 +240,8 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
   );
   test.setTimeout(90_000);
 
+  // The world opens at the first size, so only the later sizes need a fresh load of their own.
+  await page.setViewportSize({ width: 1280, height: 800 });
   await openBlankWorld(page, "Menü-Vertragswelt");
 
   for (const viewport of [
@@ -247,8 +249,10 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
     { name: "Mobile", width: 390, height: 844 },
   ]) {
     await test.step(viewport.name, async () => {
-      await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      await page.reload();
+      if (viewport.name !== "Desktop") {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await page.reload();
+      }
       await waitForManuscriptReady(page);
 
       await expectKeyboardMenuContract(page, "Buch exportieren", "Buchexport");
@@ -1816,7 +1820,11 @@ test("Chapter folders stay hierarchical and usable at compact width", async ({
   expect(chapterGeometry.handleWidth).toBe(0);
 });
 
-test("Shortcuts tell saving and backing up apart", async ({ page }) => {
+test("Shortcuts tell saving and backing up apart", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Two keyboard shortcuts and whether a dialog opens: nothing here depends on the width.",
+  );
   // The test checks the two keyboard shortcuts, not the upload. It used to claim as well
   // that a configured endpoint makes "Sichern & hochladen" active -- that no longer holds:
   // the endpoint demands a sign-in, and without one the upload would run into a 401. The
