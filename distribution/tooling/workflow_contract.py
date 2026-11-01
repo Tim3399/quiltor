@@ -585,6 +585,38 @@ def validate_playwright_worker_settings(sources: dict[Path, str]) -> None:
         )
 
 
+SERVER_START = "python apps/web/server.py 8010 --no-open"
+SERVER_LOG_SETTINGS = (
+    'export QUILTOR_LOG_FILE="$RUNNER_TEMP/quiltor-structured.log"',
+    'echo "PLAYWRIGHT_SERVER_LOG=$QUILTOR_LOG_FILE" >> "$GITHUB_ENV"',
+)
+
+
+def validate_product_server_log(sources: dict[Path, str]) -> None:
+    """Every product server of test.yml writes its structured log where the suite reads it.
+
+    save-error-id.spec.ts looks the editor's error id up in that file and fails in CI when
+    PLAYWRIGHT_SERVER_LOG is missing; this keeps the failure from appearing only at run time.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    starts = 0
+    for job, body in _job_blocks(workflow):
+        for step in body.split("\n      - ")[1:]:
+            if SERVER_START not in step:
+                continue
+            starts += 1
+            before = step.split(SERVER_START, 1)[0]
+            missing = [line for line in SERVER_LOG_SETTINGS if line not in before]
+            if missing:
+                raise WorkflowContractError(
+                    f"test.yml:{job} starts the product server without its log file; "
+                    "set before the start: " + "; ".join(missing)
+                )
+    if starts == 0:
+        raise WorkflowContractError("test.yml starts no product server on 8010")
+
+
 def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
     """Keep the full Windows and macOS matrix complete, balanced and fail-closed."""
 
@@ -1487,6 +1519,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_browser_e2e_sharding(sources)
         validate_cross_platform_browser_sharding(sources)
         validate_playwright_worker_settings(sources)
+        validate_product_server_log(sources)
         validate_linux_playwright_install(sources)
         validate_windows_port_range(sources)
         validate_full_matrix_switch(sources)

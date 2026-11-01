@@ -33,6 +33,8 @@ The server writes a `logging.configured` line at the start with the active `log_
 
 Every response carries an `X-Request-Id` header. An error response also carries the same value as `error.requestId` in its JSON body. A request ID is 16 characters from `a-z` and `2-7`. A client may send its own `X-Request-Id`; it is kept only if it has that plausible shape, otherwise the server makes a new one.
 
+When a save fails, the editor shows this ID next to the save status as “Fehler-ID”; the author can select it with one click and pass it on.
+
 Given an ID, for example `7jweja5ku7bibso4`:
 
 ```bash
