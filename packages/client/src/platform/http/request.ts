@@ -130,6 +130,22 @@ function localizedStructuredErrorMessage(code: string | undefined): string | und
   return undefined;
 }
 
+// Same pattern the server accepts for an incoming X-Request-Id (structured-error/v1).
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,64}$/;
+
+function validRequestId(value: unknown): string | undefined {
+  return typeof value === "string" && REQUEST_ID_PATTERN.test(value) ? value : undefined;
+}
+
+function bodyRequestId(value: unknown): string | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const candidate = (value as Record<string, unknown>).error;
+  if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return undefined;
+  }
+  return validRequestId((candidate as Record<string, unknown>).requestId);
+}
+
 function structuredApplicationError(value: unknown): StructuredApplicationError | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const envelope = value as Record<string, unknown>;
@@ -167,6 +183,7 @@ export function httpResponseError(response: Response, data: unknown): Applicatio
       category,
       params: structured?.params,
       retryable: structured?.retryable ?? response.status >= 500,
+      requestId: bodyRequestId(data) ?? validRequestId(response.headers?.get("X-Request-Id")),
     },
   );
 }

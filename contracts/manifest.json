@@ -136,6 +136,11 @@
           "path": "fixtures/application-api/structured-error/revision-conflict.v1.json",
           "mediaType": "application/json",
           "role": "example"
+        },
+        {
+          "path": "fixtures/application-api/structured-error/invalid-wire-with-request-id.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
         }
       ]
     },

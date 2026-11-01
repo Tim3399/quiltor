@@ -287,7 +287,7 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         )
         failure = BackupGatewayError(params={"operation": "upload", "snapshotCreated": True})
         with patch.object(self.app.application.backups, "commit", side_effect=failure):
-            status, _, raw = self.request(
+            status, headers, raw = self.request(
                 "POST",
                 "/api/backup",
                 body={"worldId": world_id, "message": "Test", "push": True},
@@ -295,6 +295,11 @@ class LocalLoginRouteTests(BackupRouteTestCase):
 
         self.assertEqual(status, 502)
         body = json.loads(raw)
+        # The id is per request, so the fixture cannot hold it: checked on its own,
+        # and everything else must still be the fixture exactly.
+        request_id = body["error"].pop("requestId")
+        self.assertRegex(request_id, r"^[A-Za-z0-9._-]{8,64}$")
+        self.assertEqual(request_id, headers["X-Request-Id"])
         self.assertEqual(body["error"], fixture)
         self.assertNotIn("grund", body)
 

@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n";
+import { ApplicationGatewayError } from "../../platform/application/errors";
 import type { SavePhase } from "../../shared";
+
+// The request id is what an operator searches the server log for; code says what failed.
+function reportSaveFailure(reason: unknown): void {
+  const gateway = reason instanceof ApplicationGatewayError ? reason : null;
+  console.warn("save failed", {
+    code: gateway?.code ?? "unknown",
+    requestId: gateway?.requestId,
+  });
+}
+
+/** The server request id of a failed save, when the failure carries one. */
+function saveFailureRequestId(failure: unknown): string | undefined {
+  return failure instanceof ApplicationGatewayError ? failure.requestId : undefined;
+}
 
 const DEFAULT_AUTOSAVE_DELAY_MS = 800;
 
@@ -42,6 +57,7 @@ export function useAutosave<T>(
         setSavedAt(Date.now());
         setPhase("saved");
       } catch (reason) {
+        reportSaveFailure(reason);
         setError(reason instanceof Error ? reason.message : t("saveFailed"));
         setFailure(reason);
         setPhase("error");
@@ -104,6 +120,7 @@ export function useAutosave<T>(
           setSavedAt(Date.now());
           setPhase("saved");
         } catch (reason) {
+          reportSaveFailure(reason);
           setError(reason instanceof Error ? reason.message : t("saveFailed"));
           setFailure(reason);
           setPhase("error");
@@ -145,9 +162,11 @@ export function useAutosave<T>(
     return true;
   }, []);
   const isDirty = useCallback(() => dirty.current, []);
+  const errorId = saveFailureRequestId(failure);
   return {
     phase,
     error,
+    errorId,
     failure,
     savedAt,
     flush,

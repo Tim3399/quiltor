@@ -78,6 +78,7 @@ export const shared = {
   savedAgo: "Saved · {ago}",
   notSaved: "Not saved",
   saveFailed: "Save failed",
+  saveErrorId: "Error ID: {id}",
   saveUnboundWorld: "Not saved: this change belongs to a world that is no longer open.",
   recoveryOpen: "Rescue draft",
   recoveryTitle: "Rescue unsaved draft",

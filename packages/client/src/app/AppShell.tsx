@@ -65,6 +65,7 @@ export function AppShell({
   phase,
   savedAt,
   error,
+  errorId,
   warning,
   retry,
   onRecover,
@@ -91,6 +92,8 @@ export function AppShell({
   phase: SavePhase;
   savedAt?: number | null;
   error?: string;
+  /** Server request id of the failed save, shown so the author can quote it. */
+  errorId?: string;
   warning?: string;
   retry: () => void;
   onRecover?: () => void;
@@ -248,6 +251,8 @@ export function AppShell({
             phase={phase}
             label={saveLabel}
             error={error || warning}
+            errorId={phase === "error" ? errorId : undefined}
+            errorIdLabel={errorId ? t("saveErrorId", { id: errorId }) : undefined}
             retryLabel={t("retry")}
             onRetry={retry}
           />

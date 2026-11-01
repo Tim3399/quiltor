@@ -1549,6 +1549,16 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_playwright_worker_settings(mutated)
 
+    def test_every_product_server_writes_the_log_the_suite_reads(self):
+        sources = {TEST_WORKFLOW: TEST_WORKFLOW.read_text(encoding="utf-8")}
+        workflow_contract.validate_product_server_log(sources)
+        for setting in workflow_contract.SERVER_LOG_SETTINGS:
+            with self.subTest(removed=setting):
+                self.assertEqual(sources[TEST_WORKFLOW].count(setting), 3)
+                mutated = {TEST_WORKFLOW: sources[TEST_WORKFLOW].replace(setting, "true", 1)}
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "log file"):
+                    workflow_contract.validate_product_server_log(mutated)
+
     def test_matrix_decision_truth_table(self):
         plan = workflow_contract._job_body(TEST_WORKFLOW.read_text(encoding="utf-8"), "plan")
         decision = re.search(r"FULL_MATRIX: \$\{\{ (.+) \}\}", plan)

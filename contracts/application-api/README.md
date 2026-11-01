@@ -87,6 +87,9 @@ corpora are consumed by both Python and TypeScript to pin absence versus null,
 safe integers, Unicode code-point lengths, aliases, booleans, and extension
 fields. Structured errors never contain translated user-facing prose: clients
 resolve their stable `code` and `params` in the active interface locale.
+An error answered by the HTTP server also carries an optional `requestId`: the
+id under which the server logged that request, for a user to report and an
+operator to search for. It is never needed to understand the error.
 
 Manuscript v1 mention and mark offsets are zero-based UTF-16 code-unit offsets,
 matching CodeMirror and JavaScript string indexing. Both ends of a range must be
