@@ -35,7 +35,7 @@ it("links manuscript export actions and restores focus after selection", async (
     </I18nProvider>,
   );
 
-  const trigger = screen.getByRole("button", { name: "Buch exportieren" });
+  const trigger = screen.getByRole("button", { name: "Weitere Aktionen" });
   const responsiveActions = [
     ...container.querySelectorAll<HTMLButtonElement>(
       '.manuscript-toolbar .ui-toolbar-button[data-label-mode="responsive"]:not([data-workspace-action="create"])',
@@ -62,10 +62,13 @@ it("links manuscript export actions and restores focus after selection", async (
   trigger.focus();
   fireEvent.keyDown(trigger, { key: "ArrowDown" });
 
-  const menu = await screen.findByRole("menu");
+  const overflowMenu = await screen.findByRole("menu", { name: "Weitere Aktionen" });
   expect(trigger).toHaveAttribute("aria-expanded", "true");
-  expect(trigger).toHaveAttribute("aria-controls", menu.id);
-  expect(within(menu).getByRole("menuitem", { name: "Manuskript" })).toBeInTheDocument();
+  expect(trigger).toHaveAttribute("aria-controls", overflowMenu.id);
+  const menu = overflowMenu;
+  expect(
+    within(menu).getByRole("menuitem", { name: "Manuskript als Markdown" }),
+  ).toBeInTheDocument();
   expect(within(menu).getByRole("menuitem", { name: "DOCX fürs Lektorat" })).toBeInTheDocument();
   expect(within(menu).getByRole("menuitem", { name: "DOCX als Normseite" })).toBeInTheDocument();
   const epubItem = within(menu).getByRole("menuitem", { name: "EPUB für E-Reader" });
@@ -74,9 +77,13 @@ it("links manuscript export actions and restores focus after selection", async (
   expect(onExportEpub).toHaveBeenCalledOnce();
   await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
   fireEvent.click(trigger);
-  const reopenedMenu = await screen.findByRole("menu");
-  const reopenedExportItem = within(reopenedMenu).getByRole("menuitem", { name: "Manuskript" });
-  expect(reopenedExportItem.querySelector(".ui-menu__label")).toHaveTextContent("Manuskript");
+  const reopenedMenu = await screen.findByRole("menu", { name: "Weitere Aktionen" });
+  const reopenedExportItem = within(reopenedMenu).getByRole("menuitem", {
+    name: "Manuskript als Markdown",
+  });
+  expect(reopenedExportItem.querySelector(".ui-menu__label")).toHaveTextContent(
+    "Manuskript als Markdown",
+  );
   fireEvent.click(reopenedExportItem);
 
   expect(onExport).toHaveBeenCalledOnce();
@@ -84,7 +91,7 @@ it("links manuscript export actions and restores focus after selection", async (
   await waitFor(() => expect(trigger).toHaveFocus());
 });
 
-it("exposes print preview and scene-break actions", () => {
+it("keeps print preview and scene break one click away in the overflow menu", () => {
   const onPreview = vi.fn();
   const onInsertSceneBreak = vi.fn();
   render(
@@ -114,8 +121,11 @@ it("exposes print preview and scene-break actions", () => {
     </I18nProvider>,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Druckansicht" }));
-  fireEvent.click(screen.getByRole("button", { name: "Szenenwechsel einfügen" }));
+  expect(screen.queryByRole("button", { name: "Druckansicht" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Druckansicht" }));
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Szenenwechsel einfügen" }));
   expect(onPreview).toHaveBeenCalledWith(true);
   expect(onInsertSceneBreak).toHaveBeenCalledOnce();
 });

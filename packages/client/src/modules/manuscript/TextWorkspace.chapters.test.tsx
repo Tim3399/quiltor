@@ -208,8 +208,8 @@ describe("TextWorkspace chapter binder", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    fireEvent.click(screen.getByRole("button", { name: "Buch exportieren" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Manuskript" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Manuskript als Markdown" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     const reader = new FileReader();
     const exported = new Promise<string>((resolve, reject) => {

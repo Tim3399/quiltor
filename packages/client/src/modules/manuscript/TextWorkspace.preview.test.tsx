@@ -68,7 +68,8 @@ it("keeps the editor mounted and its chapter frozen while preview binder navigat
   });
 
   const editor = screen.getByRole("textbox", { name: "Kapiteltext" });
-  fireEvent.click(screen.getByRole("button", { name: "Druckansicht" }));
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Druckansicht" }));
   expect(onFocus).toHaveBeenCalledWith(false);
   expect(editor).toBeInTheDocument();
   expect(editor.closest(".text-editor-preserved")).toHaveAttribute("inert");
@@ -82,7 +83,8 @@ it("keeps the editor mounted and its chapter frozen while preview binder navigat
   fireEvent.click(screen.getByText("Kapitel Zwei"));
   expect(screen.getByDisplayValue("Prolog")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Druckansicht" }));
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Druckansicht" }));
   expect(editor.closest(".text-editor-preserved")).not.toHaveAttribute("inert");
   await waitFor(() => expect(editor).toHaveFocus());
   expect(onSessionStateChange).toHaveBeenCalled();

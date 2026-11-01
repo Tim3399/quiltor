@@ -2,6 +2,7 @@ import {
   BetweenHorizontalEnd,
   BookOpen,
   Download,
+  Ellipsis,
   FilePlus2,
   Focus,
   History as HistoryIcon,
@@ -12,6 +13,7 @@ import {
 import {
   DropdownMenu,
   MenuItem,
+  MenuSeparator,
   ToolbarButton,
   UndoRedoControls,
   WorkspaceToolbar,
@@ -97,15 +99,6 @@ export function ManuscriptToolbar({
         }
         view={
           <>
-            <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-              <ToolbarButton
-                label={t("printPreview")}
-                icon={<BookOpen />}
-                collapseAt="medium"
-                aria-pressed={preview}
-                onClick={() => onPreview(!preview)}
-              />
-            </WorkspaceToolbarGroup>
             {!focus && (
               <WorkspaceToolbarGroup className="manuscript-toolbar-group panel-toggles">
                 <ToolbarButton
@@ -153,76 +146,85 @@ export function ManuscriptToolbar({
           </>
         }
         history={
-          <>
-            <UndoRedoControls
-              className="manuscript-toolbar-group"
-              label={t("manuscript")}
-              undoLabel={t("undoManuscript")}
-              redoLabel={t("redoManuscript")}
-              onUndo={() => onUndo?.()}
-              onRedo={() => onRedo?.()}
-              canUndo={!preview && canUndo}
-              canRedo={!preview && canRedo}
+          <UndoRedoControls
+            className="manuscript-toolbar-group"
+            label={t("manuscript")}
+            undoLabel={t("undoManuscript")}
+            redoLabel={t("redoManuscript")}
+            onUndo={() => onUndo?.()}
+            onRedo={() => onRedo?.()}
+            canUndo={!preview && canUndo}
+            canRedo={!preview && canRedo}
+          />
+        }
+        overflow={
+          // Secondary by frequency: writing happens with chapters, panels, focus and history at
+          // hand; the print preview, stored versions, the scene break and the book export are
+          // reached for now and then, so they wait one click away instead of a second row. The
+          // exports sit flat, not in a submenu: on compact widths a submenu opens as a sheet
+          // underneath the overflow sheet and cannot be reached.
+          <DropdownMenu
+            label={t("toolbarMoreActions")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <ToolbarButton
+                {...triggerProps}
+                ref={ref}
+                className="manuscript-toolbar__more"
+                label={t("toolbarMoreActions")}
+                labelMode="hidden"
+                icon={<Ellipsis />}
+              />
+            )}
+          >
+            <MenuItem
+              icon={<BookOpen />}
+              label={t("printPreview")}
+              selected={preview}
+              onSelect={() => onPreview(!preview)}
             />
             {current && (
-              <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-                <ToolbarButton
-                  label={t("versions")}
-                  icon={<HistoryIcon />}
-                  collapseAt="medium"
-                  aria-pressed={historyOpen}
-                  disabled={preview}
-                  onClick={() => onHistoryOpen(!historyOpen)}
-                />
-              </WorkspaceToolbarGroup>
+              <MenuItem
+                icon={<HistoryIcon />}
+                label={t("versions")}
+                selected={historyOpen}
+                disabled={preview}
+                onSelect={() => onHistoryOpen(!historyOpen)}
+              />
             )}
-          </>
-        }
-        actions={
-          <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-            <ToolbarButton
-              label={t("insertSceneBreak")}
+            <MenuItem
               icon={<BetweenHorizontalEnd />}
-              collapseAt="medium"
+              label={t("insertSceneBreak")}
               disabled={!current || preview}
-              onClick={onInsertSceneBreak}
+              onSelect={onInsertSceneBreak}
             />
-            <DropdownMenu
-              label={t("exportOptions")}
-              renderTrigger={({ ref, ...triggerProps }) => (
-                <ToolbarButton
-                  {...triggerProps}
-                  ref={ref}
-                  label={t("exportManuscript")}
-                  icon={<Download />}
-                  collapseAt="medium"
-                />
-              )}
-            >
-              <MenuItem icon={<Download />} label={t("manuscript")} onSelect={onExport} />
-              <MenuItem
-                icon={<Download />}
-                label={t("manuscriptExportEditorAction")}
-                onSelect={() => onExportDocx("editor")}
-              />
-              <MenuItem
-                icon={<Download />}
-                label={t("manuscriptExportNormseiteAction")}
-                onSelect={() => onExportDocx("normseite")}
-              />
-              <MenuItem
-                icon={<Download />}
-                label={t("manuscriptEpubAction")}
-                onSelect={onExportEpub}
-              />
-              <MenuItem
-                icon={<Printer />}
-                label={pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
-                disabled={pdfState === "loading"}
-                onSelect={onPrint}
-              />
-            </DropdownMenu>
-          </WorkspaceToolbarGroup>
+            <MenuSeparator />
+            <MenuItem
+              icon={<Download />}
+              label={t("manuscriptMarkdownAction")}
+              onSelect={onExport}
+            />
+            <MenuItem
+              icon={<Download />}
+              label={t("manuscriptExportEditorAction")}
+              onSelect={() => onExportDocx("editor")}
+            />
+            <MenuItem
+              icon={<Download />}
+              label={t("manuscriptExportNormseiteAction")}
+              onSelect={() => onExportDocx("normseite")}
+            />
+            <MenuItem
+              icon={<Download />}
+              label={t("manuscriptEpubAction")}
+              onSelect={onExportEpub}
+            />
+            <MenuItem
+              icon={<Printer />}
+              label={pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
+              disabled={pdfState === "loading"}
+              onSelect={onPrint}
+            />
+          </DropdownMenu>
         }
       />
     </WorkspaceToolbar>

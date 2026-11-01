@@ -1,6 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { DEFAULT_BOOK_LAYOUT, type Manuscript } from "../../packages/client/src/modules/manuscript";
 import { seedManuscriptWorld } from "./support/seed";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { expect, test } from "./support/world-fixture";
 
 const paragraph =
@@ -77,7 +78,8 @@ test("Print preview preserves editor position and shares physical pages with the
   await page.locator(".editor-scroll").evaluate((element) => {
     element.scrollTop = 460;
   });
-  const previewToggle = page.getByRole("button", { name: "Druckansicht", exact: true });
+  await openToolbarOverflow(page, "Manuskript");
+  const previewToggle = page.getByRole("menuitem", { name: "Druckansicht", exact: true });
   // CodeMirror can finish caret anchoring between the direct scroll and the click.
   // Capture the position actually left at activation, before React opens the preview.
   await previewToggle.evaluate((button) => {
@@ -86,13 +88,13 @@ test("Print preview preserves editor position and shares physical pages with the
       () => {
         const scroller = document.querySelector<HTMLElement>(".editor-scroll");
         if (!scroller) throw new Error("Expected a mounted editor scroller");
-        button.setAttribute("data-test-scroll-at-open", String(scroller.scrollTop));
+        document.body.setAttribute("data-test-scroll-at-open", String(scroller.scrollTop));
       },
       { capture: true, once: true },
     );
   });
   await previewToggle.click();
-  const scrollTop = Number(await previewToggle.getAttribute("data-test-scroll-at-open"));
+  const scrollTop = Number(await page.locator("body").getAttribute("data-test-scroll-at-open"));
   expect(scrollTop).toBeGreaterThan(0);
   const root = page.locator(".print-document");
   await expect(root).toHaveAttribute("data-book-ready", "true", { timeout: 60_000 });
@@ -147,7 +149,7 @@ test("Print preview preserves editor position and shares physical pages with the
   expect((pdfSource.match(/\/Type \/Page\b/g) || []).length).toBe(count);
   expect(pdfSource).toMatch(/\/MediaBox \[0 0 432(?:\.\d+)? 648(?:\.\d+)?\]/);
   await renderPage.close();
-  await page.getByRole("button", { name: "Druckansicht", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript", "Druckansicht");
   await expect(editor).toBeVisible();
   await expect
     .poll(() => page.locator(".editor-scroll").evaluate((element) => element.scrollTop))
@@ -175,7 +177,7 @@ test("Leaving Text from print preview preserves the editor session", async ({ pa
   });
   expect(scrollTop).toBeGreaterThan(0);
 
-  await page.getByRole("button", { name: "Druckansicht", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript", "Druckansicht");
   await expect(page.locator(".print-document")).toHaveAttribute("data-book-ready", "true", {
     timeout: 60_000,
   });
@@ -203,7 +205,7 @@ test("Book settings survive reload and the PDF endpoint uses A5 pages", async ({
   );
   test.setTimeout(120_000);
   const world = await seed(page, { ...manuscript, chapters: manuscript.chapters.slice(1) });
-  await page.getByRole("button", { name: "Druckansicht", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript", "Druckansicht");
   await expect(page.locator(".print-document")).toHaveAttribute("data-book-ready", "true", {
     timeout: 60_000,
   });
@@ -220,7 +222,7 @@ test("Book settings survive reload and the PDF endpoint uses A5 pages", async ({
     )
     .toBe("a5");
   await page.reload();
-  await page.getByRole("button", { name: "Druckansicht", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript", "Druckansicht");
   await expect(page.getByLabel("Seitenformat", { exact: true })).toHaveValue("a5");
   await expect(page.locator(".print-document")).toHaveAttribute("data-book-ready", "true", {
     timeout: 60_000,
@@ -247,7 +249,7 @@ test("Every bundled book font loads and preserves the manuscript text", async ({
   test.skip(testInfo.project.name !== "wide", "Font loading is independent of viewport width.");
   test.setTimeout(90_000);
   await seed(page, { ...manuscript, chapters: [manuscript.chapters[2]] });
-  await page.getByRole("button", { name: "Druckansicht", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript", "Druckansicht");
   const root = page.locator(".print-document");
   const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
   for (const [value, family] of [
