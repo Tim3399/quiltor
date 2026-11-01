@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { FigureNode } from "../../packages/client/src/modules/story-world/model";
 import { encodeStoryWorldDocument } from "./support/application-api";
+import { putVersioned } from "./support/seed";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 const occupiedMap: FigureNode = {
@@ -47,19 +48,12 @@ async function seedPlaces(page: Page, worldId: string) {
     mapExpanded: false,
   };
   const child = { ...mapChild, mapU: 0.35, mapV: 0.62 };
-  const path = `/api/state?world=${worldId}`;
-  const current = await page.request.get(path);
-  expect(current.ok(), await current.text()).toBeTruthy();
-  const revisionHeader = current.headers().etag ?? '"0"';
-  const revision = Number(revisionHeader.replaceAll('"', ""));
-  const saved = await page.request.put(path, {
-    headers: { "If-Match": revisionHeader },
-    data: encodeStoryWorldDocument(
+  await putVersioned(page, `/api/state?world=${worldId}`, (revision) =>
+    encodeStoryWorldDocument(
       { nodes: [map, child, emptyPlace], edges: [], timeline: [], presence: [] },
       revision,
     ),
-  });
-  expect(saved.ok(), await saved.text()).toBeTruthy();
+  );
   return { mapImageId };
 }
 

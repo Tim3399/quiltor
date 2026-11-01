@@ -6,7 +6,7 @@ import { expect, test } from "./support/transient-network";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
-  mockRequiredWorldDocuments,
+  mockWorkshop as mockWorkshopRoutes,
 } from "./support/application-api";
 import {
   mockExpandedMapWorld,
@@ -54,45 +54,18 @@ const figures = {
   presence: [],
 };
 
-async function mockWorkshop(page: Page) {
-  await page.route("**/api/version", (route) =>
-    route.fulfill({ json: { ok: true, version: "baseline" } }),
-  );
-  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
-  await page.route("**/api/worlds", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        worlds: [
-          {
-            id: "baseline",
-            title: "Der gläserne Atlas",
-            backupUrl: "",
-            updated: "2026-08-09T12:00:00Z",
-          },
-        ],
-      },
-    }),
-  );
-  await page.route("**/api/worlds/open", (route) =>
-    route.fulfill({
-      json: {
-        ok: true,
-        world: {
-          id: "baseline",
-          title: "Der gläserne Atlas",
-          backupUrl: "",
-          updated: "2026-08-09T12:00:00Z",
-        },
-      },
-    }),
-  );
-  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures });
-  await page.route("**/api/assistant/status*", (route) =>
-    route.fulfill({
-      json: { ok: true, available: false, mode: "local", reason: "Baseline", chunks: 3 },
-    }),
-  );
+function mockWorkshop(page: Page) {
+  return mockWorkshopRoutes(page, {
+    version: "baseline",
+    world: {
+      id: "baseline",
+      title: "Der gläserne Atlas",
+      backupUrl: "",
+      updated: "2026-08-09T12:00:00Z",
+    },
+    documents: { manuscript, storyWorld: figures },
+    assistant: { reason: "Baseline", chunks: 3 },
+  });
 }
 
 const SNAPSHOTS = join(

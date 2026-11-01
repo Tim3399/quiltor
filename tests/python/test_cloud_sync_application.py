@@ -747,7 +747,9 @@ class CloudSyncRealServerTest(unittest.TestCase):
         self.reference._tokens.clear()
         self.reference._account_locks.clear()
         self.httpd = self.reference.Server(("127.0.0.1", 0), self.reference.Handler)
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread = threading.Thread(
+            target=self.httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         self.thread.start()
         self.endpoint = f"http://127.0.0.1:{self.httpd.server_address[1]}"
         available = MagicMock()

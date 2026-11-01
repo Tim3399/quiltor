@@ -72,7 +72,9 @@ class BackupProtocolTest(unittest.TestCase):
 
         self.httpd = self.reference.Server(("127.0.0.1", 0), self.reference.Handler)
         self.port = self.httpd.server_address[1]
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread = threading.Thread(
+            target=self.httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         self.thread.start()
         self.endpoint = f"http://127.0.0.1:{self.port}"
 
@@ -236,7 +238,9 @@ class BackupProtocolTest(unittest.TestCase):
                 pass
 
         destination = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Destination)
-        destination_thread = threading.Thread(target=destination.serve_forever, daemon=True)
+        destination_thread = threading.Thread(
+            target=destination.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         destination_thread.start()
         destination_url = f"http://127.0.0.1:{destination.server_address[1]}"
 
@@ -250,7 +254,9 @@ class BackupProtocolTest(unittest.TestCase):
                 pass
 
         redirect = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Redirect)
-        redirect_thread = threading.Thread(target=redirect.serve_forever, daemon=True)
+        redirect_thread = threading.Thread(
+            target=redirect.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         redirect_thread.start()
         redirect_url = f"http://127.0.0.1:{redirect.server_address[1]}"
         try:

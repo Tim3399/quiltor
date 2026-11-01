@@ -6,6 +6,7 @@ import type { StoryboardState } from "../../packages/client/src/modules/storyboa
 import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
 import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldV1 } from "../../packages/client/src/platform/contracts/v1/storyWorld";
+import { putVersioned as putDocument } from "./support/seed";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 const docxFixture = new URL("../fixtures/manuscript-import/harbor.docx", import.meta.url);
@@ -74,17 +75,6 @@ const storyboards: StoryboardState = {
     },
   ],
 };
-
-async function putDocument(page: Page, path: string, encode: (revision: number) => unknown) {
-  const current = await page.request.get(path);
-  expect(current.ok(), await current.text()).toBe(true);
-  const revision = Number((current.headers().etag ?? '"0"').replaceAll('"', ""));
-  const saved = await page.request.put(path, {
-    headers: { "If-Match": `"${revision}"` },
-    data: encode(revision),
-  });
-  expect(saved.ok(), await saved.text()).toBe(true);
-}
 
 async function seedAuditWorld(page: Page, title: string) {
   const world = await createTestWorld(page, title);
