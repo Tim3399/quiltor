@@ -29,10 +29,13 @@ export function CloudDialog({
   onClose,
   flush,
   manuscript,
+  onDocumentsReplaced,
 }: {
   onClose: () => void;
   flush: () => Promise<void>;
   manuscript: Manuscript;
+  /** The server now holds other documents than the open workspace; nothing may save over them. */
+  onDocumentsReplaced: () => void;
 }) {
   const { t, locale } = useI18n();
   const [status, setStatus] = useState<CloudSyncStatus | null>(null);
@@ -82,6 +85,7 @@ export function CloudDialog({
       setError(applicationErrorMessage(failure));
       setPreview(null);
       if (failure instanceof ApplicationGatewayError && failure.code === "sync.recovery_required") {
+        onDocumentsReplaced();
         setRecoveryRequired(true);
         setReloadRequired(true);
       }
@@ -104,6 +108,7 @@ export function CloudDialog({
       });
       setStatus(result.status);
       setPreview(null);
+      if (result.reloadRequired) onDocumentsReplaced();
       setReloadRequired(result.reloadRequired);
       setStateWarning(result.warnings?.includes("sync.state_not_saved") === true);
     });

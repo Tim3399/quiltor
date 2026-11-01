@@ -7,6 +7,17 @@ export const baselineViewports = {
   compact: { width: 390, height: 844 },
 } as const;
 
+/**
+ * Specs that run only in the wide project. Every entry says why its result cannot depend on
+ * the project's viewport; when in doubt a spec stays in all three. A new spec runs everywhere
+ * unless it is added here.
+ */
+const singleViewportSpecs = [
+  // Every block sets its own viewport and isMobile through test.use, so the three projects
+  // ran the very same test three times.
+  "**/mobile-workspace-tabs.spec.ts",
+];
+
 export default defineConfig({
   testDir: "./tests/e2e",
   // Windows CI opts into test-level sharding so every fresh runner has a hard-balanced test
@@ -43,7 +54,15 @@ export default defineConfig({
   },
   projects: [
     { name: "wide", use: { ...devices["Desktop Chrome"], viewport: baselineViewports.wide } },
-    { name: "regular", use: { ...devices["Desktop Chrome"], viewport: baselineViewports.regular } },
-    { name: "compact", use: { ...devices["Desktop Chrome"], viewport: baselineViewports.compact } },
+    {
+      name: "regular",
+      use: { ...devices["Desktop Chrome"], viewport: baselineViewports.regular },
+      testIgnore: singleViewportSpecs,
+    },
+    {
+      name: "compact",
+      use: { ...devices["Desktop Chrome"], viewport: baselineViewports.compact },
+      testIgnore: singleViewportSpecs,
+    },
   ],
 });

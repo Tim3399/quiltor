@@ -14,6 +14,8 @@ export type ManuscriptChapterFilter = "all" | "in-book" | "set-aside";
 
 export interface TextWorkspaceProps {
   worldTitle?: string;
+  /** False while the application is still loading the world's documents. Defaults to true. */
+  documentsReady?: boolean;
   manuscript: Manuscript;
   figures: FigureState;
   orphanedMentions?: number;

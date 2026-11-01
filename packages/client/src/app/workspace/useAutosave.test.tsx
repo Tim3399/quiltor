@@ -144,6 +144,33 @@ describe("explicit autosave flush", () => {
     expect(save).not.toHaveBeenCalled();
     expect(result.current.phase).toBe("saved");
   });
+
+  it("does not save a value it was told is loaded, nor the first value after discard (b′)", async () => {
+    vi.useFakeTimers();
+    const save = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(({ value }) => useAutosave(value, save, 25), {
+      initialProps: { value: { body: "first load" } },
+      wrapper,
+    });
+    const reloaded = { body: "second load" };
+    result.current.accept(reloaded);
+    rerender({ value: reloaded });
+    await act(async () => vi.advanceTimersByTimeAsync(25));
+    expect(result.current.isDirty()).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+
+    act(() => {
+      expect(result.current.discard()).toBe(true);
+    });
+    rerender({ value: { body: "another world" } });
+    await act(async () => vi.advanceTimersByTimeAsync(25));
+    expect(result.current.isDirty()).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+
+    rerender({ value: { body: "an edit" } });
+    await act(async () => vi.advanceTimersByTimeAsync(25));
+    expect(save).toHaveBeenCalledOnce();
+  });
 });
 
 describe("save failure reporting", () => {

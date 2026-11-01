@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { DEFAULT_BOOK_LAYOUT, type Manuscript } from "../../packages/client/src/modules/manuscript";
-import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { seedManuscriptWorld } from "./support/seed";
+import { expect, test } from "./support/world-fixture";
 
 const CHAPTER_COUNT = 100;
 const PARAGRAPHS_PER_CHAPTER = 5;
@@ -41,16 +41,15 @@ const manuscript: Manuscript = {
 };
 
 async function seedLongManuscript(page: Page): Promise<string> {
-  const world = await createTestWorld(page, `Langer Buchsatz ${crypto.randomUUID()}`);
-  const currentResponse = await page.request.get(`/api/manuscript?world=${world.id}`);
-  expect(currentResponse.ok(), await currentResponse.text()).toBe(true);
-  const current = (await currentResponse.json()) as { revision: number };
-  const saved = await page.request.put(`/api/manuscript?world=${world.id}`, {
-    headers: { "If-Match": `"${current.revision}"` },
-    data: encodeManuscriptV1(manuscript, current.revision),
-    timeout: 30_000,
-  });
-  expect(saved.ok(), await saved.text()).toBe(true);
+  const world = await seedManuscriptWorld(
+    page,
+    `Langer Buchsatz ${crypto.randomUUID()}`,
+    manuscript,
+    {
+      open: false,
+      timeout: 30_000,
+    },
+  );
   return world.id;
 }
 

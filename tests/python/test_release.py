@@ -1,6 +1,7 @@
 """Versioning and the immutable build-to-publish release hand-off."""
 
 import contextlib
+import functools
 import io
 import json
 import re
@@ -2351,6 +2352,25 @@ class PathFilterContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
+        # Every validation repeats work that depends only on the repository, never on the
+        # workflow text the tests mutate: about 200,000 glob compilations, listing the tracked
+        # files, and reading every client unit test. Caching those three for this class changes
+        # no result; each cached list is handed out as a fresh copy (T-40).
+        tracked_paths = functools.cache(path_filter.tracked_paths)
+        original_client_inputs = workflow_contract.client_test_inputs
+        client_inputs = functools.cache(lambda tracked: original_client_inputs(list(tracked)))
+        for target, name, replacement in (
+            (path_filter, "glob_to_regex", functools.cache(path_filter.glob_to_regex)),
+            (path_filter, "tracked_paths", lambda *args: list(tracked_paths(*args))),
+            (
+                workflow_contract,
+                "client_test_inputs",
+                lambda tracked: list(client_inputs(tuple(tracked))),
+            ),
+        ):
+            patcher = patch.object(target, name, replacement)
+            patcher.start()
+            cls.addClassCleanup(patcher.stop)
 
     def simulate(self, event, ref, full_matrix_input, paths, workflow=None, **options):
         return simulate_test_workflow(
