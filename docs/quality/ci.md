@@ -697,3 +697,37 @@ before the first Playwright step of every Windows job that runs Playwright, and 
 contract when the step is missing, comes later or swallows a failure. The single-case reload in
 `support/transient-network.ts` stays until a full matrix without it has shown the widened range
 is enough.
+
+## Test data and the slowest tests (T-40)
+
+Measured locally on Windows, the same machine and server (`:8010`), two workers, no other
+suite running, base `e5f69a5` against the T-40 branch. CI figures follow after a push.
+
+| Suite                                    | Tests before → after              | Before | After  | Change |
+| ---------------------------------------- | --------------------------------- | ------ | ------ | ------ |
+| Product, wall clock                      | 558 → 554 runs (353 → 347 passed) | 699 s  | 623 s  | −11 %  |
+| Product, sum of tests                    |                                   | 1339 s | 1196 s | −11 %  |
+| Backend (`unittest`)                     | 1213 → 1213                       | 323 s  | 180 s  | −44 %  |
+| `test_mutations_fail_the_contract` alone | 1 → 1                             | 77.1 s | 4.9 s  | −94 %  |
+
+What changed, and what did not:
+
+- **Shared helpers (b).** Seven local seed helpers and three `mockWorkshop` copies now call
+  `tests/e2e/support/seed.ts` and `support/application-api.ts`. No speed gain; one place to
+  change. The mocks take every value a screenshot can see as a parameter, so no baseline moved.
+- **One project instead of three (c).** Only `mobile-workspace-tabs.spec.ts`, whose blocks set
+  their own viewport (`singleViewportSpecs` in `playwright.config.ts`), and the shortcut test in
+  `workspaces.spec.ts`. Specs that take a width-dependent path -- the Mehr menu, the binder,
+  the workspace switch -- stay in all three, even where they assert no layout.
+- **Python (d).** `serve_forever` polls for shutdown every 0.5 s by default; the test servers
+  now poll every 50 ms. Servers stay per test, because these classes write to them. The
+  path-filter contract class caches the three steps that depend only on the repository.
+- **Fixed waits (e).** Six 600-900 ms waits in `layout-invariants.spec.ts` became
+  `waitForSettledLayout` (`support/layout-settled.ts`).
+- **Shared read-only worlds (a): checked, not worth it.** Almost every test that creates a world
+  changes it; the read-only groups (print preview, the two export specs) would save under 10 s
+  for a worker-scoped fixture `createTestWorld` does not support today.
+
+Most of the product suite's time is what the tests check -- persistence reloads, theme and
+viewport loops, axe scans, screenshots -- not duplicated setup. The brief expected minutes;
+locally it is about 11 % on the product suite and 44 % on the backend.
