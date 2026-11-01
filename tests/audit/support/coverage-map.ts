@@ -309,10 +309,11 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
   component(
     "ManuscriptToolbar",
     "modules/manuscript/ManuscriptToolbar.tsx",
-    "workspace.text/menu.buch-exportieren",
+    // Since T-104 the book exports sit in the toolbar's overflow menu.
+    "workspace.text/menu.weitere-aktionen",
     {
       role: "menu",
-      name: "Buchexport",
+      name: "Weitere Aktionen",
     },
   ),
   component(
