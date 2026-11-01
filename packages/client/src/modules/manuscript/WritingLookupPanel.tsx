@@ -33,6 +33,8 @@ export interface WritingLookupPanelProps {
   status: WritingAssistanceStatus | null;
   results: WritingAssistanceLookupResult[];
   phase: AssistancePhase;
+  /** Shown while `phase` is "error"; the generic sentence when empty. */
+  errorMessage?: string;
   replaceTarget: boolean;
   lookupSources: string[];
   onWritingQuery: (value: string) => void;
@@ -50,6 +52,7 @@ export function WritingLookupPanel({
   status,
   results,
   phase,
+  errorMessage,
   replaceTarget,
   lookupSources,
   onWritingQuery,
@@ -64,6 +67,13 @@ export function WritingLookupPanel({
     tool === "lookup" ? t("dictionary") : tool === "synonyms" ? t("synonyms") : t("translate");
   const resultValues = (result: WritingAssistanceLookupResult) =>
     result.values.length ? result.values : [result.lemma];
+  // With only the starter set installed, an empty result usually means "not in
+  // the eight sample words", not "no such word" -- say so next to it.
+  const coreOnly = status?.installed && status.coverage === "core" && (
+    <Alert className="writing-coverage" tone="info" title={t("writingCoreOnly")}>
+      {t("writingCoreOnlyHint")}
+    </Alert>
+  );
 
   return (
     <div className="writing-lookup">
@@ -120,7 +130,7 @@ export function WritingLookupPanel({
             />
           )}
           {phase === "error" ? (
-            <Alert tone="danger">{t("writingRequestError")}</Alert>
+            <Alert tone="danger">{errorMessage || t("writingRequestError")}</Alert>
           ) : !status?.installed ? (
             <EmptyState
               className="writing-data-state"
@@ -143,6 +153,7 @@ export function WritingLookupPanel({
             <ProgressBar label={t("writingSearching")} />
           ) : results.length ? (
             <div className="writing-results">
+              {coreOnly}
               <p className="writing-apply-hint" role="status">
                 {replaceTarget ? t("valueReplacesSelection") : t("valueInsertsAtCursor")}
               </p>
@@ -189,7 +200,10 @@ export function WritingLookupPanel({
               </footer>
             </div>
           ) : writingQuery.trim() ? (
-            <EmptyState title={t("writingNoResults")} headingLevel={3} size="compact" />
+            <>
+              <EmptyState title={t("writingNoResults")} headingLevel={3} size="compact" />
+              {coreOnly}
+            </>
           ) : (
             <EmptyState title={t("lookupEmptyHint")} headingLevel={3} size="compact">
               {t("selectionMenuHint")}
