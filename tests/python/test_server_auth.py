@@ -475,9 +475,28 @@ class PremiumGateTests(_LiveAuthServerTestCase):
     def test_a_login_without_role_claims_logs_a_hint(self):
         with self.assertLogs("quiltor", level="WARNING") as captured:
             self._login("user-unmapped", roles=None)
-        events = [record.getMessage() for record in captured.records]
-        self.assertIn("identity.login_without_roles", events)
-        self.assertNotIn("user-unmapped", " ".join(str(r.__dict__) for r in captured.records))
+        line = self._login_hint(captured)
+        self.assertEqual(line["sub"], "user-unmapped")
+        self.assertIs(line["roles_claim_present"], False)
+        self.assertNotIn("dropped_fields", line)
+        self.assertNotIn("email", line)
+        self.assertNotIn("@", json.dumps(line))
+
+    def test_a_login_with_an_empty_role_claim_says_the_claim_was_there(self):
+        with self.assertLogs("quiltor", level="WARNING") as captured:
+            self._login("user-empty", roles=())
+        line = self._login_hint(captured)
+        self.assertEqual(line["sub"], "user-empty")
+        self.assertIs(line["roles_claim_present"], True)
+
+    def _login_hint(self, captured) -> dict[str, Any]:
+        hints = [
+            record.structured_fields
+            for record in captured.records
+            if record.getMessage() == "identity.login_without_roles"
+        ]
+        self.assertEqual(len(hints), 1, [r.getMessage() for r in captured.records])
+        return hints[0]
 
     def test_a_login_with_roles_logs_no_hint(self):
         with self.assertNoLogs("quiltor", level="WARNING"):
