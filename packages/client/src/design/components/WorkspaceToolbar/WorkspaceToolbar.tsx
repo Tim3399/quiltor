@@ -69,10 +69,8 @@ export function WorkspaceToolbarTitle({
   );
 }
 
-export interface WorkspaceToolbarActionsProps extends Omit<
-  HTMLAttributes<HTMLDivElement>,
-  "children"
-> {
+export interface WorkspaceToolbarActionsProps
+  extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   /** Creating something new. At most one action in here carries primary emphasis. */
   create?: ReactNode;
   /** What the workspace shows: panel toggles, view menus and modes. */
