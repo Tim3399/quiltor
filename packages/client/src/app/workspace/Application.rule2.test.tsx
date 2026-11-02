@@ -318,6 +318,29 @@ describe("a load over unsaved figure or storyboard changes (rule 2, T-73)", () =
     expect(refused(warn)).toBe(false);
   });
 
+  it("holds back a load over unsaved storyboards and keeps the draft against the arrived revision", async () => {
+    await editThen("add board");
+    expect(await screen.findByRole("heading", { name: "Konflikt vergleichen" })).toBeVisible();
+    await wait(1000);
+    expect(storyboardsSave.mock.calls).toHaveLength(0);
+
+    await authorizeDecision();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Meinen Entwurf als neue Fassung speichern" }),
+    );
+    await waitFor(() => expect(storyboardsSaveExpected.mock.calls).toHaveLength(1));
+    expect(storyboardsSaveExpected.mock.calls[0][0].boards).toHaveLength(1);
+    expect(storyboardsSaveExpected.mock.calls[0][1]).toBe(6);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Konflikt vergleichen" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("status", { name: "storyboard count" })).toHaveTextContent("1");
+    expect(storyboardsSave.mock.calls).toHaveLength(0);
+    expect(refused(warn)).toBe(false);
+  });
+
   it("asks once per family when manuscript and figures are both unsaved", async () => {
     render(
       <I18nProvider>
