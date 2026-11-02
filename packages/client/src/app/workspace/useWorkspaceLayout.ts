@@ -21,43 +21,55 @@ export function useViewportMode() {
   return mode;
 }
 
+/** At most one panel beside the text in regular layouts, none in compact ones. */
+const constrained = (mode: ViewportMode, layout: WorkspaceLayout): WorkspaceLayout =>
+  mode === "compact"
+    ? { ...layout, navigationOpen: false, inspectorOpen: false }
+    : mode === "regular" && layout.navigationOpen && layout.inspectorOpen
+      ? { ...layout, inspectorOpen: false }
+      : layout;
+
+const storedLayout = (storageKey: string, mode: ViewportMode): WorkspaceLayout => {
+  if (!storageKey) return defaults(mode);
+  try {
+    return constrained(mode, {
+      ...defaults(mode),
+      ...JSON.parse(quiltorClient.platform.preferences.get(storageKey) || "{}"),
+    });
+  } catch {
+    return defaults(mode);
+  }
+};
+
 export function useWorkspaceLayout(worldId: string | undefined, workspace: Workspace) {
   const mode = useViewportMode();
   const storageKey = useMemo(
     () => (worldId ? `quiltor-layout:${worldId}:${workspace}` : ""),
     [worldId, workspace],
   );
-  const [layout, setLayout] = useState<WorkspaceLayout>(() => defaults(viewportMode()));
-  // biome-ignore lint/correctness/useExhaustiveDependencies: loads the stored layout only when the key changes; re-running on `mode` would overwrite the viewport adjustment below with the stored layout
-  useEffect(() => {
-    if (!storageKey) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-      setLayout(defaults(mode));
-      return;
-    }
-    try {
-      setLayout({
-        ...defaults(mode),
-        ...JSON.parse(quiltorClient.platform.preferences.get(storageKey) || "{}"),
-      });
-    } catch {
-      setLayout(defaults(mode));
-    }
-  }, [storageKey]);
+  // The stored layout is read while rendering, never in an effect: an effect lands after the
+  // first paint, and the text column would show with the default panels and reflow a frame
+  // later (T-115).
+  const [state, setState] = useState(() => ({
+    key: storageKey,
+    layout: storedLayout(storageKey, mode),
+  }));
+  let layout = state.layout;
+  if (state.key !== storageKey) {
+    layout = storedLayout(storageKey, mode);
+    setState({ key: storageKey, layout });
+  }
+  const setLayout = useCallback(
+    (update: (current: WorkspaceLayout) => WorkspaceLayout) =>
+      setState((current) => ({ ...current, layout: update(current.layout) })),
+    [],
+  );
   useEffect(() => {
     if (storageKey) quiltorClient.platform.preferences.set(storageKey, JSON.stringify(layout));
   }, [storageKey, layout]);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `storageKey` is a trigger: a freshly loaded layout must get the viewport constraints applied again
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setLayout((current) =>
-      mode === "compact"
-        ? { ...current, navigationOpen: false, inspectorOpen: false }
-        : mode === "regular" && current.navigationOpen && current.inspectorOpen
-          ? { ...current, inspectorOpen: false }
-          : current,
-    );
-  }, [mode, storageKey]);
+    setLayout((current) => constrained(mode, current));
+  }, [mode, setLayout]);
 
   const setNavigationOpen = useCallback(
     (open: boolean) =>
