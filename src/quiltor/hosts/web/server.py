@@ -376,7 +376,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             raise RequestBodyRejected("invalid_length")
         if length > MAX_BODY:
             raise RequestBodyRejected("too_large")
-        body = self.rfile.read(length)
+        body = self.read_request_body(length)
         media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
         if media_type != "application/json":
             # Drain the already bounded request body before sending the error response.
@@ -425,6 +425,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             )
             return True
         return False
+
+    def read_request_body(self, length: int) -> bytes:
+        """Read the request body. Every route that reads it goes through here, so
+        the dispatcher knows afterwards whether a refusal left it unread."""
+        self._request_body_read = True
+        return self.rfile.read(length)
 
     def _discard_unread_body(self) -> None:
         """Read and drop a small body that no route will read, so the close does not
@@ -818,6 +824,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # from a foreign Host or Origin is refused outright, so a cross-site
         # page never gets as far as borrowing the local user's session.
         self._pending_cookies = []
+        self._request_body_read = False
         # Both are per-request state on an object that http.server may reuse for
         # a second request on the same connection; cleared together so a bounce
         # can never leak into the request after it.
@@ -878,6 +885,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self._discard_unread_body()
                 return
         registration.handler(self, request, self.application.route_services(path))
+        if not self._request_body_read:
+            # A route may refuse without reading the body (POST /api/backup/login in
+            # multi-user mode answers 409 straight away). The connection closes after
+            # every request with a body, so the same reset as above applies.
+            self._discard_unread_body()
 
     def do_GET(self):
         def on_miss() -> None:
