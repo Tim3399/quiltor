@@ -70,7 +70,6 @@ export const tools = {
   backupSignInHint:
     "The target is configured, but not signed in yet. Uploading needs a sign-in in the browser.",
   backupSignInWaiting: "Waiting for the sign-in in the browser window …",
-  backupSignInFailed: "The sign-in could not be started.",
   backupSessionExpired:
     "This session no longer holds a valid token for the backup target. Sign out and back in to get one.",
   backupIssuerChecking: "Checking the sign-in service for this target …",

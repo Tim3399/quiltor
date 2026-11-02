@@ -21,6 +21,8 @@ export type GrammarStatus = {
   javaRequired: number;
   externalConfigured: boolean;
   externalEnabled: boolean;
+  /** False when the server's operator installs LanguageTool; missing means true. */
+  installable?: boolean;
   download: { url: string; checksum: string; license: string };
 };
 
@@ -34,6 +36,8 @@ export type WritingAssistanceStatus = {
    */
   coverage?: "core" | "full" | null;
   stale: boolean;
+  /** False when the server's operator installs the language data; missing means true. */
+  installable?: boolean;
   version: string | null;
   sources: Record<
     string,

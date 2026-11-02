@@ -138,13 +138,17 @@ export function WritingLookupPanel({
               headingLevel={3}
               size="compact"
               actions={
-                <Button
-                  onClick={onInstallData}
-                  loading={phase === "installing"}
-                  loadingLabel={t("writingDataInstalling")}
-                >
-                  {phase === "installing" ? t("writingDataInstalling") : t("writingDataInstall")}
-                </Button>
+                status?.installable === false ? (
+                  <p className="writing-data-state__note">{t("writingInstalledByOperator")}</p>
+                ) : (
+                  <Button
+                    onClick={onInstallData}
+                    loading={phase === "installing"}
+                    loadingLabel={t("writingDataInstalling")}
+                  >
+                    {phase === "installing" ? t("writingDataInstalling") : t("writingDataInstall")}
+                  </Button>
+                )
               }
             >
               {phase === "installing" && <ProgressBar label={t("writingDataInstalling")} />}

@@ -142,6 +142,23 @@ EVENTS: dict[str, frozenset[str]] = {
         {"request_id", "code", "sqlite_code", "sqlite_name", "errno", "errno_name"}
     ),
     "logging.configured": frozenset({"log_level", "file"}),
+    "install.forbidden_hosted": frozenset({"request_id", "route"}),
+    # routes/backup.py reports these through _observe_failure: the exception's type only,
+    # never its text, which can carry a path, an endpoint's answer or a world's name (T-122).
+    **dict.fromkeys(
+        (
+            "backup.preview_failed",
+            "backup.remote_worlds_failed",
+            "backup.snapshot_failed",
+            "backup.remote_restore_failed",
+            "backup.local_restore_request_invalid",
+            "backup.local_restore_failed",
+            "backup.login_start_failed",
+            "backup.login_callback_rejected",
+            "backup.login_callback_failed",
+        ),
+        frozenset({"request_id", "error_type"}),
+    ),
 }
 
 # Events written before the schema existed. Their fields are not filtered, so their

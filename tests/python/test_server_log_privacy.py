@@ -26,8 +26,9 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from quiltor.application.backups import BackupGatewayError
 from quiltor.delivery.http import routes as api_routes
 from quiltor.infrastructure.observability import StdlibStructuredLogger
 from quiltor.infrastructure.observability import schema as log_schema
@@ -68,6 +69,22 @@ ALLOWED_IN = {UNRESOLVED_WORLD: {"world.resolve_failed"}}
 # Every event of plan 2.2 must have been written by the scenarios at least once, or a
 # clean log would only prove that the path was never taken.
 REQUIRED_EVENTS = frozenset(log_schema.EVENTS)
+
+# The failures routes/backup.py reports through _observe_failure (T-72 found them
+# unregistered, T-122 registered them). Each carries the exception's type and nothing else.
+BACKUP_FAILURES = frozenset(
+    {
+        "backup.preview_failed",
+        "backup.remote_worlds_failed",
+        "backup.snapshot_failed",
+        "backup.remote_restore_failed",
+        "backup.local_restore_request_invalid",
+        "backup.local_restore_failed",
+        "backup.login_start_failed",
+        "backup.login_callback_rejected",
+        "backup.login_callback_failed",
+    }
+)
 
 
 class _PrivacyServer(_LiveServer):
@@ -293,6 +310,50 @@ class _PrivacyServer(_LiveServer):
         with self._failing_route("/api/test-sqlite-text", full):
             self.assertIn(self.request("GET", "/api/test-sqlite-text")[0], {500, 503})
 
+    def scenario_operator_only(self):
+        # A hosted server refuses an install; its line names the route, not the body.
+        self.application.operation_profile = "hosted"
+        try:
+            status, _, _ = self.request(
+                "POST", "/api/writing-assistance/grammar/install", {"x": CANARIES["prose"]}
+            )
+            self.assertEqual(status, 403)
+        finally:
+            self.application.operation_profile = "local"
+
+    def scenario_backup(self):
+        # Every backup failure path, with the author's text and a world-named path in the
+        # exception and in the request. The backup service's methods are stubbed on its class,
+        # because the services are a frozen dataclass.
+        text, path = CANARIES["exception"], CANARIES["file_path"]
+        complete_login = MagicMock(side_effect=ValueError(f"{text} {path}"))
+        stubs = {
+            "default_endpoint": MagicMock(return_value="https://backup.example"),
+            "preview_local": MagicMock(side_effect=OSError(errno.EACCES, text, path)),
+            "list_remote_worlds": MagicMock(side_effect=RuntimeError(f"{text} {path}")),
+            "commit": MagicMock(side_effect=BackupGatewayError(params={"operation": "upload"})),
+            "restore_remote": MagicMock(side_effect=RuntimeError(f"{text} {path}")),
+            "restore_local": MagicMock(side_effect=OSError(errno.ENOENT, text, path)),
+            "begin_login": MagicMock(side_effect=RuntimeError(f"{text} {path}")),
+            "complete_login": complete_login,
+        }
+        service = type(self.application.application.backups)
+        world = self.world_id
+        with (
+            patch.multiple(service, **stubs),
+            patch.object(type(self.application), "backup_authorization", return_value=None),
+        ):
+            self.request("GET", f"/api/backups/preview?world={world}&name={path}")
+            self.request("GET", "/api/backup/remote")
+            self.request("POST", "/api/backup", {"worldId": world, "message": CANARIES["prose"]})
+            self.request("POST", "/api/backup/restore", {"worldId": world, "snapshotId": path})
+            self.request("POST", "/api/backups/restore", f'{{"{CANARIES["body_raw"]}": '.encode())
+            self.request("POST", "/api/backups/restore", {"worldId": world, "name": path})
+            self.request("POST", f"/api/backup/login?world={world}", {})
+            self.request("GET", f"/backup/callback?code={CANARIES['oidc_token']}&state={path}")
+            complete_login.side_effect = RuntimeError(f"{text} {path}")
+            self.request("GET", f"/backup/callback?code={CANARIES['oidc_token']}&state={path}")
+
     SCENARIOS = (
         "scenario_content",
         "scenario_rejected_saves",
@@ -301,6 +362,8 @@ class _PrivacyServer(_LiveServer):
         "scenario_worlds",
         "scenario_unhandled",
         "scenario_storage",
+        "scenario_operator_only",
+        "scenario_backup",
     )
 
 
@@ -347,6 +410,26 @@ class ServerLogPrivacyTests(_PrivacyServer):
         self.assertEqual([line["message"] for line in unhandled], ["SQLITE_FULL"] * 2)
         for line in unhandled:
             self.assertTrue(line["traceback"].endswith("OperationalError: SQLITE_FULL"))
+
+    def test_backup_failures_log_the_error_type_and_nothing_else(self):
+        self.scenario_backup()
+        lines = [line for line in self.parsed() if line["event"] in BACKUP_FAILURES]
+        self.assertEqual({line["event"] for line in lines}, set(BACKUP_FAILURES))
+        for line in lines:
+            self.assertLessEqual(
+                set(line) - {"event", "level", "timestamp"},
+                {"request_id", "error_type"},
+                line["event"],
+            )
+        self.assert_clean()
+
+    def test_a_backup_failure_drops_a_field_it_does_not_list(self):
+        # The guard itself: a future caller that hands over more than the type gets it
+        # filtered, because the name is registered (T-122).
+        logger = self.application.observability.logger
+        for name in sorted(BACKUP_FAILURES):
+            logger.event("warning", name, error_type="OSError", path=CANARIES["file_path"])
+        self.assert_clean()
 
     def test_every_event_is_written_and_none_carries_a_canary(self):
         for name in self.SCENARIOS:
