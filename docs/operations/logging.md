@@ -65,8 +65,11 @@ grep '"event": "http.error"' quiltor-server.log
 | `world.resolve_failed`   | the requested world is invalid, forbidden or missing (`reason`)    |
 | `storage.failed`         | the database or the disk failed, with the raw error code           |
 | `logging.configured`     | once at start                                                      |
+| `install.forbidden_hosted` | an install request refused because the server is hosted (OIDC)   |
 
 Further events from other parts of the server (backup, identity, assistant) keep their own fields.
+
+`identity.login_without_roles` carries no free-text `hint`, because `hint` is not on the list of allowed fields. When it appears, check the identity provider's role mapper: `roles_claim_present: false` means the token carries neither `realm_access` nor `resource_access`, so the mapper does not put roles into the token at all; `true` means the claim arrives, but without a Quiltor role for this account.
 
 ## What is never in the log
 
