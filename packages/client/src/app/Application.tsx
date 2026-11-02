@@ -11,7 +11,7 @@ import {
   RecoveryDialog,
   type RecoveryDocuments,
 } from "../modules/recovery";
-import { type FigureState, kindLabel } from "../modules/story-world";
+import { countBoardElements, type FigureState, kindLabel } from "../modules/story-world";
 import type { StoryboardState } from "../modules/storyboard";
 import {
   buildWorldReferenceBacklinks,
@@ -436,7 +436,9 @@ export function App() {
     }
     return (
       <>
-        <StatusBarItem>{t("nElements", { n: figures?.nodes.length ?? 0 })}</StatusBarItem>
+        <StatusBarItem>
+          {t("nElements", { n: countBoardElements(figures?.nodes ?? []) })}
+        </StatusBarItem>
         <StatusBarItem>{t("nRelationships", { n: figures?.edges.length ?? 0 })}</StatusBarItem>
       </>
     );
