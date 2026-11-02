@@ -76,7 +76,7 @@ export function useWorkspaceLayout(worldId: string | undefined, workspace: Works
         navigationOpen: open,
         inspectorOpen: open && mode !== "wide" ? false : current.inspectorOpen,
       })),
-    [mode],
+    [mode, setLayout],
   );
   const setInspectorOpen = useCallback(
     (open: boolean) =>
@@ -85,7 +85,7 @@ export function useWorkspaceLayout(worldId: string | undefined, workspace: Works
         inspectorOpen: open,
         navigationOpen: open && mode !== "wide" ? false : current.navigationOpen,
       })),
-    [mode],
+    [mode, setLayout],
   );
   const setSidebarWidth = useCallback(
     (width: number) =>
@@ -93,7 +93,7 @@ export function useWorkspaceLayout(worldId: string | undefined, workspace: Works
         ...current,
         sidebarWidth: Math.max(220, Math.min(340, Math.round(width))),
       })),
-    [],
+    [setLayout],
   );
   const setInspectorWidth = useCallback(
     (width: number) =>
@@ -101,7 +101,7 @@ export function useWorkspaceLayout(worldId: string | undefined, workspace: Works
         ...current,
         inspectorWidth: Math.max(240, Math.min(380, Math.round(width))),
       })),
-    [],
+    [setLayout],
   );
   return { mode, layout, setNavigationOpen, setInspectorOpen, setSidebarWidth, setInspectorWidth };
 }
