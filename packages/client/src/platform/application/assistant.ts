@@ -19,6 +19,8 @@ export interface AssistantGateway {
     mode: string;
     reason: string;
     installed: boolean;
+    /** False when the server's operator installs the assistant; missing on older servers. */
+    installable?: boolean;
     chunks: number;
     backend?: string;
     contextTokens?: number;
