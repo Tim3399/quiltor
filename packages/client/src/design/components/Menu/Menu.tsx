@@ -200,9 +200,11 @@ export function MenuSubmenu({ label, children, icon, disabled = false }: MenuSub
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        onPointerEnter={() => {
-          // A modal sheet must not open on hover; on compact only a tap opens it.
-          if (!compact) openMenu("first", false);
+        onPointerEnter={(event) => {
+          // Only a mouse hovers. A touch or pen fires pointerenter right before the click of the
+          // same tap, which would then toggle the submenu shut again. A modal sheet must not open
+          // on hover either, so on compact only a tap or click opens it.
+          if (event.pointerType === "mouse" && !compact) openMenu("first", false);
         }}
         onClick={() => (open ? close() : openMenu("first", true))}
         onKeyDown={(event) => {

@@ -892,6 +892,49 @@ test("a submenu opened from a menu in a compact sheet is on top and can be chose
   await expect(page.getByRole("menu")).toHaveCount(0);
 });
 
+test("a tap opens a submenu in the regular layout on a touch screen", async ({
+  browser,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "design-intermediate",
+    "One regular-width touch run is enough.",
+  );
+  const context = await browser.newContext({
+    baseURL: testInfo.project.use.baseURL,
+    viewport: { width: 820, height: 800 },
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  try {
+    await openStory(page, "Menu/SubmenuInPopover");
+    await page.getByRole("button", { name: "Kapitelaktionen" }).tap();
+    const trigger = page.getByRole("menuitem", { name: "Verschieben nach" });
+    await trigger.tap();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const choice = page.getByRole("menuitem", { name: "Akt 1 · Ankunft" });
+    await expect(choice).toBeVisible();
+    await expect(() => expectCenterHit(choice)).toPass({ timeout: 3_000 });
+  } finally {
+    await context.close();
+  }
+});
+
+test("hovering a submenu trigger in a compact sheet opens no sheet", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "design-compact-boundary",
+    "Only a mouse on compact can hover a trigger inside a modal sheet.",
+  );
+  await openStory(page, "Menu/SubmenuInPopover");
+  await page.getByRole("button", { name: "Kapitelaktionen" }).click();
+  const trigger = page.getByRole("menuitem", { name: "Verschieben nach" });
+  await expect(trigger).toBeVisible();
+  await trigger.hover();
+  // Give a wrongly opened sheet time to mount before asserting its absence.
+  await page.waitForTimeout(300);
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("dialog", { name: "Verschieben nach" })).toHaveCount(0);
+});
+
 test("workspace, tabs and side panels stay usable in narrow hosts", async ({ page }) => {
   await openStory(page, "WorkspaceToolbar/Default");
   const toolbar = page.getByRole("toolbar", { name: "Kapitelwerkzeuge" });
