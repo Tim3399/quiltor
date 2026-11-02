@@ -751,42 +751,12 @@ def _event_names_in_source() -> tuple[list[tuple[str, int, str]], list[str]]:
     return found, sorted(wrappers)
 
 
-# Names that routes/backup.py hands to `_observe_failure` and that were never registered
-# (found by T-72 / F-71-3, which made this test see names passed through a parameter).
-# Registering them is product code and belongs to its own task: register each in
-# observability/schema.py, then delete it here. An entry that is no longer needed fails.
-KNOWN_UNREGISTERED: frozenset[str] = frozenset(
-    {
-        "backup.preview_failed",
-        "backup.remote_worlds_failed",
-        "backup.snapshot_failed",
-        "backup.remote_restore_failed",
-        "backup.local_restore_request_invalid",
-        "backup.local_restore_failed",
-        "backup.login_start_failed",
-        "backup.login_callback_rejected",
-        "backup.login_callback_failed",
-    }
-)
-
-
 class EventRegistryTests(unittest.TestCase):
     def test_every_event_literal_is_registered(self):
         known = log_schema.EVENTS.keys() | log_schema.LEGACY_EVENTS
         found, _ = _event_names_in_source()
-        unregistered = [
-            f"{file}:{line}: {name}"
-            for file, line, name in found
-            if name not in known and name not in KNOWN_UNREGISTERED
-        ]
+        unregistered = [f"{file}:{line}: {name}" for file, line, name in found if name not in known]
         self.assertEqual(unregistered, [], "register these in observability/schema.py")
-
-    def test_the_known_unregistered_list_holds_only_names_still_in_use(self):
-        known = log_schema.EVENTS.keys() | log_schema.LEGACY_EVENTS
-        found, _ = _event_names_in_source()
-        used = {name for _, _, name in found}
-        self.assertEqual(sorted(KNOWN_UNREGISTERED - used), [], "delete these from the list")
-        self.assertEqual(sorted(KNOWN_UNREGISTERED & known), [], "registered now: delete them")
 
     def test_names_passed_through_a_parameter_are_checked_too(self):
         found, wrappers = _event_names_in_source()
