@@ -2353,14 +2353,14 @@ class PathFilterContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
         # Every validation repeats work that depends only on the repository, never on the
-        # workflow text the tests mutate: about 200,000 glob compilations, listing the tracked
-        # files, and reading every client unit test. Caching those three for this class changes
-        # no result; each cached list is handed out as a fresh copy (T-40).
+        # workflow text the tests mutate: listing the tracked files and reading every client
+        # unit test (the glob compilations are cached in path_filter itself, T-96). Caching
+        # those two for this class changes no result; each cached list is handed out as a
+        # fresh copy (T-40).
         tracked_paths = functools.cache(path_filter.tracked_paths)
         original_client_inputs = workflow_contract.client_test_inputs
         client_inputs = functools.cache(lambda tracked: original_client_inputs(list(tracked)))
         for target, name, replacement in (
-            (path_filter, "glob_to_regex", functools.cache(path_filter.glob_to_regex)),
             (path_filter, "tracked_paths", lambda *args: list(tracked_paths(*args))),
             (
                 workflow_contract,
