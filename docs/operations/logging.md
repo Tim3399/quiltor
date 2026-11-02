@@ -55,17 +55,17 @@ grep '"event": "http.error"' quiltor-server.log
 
 ## Events, roughly
 
-| Event                    | When                                                               |
-| ------------------------ | ------------------------------------------------------------------ |
-| `http.access`            | once per request                                                   |
-| `http.error`             | every API answer with status 400 or above, with its error `code`   |
-| `http.unhandled`         | an exception no route handled, with `error_type` and a `traceback` |
-| `document.save_rejected` | a save refused for its content or revision                         |
-| `document.save_conflict` | a save refused because the document changed in the meantime        |
-| `world.resolve_failed`   | the requested world is invalid, forbidden or missing (`reason`)    |
-| `storage.failed`         | the database or the disk failed, with the raw error code           |
-| `logging.configured`     | once at start                                                      |
-| `install.forbidden_hosted` | an install request refused because the server is hosted (OIDC)   |
+| Event                      | When                                                               |
+| -------------------------- | ------------------------------------------------------------------ |
+| `http.access`              | once per request                                                   |
+| `http.error`               | every API answer with status 400 or above, with its error `code`   |
+| `http.unhandled`           | an exception no route handled, with `error_type` and a `traceback` |
+| `document.save_rejected`   | a save refused for its content or revision                         |
+| `document.save_conflict`   | a save refused because the document changed in the meantime        |
+| `world.resolve_failed`     | the requested world is invalid, forbidden or missing (`reason`)    |
+| `storage.failed`           | the database or the disk failed, with the raw error code           |
+| `logging.configured`       | once at start                                                      |
+| `install.forbidden_hosted` | an install request refused because the server is hosted (OIDC)     |
 
 Further events from other parts of the server (backup, identity, assistant) keep their own fields.
 
