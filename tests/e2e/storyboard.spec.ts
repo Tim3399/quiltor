@@ -2,6 +2,7 @@ import type { Locator, Page, Response } from "@playwright/test";
 import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldDocument } from "./support/application-api";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 function waitForSuccessfulStoryboardWrite(page: Page, payloadMarker: string) {
@@ -129,9 +130,9 @@ test("storyboard boards and notes survive a reload", async ({ page }, testInfo) 
   await openStoryboard(page, world.id);
 
   const toolbar = page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" });
-  await toolbar.getByRole("button", { name: "Storyboard hinzufügen", exact: true }).click();
+  await openToolbarOverflow(page, "Storyboard-Werkzeuge", "Storyboard hinzufügen");
 
-  await toolbar.getByRole("button", { name: "Storyboard umbenennen", exact: true }).click();
+  await openToolbarOverflow(page, "Storyboard-Werkzeuge", "Storyboard umbenennen");
   const boardName = toolbar.getByRole("textbox", { name: "Storyboard-Name" });
   await expect(boardName).toHaveValue("Neues Storyboard 2");
   await boardName.fill(boardTitle);
@@ -1006,10 +1007,15 @@ test("overlapping storyboard cards keep their front-to-back order", async ({ pag
   await backCard.click({ position: { x: 24, y: 24 } });
   await expect(backCard.locator(".storyboard-node")).toHaveClass(/is-selected/);
 
-  const toolbar = page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" });
-  const moveForward = toolbar.getByRole("button", { name: "Element nach vorne" });
-  const moveBackward = toolbar.getByRole("button", { name: "Element nach hinten" });
-  await expect(moveForward).toBeEnabled();
+  await openToolbarOverflow(page, "Storyboard-Werkzeuge");
+  await expect(page.getByRole("menuitem", { name: "Element nach vorne" })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  const moveForward = {
+    click: () => openToolbarOverflow(page, "Storyboard-Werkzeuge", "Element nach vorne"),
+  };
+  const moveBackward = {
+    click: () => openToolbarOverflow(page, "Storyboard-Werkzeuge", "Element nach hinten"),
+  };
 
   const movedForward = waitForSuccessfulStoryboardWrite(page, '"id":"layer-back"');
   await moveForward.click();
@@ -1069,12 +1075,15 @@ test("the layer controls stay reachable in the compact storyboard", async ({ pag
     expect((await saved).ok()).toBe(true);
   }
 
-  const moveForward = toolbar.getByRole("button", { name: "Element nach vorne" });
-  const moveBackward = toolbar.getByRole("button", { name: "Element nach hinten" });
+  // Since T-104 the layer order waits in the toolbar's overflow menu, one click away.
+  await openToolbarOverflow(page, "Storyboard-Werkzeuge");
+  const moveForward = page.getByRole("menuitem", { name: "Element nach vorne" });
+  const moveBackward = page.getByRole("menuitem", { name: "Element nach hinten" });
   await expect(moveForward).toBeVisible();
   await expect(moveForward).toBeDisabled();
   await expect(moveBackward).toBeVisible();
   await expect(moveBackward).toBeEnabled();
+  await page.keyboard.press("Escape");
   const dimensions = await toolbar.evaluate((element) => ({
     clientWidth: element.clientWidth,
     scrollWidth: element.scrollWidth,

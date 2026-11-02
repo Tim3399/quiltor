@@ -340,3 +340,74 @@ test.describe("contrast", () => {
     expect(byRule(findings, "contrast")).toEqual([]);
   });
 });
+
+test.describe("toolbar-row", () => {
+  const button = (label: string) =>
+    `<button style="width:90px;height:32px;flex:none">${label}</button>`;
+
+  test("reports a toolbar whose last button wraps onto a second row", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;flex-wrap:wrap;width:300px">
+        ${button("Notiz")}${button("Gruppe")}${button("Vorne")}${button("Undo")}
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].severity).toBe("high");
+    expect(hits[0].message).toContain("wraps onto 2 rows");
+    expect(hits[0].message).toContain('"Undo"');
+  });
+
+  test("reports a button cut off by the toolbar's overflow", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;width:300px;overflow:hidden">
+        ${button("Notiz")}${button("Gruppe")}${button("Vorne")}${button("Hinten")}
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].message).toContain("is hidden or cut off");
+  });
+
+  test("reports a scroll strip whose scrollbar lies over the buttons", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="width:300px">
+        <div style="display:flex;overflow-x:auto;height:32px">
+          ${button("Kapitel")}${button("Details")}${button("Fokus")}${button("Fassungen")}
+        </div>
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((hit) => hit.message.includes("is hidden or cut off"))).toBe(true);
+  });
+
+  test("reports a button that CSS removes from the toolbar", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;width:390px">
+        ${button("Notiz")}<span style="display:none">${button("Undo")}</span>
+        <button style="width:90px;height:32px;visibility:hidden">Redo</button>
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits).toHaveLength(2);
+    expect(hits.every((hit) => hit.message.includes("is removed by CSS"))).toBe(true);
+    expect(hits[0].message).toContain('"Undo"');
+    expect(hits[1].message).toContain('"Redo"');
+  });
+
+  test("stays quiet for a toolbar that fits on one row", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;flex-wrap:wrap;width:390px">
+        ${button("Notiz")}${button("Gruppe")}${button("Mehr")}
+        <div role="menu" hidden>${button("Vorne")}</div>
+      </div>`,
+    );
+    expect(byRule(findings, "toolbar-row")).toEqual([]);
+  });
+});

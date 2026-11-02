@@ -58,8 +58,17 @@
   gap: 0;
 }
 
-.workspace-toolbar__actions[data-layout="wrap"] {
-  flex-wrap: wrap;
+.workspace-toolbar__overflow {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding-inline-start: var(--spacing-transition-control-inline-compact);
+  border-inline-start: 1px solid var(--line);
+}
+
+.workspace-toolbar__actions > .workspace-toolbar__overflow:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
 }
 
 .workspace-toolbar__group,
@@ -124,9 +133,14 @@
     contain: layout inline-size;
   }
 
+  /* Touch-sized buttons leave little room for one row; the divider keeps the groups apart. */
   .workspace-toolbar__group,
   .workspace-toolbar__actions > fieldset,
   .workspace-toolbar > fieldset {
-    padding-inline: var(--spacing-compact-tight);
+    padding-inline: var(--spacing-optical-base);
+  }
+
+  .workspace-toolbar__overflow {
+    padding-inline-start: var(--spacing-optical-base);
   }
 }

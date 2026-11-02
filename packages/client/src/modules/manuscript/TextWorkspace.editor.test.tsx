@@ -200,7 +200,10 @@ describe("TextWorkspace editor, search and versions", () => {
       onFocus: vi.fn(),
     });
     const context = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
-    const versions = context.getByRole("button", { name: "Fassungen" });
+    const openVersions = () => {
+      fireEvent.click(context.getByRole("button", { name: "Weitere Aktionen" }));
+      return screen.getByRole("menuitem", { name: "Fassungen" });
+    };
     const editor = codeMirrorView(view.container);
     const editorScroll = requireValue(
       view.container.querySelector<HTMLElement>(".editor-scroll"),
@@ -214,9 +217,11 @@ describe("TextWorkspace editor, search and versions", () => {
       scrollTop: 83,
     });
     onSessionStateChange.mockClear();
-    expect(versions).toHaveAttribute("aria-pressed", "false");
+    const versions = openVersions();
+    expect(versions).not.toHaveAttribute("aria-current");
     fireEvent.click(versions);
-    expect(versions).toHaveAttribute("aria-pressed", "true");
+    expect(openVersions()).toHaveAttribute("aria-current", "true");
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     expect(within(view.container).getByRole("complementary", { name: "Fassungen" })).toBeVisible();
     expect(onSave).not.toHaveBeenCalled();
     expect(editor.contentDOM).toHaveAttribute("aria-readonly", "true");
@@ -295,7 +300,8 @@ describe("TextWorkspace editor, search and versions", () => {
       focus: false,
       onFocus: vi.fn(),
     });
-    fireEvent.click(within(view.container).getByRole("button", { name: "Fassungen" }));
+    fireEvent.click(within(view.container).getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fassungen" }));
     const editor = codeMirrorView(view.container);
     await waitFor(() => expect(editor.state.doc.toString()).toBe("Neue Fassung"));
 
@@ -358,7 +364,8 @@ describe("TextWorkspace editor, search and versions", () => {
       focus: false,
       onFocus: vi.fn(),
     });
-    fireEvent.click(screen.getByRole("button", { name: "Szenenwechsel einfügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Szenenwechsel einfügen" }));
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
         expect.objectContaining({

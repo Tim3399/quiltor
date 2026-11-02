@@ -5,6 +5,7 @@
 // at, so a real Quiltor page stays within a few seconds. Contrast is delegated to axe-core.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
+import { toolbarRowFindings } from "./toolbar-row";
 import type { Finding, LayoutContext, Rect, Severity } from "./types";
 
 type RawFinding = {
@@ -20,8 +21,16 @@ export async function analyzeLayout(page: Page, ctx: LayoutContext): Promise<Fin
     touch: ctx.touch,
     popupSelector: ctx.popupSelector ?? null,
   });
+  const toolbarFindings: RawFinding[] = (await page.evaluate(toolbarRowFindings, 1.5)).map(
+    (finding) => ({
+      rule: "toolbar-row",
+      severity: "high",
+      message: finding.message,
+      rect: finding.rect,
+    }),
+  );
   const contrastFindings = await collectContrastFindings(page);
-  return [...domFindings, ...contrastFindings].map((finding) => ({
+  return [...domFindings, ...toolbarFindings, ...contrastFindings].map((finding) => ({
     source: "rules" as const,
     ...finding,
   }));

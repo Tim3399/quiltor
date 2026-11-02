@@ -143,6 +143,7 @@ export const manuscript = {
   moveUp: "Move up",
   moveDown: "Move down",
   chapterMarkdown: "Chapter as Markdown",
+  manuscriptMarkdownAction: "Manuscript as Markdown",
   deleteChapter: "Delete chapter",
   removeChapterFromBook: "Remove from book",
   returnChapterToBook: "Return to book",
