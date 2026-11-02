@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useCompactLayout } from "../../internal/useCompactLayout";
 import { Popover } from "../Popover";
 import "./Menu.css";
 
@@ -169,6 +170,9 @@ export function MenuSubmenu({ label, children, icon, disabled = false }: MenuSub
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
   const [open, setOpen] = useState(false);
+  // On compact the parent menu sits in a modal sheet, so the submenu becomes a sheet of its own
+  // on top of it. An anchored popover would open below the parent sheet, out of reach.
+  const compact = useCompactLayout();
   const [autoFocus, setAutoFocus] = useState(true);
   const [initialFocus, setInitialFocus] = useState<"first" | "last">("first");
   const close = useCallback(() => setOpen(false), []);
@@ -196,7 +200,10 @@ export function MenuSubmenu({ label, children, icon, disabled = false }: MenuSub
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        onPointerEnter={() => openMenu("first", false)}
+        onPointerEnter={() => {
+          // A modal sheet must not open on hover; on compact only a tap opens it.
+          if (!compact) openMenu("first", false);
+        }}
         onClick={() => (open ? close() : openMenu("first", true))}
         onKeyDown={(event) => {
           if (["ArrowRight", "Enter", " "].includes(event.key)) {
@@ -223,7 +230,6 @@ export function MenuSubmenu({ label, children, icon, disabled = false }: MenuSub
         open={open}
         onClose={close}
         label={label}
-        compactMode="popover"
         desktopRole="presentation"
         placement="inline-end"
       >

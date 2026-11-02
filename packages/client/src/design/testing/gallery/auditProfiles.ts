@@ -159,8 +159,8 @@ export const designAuditProfiles = {
       selection: ["DisabledAndSelected"],
       keyboard: ["Default", "DisabledAndSelected", "NestedSubmenu"],
       longContent: ["LongLabels"],
-      overlay: ["NestedSubmenu"],
-      responsive: ["LongLabels", "NestedSubmenu"],
+      overlay: ["NestedSubmenu", "SubmenuInPopover"],
+      responsive: ["LongLabels", "NestedSubmenu", "SubmenuInPopover"],
     },
   },
   PageState: {

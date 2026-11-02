@@ -8,25 +8,9 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useCompactLayout } from "../../internal/useCompactLayout";
 import { Sheet } from "../Sheet";
 import "./Popover.css";
-
-const compactQuery = "(max-width: 719px)";
-
-function useCompactLayout() {
-  const [compact, setCompact] = useState(
-    () => typeof matchMedia === "function" && matchMedia(compactQuery).matches,
-  );
-  useEffect(() => {
-    if (typeof matchMedia !== "function") return;
-    const media = matchMedia(compactQuery);
-    const change = () => setCompact(media.matches);
-    change();
-    media.addEventListener("change", change);
-    return () => media.removeEventListener("change", change);
-  }, []);
-  return compact;
-}
 
 export interface PopoverProps {
   anchorRef: RefObject<HTMLElement | null>;

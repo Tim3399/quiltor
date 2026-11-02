@@ -848,16 +848,48 @@ test("nested menus preserve arrow-key focus and viewport containment", async ({ 
   const nested = page.getByRole("menuitem", { name: "Akt 1 · Ankunft" });
   await expect(nested).toBeFocused();
   const submenu = page.getByRole("menu", { name: "Verschieben nach" });
-  const contained = await submenu.evaluate((element) => {
-    const box = element.closest(".ui-popover")?.getBoundingClientRect();
-    return (
-      !!box && box.left >= 0 && box.top >= 0 && box.right <= innerWidth && box.bottom <= innerHeight
-    );
-  });
-  expect(contained).toBe(true);
+  // Anchored beside its trigger on desktop, a sheet of its own on compact; the sheet slides in,
+  // so containment is read once it has settled.
+  await expect
+    .poll(() =>
+      submenu.evaluate((element) => {
+        const box = element.closest(".ui-popover, .ui-sheet")?.getBoundingClientRect();
+        return (
+          !!box &&
+          box.left >= 0 &&
+          box.top >= 0 &&
+          box.right <= innerWidth &&
+          box.bottom <= innerHeight
+        );
+      }),
+    )
+    .toBe(true);
   await nested.press("ArrowLeft");
   await expect(trigger).toBeFocused();
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
+});
+
+test("a submenu opened from a menu in a compact sheet is on top and can be chosen", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    !["design-compact-boundary", "design-touch"].includes(testInfo.project.name),
+    "Only compact turns the parent menu into a modal sheet.",
+  );
+  await openStory(page, "Menu/SubmenuInPopover");
+  await page.getByRole("button", { name: "Kapitelaktionen" }).click();
+  const trigger = page.getByRole("menuitem", { name: "Verschieben nach" });
+  await trigger.click();
+  await expect(page.getByRole("dialog", { name: "Verschieben nach" })).toBeVisible();
+  const choice = page.getByRole("menuitem", { name: "Akt 1 · Ankunft" });
+  await expect(choice).toBeVisible();
+  // On compact the parent menu is a modal sheet; a submenu below it is visible to the
+  // accessibility tree but not to a finger. Only the topmost element at its centre counts.
+  // The sheet slides in; retry until it has settled, a submenu stuck below never passes.
+  await expect(() => expectCenterHit(choice)).toPass({ timeout: 3_000 });
+  await choice.click();
+  await expect(page.locator("output")).toHaveText("Akt 1 · Ankunft");
+  await expect(page.getByRole("menu")).toHaveCount(0);
 });
 
 test("workspace, tabs and side panels stay usable in narrow hosts", async ({ page }) => {
