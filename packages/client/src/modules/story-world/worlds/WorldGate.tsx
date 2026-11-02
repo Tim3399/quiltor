@@ -5,6 +5,7 @@ import {
   Alert,
   Button,
   ConfirmDialog,
+  Dialog,
   IconButton,
   IRREVERSIBLE_HOLD_MS,
   ScrollArea,
@@ -59,6 +60,7 @@ export function WorldGate({
   const [recentlyDeleted, setRecentlyDeleted] = useState<WorldInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [importChoiceOpen, setImportChoiceOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [manuscriptImportOpen, setManuscriptImportOpen] = useState(false);
   const [worldQuery, setWorldQuery] = useState("");
@@ -145,22 +147,13 @@ export function WorldGate({
             <h2>{t("existingWorlds")}</h2>
             <div className="world-list-actions">
               {onProjectImported && (
-                <>
-                  <Button
-                    icon={<FileText />}
-                    labelOverflow={compact ? "wrap" : undefined}
-                    onClick={() => setManuscriptImportOpen(true)}
-                  >
-                    {t("manuscriptImportButton")}
-                  </Button>
-                  <Button
-                    icon={<Upload />}
-                    labelOverflow={compact ? "wrap" : undefined}
-                    onClick={() => setImportOpen(true)}
-                  >
-                    {t("projectImportButton")}
-                  </Button>
-                </>
+                <Button
+                  icon={<Upload />}
+                  labelOverflow={compact ? "wrap" : undefined}
+                  onClick={() => setImportChoiceOpen(true)}
+                >
+                  {t("importChoiceButton")}
+                </Button>
               )}
               {onLoadTrash && onRestore && onPurge && (
                 <Button
@@ -292,6 +285,43 @@ export function WorldGate({
             </div>
           </form>
         </Sheet>
+      )}
+      {importChoiceOpen && onProjectImported && (
+        <Dialog
+          open
+          title={t("importChoiceTitle")}
+          closeLabel={t("closeDialog")}
+          onClose={() => setImportChoiceOpen(false)}
+        >
+          <ul className="world-import-choice">
+            <li>
+              <SelectionCard
+                label={t("importChoiceManuscript")}
+                title={t("importChoiceManuscript")}
+                description={t("importChoiceManuscriptHelp")}
+                leading={<FileText />}
+                indicator={<ChevronRight />}
+                onSelect={() => {
+                  setImportChoiceOpen(false);
+                  setManuscriptImportOpen(true);
+                }}
+              />
+            </li>
+            <li>
+              <SelectionCard
+                label={t("importChoiceProject")}
+                title={t("importChoiceProject")}
+                description={t("importChoiceProjectHelp")}
+                leading={<Upload />}
+                indicator={<ChevronRight />}
+                onSelect={() => {
+                  setImportChoiceOpen(false);
+                  setImportOpen(true);
+                }}
+              />
+            </li>
+          </ul>
+        </Dialog>
       )}
       {importOpen && onProjectImported && (
         <ProjectImportDialog onImported={onProjectImported} onClose={() => setImportOpen(false)} />

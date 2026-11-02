@@ -244,3 +244,11 @@
     scrollbar-gutter: auto;
   }
 }
+
+.world-import-choice {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

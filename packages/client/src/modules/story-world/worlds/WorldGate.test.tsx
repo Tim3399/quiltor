@@ -45,7 +45,8 @@ describe("WorldGate", () => {
       onProjectImported: vi.fn().mockResolvedValue(undefined),
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Manuskript importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manuskript" }));
 
     expect(screen.getByRole("dialog", { name: "Manuskript importieren" })).toBeInTheDocument();
     expect(screen.getByText(/neues Projekt erstellt/i)).toBeInTheDocument();
@@ -58,9 +59,22 @@ describe("WorldGate", () => {
       onOpen,
       onProjectImported: vi.fn().mockResolvedValue(undefined),
     });
-    fireEvent.click(screen.getByRole("button", { name: "Projekt importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Projekt" }));
     expect(screen.getByRole("dialog", { name: "Quiltor-Projekt importieren" })).toBeInTheDocument();
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("offers a single import button that explains both choices", () => {
+    renderGate([world("paper")], { onProjectImported: vi.fn().mockResolvedValue(undefined) });
+
+    expect(screen.queryByRole("button", { name: "Manuskript importieren" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Projekt importieren" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Importieren" }));
+
+    const choice = screen.getByRole("dialog", { name: "Was möchtest du importieren?" });
+    expect(choice).toHaveTextContent("Word, Markdown");
+    expect(choice).toHaveTextContent("Quiltor-Export mit allem");
   });
 
   it("opens creation as a separate sheet and creates only after submission", () => {
