@@ -130,6 +130,8 @@
         "tools/audit/**",
         "tools/quality/check_visual_baseline_reach.mjs",
         "tools/dev/test-shards.mjs",
+        "tools/dev/design-port.mjs",
+        "tools/dev/design-port.d.mts",
         "tools/dev/playwright-linux.sh"
       ],
       "groups": ["checks", "browser"],

@@ -689,7 +689,7 @@ endpoints, and each closed one holds its port in `TIME_WAIT` for up to two minut
 Both Windows browser jobs, `cross-platform-browser` and `cross-platform-smoke`, therefore run
 `netsh int ipv4 set dynamicport tcp start=10000 num=55535` as their first step: 10000 + 55535
 ends at 65534, the largest range Windows accepts, and 10000 stays clear of the fixed ports the
-suites use (8010, and 4174 for the design server). The step is limited to these two jobs: they are the only
+suites use (8010, and 4174 for the design server, the default of `QUILTOR_DESIGN_PORT`). The step is limited to these two jobs: they are the only
 Windows jobs in `test.yml` that run Playwright, and `cross-platform-native` never showed the
 failure. It runs before checkout, so a refused `netsh` fails the job before anything else
 starts; there is no fallback. `workflow_contract.validate_windows_port_range` requires the step
