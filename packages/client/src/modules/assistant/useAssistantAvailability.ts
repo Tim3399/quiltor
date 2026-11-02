@@ -8,6 +8,8 @@ export type AssistantAvailability = {
   available: boolean;
   reason: string;
   installed: boolean;
+  /** False when the server's operator installs the assistant; missing means true. */
+  installable?: boolean;
   chunks: number;
 };
 

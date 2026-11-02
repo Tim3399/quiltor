@@ -16,8 +16,8 @@ import {
   MenuItem,
   MenuSeparator,
   TextField,
-  ToolbarButton,
   Toast,
+  ToolbarButton,
   UndoRedoControls,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
@@ -28,6 +28,7 @@ import {
 import { useI18n } from "../../../i18n";
 import { applicationErrorMessage } from "../../../platform";
 import type { FigureKind, FigureState } from "../model";
+import { countBoardElements } from "./figureCanvasModel";
 import { parseFigureState, saveFigureProfiles, saveFigureState } from "./figureTransfer";
 import { FIGURE_ELEMENT_TYPES } from "./figureTypes";
 import "./FigureToolbar.css";
@@ -102,7 +103,7 @@ export function FigureToolbar({
           title={t("figuresWorld")}
           detail={
             <>
-              {t("nElements", { n: state.nodes.length })} ·{" "}
+              {t("nElements", { n: countBoardElements(state.nodes) })} ·{" "}
               {t("nRelationships", { n: state.edges.length })}
             </>
           }

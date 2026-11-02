@@ -142,6 +142,7 @@ EVENTS: dict[str, frozenset[str]] = {
         {"request_id", "code", "sqlite_code", "sqlite_name", "errno", "errno_name"}
     ),
     "logging.configured": frozenset({"log_level", "file"}),
+    "install.forbidden_hosted": frozenset({"request_id", "route"}),
 }
 
 # Events written before the schema existed. Their fields are not filtered, so their

@@ -54,6 +54,22 @@ function expectStructuredItems(menu: HTMLElement) {
   }
 }
 
+describe("FigureToolbar element count", () => {
+  it("counts the same elements as the list, leaving map sheets out", () => {
+    renderToolbar({
+      state: {
+        nodes: [
+          ...state.nodes,
+          { id: "karte", x: 0, y: 200, name: "Nordhafen", type: "ort", mapImageId: "bild-1" },
+        ],
+        edges: state.edges,
+      },
+    });
+    expect(screen.getByText(/2 Elemente/)).toBeInTheDocument();
+    expect(screen.queryByText(/3 Elemente/)).not.toBeInTheDocument();
+  });
+});
+
 describe("FigureToolbar menus", () => {
   it("keeps every visible action inside the shared scrollable toolbar contract", () => {
     renderToolbar();
