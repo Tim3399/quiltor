@@ -433,10 +433,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self.rfile.read(length)
 
     def _discard_unread_body(self) -> None:
-        """Read and drop a small body that no route will read, so the close does not
+        """Read and drop a small body that no route has read, so the close does not
         reset the connection; see REFUSED_BODY_DISCARD_LIMIT. Anything unbounded,
-        invalid or slow is left unread. Call it only on answers given before a route
-        handler ran -- a handler may already have read the body."""
+        invalid or slow is left unread. Called for refusals before a route runs, and
+        after a route that answered or raised without reading the body -- only when
+        `_request_body_read` is still false, since a read body is gone from the socket
+        and waiting for it again would stall until the deadline."""
         if self.headers.get("Transfer-Encoding"):
             return
         try:
@@ -705,6 +707,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self._response_status = 0
         self._error_code = None
         self._bytes_out = 0
+        self._request_body_read = False
         requested_path = self.path.split("?", 1)[0]
         # From the registry or a fixed bucket, never from the path itself: a path is
         # whatever the client sent.
@@ -726,6 +729,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try:
                 self._dispatch_request(table, on_miss=on_miss)
             except Exception as exc:
+                if not self._request_body_read:
+                    # A handler that raises before reading (an invalid upload type, a
+                    # conflict, a crash) leaves the body in the socket like a plain
+                    # refusal does; drained before the 4xx or 500 below goes out.
+                    self._discard_unread_body()
                 self.application.observability.metrics.increment(
                     "http_requests_total",
                     method=self.command,
@@ -824,7 +832,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # from a foreign Host or Origin is refused outright, so a cross-site
         # page never gets as far as borrowing the local user's session.
         self._pending_cookies = []
-        self._request_body_read = False
         # Both are per-request state on an object that http.server may reuse for
         # a second request on the same connection; cleared together so a bounce
         # can never leak into the request after it.
