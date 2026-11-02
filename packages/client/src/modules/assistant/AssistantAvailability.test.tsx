@@ -32,6 +32,15 @@ describe("assistant availability and installation", () => {
     expect(screen.queryByText("Erneut versuchen")).not.toBeInTheDocument();
   });
 
+  it("shows the operator note instead of an install button when the server is not installable", async () => {
+    vi.mocked(api.status).mockResolvedValue({ ...NOT_INSTALLED, installable: false });
+    setup();
+    await screen.findByText("Lokales Modell nicht erreichbar");
+    expect(screen.getByText("Wird vom Betreiber eingerichtet")).toBeInTheDocument();
+    expect(screen.queryByText("Jetzt einrichten")).not.toBeInTheDocument();
+    expect(api.install).not.toHaveBeenCalled();
+  });
+
   it("shows installation progress with an accessible progress bar", async () => {
     vi.mocked(api.status).mockResolvedValue(NOT_INSTALLED);
     vi.mocked(api.installStatus)

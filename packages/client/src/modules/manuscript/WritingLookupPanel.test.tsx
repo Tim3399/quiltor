@@ -67,6 +67,42 @@ describe("WritingLookupPanel", () => {
     expect(onApplyValue).toHaveBeenCalledWith("laufen");
   });
 
+  it.each([
+    [false, "Wird vom Betreiber eingerichtet", "Sprachdaten installieren"],
+    [true, "Sprachdaten installieren", "Wird vom Betreiber eingerichtet"],
+  ])("with installable %s shows %s and not %s", (installable, shown, hidden) => {
+    render(
+      <TestProviders>
+        <WritingLookupPanel
+          selectionTool="lookup"
+          writingLocale="de-DE"
+          writingQuery="gehen"
+          status={{
+            ok: true,
+            installed: false,
+            installable,
+            stale: false,
+            version: null,
+            sources: {},
+          }}
+          results={[]}
+          phase="idle"
+          replaceTarget={false}
+          lookupSources={["dictionary"]}
+          onWritingQuery={vi.fn()}
+          onRunLookup={vi.fn()}
+          onChooseTool={vi.fn()}
+          onLocale={vi.fn()}
+          onInstallData={vi.fn()}
+          onApplyValue={vi.fn()}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.getByText(shown)).toBeVisible();
+    expect(screen.queryByText(hidden)).not.toBeInTheDocument();
+  });
+
   it("uses the shared progress contract while a request is running", () => {
     render(
       <TestProviders>

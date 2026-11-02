@@ -40,6 +40,8 @@ export const SHARED_FEATURE_CLASSES = Object.freeze({
   "focus-side-toggle": "Described in FocusPanels.css, rendered by WorkspaceLayout.",
   "focus-helper-toggle": "Second tab of that same focus strip, the same division.",
   "writing-data-state": "Result display of the writing aid, shared by lookup and checking.",
+  "writing-data-state__note":
+    "The operator note that replaces an install button, shared by lookup and checking.",
   "writing-values": "List of hits inside that same result display.",
   "writing-value": "A single hit inside that same result display.",
   "writing-attribution": "Source note beneath that same result display.",

@@ -7,6 +7,7 @@ before the route runs and before any body is read; locally it runs as before.
 
 import json
 import unittest
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.delivery.http import routes as api_routes
@@ -47,11 +48,13 @@ class OperatorOnlyTableTest(unittest.TestCase):
 class _InstallStubs(_LiveServer):
     def setUp(self):
         super().setUp()
-        self.application.assistant_installation = MagicMock()
-        self.application.assistant_installation.start_async.return_value = True
-        self.application.writing_assistance = MagicMock()
-        self.application.writing_assistance.install.return_value = {"ok": True}
-        self.application.writing_assistance.install_grammar.return_value = {"ok": True}
+        self.installation = MagicMock()
+        self.installation.start_async.return_value = True
+        self.writing = MagicMock()
+        self.writing.install.return_value = {"ok": True}
+        self.writing.install_grammar.return_value = {"ok": True}
+        self.application.assistant_installation = self.installation
+        self.application.writing_assistance = self.writing
 
     def installer(self, path):
         owner, method = INSTALL_ENDPOINTS[path]
@@ -96,12 +99,12 @@ class LocalInstallTest(_InstallStubs):
 class InstallableStatusTest(_InstallStubs):
     def setUp(self):
         super().setUp()
-        self.application.writing_assistance.status.return_value = {
+        self.writing.status.return_value = {
             "installed": False,
             "grammar": {"installed": False, "available": False},
         }
-        self.application.assistant.status.return_value = {"available": False}
-        self.application.assistant_installation.is_configured.return_value = False
+        cast(MagicMock, self.application.assistant).status.return_value = {"available": False}
+        self.installation.is_configured.return_value = False
 
     def statuses(self):
         _, _, writing = self.request("GET", "/api/writing-assistance/status")
