@@ -30,6 +30,7 @@ from unittest.mock import MagicMock, patch
 
 from quiltor.application.backups import BackupGatewayError
 from quiltor.delivery.http import routes as api_routes
+from quiltor.infrastructure.backup import adapters as backup_adapters
 from quiltor.infrastructure.observability import StdlibStructuredLogger
 from quiltor.infrastructure.observability import schema as log_schema
 from tests.python.test_server_logging import _LiveServer
@@ -354,6 +355,23 @@ class _PrivacyServer(_LiveServer):
             complete_login.side_effect = RuntimeError(f"{text} {path}")
             self.request("GET", f"/backup/callback?code={CANARIES['oidc_token']}&state={path}")
 
+    def scenario_backup_remote(self):
+        # The gateway's own line when a call to the endpoint fails, with the author's text,
+        # a world-named path and the token in the exception (T-123). It runs on the
+        # server's logger; the capability check is stubbed, the request never leaves.
+        text, path = CANARIES["exception"], CANARIES["file_path"]
+        capabilities = MagicMock()
+        capabilities.is_available.return_value = True
+        gateway = backup_adapters.HttpRemoteBackupGateway(
+            f"https://{path}.example",
+            capabilities,
+            structured_logger=self.application.observability.logger,
+        )
+        failure = RuntimeError(f"{text} {path} {CANARIES['api_key']}")
+        with patch.object(backup_adapters.remote, "worlds", side_effect=failure):
+            with self.assertRaises(RuntimeError):
+                gateway.worlds(f"https://{path}.example", MagicMock())
+
     SCENARIOS = (
         "scenario_content",
         "scenario_rejected_saves",
@@ -364,6 +382,7 @@ class _PrivacyServer(_LiveServer):
         "scenario_storage",
         "scenario_operator_only",
         "scenario_backup",
+        "scenario_backup_remote",
     )
 
 
@@ -429,6 +448,30 @@ class ServerLogPrivacyTests(_PrivacyServer):
         logger = self.application.observability.logger
         for name in sorted(BACKUP_FAILURES):
             logger.event("warning", name, error_type="OSError", path=CANARIES["file_path"])
+        self.assert_clean()
+
+    def test_a_failed_backup_request_logs_its_operation_and_error_type_only(self):
+        self.scenario_backup_remote()
+        lines = [line for line in self.parsed() if line["event"] == "backup.remote_request_failed"]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertEqual(line["operation"], "worlds")
+            self.assertEqual(line["error_type"], "RuntimeError")
+            self.assertLessEqual(
+                set(line) - {"event", "level", "timestamp"},
+                {"request_id", "operation", "error_type"},
+            )
+        self.assert_clean()
+
+    def test_a_failed_backup_request_drops_a_field_it_does_not_list(self):
+        # The guard itself: a future caller that hands over the endpoint gets it filtered.
+        self.application.observability.logger.event(
+            "warning",
+            "backup.remote_request_failed",
+            operation="worlds",
+            error_type="OSError",
+            endpoint=f"https://{CANARIES['file_path']}.example",
+        )
         self.assert_clean()
 
     def test_every_event_is_written_and_none_carries_a_canary(self):

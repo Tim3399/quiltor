@@ -106,6 +106,8 @@ FIELD_RULES: dict[str, Callable[[Any], Any | None]] = {
     "expected": _integer,
     "actual": _integer,
     "error_type": _matching(_IDENTIFIER_RE, 128),
+    # A name the code chose (push, worlds, fetch_blob, ...), never an endpoint or a world.
+    "operation": _matching(_IDENTIFIER_RE, 64),
     "traceback": _text(MAX_TRACEBACK),
     "sqlite_code": _integer,
     "sqlite_name": _matching(_IDENTIFIER_RE, 128),
@@ -159,6 +161,10 @@ EVENTS: dict[str, frozenset[str]] = {
         ),
         frozenset({"request_id", "error_type"}),
     ),
+    # infrastructure/backup/adapters.py, when a call to the backup endpoint fails: which
+    # call and the exception's type. The endpoint, the credentials and the exception's
+    # text stay out (T-123).
+    "backup.remote_request_failed": frozenset({"request_id", "operation", "error_type"}),
 }
 
 # Events written before the schema existed. Their fields are not filtered, so their
@@ -167,7 +173,6 @@ LEGACY_EVENTS: frozenset[str] = frozenset(
     {
         "identity.token_exchange_failed",
         "place_map.upload_rejected",
-        "backup.remote_request_failed",
         "assistant.worker_failed",
         "assistant.job_completed",
         "assistant.interaction_log_failed",
