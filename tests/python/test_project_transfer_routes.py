@@ -32,6 +32,9 @@ class Handler:
         self.response_headers = {}
         self.json = None
 
+    def read_request_body(self, length: int) -> bytes:
+        return self.rfile.read(length)
+
     def send_response(self, status: int) -> None:
         self.status = status
 
