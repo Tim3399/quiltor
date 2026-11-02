@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Dialog } from "../Dialog";
 import { ListboxSelect } from "./ListboxSelect";
 
 const options = [
@@ -19,6 +20,17 @@ const longOptions = [
 export function Default() {
   const [value, setValue] = useState<(typeof options)[number]["value"]>("de");
   return <ListboxSelect label="Sprache" value={value} options={options} onChange={setValue} />;
+}
+
+// A Dialog sits at --z-modal while the listbox portals to the body. The popover layer has to
+// stay above the modal layer, or the options render behind the dialog and cannot be clicked.
+export function InDialog() {
+  const [value, setValue] = useState<(typeof options)[number]["value"]>("de");
+  return (
+    <Dialog title="Sprache wählen" closeLabel="Dialog schließen" onClose={() => undefined}>
+      <ListboxSelect label="Sprache" value={value} options={options} onChange={setValue} />
+    </Dialog>
+  );
 }
 
 export function Disabled() {
