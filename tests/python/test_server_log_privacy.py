@@ -25,8 +25,9 @@ import sys
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from quiltor.delivery.http import routes as api_routes
 from quiltor.infrastructure.observability import StdlibStructuredLogger
@@ -228,6 +229,45 @@ class _PrivacyServer(_LiveServer):
         with patch.object(identity, "resolve", return_value=None):
             self.assertEqual(self.request("GET", self.manuscript_path(), headers=cookie)[0], 401)
 
+    def scenario_login_without_roles(self):
+        """An OIDC login whose ID token carries no role claims (T-58 G0). The provider
+        side is faked: only the callback's own logging is under test here."""
+        identity = self.application.identity
+        sub = "sub-0f3a"
+        session = SimpleNamespace(session_id="login-session", sub=sub, roles=())
+        fake = MagicMock()
+        fake.consume_pending_login.return_value = {
+            "verifier": "v",
+            "redirect_uri": "http://127.0.0.1/auth/callback",
+            "nonce": "n",
+        }
+        fake.exchange_code.return_value = {"id_token": CANARIES["oidc_token"]}
+        fake.verify_id_token.return_value = {
+            "sub": sub,
+            "email": f"{CANARIES['email']}@example.org",
+            "name": CANARIES["name"],
+        }
+        fake.create_session.return_value = session.session_id
+        fake.get_session.return_value = session
+        fake.store_session_tokens.return_value = session
+        fake.session_ttl = 60
+        state = "state0f3a"
+        with (
+            patch.object(identity, "multi_user", True),
+            patch.object(identity, "auth", fake),
+        ):
+            status = self.request(
+                "GET",
+                f"/auth/callback?code=c&state={state}",
+                headers={"Cookie": f"quiltor_login_state={state}"},
+            )[0]
+        self.assertEqual(status, 302)
+        hints = [line for line in self.parsed() if line["event"] == "identity.login_without_roles"]
+        self.assertTrue(hints)
+        for line in hints:
+            self.assertEqual(line["sub"], sub)
+            self.assertIs(line["roles_claim_present"], False)
+
     def scenario_worlds(self):
         self.assertEqual(self.request("GET", self.manuscript_path(CANARIES["query_world"]))[0], 400)
         self.assertEqual(self.request("GET", self.manuscript_path(UNRESOLVED_WORLD))[0], 404)
@@ -298,6 +338,7 @@ class _PrivacyServer(_LiveServer):
         "scenario_rejected_saves",
         "scenario_query_and_headers",
         "scenario_sessions",
+        "scenario_login_without_roles",
         "scenario_worlds",
         "scenario_unhandled",
         "scenario_storage",
@@ -320,6 +361,10 @@ class ServerLogPrivacyTests(_PrivacyServer):
 
     def test_a_session_contributes_its_sub_and_nothing_else(self):
         self.scenario_sessions()
+        self.assert_clean()
+
+    def test_a_login_without_roles_logs_its_sub_but_no_email_name_or_token(self):
+        self.scenario_login_without_roles()
         self.assert_clean()
 
     def test_an_unresolved_world_is_named_only_where_it_failed(self):
