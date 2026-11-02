@@ -673,10 +673,21 @@ R7 37113154094, R8 37111931104, R9 34236701740, R10 34098759267.
 | I2   | Frontend on linux             | `npm run check`, link `check:format`                                                                             | `failed to install component: 'clippy-preview-x86_64-unknown-linux-gnu', detected conflict: 'bin/cargo-clippy'` | 41190689350     | `setup` installs the toolchain with rustfmt only; `rust-toolchain.toml` also asks for clippy, so the first cargo call has rustup add it. Since the links run in parallel, two cargo calls did that at once and one lost                       | `tools/dev/run-check.mjs` runs `rustup toolchain install --no-self-update` once, serially, before the links, whenever a cargo link (`RUST_LINKS`) is selected (T-76); no retry                          |
 | F7   | Browser on macos              | `editor-session-state` "Returning to Text restores the edited chapter, cursor, scroll and input focus" (compact) | `scrollTop` 5863, expected 5880 (17 px short)                                                                   | 41185881579     | `finishRestore` in `packages/client/src/modules/manuscript/EditorSurface.tsx` (lines 336-350) writes `scrollTop` exactly once; a later height correction by CodeMirror shifts the content by about 17 px and the position no longer matches   | Known, not fixed: T-75 fixes it after T-69 lands (anchor instead of pixel offset). No tolerance in the test.                                                                                            |
 | F8   | Browser on macos              | `visual-baseline` dark-assistant compact                                                                         | 17078 px (6 %); the assistant sheet 526 px below its place, backdrop complete                                   | 41194493626     | `toBeVisible` holds from the first frame of the sheet's `ui-sheet-up` slide (220 ms), so the capture started mid-slide; Playwright's `finish()` did not reach the macOS capture, both attempts showed the same frame. Not product behaviour   | wait for the sheet's own animations to finish (`animation.finished`) before the capture (T-77); no tolerance, no retry                                                                                  |
+| L4   | local Windows                 | layout audit `workspace.text/popover.entity-mention`, tablet                                                     | hover card not visible 5 s after the hover                                                                      |                 |                                                                                                                                                                                                                                               |                                                                                                                                                                                                         |
 
 The macOS cases F3, F5 and F6 come from the old unsharded macOS job; whether they still occur
 after T-33 is open. None of the fixes adds a general retry: F2 is the one single-case reload,
 limited to one failure text and recorded in the report whenever it fires.
+
+### L4: the text column reflowed after the editor appeared (T-115)
+
+The capture step measured "Mara Venn" as soon as "Kapiteltext" was visible. In about one run in
+eight the first paint still showed the default panels: `useWorkspaceLayout` loaded the stored
+layout in an effect, so for 40-60 ms the text column was 154 px wide instead of 434 px and the
+name sat elsewhere. CodeMirror's hover checks the pointer 300 ms after the last move, found
+plain text there and never opened the card. CPU throttling did not reproduce it; tracing the
+column width per frame did. The stored layout is now read while rendering, so the first paint is
+the final one. The audit step is unchanged and has no retry.
 
 ### F2: the cause, a port range too small
 
