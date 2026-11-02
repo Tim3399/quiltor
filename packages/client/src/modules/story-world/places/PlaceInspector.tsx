@@ -134,6 +134,8 @@ export function PlaceInspector({
               <Button
                 className="places-display-action"
                 appearance="secondary"
+                // The label carries the place's name, so it wraps instead of being cut (T-124).
+                labelOverflow="wrap"
                 icon={selected.placeDisplay === "pin" ? <ChevronsUpDown /> : <ChevronsDownUp />}
                 onClick={() =>
                   (onPlaceDisplayChange ?? ((_, display) => onPatch({ placeDisplay: display })))(
