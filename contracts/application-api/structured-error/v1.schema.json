@@ -17,6 +17,11 @@
       "type": "object",
       "additionalProperties": true
     },
-    "retryable": { "type": "boolean" }
+    "retryable": { "type": "boolean" },
+    "requestId": {
+      "description": "The id of the request that failed, as the server logged it. Optional: an error built outside a request has none.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{8,64}$"
+    }
   }
 }

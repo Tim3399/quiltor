@@ -86,7 +86,7 @@ def validate_checksum(path: Path, checksum: str) -> bool:
 def install(path: Path) -> dict:
     temporary = path.with_suffix(".installing")
     temporary.unlink(missing_ok=True)
-    conn = initialize(temporary, MANIFEST_VERSION)
+    conn = initialize(temporary, MANIFEST_VERSION, "core")
     try:
         for row in CORE:
             insert(conn, *row)
@@ -114,7 +114,7 @@ def install_from_sources(path: Path, sources: dict[str, Path], source_manifest: 
             raise ValueError(f"checksum mismatch: {name}")
     temporary = path.with_suffix(".installing")
     temporary.unlink(missing_ok=True)
-    conn = initialize(temporary, MANIFEST_VERSION)
+    conn = initialize(temporary, MANIFEST_VERSION, "full")
     count = 0
     try:
         with (

@@ -142,6 +142,54 @@ describe("HTTP application errors", () => {
     });
   });
 
+  function failing(body: unknown, headers: Record<string, string> = {}) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...headers },
+        }),
+      ),
+    );
+    return requestJson("/api/manuscript");
+  }
+
+  it("carries the server request id from the error body", async () => {
+    await expect(
+      failing(
+        { ok: false, error: { code: "document.invalid_wire", requestId: "k3f9q2m8x1c7v4za" } },
+        { "X-Request-Id": "headerid12345678" },
+      ),
+    ).rejects.toMatchObject({ code: "document.invalid_wire", requestId: "k3f9q2m8x1c7v4za" });
+  });
+
+  it("falls back to the X-Request-Id header when the body carries none", async () => {
+    await expect(
+      failing(
+        { ok: false, error: { code: "document.invalid_wire" } },
+        { "X-Request-Id": "headerid12345678" },
+      ),
+    ).rejects.toMatchObject({ requestId: "headerid12345678" });
+  });
+
+  it("falls back to the header when the body request id breaks the pattern", async () => {
+    await expect(
+      failing(
+        { ok: false, error: { code: "document.invalid_wire", requestId: "bad id with spaces" } },
+        { "X-Request-Id": "headerid12345678" },
+      ),
+    ).rejects.toMatchObject({ requestId: "headerid12345678" });
+  });
+
+  it("leaves the request id empty when neither source is valid", async () => {
+    const error = await failing({ ok: false }, { "X-Request-Id": "short" }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toMatchObject({ code: "invalid_request" });
+    expect((error as { requestId?: string }).requestId).toBeUndefined();
+  });
+
   it.each([
     ["storage.read_only", "Speicher ist schreibgeschützt."],
     ["storage.full", "Nicht genug Speicherplatz."],

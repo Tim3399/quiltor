@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../i18n";
 import {
   quiltorClient,
@@ -11,6 +11,7 @@ import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
 import { addDeterministicMentions, scanEntityMentions } from "./mentions";
 import type { Chapter, EntityMention, Manuscript, TextMark, WritingIssue } from "./model";
 import type { HelperMode, WorkspaceSelection, WritingTool } from "./workspaceTypes";
+import { writingAssistanceErrorMessage } from "./writingAssistanceErrors";
 
 interface WritingAssistanceOptions {
   selectionKey: string;
@@ -60,11 +61,16 @@ export function useWritingAssistance({
   const [status, setStatus] = useState<WritingAssistanceStatus | null>(null);
   const [results, setResults] = useState<WritingAssistanceLookupResult[]>([]);
   const [phase, setPhase] = useState<"idle" | "loading" | "installing" | "error">("idle");
+  // The text shown while `phase` is "error"; it names what failed instead of one
+  // sentence for every cause.
+  const [lookupError, setLookupError] = useState("");
+  const [statusFailed, setStatusFailed] = useState(false);
   const [grammarIssues, setGrammarIssues] = useState<WritingIssue[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<WritingIssue | null>(null);
   const [grammarPhase, setGrammarPhase] = useState<
     "idle" | "checking" | "installing" | "unavailable" | "error"
   >("idle");
+  const [grammarError, setGrammarError] = useState("");
   // biome-ignore lint/correctness/useExhaustiveDependencies: the vocabulary only reads `manuscript.words`; depending on the whole manuscript would rebuild it on every keystroke
   const vocabulary = useMemo(
     () => writingVocabulary(manuscript, figures),
@@ -96,13 +102,26 @@ export function useWritingAssistance({
     grammarRequest.current?.abort();
   }, [selectionKey]);
 
-  useEffect(() => {
+  // Without a status the panels cannot tell installed from missing, so a failed
+  // request is shown with a way to ask again rather than left as an empty panel.
+  const loadStatus = useCallback(() => {
     void quiltorClient.application.writingAssistance
       .status()
-      .then(setStatus)
-      .catch(() => setPhase("error"));
-    return () => lookupRequest.current?.abort();
+      .then((next) => {
+        setStatus(next);
+        setStatusFailed(false);
+      })
+      .catch(() => setStatusFailed(true));
   }, []);
+  const retryStatus = () => {
+    setStatusFailed(false);
+    loadStatus();
+  };
+
+  useEffect(() => {
+    loadStatus();
+    return () => lookupRequest.current?.abort();
+  }, [loadStatus]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the selection fields are triggers: a changed writing selection aborts the lookup that belongs to the old one
   useEffect(
@@ -169,6 +188,7 @@ export function useWritingAssistance({
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        setLookupError(writingAssistanceErrorMessage(error, "lookup", t));
         setPhase("error");
       });
   };
@@ -218,7 +238,10 @@ export function useWritingAssistance({
         setStatus(nextStatus);
         setPhase("idle");
       })
-      .catch(() => setPhase("error"));
+      .catch((error) => {
+        setLookupError(writingAssistanceErrorMessage(error, "lookup", t));
+        setPhase("error");
+      });
   };
   const applyValue = (text: string) => {
     if (!replaceTarget) return insert(text);
@@ -234,6 +257,8 @@ export function useWritingAssistance({
       setWritingSelection(null);
     }
   };
+  const grammarErrorMessage = (error: unknown) =>
+    writingAssistanceErrorMessage(error, "grammar", t, status?.grammar?.javaRequired);
   const projectWords = () => [
     ...(manuscript.words || []).map((item) => (typeof item === "string" ? item : item.w)),
     ...figures.nodes.map((node) => node.name),
@@ -264,6 +289,7 @@ export function useWritingAssistance({
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        setGrammarError(grammarErrorMessage(error));
         setGrammarPhase("error");
       });
   };
@@ -276,7 +302,10 @@ export function useWritingAssistance({
         setStatus(nextStatus);
         setGrammarPhase("idle");
       })
-      .catch(() => setGrammarPhase("error"));
+      .catch((error) => {
+        setGrammarError(grammarErrorMessage(error));
+        setGrammarPhase("error");
+      });
   };
   const applyIssue = (issue: WritingIssue, replacement: string) => {
     if (
@@ -355,11 +384,15 @@ export function useWritingAssistance({
     status,
     results,
     phase,
+    lookupError,
+    statusFailed,
+    retryStatus,
     lookupSources: [...new Set(results.map((result) => result.source))],
     grammarIssues,
     selectedIssue,
     setSelectedIssue,
     grammarPhase,
+    grammarError,
     vocabulary,
     ambiguousMentions,
     insert,

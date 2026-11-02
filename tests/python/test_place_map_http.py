@@ -46,6 +46,14 @@ def _jpeg(width: int, height: int) -> bytes:
     return b"\xff\xd8" + application_segment + frame + b"\xff\xd9"
 
 
+_PARSER_REJECTION_FIELDS = ("method", "route", "error_type", "reason", "transfer_encoding_present")
+
+
+def _calls(event, name: str):
+    """The mocked logger's calls for one event; every request also writes http.access."""
+    return [call for call in event.call_args_list if call.args[1:2] == (name,)]
+
+
 class PlaceMapHttpTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -121,14 +129,19 @@ class PlaceMapHttpTests(unittest.TestCase):
 
         self.assertEqual(status, 400)
         self.assertEqual(json.loads(raw)["error"]["code"], "request.invalid")
-        event.assert_called_once_with(
-            "error",
-            "http.request_failed",
-            method="POST",
-            route="/api/place-maps",
-            error_type="RequestBodyRejected",
-            reason=expected_reason,
-            transfer_encoding_present=transfer_encoding_present,
+        unhandled = _calls(event, "http.unhandled")
+        self.assertEqual(len(unhandled), 1)
+        level, _ = unhandled[0].args
+        self.assertEqual(level, "error")
+        self.assertEqual(
+            {key: unhandled[0].kwargs[key] for key in _PARSER_REJECTION_FIELDS},
+            {
+                "method": "POST",
+                "route": "/api/place-maps",
+                "error_type": "RequestBodyRejected",
+                "reason": expected_reason,
+                "transfer_encoding_present": transfer_encoding_present,
+            },
         )
         return event
 
@@ -231,12 +244,13 @@ class PlaceMapHttpTests(unittest.TestCase):
                     status, response, _ = self._json_request("POST", self.upload_path, payload)
                 self.assertEqual(status, 400)
                 self.assertEqual(response["error"]["code"], expected_code)
-                event.assert_called_once_with(
-                    "warning",
-                    "place_map.upload_rejected",
-                    error_code=expected_code,
-                )
-                rendered_event = repr(event.call_args_list)
+                rejections = _calls(event, "place_map.upload_rejected")
+                self.assertEqual(len(rejections), 1)
+                self.assertEqual(rejections[0].args, ("warning", "place_map.upload_rejected"))
+                self.assertEqual(rejections[0].kwargs, {"error_code": expected_code})
+                # The request's own http.* lines carry the resolved world by design;
+                # the route's event must not repeat it or any of the upload.
+                rendered_event = repr(rejections)
                 self.assertNotIn(self.world_id, rendered_event)
                 self.assertNotIn("private-image-data", rendered_event)
 

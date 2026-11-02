@@ -606,6 +606,7 @@ export function App() {
             phase={activeSave.phase}
             savedAt={activeSave.savedAt}
             error={activeSave.error}
+            errorId={activeSave.errorId}
             warning={mirrorWarnings[activeSaveFamily] ? t("backupMirrorFailed") : undefined}
             retry={activeSave.retry}
             onRecover={() => setRecoveryFamily(activeSaveFamily)}

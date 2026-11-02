@@ -287,6 +287,27 @@ for (const theme of ["light", "dark"] as const) {
     ]) {
       await expect(guide.getByRole("heading", { name: title, exact: true })).toBeVisible();
     }
+    const rows = await guide.locator(".getting-started-guide__tasks section").evaluateAll((all) =>
+      all.map((row) => {
+        const icon = row.querySelector("svg")?.getBoundingClientRect();
+        const heading = row.querySelector("h3");
+        const button = row.querySelector("button")?.getBoundingClientRect();
+        if (!icon || !heading || !button) throw new Error("Guide row is incomplete");
+        const range = document.createRange();
+        range.selectNodeContents(heading);
+        const firstLine = range.getClientRects()[0];
+        return {
+          buttonWidth: button.width,
+          iconCenter: icon.top + icon.height / 2,
+          firstLineCenter: firstLine.top + firstLine.height / 2,
+        };
+      }),
+    );
+    expect(rows).toHaveLength(4);
+    for (const row of rows) {
+      expect(Math.abs(row.buttonWidth - rows[0].buttonWidth)).toBeLessThanOrEqual(1);
+      expect(Math.abs(row.iconCenter - row.firstLineCenter)).toBeLessThanOrEqual(1);
+    }
     const guideAccessibility = await new AxeBuilder({ page })
       .include('[role="dialog"]')
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])

@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /*
@@ -21,6 +22,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CLIENT_PORT = Number(process.env.QUILTOR_DEV_PORT ?? 5173);
 const API_PORT = Number(process.env.QUILTOR_API_PORT ?? 8010);
 const WINDOWS = process.platform === "win32";
+// The structured server log goes to a scratch file, so the product suite can look an error id
+// up in it: run it with PLAYWRIGHT_SERVER_LOG set to this path (save-error-id.spec.ts).
+const SERVER_LOG =
+  process.env.QUILTOR_LOG_FILE || join(tmpdir(), "quiltor-workshop", "quiltor-structured.log");
 
 /**
  * A Python that actually starts.
@@ -141,7 +146,7 @@ children.push(
     python,
     [...prefix, "apps/web/server.py", String(API_PORT), "--no-open"],
     // Without src on the path the server cannot find the package unless it is installed.
-    { PYTHONPATH: "src", PYTHONIOENCODING: "utf-8" },
+    { PYTHONPATH: "src", PYTHONIOENCODING: "utf-8", QUILTOR_LOG_FILE: SERVER_LOG },
   ),
 );
 
@@ -149,6 +154,7 @@ if (!(await waitFor(`http://127.0.0.1:${API_PORT}/api/version`, "The API server"
   shutDown(1);
 }
 console.log(`API ready on http://127.0.0.1:${API_PORT}`);
+console.log(`Server log: ${SERVER_LOG} (PLAYWRIGHT_SERVER_LOG for the product suite)`);
 
 children.push(
   start("web", WINDOWS ? "npx.cmd" : "npx", [

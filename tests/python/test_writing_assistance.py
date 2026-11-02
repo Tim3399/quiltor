@@ -13,6 +13,7 @@ from quiltor.infrastructure.persistence.writing_assistance import (
 )
 from quiltor.infrastructure.writing_assistance.installer import (
     CoreWritingAssistanceInstaller,
+    install_from_sources,
     validate_checksum,
 )
 from quiltor.modules.writing_assistance.grammar import UnavailableGrammar
@@ -101,6 +102,67 @@ class WritingAssistanceServiceTests(unittest.TestCase):
             b'<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><entry><form><orth>Haus</orth></form><gramGrp><pos>n</pos></gramGrp><sense><cit><quote>house</quote></cit></sense></entry></text></TEI>'
         )
         self.assertEqual(next(iter(parse_freedict(tei, "de-DE", "en-GB")))["values"], ["house"])
+
+    def test_status_reports_coverage_of_the_installed_vocabulary(self):
+        self.assertIsNone(self.service.status()["coverage"])
+        self.service.install()
+        self.assertEqual(self.service.status()["coverage"], "core")
+
+    def test_database_from_before_coverage_counts_as_core(self):
+        self.service.install()
+        with closing(sqlite3.connect(self.repository.path)) as conn:
+            with conn:
+                conn.execute("DELETE FROM metadata WHERE key='coverage'")
+        self.assertEqual(self.service.status()["coverage"], "core")
+
+    def test_stale_database_reports_no_coverage(self):
+        self.service.install()
+        with closing(sqlite3.connect(self.repository.path)) as conn:
+            with conn:
+                conn.execute("UPDATE metadata SET value='old' WHERE key='version'")
+        self.assertIsNone(self.service.status()["coverage"])
+
+    def test_import_from_upstream_sources_reports_full_coverage(self):
+        import gzip
+        import hashlib
+        import tarfile
+        import zipfile
+
+        base = Path(self.temp.name)
+        thesaurus = base / "thesaurus.zip"
+        with zipfile.ZipFile(thesaurus, "w") as archive:
+            archive.writestr("openthesaurus.txt", "schnell;rasch\n")
+        wiktionary = base / "wiktionary.jsonl.gz"
+        with gzip.open(wiktionary, "wt", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "lang_code": "de",
+                        "word": "Baum",
+                        "pos": "noun",
+                        "senses": [{"glosses": ["Pflanze"]}],
+                    }
+                )
+                + "\n"
+            )
+        tei = (
+            b'<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><entry><form><orth>Baum</orth></form>'
+            b"<sense><cit><quote>tree</quote></cit></sense></entry></text></TEI>"
+        )
+        sources = {"openthesaurus": thesaurus, "wiktionary": wiktionary}
+        for name in ("freedict-deu-eng", "freedict-eng-deu"):
+            path = base / f"{name}.tar.bz2"
+            with tarfile.open(path, "w:bz2") as archive:
+                info = tarfile.TarInfo("dict/dict.tei")
+                info.size = len(tei)
+                archive.addfile(info, io.BytesIO(tei))
+            sources[name] = path
+        manifest = {
+            name: {"checksum": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()}
+            for name, path in sources.items()
+        }
+        install_from_sources(self.repository.path, sources, manifest)
+        self.assertEqual(self.service.status()["coverage"], "full")
 
     def test_checksum_validation_rejects_stale_data(self):
         path = Path(self.temp.name) / "source"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -17,6 +18,12 @@ from pathlib import Path
 from typing import cast
 
 from quiltor.infrastructure.platform import process_supervisor, system
+from quiltor.modules.writing_assistance.errors import (
+    ChecksumMismatch,
+    DownloadFailed,
+    GrammarStartFailed,
+    JavaMissing,
+)
 from quiltor.modules.writing_assistance.grammar.contract import (
     JAVA_MINIMUM,
     LANGUAGETOOL_SHA256,
@@ -96,14 +103,19 @@ class LanguageToolManager:
     def install(self) -> dict:
         java_version = _java_version(self.java)
         if java_version is None or java_version < JAVA_MINIMUM:
-            raise RuntimeError(f"Java {JAVA_MINIMUM} or newer is required")
+            raise JavaMissing(params={"required": JAVA_MINIMUM})
         request = urllib.request.Request(
             LANGUAGETOOL_URL, headers={"User-Agent": "Quiltor local installer"}
         )
-        with urllib.request.urlopen(request, timeout=120) as response:
-            payload = response.read()
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                payload = response.read()
+        except (OSError, http.client.HTTPException) as exc:
+            # URLError, HTTPError and socket timeouts are all OSError; a
+            # connection closed mid-body is IncompleteRead, an HTTPException.
+            raise DownloadFailed() from exc
         if hashlib.sha256(payload).hexdigest() != LANGUAGETOOL_SHA256:
-            raise ValueError("LanguageTool checksum mismatch")
+            raise ChecksumMismatch()
         parent = self.root.parent
         parent.mkdir(parents=True, exist_ok=True)
         temporary = parent / f".{self.root.name}.installing"
@@ -129,8 +141,10 @@ class LanguageToolManager:
             if self.process is not None and self.process.poll() is None and self.port:
                 return f"http://127.0.0.1:{self.port}/v2/check"
             status = self.status()
+            if not status["installed"]:
+                raise FileNotFoundError("LanguageTool is not installed")
             if not status["available"]:
-                raise FileNotFoundError("LanguageTool is not installed or Java is missing")
+                raise JavaMissing(params={"required": JAVA_MINIMUM})
             with socket.socket() as candidate:
                 candidate.bind(("127.0.0.1", 0))
                 self.port = candidate.getsockname()[1]
@@ -160,7 +174,7 @@ class LanguageToolManager:
                 except OSError:
                     time.sleep(0.1)
             self.close()
-            raise RuntimeError("LanguageTool could not be started")
+            raise GrammarStartFailed()
 
     def check(self, language: str, text: str, custom_words: list[str]) -> dict:
         if language != "de-DE" or not text or len(text) > 200_000:

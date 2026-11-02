@@ -67,7 +67,8 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
 
     try:
         wire = decode_document_v1(kind, handler._read_json_body())
-    except (InvalidDocumentWireV1, TypeError, ValueError):
+    except (InvalidDocumentWireV1, TypeError, ValueError) as error:
+        _log_rejected(handler, kind, "document.invalid_wire", **_wire_rejection(error))
         return handler.send_api_error(400, error_code="document.invalid_wire")
 
     match = handler.headers.get("If-Match", "").strip('"')
@@ -76,12 +77,22 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
     except (ValueError, OverflowError):
         header_revision = None
     if match and (header_revision is None or not 0 <= header_revision <= MAX_SAFE_REVISION):
+        # The header itself stays out of the log: it is whatever the client sent.
+        _log_rejected(handler, kind, "document.invalid_revision", reason="if_match_invalid")
         return handler.send_api_error(400, error_code="document.invalid_revision")
     if (
         header_revision is not None
         and wire.revision is not None
         and header_revision != wire.revision
     ):
+        _log_rejected(
+            handler,
+            kind,
+            "document.revision_mismatch",
+            reason="revision_mismatch",
+            expected=header_revision,
+            actual=wire.revision,
+        )
         return handler.send_api_error(400, error_code="document.revision_mismatch")
     expected = header_revision if header_revision is not None else wire.revision
     payload = wire.payload
@@ -91,7 +102,15 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
             saved = app.documents.save_with_status(
                 kind, payload, expected, request.world.document_location
             )
-        except (RevisionConflict, InvalidDocumentState):
+        except RevisionConflict as conflict:
+            handler.log_rejection(
+                "document.save_conflict",
+                document=kind,
+                expected=conflict.params.get("expected"),
+                actual=conflict.params.get("actual"),
+            )
+            raise
+        except InvalidDocumentState:
             # Expected application failures are serialized exactly once by the
             # host's central exception mapper.
             raise
@@ -119,6 +138,26 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
         },
         headers={"ETag": f'"{updated_revision}"'},
     )
+
+
+def _wire_rejection(error: Exception) -> dict[str, str]:
+    """Why the body was refused, in words the log may carry.
+
+    Both the wire decoder and the body reader name a fixed reason; anything else
+    gets a fixed bucket, never ``str(error)``.
+    """
+
+    if isinstance(error, InvalidDocumentWireV1):
+        fields = {"reason": error.reason}
+        if error.field:
+            fields["field"] = error.field
+        return fields
+    reason = getattr(error, "reason", None)
+    return {"reason": reason if isinstance(reason, str) else "body_invalid"}
+
+
+def _log_rejected(handler, kind: DocumentKind, code: str, **fields) -> None:
+    handler.log_rejection("document.save_rejected", document=kind, code=code, **fields)
 
 
 @save("/api/book.pdf")

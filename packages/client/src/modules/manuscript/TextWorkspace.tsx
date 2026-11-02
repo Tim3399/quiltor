@@ -370,11 +370,15 @@ ${markdownBody(current.body, current.marks)}
       status={writing.status}
       results={writing.results}
       assistancePhase={writing.phase}
+      lookupError={writing.lookupError}
+      statusFailed={writing.statusFailed}
+      onRetryStatus={writing.retryStatus}
       replaceTarget={Boolean(writing.heldSelection || writing.liveSelection)}
       lookupSources={writing.lookupSources}
       grammarIssues={writing.grammarIssues}
       selectedIssue={writing.selectedIssue}
       grammarPhase={writing.grammarPhase}
+      grammarError={writing.grammarError}
       ambiguousMentions={writing.ambiguousMentions}
       symbolPicker={writing.symbolPicker}
       onSymbolPicker={writing.setSymbolPicker}
